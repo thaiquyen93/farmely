@@ -1,0 +1,51 @@
+/* Typography and Global Defaults */
+html {
+  scroll-behavior: smooth;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--text-dark);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+  font-weight: 700;
+  color: var(--text-dark);
+  letter-spacing: -0.015em;
+}
+
+/* Custom scrollbar matching agriculture theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F0EDE4;
+}
+::-webkit-scrollbar-thumb {
+  background: #718D63;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #426B4F;
+}
+
+/* Fluid responsive typography utilities */
+.text-hero {
+  font-size: clamp(2.5rem, 6vw, 4.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.text-section-title {
+  font-size: clamp(1.85rem, 3.5vw, 2.75rem);
+  line-height: 1.2;
+}
+
+.text-card-title {
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  line-height: 1.3;
+}
+
+/* Subtle transitions */
+.transition-smooth {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}

@@ -1,0 +1,46 @@
+/* Hero Cinematic Overlay and Controls matching reference screenshot */
+.hero-overlay {
+  background: linear-gradient(
+    180deg,
+    rgba(41, 76, 59, 0.72) 0%,
+    rgba(41, 76, 59, 0.55) 40%,
+    rgba(41, 76, 59, 0.78) 100%
+  );
+}
+
+.hero-slider-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  background-color: rgba(255, 255, 255, 0.45);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.hero-slider-dot.active {
+  background-color: var(--yellow);
+  height: 24px;
+  border-radius: 9999px;
+  box-shadow: 0 0 10px rgba(245, 207, 98, 0.5);
+}
+
+.hero-circular-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background-color: rgba(41, 76, 59, 0.25);
+  backdrop-filter: blur(4px);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+}
+
+.hero-circular-btn:hover {
+  background-color: var(--yellow);
+  border-color: var(--yellow);
+  color: var(--green-dark);
+  transform: scale(1.08);
+}

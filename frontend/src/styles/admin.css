@@ -1,0 +1,77 @@
+/* Admin Master Data Section Styling */
+.admin-sidebar {
+  background-color: var(--green-dark);
+  color: #FFFFFF;
+}
+
+.admin-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+  transition: all 0.2s ease;
+}
+
+.admin-nav-item:hover {
+  color: #FFFFFF;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.admin-nav-item.active {
+  color: var(--green-dark);
+  background-color: var(--yellow);
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(245, 207, 98, 0.3);
+}
+
+.admin-card {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease;
+}
+
+.admin-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.admin-table-container {
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+}
+
+.admin-table th {
+  background-color: #F8F6F0;
+  color: var(--text-dark);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-table td {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(41, 76, 59, 0.06);
+  font-size: 0.875rem;
+  color: var(--text-dark);
+}
+
+.admin-table tbody tr:hover td {
+  background-color: rgba(245, 242, 233, 0.5);
+}
