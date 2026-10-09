@@ -7,3 +7,5 @@
 - Architecture: Enterprise MVC (Controller -> Service -> DAO/Repository).
 - Output format: Code first, max 3 lines explanation (`skipped: [X], add when [Y]`).
 - Tag intentional simplifications: `// ponytail: ceiling is [X], upgrade path is [Y]`.
+- STRICT TERMINOLOGY: NEVER invent marketing jargon or colloquial wording. Every label, button, and concept must trace 1:1 to SSoT: docs/academic/RP39 (NEW).md, docs/requirements/screen-description.md, and docs/academic/SRS_Farmely_v1.md.
+- SSoT Vocabulary: "Thửa đất (Plot)", "Nền tảng thuê Plot và theo dõi trải nghiệm canh tác", Actors: KH, CGNN, CVLĐ, AD. No "luống đất", no marketing slop.

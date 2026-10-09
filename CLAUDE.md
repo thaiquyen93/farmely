@@ -64,3 +64,28 @@ Khi đặt câu hỏi về kỹ thuật hoặc vibe code:
    - Cắt giảm triệt để over-engineering.
    - Đưa giải pháp ngắn nhất, an toàn nhất, ít phụ thuộc bên ngoài nhất.
    - Cung cấp code mẫu kèm runnable assertion / test logic để tự kiểm tra ngay.
+
+---
+
+## 6. KỶ LUẬT THUẬT NGỮ & PHẠM VI (STRICT SSOT & TERMINOLOGY DISCIPLINE)
+**TUYỆT ĐỐI KHÔNG ĐƯỢC ĐI LỆCH KHỎI QUỸ ĐẠO DỰ ÁN DƯỚI BẤT KỲ HÌNH THỨC NÀO:**
+1. **CẤM TỰ BỊA THUẬT NGỮ / TIẾP THỊ CHẾ TÁC (NO INVENTED MARKETING SLOP):**
+   - Mọi câu chữ hiển thị trên UI (tiêu đề, nhãn, nút bấm, badge, thông báo) và tên biến/API/Model PHẢI TRUY VẾT 100% từ hồ sơ SSoT:
+     * `docs/academic/RP39 (NEW).md` (v2.2)
+     * `docs/requirements/screen-description.md`
+     * `docs/requirements/user-stories.md`
+     * `docs/academic/SRS_Farmely_v1.md`
+   - CẤM tiệt các từ ngữ tiếp thị tự chế (như: "cho dân đô thị", "ngồi văn phòng mát rượi",...).
+2. **TỪ ĐIỂN THUẬT NGỮ CHUẨN ĐÃ CHỐT:**
+   - **Tên đề tài:** *"Nền tảng thuê Plot và theo dõi trải nghiệm canh tác"* (Farmely).
+   - **Đơn vị đất:** *"Thửa đất (Plot)"*, *"Khu nông trại (Land)"*. CẤM nhầm sang "luống đất".
+   - **4 Tác nhân (Actors):** Khách hàng (KH), Chuyên gia nông nghiệp (CGNN), Chuyên viên lao động (CVLĐ), Quản trị viên (AD).
+   - **2 Hình thức canh tác:** `Self-growing` (Tự canh tác) & `Assisted-growing` (Ủy thác trọn gói).
+   - **Hợp đồng & Thanh toán:** `contracts` (Master Lease Agreement) $
+ightarrow$ `rentals` (Phụ lục từng thửa). Thanh toán 100% trọn gói Lump-sum (BR09). Không giỏ hàng, không tracking vật tư tiêu hao.
+   - **IoT & Vi khí hậu:** *"Trạm quan trắc IoT vi khí hậu"* (đo nhiệt độ, độ ẩm không khí, độ ẩm đất; chu kỳ mock RP §10.3; hoãn tưới khi độ ẩm đất $\ge 80\%$ hoặc mưa lớn theo BR18).
+   - **Nhật ký & Nghiệm thu:** `Farm Diary`, `Care Task` (bắt buộc $\ge 1$ ảnh thực địa BR15), `harvest_results` (kèm `staff_id` BR20).
+   - **Quy trình chuẩn:** *"Quy trình canh tác chuẩn VietGAP"* (`template_steps` do CGNN biên soạn).
+3. **TRUY VẾT GIAO DIỆN CHUẨN SCREEN SPEC (SCR-xxx):**
+   - Khi dựng hoặc sửa bất kỳ màn hình nào, BẮT BUỘC đọc file `docs/requirements/screen-description.md` của màn hình đó (ví dụ: `SCR-PUB-01`, `SCR-KH-02`,...). Mọi nhãn nút, form input, thông báo lỗi phải khớp chuẩn 1:1.
+
