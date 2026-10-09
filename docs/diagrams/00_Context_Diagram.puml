@@ -1,0 +1,80 @@
+@startuml 00_Context_Diagram
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam ranksep 50
+skinparam nodesep 40
+left to right direction
+
+' Styling
+skinparam rectangle {
+    BorderThickness 2
+    BorderColor #1B5E20
+}
+
+skinparam card {
+    BorderThickness 1.5
+    FontSize 12
+    FontStyle bold
+}
+
+skinparam arrow {
+    Color #263238
+    FontColor #0D47A1
+    FontSize 11
+    FontStyle bold
+    Thickness 1.5
+}
+
+title CONTEXT DIAGRAM (DFD MỨC 0) - NỀN TẢNG AGRITECH\nĐặc tả Ranh giới Hệ thống & Luồng Dữ liệu Chuẩn ISAD
+
+' --- 4 HUMAN ACTORS (CỘT BÊN TRÁI) ---
+package "TÁC NHÂN CON NGƯỜI (HUMAN ACTORS)" #F8FAFC {
+  card "**KHÁCH HÀNG (KH)**\n(Người thuê đất nông nghiệp)" as KH #E3F2FD
+  card "**CHUYÊN GIA NÔNG NGHIỆP (CGNN)**\n(Quy chuẩn sinh học & Kế hoạch)" as CGNN #EDE7F6
+  card "**CHUYÊN VIÊN LAO ĐỘNG (CVLĐ)**\n(Nhân viên hiện trường canh tác)" as CVLD #FFF8E1
+  card "**QUẢN TRỊ VIÊN (ADMIN)**\n(Chủ trang trại / Ban điều hành)" as AD #FFEBEE
+}
+
+' --- PROCESS 0 (CỘT TRUNG TÂM) ---
+rectangle "\n== PROCESS 0 ==\n\n**HỆ THỐNG NỀN TẢNG AGRITECH**\n**(Thuê Thửa đất & Giám sát Canh tác)**\n\n* Sàn Marketplace & Khóa giữ chỗ 15m (BR08)\n* Lập, Thẩm định & Duyệt Kế hoạch (SLA 48h)\n* Điều phối Tác vụ & Nghiệm thu Ảnh thực địa (BR15)\n* Giám sát Vi khí hậu IoT & Trợ lý Nông nghiệp AI\n" as SYS #E8F5E9
+
+' --- 4 EXTERNAL SYSTEMS (CỘT BÊN PHẢI) ---
+package "HỆ THỐNG NGOẠI VI (EXTERNAL SERVICES)" #F8FAFC {
+  card "**CỔNG THANH TOÁN (PAYMENT)**\n(VNPay / VietQR Gateway)" as PAY #E0F2F1
+  card "**CẢM BIẾN IOT (TELEMETRY)**\n(Trạm quan trắc vi khí hậu)" as IOT #E0F7FA
+  card "**DỊCH VỤ TRÍ TUỆ NHÂN TẠO**\n(AI / LLM Agricultural Engine)" as AI #F3E5F5
+  card "**DỰ BÁO THỜI TIẾT (WEATHER)**\n(OpenWeatherMap Service)" as WEATHER #FFF3E0
+}
+
+' === LUỒNG DỮ LIỆU: KHÁCH HÀNG ===
+KH --> SYS : [DF-01] Đơn giữ chỗ, Lệnh thanh toán, Duyệt kế hoạch
+SYS --> KH : [DF-02] Danh mục Plot, Hợp đồng Active, Farm Diary, Tư vấn AI
+
+' === LUỒNG DỮ LIỆU: CHUYÊN GIA NÔNG NGHIỆP ===
+CGNN --> SYS : [DF-03] Tiêu chuẩn giống, Quy trình mẫu, Kế hoạch canh tác
+SYS --> CGNN : [DF-04] Yêu cầu tư vấn, Báo cáo sự cố thực địa, Cảnh báo IoT
+
+' === LUỒNG DỮ LIỆU: CHUYÊN VIÊN LAO ĐỘNG ===
+CVLD --> SYS : [DF-05] Nghiệm thu kèm ảnh (BR15), Khai báo vật tư tiêu hao
+SYS --> CVLD : [DF-06] Lịch Care Task trong ngày, Hướng dẫn kỹ thuật
+
+' === LUỒNG DỮ LIỆU: QUẢN TRỊ VIÊN ===
+AD --> SYS : [DF-07] Phân lô Plot, Đơn giá thuê, Phân công ca trực, RBAC
+SYS --> AD : [DF-08] Báo cáo Doanh thu, Tỷ lệ lấp đầy, Nhật ký Audit Log
+
+' === LUỒNG DỮ LIỆU: HỆ THỐNG NGOẠI VI ===
+SYS --> PAY : [DF-09] Yêu cầu thanh toán 100% Upfront (BR09)
+PAY --> SYS : [DF-10] Kết quả giao dịch (Webhook IPN)
+
+IOT --> SYS : [DF-11] Chuỗi dữ liệu Vi khí hậu định kỳ 3 giờ/lần
+
+SYS --> AI : [DF-12] Câu hỏi nông học kèm ngữ cảnh RAG
+AI --> SYS : [DF-13] Phản hồi hướng dẫn kỹ thuật 24/7
+
+WEATHER --> SYS : [DF-14] Dữ liệu dự báo thời tiết 7 ngày
+
+@enduml

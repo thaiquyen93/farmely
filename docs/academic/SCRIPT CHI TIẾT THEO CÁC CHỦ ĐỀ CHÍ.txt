@@ -1,0 +1,32 @@
+ SCRIPT CHI TIẾT THEO CÁC CHỦ ĐỀ CHÍNH
+PHẦN 1: ĐẶT LỊCH THAM QUAN XEM ĐẤT & HỢP ĐỒNG (00:00 - 04:15)
+[00:00] Thầy: Booking để mà đặt cái lịch để đi xem đất... Sau khi xem xong rồi á, người ta xem được vị trí, xem được này kia xong rồi á, thì sau đó người ta mới đến bàn cái chuyện thuê. Người ta mới order, và lúc đó nó mới hình thành ra cái order hợp đồng. Đúng không?
+[00:25] Thầy: Và trong hợp đồng thì mình sẽ có thêm một số thuộc tính để giải quyết cái vấn đề sau này người ta có thể gia hạn hợp đồng, hoặc là phụ lục hợp đồng. Ví dụ người ta thuê xong rồi, thấy chăm sóc tốt quá, phục vụ đàng hoàng, muốn gia hạn thêm một mùa nữa, đâu nhất thiết phải làm lại từ đầu?
+[01:10] Thầy: Khi người ta booking mà người ta xem á, thì về nguyên tắc giống như dân làm sales: người ta booking để mình có được thông tin khách hàng, rồi mình dẫn người ta đi xem, giới thiệu nông trại. Khi nào thống nhất rồi thì mới tiến hành đặt cọc, làm hợp đồng, thanh toán theo tiến độ.
+[02:00] Sinh viên: Thầy, ví dụ người ta booking thì mình để trong bảng Order cái status là đang booking được không thầy? Rồi khi nào chốt thì chuyển trạng thái?
+[03:00] Thầy: Cho nên mình có thể tách thành 2 nhánh khác nhau: Một loại liên quan đến Booking xem đất, dừng lại ở chỗ là đồng ý, xem rồi comment gì đó. Sau đó bản thân khách hàng sẽ tự quyết định có đặt hàng ký hợp đồng hay không. Booking đó không cần bắt buộc phải là tài khoản hệ thống, có thể là tài khoản Guest để lấy thông tin khách hàng tiềm năng.
+PHẦN 2: BẢN CHẤT CỦA THANH TOÁN (PAYMENT) VÀ HOÀN TIỀN (REFUND) (04:18 - 08:25)
+[04:20] Thầy: Rồi, bây giờ cái thanh toán này nó nối vào đâu? Order hay Rental?
+[05:46] Thầy: Mấy cái liên quan về amount với mấy cái này nè... Này là gì?
+[05:58] Sinh viên: Dạ refund đó thầy. Ví dụ đặt hàng xong rồi hủy trước ngày sẵn sàng canh tác á thầy, hủy trước bao nhiêu ngày thì có chính sách hoàn tiền...
+[06:17] Thầy: Không phải! Cái đó không phải! Em hiểu rằng cái payment_transaction này thực chất là nó chỉ lưu về giao dịch tiền tệ, liên quan đến thanh toán! Còn chuyện thanh toán như thế nào, tỷ lệ bao nhiêu thì nó nằm ở trong một thực thể liên quan đến giao dịch hợp đồng nào đó chứ không phải cái này!
+[06:45] Thầy: Cái payment_transaction chỉ lưu lại mã giao dịch thôi. Còn trường hợp hủy hợp đồng, thì điều kiện hủy quy định trong điều khoản hợp đồng rồi. Người ta sẽ tạo một cái Request hủy hợp đồng, có quy trình tiếp nhận, xử lý, tính ra con số tỷ lệ khấu trừ đàng hoàng. Dựa trên con số đó nó mới thực hiện giao dịch thanh toán hoàn tiền! Chứ không phải nó nằm một cái gì lửng lơ treo leo ở đây!
+PHẦN 3: BẮT BUỘC PHẢI CÓ BẢNG DANH MỤC DỊCH VỤ (SERVICES) (08:30 - 15:45)
+[08:30] Thầy: Service Request nghĩa là sao? Yêu cầu dịch vụ á hả?
+[09:50] Thầy: Danh sách dịch vụ... Chúng tôi sẽ có một cái thực thể Dịch vụ nữa. Thực thể Dịch vụ đâu? (Sinh viên tìm) Bắt buộc phải có một thực thể Dịch vụ!
+[10:04] Sinh viên: Dạ hình như chưa có... mới chỉ có service_request.
+[10:11] Thầy: Bậy bạ! Service Request là một hành động! Hành động đó phải được sinh ra từ một cái Dịch vụ (services) nào đó chứ!
+[10:25] Thầy: Con phải có một cái list dịch vụ: Mã dịch vụ, tên dịch vụ, đơn giá niêm yết. Dịch vụ chăm sóc trọn gói nè; dịch vụ chăm sóc định kỳ nè; hỗ trợ thu hoạch nè; gieo trồng nè... Mỗi công đoạn là mình cung cấp một dịch vụ, hoặc combo dịch vụ trọn gói. Khách nhận đất xong muốn trồng ngô thì gửi request dịch vụ giống và phân bón. Người ta chọn từ danh mục đó rồi mới gửi Request lên.
+PHẦN 4: KẾ HOẠCH CANH TÁC PHẢI THEO GIỐNG CÂY, KHÔNG CUSTOMIZE THEO Ý KHÁCH (15:50 - 26:15)
+[16:19] Thầy: Không phải kế hoạch của em gắn liền với từng cái Rental đâu, không đúng! Kế hoạch này là kế hoạch liên quan đến loại cây đó! Cho nên kế hoạch này phải do Chuyên gia nông nghiệp tạo ra trong hệ thống mình.
+[18:25] Thầy: Kế hoạch chăm sóc mùa vụ là mình theo giống cây, chứ không theo thửa đất nha! Khi sử dụng dịch vụ thì mới gắn với thửa đất và gán người phụ trách vào thửa đó.
+[22:20] Thầy: Ủa, Version Number để làm cái gì?
+[23:00] Sinh viên: Dạ kiểu mình đưa kế hoạch cho khách, họ không chịu thì mình đánh version 1, version 2...
+[23:12] Thầy: Vẽ chuyện! Ở đây tôi cung cấp dịch vụ thương mại chứ không phải dịch vụ customize (may đo theo ý từng người)! Dịch vụ của tôi là như thế, quy trình chuẩn như vậy. Anh không đồng ý thì anh tự chăm sóc (Self-growing), anh muốn làm gì anh làm. Chứ cho customize vào đó thì làm sao quản lý nổi?
+PHẦN 5: AI LÀ NGƯỜI NHẬP SẢN LƯỢNG THU HOẠCH? (26:15 - 28:50)
+[26:16] Thầy: Bảng kết quả mùa vụ (harvest_results) này là cái gì? Ai nhập cái này? Ở đâu mà ra được số liệu đó?
+[27:26] Thầy: Khi chọn dịch vụ trọn gói hoặc dịch vụ thu hoạch, thì cái người được phân công (nhân công thu hoạch) phải là người nhập sản lượng! Như vậy thực thể lưu trữ kết quả sản lượng này phải liên quan đến người phụ trách, có thửa đất, ngày bắt đầu, ngày kết thúc và sản lượng họ submit lên thì mới ghi nhận được chứ!
+PHẦN 6: CARE TASKS VÀ PHÂN CÔNG LAO ĐỘNG (28:51 - 34:28)
+[29:40] Thầy: Mỗi dịch vụ trong bảng Master ban đầu đã có sẵn các Task cụ thể của dịch vụ đó rồi. Khi khách chọn dịch vụ thì các task đó được map ra công việc cụ thể.
+[30:50] Thầy: Khi bạn assign cho ai thì người đó mở ứng dụng di động lên thấy task của họ. Đến thời điểm thì họ bấm thực hiện, upload hình ảnh, cập nhật trạng thái.
+[32:00] Thầy: Không được "đụng đâu làm đó", đụng tới đâu sáng tạo ném đồ vô chỗ đó để đối phó. Thiết kế CSDL phải như thiết kế căn nhà, đi sẵn đường điện nước, bố cục lưu trữ rõ ràng ngay từ đầu!

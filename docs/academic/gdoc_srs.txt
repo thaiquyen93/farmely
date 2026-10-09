@@ -1,0 +1,1688 @@
+﻿FARMELY – NỀN TẢNG THUÊ PLOT & THEO DÕI TRẢI NGHIỆM CANH TÁC
+Software Requirement Specification
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+– Hà Nội, Tháng 10/2026 –
+________________
+
+
+Record of changeS
+Date
+	A*
+M, D
+	In charge
+	Change Description
+	01/Oct/2026
+	A
+	NguyênTN
+	Khởi tạo SRS Document v1.0 – Hoàn thành toàn bộ Section I & II
+	
+
+	
+
+	
+
+	
+
+	*A - Added M - Modified D - Deleted
+________________
+
+
+Table of Contents
+I. Overview        4
+1. Introduction        4
+2. System Functions        5
+3. Entity Relationship Diagram        6
+II. Functional Requirements        7
+1. <<Feature Name 1>>        7
+a. <<Function Name 1>>        7
+b. <<Function Name 2>>        7
+2. <<Feature Name 2>>        7
+
+
+________________
+
+
+________________
+
+
+I. Overview
+1. Introduction
+1.1 Tổng quan sản phẩm
+Farmely là nền tảng AgriTech (Công nghệ Nông nghiệp) cho phép khách hàng thuê các ô đất canh tác (plot) và theo dõi toàn bộ trải nghiệm canh tác từ xa. Hệ thống hướng đến mô hình "Farm-as-a-Service", kết nối người tiêu dùng thành thị với nông trại thực tế thông qua công nghệ IoT, AI và quản lý quy trình số hóa.
+Hệ thống kết nối bốn nhóm người dùng chính:
+•  Khách hàng (KH): Thuê plot, chọn cây trồng, theo dõi quá trình canh tác qua dashboard, nhận kết quả thu hoạch.
+•  Chuyên gia Nông nghiệp (CGNN): Thiết kế quy trình canh tác mẫu (process template), cấu hình ngưỡng IoT, phê duyệt kế hoạch, hỗ trợ kỹ thuật qua chat.
+•  Công nhân Vận hành (CVLĐ): Thực hiện các công việc chăm sóc (care tasks) trên đồng, ghi nhận vật tư sử dụng, báo cáo sự cố, hỗ trợ thu hoạch.
+•  Quản trị viên (Admin/AD): Quản lý toàn bộ hệ thống – người dùng, đất đai, đơn hàng, thanh toán, audit log.
+1.2 Ngữ cảnh hệ thống
+Hệ thống Farmely tương tác với các thực thể bên ngoài:
+Thực thể bên ngoài
+	Loại
+	Mô tả tương tác
+	Khách hàng (KH)
+	Human
+	Duyệt plot, đặt thuê, theo dõi canh tác, nhận thông báo, chat
+	Chuyên gia NN (CGNN)
+	Human
+	Tạo/quản lý quy trình, phê duyệt kế hoạch, hỗ trợ kỹ thuật
+	Công nhân VH (CVLĐ)
+	Human
+	Thực hiện care tasks, ghi nhận thu hoạch, báo cáo sự cố
+	Quản trị viên (AD)
+	Human
+	Quản lý users, lands, plots, orders, payments, audit
+	Payment Gateway
+	System
+	Xử lý thanh toán trực tuyến (VNPay/Momo)
+	IoT Sensor System
+	System
+	Thu thập dữ liệu cảm biến (nhiệt độ, độ ẩm) – chế độ Mock mỗi 3h
+	Weather Service
+	System
+	Cung cấp dữ liệu thời tiết cho vùng canh tác
+	AI Service
+	System
+	Phân tích dữ liệu, đề xuất quy trình, cảnh báo bất thường
+	
+
+
+
+Hình 1.1: Sơ đồ ngữ cảnh hệ thống Farmely (Context Diagram - Chuẩn ISAD)
+1.3 Giả định & Ràng buộc
+•  DBMS chính: Microsoft SQL Server (lab FPT), song song PostgreSQL 18 (máy cá nhân).
+•  CSDL tuân thủ chuẩn 3NF (Third Normal Form), 28 bảng vật lý.
+•  Single Table Inheritance cho bảng users với role_id phân quyền (1 bảng users, 1 bảng roles).
+•  Không sử dụng JSON trong cột CSDL; bảng material_usages đảm bảo 1NF.
+•  Bảng orders là giỏ hàng gom nhiều rentals.
+•  Giá trị tính toán (total_rental_price) KHÔNG lưu – tính runtime. Giá trị gom (total_amount trong orders) CÓ lưu.
+•  IoT: Mock-only – sinh dữ liệu mô phỏng mỗi 3 giờ, không quản lý phần cứng thực.
+2. System Functions
+a. Screen Flow
+Tổng cộng hệ thống có 47 màn hình, chia thành 5 nhóm:
+├── PUBLIC (4 màn hình)
+│   ├── SCR-PUB-01: Trang chủ (Landing Page)
+│   ├── SCR-PUB-02: Đăng ký tài khoản
+│   ├── SCR-PUB-03: Đăng nhập
+│   └── SCR-PUB-04: Quên mật khẩu
+│
+├── KHÁCH HÀNG – KH (17 màn hình)
+│   ├── SCR-KH-01: Dashboard KH (Tổng quan lượt thuê, trạng thái ô đất, đơn chờ thanh toán, lịch sử thuê và thông báo)
+│   ├── SCR-KH-02: Marketplace – Danh sách Plot
+│   ├── SCR-KH-03: Chi tiết Plot
+│   ├── SCR-KH-04: Đặt thuê Plot (Chọn Crop + Thời gian)
+│   ├── SCR-KH-05: Thanh toán (Reservation + Mock Payment)
+│   ├── SCR-KH-07: Xem Cultivation Plan & Phê duyệt
+│   ├── SCR-KH-08: Farm Diary Timeline và Tạo nhật ký mới (Self-growing)
+│   ├──
+│   ├──
+│   ├── SCR-KH-11: Đặt Service Request (Dịch vụ lẻ)
+│   ├── SCR-KH-12: Chat với AI, CGNN gộp chung
+│   ├── SCR-KH-16: Hồ sơ cá nhân & Đổi mật khẩu
+│   └── SCR-KH-17: Trung tâm thông báo
+│
+
+├── ADMINISTRATOR – AD (11 màn hình)
+│   ├── SCR-AD-01: Dashboard AD (Thống kê tổng hợp, tình hình thuê đất, công việc chờ phân công và cảnh báo)
+│   ├── SCR-AD-02: Quản lý User & Phân quyền RBAC
+│   ├── SCR-AD-03: Quản lý Land (Danh sách + Form)
+│   ├── SCR-AD-04: Quản lý Plot (Danh sách + Form + IoT) và Cấu hình Marketplace (Published/Hidden)
+│   ├──
+│   ├── SCR-AD-06: Quản lý danh mục Dịch vụ phát sinh
+│   ├── SCR-AD-07: Giám sát Reservation & Rental và quản lý vận hành (phân công…)
+│   ├──
+│   ├── SCR-AD-09: Tiếp nhận & Phân công Service Request
+│   ├── SCR-AD-10: Giám sát Cảnh báo IoT
+│   └── SCR-AD-11: Tra cứu Audit Log
+│
+├── CHUYÊN GIA NÔNG NGHIỆP – CGNN (11 màn hình)
+│   ├── SCR-CGNN-01: Dashboard CGNN(Kế hoạch cần review, yêu cầu chỉnh sửa, sự cố cần xử lý và tư vấn chờ phản hồi) 
+│   ├── SCR-CGNN-02: Quản lý Crop & Variety
+│   ├── SCR-CGNN-03: Thiết lập Plot–Crop Compatibility
+│   ├── SCR-CGNN-04: Soạn Standard Process Template và Cấu hình ngưỡng IoT theo giai đoạn
+│
+│   ├── SCR-CGNN-06: Quản lý kho tài liệu chuyên môn
+│   ├── SCR-CGNN-07: Review & Hiệu chỉnh AI Proposal
+│   ├── SCR-CGNN-08: Đề xuất Plan Revision
+│   ├── SCR-CGNN-09: Chat tư vấn KH (KH ↔ CGNN) và tư vấn khách hàng trước thuê
+│   ├── SCR-CGNN-10: Tiếp nhận Issue Report & Chat CVLĐ
+|
+│
+└── CÔNG NHÂN VẬN HÀNH – CVLĐ (8 màn hình)
+   ├── SCR-CVLD-01: Dashboard CVLĐ (Công việc hôm nay, task quá hạn, lịch sử công việc và thông báo phân công) 
+   ├── SCR-CVLD-02: Chi tiết Care Task & Hướng dẫn KT và Thực thi Task (Ghi vật tư + Chụp ảnh) và Tạo Issue Report và Hỗ trợ thu hoạch
+   ├──
+   ├──
+   ├──
+   ├── SCR-CVLD-06: Chat với CGNN
+   ├── 
+
+   └── 
+Hình 2.1: Sơ đồ tổng quan phân hệ chức năng hệ thống Farmely (Use Case Diagram v2)
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+  
+
+  
+
+  
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+b. Screen Details
+#
+	Feature
+	Screen
+	Mô tả
+	1
+	Public
+	SCR-PUB-01: Trang chủ
+	Giới thiệu nền tảng, hiển thị Plot nổi bật, điều hướng đến Marketplace
+	2
+	Public
+	SCR-PUB-02: Đăng ký
+	Form tạo tài khoản KH mới (họ tên, email, SĐT, mật khẩu)
+	3
+	Public
+	SCR-PUB-03: Đăng nhập
+	Xác thực người dùng bằng email + mật khẩu, chuyển hướng theo role
+	4
+	Public
+	SCR-PUB-04: Quên mật khẩu
+	Gửi link reset mật khẩu qua email
+	5
+	KH
+	SCR-KH-01: Dashboard
+	Tổng quan: rental đang hoạt động, task sắp tới, thông báo mới
+	6
+	KH
+	SCR-KH-02: Marketplace
+	Danh sách plot AVAILABLE, bộ lọc (diện tích, giá, loại cây), sắp xếp
+	7
+	KH
+	SCR-KH-03: Chi tiết Plot
+	Thông tin plot chi tiết: ảnh, diện tích, giá, nguồn nước, cây trồng tương thích
+	8
+	KH
+	SCR-KH-04: Đặt thuê Plot
+	Chọn giống cây (variety), thời gian thuê, tính giá, tạo rental trong order
+	9
+	KH
+	SCR-KH-05: Thanh toán
+	Xác nhận order, chọn phương thức thanh toán, xử lý qua Payment Gateway
+	10
+	KH
+	SCR-KH-06: Chọn hình thức
+	Chọn Self-growing (tự trồng) hoặc Assisted (hỗ trợ chuyên gia)
+	11
+	KH
+	SCR-KH-07: Cultivation Plan
+	Xem kế hoạch canh tác chi tiết, phê duyệt/yêu cầu chỉnh sửa
+	12
+	KH
+	SCR-KH-08: Farm Diary
+	Timeline nhật ký canh tác: ảnh, ghi chú, vật tư đã dùng theo ngày
+	13
+	KH
+	SCR-KH-09: Tạo nhật ký
+	Form ghi nhật ký (Self-growing): mô tả, ảnh, ghi chú
+	14
+	KH
+	SCR-KH-10: Dashboard IoT
+	Biểu đồ nhiệt độ/độ ẩm real-time (mock), dữ liệu thời tiết
+	15
+	KH
+	SCR-KH-11: Service Request
+	Đặt dịch vụ lẻ (phun thuốc, bón phân bổ sung...)
+	16
+	KH
+	SCR-KH-12: Chat CGNN
+	Chat 1-1 tư vấn kỹ thuật với chuyên gia nông nghiệp
+	17
+	KH
+	SCR-KH-13: AI Chatbot
+	Hỏi đáp tự động về kỹ thuật canh tác qua AI
+	18
+	KH
+	SCR-KH-14: Thu hoạch
+	Xác nhận kết quả thu hoạch: số lượng, chất lượng, ảnh
+	19
+	KH
+	SCR-KH-15: Lịch sử thuê
+	Danh sách rental đã hoàn thành (read-only)
+	20
+	KH
+	SCR-KH-16: Hồ sơ cá nhân
+	Xem/sửa thông tin cá nhân, đổi mật khẩu
+	21
+	KH
+	SCR-KH-17: Thông báo
+	Danh sách notification: task hoàn thành, cảnh báo IoT, tin nhắn mới
+	22
+	AD
+	SCR-AD-01: Dashboard
+	Thống kê tổng hợp: doanh thu, số rental, cảnh báo, biểu đồ
+	23
+	AD
+	SCR-AD-02: Quản lý User
+	CRUD users, gán role, khóa/mở tài khoản (RBAC)
+	24
+	AD
+	SCR-AD-03: Quản lý Land
+	CRUD lands: tên, vị trí, danh sách plot thuộc land
+	25
+	AD
+	SCR-AD-04: Quản lý Plot
+	CRUD plots: mã plot, diện tích, giá, ảnh, trạng thái, gắn IoT
+	26
+	AD
+	SCR-AD-05: Marketplace Config
+	Publish/Hide plot trên marketplace
+	27
+	AD
+	SCR-AD-06: Danh mục dịch vụ
+	Quản lý danh mục service request (dịch vụ phát sinh)
+	28
+	AD
+	SCR-AD-07: Giám sát Rental
+	Xem danh sách order/rental, trạng thái thanh toán
+	29
+	AD
+	SCR-AD-08: Phân công Task
+	Phân công care task từ cultivation plan cho CVLĐ
+	30
+	AD
+	SCR-AD-09: Service Request
+	Tiếp nhận, phân công service request cho CVLĐ
+	31
+	AD
+	SCR-AD-10: Cảnh báo IoT
+	Giám sát cảnh báo khi sensor vượt ngưỡng
+	32
+	AD
+	SCR-AD-11: Audit Log
+	Tra cứu lịch sử thao tác hệ thống (ai, làm gì, khi nào)
+	33
+	CGNN
+	SCR-CGNN-01: Dashboard
+	Tổng quan: template cần review, plan chờ duyệt, issue report
+	34
+	CGNN
+	SCR-CGNN-02: Crop & Variety
+	CRUD cây trồng (crop) và giống (variety): tên, thời gian dự kiến
+	35
+	CGNN
+	SCR-CGNN-03: Compatibility
+	Thiết lập plot–crop compatibility: plot nào trồng được giống nào
+	36
+	CGNN
+	SCR-CGNN-04: Process Template
+	Soạn quy trình canh tác mẫu: các bước (step), vật tư, thời gian
+	37
+	CGNN
+	SCR-CGNN-05: Ngưỡng IoT
+	Cấu hình min/max nhiệt độ, độ ẩm theo từng giai đoạn template
+	38
+	CGNN
+	SCR-CGNN-06: Tài liệu KN
+	Upload/quản lý tài liệu hướng dẫn kỹ thuật nông nghiệp
+	39
+	CGNN
+	SCR-CGNN-07: Review AI
+	Xem và hiệu chỉnh đề xuất cultivation plan từ AI Service
+	40
+	CGNN
+	SCR-CGNN-08: Plan Revision
+	Đề xuất thay đổi cultivation plan đang hoạt động
+	41
+	CGNN
+	SCR-CGNN-09: Chat KH
+	Chat tư vấn 1-1 với khách hàng
+	42
+	CGNN
+	SCR-CGNN-10: Issue Report
+	Tiếp nhận báo cáo sự cố từ CVLĐ, chat hỗ trợ kỹ thuật
+	43
+	CGNN
+	SCR-CGNN-11: Tư vấn Pre-rental
+	Tư vấn KH trước khi thuê: chọn cây phù hợp, thời vụ
+	44
+	CVLĐ
+	SCR-CVLD-01: Dashboard
+	Danh sách care task được giao hôm nay, trạng thái
+	45
+	CVLĐ
+	SCR-CVLD-02: Chi tiết Task
+	Xem chi tiết task: hướng dẫn kỹ thuật, vật tư cần dùng
+	46
+	CVLĐ
+	SCR-CVLD-03: Thực thi Task
+	Ghi nhận: vật tư thực tế sử dụng, chụp ảnh minh chứng
+	47
+	CVLĐ
+	SCR-CVLD-04: Hoàn thành Task
+	Xác nhận hoàn thành task, ghi chú kết quả
+	48
+	CVLĐ
+	SCR-CVLD-05: Issue Report
+	Báo cáo sự cố phát hiện trên đồng: mô tả, ảnh, mức độ
+	49
+	CVLĐ
+	SCR-CVLD-06: Chat CGNN
+	Chat với chuyên gia để nhận hướng dẫn kỹ thuật
+	50
+	CVLĐ
+	SCR-CVLD-07: Thu hoạch
+	Ghi nhận kết quả thu hoạch: sản lượng, chất lượng, ảnh
+	51
+	CVLĐ
+	SCR-CVLD-08: Lịch sử
+	Xem lại các task đã hoàn thành trước đó
+	
+
+c. User Authorization
+Screen
+	KH
+	CGNN
+	CVLĐ
+	AD
+	PUBLIC
+	
+
+	
+
+	
+
+	
+
+	SCR-PUB-01: Trang chủ
+	✓
+	✓
+	✓
+	✓
+	SCR-PUB-02: Đăng ký
+	✓
+	—
+	—
+	—
+	SCR-PUB-03: Đăng nhập
+	✓
+	✓
+	✓
+	✓
+	SCR-PUB-04: Quên mật khẩu
+	✓
+	✓
+	✓
+	✓
+	KHÁCH HÀNG
+	
+
+	
+
+	
+
+	
+
+	SCR-KH-01: Dashboard KH
+	✓
+	—
+	—
+	—
+	SCR-KH-02: Marketplace
+	✓
+	—
+	—
+	—
+	SCR-KH-03: Chi tiết Plot
+	✓
+	—
+	—
+	—
+	SCR-KH-04: Đặt thuê Plot
+	✓
+	—
+	—
+	—
+	SCR-KH-05: Thanh toán
+	✓
+	—
+	—
+	—
+	SCR-KH-06: Chọn hình thức
+	✓
+	—
+	—
+	—
+	SCR-KH-07: Cultivation Plan
+	✓
+	—
+	—
+	—
+	SCR-KH-08: Farm Diary
+	✓
+	—
+	—
+	—
+	SCR-KH-09: Tạo nhật ký
+	✓
+	—
+	—
+	—
+	SCR-KH-10: Dashboard IoT
+	✓
+	—
+	—
+	—
+	SCR-KH-11: Service Request
+	✓
+	—
+	—
+	—
+	SCR-KH-12: Chat CGNN
+	✓
+	—
+	—
+	—
+	SCR-KH-13: AI Chatbot
+	✓
+	—
+	—
+	—
+	SCR-KH-14: Thu hoạch
+	✓
+	—
+	—
+	—
+	SCR-KH-15: Lịch sử thuê
+	✓
+	—
+	—
+	—
+	SCR-KH-16: Hồ sơ cá nhân
+	✓
+	—
+	—
+	—
+	SCR-KH-17: Thông báo
+	✓
+	—
+	—
+	—
+	ADMIN
+	
+
+	
+
+	
+
+	
+
+	SCR-AD-01: Dashboard AD
+	—
+	—
+	—
+	✓
+	SCR-AD-02: Quản lý User
+	—
+	—
+	—
+	✓
+	SCR-AD-03: Quản lý Land
+	—
+	—
+	—
+	✓
+	SCR-AD-04: Quản lý Plot
+	—
+	—
+	—
+	✓
+	SCR-AD-05: Marketplace Config
+	—
+	—
+	—
+	✓
+	SCR-AD-06: Danh mục dịch vụ
+	—
+	—
+	—
+	✓
+	SCR-AD-07: Giám sát Rental
+	—
+	—
+	—
+	✓
+	SCR-AD-08: Phân công Task
+	—
+	—
+	—
+	✓
+	SCR-AD-09: Service Request
+	—
+	—
+	—
+	✓
+	SCR-AD-10: Cảnh báo IoT
+	—
+	—
+	—
+	✓
+	SCR-AD-11: Audit Log
+	—
+	—
+	—
+	✓
+	CHUYÊN GIA NN
+	
+
+	
+
+	
+
+	
+
+	SCR-CGNN-01: Dashboard CGNN
+	—
+	✓
+	—
+	—
+	SCR-CGNN-02: Crop & Variety
+	—
+	✓
+	—
+	—
+	SCR-CGNN-03: Compatibility
+	—
+	✓
+	—
+	—
+	SCR-CGNN-04: Process Template
+	—
+	✓
+	—
+	—
+	SCR-CGNN-05: Ngưỡng IoT
+	—
+	✓
+	—
+	—
+	SCR-CGNN-06: Tài liệu KN
+	—
+	✓
+	—
+	—
+	SCR-CGNN-07: Review AI
+	—
+	✓
+	—
+	—
+	SCR-CGNN-08: Plan Revision
+	—
+	✓
+	—
+	—
+	SCR-CGNN-09: Chat KH
+	—
+	✓
+	—
+	—
+	SCR-CGNN-10: Issue Report
+	—
+	✓
+	—
+	—
+	SCR-CGNN-11: Tư vấn Pre-rental
+	—
+	✓
+	—
+	—
+	CÔNG NHÂN VẬN HÀNH
+	
+
+	
+
+	
+
+	
+
+	SCR-CVLD-01: Dashboard CVLĐ
+	—
+	—
+	✓
+	—
+	SCR-CVLD-02: Chi tiết Task
+	—
+	—
+	✓
+	—
+	SCR-CVLD-03: Thực thi Task
+	—
+	—
+	✓
+	—
+	SCR-CVLD-04: Hoàn thành Task
+	—
+	—
+	✓
+	—
+	SCR-CVLD-05: Issue Report
+	—
+	—
+	✓
+	—
+	SCR-CVLD-06: Chat CGNN
+	—
+	—
+	✓
+	—
+	SCR-CVLD-07: Thu hoạch
+	—
+	—
+	✓
+	—
+	SCR-CVLD-08: Lịch sử
+	—
+	—
+	✓
+	—
+	
+
+Chú thích vai trò:
+•  KH (Khách hàng): Người thuê plot, trải nghiệm canh tác, theo dõi từ xa.
+•  CGNN (Chuyên gia Nông nghiệp): Chuyên gia kỹ thuật, thiết kế quy trình, tư vấn.
+•  CVLĐ (Công nhân Vận hành): Đội đồng, thực hiện chăm sóc thực tế.
+•  AD (Admin): Quản trị viên hệ thống, toàn quyền quản lý.
+d. Non-Screen Functions
+#
+	Feature
+	System Function
+	Mô tả
+	1
+	IoT Monitoring
+	IoT Data Simulator (Cron Job)
+	Sinh dữ liệu mock sensor (nhiệt độ, độ ẩm) mỗi 3 giờ cho mỗi plot đang hoạt động, lưu vào bảng sensor_readings
+	2
+	IoT Monitoring
+	Alert Trigger Service
+	So sánh giá trị sensor với ngưỡng trong process_templates (min/max temp, humidity). Nếu vượt ngưỡng → tạo notification cảnh báo
+	3
+	Notification
+	Notification Dispatcher
+	Tạo và phân phối notification đến user tương ứng khi có sự kiện: task hoàn thành, cảnh báo IoT, tin nhắn mới, payment thành công
+	4
+	Payment
+	Payment Callback Handler (API)
+	Nhận callback từ Payment Gateway (VNPay/Momo) để cập nhật trạng thái payment_transactions
+	5
+	Audit
+	Audit Logger (Service)
+	Ghi log mọi thao tác quan trọng (CRUD users, orders, payments) vào bảng audit_logs với thông tin: ai, hành động, đối tượng, thời gian
+	6
+	Plan
+	Auto-Generate Care Tasks
+	Khi cultivation plan được phê duyệt, tự động tạo các care_tasks từ template_steps + template_materials, gán cho CVLĐ
+	7
+	AI
+	AI Cultivation Proposal
+	Dựa trên variety + plot compatibility + weather data → AI đề xuất cultivation plan tối ưu để CGNN review
+	
+
+3. Entity Relationship Diagram
+Tham khảo file ERD chi tiết: docs/diagrams/erd/ERD TU VE 2.0.drawio (28 bảng, 40 FK edges, 6 vùng màu)
+Entities Description
+
+
+Hình 3.1: Sơ đồ quan hệ thực thể Farmely (Entity Relationship Diagram - 28 thực thể chuẩn 3NF)
+#
+	Entity (Table)
+	Mô tả
+	1
+	roles
+	Danh mục vai trò hệ thống (KH, CGNN, CVLĐ, AD)
+	2
+	users
+	Thông tin người dùng: email, password_hash, full_name, phone, role_id, status
+	3
+	lands
+	Vùng đất canh tác: tên, thông tin chung
+	4
+	plots
+	Ô đất cụ thể trong land: mã plot, diện tích, giá/kỳ, nguồn nước, trạng thái
+	5
+	crops
+	Loại cây trồng: tên
+	6
+	varieties
+	Giống cây: thuộc crop, tên giống, thời gian dự kiến, buffer_time
+	7
+	plot_crop_compatibility
+	Bảng liên kết N-N: plot nào trồng được variety nào
+	8
+	materials
+	Danh mục vật tư nông nghiệp: tên, đơn vị
+	9
+	process_templates
+	Quy trình canh tác mẫu: thuộc variety, expert tạo, version, ngưỡng IoT
+	10
+	template_steps
+	Các bước trong quy trình: thứ tự, tên, mô tả, ngày bắt đầu, thời lượng
+	11
+	template_materials
+	Vật tư cần cho mỗi step: quantity theo kế hoạch
+	12
+	orders
+	Đơn hàng / giỏ hàng: gom nhiều rentals, tổng tiền, trạng thái
+	13
+	rentals
+	Lượt thuê plot: customer_id, plot_id, variety_id, thời gian bắt đầu/kết thúc, trạng thái
+	14
+	payment_transactions
+	Giao dịch thanh toán: order_id, phương thức, số tiền, trạng thái, mã giao dịch gateway
+	15
+	cultivation_plans
+	Kế hoạch canh tác: rental_id, template_id, trạng thái phê duyệt, ngày bắt đầu thực tế
+	16
+	care_tasks
+	Công việc chăm sóc: plan_id, step_id, assigned_worker, ngày dự kiến, trạng thái
+	17
+	material_usages
+	Vật tư thực tế sử dụng: care_task_id, material_id, quantity thực tế (đảm bảo 1NF)
+	18
+	harvest_results
+	Kết quả thu hoạch: rental_id, sản lượng, chất lượng, ngày thu hoạch
+	19
+	issue_reports
+	Báo cáo sự cố: care_task_id, reporter, mô tả, mức độ, trạng thái
+	20
+	farm_diaries
+	Nhật ký canh tác: rental_id, author, ngày, mô tả, ảnh
+	21
+	sensor_readings
+	Dữ liệu cảm biến IoT: plot_id, thời gian, nhiệt độ, độ ẩm (mock data)
+	22
+	knowledge_documents
+	Tài liệu tri thức nông nghiệp: tiêu đề, nội dung, expert tạo, category
+	23
+	service_requests
+	Yêu cầu dịch vụ phát sinh: rental_id, loại dịch vụ, mô tả, trạng thái
+	24
+	plan_versions
+	Lịch sử phiên bản cultivation plan: plan_id, version, changes, ai đề xuất
+	25
+	conversations
+	Cuộc trò chuyện: giữa 2 user (KH↔CGNN, CVLĐ↔CGNN)
+	26
+	messages
+	Tin nhắn trong conversation: nội dung, sender, thời gian
+	27
+	notifications
+	Thông báo hệ thống: user_id, loại, nội dung, trạng thái đã đọc
+	28
+	audit_logs
+	Log kiểm toán: user_id, hành động, đối tượng, thời gian, chi tiết
+	
+
+________________
+
+
+II. Functional Requirements
+1. Quản lý Tài khoản & Xác thực
+a. Đăng ký tài khoản (SCR-PUB-02)
+Function trigger: Người dùng click "Đăng ký" từ trang chủ (SCR-PUB-01) hoặc link "Chưa có tài khoản?" từ trang đăng nhập (SCR-PUB-03) → Điều hướng đến /register.
+Function description: Cho phép Guest tạo tài khoản Khách hàng (KH) mới. Hệ thống tự động gán ROLE_CUSTOMER. Chỉ KH tự đăng ký; CGNN, CVLĐ do Admin tạo tại SCR-AD-02.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-PUB-02
+Function Details:
+Field Description:
+#
+	Field
+	Type
+	Required
+	Constraint
+	Default
+	Note
+	1
+	Họ và tên
+	Text
+	Có
+	Min 2 ký tự, max 100
+	—
+	users.full_name
+	2
+	Email
+	Email
+	Có
+	Format email hợp lệ, unique trong DB
+	—
+	users.email – dùng để đăng nhập
+	3
+	Số điện thoại
+	Tel
+	Có
+	Đúng 10 chữ số (VN), unique
+	—
+	users.phone
+	4
+	Mật khẩu
+	Password
+	Có
+	≥ 8 ký tự, chứa chữ hoa + chữ thường + số
+	—
+	Hash bcrypt → users.password_hash
+	5
+	Xác nhận MK
+	Password
+	Có
+	Phải khớp trường Mật khẩu
+	—
+	Không lưu DB
+	
+
+Validations:
+ID
+	Field
+	Validation Rule
+	V1.1
+	Họ và tên
+	Không rỗng, 2–100 ký tự
+	V1.2
+	Email
+	Regex email hợp lệ, kiểm tra unique qua GET /api/users/check-email
+	V1.3
+	SĐT
+	Regex ^0[0-9]{9}$, kiểm tra unique
+	V1.4
+	Mật khẩu
+	≥ 8 ký tự, chứa ≥ 1 chữ hoa, ≥ 1 chữ thường, ≥ 1 số
+	V1.5
+	Xác nhận MK
+	Giá trị == Mật khẩu
+	
+
+Messages:
+ID
+	Condition
+	Message
+	Type
+	M1.1
+	Email đã tồn tại
+	"Email này đã được sử dụng"
+	Error (inline)
+	M1.2
+	SĐT đã tồn tại
+	"Số điện thoại đã được đăng ký"
+	Error (inline)
+	M1.3
+	Mật khẩu yếu
+	"Mật khẩu phải có ít nhất 8 ký tự gồm chữ hoa, chữ thường và số"
+	Error (inline)
+	M1.4
+	MK không khớp
+	"Mật khẩu xác nhận không khớp"
+	Error (inline)
+	M1.5
+	Đăng ký thành công
+	"Đăng ký thành công! Vui lòng đăng nhập."
+	Success (toast)
+	M1.6
+	Server error
+	"Có lỗi xảy ra, vui lòng thử lại sau"
+	Error (toast)
+	
+
+Additional Logic:
+1. Password hash bằng bcrypt (cost factor = 12) → users.password_hash.
+2. Tài khoản mới: role_id = ROLE_CUSTOMER, status = ACTIVE.
+3. Đăng ký thành công → redirect SCR-PUB-03.
+4. Validate client-side trước, server-side sau – cả hai bắt buộc.
+b. Đăng nhập (SCR-PUB-03)
+Function trigger: Click "Đăng nhập" từ navbar hoặc link từ SCR-PUB-02 → /login.
+Function description: Xác thực email + mật khẩu → JWT Token → redirect dashboard theo role.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-PUB-03
+Function Details:
+Field Description:
+#
+	Field
+	Type
+	Required
+	Constraint
+	1
+	Email
+	Email
+	Có
+	Format email hợp lệ
+	2
+	Mật khẩu
+	Password
+	Có
+	Không rỗng
+	
+
+Validations:
+ID
+	Field
+	Validation Rule
+	V2.1
+	Email
+	Format email hợp lệ
+	V2.2
+	Mật khẩu
+	Không rỗng
+	V2.3
+	Cặp Email/MK
+	So khớp password_hash trong DB
+	V2.4
+	Trạng thái TK
+	users.status = ACTIVE
+	
+
+Messages:
+ID
+	Condition
+	Message
+	Type
+	M2.1
+	Sai email hoặc MK
+	"Email hoặc mật khẩu không đúng"
+	Error
+	M2.2
+	TK bị khóa
+	"Tài khoản đã bị khóa, vui lòng liên hệ Admin"
+	Error
+	
+
+Additional Logic:
+1. Không tiết lộ trường nào sai – luôn hiện M2.1 (bảo mật).
+2. Redirect: KH → /customer/dashboard, CGNN → /expert/dashboard, CVLĐ → /staff/dashboard, AD → /admin/dashboard.
+3. JWT Token lưu httpOnly cookie hoặc localStorage.
+c. Quên mật khẩu (SCR-PUB-04)
+Function trigger: Click "Quên mật khẩu?" từ SCR-PUB-03 → /forgot-password.
+Function description: Nhập email → gửi link reset (token hết hạn 30 phút) → trang đặt MK mới + xác nhận.
+2. Marketplace & Thuê Plot
+a. Marketplace – Danh sách Plot (SCR-KH-02)
+Function trigger: KH click "Marketplace" từ sidebar → /marketplace.
+Function description: Card grid các plot status=AVAILABLE, listing=Published. Tìm kiếm, lọc (khu đất, diện tích, giá, loại cây), sắp xếp, phân trang.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-KH-02
+Function Details:
+#
+	Component
+	Mô tả
+	1
+	Thanh tìm kiếm
+	Tìm theo tên Plot, khu đất. Debounce 300ms
+	2
+	Bộ lọc
+	Khu đất (Dropdown), Diện tích (Slider), Giá (Slider), Loại cây (Multi-select)
+	3
+	Card Grid
+	Ảnh, Mã Plot, Diện tích, Giá/tháng, Nhóm cây, Badge
+	4
+	Sắp xếp
+	Giá tăng/giảm, Diện tích, Mới nhất
+	5
+	Phân trang
+	12 card/trang
+	
+
+Additional Logic:
+1. Chỉ plot listing_status = Published, status = AVAILABLE. Reserved/Rented ẩn.
+2. Click card → SCR-KH-03.
+b. Chi tiết Plot (SCR-KH-03)
+Function trigger: Click card từ Marketplace → /marketplace/plot/{plotId}.
+Function description: Ảnh gallery, thông số kỹ thuật, bảng giá, variety tương thích (plot_crop_compatibility), IoT gauge, thời tiết, lịch khả dụng.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-KH-03
+Function Details:
+#
+	Component
+	Mô tả
+	1
+	Thư viện ảnh
+	Image Gallery/Carousel (zoom)
+	2
+	Thông tin cơ bản
+	Mã Plot, Diện tích, Thổ nhưỡng, Nguồn nước
+	3
+	Bảng giá
+	Giá/tháng, Phí Assisted (không cọc)
+	4
+	Cây tương thích
+	Tag List từ plot_crop_compatibility + thời gian sinh trưởng
+	5
+	IoT hiện tại
+	3 Gauge: Nhiệt độ, Ẩm đất, Ẩm khí
+	6
+	Thời tiết
+	Weather Widget: hôm nay + dự báo 3–5 ngày
+	7
+	Lịch khả dụng
+	Calendar: khoảng đã/chưa thuê
+	8
+	Nút "Thuê Plot này"
+	→ SCR-KH-04 (chỉ hiện khi AVAILABLE)
+	9
+	Nút "Hỏi Chuyên gia"
+	Tạo ConsultationTicket PRE_RENTAL → SCR-KH-12
+	
+
+Business Rules: BR03 (Tương thích Plot–Crop), BR06 (Tư vấn tùy chọn).
+c. Đặt thuê Plot (SCR-KH-04)
+Function trigger: Click "Thuê Plot này" từ SCR-KH-03 → /marketplace/plot/{plotId}/book.
+Function description: Chọn variety, ngày bắt đầu, hình thức canh tác → auto-calc ngày kết thúc + tổng tiền → tạo Reservation 15 phút.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-KH-04
+Function Details:
+Field Description:
+#
+	Field
+	Type
+	Required
+	Constraint
+	Note
+	1
+	Plot info
+	Display
+	—
+	Read-only
+	Ảnh, mã, diện tích, giá
+	2
+	Giống cây
+	Dropdown
+	Có
+	Chỉ variety từ plot_crop_compatibility
+	rentals.variety_id
+	3
+	Ngày bắt đầu
+	Date Picker
+	Có
+	≥ ngày mai, không trùng lịch
+	rentals.start_date
+	4
+	Ngày kết thúc
+	Display
+	—
+	Auto = start + duration + buffer
+	rentals.end_date
+	5
+	Hình thức
+	Radio
+	Có
+	Self-growing / Assisted-growing
+	rentals.cultivation_mode
+	6
+	Tổng tiền
+	Display
+	—
+	Auto-calc
+	KHÔNG lưu DB
+	
+
+Validations:
+ID
+	Validation Rule
+	V4.1
+	Variety phải thuộc plot_crop_compatibility
+	V4.2
+	Start date ≥ ngày mai, không trùng lịch
+	V4.3
+	Thời lượng ≥ expected_duration + buffer_time
+	
+
+Messages:
+ID
+	Condition
+	Message
+	Type
+	M4.1
+	Thời gian chưa đủ
+	"Thời gian thuê chưa đủ cho loại cây này (tối thiểu X ngày)"
+	Warning
+	M4.2
+	Lịch trùng
+	"Plot đã được đặt trong khoảng thời gian này"
+	Error
+	M4.3
+	Reservation OK
+	"Đã giữ chỗ! 15 phút để thanh toán."
+	Info
+	
+
+Additional Logic:
+1. total_rental_price = price_per_period × số kỳ — tính runtime, KHÔNG lưu DB.
+2. Submit → rental (RESERVED) + order (PENDING) → redirect SCR-KH-05.
+3. Reservation 15 phút (BR08). Hết → tự hủy.
+4. BR: BR03, BR04, BR05, BR07, BR08.
+d. Thanh toán (SCR-KH-05)
+Function trigger: Reservation thành công → redirect /customer/payment/{reservationId}.
+Function description: Chi tiết hóa đơn, countdown 15 phút, mock payment. Thành công → Rental CONFIRMED.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-KH-05
+Function Details:
+#
+	Component
+	Mô tả
+	1
+	Countdown
+	15:00→00:00 (đỏ khi <3 phút)
+	2
+	Hóa đơn
+	Tiền thuê + Phí Assisted (nếu có) + Tổng
+	3
+	Phương thức
+	Radio: Thẻ mô phỏng / Ví mô phỏng
+	4
+	Mock toggle
+	Switch: Thành công / Thất bại
+	
+
+Messages:
+ID
+	Condition
+	Message
+	Type
+	M5.1
+	Countdown=0
+	"Hết thời gian giữ chỗ"
+	Error → redirect SCR-KH-02
+	M5.2
+	TT thành công
+	"Thanh toán thành công!"
+	Success
+	M5.3
+	TT thất bại
+	"Thanh toán thất bại, thử lại"
+	Error
+	
+
+Additional Logic:
+1. orders.total_amount = SUM(rental prices) → LƯU DB.
+2. Click "Thanh toán" → PAYMENT_PENDING, +3 phút grace (BR08).
+3. Tạo payment_transactions (PENDING).
+4. Thành công: payment SUCCESS → order CONFIRMED → rental CONFIRMED → (khi start_date) rental ACTIVE, plot RENTED.
+5. Thất bại: giữ nguyên, thử lại trong grace.
+6. BR: BR08 (15+3 phút), BR09 (100% trước, không cọc).
+3. Quy trình Canh tác
+a. Chọn hình thức canh tác (SCR-KH-06)
+Function trigger: Thanh toán thành công → /customer/rental/{rentalId}/mode.
+Function description: Xem lại hình thức đã chọn (cố định BR05), khởi động luồng tương ứng.
+Additional Logic:
+1. Self-growing: Xem quy trình chuẩn (read-only) → Dashboard. KH tự chăm sóc + ghi nhật ký.
+2. Assisted-growing: Thông báo CGNN lập Plan → Dashboard → chờ duyệt tại SCR-KH-07.
+3. BR: BR05, BR12.
+b. Process Template (SCR-CGNN-04)
+Function trigger: CGNN → "Process Templates" → /expert/processes.
+Function description: Tạo quy trình mẫu cho variety: stages → steps → materials + IoT thresholds.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-CGNN-04
+Function Details:
+Field Description:
+#
+	Field
+	Type
+	Required
+	Table
+	1
+	Giống cây
+	Dropdown
+	Có
+	process_templates.variety_id
+	2
+	Version
+	Auto
+	—
+	process_templates.version
+	3
+	Tên giai đoạn
+	Text
+	Có
+	template_steps.step_name
+	4
+	Day Offset
+	Number
+	Có
+	template_steps.day_offset
+	5
+	Duration
+	Number
+	Có
+	template_steps.duration_days
+	6
+	Task Type
+	Dropdown
+	Có
+	SEEDING / FERTILIZING / WATERING / PEST_CONTROL / HARVESTING
+	7
+	Hướng dẫn KT
+	Rich Text
+	Có
+	template_steps.description
+	8
+	Vật tư
+	Sub-table
+	—
+	template_materials (mỗi vật tư 1 row)
+	9
+	Ngưỡng IoT
+	Form Group
+	—
+	min/max_temp, min/max_humidity
+	
+
+Additional Logic:
+1. Steps kéo-thả sắp xếp (Sortable).
+2. Mỗi lần lưu → version mới (không ghi đè cũ).
+c. Cultivation Plan & Phê duyệt (SCR-KH-07)
+Function trigger: KH chọn rental → "Xem kế hoạch" → /customer/rental/{rentalId}/plan.
+Function description: Timeline plan chi tiết, care tasks dự kiến, vật tư. KH Approve hoặc Request Revision.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-KH-07
+Function Details:
+Additional Logic:
+1. Plan tạo tự động từ process_template khi rental activated (Assisted).
+2. "Phê duyệt" → cultivation_plans.status = APPROVED → auto-generate care_tasks (scheduled_date = actual_start_date + day_offset).
+3. "Yêu cầu chỉnh sửa" → modal feedback → notification CGNN → SCR-CGNN-08.
+4. Version History + diff.
+5. BR: BR12, BR13.
+d. Review AI Proposal (SCR-CGNN-07)
+Function trigger: AI tạo Proposal → CGNN notification → /expert/proposals/{proposalId}.
+Function description: Xem + chỉnh sửa Proposal AI → gửi KH duyệt.
+Additional Logic: CGNN chỉnh mọi field. "Gửi cho KH" → PENDING_APPROVAL → notification KH.[a]
+e. Plan Revision (SCR-CGNN-08)
+Function trigger: CGNN cần điều chỉnh plan Active → /expert/proposals/{proposalId}/revision.
+Function description: Tạo version mới (không ghi đè). Bắt buộc nhập lý do. KH approve mới áp dụng.
+Field Description:
+#
+	Field
+	Type
+	Required
+	1
+	Plan hiện tại
+	Display (read-only)
+	—
+	2
+	Thay đổi
+	Editable Form
+	Có
+	3
+	Lý do
+	Textarea
+	Có
+	
+
+Additional Logic: Tạo plan_versions. Notification KH → duyệt tại SCR-KH-07. BR: BR13.
+4. Vận hành & Chăm sóc
+a. Dashboard CVLĐ (SCR-CVLD-01)
+Function trigger: CVLĐ đăng nhập → /staff/dashboard.
+Function description: Task hôm nay gom theo Plot. Mobile-first. Card List: tên task, Plot, giờ, badge trạng thái.
+b. Chi tiết Task (SCR-CVLD-02)
+Function trigger: Click task từ Dashboard → /staff/tasks/{taskId}.
+Function description: Hướng dẫn kỹ thuật (từ Process Template), checklist vật tư cần mang, vị trí Plot. Nút "Bắt đầu làm" → IN_PROGRESS.
+c. Thực thi Task (SCR-CVLD-03)
+Function trigger: "Bắt đầu làm" từ SCR-CVLD-02 → /staff/tasks/{taskId}/execute.
+Function description: Ghi vật tư thực tế, chụp ảnh bắt buộc, ghi chú hiện trạng.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-CVLD-03
+Function Details:
+Field Description:
+#
+	Field
+	Type
+	Required
+	Constraint
+	Table
+	1
+	Vật tư đã dùng
+	Dynamic Form
+	—
+	Thêm dòng: vật tư + số lượng + đơn vị
+	material_usages (1 row/vật tư → 1NF)
+	2
+	Ảnh minh chứng
+	Camera/Upload
+	Có
+	≥ 1 ảnh, tối đa 5
+	URL lưu DB
+	3
+	Ghi chú
+	Textarea
+	—
+	Bất thường
+	care_tasks.notes
+	
+
+Validations:
+ID
+	Validation Rule
+	V8.1
+	Phải upload ≥ 1 ảnh (nút "Hoàn thành" disabled nếu chưa có)
+	V8.2
+	Vật tư quantity ≥ 0
+	
+
+Messages:
+ID
+	Condition
+	Message
+	Type
+	M8.1
+	Chưa có ảnh
+	"Vui lòng chụp ít nhất 1 ảnh minh chứng"
+	Warning
+	M8.2
+	Lưu OK
+	"Đã ghi nhận"
+	Success
+	
+
+Additional Logic:
+1. Mỗi vật tư → 1 record material_usages. Đảm bảo 1NF – không dùng JSON.
+2. care_tasks.status → IN_PROGRESS khi bắt đầu.
+3. Hoàn thành (SCR-CVLD-04): status COMPLETED, auto tạo farm_diaries, notification KH.
+4. BR: BR15 (≥1 ảnh), BR17 (auto Farm Diary).
+d. Xác nhận hoàn thành Task (SCR-CVLD-04)
+Function trigger: Từ SCR-CVLD-03 → /staff/tasks/{taskId}/confirm.
+Function description: Review tóm tắt trước khi đóng: tên task, vật tư đã dùng, ảnh. "Xác nhận" → COMPLETED + FarmDiary + notification KH.
+e. Tạo Issue Report (SCR-CVLD-05)
+Function trigger: "Báo cáo sự cố" → /staff/issues/new.
+Function description: Sự cố tại vườn: chọn Plot, loại (sâu bệnh/hỏng giàn/thiếu nước/khác), mô tả, ảnh ≥ 1, severity.
+Field Description:
+#
+	Field
+	Type
+	Required
+	Table
+	1
+	Plot
+	Dropdown
+	Có
+	issue_reports (liên kết)
+	2
+	Loại sự cố
+	Dropdown
+	Có
+	Sâu bệnh / Hỏng giàn / Thiếu nước / Khác
+	3
+	Mô tả
+	Textarea
+	Có
+	issue_reports.description
+	4
+	Ảnh
+	Camera/Upload
+	Có
+	≥ 1 ảnh
+	5
+	Mức độ
+	Dropdown
+	Có
+	LOW / MEDIUM / HIGH / CRITICAL
+	
+
+Additional Logic: Submit → issue_reports (OPEN) → notification CGNN (+ Admin nếu CRITICAL).
+f. Phân công Care Task – Admin (SCR-AD-08)
+Function trigger: Admin → "Phân công Task" → /admin/tasks.
+Function description: Data Table task chưa gán. "Phân công" → chọn CVLĐ → update assigned_worker_id → notification CVLĐ → ghi audit_logs.
+5. Giám sát IoT & Cảnh báo
+a. Dashboard IoT & Thời tiết (SCR-KH-10)
+Function trigger: KH chọn rental → "IoT" → /customer/rental/{rentalId}/iot.[b]
+Function description: 3 Gauge (nhiệt độ, ẩm đất, ẩm khí) với màu ngưỡng, Line Chart 24h/7 ngày, đường min/max từ process_templates, Weather Widget 5 ngày, Alert Banner khi vượt ngưỡng.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-KH-10
+Function Details:
+#
+	Component
+	Mô tả
+	1
+	3 Gauge
+	Xanh (OK) / Vàng (cận) / Đỏ (vượt)
+	2
+	Timestamp
+	"Lần đo gần nhất: DD/MM/YYYY HH:mm"
+	3
+	Line Chart
+	Toggle 24h/7d. Đường ngưỡng min/max
+	4
+	Weather Widget
+	Icon, nhiệt độ, gió, xác suất mưa
+	5
+	Dự báo 5 ngày
+	Bảng icon + nhiệt độ
+	6
+	Alert Banner
+	Đỏ khi vượt ngưỡng + hướng dẫn
+	
+
+Additional Logic: Dữ liệu = Mock (Cron Job 3h). Source: sensor_readings.
+b. Giám sát Cảnh báo IoT – Admin (SCR-AD-10)
+Function trigger: Admin → "Cảnh báo IoT" → /admin/alerts.
+Function description: Data Table toàn hệ thống: Plot, Loại, Giá trị, Ngưỡng, Thời gian. Filter theo Plot, thời gian, loại.
+6. Nhật ký & Thu hoạch
+a. Farm Diary Timeline (SCR-KH-08)
+Function trigger: KH chọn rental → "Nhật ký" → /customer/rental/{rentalId}/diary.
+Function description: Vertical Timeline mới nhất trước. Icon phân biệt KH/CVLĐ. Mỗi entry: ngày, người ghi, nội dung, ảnh. FAB "+" chỉ hiện khi Self-growing → SCR-KH-09. Filter ngày/người ghi.
+BR: BR17 (Task hoàn thành auto hiện Timeline).
+b. Tạo nhật ký – Self-growing (SCR-KH-09)
+Function trigger: FAB "+" từ SCR-KH-08 → /customer/rental/{rentalId}/diary/new.
+Function description: Upload ≤ 5 ảnh, chiều cao cây (cm, tùy chọn), sức khỏe (Tốt/BT/Sâu hại), ghi chép nội dung.
+c. Xác nhận thu hoạch (SCR-KH-14)
+Function trigger: CVLĐ hoàn thành harvest → KH notification → /customer/rental/{rentalId}/harvest.
+Function description: Ảnh thu hoạch, sản lượng kg, loại rau. KH "Xác nhận nhận hàng" → Rental hoàn thành.
+d. Ghi nhận thu hoạch – CVLĐ (SCR-CVLD-07)
+Function trigger: Task HARVESTING → /staff/harvest/{rentalId}.
+Function description: Cân, đóng gói, chụp ảnh.
+Field Description:
+#
+	Field
+	Type
+	Required
+	Table
+	1
+	Sản lượng
+	Number
+	Có
+	harvest_results.yield_kg
+	2
+	Ảnh
+	Camera/Upload
+	Có
+	harvest_results.photo_urls
+	3
+	Ghi chú
+	Textarea
+	—
+	harvest_results.notes
+	
+
+Additional Logic: Submit → harvest_results → notification KH.
+7. Trò chuyện & Tư vấn
+a. Chat tư vấn KH ↔ CGNN (SCR-KH-12 / SCR-CGNN-09)
+Function trigger: KH: "Hỏi Chuyên gia" → /customer/consultation/{ticketId}. CGNN: /expert/consultations/{ticketId}.
+Function description: Chat 2 chiều real-time (text + ảnh). KH tạo ticket (tiêu đề, mô tả, plot, ≤ 3 ảnh). CGNN nhận + phản hồi. Side Panel: giống cây, IoT 3 ngày, Farm Diary gần nhất.
+Additional Logic:
+1. conversations + messages (sender_id, content, sent_at).
+2. WebSocket / polling.
+3. Notification tin mới.
+4. BR: BR25 (KH không chỉ đạo CVLĐ trực tiếp).
+b. AI Chatbot (SCR-KH-13)
+Function trigger: Floating widget góc phải dưới.
+Function description: Hỏi đáp 24/7 kỹ thuật canh tác. Disclaimer: "Thông tin AI mang tính tham khảo."
+c. Chat CVLĐ ↔ CGNN (SCR-CVLD-06 / SCR-CGNN-10)
+Function trigger: Từ Issue Report → /staff/issues/{issueId}/chat hoặc /expert/issues/{issueId}.
+Function description: Kênh riêng CVLĐ ↔ CGNN về sự cố. CGNN có thể "Đề xuất Plan Revision" → SCR-CGNN-08.
+8. Tri thức Nông nghiệp
+a. Kho tài liệu chuyên môn (SCR-CGNN-06)
+Function trigger: CGNN → "Tài liệu" → /expert/documents.
+Function description: Upload, phân loại tài liệu KT. AI Service tham chiếu cho chatbot.
+Field Description:
+#
+	Field
+	Type
+	Required
+	Table
+	1
+	Tiêu đề
+	Text
+	Có
+	knowledge_documents.title
+	2
+	Nội dung
+	Rich Text
+	Có
+	knowledge_documents.content
+	3
+	Phân loại
+	Dropdown
+	Có
+	Kỹ thuật trồng / Sâu bệnh / Dinh dưỡng
+	4
+	File đính kèm
+	File Upload
+	—
+	PDF, ảnh
+	
+
+9. Quản trị Hệ thống
+a. Quản lý User & RBAC (SCR-AD-02)
+Function trigger: Admin → "Quản lý User" → /admin/users.
+Function description: CRUD users: tạo CGNN/CVLĐ/Admin, sửa, khóa/mở. KH tự đăng ký qua SCR-PUB-02.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-AD-02
+Function Details:
+Field Description:
+#
+	Field
+	Type
+	Required
+	Constraint
+	Table
+	1
+	Họ và tên
+	Text
+	Có
+	2–100 ký tự
+	users.full_name
+	2
+	Email
+	Email
+	Có
+	Unique
+	users.email
+	3
+	SĐT
+	Tel
+	Có
+	10 số, unique
+	users.phone
+	4
+	Mật khẩu
+	Password
+	Có (tạo mới)
+	≥ 8 ký tự
+	users.password_hash
+	5
+	Vai trò
+	Dropdown
+	Có
+	EXPERT / STAFF / ADMIN
+	users.role_id
+	6
+	Trạng thái
+	Toggle
+	—
+	ACTIVE / INACTIVE
+	users.status
+	
+
+Additional Logic:
+1. Admin không tự khóa chính mình.
+2. Khóa TK → nhập lý do → ghi audit_logs.
+3. Mọi CRUD → ghi audit_logs.
+b. Quản lý Land & Plot (SCR-AD-03, SCR-AD-04)
+Function trigger: Admin → /admin/lands hoặc /admin/plots.
+Function description: CRUD Land (tên, địa chỉ, GPS, diện tích, thổ nhưỡng, nguồn nước, ảnh). CRUD Plot (mã unique, land, diện tích, giá/kỳ, IoT Code, listing Published/Hidden, ảnh).
+c. Quản lý danh mục Dịch vụ (SCR-AD-06)
+Function trigger: Admin → /admin/services.
+Function description: CRUD gói dịch vụ lẻ: Tên, Mô tả, Đơn giá, Active/Inactive. KH đặt tại SCR-KH-11.
+d. Giám sát Rental (SCR-AD-07)
+Function trigger: Admin → /admin/rentals.
+Function description: Data Table: Mã Rental, KH, Plot, Ngày, Trạng thái, Hình thức. Filter + chi tiết khi click.
+e. Tra cứu Audit Log (SCR-AD-11)
+Function trigger: Admin → /admin/audit-log.
+Function description: Tra cứu nhật ký thao tác hệ thống. Read-only – không sửa/xóa.
+Screen layout: Xem mockup tại `docs/prototype/` – SCR-AD-11
+Function Details:
+#
+	Field
+	Mô tả
+	Table
+	1
+	Thời gian
+	Timestamp
+	audit_logs.timestamp
+	2
+	User
+	Người thực hiện
+	users.full_name
+	3
+	IP
+	Địa chỉ IP
+	audit_logs.ip_address
+	4
+	Action
+	CREATE/UPDATE/DELETE/LOGIN/LOGOUT
+	audit_logs.action
+	5
+	Entity
+	Đối tượng
+	audit_logs.entity_type + entity_id
+	6
+	Mô tả
+	Chi tiết thay đổi
+	audit_logs.details
+	
+
+Additional Logic:
+1. Filter: Date Range, User, Action type.
+2. Phân trang + tìm kiếm. Export CSV.
+3. Ghi bởi Interceptor (Non-Screen Function #5).
+f. Dashboard AD (SCR-AD-01)
+Function trigger: Admin đăng nhập → /admin/dashboard.
+Function description: KPI: tỷ lệ lấp đầy (%), doanh thu tháng, Self vs Assisted (%), task đúng hạn (%). Biểu đồ doanh thu/tháng. Task hôm nay. Cảnh báo IoT active.
+Hết tài liệu SRS v1.0 – FARMELY
+Page |  
+
+
+[a]bỏ
+[b]sai\

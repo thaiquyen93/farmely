@@ -1,0 +1,89 @@
+@startuml
+' Subject Area 5 — Monitoring, Chat & Notifications (khop farmely_27tables_sqlserver.sql)
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+hide methods
+hide stereotypes
+title SUB-ERD 5 — GIAM SAT, CHAT & HO TRO
+
+entity "sensor_readings" as readings {
+  * reading_id : BIGINT <<PK, Identity>>
+  --
+  * plot_id : INT <<FK>>
+  * temperature : DECIMAL(5,2)
+  * air_humidity : DECIMAL(5,2)
+  * soil_humidity : DECIMAL(5,2)
+  * recorded_at : DATETIME2
+}
+
+entity "issue_reports" as issues {
+  * issue_id : INT <<PK, Identity>>
+  --
+  * rental_id : INT <<FK>>
+  * reporter_id : INT <<FK>>
+  * description : NVARCHAR(MAX)
+  image_url : VARCHAR(500)
+  * created_at : DATETIME2
+}
+
+entity "conversations" as convos {
+  * conversation_id : INT <<PK, Identity>>
+  --
+  * customer_id : INT <<FK>>
+  * expert_id : INT <<FK>>
+  rental_id : INT <<FK, NULL>>
+  * type : VARCHAR(50)
+  * created_at : DATETIME2
+}
+
+entity "messages" as msgs {
+  * message_id : INT <<PK, Identity>>
+  --
+  * conversation_id : INT <<FK>>
+  * sender_id : INT <<FK>>
+  * content : NVARCHAR(MAX)
+  attachment_url : VARCHAR(500)
+  * created_at : DATETIME2
+}
+
+entity "notifications" as notifs {
+  * notification_id : BIGINT <<PK, Identity>>
+  --
+  * user_id : INT <<FK>>
+  * title : NVARCHAR(150)
+  * content : NVARCHAR(MAX)
+  * is_read : BIT
+  * created_at : DATETIME2
+}
+
+entity "plots (proxy)" as plot_proxy <<external>> {
+  * plot_id : INT <<PK>>
+}
+
+entity "rentals (proxy)" as rental_proxy <<external>> {
+  * rental_id : INT <<PK>>
+}
+
+entity "users (proxy)" as user_proxy <<external>> {
+  * user_id : INT <<PK>>
+}
+
+plot_proxy ||--o{ readings : "Mock each 3h"
+rental_proxy ||--o{ issues
+user_proxy ||--o{ issues : reporter
+user_proxy ||--o{ convos : customer
+user_proxy ||--o{ convos : expert
+rental_proxy ||--o{ convos
+convos ||--o{ msgs : "ON DELETE CASCADE"
+user_proxy ||--o{ msgs : sender
+user_proxy ||--o{ notifs
+
+note bottom
+  sensor_readings: Mock Sensor Service sinh 3 gio/lan, khong co phan cung/MQTT (RP 10.3).
+  CHECK: conversations.type IN ('PRE_RENTAL','IN_RENTAL')
+  messages: ON DELETE CASCADE khi xoa conversation.
+  notifications: is_read default 0, BIGINT PK cho high-volume.
+end note
+@enduml

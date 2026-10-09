@@ -1,0 +1,1993 @@
+{
+  "document_version": "2.1",
+  "project": "Nền Tảng Thuê Plot & Theo Dõi Trải Nghiệm Canh Tác",
+  "total_screens_in_sitemap": 47,
+  "total_screens_extracted": 48,
+  "note": "Site map lists 47 screens (4 PUB + 17 KH + 11 AD + 11 CGNN + 8 CVLĐ). Content body describes 48 screens with renumbered AD (10 screens: AD-01 to AD-10) and CGNN (9 screens: CGNN-01 to CGNN-09). SCR-AD-05 'Cấu hình Marketplace' is merged into SCR-AD-04's toggle. SCR-CGNN-10 'Tiếp nhận Issue Report' is SCR-CGNN-09. SCR-CGNN-11 'Tư vấn trước thuê' is covered by SCR-CGNN-08.",
+  "summary": {
+    "Public": 4,
+    "Khách hàng": 17,
+    "Admin": 10,
+    "CGNN": 9,
+    "CVLĐ": 8
+  },
+  "screens": [
+    {
+      "screen_id": "SCR-PUB-01",
+      "screen_name": "Trang chủ (Landing Page)",
+      "feature_group": "Public",
+      "purpose": "Giới thiệu nền tảng, hiển thị Plot nổi bật và điều hướng KH đến Marketplace",
+      "actor": "Guest (chưa đăng nhập)",
+      "url": "/",
+      "uc_related": "—",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Header/Navbar",
+          "type": "Navigation Bar",
+          "description": "Logo, menu (Trang chủ, Marketplace, Về chúng tôi, Đăng nhập/Đăng ký)"
+        },
+        {
+          "id": 2,
+          "component": "Hero Banner",
+          "type": "Section",
+          "description": "Hình ảnh lớn + Slogan + Nút CTA \"Khám phá vườn ngay\""
+        },
+        {
+          "id": 3,
+          "component": "Giới thiệu nền tảng",
+          "type": "Section",
+          "description": "3 icon: Chọn Plot → Trồng rau → Thu hoạch"
+        },
+        {
+          "id": 4,
+          "component": "Plot nổi bật",
+          "type": "Card Grid",
+          "description": "4-6 thẻ Plot đang Published kèm ảnh, giá, diện tích"
+        },
+        {
+          "id": 5,
+          "component": "Testimonials",
+          "type": "Section",
+          "description": "Đánh giá từ khách thuê (nếu có)"
+        },
+        {
+          "id": 6,
+          "component": "Footer",
+          "type": "Footer",
+          "description": "Thông tin liên hệ, liên kết nhanh, bản quyền"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Click \"Khám phá vườn ngay\"",
+          "action": "Điều hướng → SCR-KH-02 (Marketplace)"
+        },
+        {
+          "id": 2,
+          "event": "Click thẻ Plot nổi bật",
+          "action": "Điều hướng → SCR-KH-03 (Chi tiết Plot)"
+        },
+        {
+          "id": 3,
+          "event": "Click \"Đăng nhập\"",
+          "action": "Điều hướng → SCR-PUB-03"
+        },
+        {
+          "id": 4,
+          "event": "Click \"Đăng ký\"",
+          "action": "Điều hướng → SCR-PUB-02"
+        }
+      ],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-PUB-02",
+      "screen_name": "Đăng ký tài khoản",
+      "feature_group": "Public",
+      "purpose": "Cho phép người dùng mới tạo tài khoản KH",
+      "actor": "Guest",
+      "url": "/register",
+      "uc_related": "UC-KH01, US1.1",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Form đăng ký",
+          "type": "Form",
+          "description": "Gồm các trường bên dưới"
+        },
+        {
+          "id": 2,
+          "component": "Họ và tên",
+          "type": "Text Input",
+          "description": "Required, min 2 ký tự"
+        },
+        {
+          "id": 3,
+          "component": "Email",
+          "type": "Email Input",
+          "description": "Required, validate format email"
+        },
+        {
+          "id": 4,
+          "component": "Số điện thoại",
+          "type": "Tel Input",
+          "description": "Required, đúng 10 chữ số"
+        },
+        {
+          "id": 5,
+          "component": "Mật khẩu",
+          "type": "Password Input",
+          "description": "Required, ≥ 8 ký tự, chữ hoa + chữ thường + số"
+        },
+        {
+          "id": 6,
+          "component": "Xác nhận mật khẩu",
+          "type": "Password Input",
+          "description": "Required, phải khớp mật khẩu"
+        },
+        {
+          "id": 7,
+          "component": "Nút \"Đăng ký\"",
+          "type": "Button (Primary)",
+          "description": "Submit form"
+        },
+        {
+          "id": 8,
+          "component": "Link \"Đã có tài khoản?\"",
+          "type": "Link",
+          "description": "Điều hướng → SCR-PUB-03"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Submit form",
+          "action": "Validate client-side → Gửi POST `/api/register`"
+        },
+        {
+          "id": 2,
+          "event": "Email/SĐT bị trùng",
+          "action": "Hiển thị thông báo lỗi inline"
+        },
+        {
+          "id": 3,
+          "event": "Đăng ký thành công",
+          "action": "Toast \"Đăng ký thành công!\" → Redirect SCR-PUB-03"
+        },
+        {
+          "id": 4,
+          "event": "Validate mật khẩu yếu",
+          "action": "Hiển thị lỗi real-time dưới ô input"
+        }
+      ],
+      "business_rules": "Tài khoản mới tự động gán ROLE_CUSTOMER. Email phải unique.",
+      "field_validations": [
+        {
+          "field": "Họ và tên",
+          "rules": "Required, min 2 ký tự"
+        },
+        {
+          "field": "Email",
+          "rules": "Required, validate format email, unique"
+        },
+        {
+          "field": "Số điện thoại",
+          "rules": "Required, đúng 10 chữ số"
+        },
+        {
+          "field": "Mật khẩu",
+          "rules": "Required, ≥ 8 ký tự, chữ hoa + chữ thường + số"
+        },
+        {
+          "field": "Xác nhận mật khẩu",
+          "rules": "Required, phải khớp mật khẩu"
+        }
+      ]
+    },
+    {
+      "screen_id": "SCR-PUB-03",
+      "screen_name": "Đăng nhập",
+      "feature_group": "Public",
+      "purpose": "Xác thực danh tính và điều hướng theo vai trò",
+      "actor": "Guest",
+      "url": "/login",
+      "uc_related": "UC-KH01, US1.2",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Email",
+          "type": "Email Input",
+          "description": "Required"
+        },
+        {
+          "id": 2,
+          "component": "Mật khẩu",
+          "type": "Password Input",
+          "description": "Required, có icon toggle show/hide"
+        },
+        {
+          "id": 3,
+          "component": "Nút \"Đăng nhập\"",
+          "type": "Button (Primary)",
+          "description": "Submit"
+        },
+        {
+          "id": 4,
+          "component": "Link \"Quên mật khẩu?\"",
+          "type": "Link",
+          "description": "→ SCR-PUB-04"
+        },
+        {
+          "id": 5,
+          "component": "Link \"Chưa có tài khoản?\"",
+          "type": "Link",
+          "description": "→ SCR-PUB-02"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Submit form",
+          "action": "POST /api/login → Nhận JWT Token"
+        },
+        {
+          "id": 2,
+          "event": "Đăng nhập thành công",
+          "action": "Lưu Token → Redirect theo Role: KH→SCR-KH-01, AD→SCR-AD-01, CGNN→SCR-CGNN-01, CVLĐ→SCR-CVLD-01"
+        },
+        {
+          "id": 3,
+          "event": "Sai mật khẩu",
+          "action": "Hiển thị \"Email hoặc mật khẩu không đúng\""
+        },
+        {
+          "id": 4,
+          "event": "Tài khoản bị khóa",
+          "action": "Hiển thị \"Tài khoản đã bị khóa, liên hệ Admin\""
+        }
+      ],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-PUB-04",
+      "screen_name": "Quên mật khẩu",
+      "feature_group": "Public",
+      "purpose": "Khôi phục mật khẩu qua email",
+      "actor": "Guest",
+      "url": "/forgot-password",
+      "uc_related": "—",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Email",
+          "type": "Email Input",
+          "description": "Required"
+        },
+        {
+          "id": 2,
+          "component": "Nút \"Gửi link đặt lại\"",
+          "type": "Button (Primary)",
+          "description": "Submit"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Submit",
+          "action": "Gửi email chứa link reset → Trang đặt lại mật khẩu mới"
+        }
+      ],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-01",
+      "screen_name": "Dashboard Khách hàng",
+      "feature_group": "Khách hàng",
+      "purpose": "Trang chủ sau đăng nhập: tổng quan mảnh vườn đang thuê, tiến độ canh tác, thông báo",
+      "actor": "KH (ROLE_CUSTOMER)",
+      "url": "/customer/dashboard",
+      "uc_related": "UC-KH11, US7.1",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Sidebar/Topbar",
+          "type": "Navigation",
+          "description": "Menu: Dashboard, Marketplace, Rental, Diary, IoT, Chat, Lịch sử, Profile"
+        },
+        {
+          "id": 2,
+          "component": "Thẻ \"Vườn đang thuê\"",
+          "type": "Card",
+          "description": "Hiển thị Plot đang Active: Mã Plot, Cây trồng, Hình thức (Self/Assisted), Ngày bắt đầu/kết thúc"
+        },
+        {
+          "id": 3,
+          "component": "Thanh tiến trình",
+          "type": "Progress Bar",
+          "description": "% hoàn thành chu kỳ, ngày hiện tại / tổng ngày"
+        },
+        {
+          "id": 4,
+          "component": "Giai đoạn hiện tại",
+          "type": "Info Card",
+          "description": "Tên giai đoạn, hướng dẫn chăm sóc tóm tắt"
+        },
+        {
+          "id": 5,
+          "component": "IoT tóm tắt",
+          "type": "3 Gauge Cards",
+          "description": "Nhiệt độ (°C), Ẩm đất (%), Ẩm khí (%) – kèm trạng thái màu"
+        },
+        {
+          "id": 6,
+          "component": "Thông báo gần nhất",
+          "type": "Notification List",
+          "description": "5 thông báo mới nhất (cảnh báo IoT, task hoàn thành, thu hoạch)"
+        },
+        {
+          "id": 7,
+          "component": "Nút nhanh",
+          "type": "Button Group",
+          "description": "\"Xem Farm Diary\", \"Đặt dịch vụ\", \"Hỏi Chuyên gia\""
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Click \"Xem Farm Diary\"",
+          "action": "→ SCR-KH-08"
+        },
+        {
+          "id": 2,
+          "event": "Click \"Đặt dịch vụ\"",
+          "action": "→ SCR-KH-11"
+        },
+        {
+          "id": 3,
+          "event": "Click \"Hỏi Chuyên gia\"",
+          "action": "→ SCR-KH-12"
+        },
+        {
+          "id": 4,
+          "event": "Click thông báo",
+          "action": "Điều hướng đến màn hình tương ứng"
+        }
+      ],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-02",
+      "screen_name": "Marketplace – Danh sách Plot",
+      "feature_group": "Khách hàng",
+      "purpose": "Tìm kiếm, lọc và duyệt các Plot đang mở cho thuê",
+      "actor": "KH",
+      "url": "/marketplace",
+      "uc_related": "UC-KH02, US3.1",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Thanh tìm kiếm",
+          "type": "Search Input",
+          "description": "Tìm theo tên Plot, khu đất"
+        },
+        {
+          "id": 2,
+          "component": "Bộ lọc",
+          "type": "Filter Panel",
+          "description": "Khu đất (Dropdown), Khoảng diện tích (Slider), Khoảng giá (Slider), Loại cây muốn trồng (Multi-select)"
+        },
+        {
+          "id": 3,
+          "component": "Danh sách Plot",
+          "type": "Card Grid",
+          "description": "Mỗi thẻ: Ảnh, Mã Plot, Diện tích, Giá/tháng, Nhóm cây, Badge trạng thái"
+        },
+        {
+          "id": 4,
+          "component": "Phân trang",
+          "type": "Pagination",
+          "description": "Trang 1, 2, 3..."
+        },
+        {
+          "id": 5,
+          "component": "Sắp xếp",
+          "type": "Dropdown",
+          "description": "Giá tăng/giảm, Diện tích, Mới nhất"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Thay đổi bộ lọc",
+          "action": "Gọi API lọc danh sách, cập nhật kết quả"
+        },
+        {
+          "id": 2,
+          "event": "Click thẻ Plot",
+          "action": "→ SCR-KH-03 (Chi tiết Plot)"
+        },
+        {
+          "id": 3,
+          "event": "Nhập tìm kiếm",
+          "action": "Debounce 300ms → Filter danh sách"
+        }
+      ],
+      "business_rules": "Chỉ hiển thị Plot có Listing Status = Published. Plot đang Reserved hoặc Rented không xuất hiện.",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-03",
+      "screen_name": "Chi tiết Plot",
+      "feature_group": "Khách hàng",
+      "purpose": "Xem đầy đủ thông tin kỹ thuật, hình ảnh, IoT, thời tiết và danh mục cây tương thích",
+      "actor": "KH",
+      "url": "/marketplace/plot/{plotId}",
+      "uc_related": "UC-KH03, US3.2",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Thư viện ảnh",
+          "type": "Image Gallery/Carousel",
+          "description": "Ảnh thực tế của Plot (zoom được)"
+        },
+        {
+          "id": 2,
+          "component": "Thông tin cơ bản",
+          "type": "Info Section",
+          "description": "Mã Plot, Diện tích, Vị trí trong vườn, Loại thổ nhưỡng, Nguồn nước"
+        },
+        {
+          "id": 3,
+          "component": "Bảng giá",
+          "type": "Price Table",
+          "description": "Giá thuê/tháng, Phí Assisted-growing (không thu cọc)"
+        },
+        {
+          "id": 4,
+          "component": "Cây trồng tương thích",
+          "type": "Tag List / Table",
+          "description": "Danh sách Crop tương thích + thời gian sinh trưởng mỗi loại"
+        },
+        {
+          "id": 5,
+          "component": "IoT hiện tại",
+          "type": "3 Gauge Cards",
+          "description": "Nhiệt độ, Ẩm đất, Ẩm khí + thời điểm đo gần nhất"
+        },
+        {
+          "id": 6,
+          "component": "Thời tiết",
+          "type": "Weather Widget",
+          "description": "Thời tiết hôm nay + dự báo 3-5 ngày (từ Weather API)"
+        },
+        {
+          "id": 7,
+          "component": "Lịch khả dụng",
+          "type": "Calendar",
+          "description": "Hiển thị khoảng thời gian Plot đã/chưa được thuê"
+        },
+        {
+          "id": 8,
+          "component": "Nút \"Thuê Plot này\"",
+          "type": "Button (Primary)",
+          "description": "Bắt đầu quy trình thuê"
+        },
+        {
+          "id": 9,
+          "component": "Nút \"Hỏi Chuyên gia\"",
+          "type": "Button (Secondary)",
+          "description": "Mở phiên tư vấn Pre-rental"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Click \"Thuê Plot này\"",
+          "action": "→ SCR-KH-04 (Form đặt thuê)"
+        },
+        {
+          "id": 2,
+          "event": "Click \"Hỏi Chuyên gia\"",
+          "action": "Tạo ConsultationTicket loại PRE_RENTAL → SCR-KH-12"
+        }
+      ],
+      "business_rules": "BR06 (Tư vấn tùy chọn), BR03 (Tương thích Plot–Crop).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-04",
+      "screen_name": "Đặt thuê Plot (Chọn Crop + Thời gian + Hình thức canh tác)",
+      "feature_group": "Khách hàng",
+      "purpose": "KH chọn giống cây, ngày bắt đầu/kết thúc, hình thức canh tác và xác nhận đặt chỗ",
+      "actor": "KH",
+      "url": "/marketplace/plot/{plotId}/book",
+      "uc_related": "UC-KH05, UC-KH06, US3.4, US3.5",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Tóm tắt Plot",
+          "type": "Info Card",
+          "description": "Ảnh, mã, diện tích, giá (read-only)"
+        },
+        {
+          "id": 2,
+          "component": "Chọn giống cây",
+          "type": "Dropdown",
+          "description": "Chỉ hiển thị Crop tương thích với Plot"
+        },
+        {
+          "id": 3,
+          "component": "Thông tin giống cây",
+          "type": "Detail Card",
+          "description": "Thời gian sinh trưởng, mùa vụ tối ưu (auto-fill khi chọn)"
+        },
+        {
+          "id": 4,
+          "component": "Ngày bắt đầu",
+          "type": "Date Picker",
+          "description": "Chọn Start Date (không chọn ngày quá khứ)"
+        },
+        {
+          "id": 5,
+          "component": "Ngày kết thúc",
+          "type": "Date Picker",
+          "description": "Chọn End Date"
+        },
+        {
+          "id": 6,
+          "component": "Hình thức canh tác",
+          "type": "Radio Group",
+          "description": "Self-growing / Assisted-growing – chọn ngay tại bước giữ chỗ (BR05, BR11)"
+        },
+        {
+          "id": 7,
+          "component": "Tổng tiền dự kiến",
+          "type": "Summary Card",
+          "description": "Auto-calc: Tiền thuê theo số ngày + phí gói chăm sóc nếu Assisted (100% Upfront, không cọc)"
+        },
+        {
+          "id": 8,
+          "component": "Thông báo kiểm tra",
+          "type": "Alert Box",
+          "description": "Hiển thị kết quả validate (hợp lệ / lỗi)"
+        },
+        {
+          "id": 9,
+          "component": "Nút \"Tiến hành thuê\"",
+          "type": "Button (Primary)",
+          "description": "Submit → Tạo Reservation"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Chọn Crop",
+          "action": "Auto-fill thông tin giống cây, tính thời lượng tối thiểu"
+        },
+        {
+          "id": 2,
+          "event": "Chọn ngày",
+          "action": "Hệ thống kiểm tra: Tương thích? Thời lượng đủ? Trùng lịch?"
+        },
+        {
+          "id": 3,
+          "event": "Chọn hình thức",
+          "action": "Tổng tiền dự kiến cập nhật thêm phí gói chăm sóc nếu Assisted"
+        },
+        {
+          "id": 4,
+          "event": "Validate lỗi",
+          "action": "Hiển thị Alert: \"Thời gian thuê chưa đủ cho loại cây này\" hoặc \"Lịch trùng\""
+        },
+        {
+          "id": 5,
+          "event": "Click \"Tiến hành thuê\"",
+          "action": "Tạo Reservation (15 phút, kèm Cultivation Mode) → Redirect SCR-KH-05"
+        }
+      ],
+      "business_rules": "BR03, BR04 (Tương thích + Thời lượng ≥ Duration + Buffer), BR07, BR08 (Chống trùng lịch, Reservation 15 phút).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-05",
+      "screen_name": "Thanh toán (Reservation + Mock Payment)",
+      "feature_group": "Khách hàng",
+      "purpose": "Thanh toán tiền thuê trong thời hạn 15 phút (100% Upfront, không cọc)",
+      "actor": "KH",
+      "url": "/customer/payment/{reservationId}",
+      "uc_related": "UC-KH07, US3.6",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Đồng hồ đếm ngược",
+          "type": "Countdown Timer",
+          "description": "15:00 → 00:00 (màu đỏ khi < 3 phút)"
+        },
+        {
+          "id": 2,
+          "component": "Chi tiết hóa đơn",
+          "type": "Invoice Table",
+          "description": "Tiền thuê đất & nền tảng, Phí gói canh tác (nếu có), Tổng cộng"
+        },
+        {
+          "id": 3,
+          "component": "Phương thức thanh toán",
+          "type": "Radio Buttons",
+          "description": "\"Thẻ ngân hàng mô phỏng\" / \"Ví điện tử mô phỏng\""
+        },
+        {
+          "id": 4,
+          "component": "Mock Payment Toggle",
+          "type": "Toggle Switch",
+          "description": "Giả lập: \"Thành công\" / \"Thất bại\""
+        },
+        {
+          "id": 5,
+          "component": "Nút \"Thanh toán\"",
+          "type": "Button (Primary)",
+          "description": "Submit thanh toán"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Countdown = 0",
+          "action": "Reservation hết hạn → Alert \"Hết thời gian\" → Redirect SCR-KH-02"
+        },
+        {
+          "id": 2,
+          "event": "Click \"Thanh toán\"",
+          "action": "Reservation → PAYMENT_PENDING, gia hạn thêm 03 phút (Grace Period – BR08) → chuyển hướng cổng thanh toán"
+        },
+        {
+          "id": 3,
+          "event": "Chọn \"Thành công\" + Submit",
+          "action": "Tạo PaymentTransaction SUCCESS → Rental CONFIRMED → Redirect SCR-KH-06"
+        },
+        {
+          "id": 4,
+          "event": "Chọn \"Thất bại\" + Submit",
+          "action": "Alert \"Thanh toán thất bại\" → Giữ nguyên, cho thử lại"
+        }
+      ],
+      "business_rules": "BR08 (15 phút + Grace Period 3 phút), BR09 (Thanh toán trả trước 100%, không thu cọc). Rental chuyển Active khi đến Start Date.",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-06",
+      "screen_name": "Xem Hình thức canh tác & Khởi động luồng chăm sóc (Self / Assisted)",
+      "feature_group": "Khách hàng",
+      "purpose": "KH xem lại hình thức đã chọn khi đặt chỗ (cố định theo BR05) và khởi động luồng trải nghiệm tương ứng",
+      "actor": "KH",
+      "url": "/customer/rental/{rentalId}/mode",
+      "uc_related": "UC-KH08/KH09, US5.1",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Thẻ Self-growing",
+          "type": "Selection Card",
+          "description": "Icon + Mô tả: \"Tự đến vườn chăm sóc, ghi nhật ký. Không phát sinh phí.\""
+        },
+        {
+          "id": 2,
+          "component": "Thẻ Assisted-growing",
+          "type": "Selection Card",
+          "description": "Icon + Mô tả: \"Đội ngũ chăm sóc toàn bộ. CGNN lập kế hoạch, bạn duyệt.\""
+        },
+        {
+          "id": 3,
+          "component": "So sánh 2 hình thức",
+          "type": "Comparison Table",
+          "description": "Bảng so sánh: Chi phí, Ai chăm sóc, Farm Diary, Service Request"
+        },
+        {
+          "id": 4,
+          "component": "Nút \"Bắt đầu trải nghiệm\"",
+          "type": "Button (Primary)",
+          "description": "Khởi động luồng theo mode đã chọn"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Mode = Self-growing + Bắt đầu",
+          "action": "Hiển thị Quy trình canh tác chuẩn (Read-only) → Redirect SCR-KH-01 (Dashboard)"
+        },
+        {
+          "id": 2,
+          "event": "Mode = Assisted-growing + Bắt đầu",
+          "action": "Thông báo CGNN lập Cultivation Plan → Redirect SCR-KH-01 (chờ KH duyệt tại SCR-KH-07)"
+        }
+      ],
+      "business_rules": "BR05 (Cố định mode trong kỳ thuê), BR12 (Assisted: CGNN lập Plan → KH Approve).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-07",
+      "screen_name": "Xem Cultivation Plan & Phê duyệt",
+      "feature_group": "Khách hàng",
+      "purpose": "KH xem kế hoạch canh tác đã qua CGNN review và phê duyệt (Approve)",
+      "actor": "KH (Assisted-growing)",
+      "url": "/customer/rental/{rentalId}/plan",
+      "uc_related": "UC-KH10, US5.4",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Trạng thái Plan",
+          "type": "Status Badge",
+          "description": "Draft / Pending Approval / Active"
+        },
+        {
+          "id": 2,
+          "component": "Timeline kế hoạch",
+          "type": "Vertical Timeline",
+          "description": "Các giai đoạn + ngày + công việc dự kiến"
+        },
+        {
+          "id": 3,
+          "component": "Chi tiết giai đoạn",
+          "type": "Expandable Section",
+          "description": "Định mức vật tư, hướng dẫn kỹ thuật"
+        },
+        {
+          "id": 4,
+          "component": "Nút \"Phê duyệt\"",
+          "type": "Button (Success)",
+          "description": "Approve Plan → Kích hoạt sinh Care Task"
+        },
+        {
+          "id": 5,
+          "component": "Nút \"Yêu cầu chỉnh sửa\"",
+          "type": "Button (Warning)",
+          "description": "Gửi feedback cho CGNN"
+        },
+        {
+          "id": 6,
+          "component": "Lịch sử phiên bản",
+          "type": "Version History",
+          "description": "Nếu có Plan Revision: hiển thị diff so với phiên bản trước"
+        }
+      ],
+      "events": [
+        {
+          "id": 1,
+          "event": "Click \"Phê duyệt\"",
+          "action": "Plan → Active, hệ thống sinh Care Task → Thông báo AD"
+        },
+        {
+          "id": 2,
+          "event": "Click \"Yêu cầu chỉnh sửa\"",
+          "action": "Mở modal nhập feedback → Gửi cho CGNN"
+        }
+      ],
+      "business_rules": "BR12 (CGNN lập Plan → KH approve), BR13 (Plan Revision cần KH duyệt).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-08",
+      "screen_name": "Farm Diary Timeline",
+      "feature_group": "Khách hàng",
+      "purpose": "Xem dòng thời gian nhật ký canh tác: bài tự viết xen kẽ bài tự động từ CVLĐ",
+      "actor": "KH",
+      "url": "/customer/rental/{rentalId}/diary",
+      "uc_related": "UC-KH13, US7.2",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Timeline Feed",
+          "type": "Vertical Timeline",
+          "description": "Bài nhật ký mới nhất ở trên"
+        },
+        {
+          "id": 2,
+          "component": "Mỗi bài nhật ký",
+          "type": "Diary Card",
+          "description": "Ngày giờ, Người ghi (KH/CVLĐ icon), Nội dung, Vật tư, Ảnh gallery"
+        },
+        {
+          "id": 3,
+          "component": "Ảnh đính kèm",
+          "type": "Image Lightbox",
+          "description": "Click phóng to xem chi tiết"
+        },
+        {
+          "id": 4,
+          "component": "Nút \"Tạo nhật ký mới\"",
+          "type": "FAB Button",
+          "description": "Chỉ hiển thị khi mode = Self-growing → SCR-KH-09"
+        },
+        {
+          "id": 5,
+          "component": "Bộ lọc",
+          "type": "Filter",
+          "description": "Theo ngày, Theo người ghi (Tất cả/KH/CVLĐ)"
+        }
+      ],
+      "events": [],
+      "business_rules": "BR17 (Task hoàn thành của CVLĐ tự động hiện trên Timeline).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-09",
+      "screen_name": "Tạo nhật ký mới (Self-growing)",
+      "feature_group": "Khách hàng",
+      "purpose": "KH tự chụp ảnh, ghi chép sau khi đến chăm sóc vườn",
+      "actor": "KH (Self-growing)",
+      "url": "/customer/rental/{rentalId}/diary/new",
+      "uc_related": "UC-KH14, US7.3",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Upload ảnh",
+          "type": "File Upload (Multi)",
+          "description": "Tải tối đa 5 ảnh từ điện thoại/máy tính"
+        },
+        {
+          "id": 2,
+          "component": "Chiều cao cây",
+          "type": "Number Input",
+          "description": "Đơn vị: cm (tùy chọn)"
+        },
+        {
+          "id": 3,
+          "component": "Đánh giá sức khỏe cây",
+          "type": "Radio Group",
+          "description": "Tốt / Bình thường / Sâu hại"
+        },
+        {
+          "id": 4,
+          "component": "Ghi chép nội dung",
+          "type": "Textarea",
+          "description": "Mô tả công việc đã làm"
+        },
+        {
+          "id": 5,
+          "component": "Nút \"Đăng nhật ký\"",
+          "type": "Button (Primary)",
+          "description": "Submit"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-10",
+      "screen_name": "Dashboard IoT & Thời tiết",
+      "feature_group": "Khách hàng",
+      "purpose": "Giám sát vi khí hậu Plot đang thuê + dự báo thời tiết",
+      "actor": "KH",
+      "url": "/customer/rental/{rentalId}/iot",
+      "uc_related": "UC-KH11, UC-KH12, US7.4, US7.6",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "3 Gauge thời gian thực",
+          "type": "Gauge Charts",
+          "description": "Nhiệt độ (°C), Ẩm đất (%), Ẩm khí (%) – màu Xanh/Vàng/Đỏ"
+        },
+        {
+          "id": 2,
+          "component": "Thời điểm đo",
+          "type": "Timestamp",
+          "description": "Lần đo gần nhất: 18/09/2026 15:00"
+        },
+        {
+          "id": 3,
+          "component": "Biểu đồ lịch sử",
+          "type": "Line Chart (Recharts)",
+          "description": "Toggle: 24 giờ / 7 ngày. Đường ngưỡng min/max"
+        },
+        {
+          "id": 4,
+          "component": "Widget thời tiết",
+          "type": "Weather Card",
+          "description": "Hôm nay: Icon, Nhiệt độ, Gió, Xác suất mưa"
+        },
+        {
+          "id": 5,
+          "component": "Dự báo 5 ngày",
+          "type": "Forecast Table",
+          "description": "Bảng 5 ngày kèm icon + nhiệt độ"
+        },
+        {
+          "id": 6,
+          "component": "Cảnh báo",
+          "type": "Alert Banner",
+          "description": "Nếu chỉ số ngoài ngưỡng → Banner đỏ + hướng dẫn xử lý"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-11",
+      "screen_name": "Đặt Service Request (Dịch vụ lẻ)",
+      "feature_group": "Khách hàng",
+      "purpose": "KH đặt dịch vụ chăm sóc phát sinh (Tưới nước, Bón phân, Làm cỏ...)",
+      "actor": "KH (đặc biệt Self-growing)",
+      "url": "/customer/rental/{rentalId}/service-request",
+      "uc_related": "UC-KH15, US7.5",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Danh mục dịch vụ",
+          "type": "Card List",
+          "description": "Tên dịch vụ + Đơn giá (do AD quản lý)"
+        },
+        {
+          "id": 2,
+          "component": "Chọn dịch vụ",
+          "type": "Checkbox/Radio",
+          "description": "Chọn 1 hoặc nhiều dịch vụ"
+        },
+        {
+          "id": 3,
+          "component": "Ngày mong muốn",
+          "type": "Date Picker",
+          "description": "Chọn ngày thực hiện"
+        },
+        {
+          "id": 4,
+          "component": "Ghi chú",
+          "type": "Textarea",
+          "description": "Yêu cầu đặc biệt"
+        },
+        {
+          "id": 5,
+          "component": "Tổng chi phí",
+          "type": "Summary",
+          "description": "Auto-calc tổng tiền"
+        },
+        {
+          "id": 6,
+          "component": "Nút \"Thanh toán & Đặt\"",
+          "type": "Button (Primary)",
+          "description": "→ Mock Payment → Tạo ServiceRequest"
+        }
+      ],
+      "events": [],
+      "business_rules": "Sau thanh toán thành công → Thông báo AD để phân công CVLĐ (US6.2).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-12",
+      "screen_name": "Chat tư vấn 1-1 với CGNN",
+      "feature_group": "Khách hàng",
+      "purpose": "Trao đổi trực tiếp với CGNN về sâu bệnh, kỹ thuật trồng",
+      "actor": "KH ↔ CGNN",
+      "url": "/customer/consultation/{ticketId}",
+      "uc_related": "UC-KH16, US8.1, US8.2",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Danh sách ticket",
+          "type": "Sidebar List",
+          "description": "Các phiên tư vấn (OPEN / IN_PROGRESS / CLOSED)"
+        },
+        {
+          "id": 2,
+          "component": "Nút \"Tạo câu hỏi mới\"",
+          "type": "Button",
+          "description": "Mở form: Tiêu đề, Mô tả, Chọn Plot, Upload ≤ 3 ảnh"
+        },
+        {
+          "id": 3,
+          "component": "Vùng chat",
+          "type": "Message Feed",
+          "description": "Tin nhắn 2 chiều (KH & CGNN), hỗ trợ text + ảnh"
+        },
+        {
+          "id": 4,
+          "component": "Input gửi tin",
+          "type": "Chat Input",
+          "description": "Nhập text + Đính kèm ảnh"
+        },
+        {
+          "id": 5,
+          "component": "Panel thông số Plot",
+          "type": "Side Panel",
+          "description": "Giống cây, Ngày trồng, IoT 3 ngày, Farm Diary gần nhất"
+        },
+        {
+          "id": 6,
+          "component": "Nút \"Đóng phiên\"",
+          "type": "Button",
+          "description": "Đóng ticket → CLOSED"
+        }
+      ],
+      "events": [],
+      "business_rules": "BR25 (KH không trực tiếp chỉ đạo CVLĐ – gửi qua CGNN).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-13",
+      "screen_name": "AI Chatbot",
+      "feature_group": "Khách hàng",
+      "purpose": "Hỏi đáp 24/7 về kiến thức làm vườn",
+      "actor": "KH",
+      "url": null,
+      "uc_related": "UC-KH17, US8.4",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Floating Widget",
+          "type": "Chat Bubble",
+          "description": "Ở góc phải dưới màn hình, click để mở"
+        },
+        {
+          "id": 2,
+          "component": "Cửa sổ chat",
+          "type": "Chat Window",
+          "description": "Lịch sử hội thoại + Input nhập câu hỏi"
+        },
+        {
+          "id": 3,
+          "component": "Disclaimer",
+          "type": "Notice",
+          "description": "Thông tin AI mang tính tham khảo. Liên hệ CGNN khi cần chẩn đoán."
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-14",
+      "screen_name": "Xác nhận thu hoạch (Harvest Result)",
+      "feature_group": "Khách hàng",
+      "purpose": "Ghi nhận kết quả thu hoạch nông sản",
+      "actor": "KH",
+      "url": "/customer/rental/{rentalId}/harvest",
+      "uc_related": "UC-KH19, US9.1",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Thông báo thu hoạch",
+          "type": "Banner (Success)",
+          "description": "\"Vườn rau tại Plot đã sẵn sàng thu hoạch!\""
+        },
+        {
+          "id": 2,
+          "component": "Ảnh thu hoạch",
+          "type": "Image Gallery",
+          "description": "Ảnh do CVLĐ chụp (Assisted) hoặc KH tự chụp (Self)"
+        },
+        {
+          "id": 3,
+          "component": "Sản lượng",
+          "type": "Info Card",
+          "description": "Kg thu hoạch, Loại rau"
+        },
+        {
+          "id": 4,
+          "component": "Nút \"Xác nhận nhận hàng\"",
+          "type": "Button",
+          "description": "KH xác nhận đã nhận nông sản"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-15",
+      "screen_name": "Lịch sử thuê (Read-only)",
+      "feature_group": "Khách hàng",
+      "purpose": "Xem lại toàn bộ các kỳ thuê đã hoàn thành",
+      "actor": "KH",
+      "url": "/customer/history",
+      "uc_related": "UC-KH20, US9.2",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Danh sách Rental",
+          "type": "Table/Card List",
+          "description": "Mã Rental, Plot, Cây, Ngày, Trạng thái (Completed)"
+        },
+        {
+          "id": 2,
+          "component": "Click vào Rental",
+          "type": "Expandable",
+          "description": "Xem Farm Diary, IoT Chart, Harvest Result ở chế độ Read-only"
+        }
+      ],
+      "events": [],
+      "business_rules": "BR22 (Dữ liệu chỉ đọc, không xem được dữ liệu người thuê mới).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-16",
+      "screen_name": "Hồ sơ cá nhân & Đổi mật khẩu",
+      "feature_group": "Khách hàng",
+      "purpose": "Cập nhật thông tin cá nhân, đổi mật khẩu",
+      "actor": "KH",
+      "url": "/customer/profile",
+      "uc_related": "US1.3",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Form cập nhật",
+          "type": "Form",
+          "description": "Họ tên, SĐT, Địa chỉ, Avatar, Đổi mật khẩu (mật khẩu cũ + mới + xác nhận)"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-KH-17",
+      "screen_name": "Trung tâm thông báo",
+      "feature_group": "Khách hàng",
+      "purpose": "Xem tất cả thông báo: cảnh báo IoT, task hoàn thành, thu hoạch, Plan mới",
+      "actor": "KH",
+      "url": "/customer/notifications",
+      "uc_related": "—",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Danh sách thông báo",
+          "type": "Notification List",
+          "description": "Mới nhất trước, đánh dấu đã đọc/chưa đọc, click điều hướng"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-AD-01",
+      "screen_name": "Dashboard AD (Thống kê tổng hợp)",
+      "feature_group": "Admin",
+      "purpose": "Xem tổng quan vận hành: tỷ lệ lấp đầy, doanh thu, task, tư vấn",
+      "actor": "AD (ROLE_ADMIN)",
+      "url": "/admin/dashboard",
+      "uc_related": "UC-AD12, US9.4",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Sidebar Admin",
+          "type": "Navigation",
+          "description": "Menu: Dashboard, Users, Land, Plot, Rental, Tasks, Services, Alerts, Audit"
+        },
+        {
+          "id": 2,
+          "component": "KPI Cards",
+          "type": "4 Stat Cards",
+          "description": "Tỷ lệ lấp đầy (%), Doanh thu tháng, Self vs Assisted (%), Task đúng hạn (%)"
+        },
+        {
+          "id": 3,
+          "component": "Biểu đồ doanh thu",
+          "type": "Bar/Line Chart",
+          "description": "Doanh thu thuê + dịch vụ theo tháng"
+        },
+        {
+          "id": 4,
+          "component": "Task hôm nay",
+          "type": "Mini Table",
+          "description": "Số task Pending / Assigned / Completed hôm nay"
+        },
+        {
+          "id": 5,
+          "component": "Cảnh báo IoT",
+          "type": "Alert List",
+          "description": "Cảnh báo đang active (nếu có)"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-AD-02",
+      "screen_name": "Quản lý User & Phân quyền RBAC",
+      "feature_group": "Admin",
+      "purpose": "CRUD người dùng, gán vai trò, khóa/mở tài khoản",
+      "actor": "AD",
+      "url": "/admin/users",
+      "uc_related": "UC-AD01, UC-AD02, US1.4",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Bảng danh sách User",
+          "type": "Data Table",
+          "description": "Tên, Email, Role, Trạng thái (Active/Locked), Ngày tạo"
+        },
+        {
+          "id": 2,
+          "component": "Tìm kiếm + Lọc",
+          "type": "Search + Filter",
+          "description": "Tìm theo tên/email, Lọc theo Role"
+        },
+        {
+          "id": 3,
+          "component": "Nút \"Thêm nhân viên\"",
+          "type": "Button",
+          "description": "Mở modal tạo tài khoản ROLE_EXPERT / ROLE_STAFF"
+        },
+        {
+          "id": 4,
+          "component": "Nút Khóa/Mở",
+          "type": "Toggle",
+          "description": "Khóa tài khoản + nhập lý do → Ghi Audit Log"
+        },
+        {
+          "id": 5,
+          "component": "Nút Đổi Role",
+          "type": "Dropdown",
+          "description": "Thay đổi vai trò (không tự khóa chính mình)"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-AD-03",
+      "screen_name": "Quản lý Land (Danh sách + Form)",
+      "feature_group": "Admin",
+      "purpose": "CRUD khu đất nông nghiệp",
+      "actor": "AD",
+      "url": "/admin/lands",
+      "uc_related": "UC-AD03, US2.1",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Bảng danh sách Land",
+          "type": "Data Table",
+          "description": "Tên, Địa chỉ, Diện tích, Số Plot, Trạng thái"
+        },
+        {
+          "id": 2,
+          "component": "Form Thêm/Sửa Land",
+          "type": "Modal Form",
+          "description": "Tên, Địa chỉ, GPS, Diện tích, Thổ nhưỡng, Nguồn nước, Mô tả, Upload ảnh"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-AD-04",
+      "screen_name": "Quản lý Plot (Danh sách + Form + IoT)",
+      "feature_group": "Admin",
+      "purpose": "Phân lô, cấu hình Plot, gắn IoT, thiết lập giá",
+      "actor": "AD",
+      "url": "/admin/plots",
+      "uc_related": "UC-AD04, UC-AD05, US2.2",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Bảng danh sách Plot",
+          "type": "Data Table",
+          "description": "Mã Plot, Land, Diện tích, Giá, IoT Code, Listing Status"
+        },
+        {
+          "id": 2,
+          "component": "Form Thêm/Sửa",
+          "type": "Modal Form",
+          "description": "Mã, Diện tích, Giá/tháng, Vị trí, IoT Device Code, Upload ảnh"
+        },
+        {
+          "id": 3,
+          "component": "Toggle Published/Hidden",
+          "type": "Switch",
+          "description": "Bật/tắt hiển thị trên Marketplace"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-AD-05",
+      "screen_name": "Quản lý danh mục Dịch vụ phát sinh",
+      "feature_group": "Admin",
+      "purpose": "Định nghĩa các gói dịch vụ lẻ cho KH đặt",
+      "actor": "AD",
+      "url": "/admin/services",
+      "uc_related": "UC-AD09, US2.4",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Data Table + Form CRUD",
+          "type": "Data Table + Form",
+          "description": "Tên, Mô tả, Đơn giá, Active/Inactive"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-AD-06",
+      "screen_name": "Giám sát Reservation & Rental",
+      "feature_group": "Admin",
+      "purpose": "Xem toàn bộ Reservation và Rental, trạng thái, lịch sử thanh toán",
+      "actor": "AD",
+      "url": "/admin/rentals",
+      "uc_related": "UC-AD07, US9.4",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Data Table + Filter + Detail",
+          "type": "Data Table",
+          "description": "Mã Rental, KH, Plot, Ngày, Trạng thái, Hình thức + Filter + Chi tiết khi click"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-AD-07",
+      "screen_name": "Phân công Care Task cho CVLĐ",
+      "feature_group": "Admin",
+      "purpose": "Xem task chưa gán, phân công CVLĐ phù hợp",
+      "actor": "AD",
+      "url": "/admin/tasks",
+      "uc_related": "UC-AD08, US6.1",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Bảng task",
+          "type": "Data Table",
+          "description": "Task Name, Plot, Ngày, Trạng thái, Assigned Staff"
+        },
+        {
+          "id": 2,
+          "component": "Filter",
+          "type": "Dropdown",
+          "description": "Lọc: Chưa gán / Đã gán / Hoàn thành / Theo ngày"
+        },
+        {
+          "id": 3,
+          "component": "Nút \"Phân công\"",
+          "type": "Button",
+          "description": "Mở modal chọn CVLĐ từ danh sách nhân viên đang trực"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-AD-08",
+      "screen_name": "Tiếp nhận & Phân công Service Request",
+      "feature_group": "Admin",
+      "purpose": "Xem yêu cầu dịch vụ từ KH, phân công CVLĐ thực hiện",
+      "actor": "AD",
+      "url": "/admin/service-requests",
+      "uc_related": "UC-AD10, US6.2",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Data Table + Nút phân công",
+          "type": "Data Table",
+          "description": "KH, Dịch vụ, Ngày, Trạng thái + Nút phân công CVLĐ"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-AD-09",
+      "screen_name": "Giám sát Cảnh báo IoT",
+      "feature_group": "Admin",
+      "purpose": "Xem tất cả cảnh báo môi trường vượt ngưỡng trên toàn hệ thống",
+      "actor": "AD",
+      "url": "/admin/alerts",
+      "uc_related": "UC-AD11",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Data Table + Filter",
+          "type": "Data Table",
+          "description": "Plot, Loại cảnh báo, Giá trị, Ngưỡng, Thời gian + Filter"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-AD-10",
+      "screen_name": "Tra cứu Audit Log",
+      "feature_group": "Admin",
+      "purpose": "Tra cứu nhật ký thao tác hệ thống phục vụ kiểm toán",
+      "actor": "AD",
+      "url": "/admin/audit-log",
+      "uc_related": "UC-AD13, US9.5",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Bảng Audit Log",
+          "type": "Data Table",
+          "description": "Thời gian, User, IP, Action, Entity, Mô tả"
+        },
+        {
+          "id": 2,
+          "component": "Filter",
+          "type": "Multi Filter",
+          "description": "Theo thời gian (Date Range), User, Loại Action"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CGNN-01",
+      "screen_name": "Dashboard CGNN",
+      "feature_group": "CGNN",
+      "purpose": "Tổng quan: Proposal chờ review, Ticket tư vấn, Issue Report",
+      "actor": "CGNN (ROLE_EXPERT)",
+      "url": "/expert/dashboard",
+      "uc_related": "—",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Sidebar CGNN",
+          "type": "Navigation",
+          "description": "Dashboard, Crops, Processes, Proposals, Consultations, Issues, Documents"
+        },
+        {
+          "id": 2,
+          "component": "Card \"Proposal chờ review\"",
+          "type": "Stat Card + Link",
+          "description": "Số lượng Proposal Draft chờ review"
+        },
+        {
+          "id": 3,
+          "component": "Card \"Ticket tư vấn\"",
+          "type": "Stat Card",
+          "description": "Số ticket OPEN + IN_PROGRESS"
+        },
+        {
+          "id": 4,
+          "component": "Card \"Issue Report\"",
+          "type": "Stat Card",
+          "description": "Số Issue chưa phản hồi"
+        },
+        {
+          "id": 5,
+          "component": "Danh sách hành động",
+          "type": "Action List",
+          "description": "Top 5 việc cần xử lý khẩn cấp nhất"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CGNN-02",
+      "screen_name": "Quản lý Crop & Variety",
+      "feature_group": "CGNN",
+      "purpose": "Thêm/sửa thông tin giống cây trồng",
+      "actor": "CGNN",
+      "url": "/expert/crops",
+      "uc_related": "UC-CGNN01, UC-CGNN02, US4.1",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Data Table + Form CRUD",
+          "type": "Data Table + Form",
+          "description": "Data Table (Tên, Tên KH, Nhóm, Thời gian, Năng suất, Active) + Form CRUD (Tên giống, Tên khoa học, Nhóm rau, Duration, Năng suất, Mùa vụ, Sâu bệnh, Ảnh)"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CGNN-03",
+      "screen_name": "Thiết lập Plot–Crop Compatibility",
+      "feature_group": "CGNN",
+      "purpose": "Gán cây trồng tương thích cho từng Plot",
+      "actor": "CGNN",
+      "url": "/expert/compatibility",
+      "uc_related": "UC-CGNN03, US4.2",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Chọn Plot",
+          "type": "Dropdown",
+          "description": "Lọc theo Land → Plot"
+        },
+        {
+          "id": 2,
+          "component": "Danh sách Crop",
+          "type": "Checkbox List",
+          "description": "Tick chọn Crop tương thích"
+        },
+        {
+          "id": 3,
+          "component": "Nút \"Lưu\"",
+          "type": "Button",
+          "description": "Lưu bảng PlotCropCompatibility"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CGNN-04",
+      "screen_name": "Soạn Standard Process Template",
+      "feature_group": "CGNN",
+      "purpose": "Xây dựng quy trình canh tác chuẩn cho từng giống cây",
+      "actor": "CGNN",
+      "url": "/expert/processes",
+      "uc_related": "UC-CGNN04–CGNN08, US4.3, US4.4, US4.5",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Chọn Crop/Variety",
+          "type": "Dropdown",
+          "description": "Chọn giống cây cần soạn quy trình"
+        },
+        {
+          "id": 2,
+          "component": "Danh sách Stages",
+          "type": "Sortable List",
+          "description": "Các giai đoạn: Ươm → Phát triển → Tăng trưởng → Thu hoạch"
+        },
+        {
+          "id": 3,
+          "component": "Form Stage",
+          "type": "Expandable Form",
+          "description": "Tên, Day Offset (from-to), Tần suất tưới, Định mức nước"
+        },
+        {
+          "id": 4,
+          "component": "Hướng dẫn KT",
+          "type": "Rich Text Editor",
+          "description": "Markdown/Rich Text soạn hướng dẫn chi tiết"
+        },
+        {
+          "id": 5,
+          "component": "Vật tư khuyến nghị",
+          "type": "Sub-table",
+          "description": "Tên vật tư, Số lượng, Đơn vị"
+        },
+        {
+          "id": 6,
+          "component": "Ngưỡng IoT",
+          "type": "Form Group",
+          "description": "min_temp, max_temp, min_air_humidity, max_air_humidity, min_soil_moisture, max_soil_moisture"
+        },
+        {
+          "id": 7,
+          "component": "Nút \"Lưu phiên bản\"",
+          "type": "Button",
+          "description": "Lưu template + version number"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CGNN-05",
+      "screen_name": "Quản lý kho tài liệu chuyên môn",
+      "feature_group": "CGNN",
+      "purpose": "Upload, phân loại tài liệu KT cho AI Service tham chiếu",
+      "actor": "CGNN",
+      "url": "/expert/documents",
+      "uc_related": "UC-CGNN09, US4.6",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "File Upload + Phân loại + Data Table",
+          "type": "File Upload + Dropdown + Data Table",
+          "description": "File Upload + Phân loại (Dropdown: Kỹ thuật trồng, Sâu bệnh, Dinh dưỡng) + Data Table"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CGNN-06",
+      "screen_name": "Lập & Hiệu chỉnh Kế hoạch Canh tác",
+      "feature_group": "CGNN",
+      "purpose": "Xem Proposal do AI sinh, chỉnh sửa nội dung chuyên môn, gửi KH duyệt",
+      "actor": "CGNN",
+      "url": "/expert/proposals/{proposalId}",
+      "uc_related": "UC-CGNN11, US5.3",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Bảng danh sách Proposal",
+          "type": "Data Table",
+          "description": "Rental, KH, Crop, Trạng thái (Draft/Pending/Active)"
+        },
+        {
+          "id": 2,
+          "component": "Chi tiết Proposal",
+          "type": "Form (Editable)",
+          "description": "Timeline giai đoạn, task, vật tư – CGNN có thể chỉnh sửa"
+        },
+        {
+          "id": 3,
+          "component": "Nút \"Gửi cho KH duyệt\"",
+          "type": "Button (Primary)",
+          "description": "Chuyển Proposal → Pending Approval → Thông báo KH"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CGNN-07",
+      "screen_name": "Đề xuất Plan Revision",
+      "feature_group": "CGNN",
+      "purpose": "Tạo phiên bản mới của Plan khi có biến động",
+      "actor": "CGNN",
+      "url": "/expert/proposals/{proposalId}/revision",
+      "uc_related": "UC-CGNN12, US5.5",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Plan hiện tại",
+          "type": "Read-only View",
+          "description": "Phiên bản đang Active"
+        },
+        {
+          "id": 2,
+          "component": "Form chỉnh sửa",
+          "type": "Editable Form",
+          "description": "Thêm/bỏ task, dời ngày, điều chỉnh vật tư"
+        },
+        {
+          "id": 3,
+          "component": "Lý do điều chỉnh",
+          "type": "Textarea",
+          "description": "Bắt buộc nhập (dịch bệnh, thời tiết...)"
+        },
+        {
+          "id": 4,
+          "component": "Nút \"Gửi Revision\"",
+          "type": "Button",
+          "description": "Tạo Plan Version mới → KH duyệt"
+        }
+      ],
+      "events": [],
+      "business_rules": "BR13 (Không sửa đè – tạo version mới, KH approve mới áp dụng).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CGNN-08",
+      "screen_name": "Chat tư vấn KH (KH ↔ CGNN)",
+      "feature_group": "CGNN",
+      "purpose": "Giao diện chat phía CGNN – tư vấn sâu bệnh, Pre-rental",
+      "actor": "CGNN",
+      "url": "/expert/consultations/{ticketId}",
+      "uc_related": "UC-CGNN13, US8.2",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Chat Interface (CGNN view)",
+          "type": "Chat Window + Panels",
+          "description": "Tương tự SCR-KH-12 nhưng góc nhìn CGNN. Thêm: Nút \"Nhận tư vấn\" (gán expert_id), Panel Plot info, Farm Diary, IoT"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CGNN-09",
+      "screen_name": "Tiếp nhận Issue Report & Chat CVLĐ",
+      "feature_group": "CGNN",
+      "purpose": "Xem báo cáo sự cố từ CVLĐ, chat hướng dẫn kỹ thuật",
+      "actor": "CGNN ↔ CVLĐ",
+      "url": "/expert/issues/{issueId}",
+      "uc_related": "UC-CGNN14, UC-CGNN15, US8.3",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Danh sách Issue",
+          "type": "Sidebar List",
+          "description": "Issue Report từ CVLĐ (Open / Resolved)"
+        },
+        {
+          "id": 2,
+          "component": "Chi tiết sự cố",
+          "type": "Info Card",
+          "description": "Ảnh sự cố, mô tả, Plot, cây trồng"
+        },
+        {
+          "id": 3,
+          "component": "Chat KT",
+          "type": "Chat Window",
+          "description": "Kênh riêng CVLĐ ↔ CGNN"
+        },
+        {
+          "id": 4,
+          "component": "Nút \"Đề xuất Plan Revision\"",
+          "type": "Button",
+          "description": "Liên kết → SCR-CGNN-07 nếu cần"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CVLD-01",
+      "screen_name": "Dashboard CVLĐ (Danh sách task hôm nay)",
+      "feature_group": "CVLĐ",
+      "purpose": "Xem công việc cần làm hôm nay, gom nhóm theo Plot",
+      "actor": "CVLĐ (ROLE_STAFF)",
+      "url": "/staff/dashboard",
+      "uc_related": "UC-CVLD01, US6.3",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Topbar",
+          "type": "Mobile Nav",
+          "description": "Logo, Thông báo, Avatar"
+        },
+        {
+          "id": 2,
+          "component": "Danh sách task",
+          "type": "Card List (Mobile-friendly)",
+          "description": "Gom nhóm theo Plot. Mỗi card: Tên task, Plot, Giờ, Badge trạng thái"
+        },
+        {
+          "id": 3,
+          "component": "Click vào task",
+          "type": "Navigate",
+          "description": "→ SCR-CVLD-02"
+        }
+      ],
+      "events": [],
+      "business_rules": "Giao diện tối ưu cho điện thoại di động (Mobile-first).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CVLD-02",
+      "screen_name": "Chi tiết Care Task & Hướng dẫn KT",
+      "feature_group": "CVLĐ",
+      "purpose": "Xem chi tiết task: hướng dẫn kỹ thuật, vật tư cần mang, vị trí Plot",
+      "actor": "CVLĐ",
+      "url": "/staff/tasks/{taskId}",
+      "uc_related": "UC-CVLD02, UC-CVLD03, US6.3",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Tên & Loại task",
+          "type": "Header",
+          "description": "\"Tưới nước – Plot L01-P03\""
+        },
+        {
+          "id": 2,
+          "component": "Hướng dẫn kỹ thuật",
+          "type": "Rich Text Card",
+          "description": "Nội dung từ Standard Process"
+        },
+        {
+          "id": 3,
+          "component": "Vật tư cần mang",
+          "type": "Checklist",
+          "description": "Phân trùn quế 0.5kg, Nước 10L..."
+        },
+        {
+          "id": 4,
+          "component": "Vị trí Plot",
+          "type": "Map/Info",
+          "description": "Khu đất, vị trí, loại cây trồng"
+        },
+        {
+          "id": 5,
+          "component": "Nút \"Bắt đầu làm\"",
+          "type": "Button (Primary)",
+          "description": "Chuyển task → IN_PROGRESS"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CVLD-03",
+      "screen_name": "Thực thi Task (Ghi vật tư + Chụp ảnh)",
+      "feature_group": "CVLĐ",
+      "purpose": "Ghi nhận vật tư đã dùng, chụp ảnh minh chứng bắt buộc",
+      "actor": "CVLĐ",
+      "url": "/staff/tasks/{taskId}/execute",
+      "uc_related": "UC-CVLD05, UC-CVLD06, US6.4",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Vật tư đã dùng",
+          "type": "Dynamic Form",
+          "description": "Thêm dòng: Tên vật tư, Số lượng, Đơn vị"
+        },
+        {
+          "id": 2,
+          "component": "Chụp/Upload ảnh",
+          "type": "Camera + File Upload",
+          "description": "Bắt buộc ≥ 1 ảnh (dùng camera điện thoại)"
+        },
+        {
+          "id": 3,
+          "component": "Ghi chú hiện trạng",
+          "type": "Textarea",
+          "description": "Ghi chú bất thường (sâu hại, lá vàng...)"
+        },
+        {
+          "id": 4,
+          "component": "Nút \"Hoàn thành\"",
+          "type": "Button (Success)",
+          "description": "→ SCR-CVLD-04 (Disabled nếu chưa có ảnh)"
+        }
+      ],
+      "events": [],
+      "business_rules": "BR15 (Bắt buộc ≥ 1 ảnh), BR17 (Tự động đồng bộ Farm Diary).",
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CVLD-04",
+      "screen_name": "Xác nhận hoàn thành Task",
+      "feature_group": "CVLĐ",
+      "purpose": "Review lại thông tin trước khi đóng task",
+      "actor": "CVLĐ",
+      "url": "/staff/tasks/{taskId}/confirm",
+      "uc_related": "UC-CVLD07, US6.5",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Tóm tắt",
+          "type": "Summary Card",
+          "description": "Tên task, Vật tư đã dùng, Ảnh đã chụp"
+        },
+        {
+          "id": 2,
+          "component": "Nút \"Xác nhận hoàn thành\"",
+          "type": "Button (Primary)",
+          "description": "Task → COMPLETED, Tạo FarmDiary entry, Thông báo KH"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CVLD-05",
+      "screen_name": "Tạo Issue Report",
+      "feature_group": "CVLĐ",
+      "purpose": "Báo cáo sự cố bất thường tại vườn",
+      "actor": "CVLĐ",
+      "url": "/staff/issues/new",
+      "uc_related": "UC-CVLD08, US6.6",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Chọn Plot",
+          "type": "Dropdown",
+          "description": "Plot đang phụ trách"
+        },
+        {
+          "id": 2,
+          "component": "Loại sự cố",
+          "type": "Dropdown",
+          "description": "Sâu bệnh / Hỏng giàn / Thiếu nước / Khác"
+        },
+        {
+          "id": 3,
+          "component": "Mô tả",
+          "type": "Textarea",
+          "description": "Chi tiết sự cố"
+        },
+        {
+          "id": 4,
+          "component": "Chụp ảnh",
+          "type": "Camera + File Upload",
+          "description": "≥ 1 ảnh sự cố"
+        },
+        {
+          "id": 5,
+          "component": "Nút \"Gửi báo cáo\"",
+          "type": "Button",
+          "description": "Tạo Issue Report → Thông báo CGNN"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CVLD-06",
+      "screen_name": "Chat với CGNN",
+      "feature_group": "CVLĐ",
+      "purpose": "Trao đổi kỹ thuật trực tiếp với CGNN",
+      "actor": "CVLĐ ↔ CGNN",
+      "url": "/staff/issues/{issueId}/chat",
+      "uc_related": "UC-CVLD09, US6.6",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Chat Window",
+          "type": "Chat Window",
+          "description": "Tương tự SCR-KH-12 nhưng kênh CVLĐ ↔ CGNN"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CVLD-07",
+      "screen_name": "Hỗ trợ thu hoạch",
+      "feature_group": "CVLĐ",
+      "purpose": "Cắt, cân, đóng gói nông sản và ghi nhận Harvest Result",
+      "actor": "CVLĐ (Assisted-growing)",
+      "url": "/staff/harvest/{rentalId}",
+      "uc_related": "UC-CVLD10, US9.1",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Thông tin Rental",
+          "type": "Info Card",
+          "description": "Plot, KH, Cây trồng"
+        },
+        {
+          "id": 2,
+          "component": "Sản lượng",
+          "type": "Number Input",
+          "description": "Kg thu hoạch"
+        },
+        {
+          "id": 3,
+          "component": "Ảnh thu hoạch",
+          "type": "Camera + Upload",
+          "description": "Chụp ảnh sản phẩm đóng gói"
+        },
+        {
+          "id": 4,
+          "component": "Nút \"Ghi nhận\"",
+          "type": "Button",
+          "description": "Lưu Harvest Result → Thông báo KH"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    },
+    {
+      "screen_id": "SCR-CVLD-08",
+      "screen_name": "Lịch sử công việc",
+      "feature_group": "CVLĐ",
+      "purpose": "Tra cứu task đã hoàn thành phục vụ chấm công",
+      "actor": "CVLĐ",
+      "url": "/staff/history",
+      "uc_related": "UC-CVLD11, US9.3",
+      "ui_components": [
+        {
+          "id": 1,
+          "component": "Data Table + Filter",
+          "type": "Data Table",
+          "description": "Task, Plot, Ngày, Vật tư, Ảnh + Filter theo tháng"
+        }
+      ],
+      "events": [],
+      "business_rules": null,
+      "field_validations": null
+    }
+  ]
+}
