@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import AdminSidebar from '../layout/AdminSidebar';
-import { Menu, Bell, Shield, User, ArrowUpRight, ChevronDown, Check, UsersRound } from 'lucide-react';
+import { Menu, ChevronDown, Check, LogOut, UsersRound } from 'lucide-react';
 import { DEMO_ACCOUNTS, useAuthStore } from '../../stores/authStore';
 
 export default function MasterDataLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const { user, switchRole } = useAuthStore();
+  const { user, switchRole, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const signOut = () => {
+    logout();
+    setAccountOpen(false);
+    navigate('/login');
+  };
 
   const getPageTitle = (pathname) => {
     if (pathname.includes('/lands')) return 'Quản Lý Nông Trại (Land Properties)';
@@ -88,7 +93,7 @@ export default function MasterDataLayout() {
               </div>
               <ChevronDown size={15} className="text-brand-muted" />
               </button>
-              {accountOpen && <div className="absolute right-0 top-12 z-30 w-64 rounded-2xl border border-brand-border bg-white p-2 text-brand-dark shadow-xl"><p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-brand-muted"><UsersRound size={13} className="mr-1 inline" /> Chuyển người dùng nhanh</p>{DEMO_ACCOUNTS.map(account => <button key={account.role} type="button" onClick={() => { switchRole(account.role); setAccountOpen(false); navigate({ CUSTOMER: '/customer/dashboard', STAFF: '/staff/dashboard', EXPERT: '/expert/dashboard', ADMIN: '/admin/master-data' }[account.role]); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-cream"><span><strong className="block">{account.fullName}</strong><small className="text-brand-muted">{account.roleTitle}</small></span>{user?.role === account.role && <Check size={15} className="text-brand-green" />}</button>)}</div>}
+              {accountOpen && <div className="absolute right-0 top-12 z-30 w-64 rounded-2xl border border-brand-border bg-white p-2 text-brand-dark shadow-xl"><p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-brand-muted"><UsersRound size={13} className="mr-1 inline" /> Chuyển người dùng nhanh</p>{DEMO_ACCOUNTS.map(account => <button key={account.role} type="button" onClick={() => { switchRole(account.role); setAccountOpen(false); navigate({ CUSTOMER: '/customer/dashboard', STAFF: '/staff/dashboard', EXPERT: '/expert/dashboard', ADMIN: '/admin/master-data' }[account.role]); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-cream"><span><strong className="block">{account.fullName}</strong><small className="text-brand-muted">{account.roleTitle}</small></span>{user?.role === account.role && <Check size={15} className="text-brand-green" />}</button>)}<div className="my-2 border-t border-brand-border" /><button type="button" onClick={signOut} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-rose-700 hover:bg-rose-50"><LogOut size={15} /> Đăng xuất</button></div>}
             </div>
           </div>
         </header>

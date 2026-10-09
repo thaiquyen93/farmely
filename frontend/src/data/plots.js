@@ -7,14 +7,14 @@ const seededPlots = [
     landName: "Nông Trại Củ Chi Eco Farm",
     area: "50 m²",
     soilType: "Đất phù sa bồi lắng giàu mùn (pH 6.2 - 6.8)",
-    status: "AVAILABLE",
+    status: "RENTED",
     rentalPrice: 1200000, // VND / tháng
     formattedPrice: "1.200.000 đ/tháng",
     careServicePrice: 600000, // Phí Assisted-growing / tháng
     iotStationId: "IOT-CC-01",
     iotStationName: "Trạm Cảm Biến Alpha 01",
     compatibleCrops: ["Cà chua bi Cherry", "Xà lách Lollo Bionda", "Dưa leo Baby"],
-    description: "Thửa đất vị trí đắc địa tiếp giáp kênh tưới tự nhiên, đón nắng sớm 6-8 tiếng mỗi ngày. Đã hoàn thiện rãnh thoát nước chống ngập và trạm đo IoT vi khí hậu.",
+    description: "Thửa đất vị trí đắc địa tiếp giáp kênh tưới tự nhiên, đón nắng sớm 6-8 tiếng mỗi ngày. Khách hàng đang tự canh tác Xà lách Lollo Bionda và theo dõi qua trạm IoT vi khí hậu.",
     imageUrl: "https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80",
     gallery: [
       "https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80",
@@ -22,8 +22,8 @@ const seededPlots = [
       "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1000&q=80"
     ],
     boundaryCoordinates: "Khu A - Lô 01, Hàng rào tre tự nhiên hướng Đông",
-    currentCrop: null,
-    tenantName: null,
+    currentCrop: "Xà lách Lollo Bionda",
+    tenantName: "Lô Thái Quyền (USR-001)",
     recentSensorReadings: {
       temperature: "28.5 °C",
       humidity: "74 %",
@@ -54,7 +54,7 @@ const seededPlots = [
     ],
     boundaryCoordinates: "Khu A - Lô 02, Tiếp giáp luống A1",
     currentCrop: "Cà chua bi Cherry",
-    tenantName: "Nguyễn Văn Hùng (KH-8821)",
+    tenantName: "Lô Thái Quyền (USR-001)",
     recentSensorReadings: {
       temperature: "29.1 °C",
       humidity: "71 %",

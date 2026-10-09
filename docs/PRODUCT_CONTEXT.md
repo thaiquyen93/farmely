@@ -76,7 +76,8 @@ Cultivation mode is selected during reservation and belongs to the rented plot.
 
 ## Dashboard focus
 
-- Customer: My Gardens first, Marketplace inside the customer space, plot details opened from a garden, crop progress, read-only IoT and weather, Farm Diary, service requests, CGNN chat, harvest acceptance, and contract renewal.
+- Customer: My Gardens first, Marketplace and paid Services inside the customer space, plot details opened from a garden, crop progress, read-only IoT and weather, Farm Diary, service requests, CGNN chat, harvest acceptance, and contract renewal. The standalone Services entry follows service → owned plot → preferred time → mock payment. Opening Services from a plot preselects that plot and uses the shorter service → mock payment flow.
+- The customer demo shows two active plots so both cultivation modes can be reviewed: one Self-growing plot and one Assisted-growing plot. Garden cards identify the cultivation mode rather than repeating a generic active status. Plot details combine read-only IoT readings and related warnings under “Cảm biến & cảnh báo”.
 - CGNN: field issues, a manageable customer consultation inbox, crop and process knowledge, compatibility, and conversations with customers and CVLĐ.
 - CVLĐ: mobile friendly daily work, assigned plots, task details, photo and material evidence, issue reporting, CGNN chat, and harvest logging.
 - Admin: occupancy, revenue, users and RBAC, land and plot management, task coordination, IoT alerts, transactions, and audit logs.
