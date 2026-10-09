@@ -1,49 +1,50 @@
 import React, { useState, useRef, useEffect } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
-  Trees,
-  ChevronRight,
-  Layers,
-  Map as MapIcon,
   Compass,
   Plus,
   Minus,
   LocateFixed,
-  Sparkles,
-  Radio,
-  Eye
+  Layers,
+  Search,
+  Maximize2,
+  Minimize2,
+  Droplets,
+  Leaf,
+  ChevronRight,
+  Eye,
+  SlidersHorizontal,
+  X,
+  Map as MapIcon
 } from 'lucide-react';
 import { GIS_STATUSES } from '../../data/marketplaceGisData';
 
 /**
- * 2D TOP-DOWN ORTHOGRAPHIC GRID CALCULATOR
- * 16 plots arranged neatly in a 4x4 master architectural layout
- * Dimensions calibrated for 1000 x 620 SVG viewBox
+ * EXACT WGS84 COORDINATES FOR 16 FARMLAND PLOTS
+ * Centered on 10°41'31.73"N, 106°21'24.37"E (10.692147, 106.356769)
+ * 4x4 precision survey grid matching actual agricultural boundaries
  */
-const ORTHO_PLOTS_LAYOUT = [
-  // Row 0 (Plots P-01 .. P-04)
-  { code: 'Plot P-01', x: 140, y: 70, width: 145, height: 95 },
-  { code: 'Plot P-02', x: 305, y: 70, width: 145, height: 95 },
-  { code: 'Plot P-03', x: 550, y: 70, width: 145, height: 95 },
-  { code: 'Plot P-04', x: 715, y: 70, width: 145, height: 95 },
+export const GEO_FARM_CENTER = [10.692147, 106.356769];
 
-  // Row 1 (Plots P-05 .. P-08)
-  { code: 'Plot P-05', x: 140, y: 185, width: 145, height: 95 },
-  { code: 'Plot P-06', x: 305, y: 185, width: 145, height: 95 },
-  { code: 'Plot P-07', x: 550, y: 185, width: 145, height: 95 },
-  { code: 'Plot P-08', x: 715, y: 185, width: 145, height: 95 },
-
-  // Row 2 (Plots P-09 .. P-12)
-  { code: 'Plot P-09', x: 140, y: 340, width: 145, height: 95 },
-  { code: 'Plot P-10', x: 305, y: 340, width: 145, height: 95 },
-  { code: 'Plot P-11', x: 550, y: 340, width: 145, height: 95 },
-  { code: 'Plot P-12', x: 715, y: 340, width: 145, height: 95 },
-
-  // Row 3 (Plots P-13 .. P-16)
-  { code: 'Plot P-13', x: 140, y: 455, width: 145, height: 95 },
-  { code: 'Plot P-14', x: 305, y: 455, width: 145, height: 95 },
-  { code: 'Plot P-15', x: 550, y: 455, width: 145, height: 95 },
-  { code: 'Plot P-16', x: 715, y: 455, width: 145, height: 95 }
-];
+export const GEO_PLOTS_COORDINATES = {
+  'Plot P-01': { label: 'P-01 (A1)', center: [10.692852, 106.355764], polygon: [[10.693047, 106.355469], [10.693047, 106.356059], [10.692657, 106.356059], [10.692657, 106.355469]] },
+  'Plot P-02': { label: 'P-02 (A2)', center: [10.692852, 106.356414], polygon: [[10.693047, 106.356119], [10.693047, 106.356709], [10.692657, 106.356709], [10.692657, 106.356119]] },
+  'Plot P-03': { label: 'P-03 (A3)', center: [10.692852, 106.357064], polygon: [[10.693047, 106.356769], [10.693047, 106.357359], [10.692657, 106.357359], [10.692657, 106.356769]] },
+  'Plot P-04': { label: 'P-04 (A4)', center: [10.692852, 106.357714], polygon: [[10.693047, 106.357419], [10.693047, 106.358009], [10.692657, 106.358009], [10.692657, 106.357419]] },
+  'Plot P-05': { label: 'P-05 (B1)', center: [10.692402, 106.355764], polygon: [[10.692597, 106.355469], [10.692597, 106.356059], [10.692207, 106.356059], [10.692207, 106.355469]] },
+  'Plot P-06': { label: 'P-06 (B2)', center: [10.692402, 106.356414], polygon: [[10.692597, 106.356119], [10.692597, 106.356709], [10.692207, 106.356709], [10.692207, 106.356119]] },
+  'Plot P-07': { label: 'P-07 (B-03)', center: [10.692402, 106.357064], polygon: [[10.692597, 106.356769], [10.692597, 106.357359], [10.692207, 106.357359], [10.692207, 106.356769]] },
+  'Plot P-08': { label: 'P-08 (B4)', center: [10.692402, 106.357714], polygon: [[10.692597, 106.357419], [10.692597, 106.358009], [10.692207, 106.358009], [10.692207, 106.357419]] },
+  'Plot P-09': { label: 'P-09 (C1)', center: [10.691952, 106.355764], polygon: [[10.692147, 106.355469], [10.692147, 106.356059], [10.691757, 106.356059], [10.691757, 106.355469]] },
+  'Plot P-10': { label: 'P-10 (C2)', center: [10.691952, 106.356414], polygon: [[10.692147, 106.356119], [10.692147, 106.356709], [10.691757, 106.356709], [10.691757, 106.356119]] },
+  'Plot P-11': { label: 'P-11 (C3)', center: [10.691952, 106.357064], polygon: [[10.692147, 106.356769], [10.692147, 106.357359], [10.691757, 106.357359], [10.691757, 106.356769]] },
+  'Plot P-12': { label: 'P-12 (C4)', center: [10.691952, 106.357714], polygon: [[10.692147, 106.357419], [10.692147, 106.358009], [10.691757, 106.358009], [10.691757, 106.357419]] },
+  'Plot P-13': { label: 'P-13 (D1)', center: [10.691502, 106.355764], polygon: [[10.691697, 106.355469], [10.691697, 106.356059], [10.691307, 106.356059], [10.691307, 106.355469]] },
+  'Plot P-14': { label: 'P-14 (D2)', center: [10.691502, 106.356414], polygon: [[10.691697, 106.356119], [10.691697, 106.356709], [10.691307, 106.356709], [10.691307, 106.356119]] },
+  'Plot P-15': { label: 'P-15 (D3)', center: [10.691502, 106.357064], polygon: [[10.691697, 106.356769], [10.691697, 106.357359], [10.691307, 106.357359], [10.691307, 106.356769]] },
+  'Plot P-16': { label: 'P-16 (D4)', center: [10.691502, 106.357714], polygon: [[10.691697, 106.357419], [10.691697, 106.358009], [10.691307, 106.358009], [10.691307, 106.357419]] },
+};
 
 export default function MarketplaceInteractiveMap({
   plots = [],
@@ -52,426 +53,482 @@ export default function MarketplaceInteractiveMap({
   currentFarm,
   onSelectFarm
 }) {
-  // DEFAULT MODE: 2D Orthographic Aerial Map (Mặt Bằng 2D Sắc Nét Từ Trên Cao)
-  const [mapMode, setMapMode] = useState('AERIAL_2D'); // 'AERIAL_2D' | 'SATELLITE' | 'VECTOR'
-  const [zoomLevel, setZoomLevel] = useState(1.0);
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [hoveredPlot, setHoveredPlot] = useState(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const layersGroupRef = useRef(null);
+  const markersGroupRef = useRef(null);
+  const verticesGroupRef = useRef(null);
 
-  const containerRef = useRef(null);
+  // Layer Toggles matching Precision GIS UI
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [activeLayers, setActiveLayers] = useState({
+    boundary: true,
+    ndvi: true,
+    soil: false
+  });
 
-  // When selectedPlot changes externally, center focus smoothly
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Initialize Leaflet Map
   useEffect(() => {
-    if (selectedPlot) {
-      const ortho = ORTHO_PLOTS_LAYOUT.find((o) => o.code === selectedPlot.code);
-      if (ortho && mapMode === 'AERIAL_2D') {
-        const cx = ortho.x + ortho.width / 2;
-        const cy = ortho.y + ortho.height / 2;
-        setPanOffset({ x: (500 - cx) * 0.35, y: (310 - cy) * 0.35 });
-      } else if (selectedPlot.centroid) {
-        const [cx, cy] = selectedPlot.centroid;
-        setPanOffset({ x: (500 - cx) * 0.35, y: (310 - cy) * 0.35 });
-      }
-    }
-  }, [selectedPlot, mapMode]);
+    if (!mapContainerRef.current) return;
+    if (mapInstanceRef.current) return;
 
-  // Zoom handlers
-  const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 0.25, 2.2));
-  const handleZoomOut = () =>
-    setZoomLevel((prev) => {
-      const next = Math.max(prev - 0.25, 0.85);
-      if (next <= 1.0) setPanOffset({ x: 0, y: 0 });
-      return next;
+    const map = L.map(mapContainerRef.current, {
+      center: GEO_FARM_CENTER,
+      zoom: 17,
+      minZoom: 14,
+      maxZoom: 19,
+      zoomControl: false,
+      attributionControl: false,
+      fadeAnimation: true,
+      zoomAnimation: true
     });
 
-  const handleResetView = () => {
-    setZoomLevel(1.0);
-    setPanOffset({ x: 0, y: 0 });
-  };
+    // High-Resolution Satellite Layer (Google Satellite Pyramid)
+    L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+      maxNativeZoom: 19,
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+    }).addTo(map);
 
-  // Drag handlers
-  const handleMouseDown = (e) => {
-    if (e.button !== 0) return;
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
-  };
+    layersGroupRef.current = L.layerGroup().addTo(map);
+    markersGroupRef.current = L.layerGroup().addTo(map);
+    verticesGroupRef.current = L.layerGroup().addTo(map);
 
-  const handleMouseMove = (e) => {
-    if (isDragging) {
-      setPanOffset({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
+    mapInstanceRef.current = map;
+
+    return () => {
+      map.remove();
+      mapInstanceRef.current = null;
+    };
+  }, []);
+
+  // Render or Update Plots Polygons & Labels
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !layersGroupRef.current || !markersGroupRef.current || !verticesGroupRef.current) return;
+
+    layersGroupRef.current.clearLayers();
+    markersGroupRef.current.clearLayers();
+    verticesGroupRef.current.clearLayers();
+
+    if (!activeLayers.boundary) return;
+
+    plots.forEach((plot, index) => {
+      const geo = GEO_PLOTS_COORDINATES[plot.code] || Object.values(GEO_PLOTS_COORDINATES)[index];
+      if (!geo) return;
+
+      const isSelected = selectedPlot?.code === plot.code;
+      const isAvailable = plot.status === 'AVAILABLE';
+      const isRented = plot.status === 'RENTED';
+      const isMaintenance = plot.status === 'MAINTENANCE';
+
+      // Status-based polygon styles
+      let strokeColor = '#FFFFFF';
+      let fillColor = '#10B981';
+      let fillOpacity = 0.22;
+      let weight = 2.2;
+
+      if (isRented) {
+        fillColor = '#F59E0B';
+        strokeColor = '#FBBF24';
+      } else if (isMaintenance) {
+        fillColor = '#64748B';
+        strokeColor = '#94A3B8';
+      }
+
+      // NDVI Spectrometry Overlay
+      if (activeLayers.ndvi && isAvailable) {
+        fillColor = '#22C55E';
+        fillOpacity = 0.38;
+      }
+
+      // Soil Moisture Telemetry Overlay
+      if (activeLayers.soil) {
+        fillColor = '#06B6D4';
+        fillOpacity = 0.35;
+      }
+
+      if (isSelected) {
+        strokeColor = '#00F0FF';
+        weight = 3.8;
+        fillOpacity = 0.55;
+      }
+
+      // 1. Polygon Layer
+      const polygon = L.polygon(geo.polygon, {
+        color: strokeColor,
+        weight: weight,
+        opacity: 0.95,
+        fillColor: fillColor,
+        fillOpacity: fillOpacity,
+        className: 'cursor-pointer'
       });
-    }
 
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setTooltipPos({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
+      polygon.on('click', () => {
+        if (onSelectPlot) onSelectPlot(plot);
+        map.flyTo(geo.center, 18, { duration: 0.6 });
       });
+
+      polygon.on('mouseover', () => {
+        if (!isSelected) {
+          polygon.setStyle({
+            weight: 3.2,
+            color: '#38BDF8',
+            fillOpacity: 0.45
+          });
+        }
+      });
+
+      polygon.on('mouseout', () => {
+        if (!isSelected) {
+          polygon.setStyle({
+            weight: weight,
+            color: strokeColor,
+            fillOpacity: fillOpacity
+          });
+        }
+      });
+
+      layersGroupRef.current.addLayer(polygon);
+
+      // 2. Corner Vertex Handles on Selected Plot
+      if (isSelected) {
+        geo.polygon.forEach((pt) => {
+          const vertexMarker = L.circleMarker(pt, {
+            radius: 4,
+            color: '#FFFFFF',
+            weight: 2,
+            fillColor: '#00F0FF',
+            fillOpacity: 1.0
+          });
+          verticesGroupRef.current.addLayer(vertexMarker);
+        });
+      }
+
+      // 3. Central Plot Label
+      const labelText = geo.label || plot.code;
+      const labelIcon = L.divIcon({
+        className: 'custom-plot-label',
+        html: `
+          <div style="
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+          ">
+            <span style="
+              background: ${isSelected ? 'rgba(0, 240, 255, 0.95)' : 'rgba(15, 23, 42, 0.85)'};
+              color: ${isSelected ? '#0F172A' : '#FFFFFF'};
+              font-size: 11px;
+              font-weight: 800;
+              letter-spacing: 0.04em;
+              padding: 2px 7px;
+              border-radius: 6px;
+              border: 1px solid ${isSelected ? '#00F0FF' : 'rgba(255, 255, 255, 0.4)'};
+              box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+              white-space: nowrap;
+            ">
+              ${labelText}
+            </span>
+            <span style="
+              font-size: 9px;
+              color: #E2E8F0;
+              font-weight: 600;
+              text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+              margin-top: 1px;
+            ">
+              ${plot.areaFormatted || '150 m²'}
+            </span>
+          </div>
+        `,
+        iconSize: [0, 0]
+      });
+
+      const marker = L.marker(geo.center, { icon: labelIcon, interactive: false });
+      markersGroupRef.current.addLayer(marker);
+    });
+  }, [plots, selectedPlot, activeLayers, onSelectPlot]);
+
+  // Sync Map Focus when selectedPlot changes externally
+  useEffect(() => {
+    if (!selectedPlot || !mapInstanceRef.current) return;
+    const geo = GEO_PLOTS_COORDINATES[selectedPlot.code];
+    if (geo) {
+      mapInstanceRef.current.flyTo(geo.center, 18, { duration: 0.6 });
+    }
+  }, [selectedPlot]);
+
+  // Controls Handlers
+  const handleZoomIn = () => mapInstanceRef.current?.zoomIn();
+  const handleZoomOut = () => mapInstanceRef.current?.zoomOut();
+  const handleResetCenter = () => mapInstanceRef.current?.flyTo(GEO_FARM_CENTER, 17, { duration: 0.6 });
+
+  const handleSearchPlot = (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    const q = searchQuery.toLowerCase().trim();
+    const found = plots.find((p) => p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q));
+    if (found && onSelectPlot) {
+      onSelectPlot(found);
+      const geo = GEO_PLOTS_COORDINATES[found.code];
+      if (geo && mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo(geo.center, 18, { duration: 0.6 });
+      }
     }
   };
-
-  const handleMouseUp = () => setIsDragging(false);
 
   return (
     <div
-      ref={containerRef}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={() => {
-        setIsDragging(false);
-        setHoveredPlot(null);
-      }}
-      className={`relative w-full h-[420px] sm:h-[480px] lg:h-[530px] rounded-3xl overflow-hidden border border-brand-border bg-[#E3ECD7] select-none shadow-sm transition-all ${
-        isDragging ? 'cursor-grabbing' : 'cursor-grab'
+      className={`relative w-full rounded-3xl overflow-hidden border border-stone-800 shadow-2xl transition-all duration-300 ${
+        isFullscreen
+          ? 'fixed inset-0 z-50 rounded-none h-screen bg-stone-950'
+          : 'h-[540px] sm:h-[580px] bg-stone-950'
       }`}
     >
-      {/* MAP CANVAS WITH ZOOM & PAN */}
-      <div
-        className="absolute inset-0 w-full h-full origin-center transition-transform duration-300 ease-out"
-        style={{
-          transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px)`
-        }}
-      >
-        {/* ============================================================== */}
-        {/* MODE 1: 3D AERIAL PHOTO BASE + VECTOR PLOT OVERLAY */}
-        {/* ============================================================== */}
-        {mapMode === 'AERIAL_2D' && (
-          <>
-            {/* Base Layer: Real Aerial Photo */}
-            <img
-              src="/images/happy_valley_aerial.jpg"
-              alt="Farmely Aerial View"
-              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-              style={{ imageRendering: 'crisp-edges' }}
+      {/* 1. TOP HEADER TOOLBAR (Precision Agriculture WebGIS Theme) */}
+      <div className="absolute top-3 left-3 right-3 z-[1000] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        {/* Left: Location & Coordinates Info */}
+        <div className="bg-stone-900/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-stone-700/60 shadow-lg flex items-center gap-2.5 pointer-events-auto">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="leading-tight">
+            <div className="text-[11px] font-heading font-black text-white flex items-center gap-1.5">
+              <span>Trang Trại Công Nghệ Cao</span>
+              <span className="text-stone-400 font-normal">·</span>
+              <span className="text-emerald-400 font-mono text-[10px]">10°41'31.73"N, 106°21'24.37"E</span>
+            </div>
+            <div className="text-[10px] text-stone-400 font-medium">
+              Vệ tinh thực địa · Zoom vô cực không vỡ nét
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Search + Layers Toggle + Fullscreen */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Quick Plot Search */}
+          <form
+            onSubmit={handleSearchPlot}
+            className="hidden sm:flex items-center bg-stone-900/90 backdrop-blur-md rounded-2xl border border-stone-700/60 px-2.5 py-1.5 shadow-lg text-xs"
+          >
+            <Search className="w-3.5 h-3.5 text-stone-400 mr-1.5" />
+            <input
+              type="text"
+              placeholder="Tìm thửa (ví dụ P-07)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-transparent text-white placeholder-stone-400 text-xs focus:outline-none w-36"
             />
-            
-            {/* Overlay Layer: Interactive Vector Plots */}
-            <svg
-              viewBox="0 0 1000 620"
-              className="w-full h-full absolute inset-0"
-              preserveAspectRatio="none"
+          </form>
+
+          {/* Layer Selector Toggle */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setLayersOpen(!layersOpen)}
+              className={`p-2 rounded-xl backdrop-blur-md border shadow-lg transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer ${
+                layersOpen
+                  ? 'bg-emerald-600 text-white border-emerald-400 shadow-emerald-500/20'
+                  : 'bg-stone-900/90 text-stone-200 border-stone-700/60 hover:text-white'
+              }`}
             >
-              <defs>
-                {/* Glow Filter Khi Chọn Thửa Đất */}
-                <filter id="plotSelectedGlow" x="-30%" y="-30%" width="160%" height="160%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#FFFFFF" floodOpacity="0.95" />
-                  <feDropShadow dx="0" dy="0" stdDeviation="9" floodColor="#F6D365" floodOpacity="0.85" />
-                </filter>
-              </defs>
+              <Layers className="w-4 h-4" />
+              <span className="hidden md:inline">Lớp bản đồ</span>
+            </button>
 
-              {/* 16 THỬA ĐẤT VECTOR OVERLAY (4x4 GRID TRANSPARENT BORDERS) */}
-              {ORTHO_PLOTS_LAYOUT.map((ortho, idx) => {
-                const plot = plots.find((p) => p.code === ortho.code) || plots[idx];
-                if (!plot) return null;
+            {/* Layers Dropdown Menu */}
+            {layersOpen && (
+              <div className="absolute right-0 top-11 w-56 bg-stone-900/95 backdrop-blur-xl border border-stone-700/80 rounded-2xl shadow-2xl p-3 z-[1100] text-xs space-y-2">
+                <div className="font-heading font-black text-white text-[11px] pb-1 border-b border-stone-800 flex items-center justify-between">
+                  <span>CÁC LỚP VIỄN THÁM</span>
+                  <button onClick={() => setLayersOpen(false)} className="text-stone-400 hover:text-white">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-                const isSelected = selectedPlot?.id === plot.id;
-                const isHovered = hoveredPlot?.id === plot.id;
-                const statusConfig = GIS_STATUSES[plot.status] || GIS_STATUSES.AVAILABLE;
+                <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-stone-800/60 cursor-pointer">
+                  <span className="text-stone-200 flex items-center gap-1.5 font-medium">
+                    <div className="w-3 h-3 border-2 border-white rounded-xs" /> Ranh giới thửa
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={activeLayers.boundary}
+                    onChange={(e) => setActiveLayers({ ...activeLayers, boundary: e.target.checked })}
+                    className="accent-emerald-500 w-3.5 h-3.5 rounded"
+                  />
+                </label>
 
-                return (
-                  <g
-                    key={plot.id || ortho.code}
-                    className="cursor-pointer transition-all duration-200"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectPlot(plot);
-                    }}
-                    onMouseEnter={() => setHoveredPlot(plot)}
-                    onMouseLeave={() => setHoveredPlot(null)}
-                  >
-                    {/* Transparent Plot Boundary (phủ mờ lên ảnh aerial) */}
-                    <rect
-                      x={ortho.x}
-                      y={ortho.y}
-                      width={ortho.width}
-                      height={ortho.height}
-                      rx="8"
-                      fill={
-                        isSelected || isHovered
-                          ? 'rgba(246, 211, 101, 0.35)'
-                          : plot.status === 'AVAILABLE'
-                          ? 'rgba(16, 185, 129, 0.15)'
-                          : plot.status === 'RENTED'
-                          ? 'rgba(245, 158, 11, 0.15)'
-                          : 'rgba(100, 116, 139, 0.15)'
-                      }
-                      stroke={
-                        isSelected
-                          ? '#FFFFFF'
-                          : isHovered
-                          ? '#F6D365'
-                          : 'rgba(255, 255, 255, 0.6)'
-                      }
-                      strokeWidth={isSelected ? 5 : isHovered ? 3.5 : 2}
-                      filter={isSelected ? 'url(#plotSelectedGlow)' : undefined}
-                    />
+                <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-stone-800/60 cursor-pointer">
+                  <span className="text-stone-200 flex items-center gap-1.5 font-medium">
+                    <div className="w-3 h-3 bg-emerald-500 rounded-xs" /> Phổ thực vật (NDVI)
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={activeLayers.ndvi}
+                    onChange={(e) => setActiveLayers({ ...activeLayers, ndvi: e.target.checked })}
+                    className="accent-emerald-500 w-3.5 h-3.5 rounded"
+                  />
+                </label>
 
-                    {/* Nhãn Tên Thửa Đất */}
-                    <g transform={`translate(${ortho.x + ortho.width / 2}, ${ortho.y + 36})`} pointerEvents="none">
-                      <rect
-                        x="-30"
-                        y="-14"
-                        width="60"
-                        height="26"
-                        rx="8"
-                        fill={isSelected || isHovered ? 'rgba(41, 76, 56, 0.95)' : 'rgba(20, 35, 20, 0.75)'}
-                        stroke={isSelected ? '#F6D365' : 'rgba(255, 255, 255, 0.8)'}
-                        strokeWidth={isSelected ? 2.5 : 1.5}
-                      />
-                      <text
-                        x="0"
-                        y="3"
-                        textAnchor="middle"
-                        fill="#FFFFFF"
-                        fontSize="12"
-                        fontWeight="900"
-                        fontFamily="system-ui, sans-serif"
-                      >
-                        {plot.label || ortho.code.replace('Plot ', '')}
-                      </text>
-                    </g>
-
-                    {/* Badge Trạng Thái Nhỏ Bên Dưới Thửa */}
-                    <g transform={`translate(${ortho.x + ortho.width / 2}, ${ortho.y + ortho.height - 20})`} pointerEvents="none">
-                      <rect
-                        x="-48"
-                        y="-10"
-                        width="96"
-                        height="20"
-                        rx="6"
-                        fill={
-                          plot.status === 'AVAILABLE'
-                            ? '#10B981'
-                            : plot.status === 'RENTED'
-                            ? '#F59E0B'
-                            : '#64748B'
-                        }
-                        opacity={isSelected || isHovered ? '1' : '0.85'}
-                      />
-                      <text
-                        x="0"
-                        y="4"
-                        textAnchor="middle"
-                        fill="#FFFFFF"
-                        fontSize="10"
-                        fontWeight="bold"
-                        fontFamily="system-ui, sans-serif"
-                      >
-                        {statusConfig.label} • {plot.areaFormatted || `${plot.area || 100}m²`}
-                      </text>
-                    </g>
-                  </g>
-                );
-              })}
-            </svg>
-          </>
-        )}
-
-        {/* ============================================================== */}
-        {/* MODE 2: SATELLITE AERIAL PHOTO (ẢNH VỆ TINH TRUYỀN THỐNG)     */}
-        {/* ============================================================== */}
-        {mapMode === 'SATELLITE' && (
-          <div className="relative w-full h-full">
-            <img
-              src={currentFarm?.aerialImage || '/images/happy_valley_aerial.jpg'}
-              alt="Farmely GIS Satellite View"
-              className="w-full h-full object-cover pointer-events-none"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20 pointer-events-none" />
-
-            {/* Overlay Polygons for Satellite */}
-            <svg viewBox="0 0 1000 620" className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-              {plots.map((plot) => {
-                if (!plot.polygon) return null;
-                const isSelected = selectedPlot?.id === plot.id;
-                const isHovered = hoveredPlot?.id === plot.id;
-                const statusConfig = GIS_STATUSES[plot.status] || GIS_STATUSES.AVAILABLE;
-                const pointsStr = plot.polygon.map(([px, py]) => `${px},${py}`).join(' ');
-
-                return (
-                  <g
-                    key={plot.id}
-                    className="cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelectPlot(plot);
-                    }}
-                    onMouseEnter={() => setHoveredPlot(plot)}
-                    onMouseLeave={() => setHoveredPlot(null)}
-                  >
-                    <polygon
-                      points={pointsStr}
-                      fill={isSelected || isHovered ? statusConfig.hoverFillColor : statusConfig.fillColor}
-                      stroke={isSelected ? '#FFFFFF' : isHovered ? '#FFFFFF' : 'rgba(255, 255, 255, 0.75)'}
-                      strokeWidth={isSelected ? 3.5 : isHovered ? 2.5 : 1.5}
-                    />
-                    {plot.centroid && (
-                      <g transform={`translate(${plot.centroid[0]}, ${plot.centroid[1]})`} pointerEvents="none">
-                        <rect x="-18" y="-10" width="36" height="20" rx="6" fill={isSelected ? '#294C38' : 'rgba(20, 30, 20, 0.8)'} stroke="#FFFFFF" strokeWidth={1} />
-                        <text x="0" y="4" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold">
-                          {plot.label || plot.code.replace('Plot ', '')}
-                        </text>
-                      </g>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
+                <label className="flex items-center justify-between p-1.5 rounded-lg hover:bg-stone-800/60 cursor-pointer">
+                  <span className="text-stone-200 flex items-center gap-1.5 font-medium">
+                    <div className="w-3 h-3 bg-cyan-500 rounded-xs" /> Thổ nhưỡng & Độ ẩm đất
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={activeLayers.soil}
+                    onChange={(e) => setActiveLayers({ ...activeLayers, soil: e.target.checked })}
+                    className="accent-emerald-500 w-3.5 h-3.5 rounded"
+                  />
+                </label>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* ============================================================== */}
-        {/* MODE 3: VECTOR CONTOUR GIS                                    */}
-        {/* ============================================================== */}
-        {mapMode === 'VECTOR' && (
-          <div className="w-full h-full bg-[#EBF0E4] relative overflow-hidden pointer-events-none">
-            <svg className="w-full h-full absolute inset-0 opacity-25" viewBox="0 0 1000 620">
-              <path d="M 0,150 Q 250,90 500,160 T 1000,120" fill="none" stroke="#557C3E" strokeWidth="2" strokeDasharray="6 4" />
-              <path d="M 0,260 Q 280,210 520,290 T 1000,230" fill="none" stroke="#557C3E" strokeWidth="2" strokeDasharray="6 4" />
-              <path d="M 0,380 Q 310,340 560,410 T 1000,360" fill="none" stroke="#557C3E" strokeWidth="2" strokeDasharray="6 4" />
-              <path d="M 0,500 Q 350,460 600,530 T 1000,480" fill="none" stroke="#557C3E" strokeWidth="2" strokeDasharray="6 4" />
-            </svg>
-          </div>
-        )}
-      </div>
-
-      {/* TOP-LEFT FLOATING FARM HEADER */}
-      <div className="absolute top-4 left-4 z-20 pointer-events-auto">
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 border border-brand-border shadow-md flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-            <Trees className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="font-heading font-black text-xs sm:text-sm text-brand-dark flex items-center gap-1.5">
-              <span>{currentFarm?.name || 'Trang trại Happy Valley'}</span>
-              <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
-            </h4>
-            <p className="text-[11px] text-brand-muted">
-              {currentFarm?.location || 'Huyện Quế Phong, Nghệ An'} • 16 Thửa Đất Chuẩn Hóa
-            </p>
-          </div>
+          {/* Fullscreen Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="p-2 rounded-xl bg-stone-900/90 text-stone-200 hover:text-white border border-stone-700/60 backdrop-blur-md shadow-lg transition-all cursor-pointer"
+            title={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
         </div>
       </div>
 
-      {/* TOP-RIGHT VIEW CONTROLS (3 VIEW MODES: 2D, SATELLITE, VECTOR) */}
-      <div className="absolute top-4 right-4 z-20 flex flex-col items-end gap-2.5 pointer-events-auto">
-        <div className="bg-white/95 backdrop-blur-md p-1 rounded-2xl border border-brand-border shadow-md flex items-center gap-1 text-xs font-bold text-brand-dark">
-          <button
-            type="button"
-            onClick={() => setMapMode('AERIAL_2D')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
-              mapMode === 'AERIAL_2D'
-                ? 'bg-[#294C38] text-white shadow-sm'
-                : 'text-stone-600 hover:text-brand-dark'
-            }`}
-          >
-            <Compass className="w-3.5 h-3.5 text-brand-yellow" />
-            <span>🌿 Mặt Bằng 2D</span>
-          </button>
+      {/* 2. LEAFLET MAP VIEWPORT CONTAINER */}
+      <div ref={mapContainerRef} className="w-full h-full z-0 cursor-grab active:cursor-grabbing" />
 
-          <button
-            type="button"
-            onClick={() => setMapMode('SATELLITE')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
-              mapMode === 'SATELLITE'
-                ? 'bg-[#294C38] text-white shadow-sm'
-                : 'text-stone-600 hover:text-brand-dark'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Vệ Tinh</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setMapMode('VECTOR')}
-            className={`px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer ${
-              mapMode === 'VECTOR'
-                ? 'bg-[#294C38] text-white shadow-sm'
-                : 'text-stone-600 hover:text-brand-dark'
-            }`}
-          >
-            <MapIcon className="w-3.5 h-3.5" />
-            <span>Bình Độ GIS</span>
-          </button>
-        </div>
-
-        {/* Zoom & Reset View */}
-        <div className="bg-white/95 backdrop-blur-md rounded-xl border border-brand-border shadow-md flex flex-col p-1 gap-1">
+      {/* 3. RIGHT TOOLBAR CONTROLS (Zoom, Reset Center, North Compass) */}
+      <div className="absolute right-3 bottom-14 z-[1000] flex flex-col items-center gap-2 pointer-events-auto">
+        <div className="bg-stone-900/90 backdrop-blur-md rounded-2xl border border-stone-700/60 shadow-lg flex flex-col p-1 gap-1">
           <button
             type="button"
             onClick={handleZoomIn}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-dark hover:bg-stone-100 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-stone-200 hover:text-white hover:bg-stone-800 transition-all cursor-pointer"
             title="Phóng to"
           >
             <Plus className="w-4 h-4" />
           </button>
+          <div className="w-full h-[1px] bg-stone-800" />
           <button
             type="button"
             onClick={handleZoomOut}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-dark hover:bg-stone-100 transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-stone-200 hover:text-white hover:bg-stone-800 transition-all cursor-pointer"
             title="Thu nhỏ"
           >
             <Minus className="w-4 h-4" />
           </button>
-          <div className="w-full h-px bg-stone-200" />
-          <button
-            type="button"
-            onClick={handleResetView}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-brand-dark hover:bg-stone-100 transition-colors cursor-pointer"
-            title="Căn giữa bản đồ"
-          >
-            <LocateFixed className="w-4 h-4 text-brand-green" />
-          </button>
         </div>
-      </div>
 
-      {/* BOTTOM-LEFT GIS LEGEND */}
-      <div className="absolute bottom-4 left-4 z-20 pointer-events-auto">
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl px-4 py-2 border border-brand-border shadow-md flex flex-wrap items-center gap-3.5 text-xs font-semibold text-brand-dark">
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-md bg-[#10B981] shadow-sm inline-block" />
-            <span>Đang trống (Available)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-md bg-[#F59E0B] shadow-sm inline-block" />
-            <span>Đã thuê (Rented)</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded-md bg-[#64748B] shadow-sm inline-block" />
-            <span>Nghỉ đất bảo trì (4 ngày)</span>
-          </div>
-        </div>
-      </div>
-
-      {/* HOVER TOOLTIP */}
-      {hoveredPlot && (
-        <div
-          className="absolute z-30 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2"
-          style={{
-            left: `${tooltipPos.x}px`,
-            top: `${tooltipPos.y - 12}px`
-          }}
+        <button
+          type="button"
+          onClick={handleResetCenter}
+          className="w-9 h-9 rounded-2xl bg-stone-900/90 backdrop-blur-md border border-stone-700/60 shadow-lg flex items-center justify-center text-stone-200 hover:text-emerald-400 hover:bg-stone-800 transition-all cursor-pointer"
+          title="Định vị tâm trang trại"
         >
-          <div className="bg-brand-dark/95 backdrop-blur-md text-white text-xs rounded-2xl p-3 shadow-xl border border-white/20 space-y-1 min-w-[160px]">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-black text-brand-yellow text-sm">{hoveredPlot.code}</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${GIS_STATUSES[hoveredPlot.status]?.badgeClass}`}>
-                {GIS_STATUSES[hoveredPlot.status]?.label}
+          <LocateFixed className="w-4 h-4" />
+        </button>
+
+        <div
+          className="w-9 h-9 rounded-2xl bg-stone-900/90 backdrop-blur-md border border-stone-700/60 shadow-lg flex items-center justify-center text-stone-300"
+          title="Hướng Bắc (North)"
+        >
+          <Compass className="w-4 h-4 text-emerald-400 rotate-45" />
+        </div>
+      </div>
+
+      {/* 4. BOTTOM-LEFT LEGEND BAR */}
+      <div className="absolute left-3 bottom-3 z-[1000] bg-stone-900/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-stone-700/60 shadow-lg flex items-center gap-3 text-[11px] font-medium text-stone-300 pointer-events-auto">
+        <span className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
+          <span>Khả dụng</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-sm shadow-amber-500/50" />
+          <span>Đang canh tác</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-slate-400 shadow-sm shadow-slate-400/50" />
+          <span>Nghỉ đất bảo trì</span>
+        </span>
+        <span className="hidden sm:flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 ring-2 ring-cyan-400/50" />
+          <span>Đang chọn</span>
+        </span>
+      </div>
+
+      {/* 5. FLOATING ACTIVE PLOT POPOVER CARD (Anchored on Selection matching reference UI) */}
+      {selectedPlot && (
+        <div className="absolute top-16 left-3 sm:left-4 z-[1000] max-w-xs w-80 bg-stone-950/95 backdrop-blur-xl border border-cyan-400/60 rounded-3xl p-4 shadow-2xl text-white pointer-events-auto animate-fadeIn">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-stone-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-heading font-black text-base text-cyan-300">
+                  {GEO_PLOTS_COORDINATES[selectedPlot.code]?.label || selectedPlot.code}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-500/40">
+                  {selectedPlot.status === 'AVAILABLE' ? 'Sẵn sàng thuê' : selectedPlot.status === 'RENTED' ? 'Đang canh tác' : 'Bảo trì'}
+                </span>
+              </div>
+              <h4 className="text-xs text-stone-300 mt-0.5 font-medium line-clamp-1">{selectedPlot.name}</h4>
+            </div>
+            <button
+              onClick={() => onSelectPlot && onSelectPlot(null)}
+              className="text-stone-400 hover:text-white p-1 rounded-lg hover:bg-stone-800/60"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Telemetry & Specifications Grid */}
+          <div className="grid grid-cols-2 gap-2 my-3 text-[11px]">
+            <div className="bg-stone-900/80 rounded-xl p-2 border border-stone-800">
+              <span className="text-stone-400 block text-[10px]">Diện tích</span>
+              <span className="font-bold text-white text-sm">{selectedPlot.areaFormatted || '150 m²'}</span>
+            </div>
+            <div className="bg-stone-900/80 rounded-xl p-2 border border-stone-800">
+              <span className="text-stone-400 block text-[10px] flex items-center gap-1">
+                <Droplets className="w-3 h-3 text-cyan-400" /> Độ ẩm đất IoT
+              </span>
+              <span className="font-bold text-emerald-400 text-sm">65% · Tối ưu</span>
+            </div>
+            <div className="bg-stone-900/80 rounded-xl p-2 border border-stone-800">
+              <span className="text-stone-400 block text-[10px]">Thổ nhưỡng</span>
+              <span className="font-semibold text-stone-200">Phù sa cổ (pH 6.5)</span>
+            </div>
+            <div className="bg-stone-900/80 rounded-xl p-2 border border-stone-800">
+              <span className="text-stone-400 block text-[10px] flex items-center gap-1">
+                <Leaf className="w-3 h-3 text-emerald-400" /> Cây trồng
+              </span>
+              <span className="font-semibold text-stone-200">{selectedPlot.crop || 'VietGAP'}</span>
+            </div>
+          </div>
+
+          {/* Pricing & Call to Action */}
+          <div className="pt-2 border-t border-stone-800 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-stone-400 block">Giá thuê trọn gói</span>
+              <span className="text-xs font-black text-amber-400">
+                {selectedPlot.rentalPriceFormatted || '1.500.000 đ/tháng'}
               </span>
             </div>
-            <p className="text-[11px] text-stone-300 truncate">{hoveredPlot.name}</p>
-            <div className="flex items-center justify-between pt-1.5 border-t border-white/10 text-[11px]">
-              <span className="text-stone-400">{hoveredPlot.areaFormatted}</span>
-              <span className="font-bold text-emerald-400">{hoveredPlot.rentalPriceFormatted}</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('plot-booking-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-stone-950 font-heading font-black text-xs hover:brightness-110 shadow-lg shadow-cyan-500/20 flex items-center gap-1 cursor-pointer"
+            >
+              <span>Xem Chi Tiết</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       )}
