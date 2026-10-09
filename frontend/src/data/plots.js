@@ -168,7 +168,7 @@ const initialPlotsData = [
     iotStationId: "IOT-LP-02",
     iotStationName: "Trạm Cảm Biến Beta 02",
     compatibleCrops: ["Dưa leo Baby", "Cà chua bi Cherry"],
-    description: "Vừa kết thúc hợp đồng thuê vụ trước. Đang trong chu kỳ 4 ngày xới đất, phơi ải và bổ sung nấm đối kháng Trichoderma theo quy chuẩn BR23.",
+    description: "Vừa kết thúc hợp đồng thuê vụ trước. Đang trong chu kỳ 4 ngày xới đất, phơi ải và bổ sung nấm đối kháng Trichoderma trước khi mở cho thuê lại.",
     imageUrl: "https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&w=1000&q=80",
     gallery: [
       "https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&w=1000&q=80"

@@ -5,6 +5,8 @@ import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import SelfGrowingDashboard from '../../components/customer/SelfGrowingDashboard';
+import AssistedGrowingDashboard from '../../components/customer/AssistedGrowingDashboard';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -55,7 +57,7 @@ import {
 export default function CustomerDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('yards');
-  const [selectedPlotId, setSelectedPlotId] = useState(null);
+  const [selectedPlotId, setSelectedPlotId] = useState('PLOT-MC-02');
 
   // IoT Section States
   const [selectedIotPlotId, setSelectedIotPlotId] = useState('PLOT-CC-01');
@@ -471,9 +473,9 @@ export default function CustomerDashboard() {
       const lower = query.toLowerCase();
 
       if (lower.includes('độ ẩm') || lower.includes('tưới')) {
-        reply = 'Hiện tại trạm IoT ghi nhận độ ẩm đất tại các thửa đất của bạn đang ở ngưỡng tối ưu (60-75%). Theo quy chuẩn tưới thông minh BR18, luống đất hiện tại đủ ẩm và hệ thống đã tự động hoãn lịch tưới sáng nay để tránh ngập úng rễ!';
+        reply = 'Hiện tại trạm IoT ghi nhận độ ẩm đất tại các thửa đất của bạn đang ở ngưỡng tối ưu (60-75%). Theo thuật toán quan trắc vi khí hậu, thửa đất hiện tại đủ ẩm và hệ thống đã tự động hoãn lịch tưới sáng nay để tránh ngập úng rễ!';
       } else if (lower.includes('thu hoạch') || lower.includes('khi nào')) {
-        reply = 'Luống Xà lách Romaine tại Thửa Mộc Châu B2 hiện đã đạt 24 ngày tuổi, dự kiến vào ngày 12 tới đây sẽ đạt chuẩn thu hoạch 300g/cây. Bạn có thể chọn tự đến hái vào cuối tuần hoặc yêu cầu Farmely cắt đóng thùng giao tươi tận nhà!';
+        reply = 'Thửa Xà lách Romaine tại Mộc Châu B2 hiện đã đạt 24 ngày tuổi, dự kiến vào ngày 12 tới đây sẽ đạt chuẩn thu hoạch 300g/cây. Bạn có thể chọn tự đến hái vào cuối tuần hoặc yêu cầu Farmely cắt đóng thùng giao tươi tận nhà!';
       } else if (lower.includes('dịch vụ') || lower.includes('thuê') || lower.includes('bón phân')) {
         reply = 'Bạn có thể vào tab "Dịch vụ canh tác" để đặt các gói chăm sóc trọn vụ, gói theo tuần hoặc các dịch vụ lẻ như bón phân, nhổ cỏ. Hệ thống hỗ trợ thanh toán trực tiếp cực kỳ nhanh chóng!';
       } else {
@@ -749,6 +751,55 @@ export default function CustomerDashboard() {
               </div>
             )}
 
+            {/* THANH CHỌN THỬA ĐẤT CANH TÁC */}
+            {activeTab === 'yards' && (
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  <span className="text-xs font-bold text-stone-500 whitespace-nowrap">Thửa đất:</span>
+                  {customerPlots.map((plot) => {
+                    const isSelected = selectedPlotId === plot.id;
+                    const isSelf = plot.mode === 'Self-Growing';
+                    return (
+                      <button
+                        key={plot.id}
+                        type="button"
+                        onClick={() => setSelectedPlotId(plot.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          isSelected
+                            ? isSelf
+                              ? 'bg-teal-700 text-white shadow-xs'
+                              : 'bg-emerald-800 text-white shadow-xs'
+                            : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-50'
+                        }`}
+                      >
+                        <span>{isSelf ? '🌿' : '🚜'}</span>
+                        <span>{plot.name}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${
+                            isSelected ? 'bg-white/20 text-white' : 'text-stone-400'
+                          }`}
+                        >
+                          {plot.mode === 'Self-Growing' ? 'Tự trồng' : 'Ủy thác'}
+                        </span>
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlotId(null)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      !selectedPlotId
+                        ? 'bg-brand-dark text-white shadow-xs'
+                        : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-50'
+                    }`}
+                  >
+                    <span>Tất cả ({customerPlots.length})</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* ============================================================== */}
             {/* VIEW A: CHI TIẾT DASHBOARD QUẢN LÝ 1 THỬA ĐẤT CỤ THỂ         */}
             {/* ============================================================== */}
@@ -987,6 +1038,20 @@ export default function CustomerDashboard() {
                     </div>
                   </div>
                 </div>
+
+                {/* GIAO DIỆN CHUYÊN BIỆT THEO HÌNH THỨC CANH TÁC (SSoT BR11 / RP39 / REPORT 3) */}
+                {currentSelectedPlot.mode === 'Self-Growing' ? (
+                  <SelfGrowingDashboard plot={currentSelectedPlot} />
+                ) : (
+                  <AssistedGrowingDashboard
+                    plot={currentSelectedPlot}
+                    onOpenExpertChat={() => {
+                      setActiveTab('ai');
+                      setSelectedPlotId(null);
+                    }}
+                    onOpenHarvestModal={() => setShowHarvestAcceptModal(true)}
+                  />
+                )}
 
               </div>
             ) : null}
@@ -1576,7 +1641,7 @@ export default function CustomerDashboard() {
                     Lịch Sử Hợp Đồng Thuê Thửa Đất
                   </h3>
                   <p className="text-xs text-brand-muted mt-0.5">
-                    Quản lý thời hạn thuê, gia hạn hợp đồng hoặc yêu cầu hoàn cọc theo chính sách BR10.
+                    Quản lý thời hạn thuê, gia hạn hợp đồng hoặc gửi yêu cầu hoàn hủy theo quy định.
                   </p>
                 </div>
 
@@ -1598,7 +1663,7 @@ export default function CustomerDashboard() {
                       Gia hạn hợp đồng (Renew)
                     </Button>
                     <button
-                      onClick={() => alert('Yêu cầu hủy hợp đồng và hoàn tiền theo BR10 đã được gửi đến ban quản trị Farmely.')}
+                      onClick={() => alert('Yêu cầu hủy hợp đồng và hoàn tiền đã được gửi đến ban quản trị Farmely.')}
                       className="text-xs text-rose-600 hover:underline font-bold self-center cursor-pointer"
                     >
                       Yêu cầu hủy & hoàn tiền
@@ -2042,7 +2107,7 @@ export default function CustomerDashboard() {
           </div>
 
           <div className="p-3 rounded-xl bg-brand-cream border border-brand-border text-stone-600 space-y-1">
-            <p>• Tiếp tục duy trì quyền ưu tiên canh tác trên luống đất hiện tại.</p>
+            <p>• Tiếp tục duy trì quyền ưu tiên canh tác trên thửa đất hiện tại.</p>
             <p>• Tặng thêm 01 bộ phân bón vi sinh VietGAP cho chu kỳ mới.</p>
           </div>
 

@@ -42,11 +42,11 @@ export default function About() {
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-heading font-black text-white tracking-tight max-w-4xl mx-auto leading-tight">
-            Kết nối cư dân đô thị với những thửa đất canh tác thông minh
+            Nền tảng thuê thửa đất và theo dõi trải nghiệm canh tác
           </h1>
 
           <p className="max-w-2xl mx-auto text-sm sm:text-base text-stone-300 leading-relaxed">
-            Farmely là giải pháp nông nghiệp số tiên phong, trao cho bạn quyền sở hữu trải nghiệm tự tay hoặc ủy thác canh tác rau sạch hữu cơ VietGAP trên từng luống đất được giám sát IoT 24/7.
+            Farmely là giải pháp nông nghiệp số chuẩn hóa, trao cho bạn quyền sở hữu trải nghiệm tự tay hoặc ủy thác canh tác rau sạch hữu cơ VietGAP trên từng thửa đất được giám sát IoT 24/7.
           </p>
         </div>
       </section>
@@ -62,7 +62,7 @@ export default function About() {
             </div>
             <h3 className="font-heading text-xl font-bold text-brand-dark">Sứ Mệnh</h3>
             <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-              Tạo lập lối sống bền vững cho gia đình đô thị thông qua việc sở hữu nguồn thực phẩm minh bạch 100%, đồng thời tạo việc làm thu nhập ổn định cho người lao động nông thôn.
+              Tạo lập lối sống bền vững thông qua việc sở hữu nguồn thực phẩm minh bạch 100%, đồng thời tạo việc làm thu nhập ổn định cho người lao động nông thôn.
             </p>
           </div>
 
@@ -72,7 +72,7 @@ export default function About() {
             </div>
             <h3 className="font-heading text-xl font-bold text-brand-dark">Tiêu Chuẩn VietGAP</h3>
             <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-              Mọi thửa đất, hạt giống F1 và quy trình chăm sóc đều tuân thủ nghiêm ngặt quy định an toàn vệ sinh thực phẩm theo bộ quy chuẩn nông học BR03.
+              Mọi thửa đất, hạt giống F1 và quy trình chăm sóc đều tuân thủ nghiêm ngặt quy định an toàn vệ sinh thực phẩm theo quy chuẩn kỹ thuật VietGAP.
             </p>
           </div>
 

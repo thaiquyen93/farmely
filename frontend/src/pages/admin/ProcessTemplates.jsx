@@ -143,7 +143,7 @@ export default function ProcessTemplates() {
             Quy Trình Canh Tác Chuẩn VietGAP
           </h2>
           <p className="text-xs text-brand-muted mt-0.5">
-            Các mẫu quy trình kỹ thuật theo từng mốc ngày tuổi (Day Offset), định mức vật tư và tự động sinh Care Task cho gói Assisted-growing.
+            Các mẫu quy trình kỹ thuật theo từng mốc ngày tuổi (Day Offset), hướng dẫn chăm sóc và tự động sinh Care Task cho gói Assisted-growing.
           </p>
         </div>
 

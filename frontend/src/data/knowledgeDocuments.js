@@ -59,7 +59,7 @@ export const knowledgeDocumentsData = [
     uploadedDate: "2026-03-05",
     author: "Kỹ sư Trần Quốc Huy",
     fileSize: "2.9 MB (PDF)",
-    description: "Hướng dẫn căn chỉnh lưu lượng béc tưới nhỏ giọt kết hợp đo đạc cảm biến ẩm đất IoT nhằm tự động hoãn tưới khi trời mưa theo BR15.",
+    description: "Hướng dẫn căn chỉnh lưu lượng béc tưới nhỏ giọt kết hợp đo đạc cảm biến độ ẩm đất IoT nhằm tự động hoãn tưới khi trời mưa hoặc độ ẩm đất đạt ngưỡng an toàn.",
     sectionsCount: 5,
     isIndexedForRAG: true
   },

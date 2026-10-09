@@ -205,7 +205,10 @@ export default function FieldWorkerDashboard() {
               ...h,
               status: 'COMPLETED',
               actualWeight: `${scaleWeightInput} kg`,
-              photoUrl: '/images/moc-chau-2811.jpg'
+              photoUrl: '/images/moc-chau-2811.jpg',
+              staffId: user?.id || 'STAFF-101',
+              staffName: user?.name || 'Trần Văn Lực (CVLĐ)',
+              verifiedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             }
           : h
       )

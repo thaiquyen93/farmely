@@ -23,7 +23,7 @@ export default function Footer() {
               </span>
             </div>
             <p className="text-sm text-stone-300 leading-relaxed max-w-sm">
-              Nền tảng công nghệ quản lý và vận hành mô hình thuê đất nông nghiệp đô thị khép kín. Trải nghiệm tự tay gieo mầm, giám sát bằng trạm IoT vi khí hậu và thu hoạch nông sản chuẩn VietGAP.
+              Nền tảng thuê thửa đất và theo dõi trải nghiệm canh tác. Trải nghiệm tự tay canh tác hoặc ủy thác trọn gói, giám sát bằng trạm quan trắc IoT vi khí hậu và thu hoạch nông sản chuẩn VietGAP.
             </p>
             <div className="pt-2 text-xs text-brand-yellow flex items-center gap-2 font-medium">
               <span>Đề tài đồ án ISP392 – FPT University</span>
