@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 // Public Pages
 import Home from './pages/public/Home';
@@ -12,6 +12,34 @@ import BookPlot from './pages/public/BookPlot';
 import ForgotPassword from './pages/public/ForgotPassword';
 import About from './pages/public/About';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
+import StaffDashboard from './pages/staff/StaffDashboard';
+import ExpertDashboard from './pages/expert/ExpertDashboard';
+import LandMapEditor from './pages/admin/LandMapEditor';
+import { useAuthStore } from './stores/authStore';
+
+function RoleGuard({ role, children }) {
+  const user = useAuthStore(state => state.user);
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== role) {
+    const home = { CUSTOMER: '/customer/dashboard', STAFF: '/staff/dashboard', EXPERT: '/expert/dashboard', ADMIN: '/admin/master-data' };
+    return <Navigate to={home[user.role] || '/'} replace />;
+  }
+  return children;
+}
+
+function MarketplaceEntry() {
+  const isCustomer = useAuthStore(state => state.user?.role === 'CUSTOMER');
+  const location = useLocation();
+  const landId = new URLSearchParams(location.search).get('landId');
+  const query = new URLSearchParams({ tab: 'marketplace', ...(landId ? { landId } : {}) });
+  return isCustomer ? <Navigate to={`/customer/dashboard?${query}`} replace /> : <Marketplace />;
+}
+
+function HomeEntry() {
+  const role = useAuthStore(state => state.user?.role);
+  const route = { CUSTOMER: '/customer/dashboard', STAFF: '/staff/dashboard', EXPERT: '/expert/dashboard', ADMIN: '/admin/master-data' };
+  return role ? <Navigate to={route[role] || '/'} replace /> : <Home />;
+}
 
 // Admin Master Data Pages
 import MasterDataLayout from './components/master-data/MasterDataLayout';
@@ -36,32 +64,33 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public Routes */}
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<HomeEntry />} />
         <Route path="/about" element={<About />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/site-visit/book" element={<SiteVisitBooking />} />
-        <Route path="/marketplace" element={<Marketplace />} />
+        <Route path="/marketplace" element={<MarketplaceEntry />} />
         <Route path="/marketplace/plot/:id" element={<PlotDetail />} />
         <Route path="/marketplace/plot/:id/book" element={<BookPlot />} />
 
         {/* Customer Dashboard Route */}
-        <Route path="/customer/dashboard" element={<CustomerDashboard />} />
+        <Route path="/customer/dashboard" element={<RoleGuard role="CUSTOMER"><CustomerDashboard /></RoleGuard>} />
 
         {/* Role Dashboard Fallback Redirects */}
-        <Route path="/expert/dashboard" element={<Navigate to="/admin/master-data" replace />} />
-        <Route path="/staff/dashboard" element={<Navigate to="/admin/master-data" replace />} />
+        <Route path="/expert/dashboard" element={<RoleGuard role="EXPERT"><ExpertDashboard /></RoleGuard>} />
+        <Route path="/staff/dashboard" element={<RoleGuard role="STAFF"><StaffDashboard /></RoleGuard>} />
         <Route path="/admin/dashboard" element={<Navigate to="/admin/master-data" replace />} />
 
         {/* Admin Master Data Nested Routes */}
-        <Route path="/admin/master-data" element={<MasterDataLayout />}>
+        <Route path="/admin/master-data" element={<RoleGuard role="ADMIN"><MasterDataLayout /></RoleGuard>}>
           <Route index element={<MasterDataDashboard />} />
           
           {/* Land Management */}
           <Route path="lands" element={<Lands />} />
           <Route path="lands/create" element={<LandForm />} />
           <Route path="lands/:id" element={<LandDetail />} />
+          <Route path="lands/:id/map" element={<LandMapEditor />} />
 
           {/* Plot Management */}
           <Route path="plots" element={<Plots />} />

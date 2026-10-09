@@ -38,8 +38,12 @@ export default function Login() {
         setTimeout(() => {
           if (redirectParam) {
             navigate(redirectParam);
-          } else if (res.user.role === 'ADMIN' || res.user.role === 'EXPERT' || res.user.role === 'STAFF') {
+          } else if (res.user.role === 'ADMIN') {
             navigate('/admin/master-data');
+          } else if (res.user.role === 'EXPERT') {
+            navigate('/expert/dashboard');
+          } else if (res.user.role === 'STAFF') {
+            navigate('/staff/dashboard');
           } else {
             navigate('/customer/dashboard');
           }
@@ -59,8 +63,12 @@ export default function Login() {
     setTimeout(() => {
       if (redirectParam) {
         navigate(redirectParam);
-      } else if (res.user.role === 'ADMIN' || res.user.role === 'EXPERT' || res.user.role === 'STAFF') {
+      } else if (res.user.role === 'ADMIN') {
         navigate('/admin/master-data');
+      } else if (res.user.role === 'EXPERT') {
+        navigate('/expert/dashboard');
+      } else if (res.user.role === 'STAFF') {
+        navigate('/staff/dashboard');
       } else {
         navigate('/customer/dashboard');
       }

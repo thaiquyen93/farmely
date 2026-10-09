@@ -1,216 +1,106 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { MapPin, ArrowRight, CalendarDays, Ruler, Sprout } from 'lucide-react';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
-import PlotCard from '../../components/public/PlotCard';
+import LandMap from '../../components/public/LandMap';
 import { plotsData } from '../../data/plots';
 import { landsData } from '../../data/lands';
-import { cropsData } from '../../data/crops';
-import { Search, Filter, SlidersHorizontal, MapPin, Sprout, Tag, X } from 'lucide-react';
-import Button from '../../components/common/Button';
+import { getLandPolygons, LAND_POLYGONS_CHANGED_EVENT, mapCenters } from '../../data/landMaps';
 
-export default function Marketplace() {
+const statusLabel = {
+  AVAILABLE: 'Có thể thuê',
+  RENTED: 'Đã được thuê',
+  RESERVED: 'Đang giữ chỗ',
+  MAINTENANCE: 'Đang nghỉ đất',
+};
+
+export default function Marketplace({ embedded = false }) {
   const [searchParams, setSearchParams] = useSearchParams();
-
-  const [selectedLand, setSelectedLand] = useState(searchParams.get('landId') || '');
-  const [selectedCrop, setSelectedCrop] = useState(searchParams.get('crop') || '');
-  const [selectedStatus, setSelectedStatus] = useState('');
-  const [selectedPriceRange, setSelectedPriceRange] = useState(searchParams.get('maxPrice') || '');
-  const [searchTerm, setSearchTerm] = useState('');
-
-  // Sync with searchParams if url changes
+  const requestedLand = searchParams.get('landId');
+  const landId = landsData.some(land => land.id === requestedLand) ? requestedLand : landsData[0].id;
+  const land = landsData.find(item => item.id === landId);
+  const plots = useMemo(() => plotsData.filter(plot => plot.landId === land.id), [land.id]);
+  const [selectedId, setSelectedId] = useState(plots[0]?.id);
+  const [polygons, setPolygons] = useState(() => getLandPolygons(land.id));
+  useEffect(() => { setSelectedId(plots.find(plot => plot.status === 'AVAILABLE')?.id || plots[0]?.id); }, [landId]);
   useEffect(() => {
-    if (searchParams.get('landId')) setSelectedLand(searchParams.get('landId'));
-    if (searchParams.get('crop')) setSelectedCrop(searchParams.get('crop'));
-    if (searchParams.get('maxPrice')) setSelectedPriceRange(searchParams.get('maxPrice'));
-  }, [searchParams]);
+    const refreshPolygons = event => {
+      if (event?.detail?.landId && event.detail.landId !== land.id) return;
+      setPolygons(getLandPolygons(land.id));
+    };
+    refreshPolygons();
+    window.addEventListener(LAND_POLYGONS_CHANGED_EVENT, refreshPolygons);
+    window.addEventListener('storage', refreshPolygons);
+    window.addEventListener('focus', refreshPolygons);
+    return () => {
+      window.removeEventListener(LAND_POLYGONS_CHANGED_EVENT, refreshPolygons);
+      window.removeEventListener('storage', refreshPolygons);
+      window.removeEventListener('focus', refreshPolygons);
+    };
+  }, [land.id]);
+  const selected = plots.find(plot => plot.id === selectedId) || plots[0];
+  const available = plots.filter(plot => plot.status === 'AVAILABLE').length;
 
-  const filteredPlots = useMemo(() => {
-    return plotsData.filter((plot) => {
-      if (selectedLand && plot.landId !== selectedLand) return false;
-      if (selectedStatus && plot.status !== selectedStatus) return false;
-      if (selectedCrop && !plot.compatibleCrops.some(c => c.toLowerCase().includes(selectedCrop.toLowerCase()))) return false;
-      if (selectedPriceRange && plot.rentalPrice > parseInt(selectedPriceRange, 10)) return false;
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
-        const matchesName = plot.name.toLowerCase().includes(term);
-        const matchesCode = plot.code.toLowerCase().includes(term);
-        const matchesSoil = plot.soilType.toLowerCase().includes(term);
-        if (!matchesName && !matchesCode && !matchesSoil) return false;
-      }
-      return true;
-    });
-  }, [selectedLand, selectedCrop, selectedStatus, selectedPriceRange, searchTerm]);
-
-  const resetFilters = () => {
-    setSelectedLand('');
-    setSelectedCrop('');
-    setSelectedStatus('');
-    setSelectedPriceRange('');
-    setSearchTerm('');
-    setSearchParams({});
-  };
-
-  const hasActiveFilters = selectedLand || selectedCrop || selectedStatus || selectedPriceRange || searchTerm;
-
-  return (
-    <div className="min-h-screen bg-brand-cream flex flex-col">
-      <PublicNavbar />
-
-      {/* Hero Header */}
-      <section className="pt-32 pb-16 bg-brand-dark text-white relative overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-30"
-          style={{
-            backgroundImage: `url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=2000&q=80')`
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-brand-dark via-brand-dark/70 to-transparent" />
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center space-y-4">
-          <span className="px-3.5 py-1 rounded-full text-xs font-black bg-brand-yellow text-brand-dark uppercase tracking-wider inline-block">
-            SÀN THỬA ĐẤT CANH TÁC HỮU CƠ
-          </span>
-          <h1 className="text-3xl sm:text-5xl font-heading font-black text-white tracking-tight">
-            Khám phá không gian <br className="hidden sm:inline" />
-            <span className="text-brand-yellow">canh tác của bạn</span>
-          </h1>
-          <p className="max-w-2xl mx-auto text-sm sm:text-base text-stone-300 leading-relaxed">
-            Mỗi thửa đất là một phân khu độc lập đã hoàn thiện rãnh thoát nước, đường cấp ẩm và trạm cảm biến IoT vi khí hậu theo quy chuẩn VietGAP.
-          </p>
-        </div>
-      </section>
-
-      {/* Filter and Content Area */}
-      <main className="flex-1 py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        {/* Filters Bar */}
-        <div className="bg-white rounded-2xl p-5 border border-brand-border shadow-sm mb-8 space-y-4">
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-            
-            {/* Search input */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
-              <input
-                type="text"
-                placeholder="Tìm theo tên thửa, mã P-101, loại đất..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm bg-brand-cream/40 rounded-xl border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-green/20 focus:bg-white"
-              />
-            </div>
-
-            {/* Quick stats and Reset */}
-            <div className="flex items-center justify-between md:justify-end gap-3 text-xs">
-              <span className="text-brand-muted">
-                Tìm thấy <strong>{filteredPlots.length}</strong> thửa đất khả dụng
-              </span>
-              {hasActiveFilters && (
-                <button
-                  onClick={resetFilters}
-                  className="flex items-center gap-1 text-rose-600 font-bold hover:underline"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>Xóa bộ lọc</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Filter dropdowns */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-3 border-t border-brand-border/60">
-            {/* Land filter */}
-            <div>
-              <label className="text-[10px] font-bold text-brand-dark uppercase tracking-wider block mb-1">
-                Khu vực nông trại
-              </label>
-              <select
-                value={selectedLand}
-                onChange={(e) => setSelectedLand(e.target.value)}
-                className="w-full text-xs bg-brand-cream/30 border border-brand-border rounded-xl px-3 py-2 text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-green/20"
-              >
-                <option value="">Tất cả khu vực</option>
-                {landsData.map((l) => (
-                  <option key={l.id} value={l.id}>{l.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Crop filter */}
-            <div>
-              <label className="text-[10px] font-bold text-brand-dark uppercase tracking-wider block mb-1">
-                Giống cây tương thích
-              </label>
-              <select
-                value={selectedCrop}
-                onChange={(e) => setSelectedCrop(e.target.value)}
-                className="w-full text-xs bg-brand-cream/30 border border-brand-border rounded-xl px-3 py-2 text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-green/20"
-              >
-                <option value="">Tất cả giống cây</option>
-                {cropsData.map((c) => (
-                  <option key={c.id} value={c.name}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Status filter */}
-            <div>
-              <label className="text-[10px] font-bold text-brand-dark uppercase tracking-wider block mb-1">
-                Trạng thái cho thuê
-              </label>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full text-xs bg-brand-cream/30 border border-brand-border rounded-xl px-3 py-2 text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-green/20"
-              >
-                <option value="">Tất cả trạng thái</option>
-                <option value="AVAILABLE">AVAILABLE (Đang mở cho thuê)</option>
-                <option value="RESERVED">RESERVED (Đang giữ chỗ)</option>
-                <option value="RENTED">RENTED (Đang canh tác)</option>
-                <option value="MAINTENANCE">MAINTENANCE (Nghỉ đất 4 ngày)</option>
-              </select>
-            </div>
-
-            {/* Price filter */}
-            <div>
-              <label className="text-[10px] font-bold text-brand-dark uppercase tracking-wider block mb-1">
-                Mức giá tối đa
-              </label>
-              <select
-                value={selectedPriceRange}
-                onChange={(e) => setSelectedPriceRange(e.target.value)}
-                className="w-full text-xs bg-brand-cream/30 border border-brand-border rounded-xl px-3 py-2 text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-green/20"
-              >
-                <option value="">Không giới hạn giá</option>
-                <option value="1200000">≤ 1.200.000 đ/tháng</option>
-                <option value="1500000">≤ 1.500.000 đ/tháng</option>
-                <option value="2000000">≤ 2.000.000 đ/tháng</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Plot Grid */}
-        {filteredPlots.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center border border-brand-border">
-            <Sprout className="w-12 h-12 text-stone-300 mx-auto mb-3" />
-            <h3 className="font-heading text-lg font-bold text-brand-dark">Không có thửa đất nào phù hợp</h3>
-            <p className="text-xs text-brand-muted mt-1 max-w-sm mx-auto">
-              Hãy thử điều chỉnh bộ lọc hoặc xóa các tiêu chí tìm kiếm để xem các thửa đất khác đang có sẵn.
-            </p>
-            <Button variant="outline" size="sm" onClick={resetFilters} className="mt-4">
-              Xóa tất cả bộ lọc
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredPlots.map((plot) => (
-              <PlotCard key={plot.id} plot={plot} />
-            ))}
-          </div>
-        )}
-      </main>
-
-      <Footer />
+  const content = <>
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <p className="mb-1 text-xs font-bold uppercase tracking-widest text-brand-green">Khám phá khu đất</p>
+        <h1 className="font-heading text-3xl font-black text-brand-dark sm:text-4xl">Chọn thửa đất trên bản đồ</h1>
+        <p className="mt-2 max-w-2xl text-sm text-brand-muted">Chọn một khu đất, sau đó nhấn vào từng plot để xem diện tích, tình trạng và giá thuê.</p>
+      </div>
+      <label className="text-xs font-semibold text-brand-dark">Khu đất
+        <select className="mt-1 block min-w-64 rounded-xl border border-brand-border bg-white px-3 py-2 text-sm" value={land.id} onChange={event => setSearchParams(embedded ? { tab: 'marketplace', landId: event.target.value } : { landId: event.target.value })}>
+          {landsData.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+      </label>
     </div>
-  );
+
+    <div className="mb-5 rounded-2xl border border-brand-border bg-white px-5 py-4 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <h2 className="font-heading text-lg font-black text-brand-dark">{land.name}</h2>
+        <span className="inline-flex items-center gap-1.5 text-brand-muted"><MapPin size={15} />{land.location}</span>
+        <span className="inline-flex items-center gap-1.5 text-brand-muted"><Ruler size={15} />{land.totalArea}</span>
+        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{available}/{plots.length} plot có thể thuê</span>
+      </div>
+    </div>
+
+    <div className="mb-3 flex flex-wrap gap-4 text-xs font-semibold text-brand-muted">
+      <span><i className="mr-1.5 inline-block h-3 w-3 rounded-sm border border-emerald-700 bg-emerald-600/30" />Có thể thuê</span>
+      <span><i className="mr-1.5 inline-block h-3 w-3 rounded-sm bg-red-700" />Đã thuê</span>
+      <span><i className="mr-1.5 inline-block h-3 w-3 rounded-sm bg-amber-600" />Giữ chỗ</span>
+      <span><i className="mr-1.5 inline-block h-3 w-3 rounded-sm bg-slate-500" />Nghỉ đất</span>
+    </div>
+
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div>
+        <LandMap land={land} plots={plots} polygons={polygons} selectedId={selected?.id} onSelect={plot => setSelectedId(plot.id)} heightClass="h-[520px] lg:h-[640px]" />
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 lg:hidden" aria-label="Danh sách plot">{plots.map(plot => <button key={plot.id} type="button" onClick={() => setSelectedId(plot.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${selected?.id === plot.id ? 'bg-brand-dark text-white' : 'bg-white text-brand-dark'}`}>{plot.code} · {statusLabel[plot.status]}</button>)}</div>
+      </div>
+      <aside className="rounded-2xl border-2 border-brand-yellow bg-white p-5 shadow-[0_16px_40px_rgba(23,55,38,.16)]" aria-live="polite">
+        {selected ? <>
+          <div className="flex items-center justify-between gap-2 border-b border-brand-border pb-4">
+            <div><p className="text-xs font-bold uppercase tracking-wider text-brand-muted">Thửa đang chọn</p><h2 className="font-heading text-3xl font-black text-brand-dark">{selected.code}</h2></div>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${selected.status === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-700'}`}>{statusLabel[selected.status] || 'Chưa mở'}</span>
+          </div>
+          <h3 className="mt-4 font-heading text-lg font-bold text-brand-dark">{selected.name}</h3>
+          <p className="mt-2 text-sm leading-relaxed text-brand-muted">{selected.description}</p>
+          <dl className="mt-5 space-y-3 border-y border-brand-border py-4 text-sm">
+            <div className="flex justify-between gap-3"><dt>Diện tích</dt><dd className="font-bold text-brand-dark">{selected.area}</dd></div>
+            <div className="flex justify-between gap-3"><dt>Giá thuê</dt><dd className="font-bold text-brand-green">{selected.formattedPrice}</dd></div>
+            <div className="flex justify-between gap-3"><dt>Đất trồng</dt><dd className="max-w-40 text-right text-brand-dark">{selected.soilType}</dd></div>
+          </dl>
+          {selected.isDemo && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Thông tin và ranh giới plot mẫu, chờ quản trị viên xác nhận.</p>}
+          <div className="mt-5 grid gap-2">
+            <Link to={`/marketplace/plot/${selected.id}`} className="flex items-center justify-center gap-2 rounded-xl bg-brand-green px-4 py-3 text-sm font-bold text-white hover:bg-brand-dark">Xem chi tiết plot <ArrowRight size={16} /></Link>
+            <Link to={`/site-visit/book?plotId=${selected.id}`} className="flex items-center justify-center gap-2 rounded-xl border border-brand-border px-4 py-3 text-sm font-bold text-brand-dark hover:bg-brand-cream"><CalendarDays size={16} /> Đặt lịch xem đất</Link>
+          </div>
+        </> : <div className="flex min-h-72 flex-col items-center justify-center text-center"><Sprout className="mb-2 text-brand-green" /><p>Chọn một plot trên ảnh để xem thông tin.</p></div>}
+      </aside>
+    </div>
+    <p className="mt-3 text-xs text-brand-muted">Ảnh vệ tinh của khu đất có thể kéo, phóng to và hiển thị ranh plot do quản trị viên lưu. <a className="font-bold text-brand-green underline" href={`https://www.google.com/maps?q=${encodeURIComponent(mapCenters[land.id])}`} target="_blank" rel="noopener noreferrer">Mở vị trí tham chiếu</a>.</p>
+  </>;
+
+  if (embedded) return <section className="w-full">{content}</section>;
+  return <div className="min-h-screen bg-brand-cream"><PublicNavbar /><main className="mx-auto max-w-7xl px-4 pb-20 pt-32 sm:px-6 lg:px-8">{content}</main><Footer /></div>;
 }

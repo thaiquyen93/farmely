@@ -43,12 +43,13 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
   // Set default min date (24 hours from today)
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDateStr = tomorrow.toISOString().split('T')[0];
+  const formatLocalDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const minDateStr = formatLocalDate(tomorrow);
 
   // Max date (30 days ahead)
   const maxDate = new Date();
   maxDate.setDate(maxDate.getDate() + 30);
-  const maxDateStr = maxDate.toISOString().split('T')[0];
+  const maxDateStr = formatLocalDate(maxDate);
 
   const validate = () => {
     const errs = {};
@@ -74,6 +75,8 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
 
     if (!visitDate) {
       errs.date = 'Vui lòng chọn ngày tham quan nông trại.';
+    } else if (new Date(`${visitDate}T${timeSlot === 'MORNING' ? '08:30' : '14:30'}:00`).getTime() < Date.now() + 24 * 60 * 60 * 1000) {
+      errs.date = 'Vui lòng chọn giờ tham quan cách hiện tại ít nhất 24 giờ.';
     }
 
     const grp = parseInt(groupSize, 10);
@@ -107,14 +110,11 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
   return (
     <div className="bg-white rounded-2xl p-6 sm:p-8 border border-brand-border shadow-sm">
       <div className="mb-6">
-        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-brand-cream text-brand-green border border-brand-border">
-          Mã màn hình: SCR-PUB-05
-        </span>
-        <h2 className="font-heading text-2xl font-bold text-brand-dark mt-2">
+        <h2 className="font-heading text-2xl font-bold text-brand-dark">
           Đặt Lịch Tham Quan Vườn Thực Tế
         </h2>
         <p className="text-xs sm:text-sm text-brand-muted mt-1 leading-relaxed">
-          Tham quan trang trại là <strong>tùy chọn tự do</strong> và <strong>không bắt buộc</strong> trước khi thuê. Đội ngũ kỹ thuật viên sẽ dẫn bạn khảo sát thực địa đất, nguồn nước và trạm IoT.
+          Chọn ngày và giờ thuận tiện để đến xem khu đất. Nhân viên sẽ liên hệ xác nhận lịch với bạn.
         </p>
       </div>
 

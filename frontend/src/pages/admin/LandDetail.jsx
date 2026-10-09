@@ -36,6 +36,9 @@ export default function LandDetail() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <Link to={`/admin/master-data/lands/${land.id}/map`}>
+            <Button variant="outline" size="sm">Vẽ plot trên bản đồ</Button>
+          </Link>
           <Link to={`/admin/master-data/lands/create?editId=${land.id}`}>
             <Button variant="outline" size="sm" icon={Edit}>
               Chỉnh sửa thông tin

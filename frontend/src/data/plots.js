@@ -1,4 +1,4 @@
-export const plotsData = [
+const seededPlots = [
   {
     id: "PLT-101",
     code: "P-101",
@@ -184,3 +184,28 @@ export const plotsData = [
     }
   }
 ];
+
+// Demo inventory for the large Củ Chi land. The first three entries above retain
+// their detailed records; the rest make the 18-plot map usable before an API exists.
+const cuChiBase = seededPlots.find(plot => plot.id === 'PLT-101');
+const demoCuChiPlots = Array.from({ length: 15 }, (_, index) => {
+  const number = index + 4;
+  const status = number % 4 === 0 ? 'RENTED' : number % 7 === 0 ? 'RESERVED' : 'AVAILABLE';
+  const price = 1100000 + (index % 5) * 150000;
+  return {
+    ...cuChiBase,
+    id: `PLT-CC-${String(number).padStart(2, '0')}`,
+    code: `P-${number + 103}`,
+    name: `Thửa Củ Chi ${String(number).padStart(2, '0')}`,
+    area: `${48 + (index * 7) % 39} m²`,
+    status,
+    rentalPrice: price,
+    formattedPrice: `${price.toLocaleString('vi-VN')} đ/tháng`,
+    description: 'Thửa đất mẫu trong khu Củ Chi. Ranh giới và thông số sẽ được quản trị viên xác nhận trước khi công bố chính thức.',
+    isDemo: true,
+    currentCrop: null,
+    tenantName: null,
+  };
+});
+
+export const plotsData = [...seededPlots, ...demoCuChiPlots];

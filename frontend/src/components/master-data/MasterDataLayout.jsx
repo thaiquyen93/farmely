@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import AdminSidebar from '../layout/AdminSidebar';
-import { Menu, Bell, Shield, User, ArrowUpRight } from 'lucide-react';
-import { useAuthStore } from '../../stores/authStore';
+import { Menu, Bell, Shield, User, ArrowUpRight, ChevronDown, Check, UsersRound } from 'lucide-react';
+import { DEMO_ACCOUNTS, useAuthStore } from '../../stores/authStore';
 
 export default function MasterDataLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const { user } = useAuthStore();
+  const [accountOpen, setAccountOpen] = useState(false);
+  const { user, switchRole } = useAuthStore();
+  const navigate = useNavigate();
   const location = useLocation();
 
   const getPageTitle = (pathname) => {
@@ -73,7 +75,8 @@ export default function MasterDataLayout() {
             </div>
 
             {/* Admin User Badge */}
-            <div className="flex items-center gap-2.5 pl-3 border-l border-brand-border">
+            <div className="relative flex items-center gap-2.5 pl-3 border-l border-brand-border">
+              <button type="button" onClick={() => setAccountOpen(value => !value)} className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-brand-cream" aria-expanded={accountOpen}>
               <img
                 src={user?.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=100&q=80"}
                 alt="Admin"
@@ -83,6 +86,9 @@ export default function MasterDataLayout() {
                 <p className="font-bold text-brand-dark leading-tight">{user?.fullName || "Ban Quản Trị"}</p>
                 <p className="text-[11px] text-brand-muted">{user?.roleTitle || "Administrator"}</p>
               </div>
+              <ChevronDown size={15} className="text-brand-muted" />
+              </button>
+              {accountOpen && <div className="absolute right-0 top-12 z-30 w-64 rounded-2xl border border-brand-border bg-white p-2 text-brand-dark shadow-xl"><p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-brand-muted"><UsersRound size={13} className="mr-1 inline" /> Chuyển người dùng nhanh</p>{DEMO_ACCOUNTS.map(account => <button key={account.role} type="button" onClick={() => { switchRole(account.role); setAccountOpen(false); navigate({ CUSTOMER: '/customer/dashboard', STAFF: '/staff/dashboard', EXPERT: '/expert/dashboard', ADMIN: '/admin/master-data' }[account.role]); }} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-cream"><span><strong className="block">{account.fullName}</strong><small className="text-brand-muted">{account.roleTitle}</small></span>{user?.role === account.role && <Check size={15} className="text-brand-green" />}</button>)}</div>}
             </div>
           </div>
         </header>

@@ -1,1020 +1,141 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { AlertTriangle, ArrowRight, Camera, Leaf, ShoppingBag, Sprout, UserRound, X } from 'lucide-react';
 import CustomerNavbar from '../../components/layout/CustomerNavbar';
 import Footer from '../../components/layout/Footer';
+import DraggableChatWidget from '../../components/common/DraggableChatWidget';
+import Marketplace from '../public/Marketplace';
 import { useAuthStore } from '../../stores/authStore';
-import Button from '../../components/common/Button';
-import Modal from '../../components/common/Modal';
-import {
-  Sprout,
-  Camera,
-  PlusCircle,
-  BookOpen,
-  Star,
-  Flame,
-  Wheat,
-  Apple,
-  Users,
-  Radio,
-  Thermometer,
-  Droplets,
-  Calendar,
-  Clock,
-  Send,
-  Sparkles,
-  Info,
-  Trash2,
-  CheckCircle2,
-  AlertTriangle,
-  ArrowRight,
-  ShieldCheck,
-  Activity,
-  Maximize2,
-  FileText,
-  CreditCard,
-  MapPin,
-  RefreshCw
-} from 'lucide-react';
+import { plotsData } from '../../data/plots';
+import { initialTasks, readDemo, readImage, saveDemo } from '../../data/operationsDemo';
+
+const tabs = [
+  { id: 'yards', label: 'Vườn của tôi', icon: Sprout },
+  { id: 'marketplace', label: 'Marketplace', icon: ShoppingBag },
+];
+const demoPlot = plotsData.find(plot => plot.id === 'PLT-102');
 
 export default function CustomerDashboard() {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('yards');
-
-  // Modals for Screen Flow
-  const [showNewDiaryModal, setShowNewDiaryModal] = useState(false);
-  const [showServiceRequestModal, setShowServiceRequestModal] = useState(false);
-  const [showRapidCareModal, setShowRapidCareModal] = useState(false);
-  const [showHarvestAcceptModal, setShowHarvestAcceptModal] = useState(false);
-  const [showRenewContractModal, setShowRenewContractModal] = useState(false);
-
-  // Form states
+  const [params, setParams] = useSearchParams();
+  const tab = tabs.some(item => item.id === params.get('tab')) ? params.get('tab') : 'yards';
+  const [plotPanel, setPlotPanel] = useState(null);
+  const [service, setService] = useState('Tưới và kiểm tra đất');
+  const [note, setNote] = useState('');
+  const [requests, setRequests] = useState(() => { try { return JSON.parse(localStorage.getItem('farmely_customer_requests') || '[]'); } catch { return []; } });
+  const [diary, setDiary] = useState(() => readDemo('farmely_diary_entries', []));
+  const [cultivationMode] = useState(() => readDemo(`farmely_cultivation_mode_${demoPlot.code}`, 'ASSISTED'));
+  const [diaryModalOpen, setDiaryModalOpen] = useState(false);
+  const [diaryTitle, setDiaryTitle] = useState('');
   const [diaryNote, setDiaryNote] = useState('');
-  const [serviceType, setServiceType] = useState('WEEDING');
-  const [serviceNotes, setServiceNotes] = useState('');
-  const [serviceSuccessMsg, setServiceSuccessMsg] = useState('');
-
-  // AI Chatbot state
-  const [chatMessages, setChatMessages] = useState([
-    {
-      id: 1,
-      sender: 'user',
-      text: 'What should I plant this time of year?',
-      time: '08:15 AM'
-    },
-    {
-      id: 2,
-      sender: 'ai',
-      text: 'Chào bạn Quyền! Vào thời điểm này tại vùng phụ cận Củ Chi và Mộc Châu, khí hậu rất mát mẻ (28°C). Các loại rau ăn lá như Xà lách Romaine, Rau dền đỏ hoặc Cà chua bi F1 sẽ phát triển cực nhanh, chỉ sau 25-35 ngày là bạn có thể nghiệm thu giỏ rau sạch đầu tiên!',
-      time: '08:16 AM'
+  const [diaryPhotoFile, setDiaryPhotoFile] = useState(null);
+  const [diaryError, setDiaryError] = useState('');
+  const [harvests, setHarvests] = useState(() => readDemo('farmely_harvests', []));
+  const [advice, setAdvice] = useState(() => readDemo('farmely_expert_advice', []));
+  const [question, setQuestion] = useState('');
+  const chooseTab = id => setParams(id === 'yards' ? {} : { tab: id });
+  const openDiary = () => {
+    chooseTab('yards');
+    setPlotPanel('diary');
+    window.setTimeout(() => document.getElementById('customer-plot-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  };
+  const submitDiary = async event => {
+    event.preventDefault();
+    if (cultivationMode !== 'SELF') return;
+    if (!diaryTitle.trim() || !diaryNote.trim()) {
+      setDiaryError('Nhập tiêu đề và nội dung nhật ký trước khi đăng.');
+      return;
     }
-  ]);
-  const [chatInput, setChatInput] = useState('');
-  const [isAiTyping, setIsAiTyping] = useState(false);
-
-  const handleSendMessage = (textToSend) => {
-    const query = textToSend || chatInput;
-    if (!query.trim()) return;
-
-    const userMsg = {
-      id: Date.now(),
-      sender: 'user',
-      text: query,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setChatMessages((prev) => [...prev, userMsg]);
-    if (!textToSend) setChatInput('');
-    setIsAiTyping(true);
-
-    setTimeout(() => {
-      let reply = 'Farmely AI đã ghi nhận câu hỏi của bạn. ';
-      const lower = query.toLowerCase();
-
-      if (lower.includes('độ ẩm') || lower.includes('tưới')) {
-        reply = 'Hiện tại trạm IoT-CC-01 ghi nhận độ ẩm đất tại Thửa Sen Vàng A1 là 68% (ngưỡng tối ưu 60-75%). Theo quy chuẩn tưới thông minh BR18, luống đất hiện tại đủ ẩm và hệ thống đã tự động hoãn lịch tưới sáng nay để tránh ngập úng rễ cà chua bi!';
-      } else if (lower.includes('thu hoạch') || lower.includes('khi nào')) {
-        reply = 'Luống Xà lách Romaine tại Thửa Mộc Châu B2 hiện đã đạt 24 ngày tuổi, dự kiến vào ngày 12 tới đây sẽ đạt chuẩn thu hoạch 300g/cây. Bạn có thể chọn tự đến hái vào cuối tuần hoặc yêu cầu Farmely cắt đóng thùng giao tươi tận nhà!';
-      } else if (lower.includes('sâu') || lower.includes('bệnh') || lower.includes('vietgap')) {
-        reply = 'Theo quy trình VietGAP khép kín, tuyệt đối không dùng thuốc hóa học. Nếu phát hiện sâu vẽ bùa hoặc rầy, công nhân sẽ phun dung dịch thảo mộc tỏi ớt lên men vi sinh và bắt sâu thủ công, đồng thời gửi ảnh đối chứng qua Farm Diary!';
-      } else {
-        reply = `Cảm ơn bạn Quyền! Hệ thống ghi nhận thửa đất của bạn đang ở trạng thái sinh trưởng rất tốt. Trợ lý AI và Chuyên gia Nông nghiệp Farmely luôn đồng hành 24/7 để hỗ trợ bạn tối đa!`;
-      }
-
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          sender: 'ai',
-          text: reply,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
-      setIsAiTyping(false);
-    }, 800);
+    try {
+      const photo = diaryPhotoFile ? await readImage(diaryPhotoFile) : null;
+      const next = [{
+        id: `DIARY-CUSTOMER-${Date.now()}`,
+        plot: demoPlot.code,
+        title: diaryTitle.trim(),
+        text: diaryNote.trim(),
+        photo,
+        date: new Date().toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }),
+        author: user?.fullName || 'Khách hàng',
+        authorType: 'CUSTOMER',
+      }, ...diary];
+      setDiary(next);
+      saveDemo('farmely_diary_entries', next);
+      setDiaryTitle('');
+      setDiaryNote('');
+      setDiaryPhotoFile(null);
+      setDiaryError('');
+      setDiaryModalOpen(false);
+    } catch (error) {
+      setDiaryError(error.message || 'Không thể đọc ảnh đã chọn.');
+    }
+  };
+  const submitRequest = event => {
+    event.preventDefault();
+    const next = [{ id: Date.now(), service, note, plot: demoPlot.code, status: 'Chờ tiếp nhận' }, ...requests];
+    saveDemo('farmely_customer_requests', next);
+    const tasks = readDemo('farmely_staff_tasks', initialTasks);
+    saveDemo('farmely_staff_tasks', [{ id: `REQ-${Date.now()}`, plot: demoPlot.code, title: service, sector: demoPlot.landName, priority: 'Thường', status: 'PENDING', instruction: note || 'Yêu cầu chăm sóc từ khách hàng. Chụp ảnh sau khi hoàn tất.' }, ...tasks]);
+    setRequests(next);
+    setNote('');
+  };
+  const submitQuestion = event => {
+    event.preventDefault();
+    if (!question.trim()) return;
+    const next = [{ id: `ADV-${Date.now()}`, customerId: user?.id, customer: user?.fullName || 'Khách hàng', contact: user?.email || user?.phone, stage: 'Đang thuê', plot: demoPlot.code, question: question.trim(), response: '' }, ...advice];
+    setAdvice(next); saveDemo('farmely_expert_advice', next); setQuestion('');
+  };
+  const acceptHarvest = id => {
+    const next = harvests.map(item => item.id === id ? { ...item, status: 'Đã xác nhận' } : item);
+    setHarvests(next); saveDemo('farmely_harvests', next);
   };
 
-  return (
-    <div className="min-h-screen bg-[#F5F2E9] flex flex-col font-sans">
-      {/* Logged-in Customer Navbar */}
-      <CustomerNavbar activeTab={activeTab} setActiveTab={setActiveTab} />
-
-      {/* Main Container */}
-      <main className="flex-1 pt-24 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 w-full space-y-6">
-        
-        {/* TOP GREETING & WEATHER BANNER (Matching reference screenshot) */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 text-xs font-semibold text-stone-600">
-            <span>⛅ Overcast, 28°C / 82°F</span>
-            <span>•</span>
-            <span className="text-[#426B4F] font-bold">💧 Great day for gardening! (Thời tiết lý tưởng cho canh tác rau sạch)</span>
-          </div>
-
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <h1 className="font-heading text-3xl sm:text-5xl font-black text-[#294C3B] tracking-tight">
-                Good morning, <span className="text-[#658B38]">{user?.fullName || 'Lô Thái Quyền'}</span>
-              </h1>
-              <p className="text-sm text-stone-600 mt-1">
-                You have <strong className="text-[#294C3B]">2 active plantings</strong> across your yards. (Bạn có 2 thửa đất đang sinh trưởng xanh tốt).
-              </p>
-            </div>
-
-            {/* Quick Action Buttons (matching screenshot) */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                onClick={() => setShowNewDiaryModal(true)}
-                className="px-4 py-2 rounded-xl bg-[#658B38] text-white hover:bg-[#52742c] font-bold text-xs flex items-center gap-2 transition-all shadow-sm"
-              >
-                <Camera className="w-4 h-4" />
-                <span>Photo Entry</span>
-              </button>
-
-              <Link to="/marketplace">
-                <button className="px-4 py-2 rounded-xl bg-white border border-[#294C3B]/20 text-[#294C3B] hover:bg-stone-50 font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm">
-                  <PlusCircle className="w-4 h-4 text-[#658B38]" />
-                  <span>+ Add Yard</span>
-                </button>
-              </Link>
-
-              <button
-                onClick={() => setActiveTab('diary')}
-                className="px-4 py-2 rounded-xl bg-white/70 border border-[#294C3B]/10 text-stone-700 hover:bg-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm"
-              >
-                <BookOpen className="w-4 h-4 text-[#426B4F]" />
-                <span>Journal</span>
-              </button>
-            </div>
-          </div>
+  return <div className="flex min-h-screen flex-col bg-brand-cream"><CustomerNavbar />
+    <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-20 pt-28 sm:px-6 lg:px-8">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-brand-green">Không gian khách hàng</p><h1 className="mt-1 font-heading text-3xl font-black text-brand-dark">Vườn của tôi</h1><p className="mt-1 text-sm text-brand-muted">Chào {user?.fullName}. Theo dõi vườn và xử lý những việc cần làm tại đây.</p></div><span className="rounded-full border border-brand-border bg-white px-3 py-1 text-xs text-brand-muted">Dữ liệu minh họa</span></div>
+      <div className="mb-7 flex gap-2 overflow-x-auto border-b border-brand-border pb-3" role="tablist" aria-label="Chức năng khách hàng">{tabs.map(item => <button key={item.id} role="tab" aria-selected={tab === item.id} type="button" onClick={() => chooseTab(item.id)} className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-bold ${tab === item.id ? 'bg-brand-dark text-white' : 'bg-white text-brand-dark hover:bg-brand-green/10'}`}><item.icon size={16} />{item.label}</button>)}</div>
+      {tab === 'yards' && <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <section className="overflow-hidden rounded-2xl border border-brand-border bg-white shadow-sm"><button type="button" onClick={() => setPlotPanel(plotPanel ? null : 'diary')} className="grid w-full text-left md:grid-cols-[240px_1fr]"><img src={demoPlot.imageUrl} alt={demoPlot.name} className="h-56 w-full object-cover md:h-full" /><div className="p-6"><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Đang canh tác</span><h2 className="mt-3 font-heading text-2xl font-black text-brand-dark">{demoPlot.name}</h2><p className="mt-1 text-sm text-brand-muted">{demoPlot.landName} · {demoPlot.area}</p><p className="mt-4 text-sm text-brand-dark">Cây đang trồng: <strong>{demoPlot.currentCrop}</strong></p><p className="mt-5 text-sm font-bold text-brand-green">Mở trang quản lý plot →</p></div></button></section>
+        <aside className="space-y-4"><div className="rounded-2xl border border-brand-border bg-white p-5"><h3 className="font-heading text-lg font-bold text-brand-dark">Việc cần chú ý</h3><p className="mt-3 text-sm text-brand-muted">Vườn đang trong giai đoạn sinh trưởng. Xem nhật ký để biết lần chăm sóc gần nhất.</p><button onClick={openDiary} className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-brand-green">Mở nhật ký <ArrowRight size={15} /></button></div><button onClick={() => chooseTab('marketplace')} className="w-full rounded-xl bg-brand-yellow px-4 py-3 text-sm font-bold text-brand-dark">Thuê thêm plot</button></aside>
+      </div>}
+      {tab === 'marketplace' && <Marketplace embedded />}
+      {tab === 'yards' && plotPanel && <section id="customer-plot-detail" className="mt-6 scroll-mt-24 rounded-2xl border border-brand-border bg-white p-5 shadow-sm sm:p-7">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div><p className="text-xs font-bold uppercase tracking-widest text-brand-green">Chi tiết vườn</p><h2 className="font-heading text-2xl font-black text-brand-dark">{demoPlot.name}</h2></div>
+          <button type="button" onClick={() => setPlotPanel(null)} className="rounded-full border border-brand-border p-2 text-brand-muted hover:bg-brand-cream" aria-label="Đóng chi tiết plot"><X size={17} /></button>
         </div>
-
-        {/* STAT PILLS ROW (Matching reference screenshot exactly) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          
-          {/* Pill 1: Seedling XP */}
-          <div className="p-3.5 rounded-2xl bg-white border border-stone-200/80 shadow-sm flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#F5CF62] text-brand-dark flex items-center justify-center font-black text-sm shrink-0">
-              <Star className="w-5 h-5 fill-brand-dark text-brand-dark" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-brand-dark truncate">Seedling</p>
-              <p className="text-[10px] text-stone-500">85 / 100 XP</p>
-            </div>
-          </div>
-
-          {/* Pill 2: Streak */}
-          <div className="p-3.5 rounded-2xl bg-white border border-stone-200/80 shadow-sm flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-              <Flame className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-heading font-black text-lg text-brand-dark leading-tight">14</p>
-              <p className="text-[10px] text-stone-500 font-medium">Day Streak</p>
-            </div>
-          </div>
-
-          {/* Pill 3: Total Plantings */}
-          <div className="p-3.5 rounded-2xl bg-white border border-stone-200/80 shadow-sm flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-              <Sprout className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-heading font-black text-lg text-brand-dark leading-tight">4</p>
-              <p className="text-[10px] text-stone-500 font-medium">Total Plantings</p>
-            </div>
-          </div>
-
-          {/* Pill 4: Ready to Harvest */}
-          <div className="p-3.5 rounded-2xl bg-white border border-stone-200/80 shadow-sm flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-yellow-50 text-amber-600 flex items-center justify-center shrink-0">
-              <Wheat className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-heading font-black text-lg text-brand-dark leading-tight">1</p>
-              <p className="text-[10px] text-stone-500 font-medium">Ready to Harvest</p>
-            </div>
-          </div>
-
-          {/* Pill 5: Harvests This Season */}
-          <div className="p-3.5 rounded-2xl bg-white border border-stone-200/80 shadow-sm flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-              <Apple className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-heading font-black text-lg text-brand-dark leading-tight">24.5 kg</p>
-              <p className="text-[10px] text-stone-500 font-medium">Season Harvest</p>
-            </div>
-          </div>
-
-          {/* Pill 6: My Yards */}
-          <div className="p-3.5 rounded-2xl bg-white border border-stone-200/80 shadow-sm flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-heading font-black text-lg text-brand-dark leading-tight">2</p>
-              <p className="text-[10px] text-stone-500 font-medium">Rented Yards</p>
-            </div>
-          </div>
-
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-4 rounded-2xl bg-brand-cream p-4">
+          <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-brand-green">{cultivationMode === 'SELF' ? <Sprout size={19} /> : <UserRound size={19} />}</span><div><p className="text-xs font-bold uppercase tracking-wider text-brand-green">Hình thức canh tác theo hợp đồng</p><h3 className="mt-1 font-heading text-lg font-black text-brand-dark">{cultivationMode === 'SELF' ? 'Tự canh tác' : 'Farmely hỗ trợ canh tác'}</h3><p className="mt-1 text-sm text-brand-muted">{cultivationMode === 'SELF' ? 'Bạn trực tiếp chăm sóc và tự đăng nhật ký kèm ảnh.' : 'CVLĐ thực hiện task; báo cáo và ảnh hoàn tất tự đồng bộ vào nhật ký.'}</p></div></div><span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand-dark">Đã chọn khi thuê</span>
         </div>
+        <div className="mb-6 flex gap-2 overflow-x-auto border-b border-brand-border pb-3">{[['diary','Nhật ký'],['services','Dịch vụ'],['alerts','Cảnh báo'],['harvest','Thu hoạch'],['contracts','Hợp đồng']].map(([id,label]) => <button key={id} type="button" onClick={() => setPlotPanel(id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${plotPanel === id ? 'bg-brand-dark text-white' : 'bg-brand-cream text-brand-dark'}`}>{label}</button>)}</div>
+        {plotPanel === 'diary' && <div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-heading text-lg font-black text-brand-dark">Nhật ký canh tác</h3><p className="mt-1 text-sm text-brand-muted">{cultivationMode === 'SELF' ? 'Bạn có thể ghi lại công việc và ảnh thực tế của vườn.' : 'Nhật ký được đồng bộ từ task có ảnh minh chứng do CVLĐ hoàn tất.'}</p></div>{cultivationMode === 'SELF' ? <button type="button" onClick={() => { setDiaryError(''); setDiaryModalOpen(true); }} className="inline-flex items-center gap-2 rounded-xl bg-brand-green px-4 py-2.5 text-sm font-bold text-white"><Camera size={17} /> Ghi nhật ký</button> : <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800">CVLĐ cập nhật</span>}</div>
+          <div className="space-y-3">{diary.filter(item => item.plot === demoPlot.code).map(item => <DiaryItem key={item.id} date={item.date} title={item.title} text={item.text} photo={item.photo} author={item.author || (item.authorType === 'CUSTOMER' ? user?.fullName : 'CVLĐ Farmely')} />)}{!diary.some(item => item.plot === demoPlot.code) && <p className="rounded-xl bg-brand-cream p-4 text-sm text-brand-muted">{cultivationMode === 'SELF' ? 'Chưa có nhật ký. Bấm “Ghi nhật ký” để tạo bài đầu tiên.' : 'Chưa có công việc nào được CVLĐ hoàn tất.'}</p>}</div>
+        </div>}
+        {plotPanel === 'services' && <p className="text-sm text-brand-muted">Dịch vụ chăm sóc và yêu cầu hỗ trợ của plot này sẽ hiển thị tại đây.</p>}
+        {plotPanel === 'alerts' && <div className="flex items-start gap-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900"><Leaf size={20} /><div><strong>Vườn đang ổn định</strong><p className="mt-1">Độ ẩm đất mẫu {demoPlot.recentSensorReadings.soilMoisture}; hiện chưa cần tưới thêm.</p></div></div>}
+        {plotPanel === 'harvest' && <p className="text-sm text-brand-muted">Các đợt thu hoạch của {demoPlot.code} sẽ hiển thị sau khi CVLĐ ghi nhận.</p>}
+        {plotPanel === 'contracts' && <p className="text-sm text-brand-muted">Hợp đồng thuê {demoPlot.code}: đang canh tác · {demoPlot.formattedPrice}.</p>}
+      </section>}
+      {tab === 'services' && <div className="grid gap-5 md:grid-cols-2"><Section title="Yêu cầu chăm sóc" description="Gửi yêu cầu cho đội ngũ Farmely khi bạn cần hỗ trợ."><form onSubmit={submitRequest} className="space-y-4"><label className="block text-sm font-semibold">Dịch vụ<select value={service} onChange={event => setService(event.target.value)} className="mt-1 w-full rounded-xl border border-brand-border p-3"><option>Tưới và kiểm tra đất</option><option>Nhổ cỏ, bắt sâu</option><option>Kiểm tra cây có dấu hiệu bất thường</option></select></label><label className="block text-sm font-semibold">Ghi chú<textarea value={note} onChange={event => setNote(event.target.value)} className="mt-1 w-full rounded-xl border border-brand-border p-3" rows="3" placeholder="Mô tả điều bạn cần hỗ trợ" /></label><button className="rounded-xl bg-brand-green px-5 py-3 text-sm font-bold text-white">Gửi yêu cầu</button></form></Section><Section title="Yêu cầu đã gửi" description="Trạng thái lưu trong bản demo trên trình duyệt này.">{requests.length ? requests.map(item => <div key={item.id} className="mb-2 rounded-xl border border-brand-border p-3 text-sm"><strong>{item.service}</strong><span className="float-right text-amber-700">{item.status}</span><p className="mt-1 text-brand-muted">{item.plot} · {item.note || 'Không có ghi chú'}</p></div>) : <p className="text-sm text-brand-muted">Chưa có yêu cầu nào.</p>}</Section></div>}
+      {tab === 'alerts' && <Section title="Tình trạng và cảnh báo" description="Thông báo để bạn biết vườn có cần xử lý gì không."><div className="flex items-start gap-3 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900"><Leaf size={20} /><div><strong>Vườn đang ổn định</strong><p className="mt-1">Độ ẩm đất mẫu {demoPlot.recentSensorReadings.soilMoisture}; hiện chưa cần tưới thêm.</p></div></div><div className="mt-3 flex items-start gap-3 rounded-xl border border-brand-border p-4 text-sm"><AlertTriangle size={20} className="text-amber-600" /><p>Đây là dữ liệu minh họa. Khi kết nối cảm biến thật, cảnh báo sẽ cập nhật theo từng plot.</p></div></Section>}
+      {tab === 'advice' && <Section title="Hỏi chuyên gia" description="Gửi câu hỏi về cây trồng. CGNN sẽ trả lời trong mục tư vấn của họ."><form onSubmit={submitQuestion} className="mb-5 flex flex-wrap gap-2"><input required value={question} onChange={event => setQuestion(event.target.value)} placeholder="Bạn muốn hỏi điều gì về vườn?" className="min-w-56 flex-1 rounded-xl border border-brand-border p-3 text-sm" /><button className="rounded-xl bg-brand-green px-5 py-3 text-sm font-bold text-white">Gửi câu hỏi</button></form>{advice.filter(item => item.customerId === user?.id || (!item.customerId && item.customer === user?.fullName)).map(item => <article key={item.id} className="mb-3 rounded-xl border border-brand-border p-4 text-sm"><strong>{item.question}</strong><p className="mt-2 text-brand-muted">{item.response ? `CGNN: ${item.response}` : 'Đang chờ chuyên gia trả lời.'}</p></article>)}</Section>}
+      {tab === 'harvest' && <Section title="Thu hoạch" description="Xem ảnh cân và xác nhận kết quả thu hoạch.">{harvests.filter(item => item.plot === demoPlot.code).length ? harvests.filter(item => item.plot === demoPlot.code).map(item => <div key={item.id} className="mb-3 flex flex-wrap items-center gap-4 rounded-xl border border-brand-border p-4"><img src={item.photo} alt="Ảnh cân nông sản" className="h-24 w-28 rounded-lg object-cover" /><div className="flex-1 text-sm"><strong>{item.plot} · {item.weight} kg</strong><p className="mt-1 text-brand-muted">{item.status}</p></div>{item.status !== 'Đã xác nhận' && <button onClick={() => acceptHarvest(item.id)} className="rounded-xl bg-brand-green px-4 py-2 text-sm font-bold text-white">Xác nhận kết quả</button>}</div>) : <p className="rounded-xl bg-brand-cream p-4 text-sm text-brand-muted">Chưa có đợt thu hoạch nào cần xác nhận cho plot này.</p>}</Section>}
+      {tab === 'contracts' && <Section title="Hợp đồng thuê" description="Theo dõi thời hạn và chi phí thuê các plot của bạn."><div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-brand-border p-4 text-sm"><div><strong>{demoPlot.code} · {demoPlot.name}</strong><p className="mt-1 text-brand-muted">Hợp đồng minh họa · Đang canh tác</p></div><span className="font-bold text-brand-green">{demoPlot.formattedPrice}</span></div><p className="mt-4 text-xs text-brand-muted">Gia hạn và thanh toán sẽ khả dụng khi backend hợp đồng được kết nối.</p></Section>}
+    </main><Footer />
+    <DraggableChatWidget title="Chat với CGNN" subtitle="Lịch sử được giữ lại trong suốt quá trình thuê" currentUser="Bạn" value={question} onChange={event => setQuestion(event.target.value)} onSend={submitQuestion} messages={[{ id: 'welcome', from: 'CGNN', text: 'Chào bạn, mình có thể hỗ trợ vấn đề gì trong vườn?' }, ...advice.filter(item => item.customerId === user?.id).flatMap(item => [{ id: `${item.id}-q`, from: 'Bạn', text: item.question }, ...(item.response ? [{ id: `${item.id}-a`, from: 'CGNN', text: item.response }] : [])])]} />
+    {diaryModalOpen && cultivationMode === 'SELF' && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-brand-dark/60 p-4" role="dialog" aria-modal="true" aria-labelledby="diary-modal-title" onMouseDown={event => { if (event.target === event.currentTarget) setDiaryModalOpen(false); }}>
+      <form onSubmit={submitDiary} className="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl sm:p-7">
+        <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-widest text-brand-green">{demoPlot.code} · Tự canh tác</p><h2 id="diary-modal-title" className="mt-1 font-heading text-2xl font-black text-brand-dark">Ghi nhật ký vườn</h2><p className="mt-1 text-sm text-brand-muted">Ghi công việc bạn vừa làm và thêm ảnh để dễ theo dõi.</p></div><button type="button" onClick={() => setDiaryModalOpen(false)} className="rounded-full border border-brand-border p-2 text-brand-muted hover:bg-brand-cream" aria-label="Đóng cửa sổ nhật ký"><X size={17} /></button></div>
+        <div className="mt-5 space-y-4"><label className="block text-sm font-semibold text-brand-dark">Tiêu đề<input autoFocus required value={diaryTitle} onChange={event => setDiaryTitle(event.target.value)} placeholder="Ví dụ: Tưới nước buổi sáng" className="mt-1 w-full rounded-xl border border-brand-border p-3 text-sm outline-none focus:border-brand-green focus:ring-2 focus:ring-brand-green/15" /></label><label className="block text-sm font-semibold text-brand-dark">Nội dung<textarea required rows="4" value={diaryNote} onChange={event => setDiaryNote(event.target.value)} placeholder="Tình trạng cây, công việc đã làm..." className="mt-1 w-full resize-none rounded-xl border border-brand-border p-3 text-sm outline-none focus:border-brand-green focus:ring-2 focus:ring-brand-green/15" /></label><label className="flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-brand-green/40 bg-emerald-50/60 p-4"><span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-brand-green"><Camera size={21} /></span><span className="min-w-0 flex-1"><strong className="block text-sm text-brand-dark">Chụp hoặc chọn ảnh</strong><span className="block truncate text-xs text-brand-muted">{diaryPhotoFile?.name || 'JPG/PNG, tối đa 5 MB'}</span></span><input type="file" accept="image/*" capture="environment" onChange={event => { setDiaryPhotoFile(event.target.files?.[0] || null); setDiaryError(''); }} className="sr-only" /></label>{diaryError && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{diaryError}</p>}</div>
+        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setDiaryModalOpen(false)} className="rounded-xl border border-brand-border px-4 py-2.5 text-sm font-bold text-brand-dark">Để sau</button><button type="submit" className="rounded-xl bg-brand-green px-5 py-2.5 text-sm font-bold text-white">Đăng nhật ký</button></div>
+      </form>
+    </div>}
+  </div>;
+}
 
-        {/* MAIN 2-COLUMN SECTION: Yards/Screen Flow on Left, Chatbot on Right */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* LEFT COLUMN: My Yards & Screen Flow Views (7-8 cols) */}
-          <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-            
-            {/* Tab navigation pills for the Screen Flow */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
-              <button
-                onClick={() => setActiveTab('yards')}
-                className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                  activeTab === 'yards'
-                    ? 'bg-[#294C3B] text-white shadow-sm'
-                    : 'bg-white text-stone-600 hover:bg-stone-50 border border-stone-200'
-                }`}
-              >
-                🌱 Thửa Đất Của Tôi (My Yards)
-              </button>
-
-              <button
-                onClick={() => setActiveTab('diary')}
-                className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                  activeTab === 'diary'
-                    ? 'bg-[#294C3B] text-white shadow-sm'
-                    : 'bg-white text-stone-600 hover:bg-stone-50 border border-stone-200'
-                }`}
-              >
-                📖 Nhật Ký (Farm Diary)
-              </button>
-
-              <button
-                onClick={() => setActiveTab('services')}
-                className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                  activeTab === 'services'
-                    ? 'bg-[#294C3B] text-white shadow-sm'
-                    : 'bg-white text-stone-600 hover:bg-stone-50 border border-stone-200'
-                }`}
-              >
-                📋 Yêu Cầu Dịch Vụ (Service Requests)
-              </button>
-
-              <button
-                onClick={() => setActiveTab('alerts')}
-                className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                  activeTab === 'alerts'
-                    ? 'bg-[#294C3B] text-white shadow-sm'
-                    : 'bg-white text-stone-600 hover:bg-stone-50 border border-stone-200'
-                }`}
-              >
-                ⚡ Cảnh Báo IoT (Rapid Care)
-              </button>
-
-              <button
-                onClick={() => setActiveTab('harvest')}
-                className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                  activeTab === 'harvest'
-                    ? 'bg-[#294C3B] text-white shadow-sm'
-                    : 'bg-white text-stone-600 hover:bg-stone-50 border border-stone-200'
-                }`}
-              >
-                🧺 Thu Hoạch (Harvest Results)
-              </button>
-
-              <button
-                onClick={() => setActiveTab('contracts')}
-                className={`px-3 py-1.5 rounded-xl transition-all whitespace-nowrap ${
-                  activeTab === 'contracts'
-                    ? 'bg-[#294C3B] text-white shadow-sm'
-                    : 'bg-white text-stone-600 hover:bg-stone-50 border border-stone-200'
-                }`}
-              >
-                📜 Hợp Đồng (Contract History)
-              </button>
-            </div>
-
-            {/* TAB 1: MY YARDS */}
-            {activeTab === 'yards' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-heading text-xl font-black text-[#294C3B]">
-                    My Yards (Thửa Đất Đang Canh Tác)
-                  </h2>
-                  <Link
-                    to="/marketplace"
-                    className="text-xs font-bold text-[#658B38] hover:underline flex items-center gap-1"
-                  >
-                    <span>Thuê thêm thửa mới</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  
-                  {/* Yard 1: Thửa Sen Vàng A1 */}
-                  <div className="bg-white rounded-3xl p-5 border border-stone-200 shadow-sm space-y-4 hover:shadow-md transition-shadow">
-                    <div className="relative h-44 rounded-2xl overflow-hidden bg-black/10">
-                      <img
-                        src="https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80"
-                        alt="Thửa Sen Vàng A1"
-                        className="w-full h-full object-cover"
-                      />
-                      <span className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-brand-yellow text-brand-dark">
-                        PLOT-CC-01
-                      </span>
-                      <span className="absolute top-3 right-3 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#294C3B] text-white">
-                        Assisted-Growing
-                      </span>
-                    </div>
-
-                    <div>
-                      <h3 className="font-heading font-black text-lg text-brand-dark">
-                        Thửa Sen Vàng A1
-                      </h3>
-                      <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3.5 h-3.5 text-[#658B38]" /> Nông trại Củ Chi Sinh Thái • 100m²
-                      </p>
-                    </div>
-
-                    {/* Progress & Current Planting */}
-                    <div className="p-3 rounded-2xl bg-brand-cream/60 border border-stone-200/60 space-y-2">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-brand-dark flex items-center gap-1.5">
-                          <Sprout className="w-4 h-4 text-emerald-600" /> Cà chua bi Cherry F1
-                        </span>
-                        <span className="text-[11px] font-semibold text-[#658B38]">Ngày 28 / 65</span>
-                      </div>
-                      <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
-                        <div className="bg-[#658B38] h-2 rounded-full w-[45%]" />
-                      </div>
-                    </div>
-
-                    {/* IoT Sensors Telemetry */}
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="p-2 rounded-xl bg-stone-50 border border-stone-100">
-                        <span className="text-[10px] text-stone-400 block">Nhiệt độ</span>
-                        <span className="font-bold text-brand-dark">28.5°C</span>
-                      </div>
-                      <div className="p-2 rounded-xl bg-stone-50 border border-stone-100">
-                        <span className="text-[10px] text-stone-400 block">Độ ẩm đất</span>
-                        <span className="font-bold text-emerald-600">68%</span>
-                      </div>
-                      <div className="p-2 rounded-xl bg-stone-50 border border-stone-100">
-                        <span className="text-[10px] text-stone-400 block">Trạm IoT</span>
-                        <span className="font-bold text-brand-dark">IOT-CC-01</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-1 flex gap-2">
-                      <button
-                        onClick={() => setShowServiceRequestModal(true)}
-                        className="flex-1 py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-colors"
-                      >
-                        Yêu cầu dịch vụ
-                      </button>
-                      <Link to="/marketplace/plot/PLOT-CC-01" className="flex-1">
-                        <button className="w-full py-2 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition-colors">
-                          Chi tiết thửa đất
-                        </button>
-                      </Link>
-                    </div>
-                  </div>
-
-                  {/* Yard 2: Thửa Mộc Châu B2 */}
-                  <div className="bg-white rounded-3xl p-5 border border-stone-200 shadow-sm space-y-4 hover:shadow-md transition-shadow">
-                    <div className="relative h-44 rounded-2xl overflow-hidden bg-black/10">
-                      <img
-                        src="https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80"
-                        alt="Thửa Mộc Châu B2"
-                        className="w-full h-full object-cover"
-                      />
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-brand-yellow text-brand-dark absolute top-3 left-3">
-                        PLOT-MC-02
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#658B38] text-white absolute top-3 right-3">
-                        Self-Growing
-                      </span>
-                    </div>
-
-                    <div>
-                      <h3 className="font-heading font-black text-lg text-brand-dark">
-                        Thửa Mộc Châu B2
-                      </h3>
-                      <p className="text-xs text-stone-500 flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3.5 h-3.5 text-[#658B38]" /> Cao nguyên Mộc Châu • 80m²
-                      </p>
-                    </div>
-
-                    {/* Progress & Current Planting */}
-                    <div className="p-3 rounded-2xl bg-brand-cream/60 border border-stone-200/60 space-y-2">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-brand-dark flex items-center gap-1.5">
-                          <Wheat className="w-4 h-4 text-amber-600" /> Xà lách Romaine VietGAP
-                        </span>
-                        <span className="text-[11px] font-bold text-amber-600">Sắp thu hoạch! (24/35)</span>
-                      </div>
-                      <div className="w-full bg-stone-200 rounded-full h-2 overflow-hidden">
-                        <div className="bg-amber-500 h-2 rounded-full w-[75%]" />
-                      </div>
-                    </div>
-
-                    {/* IoT Sensors Telemetry */}
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="p-2 rounded-xl bg-stone-50 border border-stone-100">
-                        <span className="text-[10px] text-stone-400 block">Nhiệt độ</span>
-                        <span className="font-bold text-brand-dark">22.0°C</span>
-                      </div>
-                      <div className="p-2 rounded-xl bg-stone-50 border border-stone-100">
-                        <span className="text-[10px] text-stone-400 block">Độ ẩm đất</span>
-                        <span className="font-bold text-emerald-600">62%</span>
-                      </div>
-                      <div className="p-2 rounded-xl bg-stone-50 border border-stone-100">
-                        <span className="text-[10px] text-stone-400 block">Trạm IoT</span>
-                        <span className="font-bold text-brand-dark">IOT-MC-02</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-1 flex gap-2">
-                      <button
-                        onClick={() => setShowRapidCareModal(true)}
-                        className="flex-1 py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold transition-colors"
-                      >
-                        Cứu hộ khẩn cấp
-                      </button>
-                      <button
-                        onClick={() => setShowNewDiaryModal(true)}
-                        className="flex-1 py-2 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition-colors"
-                      >
-                        Ghi nhật ký
-                      </button>
-                    </div>
-                  </div>
-
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: FARM DIARY TIMELINE */}
-            {activeTab === 'diary' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-heading font-black text-xl text-[#294C3B]">
-                      Farm Diary Timeline (Nhật Ký Canh Tác)
-                    </h3>
-                    <p className="text-xs text-stone-500 mt-0.5">
-                      Minh chứng ca trực thực tế của công nhân và nhật ký cá nhân của bạn.
-                    </p>
-                  </div>
-                  <Button variant="primary" size="sm" onClick={() => setShowNewDiaryModal(true)}>
-                    + Viết nhật ký mới
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Entry 1 */}
-                  <div className="p-4 rounded-2xl bg-[#F5F2E9]/60 border border-stone-200/80 space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-[#294C3B]">Hôm nay • 08:30 AM (Ca sáng)</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                        Công nhân: Trần Văn Lực (CVLĐ)
-                      </span>
-                    </div>
-                    <p className="text-xs text-stone-700 leading-relaxed">
-                      Đã hoàn thành kiểm tra độ ẩm đất tại Thửa Sen Vàng A1. Tiến hành nhổ cỏ rãnh và bổ sung nước tưới vi sinh đợt 3 theo đúng lịch trình của Chuyên gia Nam.
-                    </p>
-                    <div className="flex gap-2">
-                      <img
-                        src="https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=300&q=80"
-                        alt="Ảnh minh chứng"
-                        className="w-20 h-16 rounded-xl object-cover border border-stone-300"
-                      />
-                      <div className="text-[11px] text-stone-500 self-center">
-                        <p>📍 Thửa Sen Vàng A1 (PLOT-CC-01)</p>
-                        <p>✓ Đạt kiểm duyệt ảnh hiện trường VietGAP</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Entry 2 */}
-                  <div className="p-4 rounded-2xl bg-[#F5F2E9]/60 border border-stone-200/80 space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-[#294C3B]">Hôm qua • 16:15 PM</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                        Khách hàng: {user?.fullName || 'Lô Thái Quyền'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-stone-700 leading-relaxed">
-                      Lên thăm vườn Mộc Châu cuối tuần. Xà lách Romaine phát triển xanh mướt, lá cuộn tròn dày và không có sâu bệnh. Đã tỉa bớt lá già phía dưới.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 3: SERVICE REQUESTS */}
-            {activeTab === 'services' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-heading font-black text-xl text-[#294C3B]">
-                      Yêu Cầu Dịch Vụ Lao Động (Service Requests)
-                    </h3>
-                    <p className="text-xs text-stone-500 mt-0.5">
-                      Dành cho thửa đất Self-growing khi bạn bận đột xuất hoặc cần bổ sung công chăm sóc.
-                    </p>
-                  </div>
-                  <Button variant="primary" size="sm" onClick={() => setShowServiceRequestModal(true)}>
-                    + Tạo yêu cầu mới
-                  </Button>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200 text-emerald-800">
-                        Đang thực hiện
-                      </span>
-                      <h4 className="font-bold text-emerald-950 mt-1">Dịch vụ nhổ cỏ & bắt sâu thảo mộc</h4>
-                      <p className="text-stone-600">Thửa Mộc Châu B2 • Phí: 50.000 đ • Đã thanh toán</p>
-                    </div>
-                    <span className="font-mono text-emerald-700 font-bold">REQ-8829</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 4: IOT ALERTS */}
-            {activeTab === 'alerts' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-heading font-black text-xl text-[#294C3B]">
-                    Cảnh Báo Vi Khí Hậu & Trạm Cảm Biến IoT
-                  </h3>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Hệ thống tự động phát hiện dị thường nhiệt độ và độ ẩm theo thời gian thực (BR18).
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-3">
-                  <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
-                    <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    <span>Cảnh báo mẫu: Độ ẩm đất Thửa B2 tiệm cận ngưỡng dưới (62%)</span>
-                  </div>
-                  <p className="text-xs text-stone-600">
-                    Dự báo hôm nay trời nhiều nắng tại Mộc Châu. Bạn có thể kích hoạt bơm tưới khẩn cấp ngay bây giờ.
-                  </p>
-                  <Button variant="danger" size="sm" onClick={() => setShowRapidCareModal(true)}>
-                    YÊU CẦU CỨU HỘ KHẨN CẤP (RAPID CARE)
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 5: HARVEST RESULTS */}
-            {activeTab === 'harvest' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-heading font-black text-xl text-[#294C3B]">
-                      Kết Quả Thu Hoạch & Nghiệm Thu Nông Sản
-                    </h3>
-                    <p className="text-xs text-stone-500 mt-0.5">
-                      Minh bạch cân điện tử, đối chứng sản lượng và đặt lịch giao rau sạch tận nhà.
-                    </p>
-                  </div>
-                  <Button variant="primary" size="sm" onClick={() => setShowHarvestAcceptModal(true)}>
-                    Xác nhận nghiệm thu vụ mùa
-                  </Button>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-brand-cream border border-brand-border space-y-3 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-brand-dark">Đợt thu hoạch gần nhất: Cà chua bi Cherry</span>
-                    <span className="text-emerald-700 font-black">12.5 kg</span>
-                  </div>
-                  <p className="text-stone-600">
-                    Thu hoạch ngày 02/10. Sản lượng đã được đóng thùng có mã QR truy xuất nguồn gốc và giao tới địa chỉ nhà bạn.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 6: CONTRACT HISTORY */}
-            {activeTab === 'contracts' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-heading font-black text-xl text-[#294C3B]">
-                    Lịch Sử Hợp Đồng Thuê Thửa Đất
-                  </h3>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Quản lý thời hạn thuê, gia hạn hợp đồng hoặc yêu cầu hoàn cọc theo chính sách BR10.
-                  </p>
-                </div>
-
-                <div className="p-5 rounded-2xl border border-stone-200 space-y-3 text-xs">
-                  <div className="flex justify-between items-center pb-2 border-b border-stone-100">
-                    <span className="font-mono font-bold text-[#294C3B] text-sm">CTR-2026-FARM-9912</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                      Đang hiệu lực
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-stone-600">
-                    <p>Thửa đất: <strong>Sen Vàng A1 (PLOT-CC-01)</strong></p>
-                    <p>Thời hạn: <strong>03 Tháng (Còn 42 ngày)</strong></p>
-                    <p>Chế độ: <strong>Assisted-growing</strong></p>
-                    <p>Tổng phí: <strong>3.600.000 đ</strong></p>
-                  </div>
-                  <div className="pt-2 flex gap-3">
-                    <Button variant="outline" size="sm" onClick={() => setShowRenewContractModal(true)}>
-                      Gia hạn hợp đồng (Renew)
-                    </Button>
-                    <button
-                      onClick={() => alert('Yêu cầu hủy hợp đồng và hoàn tiền theo BR10 đã được gửi đến ban quản trị Farmely.')}
-                      className="text-xs text-rose-600 hover:underline font-bold self-center"
-                    >
-                      Yêu cầu hủy & hoàn tiền
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </div>
-
-          {/* RIGHT COLUMN: CHATBOT AI WIDGET (Matching reference screenshot exactly) */}
-          <div className="lg:col-span-5 xl:col-span-4 sticky top-24 space-y-4">
-            
-            <div className="bg-white rounded-3xl border border-stone-200/90 shadow-elevated overflow-hidden flex flex-col h-[680px]">
-              
-              {/* Chatbot Header */}
-              <div className="p-4 bg-brand-cream/80 border-b border-brand-border flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-[#658B38] text-white flex items-center justify-center shadow-sm">
-                    <Sprout className="w-4 h-4 stroke-[2.5]" />
-                  </div>
-                  <div>
-                    <h3 className="font-heading font-black text-sm text-[#294C3B]">
-                      Ask Farmely AI
-                    </h3>
-                    <p className="text-[10px] text-stone-500 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Trực tuyến • Trợ lý nông học thông minh
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 text-stone-400">
-                  <button
-                    onClick={() => setChatMessages([chatMessages[0]])}
-                    className="p-1.5 hover:text-rose-600 hover:bg-stone-100 rounded-lg transition-colors"
-                    title="Xóa đoạn chat"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Chat Messages Log */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
-                {chatMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
-                  >
-                    <div
-                      className={`max-w-[85%] p-3 rounded-2xl leading-relaxed ${
-                        msg.sender === 'user'
-                          ? 'bg-[#658B38] text-white rounded-br-none shadow-sm'
-                          : 'bg-[#F5F2E9] text-stone-800 rounded-bl-none border border-stone-200'
-                      }`}
-                    >
-                      {msg.text}
-                    </div>
-                    <span className="text-[9px] text-stone-400 mt-1 px-1">{msg.time}</span>
-                  </div>
-                ))}
-
-                {isAiTyping && (
-                  <div className="flex items-center gap-1.5 text-stone-400 text-xs italic p-2">
-                    <Sparkles className="w-3.5 h-3.5 text-[#658B38] animate-spin" />
-                    <span>Farmely AI đang phân tích dữ liệu cảm biến...</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Prompt Suggestions */}
-              <div className="p-3 bg-stone-50 border-t border-stone-200/60 space-y-1.5">
-                <span className="text-[10px] uppercase font-bold text-stone-400 block tracking-wider">
-                  Gợi ý câu hỏi nhanh:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    onClick={() => handleSendMessage('Độ ẩm thửa A1 hôm nay có cần tưới thêm không?')}
-                    className="px-2.5 py-1 rounded-full bg-white border border-stone-200 text-[11px] text-stone-600 hover:bg-[#658B38] hover:text-white transition-all text-left"
-                  >
-                    Độ ẩm thửa A1 hôm nay?
-                  </button>
-                  <button
-                    onClick={() => handleSendMessage('Khi nào xà lách Romaine có thể thu hoạch?')}
-                    className="px-2.5 py-1 rounded-full bg-white border border-stone-200 text-[11px] text-stone-600 hover:bg-[#658B38] hover:text-white transition-all text-left"
-                  >
-                    Khi nào thu hoạch Xà lách?
-                  </button>
-                  <button
-                    onClick={() => handleSendMessage('Quy trình phòng trừ sâu bệnh VietGAP?')}
-                    className="px-2.5 py-1 rounded-full bg-white border border-stone-200 text-[11px] text-stone-600 hover:bg-[#658B38] hover:text-white transition-all text-left"
-                  >
-                    Quy trình trừ sâu VietGAP?
-                  </button>
-                </div>
-              </div>
-
-              {/* Chat Input */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendMessage();
-                }}
-                className="p-3 bg-white border-t border-stone-200 flex items-center gap-2"
-              >
-                <input
-                  type="text"
-                  placeholder="Hỏi AI về thửa đất, độ ẩm, mùa vụ..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 px-3.5 py-2 text-xs rounded-xl bg-stone-50 border border-stone-200 focus:outline-none focus:ring-1 focus:ring-[#658B38]"
-                />
-                <button
-                  type="submit"
-                  className="p-2 rounded-xl bg-[#658B38] text-white hover:bg-[#52742c] transition-colors"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </main>
-
-      {/* MODAL: New Diary Entry (Photo Entry) */}
-      <Modal
-        isOpen={showNewDiaryModal}
-        onClose={() => setShowNewDiaryModal(false)}
-        title="Thêm Nhật Ký Canh Tác Mới (New Diary Entry)"
-        subtitle="Dành cho chế độ Self-Growing hoặc cập nhật ảnh tham quan vườn"
-      >
-        <div className="space-y-4 text-left text-xs">
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Chọn Thửa Đất:</label>
-            <select className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs">
-              <option>Thửa Mộc Châu B2 (PLOT-MC-02) • Self-Growing</option>
-              <option>Thửa Sen Vàng A1 (PLOT-CC-01) • Assisted-Growing</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Ghi Chú Nhật Ký:</label>
-            <textarea
-              rows={3}
-              value={diaryNote}
-              onChange={(e) => setDiaryNote(e.target.value)}
-              placeholder="Ví dụ: Hôm nay cây phát triển rất đều, đất tơi xốp, đã tỉa bớt lá héo..."
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-1 focus:ring-brand-green"
-            />
-          </div>
-
-          <div className="p-4 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-1">
-            <Camera className="w-6 h-6 text-stone-400 mx-auto" />
-            <p className="font-bold text-stone-600">Đính kèm ảnh hiện trường (Bắt buộc theo BR15)</p>
-            <p className="text-[10px] text-stone-400">PNG, JPG tối đa 5MB</p>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowNewDiaryModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                alert('Đã lưu nhật ký Farm Diary thành công!');
-                setShowNewDiaryModal(false);
-                setDiaryNote('');
-              }}
-            >
-              LƯU NHẬT KÝ
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* MODAL: Service Request */}
-      <Modal
-        isOpen={showServiceRequestModal}
-        onClose={() => setShowServiceRequestModal(false)}
-        title="Gửi Yêu Cầu Dịch Vụ Lao Động (Service Request)"
-        subtitle="Đội ngũ CVLĐ sẽ tiếp nhận và hoàn tất trong ngày"
-      >
-        <div className="space-y-4 text-left text-xs">
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Loại Dịch Vụ:</label>
-            <select
-              value={serviceType}
-              onChange={(e) => setServiceType(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs"
-            >
-              <option value="WEEDING">Nhổ cỏ & làm tơi đất (50.000 đ)</option>
-              <option value="FERTILIZING">Bón phân hữu cơ vi sinh (80.000 đ)</option>
-              <option value="PEST_CONTROL">Phun thảo mộc diệt sâu sinh học (70.000 đ)</option>
-              <option value="EXTRA_WATER">Tưới bổ sung ngoài giờ (30.000 đ)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Ghi Chú Chi Tiết Cho Công Nhân:</label>
-            <textarea
-              rows={2}
-              value={serviceNotes}
-              onChange={(e) => setServiceNotes(e.target.value)}
-              placeholder="Ghi chú cụ thể vị trí cần làm..."
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs"
-            />
-          </div>
-
-          <div className="p-3 rounded-xl bg-brand-cream border border-brand-border flex justify-between items-center font-bold">
-            <span>Phí dịch vụ:</span>
-            <span className="text-brand-green font-black">50.000 đ</span>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowServiceRequestModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                alert('Yêu cầu dịch vụ đã được tạo và chuyển tiếp tới điều phối hiện trường!');
-                setShowServiceRequestModal(false);
-              }}
-            >
-              THANH TOÁN & GỬI YÊU CẦU
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* MODAL: Rapid Care */}
-      <Modal
-        isOpen={showRapidCareModal}
-        onClose={() => setShowRapidCareModal(false)}
-        title="Yêu Cầu Cứu Hộ Khẩn Cấp (Request Rapid Care)"
-        subtitle="Xử lý nhanh sự cố vi khí hậu IoT hoặc sâu bệnh đột xuất"
-      >
-        <div className="space-y-4 text-left text-xs">
-          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
-            <p className="font-bold">⏱ Thời gian phản hồi: Dưới 30 phút</p>
-            <p>Đội ngũ trực ban tại nông trại sẽ kiểm tra trực tiếp trạm cảm biến và luống đất để xử lý sự cố.</p>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Mô tả sự cố:</label>
-            <textarea
-              rows={3}
-              defaultValue="Độ ẩm đất giảm nhanh, nghi ngờ ống tưới nhỏ giọt bị nghẹt rác."
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowRapidCareModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                alert('Đã phát tín hiệu cứu hộ khẩn cấp đến đội ngũ quản lý vườn!');
-                setShowRapidCareModal(false);
-              }}
-            >
-              KÍCH HOẠT CỨU HỘ NGAY
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* MODAL: Accept Harvest */}
-      <Modal
-        isOpen={showHarvestAcceptModal}
-        onClose={() => setShowHarvestAcceptModal(false)}
-        title="Nghiệm Thu Sản Lượng Vụ Mùa (Accept Harvest)"
-        subtitle="Đối chứng cân điện tử và xác nhận giao hàng"
-      >
-        <div className="space-y-4 text-left text-xs">
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
-            <p className="font-bold">✓ Sản lượng thực tế: 12.5 kg Cà chua bi Cherry F1</p>
-            <p>Đã chụp ảnh cân đối chứng lúc 06:45 sáng nay tại trạm đóng gói Củ Chi.</p>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Phương thức nhận nông sản:</label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 p-2.5 rounded-xl border border-brand-border bg-white cursor-pointer">
-                <input type="radio" name="deliver" defaultChecked />
-                <span>Đóng thùng bảo quản và giao hỏa tốc đến địa chỉ nhà tôi</span>
-              </label>
-              <label className="flex items-center gap-2 p-2.5 rounded-xl border border-brand-border bg-white cursor-pointer">
-                <input type="radio" name="deliver" />
-                <span>Tôi sẽ tự đến nông trại nhận vào sáng Thứ 7 này</span>
-              </label>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowHarvestAcceptModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                alert('Xác nhận nghiệm thu thành công! Đơn vị vận chuyển sẽ liên hệ giao hàng cho bạn.');
-                setShowHarvestAcceptModal(false);
-              }}
-            >
-              XÁC NHẬN NGHIỆM THU
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* MODAL: Renew Contract */}
-      <Modal
-        isOpen={showRenewContractModal}
-        onClose={() => setShowRenewContractModal(false)}
-        title="Gia Hạn Hợp Đồng Thuê Đất (Renew Contract)"
-        subtitle="Thửa Sen Vàng A1 (PLOT-CC-01)"
-      >
-        <div className="space-y-4 text-left text-xs">
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Thời Gian Gia Hạn Tiếp Theo:</label>
-            <select className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs">
-              <option>Gia hạn thêm 03 Tháng (Ưu đãi giảm 5%)</option>
-              <option>Gia hạn thêm 06 Tháng (Ưu đãi giảm 10%)</option>
-              <option>Gia hạn thêm 12 Tháng (Ưu đãi giảm 15%)</option>
-            </select>
-          </div>
-
-          <div className="p-3 rounded-xl bg-brand-cream border border-brand-border text-stone-600 space-y-1">
-            <p>• Tiếp tục duy trì quyền ưu tiên canh tác trên luống đất hiện tại.</p>
-            <p>• Tặng thêm 01 bộ phân bón vi sinh VietGAP cho chu kỳ mới.</p>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowRenewContractModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                alert('Đã gửi yêu cầu gia hạn hợp đồng thành công!');
-                setShowRenewContractModal(false);
-              }}
-            >
-              XÁC NHẬN GIA HẠN
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
-      <Footer />
-    </div>
-  );
+function Section({ title, description, children }) {
+  return <section className="rounded-2xl border border-brand-border bg-white p-5 shadow-sm sm:p-7"><h2 className="font-heading text-xl font-black text-brand-dark">{title}</h2><p className="mb-5 mt-1 text-sm text-brand-muted">{description}</p>{children}</section>;
+}
+function DiaryItem({ date, title, text, photo, author }) {
+  return <article className="rounded-xl border border-brand-border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-bold text-brand-green">{date}</span><span className="inline-flex items-center gap-1 text-xs text-brand-muted"><UserRound size={13} /> {author || 'CVLĐ Farmely'}</span></div><h3 className="mt-1 font-bold text-brand-dark">{title}</h3><p className="mt-1 text-sm text-brand-muted">{text}</p>{photo && <img src={photo} alt={`Ảnh ${title}`} className="mt-3 h-40 w-56 rounded-xl object-cover" />}</article>;
 }

@@ -1,0 +1,6 @@
+import React from 'react';
+import PublicNavbar from './PublicNavbar';
+
+export default function RoleDashboardShell({ eyebrow, title, description, tabs, activeTab, onTabChange, children }) {
+  return <div className="min-h-screen bg-brand-cream"><PublicNavbar /><main className="mx-auto max-w-7xl px-4 pb-20 pt-28 sm:px-6 lg:px-8"><p className="text-xs font-bold uppercase tracking-widest text-brand-green">{eyebrow}</p><div className="mb-6 flex flex-wrap items-start justify-between gap-3"><div><h1 className="mt-1 font-heading text-3xl font-black text-brand-dark">{title}</h1><p className="mt-1 text-sm text-brand-muted">{description}</p></div><span className="rounded-full border border-brand-border bg-white px-3 py-1 text-xs text-brand-muted">Dữ liệu minh họa</span></div><div className="mb-7 flex gap-2 overflow-x-auto border-b border-brand-border pb-3" role="tablist">{tabs.map(tab => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} onClick={() => onTabChange(tab.id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${activeTab === tab.id ? 'bg-brand-dark text-white' : 'bg-white text-brand-dark hover:bg-brand-green/10'}`}>{tab.label}</button>)}</div>{children}</main></div>;
+}

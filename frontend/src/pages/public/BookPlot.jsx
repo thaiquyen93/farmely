@@ -6,6 +6,7 @@ import { plotsData } from '../../data/plots';
 import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
+import { saveDemo } from '../../data/operationsDemo';
 import {
   Clock,
   ShieldCheck,
@@ -61,6 +62,7 @@ export default function BookPlot() {
     setTimeout(() => {
       setIsProcessing(false);
       const generatedCode = `CTR-FARM-${Math.floor(100000 + Math.random() * 900000)}`;
+      saveDemo(`farmely_cultivation_mode_${plot.code}`, selectedMode);
       setContractCode(generatedCode);
       setIsSuccess(true);
     }, 1000);
