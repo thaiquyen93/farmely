@@ -148,7 +148,7 @@ export default function PlotDetail() {
                   <span className="text-xs text-brand-muted">/ tháng canh tác</span>
                 </div>
                 <p className="text-[11px] text-stone-500 mt-1">
-                  Đã bao gồm 01 bộ cây giống F1 và khay giá thể hữu cơ ban đầu.
+                  Mặt bằng canh tác chuẩn hóa, kết nối trọn gói trạm quan trắc IoT vi khí hậu.
                 </p>
               </div>
 

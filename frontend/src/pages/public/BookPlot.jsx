@@ -204,7 +204,7 @@ export default function BookPlot() {
                 Chúc Mừng Bạn Đã Thuê Thửa Đất!
               </h2>
               <p className="text-sm text-brand-muted mt-2 max-w-lg mx-auto">
-                Hợp đồng điện tử đã được ghi nhận. Đội ngũ Farmely đang chuẩn bị Starter Kit và phân công nhân sự phụ trách thửa đất của bạn.
+                Hợp đồng điện tử đã được ghi nhận. Thửa đất của bạn đã sẵn sàng và được kích hoạt trên hệ thống giám sát Farmely.
               </p>
             </div>
 
@@ -410,14 +410,6 @@ export default function BookPlot() {
                   <div className="flex justify-between text-stone-600">
                     <span>Dịch vụ canh tác ({selectedMode === 'ASSISTED' ? 'Trọn gói' : 'Tự chăm sóc'} x {rentalMonths} tháng):</span>
                     <strong className="text-brand-dark">{subtotalCare.toLocaleString('vi-VN')} đ</strong>
-                  </div>
-
-                  <div className="flex justify-between text-emerald-700 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
-                    <span className="font-semibold flex items-center gap-1">
-                      <Sprout className="w-3.5 h-3.5" />
-                      Bộ cây giống & giá thể khởi đầu:
-                    </span>
-                    <span className="font-bold">Miễn phí 0 đ</span>
                   </div>
 
                   <div className="flex justify-between pt-4 border-t border-brand-border text-base font-black text-brand-green">
