@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Minus, LocateFixed, Maximize2, Minimize2, Layers, Compass } from 'lucide-react';
+import { Plus, Minus, LocateFixed, Maximize2, Minimize2, Check, Sparkles } from 'lucide-react';
 import { MARKETPLACE_PLOTS_GIS } from '../../data/marketplaceGisData';
 
 /**
- * 16 PLOTS — viewBox 1000×1400 mapped to 1200×1700 Ultra-HD orthophoto.
- * Clean, modern light GIS aesthetic matching reference design.
- * ponytail: ceiling is static SVG grid, upgrade path is GeoJSON Leaflet layer.
+ * 16 PLOTS mapped to Ultra-HD farmland orthophoto.
+ * Matches exact GIF styling:
+ * - Thin crisp white plot boundaries
+ * - White rectangular badges centered at top boundary
+ * - Active plot (P-01): Cyan/mint #00E5A3 border, 4 corner anchor dots, semi-transparent pale green fill
+ * - Anchored speech bubble tooltip with status and feature checkmarks
  */
 export const GRID_16_PLOTS = [
   { id: 'PLT-HV-01', code: 'Plot P-01', label: 'P-01', x: 30,  y: 30,  w: 205, h: 360 },
@@ -26,18 +29,6 @@ export const GRID_16_PLOTS = [
   { id: 'PLT-HV-16', code: 'Plot P-16', label: 'P-16', x: 745, y: 1130, w: 230, h: 240 },
 ];
 
-const ST_STROKE = {
-  AVAILABLE: 'rgba(16, 185, 129, 0.65)',
-  RENTED: 'rgba(245, 158, 11, 0.65)',
-  MAINTENANCE: 'rgba(148, 163, 184, 0.65)'
-};
-
-const ST_DOT = {
-  AVAILABLE: '#10B981',
-  RENTED: '#F59E0B',
-  MAINTENANCE: '#94A3B8'
-};
-
 export default function MarketplaceInteractiveMap({
   plots = [],
   selectedPlot = null,
@@ -53,7 +44,7 @@ export default function MarketplaceInteractiveMap({
   const [hov, setHov] = useState(null);
   const [fs, setFs] = useState(false);
 
-  const sel = selectedPlot?.code || 'Plot P-01';
+  const selCode = selectedPlot?.code || 'Plot P-01';
 
   useEffect(() => {
     if (!selectedPlot) return;
@@ -98,10 +89,13 @@ export default function MarketplaceInteractiveMap({
         name: `Thửa Đất ${p.label}`,
         status: 'AVAILABLE',
         areaFormatted: '150 m²',
-        rentalPriceFormatted: '1.200.000 đ/tháng'
+        rentalPriceFormatted: '1.000.000 đ/tháng'
       };
     onSelectPlot?.(m);
   };
+
+  // Find currently selected plot geometry for anchor tooltip
+  const activeGeo = GRID_16_PLOTS.find((p) => p.code === selCode) || GRID_16_PLOTS[0];
 
   return (
     <div
@@ -114,7 +108,7 @@ export default function MarketplaceInteractiveMap({
         fs ? 'fixed inset-0 z-50' : ''
       } ${drag ? 'cursor-grabbing' : 'cursor-grab'}`}
     >
-      {/* 1. Canvas with Satellite Orthophoto */}
+      {/* 1. Base Map Canvas with Ultra-HD Satellite Orthophoto */}
       <div
         className="absolute inset-0 w-full h-full origin-center"
         style={{
@@ -130,34 +124,26 @@ export default function MarketplaceInteractiveMap({
           draggable={false}
         />
 
-        {/* Subtle vignette for contrast */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(ellipse at center, transparent 65%, rgba(0,0,0,0.35) 100%)'
-          }}
-        />
-
-        {/* 2. SVG Plot Outlines & Badges */}
+        {/* 2. SVG Vector Cadastral Grid Layer */}
         <svg
           viewBox="0 0 1000 1400"
           className="w-full h-full absolute inset-0"
           preserveAspectRatio="none"
         >
           <defs>
-            {/* Emerald glow for selected plot */}
-            <filter id="emerald-glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#10B981" floodOpacity="0.5" />
+            {/* Subtle glow for selected cyan boundary */}
+            <filter id="cyan-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#00E5A3" floodOpacity="0.6" />
             </filter>
-            {/* Drop shadow for floating white badges */}
-            <filter id="badge-shadow" x="-30%" y="-30%" width="160%" height="160%">
-              <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#000000" floodOpacity="0.25" />
+            {/* Soft drop shadow for floating badges and tooltips */}
+            <filter id="badge-shadow" x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#000000" floodOpacity="0.25" />
             </filter>
           </defs>
 
+          {/* Render All Plots */}
           {GRID_16_PLOTS.map((p) => {
-            const isSel = sel === p.code;
+            const isSel = selCode === p.code;
             const isHov = hov === p.code;
             const real =
               plots.find((i) => i.code === p.code) ||
@@ -170,7 +156,7 @@ export default function MarketplaceInteractiveMap({
               <g
                 key={p.code}
                 className="cursor-pointer transition-opacity duration-300"
-                style={{ opacity: vis ? 1 : 0.2 }}
+                style={{ opacity: vis ? 1 : 0.25 }}
                 onClick={(e) => {
                   e.stopPropagation();
                   click(p);
@@ -187,60 +173,61 @@ export default function MarketplaceInteractiveMap({
                   rx="6"
                   fill={
                     isSel
-                      ? 'rgba(16, 185, 129, 0.22)' // Light green semi-transparent inner overlay
+                      ? 'rgba(0, 229, 163, 0.16)' // Vibrant pale green / mint tint from GIF
                       : isHov
-                      ? 'rgba(16, 185, 129, 0.10)'
-                      : 'rgba(255, 255, 255, 0.03)'
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(255, 255, 255, 0.02)'
                   }
                   stroke={
                     isSel
-                      ? '#10B981' // Vibrant emerald green border for selected
+                      ? '#00E5A3' // Exact Cyan / Mint stroke from GIF
                       : isHov
-                      ? '#34D399'
-                      : 'rgba(255, 255, 255, 0.85)' // Clean white border for unselected
+                      ? '#FFFFFF'
+                      : 'rgba(255, 255, 255, 0.65)' // Clean crisp white lines
                   }
                   strokeWidth={isSel ? 3.0 : isHov ? 2.0 : 1.4}
-                  strokeDasharray={isSel ? 'none' : 'none'}
-                  filter={isSel ? 'url(#emerald-glow)' : undefined}
+                  filter={isSel ? 'url(#cyan-glow)' : undefined}
                   style={{ transition: 'all 0.2s ease-in-out' }}
                 />
 
-                {/* Floating Modern Pill Badge */}
+                {/* 4 Corner Vertex / Anchor Nodes for Selected Plot (matching GIF) */}
+                {isSel && (
+                  <g pointerEvents="none">
+                    {/* Top-Left */}
+                    <circle cx={p.x} cy={p.y} r="4" fill="#FFFFFF" stroke="#00E5A3" strokeWidth="2.5" />
+                    {/* Top-Right */}
+                    <circle cx={p.x + p.w} cy={p.y} r="4" fill="#FFFFFF" stroke="#00E5A3" strokeWidth="2.5" />
+                    {/* Bottom-Left */}
+                    <circle cx={p.x} cy={p.y + p.h} r="4" fill="#FFFFFF" stroke="#00E5A3" strokeWidth="2.5" />
+                    {/* Bottom-Right */}
+                    <circle cx={p.x + p.w} cy={p.y + p.h} r="4" fill="#FFFFFF" stroke="#00E5A3" strokeWidth="2.5" />
+                  </g>
+                )}
+
+                {/* Plot ID Badge - White capsule centered on top boundary */}
                 <g
-                  transform={`translate(${cx - 24}, ${p.y + 10})`}
+                  transform={`translate(${cx - 22}, ${p.y + 8})`}
                   pointerEvents="none"
                   filter="url(#badge-shadow)"
                 >
-                  {/* Badge Background */}
                   <rect
                     x="0"
                     y="0"
-                    width="48"
-                    height="22"
-                    rx="11"
-                    fill={isSel ? '#10B981' : '#FFFFFF'}
-                    stroke={isSel ? '#059669' : 'rgba(226, 232, 240, 0.8)'}
-                    strokeWidth="1"
-                    style={{ transition: 'all 0.2s ease-in-out' }}
+                    width="44"
+                    height="20"
+                    rx="5"
+                    fill="#FFFFFF"
+                    stroke={isSel ? '#00E5A3' : 'rgba(226, 232, 240, 0.9)'}
+                    strokeWidth={isSel ? 1.5 : 1}
                   />
-
-                  {/* Status Indicator Dot */}
-                  <circle
-                    cx="12"
-                    cy="11"
-                    r="3"
-                    fill={isSel ? '#FFFFFF' : ST_DOT[st] || ST_DOT.AVAILABLE}
-                  />
-
-                  {/* Parcel ID Text */}
                   <text
-                    x="30"
-                    y="14.5"
+                    x="22"
+                    y="14"
                     textAnchor="middle"
-                    fill={isSel ? '#FFFFFF' : '#1E293B'}
+                    fill="#1E293B"
                     fontSize="10"
                     fontWeight="700"
-                    fontFamily="-apple-system, BlinkMacSystemFont, 'Inter', Segoe UI, sans-serif"
+                    fontFamily="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif"
                     letterSpacing="0.02em"
                   >
                     {p.label}
@@ -249,12 +236,81 @@ export default function MarketplaceInteractiveMap({
               </g>
             );
           })}
+
+          {/* 3. Anchored Speech Bubble Tooltip for Selected Plot (matching GIF frame 2/4) */}
+          {activeGeo && (
+            <g
+              transform={`translate(${activeGeo.x + activeGeo.w + 14}, ${activeGeo.y + 30})`}
+              pointerEvents="none"
+              filter="url(#badge-shadow)"
+              className="animate-in fade-in duration-200"
+            >
+              {/* Triangle Pointer Arrow */}
+              <polygon points="-8,16 0,10 0,22" fill="#FFFFFF" />
+
+              {/* Tooltip Card Body */}
+              <rect
+                x="0"
+                y="0"
+                width="165"
+                height="70"
+                rx="10"
+                fill="#FFFFFF"
+                stroke="#E2E8F0"
+                strokeWidth="1"
+              />
+
+              {/* Status Header */}
+              <g transform="translate(12, 18)">
+                <circle cx="4" cy="0" r="3.5" fill="#10B981" />
+                <text
+                  x="14"
+                  y="4"
+                  fill="#059669"
+                  fontSize="11"
+                  fontWeight="700"
+                  fontFamily="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif"
+                >
+                  Đang trống
+                </text>
+              </g>
+
+              {/* Checkmark 1: Đất trù phú */}
+              <g transform="translate(12, 38)">
+                <circle cx="4" cy="0" r="2" fill="#00E5A3" />
+                <text
+                  x="14"
+                  y="3"
+                  fill="#475569"
+                  fontSize="10"
+                  fontWeight="600"
+                  fontFamily="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif"
+                >
+                  Đất màu mỡ, tơi xốp
+                </text>
+              </g>
+
+              {/* Checkmark 2: Bằng phẳng, gần nguồn nước */}
+              <g transform="translate(12, 54)">
+                <circle cx="4" cy="0" r="2" fill="#00E5A3" />
+                <text
+                  x="14"
+                  y="3"
+                  fill="#475569"
+                  fontSize="10"
+                  fontWeight="600"
+                  fontFamily="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif"
+                >
+                  Bằng phẳng · Gần nước
+                </text>
+              </g>
+            </g>
+          )}
         </svg>
       </div>
 
-      {/* 3. Subtle Bottom Right Map UI Controls (Zoom In/Out, Locate, Scale Bar) */}
+      {/* 4. Subtle Map UI Controls (Zoom In/Out, Locate, Scale Bar) */}
       <div className="absolute bottom-5 right-5 z-20 flex flex-col items-end gap-2 pointer-events-auto">
-        {/* Map Control Buttons Card */}
         <div className="bg-white/95 backdrop-blur-md shadow-xl border border-slate-200/90 rounded-2xl p-1.5 flex flex-col gap-1 text-slate-700">
           <button
             type="button"
