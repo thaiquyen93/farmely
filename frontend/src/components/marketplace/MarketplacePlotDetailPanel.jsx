@@ -4,24 +4,16 @@ import {
   Droplets,
   Radio,
   Leaf,
-  Waves,
-  Compass,
-  Thermometer,
-  Calendar,
   Heart,
   ChevronLeft,
   ChevronRight,
-  TrendingUp,
   Maximize,
   Sprout,
   X,
   Minus,
-  Sun,
   ShieldCheck,
   Zap,
-  Camera,
-  Layers,
-  PhoneCall
+  Camera
 } from 'lucide-react';
 import { GIS_STATUSES } from '../../data/marketplaceGisData';
 
@@ -72,7 +64,7 @@ export default function MarketplacePlotDetailPanel({
       {/* 1. Header Bar with Title & Window Controls */}
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/60">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#00E5A3] shadow-xs" />
+          <div className="w-2.5 h-2.5 rounded-full bg-[#00E5A3] shadow-sm" />
           <h2 className="text-xs font-bold text-slate-900 tracking-tight truncate">
             {plot.name || `Thửa Ruộng Đất Nông ${plot.label}`}
           </h2>
@@ -98,18 +90,19 @@ export default function MarketplacePlotDetailPanel({
       </div>
 
       {/* 2. Scrollable Body Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3.5 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3.5">
         {/* Hero Photo with Terraced Fields & 360 Badge */}
         <div className="relative h-44 w-full rounded-xl overflow-hidden shadow-sm group shrink-0 bg-slate-100">
           <img
             src={gallery[imgIdx] || plot.imageUrl}
             alt={plot.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            onError={(e) => { e.target.src = '/images/land_rect_ultra_hd.jpg'; }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
 
           {/* 360° / VR Tour Badge */}
-          <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-full text-[10px] font-bold text-white bg-black/65 backdrop-blur-xs shadow flex items-center gap-1.5">
+          <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-full text-[10px] font-bold text-white bg-black/65 backdrop-blur-sm shadow flex items-center gap-1.5">
             <Camera className="w-3 h-3 text-[#00E5A3]" />
             <span>360° VR ({imgIdx + 1}/{gallery.length})</span>
           </div>
@@ -138,7 +131,7 @@ export default function MarketplacePlotDetailPanel({
             <h3 className="text-base font-black text-slate-900 tracking-tight leading-snug">
               {plot.name || `Thửa Ruộng Đất Nông ${plot.label}`}
             </h3>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#DCFCE7] text-[#16A34A] border border-emerald-200 shrink-0 shadow-xs">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#DCFCE7] text-[#16A34A] border border-emerald-200 shrink-0 shadow-sm">
               {isAvail ? 'Còn trống' : 'Đã thuê'}
             </span>
           </div>
@@ -154,28 +147,27 @@ export default function MarketplacePlotDetailPanel({
         <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-baseline justify-between">
           <div>
             <span className="text-xl font-black text-slate-900 tracking-tight">
-              1.000.000 đ
+              {plot.rentalPriceFormatted || '1.000.000 đ/tháng'}
             </span>
-            <span className="text-xs text-slate-500 ml-1 font-medium">/ tháng</span>
           </div>
           <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
             Thanh toán linh hoạt
           </span>
         </div>
 
-        {/* 2x2 Feature Chips (matching GIF) */}
+        {/* 2x2 Feature Chips (dynamic from plot data) */}
         <div className="space-y-1.5">
           <span className="text-xs font-bold text-slate-800 block">Đặc điểm thửa đất</span>
           <div className="grid grid-cols-2 gap-2">
             {[
-              { icon: Droplets, label: 'Nguồn nước sạch', color: 'text-sky-600', bg: 'bg-sky-50' },
-              { icon: Sun, label: 'Đất canh tác tốt', color: 'text-amber-600', bg: 'bg-amber-50' },
-              { icon: Leaf, label: 'Chuẩn hữu cơ', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-              { icon: ShieldCheck, label: 'Bảo quản an ninh', color: 'text-blue-600', bg: 'bg-blue-50' }
+              { icon: Droplets, label: plot.facilities?.irrigation ? 'Tưới nhỏ giọt' : 'Nguồn nước sạch', color: 'text-sky-600', bg: 'bg-sky-50', on: plot.facilities?.irrigation || plot.facilities?.waterSource },
+              { icon: Radio, label: 'Cảm biến IoT', color: 'text-emerald-600', bg: 'bg-emerald-50', on: plot.facilities?.iot },
+              { icon: Leaf, label: 'Đất hữu cơ', color: 'text-green-600', bg: 'bg-green-50', on: plot.facilities?.organicSoil },
+              { icon: ShieldCheck, label: 'Hỗ trợ kỹ thuật', color: 'text-blue-600', bg: 'bg-blue-50', on: plot.facilities?.techSupport }
             ].map((f, i) => (
               <div
                 key={i}
-                className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200/80 shadow-xs text-xs text-slate-700 font-semibold"
+                className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200/80 shadow-sm text-xs text-slate-700 font-semibold"
               >
                 <div className={`w-6 h-6 rounded-lg ${f.bg} flex items-center justify-center shrink-0`}>
                   <f.icon className={`w-3.5 h-3.5 ${f.color}`} />
@@ -186,24 +178,32 @@ export default function MarketplacePlotDetailPanel({
           </div>
         </div>
 
-        {/* Suitable Crops Row (Cây trồng phù hợp) */}
+        {/* Suitable Crops Row (dynamic from plot data) */}
         <div className="space-y-1.5">
           <span className="text-xs font-bold text-slate-800 block">Cây trồng phù hợp</span>
           <div className="grid grid-cols-4 gap-1.5">
-            {[
-              { name: 'Cà chua', icon: '🍅', bg: 'bg-red-50 text-red-700 border-red-200' },
-              { name: 'Cà tím', icon: '🍆', bg: 'bg-purple-50 text-purple-700 border-purple-200' },
-              { name: 'Ớt ngọt', icon: '🫑', bg: 'bg-amber-50 text-amber-700 border-amber-200' },
-              { name: 'Đậu bắp', icon: '🥒', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
-            ].map((c, i) => (
+            {(plot.compatibleCrops || [
+              { name: 'Cà chua', icon: '🍅' },
+              { name: 'Cà tím', icon: '🍆' },
+              { name: 'Ớt ngọt', icon: '🫑' },
+              { name: 'Đậu bắp', icon: '🥒' }
+            ]).slice(0, 4).map((c, i) => {
+              const colorSets = [
+                'bg-red-50 text-red-700 border-red-200',
+                'bg-purple-50 text-purple-700 border-purple-200',
+                'bg-amber-50 text-amber-700 border-amber-200',
+                'bg-emerald-50 text-emerald-700 border-emerald-200'
+              ];
+              return (
               <div
                 key={i}
-                className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center shadow-xs ${c.bg}`}
+                className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center shadow-sm ${colorSets[i % 4]}`}
               >
                 <span className="text-lg leading-none mb-1">{c.icon}</span>
                 <span className="text-[10px] font-bold leading-tight truncate w-full">{c.name}</span>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -214,8 +214,8 @@ export default function MarketplacePlotDetailPanel({
             {[
               { label: 'Diện tích thửa', val: plot.areaFormatted || '150 m²' },
               { label: 'Độ pH thổ nhưỡng', val: plot.specs?.ph || '6.5 pH' },
-              { label: 'Loại thổ nhưỡng', val: 'Đất phù sa màu mỡ' },
-              { label: 'Hiện trạng', val: 'Đất trống, sẵn sàng canh tác' }
+              { label: 'Hướng đất', val: plot.specs?.orientation || 'Đông Nam' },
+              { label: 'Nhiệt độ', val: plot.specs?.temp || '18 – 25°C' }
             ].map((s, i) => (
               <div key={i} className="flex items-center justify-between text-slate-600">
                 <span className="text-slate-500">{s.label}:</span>
@@ -241,7 +241,7 @@ export default function MarketplacePlotDetailPanel({
           </div>
           <div
             onClick={onFocusOnMap}
-            className="relative h-20 w-full rounded-xl overflow-hidden border border-slate-200/90 shadow-xs cursor-pointer group"
+            className="relative h-20 w-full rounded-xl overflow-hidden border border-slate-200/90 shadow-sm cursor-pointer group"
           >
             <img
               src="/images/land_rect_ultra_hd.jpg"

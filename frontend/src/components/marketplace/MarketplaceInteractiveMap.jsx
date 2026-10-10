@@ -49,7 +49,8 @@ export default function MarketplaceInteractiveMap({
   useEffect(() => {
     if (!selectedPlot) return;
     const g = GRID_16_PLOTS.find((p) => p.code === selectedPlot.code);
-    if (g) {
+    // ponytail: only auto-pan when zoomed in; at zoom=1 the whole map is visible
+    if (g && zoom > 1) {
       setPan({
         x: (500 - g.x - g.w / 2) * 0.25,
         y: (700 - g.y - g.h / 2) * 0.25

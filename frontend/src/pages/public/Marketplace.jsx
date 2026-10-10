@@ -201,7 +201,7 @@ export default function Marketplace() {
         <div className="w-full bg-white/95 backdrop-blur-md shadow-lg border border-slate-200/90 rounded-2xl px-4 py-2 flex items-center justify-between gap-3">
           {/* Brand Logo */}
           <Link to="/" className="flex items-center gap-2 group shrink-0">
-            <div className="w-8 h-8 rounded-xl bg-[#059669] text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+            <div className="w-8 h-8 rounded-xl bg-[#059669] text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
               <Sprout className="w-4 h-4 stroke-[2.5]" />
             </div>
             <div className="flex flex-col">
@@ -224,7 +224,7 @@ export default function Marketplace() {
             </Link>
             <Link
               to="/marketplace"
-              className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5 shadow-xs"
+              className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5 shadow-sm"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Marketplace
@@ -277,7 +277,7 @@ export default function Marketplace() {
                 </Link>
                 <Link
                   to="/register"
-                  className="px-3.5 py-1 rounded-xl text-xs font-bold text-white bg-[#059669] hover:bg-[#047857] shadow-xs transition-all active:scale-95 cursor-pointer"
+                  className="px-3.5 py-1 rounded-xl text-xs font-bold text-white bg-[#059669] hover:bg-[#047857] shadow-sm transition-all active:scale-95 cursor-pointer"
                 >
                   Đăng ký
                 </Link>
@@ -300,7 +300,7 @@ export default function Marketplace() {
       {/* ─────────────────────────────────────────────────────────────────────────────
           3. TOP-LEFT FLOATING HUD CARD (Matching exact GIF frame 0 / frame 2)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="absolute top-18 left-4 z-20 flex flex-col gap-2 max-w-[390px] pointer-events-auto">
+      <div className="absolute top-[4.5rem] left-4 z-20 flex flex-col gap-2 max-w-[390px] pointer-events-auto">
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200/90 p-3.5 space-y-3">
           {/* Header Title */}
           <div className="flex items-center justify-between">
@@ -326,7 +326,7 @@ export default function Marketplace() {
                   onClick={() => setActiveHudTab(tab.key)}
                   className={`py-1.5 px-2 rounded-lg text-[11px] font-bold text-center transition-all cursor-pointer ${
                     active
-                      ? 'border-2 border-[#00E5A3] bg-emerald-50/50 text-[#059669] shadow-xs'
+                      ? 'border-2 border-[#00E5A3] bg-emerald-50/50 text-[#059669] shadow-sm'
                       : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -363,7 +363,7 @@ export default function Marketplace() {
                   onClick={() => setActiveStatusTab(t.key)}
                   className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all ${
                     on
-                      ? 'bg-[#059669] text-white shadow-xs'
+                      ? 'bg-[#059669] text-white shadow-sm'
                       : 'bg-slate-100 hover:bg-slate-200/70 text-slate-600'
                   }`}
                 >
@@ -391,7 +391,7 @@ export default function Marketplace() {
           4. RIGHT SLIDE-OVER DETAIL DRAWER (Matching exact GIF right drawer)
       ───────────────────────────────────────────────────────────────────────────── */}
       {showRightDrawer && (
-        <aside className="hidden lg:block absolute top-18 right-4 bottom-4 w-[380px] z-30 pointer-events-auto animate-in slide-in-from-right duration-300">
+        <aside className="hidden md:block absolute top-[4.5rem] right-4 bottom-4 w-[380px] z-30 pointer-events-auto transition-transform duration-300">
           <MarketplacePlotDetailPanel
             plot={selectedPlot}
             onBookPlot={handleBookPlot}
@@ -406,7 +406,7 @@ export default function Marketplace() {
         <button
           type="button"
           onClick={() => setShowRightDrawer(true)}
-          className="hidden lg:flex absolute top-18 right-4 z-20 px-3.5 py-2 rounded-xl bg-white shadow-xl border border-slate-200/90 text-xs font-bold text-slate-800 items-center gap-2 cursor-pointer hover:bg-slate-50 transition-all pointer-events-auto"
+          className="hidden md:flex absolute top-[4.5rem] right-4 z-20 px-3.5 py-2 rounded-xl bg-white shadow-xl border border-slate-200/90 text-xs font-bold text-slate-800 items-center gap-2 cursor-pointer hover:bg-slate-50 transition-all pointer-events-auto"
         >
           <Sparkles className="w-4 h-4 text-[#00E5A3]" />
           <span>Xem chi tiết {selectedPlot?.code || 'P-01'}</span>
@@ -416,7 +416,7 @@ export default function Marketplace() {
       {/* ─────────────────────────────────────────────────────────────────────────────
           5. MOBILE QUICK ACCESS BAR (Screens < lg)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="lg:hidden absolute bottom-4 left-4 right-4 z-20 pointer-events-auto">
+      <div className="md:hidden absolute bottom-4 left-4 right-4 z-20 pointer-events-auto">
         <div className="bg-white/95 backdrop-blur-md shadow-xl border border-slate-200 p-2.5 rounded-2xl flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 pl-2">
             <span className="w-2.5 h-2.5 rounded-full bg-[#00E5A3] animate-pulse" />
@@ -442,7 +442,7 @@ export default function Marketplace() {
       ───────────────────────────────────────────────────────────────────────────── */}
       {/* Advanced Filter Slide-over Drawer */}
       {showFilterDrawer && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs animate-fade-in pointer-events-auto">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm pointer-events-auto">
           <div className="w-full max-w-md bg-white text-slate-800 h-full overflow-y-auto p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div>
@@ -506,7 +506,7 @@ export default function Marketplace() {
 
       {/* Mobile Detail Bottom Sheet */}
       {showMobileDetail && selectedPlot && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-xs lg:hidden animate-fade-in pointer-events-auto">
+        <div className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-sm md:hidden pointer-events-auto">
           <div className="w-full max-h-[85vh] bg-white rounded-t-3xl overflow-y-auto p-4 shadow-2xl space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <span className="font-heading font-black text-base text-slate-900">
