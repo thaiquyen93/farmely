@@ -1,452 +1,174 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  Plus,
-  Minus,
-  LocateFixed,
-  Maximize2,
-  Minimize2,
-  Trees
-} from 'lucide-react';
-import { GIS_STATUSES, MARKETPLACE_PLOTS_GIS } from '../../data/marketplaceGisData';
+import { Plus, Minus, LocateFixed, Maximize2, Minimize2 } from 'lucide-react';
+import { MARKETPLACE_PLOTS_GIS } from '../../data/marketplaceGisData';
 
 /**
- * 16 STANDARDIZED PLOTS (GRID 4x4 CALIBRATED TO ACTUAL SURVEY CANALS)
- * ViewBox: 1000 x 1400 (matches exact 1200 x 1700 Ultra-HD rectified orthophoto)
- * Ultra-clean: ONLY parcels and number badges (P-01 .. P-16).
- * Detailed telemetry & specs smoothly transferred to right sidebar panel upon click.
+ * 16 PLOTS — viewBox 1000×1400 mapped to 1200×1700 Ultra-HD orthophoto.
+ * ponytail: ceiling is static grid, upgrade path is GeoJSON when backend exists.
  */
 export const GRID_16_PLOTS = [
-  // ---------------- ROW 0 (NORTH / HÀNG 1) ----------------
-  { id: 'PLT-HV-01', code: 'Plot P-01', label: 'P-01', x: 30,  y: 30,  width: 205, height: 360 },
-  { id: 'PLT-HV-02', code: 'Plot P-02', label: 'P-02', x: 250, y: 30,  width: 205, height: 360 },
-  { id: 'PLT-HV-03', code: 'Plot P-03', label: 'P-03', x: 475, y: 30,  width: 250, height: 360 },
-  { id: 'PLT-HV-04', code: 'Plot P-04', label: 'P-04', x: 745, y: 30,  width: 230, height: 360 },
-
-  // ---------------- ROW 1 (MID-NORTH / HÀNG 2) ----------------
-  { id: 'PLT-HV-05', code: 'Plot P-05', label: 'P-05', x: 30,  y: 415, width: 205, height: 420 },
-  { id: 'PLT-HV-06', code: 'Plot P-06', label: 'P-06', x: 250, y: 415, width: 205, height: 420 },
-  { id: 'PLT-HV-07', code: 'Plot P-07', label: 'P-07', x: 475, y: 415, width: 250, height: 420 },
-  { id: 'PLT-HV-08', code: 'Plot P-08', label: 'P-08', x: 745, y: 415, width: 230, height: 420 },
-
-  // ---------------- ROW 2 (MID-SOUTH / HÀNG 3) ----------------
-  { id: 'PLT-HV-09', code: 'Plot P-09', label: 'P-09', x: 30,  y: 865, width: 205, height: 240 },
-  { id: 'PLT-HV-10', code: 'Plot P-10', label: 'P-10', x: 250, y: 865, width: 205, height: 240 },
-  { id: 'PLT-HV-11', code: 'Plot P-11', label: 'P-11', x: 475, y: 865, width: 250, height: 240 },
-  { id: 'PLT-HV-12', code: 'Plot P-12', label: 'P-12', x: 745, y: 865, width: 230, height: 240 },
-
-  // ---------------- ROW 3 (SOUTH / HÀNG 4) ----------------
-  { id: 'PLT-HV-13', code: 'Plot P-13', label: 'P-13', x: 30,  y: 1130, width: 205, height: 240 },
-  { id: 'PLT-HV-14', code: 'Plot P-14', label: 'P-14', x: 250, y: 1130, width: 205, height: 240 },
-  { id: 'PLT-HV-15', code: 'Plot P-15', label: 'P-15', x: 475, y: 1130, width: 250, height: 240 },
-  { id: 'PLT-HV-16', code: 'Plot P-16', label: 'P-16', x: 745, y: 1130, width: 230, height: 240 },
+  { id: 'PLT-HV-01', code: 'Plot P-01', label: 'P-01', x: 30,  y: 30,  w: 205, h: 360 },
+  { id: 'PLT-HV-02', code: 'Plot P-02', label: 'P-02', x: 250, y: 30,  w: 205, h: 360 },
+  { id: 'PLT-HV-03', code: 'Plot P-03', label: 'P-03', x: 475, y: 30,  w: 250, h: 360 },
+  { id: 'PLT-HV-04', code: 'Plot P-04', label: 'P-04', x: 745, y: 30,  w: 230, h: 360 },
+  { id: 'PLT-HV-05', code: 'Plot P-05', label: 'P-05', x: 30,  y: 415, w: 205, h: 420 },
+  { id: 'PLT-HV-06', code: 'Plot P-06', label: 'P-06', x: 250, y: 415, w: 205, h: 420 },
+  { id: 'PLT-HV-07', code: 'Plot P-07', label: 'P-07', x: 475, y: 415, w: 250, h: 420 },
+  { id: 'PLT-HV-08', code: 'Plot P-08', label: 'P-08', x: 745, y: 415, w: 230, h: 420 },
+  { id: 'PLT-HV-09', code: 'Plot P-09', label: 'P-09', x: 30,  y: 865, w: 205, h: 240 },
+  { id: 'PLT-HV-10', code: 'Plot P-10', label: 'P-10', x: 250, y: 865, w: 205, h: 240 },
+  { id: 'PLT-HV-11', code: 'Plot P-11', label: 'P-11', x: 475, y: 865, w: 250, h: 240 },
+  { id: 'PLT-HV-12', code: 'Plot P-12', label: 'P-12', x: 745, y: 865, w: 230, h: 240 },
+  { id: 'PLT-HV-13', code: 'Plot P-13', label: 'P-13', x: 30,  y: 1130, w: 205, h: 240 },
+  { id: 'PLT-HV-14', code: 'Plot P-14', label: 'P-14', x: 250, y: 1130, w: 205, h: 240 },
+  { id: 'PLT-HV-15', code: 'Plot P-15', label: 'P-15', x: 475, y: 1130, w: 250, h: 240 },
+  { id: 'PLT-HV-16', code: 'Plot P-16', label: 'P-16', x: 745, y: 1130, w: 230, h: 240 },
 ];
 
+const ST_STROKE = { AVAILABLE: 'rgba(16,185,129,0.55)', RENTED: 'rgba(245,158,11,0.45)', MAINTENANCE: 'rgba(100,116,139,0.35)' };
+const ST_DOT   = { AVAILABLE: '#10B981', RENTED: '#F59E0B', MAINTENANCE: '#94A3B8' };
+
 export default function MarketplaceInteractiveMap({
-  plots = [],
-  selectedPlot = null,
-  onSelectPlot,
-  currentFarm,
-  onSelectFarm,
-  activeStatusTab = 'ALL'
+  plots = [], selectedPlot = null, onSelectPlot, currentFarm, activeStatusTab = 'ALL'
 }) {
-  const containerRef = useRef(null);
+  const ref = useRef(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [drag, setDrag] = useState(false);
+  const [dStart, setDStart] = useState({ x: 0, y: 0 });
+  const [hov, setHov] = useState(null);
+  const [fs, setFs] = useState(false);
 
-  // Map Navigation & Drag/Zoom State
-  const [zoomLevel, setZoomLevel] = useState(1.0);
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [hoveredPlotCode, setHoveredPlotCode] = useState(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const sel = selectedPlot?.code || 'Plot P-01';
 
-  // Active Selected Plot Code
-  const activeSelectedCode = selectedPlot?.code || 'Plot P-01';
-
-  // Smoothly center focus on selected plot when selection changes externally
   useEffect(() => {
-    if (selectedPlot) {
-      const geo = GRID_16_PLOTS.find((p) => p.code === selectedPlot.code);
-      if (geo) {
-        const cx = geo.x + geo.width / 2;
-        const cy = geo.y + geo.height / 2;
-        setPanOffset({ x: (500 - cx) * 0.25, y: (700 - cy) * 0.25 });
-      }
-    }
+    if (!selectedPlot) return;
+    const g = GRID_16_PLOTS.find((p) => p.code === selectedPlot.code);
+    if (g) setPan({ x: (500 - g.x - g.w / 2) * 0.25, y: (700 - g.y - g.h / 2) * 0.25 });
   }, [selectedPlot]);
 
-  // Zoom handlers
-  const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 0.25, 2.5));
-  const handleZoomOut = () =>
-    setZoomLevel((prev) => {
-      const next = Math.max(prev - 0.25, 0.85);
-      if (next <= 1.0) setPanOffset({ x: 0, y: 0 });
-      return next;
-    });
+  const zIn = () => setZoom((z) => Math.min(z + 0.25, 2.5));
+  const zOut = () => setZoom((z) => { const n = Math.max(z - 0.25, 0.85); if (n <= 1) setPan({ x: 0, y: 0 }); return n; });
+  const reset = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+  const md = (e) => { if (e.button !== 0) return; setDrag(true); setDStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }); };
+  const mm = (e) => { if (!drag) return; setPan({ x: e.clientX - dStart.x, y: e.clientY - dStart.y }); };
+  const mu = () => setDrag(false);
 
-  const handleResetView = () => {
-    setZoomLevel(1.0);
-    setPanOffset({ x: 0, y: 0 });
+  const click = (p) => {
+    const m = plots.find((i) => i.code === p.code || i.id === p.id) ||
+      MARKETPLACE_PLOTS_GIS.find((i) => i.code === p.code) ||
+      { id: p.id, code: p.code, label: p.label, name: `Thửa Đất ${p.label}`, status: 'AVAILABLE', areaFormatted: '150 m²', rentalPriceFormatted: '1.500.000 đ/tháng' };
+    onSelectPlot?.(m);
   };
 
-  // Drag handlers
-  const handleMouseDown = (e) => {
-    if (e.button !== 0) return;
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
-  };
-
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
-    setPanOffset({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y
-    });
-  };
-
-  const handleMouseUp = () => setIsDragging(false);
-
-  // Handle click on plot: immediately pass data to right sidebar detail panel
-  const handlePlotClick = (p) => {
-    const matched =
-      plots.find((item) => item.code === p.code || item.id === p.id) ||
-      MARKETPLACE_PLOTS_GIS.find((item) => item.code === p.code || item.label === p.label) || {
-        id: p.id,
-        code: p.code,
-        label: p.label,
-        name: `Thửa Đất ${p.label}`,
-        status: 'AVAILABLE',
-        areaFormatted: '150 m²',
-        rentalPriceFormatted: '1.500.000 đ/tháng'
-      };
-
-    if (onSelectPlot) {
-      onSelectPlot(matched);
-    }
-  };
+  // -- Inline styles following Linear dark-mode design tokens --
+  const glassStyle = { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' };
 
   return (
-    <div
-      ref={containerRef}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={() => setIsDragging(false)}
-      className={`relative w-full rounded-3xl overflow-hidden border border-stone-800 bg-[#070B14] select-none shadow-2xl transition-all duration-300 ${
-        isFullscreen
-          ? 'fixed inset-0 z-50 rounded-none h-screen w-screen'
-          : 'h-full min-h-[580px] lg:min-h-[720px]'
-      } ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-    >
-      {/* ============================================================== */}
-      {/* 1. CUSTOM MODERN SVG & KEYFRAME ANIMATIONS STYLESHEET          */}
-      {/* ============================================================== */}
+    <div ref={ref} onMouseDown={md} onMouseMove={mm} onMouseUp={mu} onMouseLeave={() => setDrag(false)}
+      className={`relative w-full overflow-hidden select-none ${fs ? 'fixed inset-0 z-50' : 'h-full min-h-[580px] lg:min-h-[720px] rounded-xl'} ${drag ? 'cursor-grabbing' : 'cursor-grab'}`}
+      style={{ background: '#08090A', border: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.2s' }}>
+
       <style>{`
-        @keyframes runningDash {
-          to { stroke-dashoffset: -56; }
-        }
-        .anim-running-beam {
-          stroke-dasharray: 18 10;
-          animation: runningDash 2.4s linear infinite;
-        }
-        @keyframes radarSweep {
-          0% { transform: translateY(0%); opacity: 0; }
-          15% { opacity: 0.85; }
-          85% { opacity: 0.85; }
-          100% { transform: translateY(100%); opacity: 0; }
-        }
-        .anim-scanline {
-          animation: radarSweep 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-        }
-        @keyframes bracketPulse {
-          0%, 100% { opacity: 0.85; filter: drop-shadow(0 0 2px #00F0FF); }
-          50% { opacity: 1; filter: drop-shadow(0 0 8px #00F0FF); }
-        }
-        .anim-bracket {
-          animation: bracketPulse 2s ease-in-out infinite;
-        }
-        @keyframes pingRipple {
-          0% { r: 8; opacity: 1; stroke-width: 2.5; }
-          100% { r: 36; opacity: 0; stroke-width: 0.5; }
-        }
-        .anim-ping-ripple {
-          animation: pingRipple 2.2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
-        }
+        @keyframes gd { to { stroke-dashoffset: -48 } }
+        @keyframes gf { 0%,100% { opacity:.65 } 50% { opacity:1 } }
+        @keyframes gs { 0% { transform:translateY(-10%); opacity:0 } 10% { opacity:.5 } 90% { opacity:.5 } 100% { transform:translateY(110%); opacity:0 } }
       `}</style>
 
-      {/* ============================================================== */}
-      {/* 2. MINIMAL PRISTINE HEADER (TOP-LEFT CHIP)                     */}
-      {/* ============================================================== */}
-      <div className="absolute top-3.5 left-3.5 z-20 pointer-events-none">
-        <div className="bg-[#0B111E]/85 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-stone-700/60 shadow-lg flex items-center gap-2.5 text-xs">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-heading font-black text-white text-[11px] tracking-wide">
-            {currentFarm?.name || 'Trang trại Happy Valley'} · 16 Thửa Đất
-          </span>
-          <span className="text-[10px] text-stone-400 border-l border-stone-700 pl-2">
-            Nhấp thửa để xem chi tiết
-          </span>
+      {/* Controls — top-right, ultra-compact glass */}
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-1">
+        <div className="flex items-center rounded-md overflow-hidden" style={glassStyle}>
+          <button onClick={zIn} className="w-7 h-7 flex items-center justify-center text-[#8a8f98] hover:text-[#f7f8f8] transition-colors cursor-pointer"><Plus className="w-3 h-3" /></button>
+          <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.06)' }} />
+          <button onClick={zOut} className="w-7 h-7 flex items-center justify-center text-[#8a8f98] hover:text-[#f7f8f8] transition-colors cursor-pointer"><Minus className="w-3 h-3" /></button>
         </div>
-      </div>
-
-      {/* ============================================================== */}
-      {/* 3. MINIMAL CONTROLS (TOP-RIGHT ZOOM & VIEW BUTTONS)            */}
-      {/* ============================================================== */}
-      <div className="absolute top-3.5 right-3.5 z-20 flex items-center gap-1.5 pointer-events-auto">
-        <div className="bg-[#0B111E]/85 backdrop-blur-md rounded-2xl border border-stone-700/60 shadow-lg flex items-center p-1 gap-1">
-          <button
-            type="button"
-            onClick={handleZoomIn}
-            className="w-7 h-7 rounded-xl flex items-center justify-center text-stone-200 hover:text-white hover:bg-stone-800 transition-all cursor-pointer"
-            title="Phóng to"
-          >
-            <Plus className="w-3.5 h-3.5" />
-          </button>
-          <div className="w-px h-4 bg-stone-800" />
-          <button
-            type="button"
-            onClick={handleZoomOut}
-            className="w-7 h-7 rounded-xl flex items-center justify-center text-stone-200 hover:text-white hover:bg-stone-800 transition-all cursor-pointer"
-            title="Thu nhỏ"
-          >
-            <Minus className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleResetView}
-          className="w-9 h-9 rounded-2xl bg-[#0B111E]/85 backdrop-blur-md border border-stone-700/60 shadow-lg flex items-center justify-center text-stone-200 hover:text-emerald-400 hover:bg-stone-800 transition-all cursor-pointer"
-          title="Căn giữa bản đồ"
-        >
-          <LocateFixed className="w-4 h-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          className="w-9 h-9 rounded-2xl bg-[#0B111E]/85 text-stone-300 hover:text-white border border-stone-700/60 backdrop-blur-md shadow-lg transition-all flex items-center justify-center cursor-pointer"
-          title={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
-        >
-          {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+        <button onClick={reset} className="w-7 h-7 rounded-md flex items-center justify-center text-[#8a8f98] hover:text-[#f7f8f8] transition-colors cursor-pointer" style={glassStyle}><LocateFixed className="w-3 h-3" /></button>
+        <button onClick={() => setFs(!fs)} className="w-7 h-7 rounded-md flex items-center justify-center text-[#8a8f98] hover:text-[#f7f8f8] transition-colors cursor-pointer" style={glassStyle}>
+          {fs ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
         </button>
       </div>
 
-      {/* ============================================================== */}
-      {/* 4. MAIN SATELLITE CANVAS + ULTRA-CLEAN 16 PLOTS OVERLAY        */}
-      {/* ============================================================== */}
-      <div
-        className="absolute inset-0 w-full h-full origin-center transition-transform duration-200 ease-out"
-        style={{
-          transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px)`
-        }}
-      >
-        {/* Base Orthophoto Satellite Image (Rectified HD) */}
-        <img
-          src="/images/land_rect_ultra_hd.jpg"
-          alt="Satellite Farm Base"
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
-          style={{ imageRendering: 'crisp-edges' }}
-        />
+      {/* Canvas */}
+      <div className="absolute inset-0 w-full h-full origin-center" style={{ transform: `scale(${zoom}) translate(${pan.x/zoom}px,${pan.y/zoom}px)`, transition: 'transform 0.2s ease-out' }}>
+        <img src="/images/land_rect_ultra_hd.jpg" alt="Orthophoto" className="absolute inset-0 w-full h-full object-cover pointer-events-none" style={{ imageRendering: 'crisp-edges' }} draggable={false} />
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 55%, rgba(8,9,10,0.5) 100%)' }} />
 
-        {/* Ambient Subtle Vignette */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/20 pointer-events-none" />
-
-        {/* Interactive SVG Plot Layer */}
-        <svg
-          viewBox="0 0 1000 1400"
-          className="w-full h-full absolute inset-0"
-          preserveAspectRatio="none"
-        >
+        <svg viewBox="0 0 1000 1400" className="w-full h-full absolute inset-0" preserveAspectRatio="none">
           <defs>
-            {/* Luminous Neon Cyan Glow Filter */}
-            <filter id="neonPlotGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#00F0FF" floodOpacity="0.95" />
-              <feDropShadow dx="0" dy="0" stdDeviation="12" floodColor="#00F0FF" floodOpacity="0.65" />
+            <filter id="gs" x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#00F0FF" floodOpacity="0.75" />
+              <feDropShadow dx="0" dy="0" stdDeviation="9" floodColor="#00F0FF" floodOpacity="0.35" />
             </filter>
-
-            {/* Hover Soft Glow */}
-            <filter id="hoverPlotGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#FBBF24" floodOpacity="0.85" />
+            <filter id="gh" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#FBBF24" floodOpacity="0.6" />
             </filter>
-
-            {/* Linear Gradient for Sonar Scanline */}
-            <linearGradient id="scanlineGrad" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#00F0FF" stopOpacity="0" />
-              <stop offset="85%" stopColor="#00F0FF" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="#00F0FF" stopOpacity="0.95" />
+              <stop offset="80%" stopColor="#00F0FF" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="#00F0FF" stopOpacity="0.6" />
             </linearGradient>
           </defs>
 
-          {/* 16 Standardized Plots */}
           {GRID_16_PLOTS.map((p) => {
-            const isSelected = activeSelectedCode === p.code;
-            const isHovered = hoveredPlotCode === p.code;
-
-            // Find matching data to get real status
-            const realPlot =
-              plots.find((item) => item.code === p.code) ||
-              MARKETPLACE_PLOTS_GIS.find((item) => item.code === p.code);
-            const statusKey = realPlot?.status || 'AVAILABLE';
-            const isMatchedStatus = activeStatusTab === 'ALL' || statusKey === activeStatusTab;
-
-            // Natural status colors
-            const strokeColor =
-              statusKey === 'RENTED'
-                ? '#F59E0B'
-                : statusKey === 'MAINTENANCE'
-                ? '#64748B'
-                : '#10B981';
-
-            const statusDotColor =
-              statusKey === 'RENTED'
-                ? '#F59E0B'
-                : statusKey === 'MAINTENANCE'
-                ? '#94A3B8'
-                : '#10B981';
-
-            const cx = p.x + p.width / 2;
-            const cy = p.y + p.height / 2;
+            const isSel = sel === p.code;
+            const isHov = hov === p.code;
+            const real = plots.find((i) => i.code === p.code) || MARKETPLACE_PLOTS_GIS.find((i) => i.code === p.code);
+            const st = real?.status || 'AVAILABLE';
+            const vis = activeStatusTab === 'ALL' || st === activeStatusTab;
+            const cx = p.x + p.w / 2;
 
             return (
-              <g
-                key={p.code}
-                className="cursor-pointer transition-all duration-300"
-                style={{ opacity: isMatchedStatus ? 1 : 0.22 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePlotClick(p);
-                }}
-                onMouseEnter={() => setHoveredPlotCode(p.code)}
-                onMouseLeave={() => setHoveredPlotCode(null)}
-              >
-                {/* 1. Plot Base Fill (Ultra-light transparent to show ground) */}
-                <rect
-                  x={p.x}
-                  y={p.y}
-                  width={p.width}
-                  height={p.height}
-                  rx="8"
-                  fill={
-                    isSelected
-                      ? 'rgba(0, 240, 255, 0.16)'
-                      : isHovered
-                      ? 'rgba(251, 191, 36, 0.16)'
-                      : 'rgba(0, 0, 0, 0.04)'
-                  }
-                  className="transition-colors duration-300"
-                />
+              <g key={p.code} className="cursor-pointer" style={{ opacity: vis ? 1 : 0.15, transition: 'opacity 0.3s' }}
+                onClick={(e) => { e.stopPropagation(); click(p); }}
+                onMouseEnter={() => setHov(p.code)} onMouseLeave={() => setHov(null)}>
 
-                {/* 2. Base Boundary Border */}
-                <rect
-                  x={p.x}
-                  y={p.y}
-                  width={p.width}
-                  height={p.height}
-                  rx="8"
-                  fill="none"
-                  stroke={isSelected ? '#00F0FF' : isHovered ? '#FBBF24' : strokeColor}
-                  strokeWidth={isSelected ? 4 : isHovered ? 3 : 2}
-                  strokeOpacity={isSelected ? 1 : isHovered ? 0.95 : 0.75}
-                  filter={isSelected ? 'url(#neonPlotGlow)' : isHovered ? 'url(#hoverPlotGlow)' : undefined}
-                />
+                {/* Fill */}
+                <rect x={p.x} y={p.y} width={p.w} height={p.h} rx="5"
+                  fill={isSel ? 'rgba(0,240,255,0.08)' : isHov ? 'rgba(251,191,36,0.06)' : 'rgba(0,0,0,0.01)'}
+                  style={{ transition: 'fill 0.25s' }} />
 
-                {/* 3. MODERN ANIMATION A: Running Neon Beam Border on Selected Plot */}
-                {isSelected && (
-                  <rect
-                    x={p.x}
-                    y={p.y}
-                    width={p.width}
-                    height={p.height}
-                    rx="8"
-                    fill="none"
-                    stroke="#FFFFFF"
-                    strokeWidth="3.5"
-                    className="anim-running-beam pointer-events-none"
-                  />
-                )}
+                {/* Border */}
+                <rect x={p.x} y={p.y} width={p.w} height={p.h} rx="5" fill="none"
+                  stroke={isSel ? '#00F0FF' : isHov ? '#FBBF24' : (ST_STROKE[st] || ST_STROKE.AVAILABLE)}
+                  strokeWidth={isSel ? 2.5 : isHov ? 2 : 1.2}
+                  filter={isSel ? 'url(#gs)' : isHov ? 'url(#gh)' : undefined}
+                  style={{ transition: 'stroke 0.2s, stroke-width 0.15s' }} />
 
-                {/* 4. MODERN ANIMATION B: Sonar Laser Scanline Sweeping Vertically */}
-                {isSelected && (
-                  <g clipPath={`url(#clip-${p.code})`} pointerEvents="none">
-                    <clipPath id={`clip-${p.code}`}>
-                      <rect x={p.x} y={p.y} width={p.width} height={p.height} rx="8" />
-                    </clipPath>
-                    <g className="anim-scanline">
-                      <rect
-                        x={p.x}
-                        y={p.y}
-                        width={p.width}
-                        height={36}
-                        fill="url(#scanlineGrad)"
-                      />
-                      <line
-                        x1={p.x}
-                        y1={p.y + 36}
-                        x2={p.x + p.width}
-                        y2={p.y + 36}
-                        stroke="#00F0FF"
-                        strokeWidth="2.5"
-                        filter="url(#neonPlotGlow)"
-                      />
+                {/* Selected: running dash */}
+                {isSel && <rect x={p.x} y={p.y} width={p.w} height={p.h} rx="5" fill="none"
+                  stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeDasharray="12 8"
+                  style={{ animation: 'gd 2s linear infinite' }} pointerEvents="none" />}
+
+                {/* Selected: scanline */}
+                {isSel && (
+                  <g pointerEvents="none">
+                    <clipPath id={`c-${p.id}`}><rect x={p.x} y={p.y} width={p.w} height={p.h} rx="5" /></clipPath>
+                    <g clipPath={`url(#c-${p.id})`} style={{ animation: 'gs 3.5s ease-in-out infinite' }}>
+                      <rect x={p.x} y={p.y} width={p.w} height={24} fill="url(#sg)" />
+                      <line x1={p.x} y1={p.y+24} x2={p.x+p.w} y2={p.y+24} stroke="#00F0FF" strokeWidth="1" strokeOpacity="0.7" />
                     </g>
                   </g>
                 )}
 
-                {/* 5. MODERN ANIMATION C: 4 Cyber Surveying Corner Brackets ┌ ┐ └ ┘ */}
-                {isSelected && (
-                  <g className="anim-bracket pointer-events-none" stroke="#00F0FF" strokeWidth="3" fill="none">
-                    {/* Top-Left ┌ */}
-                    <path d={`M ${p.x - 4} ${p.y + 18} L ${p.x - 4} ${p.y - 4} L ${p.x + 18} ${p.y - 4}`} />
-                    {/* Top-Right ┐ */}
-                    <path d={`M ${p.x + p.width - 18} ${p.y - 4} L ${p.x + p.width + 4} ${p.y - 4} L ${p.x + p.width + 4} ${p.y + 18}`} />
-                    {/* Bottom-Right ┘ */}
-                    <path d={`M ${p.x + p.width + 4} ${p.y + p.height - 18} L ${p.x + p.width + 4} ${p.y + p.height + 4} L ${p.x + p.width - 18} ${p.y + p.height + 4}`} />
-                    {/* Bottom-Left └ */}
-                    <path d={`M ${p.x + 18} ${p.y + p.height + 4} L ${p.x - 4} ${p.y + p.height + 4} L ${p.x - 4} ${p.y + p.height - 18}`} />
+                {/* Selected: corner brackets */}
+                {isSel && (
+                  <g stroke="#00F0FF" strokeWidth="2" fill="none" pointerEvents="none" style={{ animation: 'gf 2s ease-in-out infinite' }}>
+                    <path d={`M${p.x-3} ${p.y+14} L${p.x-3} ${p.y-3} L${p.x+14} ${p.y-3}`} />
+                    <path d={`M${p.x+p.w-14} ${p.y-3} L${p.x+p.w+3} ${p.y-3} L${p.x+p.w+3} ${p.y+14}`} />
+                    <path d={`M${p.x+p.w+3} ${p.y+p.h-14} L${p.x+p.w+3} ${p.y+p.h+3} L${p.x+p.w-14} ${p.y+p.h+3}`} />
+                    <path d={`M${p.x+14} ${p.y+p.h+3} L${p.x-3} ${p.y+p.h+3} L${p.x-3} ${p.y+p.h-14}`} />
                   </g>
                 )}
 
-                {/* 6. MODERN ANIMATION D: Concentric Sonar Ping Ripples from Center */}
-                {isSelected && (
-                  <g pointerEvents="none">
-                    <circle cx={cx} cy={cy} stroke="#00F0FF" fill="none" className="anim-ping-ripple" />
-                    <circle cx={cx} cy={cy} r="3.5" fill="#00F0FF" />
-                  </g>
-                )}
-
-                {/* 7. MINIMAL CLEAN NUMBER BADGE (ONLY P-01 .. P-16 WITH STATUS DOT) */}
-                <g transform={`translate(${p.x + 14}, ${p.y + 14})`} pointerEvents="none">
-                  {/* Badge Background Pill */}
-                  <rect
-                    x="0"
-                    y="0"
-                    width={58}
-                    height={26}
-                    rx="8"
-                    fill={isSelected ? '#00F0FF' : isHovered ? '#FBBF24' : 'rgba(11, 17, 30, 0.88)'}
-                    stroke={isSelected ? '#FFFFFF' : isHovered ? '#FFFFFF' : 'rgba(255, 255, 255, 0.25)'}
-                    strokeWidth={isSelected || isHovered ? 1.5 : 1}
-                    filter={isSelected ? 'url(#neonPlotGlow)' : undefined}
-                    className="transition-colors duration-200"
-                  />
-                  {/* Status Indicator Dot */}
-                  <circle
-                    cx="13"
-                    cy="13"
-                    r="3.5"
-                    fill={isSelected ? '#0A0F1D' : statusDotColor}
-                  />
-                  {/* Number Label */}
-                  <text
-                    x="35"
-                    y="17"
-                    textAnchor="middle"
-                    fill={isSelected || isHovered ? '#0A0F1D' : '#FFFFFF'}
-                    fontSize="11.5"
-                    fontWeight="900"
-                    fontFamily="system-ui, -apple-system, sans-serif"
-                    letterSpacing="0.03em"
-                  >
+                {/* Badge: minimal number + status dot */}
+                <g transform={`translate(${cx - 18}, ${p.y + 8})`} pointerEvents="none">
+                  <rect x="0" y="0" width="36" height="20" rx="5"
+                    fill={isSel ? '#00F0FF' : isHov ? 'rgba(251,191,36,0.85)' : 'rgba(8,9,10,0.78)'}
+                    stroke={isSel || isHov ? 'rgba(255,255,255,0.4)' : 'rgba(255,255,255,0.12)'}
+                    strokeWidth="0.6" style={{ transition: 'fill 0.2s' }} />
+                  <circle cx="9" cy="10" r="2.5" fill={isSel ? '#08090A' : (ST_DOT[st] || ST_DOT.AVAILABLE)} />
+                  <text x="25" y="14" textAnchor="middle" fill={isSel || isHov ? '#08090A' : '#f7f8f8'}
+                    fontSize="9" fontWeight="600" fontFamily="'Inter',system-ui,sans-serif" letterSpacing="0.01em">
                     {p.label}
                   </text>
                 </g>
@@ -456,27 +178,12 @@ export default function MarketplaceInteractiveMap({
         </svg>
       </div>
 
-      {/* ============================================================== */}
-      {/* 5. MINIMAL BOTTOM STATUS LEGEND & SATELLITE TELEMETRY          */}
-      {/* ============================================================== */}
-      <div className="absolute bottom-3.5 left-3.5 z-20 pointer-events-none">
-        <div className="bg-[#0B111E]/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-stone-700/60 shadow-lg flex items-center gap-3 text-[11px] text-stone-300">
-          <span className="flex items-center gap-1.5 font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" /> Đang trống (9)
-          </span>
-          <span className="flex items-center gap-1.5 font-medium">
-            <span className="w-2 h-2 rounded-full bg-amber-400" /> Đang thuê (5)
-          </span>
-          <span className="flex items-center gap-1.5 font-medium">
-            <span className="w-2 h-2 rounded-full bg-slate-400" /> Bảo trì (2)
-          </span>
-        </div>
-      </div>
-
-      <div className="absolute bottom-3.5 right-3.5 z-20 pointer-events-none hidden sm:block">
-        <div className="bg-[#0B111E]/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-stone-700/60 shadow-lg text-[10px] text-stone-400 font-mono tracking-wide">
-          🛰️ 10°41'31"N 106°21'24"E · Tọa độ WGS84
-        </div>
+      {/* Bottom-left: coord */}
+      <div className="absolute bottom-2.5 left-2.5 z-20 pointer-events-none">
+        <span className="px-2 py-0.5 rounded text-[9px] font-mono text-[#62666d] tracking-wide"
+          style={{ background: 'rgba(8,9,10,0.7)', border: '1px solid rgba(255,255,255,0.05)' }}>
+          10°41′N 106°20′E · WGS84
+        </span>
       </div>
     </div>
   );
