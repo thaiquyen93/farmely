@@ -94,20 +94,21 @@ export default function Marketplace() {
 
       {/* ── Hero / Onboarding Guide ── */}
       {showGuide && (
-        <section className="pt-[72px] relative overflow-hidden" style={{ background: '#08090A' }}>
-          {/* Ambient glow orbs */}
-          <div className="absolute top-0 left-1/4 w-[500px] h-[300px] pointer-events-none" style={{ background: 'radial-gradient(ellipse, rgba(16,185,129,0.08) 0%, transparent 70%)' }} />
-          <div className="absolute top-10 right-1/4 w-[400px] h-[250px] pointer-events-none" style={{ background: 'radial-gradient(ellipse, rgba(0,240,255,0.06) 0%, transparent 70%)' }} />
-          {/* Dot grid pattern */}
+        <section className="pt-[72px] relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #1a3a2a 0%, #294C3B 40%, #1e4030 70%, #1a3528 100%)' }}>
+          {/* Ambient light */}
+          <div className="absolute top-0 right-0 w-[600px] h-[400px] pointer-events-none" style={{ background: 'radial-gradient(ellipse at 70% 20%, rgba(113,141,99,0.25) 0%, transparent 65%)' }} />
+          <div className="absolute bottom-0 left-0 w-[400px] h-[300px] pointer-events-none" style={{ background: 'radial-gradient(ellipse, rgba(245,207,98,0.08) 0%, transparent 65%)' }} />
+          {/* Dot pattern */}
           <div className="absolute inset-0 pointer-events-none" style={{
-            backgroundImage: 'radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)',
+            backgroundImage: 'radial-gradient(rgba(255,255,255,0.07) 1px, transparent 1px)',
             backgroundSize: '24px 24px',
           }} />
 
           <div className="max-w-[1780px] mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 relative">
             {/* Dismiss */}
             <button type="button" onClick={() => { setShowGuide(false); sessionStorage.setItem('farmely_guide_dismissed', '1'); }}
-              className="absolute top-6 right-4 sm:right-6 lg:right-8 w-7 h-7 rounded-full flex items-center justify-center text-[#62666d] hover:text-[#f7f8f8] cursor-pointer transition-all hover:bg-white/5 z-10"
+              className="absolute top-6 right-4 sm:right-6 lg:right-8 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-all z-10"
+              style={{ color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)' }}
               title="Đóng hướng dẫn">
               <X className="w-3.5 h-3.5" />
             </button>
@@ -115,51 +116,46 @@ export default function Marketplace() {
             {/* Title area */}
             <div className="max-w-2xl mb-8">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-semibold tracking-wider uppercase mb-4"
-                style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(0,240,255,0.1))', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}>
+                style={{ background: 'rgba(245,207,98,0.15)', color: '#F5CF62', border: '1px solid rgba(245,207,98,0.25)' }}>
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-60" style={{ background: '#F5CF62' }} />
+                  <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: '#F5CF62' }} />
                 </span>
                 Marketplace
               </div>
-              <h1 className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-[1.2] mb-3" style={{ letterSpacing: '-0.6px' }}>
-                <span style={{ color: '#f7f8f8' }}>Chọn thửa đất, </span>
-                <span style={{ background: 'linear-gradient(135deg, #10B981, #00F0FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  bắt đầu canh tác
-                </span>
+              <h1 className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-[1.2] mb-3" style={{ letterSpacing: '-0.5px' }}>
+                <span className="text-white">Chọn thửa đất, </span>
+                <span style={{ color: '#a8d5a0' }}>bắt đầu canh tác</span>
               </h1>
-              <p className="text-[13px] sm:text-[14px] leading-relaxed max-w-lg" style={{ color: '#9ca3af' }}>
+              <p className="text-[13px] sm:text-[14px] leading-relaxed max-w-lg" style={{ color: 'rgba(255,255,255,0.6)' }}>
                 Khám phá bản đồ vệ tinh trang trại, chọn thửa đất phù hợp và ký hợp đồng thuê trực tuyến. Theo dõi toàn bộ quá trình canh tác theo thời gian thực.
               </p>
             </div>
 
-            {/* 3-step guide cards */}
+            {/* 3-step guide — glass cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl">
               {[
-                { step: '01', icon: MousePointerClick, title: 'Chọn thửa đất', desc: 'Nhấp vào thửa đất trên bản đồ vệ tinh để xem vị trí thực tế', accent: '#10B981', accentBg: 'rgba(16,185,129,0.12)', accentBd: 'rgba(16,185,129,0.25)' },
-                { step: '02', icon: Eye, title: 'Xem chi tiết & so sánh', desc: 'Diện tích, giá thuê, tiện ích tưới tiêu, IoT và cây trồng phù hợp', accent: '#00F0FF', accentBg: 'rgba(0,240,255,0.10)', accentBd: 'rgba(0,240,255,0.20)' },
-                { step: '03', icon: FileSignature, title: 'Thuê ngay', desc: 'Ký hợp đồng, chọn hình thức canh tác và thanh toán trực tuyến', accent: '#8b8fff', accentBg: 'rgba(94,106,210,0.12)', accentBd: 'rgba(94,106,210,0.25)' },
+                { step: '01', icon: MousePointerClick, title: 'Chọn thửa đất', desc: 'Nhấp vào thửa đất trên bản đồ vệ tinh để xem vị trí thực tế' },
+                { step: '02', icon: Eye, title: 'Xem chi tiết & so sánh', desc: 'Diện tích, giá thuê, tiện ích tưới tiêu, IoT và cây trồng phù hợp' },
+                { step: '03', icon: FileSignature, title: 'Thuê ngay', desc: 'Ký hợp đồng, chọn hình thức canh tác và thanh toán trực tuyến' },
               ].map((s, i) => (
-                <div key={i} className="relative group rounded-xl px-4 py-4 transition-all duration-300 hover:translate-y-[-2px]"
-                  style={{ background: 'rgba(255,255,255,0.025)', border: `1px solid ${s.accentBd}`, backdropFilter: 'blur(8px)' }}>
-                  {/* Top glow line */}
-                  <div className="absolute top-0 left-4 right-4 h-px" style={{ background: `linear-gradient(90deg, transparent, ${s.accent}40, transparent)` }} />
-
+                <div key={i} className="relative rounded-xl px-4 py-4 transition-all duration-300 hover:translate-y-[-2px] hover:shadow-lg"
+                  style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)' }}>
                   <div className="flex items-start gap-3">
                     <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                      style={{ background: s.accentBg, border: `1px solid ${s.accentBd}`, boxShadow: `0 0 20px ${s.accent}15` }}>
-                      <s.icon className="w-4 h-4" style={{ color: s.accent }} />
+                      style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                      <s.icon className="w-4 h-4" style={{ color: '#F5CF62' }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[9px] font-mono font-bold tracking-[0.2em] px-1.5 py-0.5 rounded"
-                          style={{ color: s.accent, background: `${s.accent}10` }}>
+                          style={{ color: 'rgba(255,255,255,0.7)', background: 'rgba(255,255,255,0.08)' }}>
                           {s.step}
                         </span>
-                        {i < 2 && <ArrowRight className="w-3 h-3 hidden sm:block" style={{ color: `${s.accent}50` }} />}
+                        {i < 2 && <ArrowRight className="w-3 h-3 hidden sm:block" style={{ color: 'rgba(255,255,255,0.2)' }} />}
                       </div>
-                      <p className="text-[13px] font-semibold text-[#e5e7eb] leading-snug mb-0.5">{s.title}</p>
-                      <p className="text-[11px] leading-relaxed" style={{ color: '#6b7280' }}>{s.desc}</p>
+                      <p className="text-[13px] font-semibold text-white/90 leading-snug mb-0.5">{s.title}</p>
+                      <p className="text-[11px] leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>{s.desc}</p>
                     </div>
                   </div>
                 </div>
@@ -167,16 +163,16 @@ export default function Marketplace() {
             </div>
 
             {/* Bottom stats strip */}
-            <div className="flex items-center gap-5 mt-6 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+            <div className="flex items-center gap-5 mt-6 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
               {[
-                { val: '16', label: 'Thửa đất', color: '#10B981' },
-                { val: '150m²', label: 'Diện tích TB', color: '#00F0FF' },
-                { val: '24/7', label: 'Giám sát IoT', color: '#8b8fff' },
+                { val: '16', label: 'Thửa đất' },
+                { val: '150m²', label: 'Diện tích TB' },
+                { val: '24/7', label: 'Giám sát IoT' },
               ].map((st, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <span className="text-[16px] sm:text-[18px] font-bold" style={{ color: st.color }}>{st.val}</span>
-                  <span className="text-[10px] sm:text-[11px] font-medium" style={{ color: '#6b7280' }}>{st.label}</span>
-                  {i < 2 && <div className="w-px h-4 ml-3" style={{ background: 'rgba(255,255,255,0.06)' }} />}
+                  <span className="text-[16px] sm:text-[18px] font-bold" style={{ color: '#F5CF62' }}>{st.val}</span>
+                  <span className="text-[10px] sm:text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.45)' }}>{st.label}</span>
+                  {i < 2 && <div className="w-px h-4 ml-3" style={{ background: 'rgba(255,255,255,0.1)' }} />}
                 </div>
               ))}
             </div>
