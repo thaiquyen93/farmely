@@ -9,7 +9,7 @@ import MarketplaceFilterSidebar from '../../components/marketplace/MarketplaceFi
 import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceInteractiveMap';
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
 import { FARMS_GIS_DATA, MARKETPLACE_PLOTS_GIS, ALL_CROPS_FILTER_OPTIONS } from '../../data/marketplaceGisData';
-import { SlidersHorizontal, X, LogIn, Search, MapPin, Sprout, RotateCcw, ChevronDown } from 'lucide-react';
+import { SlidersHorizontal, X, LogIn, Search, MapPin, Sprout, RotateCcw, ChevronDown, MousePointerClick, Eye, FileSignature, ArrowRight } from 'lucide-react';
 
 // ponytail: ceiling is client-side filter, upgrade path is backend API when Java ready
 const BORDER = '1px solid rgba(255,255,255,0.06)';
@@ -33,6 +33,7 @@ export default function Marketplace() {
   const [showMobileDetail, setShowMobileDetail] = useState(false);
   const [plotToBook, setPlotToBook] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showGuide, setShowGuide] = useState(() => !sessionStorage.getItem('farmely_guide_dismissed'));
 
   useEffect(() => {
     if (searchParams.get('landId')) setSelectedLocation(searchParams.get('landId'));
@@ -91,8 +92,66 @@ export default function Marketplace() {
     <div className="min-h-screen flex flex-col font-sans" style={{ background: '#08090A', color: '#f7f8f8' }}>
       <PublicNavbar />
 
+      {/* ── Hero / Onboarding Guide ── */}
+      {showGuide && (
+        <section className="pt-[72px] relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #0d1117 0%, #08090A 100%)' }}>
+          {/* Subtle grid pattern */}
+          <div className="absolute inset-0 pointer-events-none" style={{
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
+            backgroundSize: '40px 40px',
+          }} />
+          <div className="max-w-[1780px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 relative">
+            {/* Dismiss */}
+            <button type="button" onClick={() => { setShowGuide(false); sessionStorage.setItem('farmely_guide_dismissed', '1'); }}
+              className="absolute top-4 right-4 sm:right-6 lg:right-8 w-7 h-7 rounded-md flex items-center justify-center text-[#62666d] hover:text-[#f7f8f8] cursor-pointer transition-colors z-10"
+              style={GLASS} title="Đóng hướng dẫn">
+              <X className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Title area */}
+            <div className="max-w-2xl mb-7">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide uppercase mb-3"
+                style={{ background: 'rgba(94,106,210,0.12)', color: '#8b8fff', border: '1px solid rgba(94,106,210,0.2)' }}>
+                <Sprout className="w-3 h-3" />Sàn Thuê Thửa Đất
+              </div>
+              <h1 className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-snug mb-2" style={{ color: '#f7f8f8', letterSpacing: '-0.5px' }}>
+                Chọn thửa đất, bắt đầu canh tác ngay hôm nay
+              </h1>
+              <p className="text-[13px] leading-relaxed max-w-lg" style={{ color: '#8a8f98' }}>
+                Khám phá bản đồ trang trại, chọn thửa đất phù hợp theo diện tích và vị trí, ký hợp đồng thuê và bắt đầu trải nghiệm canh tác thực tế.
+              </p>
+            </div>
+
+            {/* 3-step guide: Chọn → Xem chi tiết → Ký hợp đồng */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl">
+              {[
+                { step: '01', icon: MousePointerClick, title: 'Chọn thửa đất trên bản đồ', desc: 'Nhấp vào thửa đất muốn xem trên bản đồ vệ tinh bên trái' },
+                { step: '02', icon: Eye, title: 'Xem thông tin chi tiết', desc: 'Panel bên phải hiển thị diện tích, giá thuê, tiện ích và cây trồng phù hợp' },
+                { step: '03', icon: FileSignature, title: 'Thuê và bắt đầu canh tác', desc: 'Nhấn "Thuê ngay" để ký hợp đồng, chọn hình thức canh tác và thanh toán' },
+              ].map((s, i) => (
+                <div key={i} className="flex items-start gap-3 px-4 py-3.5 rounded-lg transition-colors group"
+                  style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 mt-0.5"
+                    style={{ background: 'rgba(94,106,210,0.1)', border: '1px solid rgba(94,106,210,0.15)' }}>
+                    <s.icon className="w-3.5 h-3.5" style={{ color: '#8b8fff' }} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-[9px] font-mono font-bold tracking-widest" style={{ color: '#5e6ad2' }}>{s.step}</span>
+                      {i < 2 && <ArrowRight className="w-2.5 h-2.5 text-[#3d3d3d] hidden sm:block" />}
+                    </div>
+                    <p className="text-[12px] font-semibold text-[#d0d6e0] leading-snug">{s.title}</p>
+                    <p className="text-[10px] text-[#62666d] leading-relaxed mt-0.5">{s.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Command Bar ── */}
-      <header className="pt-[72px] sticky top-0 z-30" style={{ background: 'rgba(15,16,17,0.85)', backdropFilter: 'blur(12px)', borderBottom: BORDER }}>
+      <header className={`${showGuide ? '' : 'pt-[72px]'} sticky top-0 z-30`} style={{ background: 'rgba(15,16,17,0.85)', backdropFilter: 'blur(12px)', borderBottom: BORDER }}>
         <div className="max-w-[1780px] mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between gap-2.5">
 
           {/* Left: location + search */}
