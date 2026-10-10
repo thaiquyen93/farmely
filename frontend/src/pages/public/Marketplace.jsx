@@ -9,7 +9,6 @@ import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 // Marketplace GIS Components
 import MarketplaceFilterSidebar from '../../components/marketplace/MarketplaceFilterSidebar';
 import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceInteractiveMap';
-import MarketplacePlotCards from '../../components/marketplace/MarketplacePlotCards';
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
 
 // GIS Data
@@ -23,8 +22,11 @@ import {
   SlidersHorizontal,
   X,
   LogIn,
-  AlertCircle,
-  Sprout
+  Search,
+  MapPin,
+  Sprout,
+  RotateCcw,
+  ChevronDown
 } from 'lucide-react';
 
 export default function Marketplace() {
@@ -53,8 +55,8 @@ export default function Marketplace() {
   // Selected Plot for GIS Map & Detail Panel (defaults to Plot P-01 matching reference screenshot)
   const [selectedPlotId, setSelectedPlotId] = useState('PLT-HV-01');
 
-  // Mobile Drawers
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  // Filter Drawer & Mobile Drawers
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   // Auth / Booking Confirmation Modal
@@ -71,23 +73,10 @@ export default function Marketplace() {
     }
   }, [searchParams]);
 
-  // Current active farm
-  const currentFarm = useMemo(() => {
-    if (selectedLocation === 'ALL') {
-      return FARMS_GIS_DATA[0]; // Happy Valley default
-    }
-    return FARMS_GIS_DATA.find((f) => f.id === selectedLocation) || FARMS_GIS_DATA[0];
-  }, [selectedLocation]);
-
-  // Toggle facility filter checkbox
-  const toggleFacility = (facilityKey) => {
-    setFacilities((prev) => ({
-      ...prev,
-      [facilityKey]: !prev[facilityKey]
-    }));
+  const toggleFacility = (key) => {
+    setFacilities((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Reset all filters
   const handleResetFilters = () => {
     setSearchQuery('');
     setSelectedLocation('ALL');
@@ -106,7 +95,7 @@ export default function Marketplace() {
   };
 
   const hasActiveFilters = Boolean(
-    searchQuery ||
+    searchQuery.trim() ||
     selectedLocation !== 'ALL' ||
     selectedCrop !== 'ALL' ||
     areaMin ||
@@ -116,7 +105,15 @@ export default function Marketplace() {
     activeStatusTab !== 'ALL'
   );
 
-  // Filter plots based on all criteria
+  // Currently selected farm
+  const currentFarm = useMemo(() => {
+    if (selectedLocation === 'ALL') {
+      return FARMS_GIS_DATA[0];
+    }
+    return FARMS_GIS_DATA.find((f) => f.id === selectedLocation) || FARMS_GIS_DATA[0];
+  }, [selectedLocation]);
+
+  // Filtered plots
   const filteredPlots = useMemo(() => {
     return MARKETPLACE_PLOTS_GIS.filter((plot) => {
       // 1. Status tab
@@ -175,7 +172,7 @@ export default function Marketplace() {
     searchQuery
   ]);
 
-  // Compute status counts for the tabs bar
+  // Status counts for status pills
   const statusCounts = useMemo(() => {
     const counts = { ALL: MARKETPLACE_PLOTS_GIS.length, AVAILABLE: 0, RENTED: 0, MAINTENANCE: 0, UPCOMING: 0 };
     MARKETPLACE_PLOTS_GIS.forEach((p) => {
@@ -194,7 +191,7 @@ export default function Marketplace() {
     );
   }, [selectedPlotId, filteredPlots]);
 
-  // Handle plot selection from map or card
+  // Handle plot selection from map
   const handleSelectPlot = (plot) => {
     setSelectedPlotId(plot.id);
     if (window.innerWidth < 1024) {
@@ -210,7 +207,6 @@ export default function Marketplace() {
       setPlotToBook(plot);
       setShowAuthModal(true);
     } else {
-      // Navigate to existing Farmely booking page
       navigate(`/marketplace/plot/${plot.id}/book`);
     }
   };
@@ -224,94 +220,161 @@ export default function Marketplace() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#070B14] text-white flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
       {/* 1. Global Navbar preserved */}
       <PublicNavbar />
 
-      {/* 2. Main Marketplace Container with 3-Column Layout */}
-      <main className="flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
-        
-        {/* Mobile Filter & Detail Trigger Bar */}
-        <div className="flex lg:hidden items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-brand-border shadow-sm">
-          <button
-            type="button"
-            onClick={() => setShowMobileFilters(true)}
-            className="flex-1 py-2 px-3 rounded-xl bg-brand-cream border border-brand-border text-xs font-bold text-brand-dark flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-brand-green" />
-            <span>Bộ lọc canh tác {hasActiveFilters && '(Đang lọc)'}</span>
-          </button>
+      {/* 2. Top Interactive Command Bar / Filter Rail */}
+      <header className="pt-24 pb-3 px-4 sm:px-6 lg:px-8 border-b border-stone-800/80 bg-[#0B111E]/90 backdrop-blur-md sticky top-0 z-30">
+        <div className="max-w-[1780px] mx-auto flex flex-wrap items-center justify-between gap-3">
+          
+          {/* Left: Farm Location & Search */}
+          <div className="flex items-center flex-wrap gap-2.5">
+            {/* Location Selector */}
+            <div className="relative">
+              <select
+                value={selectedLocation}
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                className="appearance-none bg-[#131C2E] border border-stone-700/80 hover:border-emerald-500/60 rounded-xl pl-9 pr-8 py-2 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all cursor-pointer shadow-sm"
+              >
+                <option value="ALL">Tất cả trang trại</option>
+                {FARMS_GIS_DATA.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name} ({loc.province})
+                  </option>
+                ))}
+              </select>
+              <MapPin className="w-3.5 h-3.5 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDown className="w-3.5 h-3.5 text-stone-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
 
+            {/* Keyword Search */}
+            <div className="relative min-w-[200px] sm:min-w-[240px]">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <input
+                type="text"
+                placeholder="Tìm mã thửa, cây trồng..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 text-xs bg-[#131C2E] rounded-xl border border-stone-700/80 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 text-white placeholder-stone-500 transition-all font-medium shadow-sm"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-white"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Center: Status Tabs Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none">
+            {[
+              { key: 'ALL', label: 'Tất cả', count: statusCounts.ALL, dot: 'bg-cyan-400' },
+              { key: 'AVAILABLE', label: 'Đang trống', count: statusCounts.AVAILABLE, dot: 'bg-emerald-400' },
+              { key: 'RENTED', label: 'Đã thuê', count: statusCounts.RENTED, dot: 'bg-amber-400' },
+              { key: 'MAINTENANCE', label: 'Bảo trì', count: statusCounts.MAINTENANCE, dot: 'bg-slate-400' }
+            ].map((tab) => {
+              const isActive = activeStatusTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveStatusTab(tab.key)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isActive
+                      ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/25 ring-1 ring-cyan-300'
+                      : 'bg-[#131C2E] text-stone-300 hover:text-white border border-stone-700/80 hover:bg-stone-800'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-black' : tab.dot}`} />
+                  <span>{tab.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-black/20 text-black' : 'bg-stone-800 text-stone-400'}`}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right: Advanced Filter Trigger & Reset */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFilterDrawer(true)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                hasActiveFilters
+                  ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400'
+                  : 'bg-[#131C2E] border-stone-700/80 text-stone-300 hover:text-white hover:border-stone-600'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Bộ lọc nâng cao</span>
+              {hasActiveFilters && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              )}
+            </button>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="p-2 rounded-xl bg-stone-800/80 hover:bg-stone-700 text-stone-400 hover:text-white border border-stone-700 transition-all cursor-pointer"
+                title="Đặt lại bộ lọc"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+        </div>
+      </header>
+
+      {/* 3. Main Workspace: Full-Width Immersive GIS Command Center */}
+      <main className="flex-1 max-w-[1780px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5 min-w-0">
+        
+        {/* Mobile quick action bar */}
+        <div className="flex lg:hidden items-center justify-between gap-3 mb-3 bg-[#0B111E] p-2.5 rounded-2xl border border-stone-800">
+          <span className="text-xs text-stone-400 pl-1 font-medium">
+            16 Thửa đất trắc địa
+          </span>
           {selectedPlot && (
             <button
               type="button"
               onClick={() => setShowMobileDetail(true)}
-              className="flex-1 py-2 px-3 rounded-xl bg-[#294C38] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              className="py-1.5 px-3.5 rounded-xl bg-cyan-500 text-black text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-lg shadow-cyan-500/20"
             >
-              <Sprout className="w-3.5 h-3.5 text-brand-yellow" />
+              <Sprout className="w-3.5 h-3.5" />
               <span>Xem {selectedPlot.code}</span>
             </button>
           )}
         </div>
 
-        {/* 3. Primary 3-Column Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* 2-Column Split: Massive GIS Satellite Map + Right Detail Panel */}
+        <div className="flex flex-col lg:flex-row gap-5 items-stretch h-auto lg:h-[calc(100vh-175px)] lg:min-h-[680px]">
           
-          {/* COLUMN A: FILTER SIDEBAR (Desktop) */}
-          <div className="hidden lg:block lg:col-span-3 xl:col-span-3 sticky top-28">
-            <MarketplaceFilterSidebar
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              selectedLocation={selectedLocation}
-              setSelectedLocation={setSelectedLocation}
-              selectedCrop={selectedCrop}
-              setSelectedCrop={setSelectedCrop}
-              areaMin={areaMin}
-              setAreaMin={setAreaMin}
-              areaMax={areaMax}
-              setAreaMax={setAreaMax}
-              priceMax={priceMax}
-              setPriceMax={setPriceMax}
-              facilities={facilities}
-              toggleFacility={toggleFacility}
-              availableCrops={ALL_CROPS_FILTER_OPTIONS}
-              locations={FARMS_GIS_DATA}
-              onResetFilters={handleResetFilters}
-              hasActiveFilters={hasActiveFilters}
-            />
-          </div>
-
-          {/* COLUMN B: MAIN CENTER CONTENT (Interactive GIS Map + Status Tabs & Cards Grid) */}
-          <div className="lg:col-span-6 xl:col-span-6 space-y-6 min-w-0">
-            {/* Top: Interactive GIS Map */}
+          {/* COLUMN 1 (MASSIVE CENTER/LEFT): Ultra-HD Orthophoto GIS Map */}
+          <div className="flex-1 w-full min-w-0 h-[560px] sm:h-[620px] lg:h-full rounded-3xl overflow-hidden shadow-2xl relative">
             <MarketplaceInteractiveMap
               plots={filteredPlots}
               selectedPlot={selectedPlot}
               onSelectPlot={handleSelectPlot}
               currentFarm={currentFarm}
               onSelectFarm={(farmId) => setSelectedLocation(farmId)}
-            />
-
-            {/* Bottom: Plot Status Tabs and Cards Grid */}
-            <MarketplacePlotCards
-              plots={filteredPlots}
-              selectedPlot={selectedPlot}
-              onSelectPlot={handleSelectPlot}
-              onBookPlot={handleBookPlot}
               activeStatusTab={activeStatusTab}
-              setActiveStatusTab={setActiveStatusTab}
-              statusCounts={statusCounts}
             />
           </div>
 
-          {/* COLUMN C: PLOT DETAIL PANEL (Desktop) */}
-          <div className="hidden lg:block lg:col-span-3 xl:col-span-3 sticky top-28">
+          {/* COLUMN 2 (RIGHT): Pinned Interactive Detail Panel */}
+          <div className="hidden lg:block w-[380px] xl:w-[420px] shrink-0 h-full overflow-y-auto rounded-3xl shadow-2xl scrollbar-thin scrollbar-thumb-stone-800 scrollbar-track-transparent">
             <MarketplacePlotDetailPanel
               plot={selectedPlot}
               onBookPlot={handleBookPlot}
               onFocusOnMap={() => {
-                // Scrolls smoothly to map if scrolled past
-                window.scrollTo({ top: 100, behavior: 'smooth' });
+                // Focus event
               }}
             />
           </div>
@@ -323,18 +386,26 @@ export default function Marketplace() {
       {/* 4. Global Footer preserved */}
       <Footer />
 
-      {/* ================= MODALS & MOBILE DRAWERS ================= */}
+      {/* ================= MODALS & SLIDE-OVER DRAWERS ================= */}
 
-      {/* Mobile Filter Modal */}
-      {showMobileFilters && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm lg:hidden animate-fade-in">
-          <div className="w-full max-w-sm bg-white h-full overflow-y-auto p-5 space-y-4 shadow-2xl">
+      {/* Advanced Filter Slide-over Drawer */}
+      {showFilterDrawer && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white text-brand-dark h-full overflow-y-auto p-6 space-y-5 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-brand-border">
-              <h3 className="font-heading font-black text-base text-brand-dark">Bộ Lọc Canh Tác</h3>
+              <div>
+                <h3 className="font-heading font-black text-lg text-brand-dark flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-brand-green" />
+                  <span>Bộ Lọc Nâng Cao</span>
+                </h3>
+                <p className="text-xs text-brand-muted mt-0.5">
+                  Lọc thửa đất theo tiêu chuẩn diện tích, giá thuê, tiện ích VietGAP
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => setShowMobileFilters(false)}
-                className="p-1 rounded-lg text-stone-400 hover:text-brand-dark"
+                onClick={() => setShowFilterDrawer(false)}
+                className="p-1.5 rounded-xl text-stone-400 hover:text-brand-dark hover:bg-stone-100 transition-all cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -361,13 +432,20 @@ export default function Marketplace() {
               hasActiveFilters={hasActiveFilters}
             />
 
-            <div className="pt-2">
+            <div className="pt-3 border-t border-brand-border flex items-center gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 text-xs font-bold"
+                onClick={handleResetFilters}
+              >
+                Xóa tất cả
+              </Button>
               <Button
                 variant="primary"
-                className="w-full"
-                onClick={() => setShowMobileFilters(false)}
+                className="flex-1 text-xs font-bold uppercase tracking-wider"
+                onClick={() => setShowFilterDrawer(false)}
               >
-                Áp dụng bộ lọc ({filteredPlots.length} thửa)
+                Áp dụng ({filteredPlots.length} thửa)
               </Button>
             </div>
           </div>
@@ -376,10 +454,10 @@ export default function Marketplace() {
 
       {/* Mobile Plot Detail Bottom Sheet */}
       {showMobileDetail && selectedPlot && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-sm lg:hidden animate-fade-in">
-          <div className="w-full max-h-[85vh] bg-white rounded-t-3xl overflow-y-auto p-5 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end bg-black/70 backdrop-blur-sm lg:hidden animate-fade-in">
+          <div className="w-full max-h-[88vh] bg-white text-brand-dark rounded-t-3xl overflow-y-auto p-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-brand-border">
-              <span className="font-heading font-black text-sm text-brand-dark">
+              <span className="font-heading font-black text-base text-brand-dark">
                 Chi Tiết {selectedPlot.code}
               </span>
               <button
@@ -399,7 +477,6 @@ export default function Marketplace() {
               }}
               onFocusOnMap={() => {
                 setShowMobileDetail(false);
-                window.scrollTo({ top: 120, behavior: 'smooth' });
               }}
             />
           </div>
@@ -413,7 +490,7 @@ export default function Marketplace() {
         title="Yêu Cầu Đăng Nhập Để Thuê Thửa Đất"
         subtitle={plotToBook ? `${plotToBook.code} • ${plotToBook.name}` : undefined}
       >
-        <div className="space-y-4 text-center py-2">
+        <div className="space-y-4 text-center py-2 text-brand-dark">
           <div className="w-14 h-14 rounded-full bg-emerald-100 text-brand-green flex items-center justify-center mx-auto">
             <LogIn className="w-7 h-7" />
           </div>

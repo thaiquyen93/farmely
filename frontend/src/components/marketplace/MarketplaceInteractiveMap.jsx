@@ -46,7 +46,8 @@ export default function MarketplaceInteractiveMap({
   selectedPlot = null,
   onSelectPlot,
   currentFarm,
-  onSelectFarm
+  onSelectFarm,
+  activeStatusTab = 'ALL'
 }) {
   const containerRef = useRef(null);
 
@@ -133,7 +134,7 @@ export default function MarketplaceInteractiveMap({
       className={`relative w-full rounded-3xl overflow-hidden border border-stone-800 bg-[#070B14] select-none shadow-2xl transition-all duration-300 ${
         isFullscreen
           ? 'fixed inset-0 z-50 rounded-none h-screen w-screen'
-          : 'h-[520px] sm:h-[580px] lg:h-[640px]'
+          : 'h-full min-h-[580px] lg:min-h-[720px]'
       } ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
     >
       {/* ============================================================== */}
@@ -286,6 +287,7 @@ export default function MarketplaceInteractiveMap({
               plots.find((item) => item.code === p.code) ||
               MARKETPLACE_PLOTS_GIS.find((item) => item.code === p.code);
             const statusKey = realPlot?.status || 'AVAILABLE';
+            const isMatchedStatus = activeStatusTab === 'ALL' || statusKey === activeStatusTab;
 
             // Natural status colors
             const strokeColor =
@@ -295,13 +297,21 @@ export default function MarketplaceInteractiveMap({
                 ? '#64748B'
                 : '#10B981';
 
+            const statusDotColor =
+              statusKey === 'RENTED'
+                ? '#F59E0B'
+                : statusKey === 'MAINTENANCE'
+                ? '#94A3B8'
+                : '#10B981';
+
             const cx = p.x + p.width / 2;
             const cy = p.y + p.height / 2;
 
             return (
               <g
                 key={p.code}
-                className="cursor-pointer transition-all duration-200"
+                className="cursor-pointer transition-all duration-300"
+                style={{ opacity: isMatchedStatus ? 1 : 0.22 }}
                 onClick={(e) => {
                   e.stopPropagation();
                   handlePlotClick(p);
@@ -404,13 +414,13 @@ export default function MarketplaceInteractiveMap({
                   </g>
                 )}
 
-                {/* 7. MINIMAL CLEAN NUMBER BADGE (ONLY P-01 .. P-16) */}
+                {/* 7. MINIMAL CLEAN NUMBER BADGE (ONLY P-01 .. P-16 WITH STATUS DOT) */}
                 <g transform={`translate(${p.x + 14}, ${p.y + 14})`} pointerEvents="none">
                   {/* Badge Background Pill */}
                   <rect
                     x="0"
                     y="0"
-                    width={52}
+                    width={58}
                     height={26}
                     rx="8"
                     fill={isSelected ? '#00F0FF' : isHovered ? '#FBBF24' : 'rgba(11, 17, 30, 0.88)'}
@@ -419,16 +429,23 @@ export default function MarketplaceInteractiveMap({
                     filter={isSelected ? 'url(#neonPlotGlow)' : undefined}
                     className="transition-colors duration-200"
                   />
+                  {/* Status Indicator Dot */}
+                  <circle
+                    cx="13"
+                    cy="13"
+                    r="3.5"
+                    fill={isSelected ? '#0A0F1D' : statusDotColor}
+                  />
                   {/* Number Label */}
                   <text
-                    x="26"
+                    x="35"
                     y="17"
                     textAnchor="middle"
                     fill={isSelected || isHovered ? '#0A0F1D' : '#FFFFFF'}
-                    fontSize="12"
+                    fontSize="11.5"
                     fontWeight="900"
                     fontFamily="system-ui, -apple-system, sans-serif"
-                    letterSpacing="0.04em"
+                    letterSpacing="0.03em"
                   >
                     {p.label}
                   </text>
@@ -437,6 +454,29 @@ export default function MarketplaceInteractiveMap({
             );
           })}
         </svg>
+      </div>
+
+      {/* ============================================================== */}
+      {/* 5. MINIMAL BOTTOM STATUS LEGEND & SATELLITE TELEMETRY          */}
+      {/* ============================================================== */}
+      <div className="absolute bottom-3.5 left-3.5 z-20 pointer-events-none">
+        <div className="bg-[#0B111E]/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-stone-700/60 shadow-lg flex items-center gap-3 text-[11px] text-stone-300">
+          <span className="flex items-center gap-1.5 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" /> Đang trống (9)
+          </span>
+          <span className="flex items-center gap-1.5 font-medium">
+            <span className="w-2 h-2 rounded-full bg-amber-400" /> Đang thuê (5)
+          </span>
+          <span className="flex items-center gap-1.5 font-medium">
+            <span className="w-2 h-2 rounded-full bg-slate-400" /> Bảo trì (2)
+          </span>
+        </div>
+      </div>
+
+      <div className="absolute bottom-3.5 right-3.5 z-20 pointer-events-none hidden sm:block">
+        <div className="bg-[#0B111E]/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-stone-700/60 shadow-lg text-[10px] text-stone-400 font-mono tracking-wide">
+          🛰️ 10°41'31"N 106°21'24"E · Tọa độ WGS84
+        </div>
       </div>
     </div>
   );

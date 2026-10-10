@@ -233,7 +233,7 @@ export default function MarketplacePlotDetailPanel({
           className="relative h-20 w-full rounded-xl overflow-hidden border border-brand-border cursor-pointer group"
         >
           <img
-            src="/images/happy_valley_aerial.jpg"
+            src="/images/land_rect_ultra_hd.jpg"
             alt="Mini Map Preview"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
