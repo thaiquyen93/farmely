@@ -25,115 +25,98 @@ import {
 import { GIS_STATUSES } from '../../data/marketplaceGisData';
 
 /**
- * RECTILINEAR PLOTS LAYOUT (CALIBRATED TO ACTUAL GOOGLE EARTH CANALS & BOUNDARIES)
- * Total ViewBox: 1000 x 1150 (matching the natural satellite imagery aspect ratio)
- * Aligned with the central north-south canal at x=460 and horizontal dikes at y=230, 460, 690, 920.
+ * 4 EXACT GPS SURVEY CORNERS PROVIDED BY USER:
+ * - Top-Left (NW):     10°41'22.19"N 106°20'37.16"E (10.689497, 106.343656)
+ * - Top-Right (NE):    10°41'39.59"N 106°20'57.94"E (10.694331, 106.349428)
+ * - Bottom-Left (SW):  10°40'51.35"N 106°21'03.43"E (10.680931, 106.350953)
+ * - Bottom-Right (SE): 10°41'09.20"N 106°21'25.19"E (10.685889, 106.356997)
+ * 
+ * ViewBox: 1000 x 1400 (matches exact 1200 x 1700 Ultra-HD rectified orthophoto)
  */
-export const SATELLITE_RECT_PLOTS = [
-  // ROW 1 (North)
+export const GPS_BOUNDARIES_INFO = {
+  nw: "10°41'22.19\"N 106°20'37.16\"E",
+  ne: "10°41'39.59\"N 106°20'57.94\"E",
+  sw: "10°40'51.35\"N 106°21'03.43\"E",
+  se: "10°41'09.20\"N 106°21'25.19\"E"
+};
+
+export const RECTILINEAR_SURVEY_PLOTS = [
+  // ---------------- COLUMN 1 (WEST / TRÁI) ----------------
   {
     code: 'Plot P-01',
     label: 'PLOT A1',
     areaText: '12.5 ha',
-    x: 25,
-    y: 25,
-    width: 425,
-    height: 200,
+    x: 30,
+    y: 30,
+    width: 420,
+    height: 360,
     status: 'ACTIVE',
     crop: 'Đồng cỏ tự nhiên',
     soilMoisture: '62%',
     temp: '27.4°C'
   },
   {
-    code: 'Plot P-02',
-    label: 'PLOT B1',
-    areaText: '8.2 ha',
-    x: 465,
-    y: 25,
-    width: 255,
-    height: 200,
-    status: 'ACTIVE',
-    crop: 'Ngô sinh khối',
-    soilMoisture: '64%',
-    temp: '27.6°C'
-  },
-  {
-    code: 'Plot P-03',
-    label: 'PLOT B2',
-    areaText: '8.2 ha',
-    x: 735,
-    y: 25,
-    width: 240,
-    height: 200,
-    status: 'ACTIVE',
-    crop: 'Lúa thơm VietGAP',
-    soilMoisture: '68%',
-    temp: '27.2°C'
-  },
-
-  // ROW 2 (Mid-North - PLOT B-03 HIGHLIGHT)
-  {
     code: 'Plot P-04',
     label: 'PLOT A2',
     areaText: '12.5 ha',
-    x: 25,
-    y: 240,
-    width: 425,
-    height: 215,
+    x: 30,
+    y: 420,
+    width: 420,
+    height: 420,
     status: 'ACTIVE',
     crop: 'Đồng cỏ chăn thả',
     soilMoisture: '61%',
     temp: '28.0°C'
   },
   {
+    code: 'Plot P-16',
+    label: 'ECO FOREST',
+    areaText: '42.0 ha',
+    x: 30,
+    y: 870,
+    width: 420,
+    height: 495,
+    status: 'FOREST',
+    crop: 'Rừng phòng hộ ngập nước',
+    soilMoisture: '78%',
+    temp: '26.5°C'
+  },
+
+  // ---------------- COLUMN 2 (CENTER / GIỮA) ----------------
+  {
+    code: 'Plot P-02',
+    label: 'PLOT B1',
+    areaText: '8.2 ha',
+    x: 475,
+    y: 30,
+    width: 255,
+    height: 360,
+    status: 'ACTIVE',
+    crop: 'Ngô sinh khối',
+    soilMoisture: '64%',
+    temp: '27.6°C'
+  },
+  {
     code: 'Plot P-05',
     label: 'PLOT B-03',
     areaText: '14.5 Ha',
-    x: 465,
-    y: 240,
+    x: 475,
+    y: 420,
     width: 255,
-    height: 215,
+    height: 420,
     status: 'OPTIMAL',
     crop: 'Grassland (Đồng cỏ)',
     soilMoisture: '65%',
     temp: '28.2°C'
   },
   {
-    code: 'Plot P-06',
-    label: 'PLOT B4',
-    areaText: '8.2 ha',
-    x: 735,
-    y: 240,
-    width: 240,
-    height: 215,
-    status: 'ACTIVE',
-    crop: 'Rau hữu cơ',
-    soilMoisture: '66%',
-    temp: '27.8°C'
-  },
-
-  // ROW 3 (Center)
-  {
     code: 'Plot P-07',
-    label: 'PLOT A3',
-    areaText: '12.5 ha',
-    x: 25,
-    y: 470,
-    width: 425,
-    height: 215,
-    status: 'ACTIVE',
-    crop: 'Dược liệu hữu cơ',
-    soilMoisture: '63%',
-    temp: '28.1°C'
-  },
-  {
-    code: 'Plot P-08',
     label: 'PLOT C1',
     areaText: '8.2 ha',
-    x: 465,
-    y: 470,
+    x: 475,
+    y: 870,
     width: 255,
-    height: 215,
+    height: 240,
     status: 'ACTIVE',
     crop: 'Xà lách VietGAP',
     soilMoisture: '67%',
@@ -141,87 +124,70 @@ export const SATELLITE_RECT_PLOTS = [
   },
   {
     code: 'Plot P-09',
-    label: 'PLOT C2',
-    areaText: '8.2 ha',
-    x: 735,
-    y: 470,
-    width: 240,
-    height: 215,
-    status: 'HARVESTED',
-    crop: 'Vừa thu hoạch (Nghỉ đất)',
-    soilMoisture: '54%',
-    temp: '29.3°C'
-  },
-
-  // ROW 4 (Mid-South)
-  {
-    code: 'Plot P-10',
     label: 'PLOT C3',
     areaText: '8.2 ha',
-    x: 465,
-    y: 700,
+    x: 475,
+    y: 1135,
     width: 255,
-    height: 215,
+    height: 230,
     status: 'ACTIVE',
     crop: 'Cà chua bi Cherry',
     soilMoisture: '65%',
     temp: '27.9°C'
   },
+
+  // ---------------- COLUMN 3 (EAST / PHẢI) ----------------
   {
-    code: 'Plot P-11',
+    code: 'Plot P-03',
+    label: 'PLOT B2',
+    areaText: '8.2 ha',
+    x: 750,
+    y: 30,
+    width: 225,
+    height: 360,
+    status: 'ACTIVE',
+    crop: 'Lúa thơm VietGAP',
+    soilMoisture: '68%',
+    temp: '27.2°C'
+  },
+  {
+    code: 'Plot P-06',
+    label: 'PLOT B4',
+    areaText: '8.2 ha',
+    x: 750,
+    y: 420,
+    width: 225,
+    height: 420,
+    status: 'ACTIVE',
+    crop: 'Rau hữu cơ',
+    soilMoisture: '66%',
+    temp: '27.8°C'
+  },
+  {
+    code: 'Plot P-08',
+    label: 'PLOT C2',
+    areaText: '8.2 ha',
+    x: 750,
+    y: 870,
+    width: 225,
+    height: 240,
+    status: 'HARVESTED',
+    crop: 'Vừa thu hoạch (Nghỉ đất)',
+    soilMoisture: '54%',
+    temp: '29.3°C'
+  },
+  {
+    code: 'Plot P-10',
     label: 'PLOT C4',
     areaText: '8.2 ha',
-    x: 735,
-    y: 700,
-    width: 240,
-    height: 215,
-    status: 'ACTIVE',
-    crop: 'Dưa chuột baby',
-    soilMoisture: '64%',
-    temp: '27.7°C'
-  },
-
-  // ROW 5 (South)
-  {
-    code: 'Plot P-12',
-    label: 'PLOT C5',
-    areaText: '8.3 ha',
-    x: 465,
-    y: 930,
-    width: 255,
-    height: 195,
-    status: 'ACTIVE',
-    crop: 'Rau ăn lá tổng hợp',
-    soilMoisture: '66%',
-    temp: '28.0°C'
-  },
-  {
-    code: 'Plot P-13',
-    label: 'PLOT C6',
-    areaText: '8.3 ha',
-    x: 735,
-    y: 930,
-    width: 240,
-    height: 195,
+    x: 750,
+    y: 1135,
+    width: 225,
+    height: 230,
     status: 'HARVESTED',
     crop: 'Cải tạo vi sinh',
     soilMoisture: '58%',
     temp: '28.8°C'
-  },
-
-  // SOUTH-WEST QUADRANT: FOREST & CONSERVATION
-  {
-    code: 'Plot P-16',
-    label: 'KHU BẢO TỒN SINH THÁI',
-    areaText: '42.0 ha',
-    x: 25,
-    y: 700,
-    width: 425,
-    height: 425,
-    status: 'FOREST',
-    crop: 'Rừng phòng hộ ngập nước',
-    soilMoisture: '78%',
-    temp: '26.5°C'
   }
 ];
 
@@ -251,10 +217,10 @@ export default function MarketplaceInteractiveMap({
   });
   const [layersDropdownOpen, setLayersDropdownOpen] = useState(false);
 
-  // Default selection to PLOT B-03 on initial mount if none selected
+  // Default selection to PLOT B-03 (Plot P-05) on initial mount if none selected
   const activeSelectedCode = selectedPlot?.code || 'Plot P-05';
   const activePlotData =
-    SATELLITE_RECT_PLOTS.find((p) => p.code === activeSelectedCode) || SATELLITE_RECT_PLOTS[4];
+    RECTILINEAR_SURVEY_PLOTS.find((p) => p.code === activeSelectedCode) || RECTILINEAR_SURVEY_PLOTS[4];
 
   // Zoom handlers
   const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 0.25, 2.5));
@@ -292,7 +258,7 @@ export default function MarketplaceInteractiveMap({
     e.preventDefault();
     if (!searchQuery.trim()) return;
     const q = searchQuery.toLowerCase().trim();
-    const found = SATELLITE_RECT_PLOTS.find(
+    const found = RECTILINEAR_SURVEY_PLOTS.find(
       (p) => p.label.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
     );
     if (found) {
@@ -309,7 +275,7 @@ export default function MarketplaceInteractiveMap({
       // Smooth pan to target
       const cx = found.x + found.width / 2;
       const cy = found.y + found.height / 2;
-      setPanOffset({ x: (500 - cx) * 0.35, y: (575 - cy) * 0.35 });
+      setPanOffset({ x: (500 - cx) * 0.35, y: (700 - cy) * 0.35 });
       setZoomLevel(1.2);
     }
   };
@@ -324,14 +290,14 @@ export default function MarketplaceInteractiveMap({
       className={`relative w-full rounded-3xl overflow-hidden border border-stone-800 bg-[#070B14] select-none shadow-2xl transition-all duration-300 ${
         isFullscreen
           ? 'fixed inset-0 z-50 rounded-none h-screen w-screen'
-          : 'h-[560px] sm:h-[620px] lg:h-[680px]'
+          : 'h-[560px] sm:h-[620px] lg:h-[700px]'
       } ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
     >
       {/* ============================================================== */}
       {/* 1. TOP HEADER TOOLBAR (DARK SLEEK PRECISION AGRI-GIS CHROME)    */}
       {/* ============================================================== */}
       <div className="absolute top-3 left-3 right-3 z-30 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        {/* Left: Farm Identity & Coordinates */}
+        {/* Left: Farm Identity & 4 Corner GPS Survey Badges */}
         <div className="bg-[#0D1527]/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-stone-700/60 shadow-xl flex items-center gap-3 pointer-events-auto">
           <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
             <Trees className="w-4 h-4" />
@@ -340,11 +306,13 @@ export default function MarketplaceInteractiveMap({
             <div className="text-xs font-heading font-black text-white flex items-center gap-1.5">
               <span>Trang Trại Công Nghệ Cao</span>
               <span className="text-stone-400">·</span>
-              <span className="text-emerald-400 font-mono text-[11px]">10°41'31.73"N, 106°21'24.37"E</span>
+              <span className="text-emerald-400 font-mono text-[11px]">4 Mốc GPS Khảo Sát Thực Địa</span>
             </div>
             <div className="text-[10px] text-stone-400 flex items-center gap-1 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Vệ tinh độ phân giải cao · Phân lô ô cờ vuông vắn</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="font-mono text-cyan-300">
+                TL: {GPS_BOUNDARIES_INFO.nw} · BR: {GPS_BOUNDARIES_INFO.se}
+              </span>
             </div>
           </div>
         </div>
@@ -362,7 +330,7 @@ export default function MarketplaceInteractiveMap({
               placeholder="Tìm kiếm..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent text-white placeholder-stone-400 text-xs focus:outline-none w-32"
+              className="bg-transparent text-white placeholder-stone-400 text-xs focus:outline-none w-28"
             />
           </form>
 
@@ -439,7 +407,7 @@ export default function MarketplaceInteractiveMap({
       </div>
 
       {/* ============================================================== */}
-      {/* 2. MAIN SATELLITE CANVAS + PRECISION RECTILINEAR PLOTS OVERLAY  */}
+      {/* 2. MAIN SATELLITE CANVAS (ULTRA-HD RECTIFIED MAP & VECTOR SVG) */}
       {/* ============================================================== */}
       <div
         className="absolute inset-0 w-full h-full origin-center transition-transform duration-200 ease-out"
@@ -447,28 +415,28 @@ export default function MarketplaceInteractiveMap({
           transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px)`
         }}
       >
-        {/* Base Layer: High-Resolution Orthophoto Satellite Image */}
+        {/* Base Layer: Orthophoto Ultra-HD (Rectified from 4 GPS points) */}
         <img
-          src="/images/farm_satellite_hd.png"
-          alt="Satellite Farm Base"
+          src="/images/land_rect_ultra_hd.jpg"
+          alt="Satellite Rectified Farm Base"
           className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
           style={{ imageRendering: 'crisp-edges' }}
         />
 
-        {/* Ambient Subtle Vignette / Contrast Layer */}
+        {/* Ambient Subtle Vignette */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/25 pointer-events-none" />
 
         {/* SVG Vector Precision Plot Overlay */}
         <svg
-          viewBox="0 0 1000 1150"
+          viewBox="0 0 1000 1400"
           className="w-full h-full absolute inset-0"
           preserveAspectRatio="none"
         >
           <defs>
-            {/* Neon Cyan Glow for Active Selection (matching reference UI) */}
+            {/* Neon Cyan Glow for Active Selection (PLOT B-03) */}
             <filter id="neonCyanGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#00F0FF" floodOpacity="0.95" />
-              <feDropShadow dx="0" dy="0" stdDeviation="8" floodColor="#00F0FF" floodOpacity="0.7" />
+              <feDropShadow dx="0" dy="0" stdDeviation="5" floodColor="#00F0FF" floodOpacity="0.95" />
+              <feDropShadow dx="0" dy="0" stdDeviation="9" floodColor="#00F0FF" floodOpacity="0.7" />
             </filter>
 
             {/* Hover Glow */}
@@ -477,9 +445,9 @@ export default function MarketplaceInteractiveMap({
             </filter>
           </defs>
 
-          {/* Render 14-16 Rectilinear Parcels fitting natural terrain */}
+          {/* Render 11 Calibrated Parcels */}
           {activeLayers.boundary &&
-            SATELLITE_RECT_PLOTS.map((p) => {
+            RECTILINEAR_SURVEY_PLOTS.map((p) => {
               const isSelected = activeSelectedCode === p.code;
               const isHovered = hoveredPlotItem?.code === p.code;
               const isOptimal = p.status === 'OPTIMAL';
@@ -488,7 +456,7 @@ export default function MarketplaceInteractiveMap({
 
               // Colors based on Status & Layers
               let strokeColor = isSelected ? '#00F0FF' : isHovered ? '#FBBF24' : '#34D399';
-              let strokeWidth = isSelected ? 4 : isHovered ? 3 : 2.2;
+              let strokeWidth = isSelected ? 4.5 : isHovered ? 3.5 : 2.2;
               let fillColor = 'rgba(16, 185, 129, 0.12)';
 
               if (isOptimal) {
@@ -545,33 +513,31 @@ export default function MarketplaceInteractiveMap({
                     filter={isSelected ? 'url(#neonCyanGlow)' : isHovered ? 'url(#hoverGlow)' : undefined}
                   />
 
-                  {/* Corner Vertex Anchors for Selected Plot (Precision Surveying Dots) */}
+                  {/* Corner Vertex Anchors for Selected Plot (Surveying Dots) */}
                   {isSelected && (
                     <>
-                      <circle cx={p.x} cy={p.y} r="4" fill="#00F0FF" stroke="#FFFFFF" strokeWidth="1.5" />
-                      <circle cx={p.x + p.width} cy={p.y} r="4" fill="#00F0FF" stroke="#FFFFFF" strokeWidth="1.5" />
-                      <circle cx={p.x + p.width} cy={p.y + p.height} r="4" fill="#00F0FF" stroke="#FFFFFF" strokeWidth="1.5" />
-                      <circle cx={p.x} cy={p.y + p.height} r="4" fill="#00F0FF" stroke="#FFFFFF" strokeWidth="1.5" />
+                      <circle cx={p.x} cy={p.y} r="5" fill="#00F0FF" stroke="#FFFFFF" strokeWidth="2" />
+                      <circle cx={p.x + p.width} cy={p.y} r="5" fill="#00F0FF" stroke="#FFFFFF" strokeWidth="2" />
+                      <circle cx={p.x + p.width} cy={p.y + p.height} r="5" fill="#00F0FF" stroke="#FFFFFF" strokeWidth="2" />
+                      <circle cx={p.x} cy={p.y + p.height} r="5" fill="#00F0FF" stroke="#FFFFFF" strokeWidth="2" />
                     </>
                   )}
 
-                  {/* Centered Plot Label & Metadata Badge (matching reference layout) */}
-                  <g transform={`translate(${p.x + p.width / 2}, ${p.y + p.height / 2})`} pointerEvents="none">
-                    {/* Plot Code Badge */}
+                  {/* Plot Label at Top-Left inside boundary (matching reference UI) */}
+                  <g transform={`translate(${p.x + 16}, ${p.y + 24})`} pointerEvents="none">
                     <rect
-                      x="-42"
-                      y="-22"
-                      width="84"
-                      height="24"
+                      x="-8"
+                      y="-14"
+                      width={p.label.length * 9 + 20}
+                      height="22"
                       rx="6"
                       fill={isSelected ? '#00F0FF' : 'rgba(15, 23, 42, 0.88)'}
                       stroke={isSelected ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)'}
                       strokeWidth={isSelected ? 1.5 : 1}
                     />
                     <text
-                      x="0"
-                      y="-6"
-                      textAnchor="middle"
+                      x="2"
+                      y="1"
                       fill={isSelected ? '#0F172A' : '#FFFFFF'}
                       fontSize="11"
                       fontWeight="900"
@@ -579,12 +545,13 @@ export default function MarketplaceInteractiveMap({
                     >
                       {p.label}
                     </text>
+                  </g>
 
-                    {/* Area Subtitle & Status Indicator */}
+                  {/* Area & Status subtitle below badge */}
+                  <g transform={`translate(${p.x + 16}, ${p.y + 46})`} pointerEvents="none">
                     <text
                       x="0"
-                      y="14"
-                      textAnchor="middle"
+                      y="0"
                       fill="#E2E8F0"
                       fontSize="10"
                       fontWeight="700"
