@@ -94,55 +94,89 @@ export default function Marketplace() {
 
       {/* ── Hero / Onboarding Guide ── */}
       {showGuide && (
-        <section className="pt-[72px] relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #0d1117 0%, #08090A 100%)' }}>
-          {/* Subtle grid pattern */}
+        <section className="pt-[72px] relative overflow-hidden" style={{ background: '#08090A' }}>
+          {/* Ambient glow orbs */}
+          <div className="absolute top-0 left-1/4 w-[500px] h-[300px] pointer-events-none" style={{ background: 'radial-gradient(ellipse, rgba(16,185,129,0.08) 0%, transparent 70%)' }} />
+          <div className="absolute top-10 right-1/4 w-[400px] h-[250px] pointer-events-none" style={{ background: 'radial-gradient(ellipse, rgba(0,240,255,0.06) 0%, transparent 70%)' }} />
+          {/* Dot grid pattern */}
           <div className="absolute inset-0 pointer-events-none" style={{
-            backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
-            backgroundSize: '40px 40px',
+            backgroundImage: 'radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)',
+            backgroundSize: '24px 24px',
           }} />
-          <div className="max-w-[1780px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 relative">
+
+          <div className="max-w-[1780px] mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 relative">
             {/* Dismiss */}
             <button type="button" onClick={() => { setShowGuide(false); sessionStorage.setItem('farmely_guide_dismissed', '1'); }}
-              className="absolute top-4 right-4 sm:right-6 lg:right-8 w-7 h-7 rounded-md flex items-center justify-center text-[#62666d] hover:text-[#f7f8f8] cursor-pointer transition-colors z-10"
-              style={GLASS} title="Đóng hướng dẫn">
+              className="absolute top-6 right-4 sm:right-6 lg:right-8 w-7 h-7 rounded-full flex items-center justify-center text-[#62666d] hover:text-[#f7f8f8] cursor-pointer transition-all hover:bg-white/5 z-10"
+              title="Đóng hướng dẫn">
               <X className="w-3.5 h-3.5" />
             </button>
 
             {/* Title area */}
-            <div className="max-w-2xl mb-7">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide uppercase mb-3"
-                style={{ background: 'rgba(94,106,210,0.12)', color: '#8b8fff', border: '1px solid rgba(94,106,210,0.2)' }}>
-                <Sprout className="w-3 h-3" />Sàn Thuê Thửa Đất
+            <div className="max-w-2xl mb-8">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-semibold tracking-wider uppercase mb-4"
+                style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.15), rgba(0,240,255,0.1))', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                </span>
+                Marketplace
               </div>
-              <h1 className="text-[22px] sm:text-[26px] font-bold tracking-tight leading-snug mb-2" style={{ color: '#f7f8f8', letterSpacing: '-0.5px' }}>
-                Chọn thửa đất, bắt đầu canh tác ngay hôm nay
+              <h1 className="text-[24px] sm:text-[30px] font-bold tracking-tight leading-[1.2] mb-3" style={{ letterSpacing: '-0.6px' }}>
+                <span style={{ color: '#f7f8f8' }}>Chọn thửa đất, </span>
+                <span style={{ background: 'linear-gradient(135deg, #10B981, #00F0FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  bắt đầu canh tác
+                </span>
               </h1>
-              <p className="text-[13px] leading-relaxed max-w-lg" style={{ color: '#8a8f98' }}>
-                Khám phá bản đồ trang trại, chọn thửa đất phù hợp theo diện tích và vị trí, ký hợp đồng thuê và bắt đầu trải nghiệm canh tác thực tế.
+              <p className="text-[13px] sm:text-[14px] leading-relaxed max-w-lg" style={{ color: '#9ca3af' }}>
+                Khám phá bản đồ vệ tinh trang trại, chọn thửa đất phù hợp và ký hợp đồng thuê trực tuyến. Theo dõi toàn bộ quá trình canh tác theo thời gian thực.
               </p>
             </div>
 
-            {/* 3-step guide: Chọn → Xem chi tiết → Ký hợp đồng */}
+            {/* 3-step guide cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl">
               {[
-                { step: '01', icon: MousePointerClick, title: 'Chọn thửa đất trên bản đồ', desc: 'Nhấp vào thửa đất muốn xem trên bản đồ vệ tinh bên trái' },
-                { step: '02', icon: Eye, title: 'Xem thông tin chi tiết', desc: 'Panel bên phải hiển thị diện tích, giá thuê, tiện ích và cây trồng phù hợp' },
-                { step: '03', icon: FileSignature, title: 'Thuê và bắt đầu canh tác', desc: 'Nhấn "Thuê ngay" để ký hợp đồng, chọn hình thức canh tác và thanh toán' },
+                { step: '01', icon: MousePointerClick, title: 'Chọn thửa đất', desc: 'Nhấp vào thửa đất trên bản đồ vệ tinh để xem vị trí thực tế', accent: '#10B981', accentBg: 'rgba(16,185,129,0.12)', accentBd: 'rgba(16,185,129,0.25)' },
+                { step: '02', icon: Eye, title: 'Xem chi tiết & so sánh', desc: 'Diện tích, giá thuê, tiện ích tưới tiêu, IoT và cây trồng phù hợp', accent: '#00F0FF', accentBg: 'rgba(0,240,255,0.10)', accentBd: 'rgba(0,240,255,0.20)' },
+                { step: '03', icon: FileSignature, title: 'Thuê ngay', desc: 'Ký hợp đồng, chọn hình thức canh tác và thanh toán trực tuyến', accent: '#8b8fff', accentBg: 'rgba(94,106,210,0.12)', accentBd: 'rgba(94,106,210,0.25)' },
               ].map((s, i) => (
-                <div key={i} className="flex items-start gap-3 px-4 py-3.5 rounded-lg transition-colors group"
-                  style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <div className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 mt-0.5"
-                    style={{ background: 'rgba(94,106,210,0.1)', border: '1px solid rgba(94,106,210,0.15)' }}>
-                    <s.icon className="w-3.5 h-3.5" style={{ color: '#8b8fff' }} />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-[9px] font-mono font-bold tracking-widest" style={{ color: '#5e6ad2' }}>{s.step}</span>
-                      {i < 2 && <ArrowRight className="w-2.5 h-2.5 text-[#3d3d3d] hidden sm:block" />}
+                <div key={i} className="relative group rounded-xl px-4 py-4 transition-all duration-300 hover:translate-y-[-2px]"
+                  style={{ background: 'rgba(255,255,255,0.025)', border: `1px solid ${s.accentBd}`, backdropFilter: 'blur(8px)' }}>
+                  {/* Top glow line */}
+                  <div className="absolute top-0 left-4 right-4 h-px" style={{ background: `linear-gradient(90deg, transparent, ${s.accent}40, transparent)` }} />
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: s.accentBg, border: `1px solid ${s.accentBd}`, boxShadow: `0 0 20px ${s.accent}15` }}>
+                      <s.icon className="w-4 h-4" style={{ color: s.accent }} />
                     </div>
-                    <p className="text-[12px] font-semibold text-[#d0d6e0] leading-snug">{s.title}</p>
-                    <p className="text-[10px] text-[#62666d] leading-relaxed mt-0.5">{s.desc}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[9px] font-mono font-bold tracking-[0.2em] px-1.5 py-0.5 rounded"
+                          style={{ color: s.accent, background: `${s.accent}10` }}>
+                          {s.step}
+                        </span>
+                        {i < 2 && <ArrowRight className="w-3 h-3 hidden sm:block" style={{ color: `${s.accent}50` }} />}
+                      </div>
+                      <p className="text-[13px] font-semibold text-[#e5e7eb] leading-snug mb-0.5">{s.title}</p>
+                      <p className="text-[11px] leading-relaxed" style={{ color: '#6b7280' }}>{s.desc}</p>
+                    </div>
                   </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Bottom stats strip */}
+            <div className="flex items-center gap-5 mt-6 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+              {[
+                { val: '16', label: 'Thửa đất', color: '#10B981' },
+                { val: '150m²', label: 'Diện tích TB', color: '#00F0FF' },
+                { val: '24/7', label: 'Giám sát IoT', color: '#8b8fff' },
+              ].map((st, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-[16px] sm:text-[18px] font-bold" style={{ color: st.color }}>{st.val}</span>
+                  <span className="text-[10px] sm:text-[11px] font-medium" style={{ color: '#6b7280' }}>{st.label}</span>
+                  {i < 2 && <div className="w-px h-4 ml-3" style={{ background: 'rgba(255,255,255,0.06)' }} />}
                 </div>
               ))}
             </div>
