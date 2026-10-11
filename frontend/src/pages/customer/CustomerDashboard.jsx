@@ -60,6 +60,7 @@ export default function CustomerDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('yards');
   const [selectedPlotId, setSelectedPlotId] = useState(null);
+  const [showExpertChatModal, setShowExpertChatModal] = useState(false);
 
   // Chat Communication & Identity Resolution:
   // Detect if current logged-in user is a custom registered user (not the default demo USR-001)
@@ -137,10 +138,10 @@ export default function CustomerDashboard() {
   const customerChatScrollRef = useRef(null);
 
   useEffect(() => {
-    if (activeTab === 'chat' && customerChatScrollRef.current) {
+    if (showExpertChatModal && customerChatScrollRef.current) {
       customerChatScrollRef.current.scrollTop = customerChatScrollRef.current.scrollHeight;
     }
-  }, [activeTab, customerChatThread?.messages]);
+  }, [showExpertChatModal, customerChatThread?.messages]);
 
   const handleSendCustomerChat = (e) => {
     if (e) e.preventDefault();
@@ -643,25 +644,25 @@ export default function CustomerDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-brand-cream flex flex-col font-sans">
+    <div className="min-h-screen bg-brand-cream flex flex-col font-sans overflow-x-hidden">
       {/* 1. Top Navbar giữ nguyên theo toàn bộ website */}
       <PublicNavbar />
 
       {/* 2. Main Page Container mở rộng tối đa (max-w-[1720px]) ăn khớp với Navbar */}
-      <div className="flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
+      <div className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
         
         {/* Welcome Greeting Banner */}
-        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-cream text-brand-green border border-brand-border">
+        <div className="bg-white rounded-2xl p-4 sm:px-5 sm:py-4 border border-brand-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5 min-w-0">
+            <div className="inline-flex max-w-full items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-cream text-brand-green border border-brand-border">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Thời tiết nông trại: 28°C • Độ ẩm 68% • Nắng ráo lý tưởng cho cây trồng</span>
+              <span className="truncate">Thời tiết nông trại: 28°C • Độ ẩm 68% • Nắng ráo lý tưởng</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-heading font-black text-brand-dark">
+            <h1 className="text-xl sm:text-2xl font-heading font-black text-brand-dark">
               Vườn Của Tôi • <span className="text-brand-green">{user?.fullName || 'Lô Thái Quyền'}</span>
             </h1>
-            <p className="text-xs sm:text-sm text-brand-muted max-w-3xl leading-relaxed">
-              Khu vực quản lý nông trại sinh thái cá nhân. Giám sát vi khí hậu thời gian thực qua trạm IoT, đặt dịch vụ chăm sóc trọn vụ hoặc dịch vụ lẻ và nhận nông sản VietGAP thu hoạch giao tận nhà.
+            <p className="text-xs text-brand-muted max-w-3xl leading-relaxed">
+              Theo dõi thửa đất, vi khí hậu IoT, dịch vụ chăm sóc và mùa vụ VietGAP của bạn.
             </p>
           </div>
 
@@ -689,7 +690,7 @@ export default function CustomerDashboard() {
         </div>
 
         {/* 3. Layout with Left Sidebar + Right Content */}
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
+        <div className="flex flex-col lg:flex-row gap-8 items-start min-w-0">
           
           {/* ================= LEFT SIDEBAR ================= */}
           <aside className="w-full lg:w-80 shrink-0 lg:sticky lg:top-28 space-y-5">
@@ -736,11 +737,17 @@ export default function CustomerDashboard() {
 
               {navMenuItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = activeTab === item.id && !selectedPlotId;
+                const isActive = item.id === 'chat'
+                  ? showExpertChatModal
+                  : activeTab === item.id && !selectedPlotId;
                 return (
                   <button
                     key={item.id}
                     onClick={() => {
+                      if (item.id === 'chat') {
+                        setShowExpertChatModal(true);
+                        return;
+                      }
                       setActiveTab(item.id);
                       setSelectedPlotId(null);
                     }}
@@ -798,7 +805,7 @@ export default function CustomerDashboard() {
           </aside>
 
           {/* ================= RIGHT MAIN CONTENT ================= */}
-          <main className="flex-1 min-w-0 space-y-6">
+          <main className="flex-1 min-w-0 w-full space-y-6">
             
             {/* Quick Stat Summary Cards */}
             {!selectedPlotId && (
@@ -1107,8 +1114,7 @@ export default function CustomerDashboard() {
                       variant="primary"
                       size="sm"
                       onClick={() => {
-                        setActiveTab('chat');
-                        setSelectedPlotId(null);
+                        setShowExpertChatModal(true);
                       }}
                       className="gap-2 text-xs font-bold shadow-sm"
                     >
@@ -1918,8 +1924,14 @@ export default function CustomerDashboard() {
             {/* ============================================================== */}
             {/* VIEW CHAT: TRỰC TIẾP CHUYÊN GIA NÔNG NGHIỆP & CÔNG NHÂN HIỆN TRƯỜNG */}
             {/* ============================================================== */}
-            {activeTab === 'chat' && !selectedPlotId && (
-              <div className="bg-white rounded-3xl border border-brand-border shadow-sm overflow-hidden flex flex-col h-[750px] animate-fadeIn">
+            <Modal
+              isOpen={showExpertChatModal}
+              onClose={() => setShowExpertChatModal(false)}
+              title="Nhắn tin với chuyên gia"
+              subtitle="Trao đổi nhanh mà không rời màn hình quản lý vườn"
+              maxWidth="max-w-5xl"
+            >
+              <div className="-m-5 sm:-m-5 bg-white overflow-hidden flex flex-col h-[min(68vh,680px)]">
                 {/* Header */}
                 <div className="p-4 sm:p-5 bg-stone-50 border-b border-brand-border flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -1954,7 +1966,7 @@ export default function CustomerDashboard() {
                 >
                   <div className="text-center my-2">
                     <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-stone-100 text-stone-500 border border-stone-200 uppercase tracking-wider">
-                      Đoạn chat được đồng bộ Realtime qua BroadcastBus & LocalStorage
+                      Hội thoại tư vấn riêng tư • Cập nhật theo thời gian thực
                     </span>
                   </div>
 
@@ -2105,7 +2117,7 @@ export default function CustomerDashboard() {
                   </button>
                 </form>
               </div>
-            )}
+            </Modal>
 
           </main>
 

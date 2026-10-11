@@ -238,17 +238,17 @@ export default function MarketplaceInteractiveMap({
       </div>
 
       {/* 3. Top-Left Floating Farm Info Card */}
-      <div className="absolute top-4 left-4 z-20 pointer-events-auto">
-        <div className="bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 border border-brand-border shadow-md flex items-center gap-3">
+      <div className="absolute top-4 left-4 z-20 pointer-events-auto max-w-[62%] sm:max-w-none">
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 border border-brand-border shadow-md flex items-center gap-2 sm:gap-3 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
             <Trees className="w-5 h-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h4 className="font-heading font-black text-xs sm:text-sm text-brand-dark flex items-center gap-1.5">
-              <span>{currentFarm?.name || 'Trang trại Happy Valley'}</span>
+              <span className="truncate">{currentFarm?.name || 'Trang trại Happy Valley'}</span>
               <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
             </h4>
-            <p className="text-[11px] text-brand-muted">
+            <p className="text-[11px] text-brand-muted truncate">
               {currentFarm?.location || 'Huyện Quế Phong, Nghệ An'}
             </p>
           </div>
@@ -262,7 +262,7 @@ export default function MarketplaceInteractiveMap({
           <button
             type="button"
             onClick={() => setMapMode('SATELLITE')}
-            className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`hidden sm:flex px-3 py-1.5 rounded-lg items-center gap-1.5 transition-all cursor-pointer ${
               mapMode === 'SATELLITE'
                 ? 'bg-[#294C38] text-white shadow-sm'
                 : 'text-stone-600 hover:text-brand-dark'
@@ -286,7 +286,7 @@ export default function MarketplaceInteractiveMap({
         </div>
 
         {/* Vertical Zoom and Recenter Controls */}
-        <div className="bg-white/95 backdrop-blur-md rounded-xl border border-brand-border shadow-md flex flex-col p-1 gap-1">
+        <div className="hidden sm:flex bg-white/95 backdrop-blur-md rounded-xl border border-brand-border shadow-md flex-col p-1 gap-1">
           <button
             type="button"
             onClick={handleZoomIn}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Search,
   MapPin,
@@ -8,7 +8,8 @@ import {
   CheckSquare,
   Square,
   RotateCcw,
-  Sparkles
+  SlidersHorizontal,
+  ChevronDown
 } from 'lucide-react';
 
 export default function MarketplaceFilterSidebar({
@@ -29,8 +30,95 @@ export default function MarketplaceFilterSidebar({
   availableCrops,
   locations,
   onResetFilters,
-  hasActiveFilters
+  hasActiveFilters,
+  compact = false
 }) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const facilityOptions = [
+    { id: 'irrigation', label: 'Hệ thống tưới', icon: '💧' },
+    { id: 'iot', label: 'Cảm biến IoT', icon: '📡' },
+    { id: 'waterSource', label: 'Gần nguồn nước', icon: '🌊' },
+    { id: 'organicSoil', label: 'Đất hữu cơ', icon: '🍃' },
+    { id: 'techSupport', label: 'Hỗ trợ kỹ thuật', icon: '🛠' }
+  ];
+
+  if (compact) {
+    return (
+      <section className="bg-white rounded-2xl border border-brand-border p-3 shadow-sm text-brand-dark" aria-label="Bộ lọc thửa đất">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.6fr)_1fr_1fr_auto] gap-2">
+          <label className="relative">
+            <span className="sr-only">Tìm thửa đất</span>
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+            <input
+              type="search"
+              placeholder="Tìm tên vườn, mã plot, loại cây..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full min-h-11 pl-10 pr-3 text-xs bg-brand-cream/50 rounded-xl border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-green/30"
+            />
+          </label>
+
+          <label className="relative">
+            <span className="sr-only">Địa điểm</span>
+            <MapPin className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-green pointer-events-none" />
+            <select value={selectedLocation} onChange={(e) => setSelectedLocation(e.target.value)} className="w-full min-h-11 pl-9 pr-8 text-xs bg-white border border-brand-border rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-brand-green/30 cursor-pointer">
+              <option value="ALL">Tất cả khu vực</option>
+              {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+            </select>
+          </label>
+
+          <label className="relative">
+            <span className="sr-only">Loại cây trồng</span>
+            <Sprout className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-green pointer-events-none" />
+            <select value={selectedCrop} onChange={(e) => setSelectedCrop(e.target.value)} className="w-full min-h-11 pl-9 pr-8 text-xs bg-white border border-brand-border rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-brand-green/30 cursor-pointer">
+              {availableCrops.map((crop, idx) => <option key={crop} value={idx === 0 ? 'ALL' : crop}>{crop}</option>)}
+            </select>
+          </label>
+
+          <button type="button" onClick={() => setShowAdvanced((value) => !value)} aria-expanded={showAdvanced} className="min-h-11 px-4 rounded-xl bg-brand-green text-white text-xs font-bold inline-flex items-center justify-center gap-2 hover:bg-brand-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2">
+            <SlidersHorizontal className="w-4 h-4" />
+            <span>Lọc thêm</span>
+            <ChevronDown className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+
+        {showAdvanced && (
+          <div className="mt-3 pt-3 border-t border-brand-border grid grid-cols-1 xl:grid-cols-[1fr_1.1fr_2fr_auto] gap-3 items-end">
+            <div>
+              <span className="text-xs font-bold flex items-center gap-1.5 mb-1.5"><Maximize2 className="w-4 h-4 text-brand-green" />Diện tích (m²)</span>
+              <div className="grid grid-cols-2 gap-2">
+                <input aria-label="Diện tích tối thiểu" type="number" placeholder="Từ 50" value={areaMin} onChange={(e) => setAreaMin(e.target.value)} className="min-h-11 px-3 text-xs rounded-xl border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-green/30" />
+                <input aria-label="Diện tích tối đa" type="number" placeholder="Đến 5.000" value={areaMax} onChange={(e) => setAreaMax(e.target.value)} className="min-h-11 px-3 text-xs rounded-xl border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-green/30" />
+              </div>
+            </div>
+
+            <label>
+              <span className="text-xs font-bold flex justify-between gap-2 mb-2"><span>Giá tối đa/tháng</span><span className="text-brand-green">{priceMax >= 10000000 ? '10 triệu+' : `${Number(priceMax).toLocaleString('vi-VN')}đ`}</span></span>
+              <input type="range" min="500000" max="10000000" step="200000" value={priceMax} onChange={(e) => setPriceMax(Number(e.target.value))} className="w-full h-2 accent-[#294C38]" />
+            </label>
+
+            <fieldset>
+              <legend className="text-xs font-bold mb-1.5">Tiện ích</legend>
+              <div className="flex flex-wrap gap-1.5">
+                {facilityOptions.map((item) => (
+                  <button key={item.id} type="button" onClick={() => toggleFacility(item.id)} aria-pressed={Boolean(facilities[item.id])} className={`min-h-9 px-2.5 rounded-full border text-xs font-semibold transition-colors ${facilities[item.id] ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-white border-brand-border text-stone-600 hover:border-brand-green'}`}>
+                    {item.icon} {item.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
+            {hasActiveFilters && (
+              <button type="button" onClick={onResetFilters} className="min-h-11 px-3 text-xs font-bold text-rose-700 rounded-xl hover:bg-rose-50 inline-flex items-center justify-center gap-1.5">
+                <RotateCcw className="w-4 h-4" /> Xóa lọc
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  }
+
   return (
     <aside className="bg-white rounded-2xl border border-brand-border p-5 shadow-sm space-y-5 text-brand-dark">
       {/* Title */}
@@ -156,13 +244,7 @@ export default function MarketplaceFilterSidebar({
           Tiện ích
         </label>
         <div className="space-y-2 text-xs">
-          {[
-            { id: 'irrigation', label: 'Có hệ thống tưới', icon: '💧' },
-            { id: 'iot', label: 'Có cảm biến IoT', icon: '📡' },
-            { id: 'waterSource', label: 'Gần nguồn nước', icon: '🌊' },
-            { id: 'organicSoil', label: 'Đất hữu cơ', icon: '🍃' },
-            { id: 'techSupport', label: 'Hỗ trợ kỹ thuật', icon: '🛠' }
-          ].map((item) => {
+          {facilityOptions.map((item) => {
             const isChecked = Boolean(facilities[item.id]);
             return (
               <label

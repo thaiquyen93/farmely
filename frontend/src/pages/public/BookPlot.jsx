@@ -65,7 +65,7 @@ export default function BookPlot() {
     if (paymentMethod === 'VIETQR') {
       try {
         const descText = `FARMELY ${plot.code} ${user?.fullName ? user.fullName.replace(/\s+/g, '') : 'KHACH'}`;
-        const response = await fetch('http://localhost:8085/api/v1/payments/vietqr/generate', {
+        const response = await fetch('/api/v1/payments/vietqr/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

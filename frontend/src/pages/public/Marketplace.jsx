@@ -224,41 +224,42 @@ export default function Marketplace() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
       {/* 1. Global Navbar preserved */}
       <PublicNavbar />
 
-      {/* 2. Main Marketplace Container with 3-Column Layout */}
-      <main className="flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
+      {/* 2. Main Marketplace Container */}
+      <main className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
         
         {/* Mobile Filter & Detail Trigger Bar */}
-        <div className="flex lg:hidden items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-brand-border shadow-sm">
+        <div className="flex lg:hidden items-center justify-between gap-2 bg-white p-3 rounded-2xl border border-brand-border shadow-sm min-w-0">
           <button
             type="button"
             onClick={() => setShowMobileFilters(true)}
-            className="flex-1 py-2 px-3 rounded-xl bg-brand-cream border border-brand-border text-xs font-bold text-brand-dark flex items-center justify-center gap-2 cursor-pointer"
+            className="flex-1 min-w-0 min-h-11 py-2 px-2 rounded-xl bg-brand-cream border border-brand-border text-xs font-bold text-brand-dark flex items-center justify-center gap-2 cursor-pointer"
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-brand-green" />
-            <span>Bộ lọc canh tác {hasActiveFilters && '(Đang lọc)'}</span>
+            <span className="truncate">Bộ lọc {hasActiveFilters && '• Đang lọc'}</span>
           </button>
 
           {selectedPlot && (
             <button
               type="button"
               onClick={() => setShowMobileDetail(true)}
-              className="flex-1 py-2 px-3 rounded-xl bg-[#294C38] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              className="flex-1 min-w-0 min-h-11 py-2 px-2 rounded-xl bg-[#294C38] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Sprout className="w-3.5 h-3.5 text-brand-yellow" />
-              <span>Xem {selectedPlot.code}</span>
+              <span className="truncate">Xem {selectedPlot.code}</span>
             </button>
           )}
         </div>
 
-        {/* 3. Primary 3-Column Grid Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
-          {/* COLUMN A: FILTER SIDEBAR (Desktop) */}
-          <div className="hidden lg:block lg:col-span-3 xl:col-span-3 sticky top-28">
+        {/* 3. Plot-first layout: selector in the center, details on the right */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start min-w-0">
+
+          {/* MAIN CENTER CONTENT */}
+          <div className="lg:col-span-8 xl:col-span-9 space-y-4 min-w-0">
+            <div className="hidden lg:block">
             <MarketplaceFilterSidebar
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
@@ -278,11 +279,10 @@ export default function Marketplace() {
               locations={FARMS_GIS_DATA}
               onResetFilters={handleResetFilters}
               hasActiveFilters={hasActiveFilters}
+              compact
             />
-          </div>
+            </div>
 
-          {/* COLUMN B: MAIN CENTER CONTENT (Interactive GIS Map + Status Tabs & Cards Grid) */}
-          <div className="lg:col-span-6 xl:col-span-6 space-y-6 min-w-0">
             {/* Top: Interactive GIS Map */}
             <MarketplaceInteractiveMap
               plots={filteredPlots}
@@ -304,8 +304,8 @@ export default function Marketplace() {
             />
           </div>
 
-          {/* COLUMN C: PLOT DETAIL PANEL (Desktop) */}
-          <div className="hidden lg:block lg:col-span-3 xl:col-span-3 sticky top-28">
+          {/* PLOT DETAIL PANEL (Desktop) */}
+          <div className="hidden lg:block lg:col-span-4 xl:col-span-3 sticky top-28">
             <MarketplacePlotDetailPanel
               plot={selectedPlot}
               onBookPlot={handleBookPlot}

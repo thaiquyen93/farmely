@@ -55,7 +55,7 @@ export const chatService = {
       // Asynchronously sync with Backend Spring Boot service (Port 8087) if running
       try {
         const numericConvId = parseInt(String(threadId).replace(/\D/g, ''), 10) || 1;
-        fetch(`http://localhost:8087/api/v1/conversations/${numericConvId}/messages`, {
+        fetch(`/api/v1/conversations/${numericConvId}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

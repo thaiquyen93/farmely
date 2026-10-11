@@ -52,7 +52,7 @@ export default function VietQrModal({
     setIsConfirming(true);
     try {
       if (qrData?.transactionId) {
-        await fetch(`http://localhost:8085/api/v1/payments/${qrData.transactionId}/confirm`, {
+        await fetch(`/api/v1/payments/${qrData.transactionId}/confirm`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });

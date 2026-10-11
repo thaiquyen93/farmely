@@ -14,7 +14,7 @@
 
     <artifactId>ai-service</artifactId>
     <name>ai-service</name>
-    <description>AI & RAG Chatbot Service</description>
+    <description>AI &amp; RAG Chatbot Service</description>
 
     <dependencies>
         <dependency>
