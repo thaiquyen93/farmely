@@ -92,7 +92,7 @@ export default function Marketplace() {
 
   // Đăng nhập nhanh tài khoản mẫu khách hàng
   const handleQuickDemoLogin = () => {
-    login(DEMO_ACCOUNTS.customer);
+    login('customer@farmely.vn', '123456');
     setShowAuthModal(false);
     if (plotToBook) {
       navigate(`/marketplace/plot/${plotToBook.id}/book`);
@@ -114,90 +114,108 @@ export default function Marketplace() {
       </div>
 
       {/* ─────────────────────────────────────────────────────────────────────────────
-          2. THANH ĐIỀU HƯỚNG NỔI TRÊN CÙNG (FLOATING TOP NAV)
+          2. THANH ĐIỀU HƯỚNG CAPSULE LƠ LỬNG (FLOATING ISLAND CAPSULE NAVBAR)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <header className="absolute top-5 left-6 right-6 z-30 flex items-center justify-between px-6 py-3.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-slate-100 pointer-events-auto">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white text-lg shadow-md shadow-emerald-600/30 group-hover:scale-105 transition-transform">
-              🌱
-            </div>
-            <div>
-              <span className="text-lg font-bold tracking-tight text-slate-800">FARMELY</span>
-              <span className="block text-[9px] font-bold text-emerald-600 uppercase tracking-widest -mt-1">
-                Smart Agriculture
-              </span>
-            </div>
-          </Link>
-        </div>
+      <header className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3.5 px-4 py-2 bg-white/90 backdrop-blur-2xl rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] border border-white/80 pointer-events-auto transition-all duration-300 hover:bg-white/98 hover:shadow-[0_16px_48px_rgba(0,0,0,0.12)]">
+        {/* Logo Farmely tinh tế */}
+        <Link to="/" className="flex items-center gap-2 group pr-1 shrink-0">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white text-sm shadow-md shadow-emerald-600/25 group-hover:scale-105 transition-transform">
+            🌱
+          </div>
+          <div className="hidden xl:block">
+            <span className="text-sm font-black tracking-tight text-slate-800 block leading-tight">
+              FARMELY
+            </span>
+            <span className="block text-[8px] font-bold text-emerald-600 uppercase tracking-widest -mt-0.5">
+              Smart Agri
+            </span>
+          </div>
+        </Link>
 
-        <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-          <Link to="/" className="hover:text-slate-900 transition">
+        {/* Phân cách mờ */}
+        <div className="h-4 w-[1px] bg-slate-200/80 shrink-0" />
+
+        {/* Menu liên kết phong cách Pill */}
+        <nav className="flex items-center gap-1 text-xs font-semibold text-slate-600 shrink-0">
+          <Link
+            to="/"
+            className="px-3 py-1.5 rounded-full hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+          >
             Trang chủ
           </Link>
-          <Link to="/marketplace" className="text-emerald-600 font-bold flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <Link
+            to="/marketplace"
+            className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-bold flex items-center gap-1.5 shadow-2xs border border-emerald-200/60 transition-all"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             Marketplace
           </Link>
-          <Link to="/about" className="hover:text-slate-900 transition">
+          <Link
+            to="/about"
+            className="px-3 py-1.5 rounded-full hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+          >
             Về Farmely
           </Link>
         </nav>
 
-        <div className="flex items-center gap-3">
-          <div className="relative hidden sm:block">
-            <input
-              type="text"
-              placeholder="Tìm mã thửa, loại cây..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-7 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 w-56 text-slate-800"
-            />
-            <span className="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
+        {/* Phân cách mờ */}
+        <div className="h-4 w-[1px] bg-slate-200/80 shrink-0" />
 
-          {!isAuthenticated ? (
-            <div className="flex items-center gap-2">
-              <Link
-                to="/login"
-                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition"
-              >
-                Đăng nhập
-              </Link>
-              <Link
-                to="/register"
-                className="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition"
-              >
-                Đăng ký
-              </Link>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Link
-                to={user?.role === 'ADMIN' ? '/admin/dashboard' : '/customer/dashboard'}
-                className="px-3.5 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl border border-emerald-200 transition flex items-center gap-1.5"
-              >
-                <span>🌿</span>
-                <span>{user?.name ? user.name.split(' ')[0] : 'Vườn của tôi'}</span>
-              </Link>
-            </div>
+        {/* Thanh tìm kiếm nhanh dạng viên thuốc */}
+        <div className="relative shrink-0">
+          <input
+            type="text"
+            placeholder="Tìm thửa đất, loại cây..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-7 pr-6 py-1.5 text-xs rounded-full bg-slate-100/80 border border-slate-200/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 w-44 focus:w-56 transition-all duration-300 text-slate-800 placeholder:text-slate-400"
+          />
+          <span className="absolute left-2.5 top-2 text-slate-400 text-[11px]">🔍</span>
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <X className="w-3 h-3" />
+            </button>
           )}
         </div>
+
+        {/* Phân cách mờ */}
+        <div className="h-4 w-[1px] bg-slate-200/80 shrink-0" />
+
+        {/* Nút Đăng nhập / Tài khoản */}
+        {!isAuthenticated ? (
+          <div className="flex items-center gap-1 shrink-0">
+            <Link
+              to="/login"
+              className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 transition rounded-full hover:bg-slate-100/70"
+            >
+              Đăng nhập
+            </Link>
+            <Link
+              to="/register"
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-full shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
+            >
+              Đăng ký
+            </Link>
+          </div>
+        ) : (
+          <Link
+            to={user?.role === 'ADMIN' ? '/admin/dashboard' : '/customer/dashboard'}
+            className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 rounded-full border border-emerald-200/80 transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 shrink-0"
+          >
+            <span className="text-sm">🌿</span>
+            <span>{user?.name ? user.name.split(' ')[0] : 'Vườn của tôi'}</span>
+          </Link>
+        )}
       </header>
 
       {/* ─────────────────────────────────────────────────────────────────────────────
           3. BẢNG TIỆN ÍCH & DANH SÁCH BÊN TRÁI (LEFT ASIDE PANEL)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <aside className="absolute top-24 left-6 z-20 w-84 flex flex-col gap-3 pointer-events-auto">
+      <aside className="absolute top-4 left-6 z-20 w-84 flex flex-col gap-3 pointer-events-auto">
         {/* Danh sách các thửa đất với hiệu ứng cao cấp */}
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.08)] border border-white/80 transition-all duration-300">
           {/* Header với icon & số lượng */}
@@ -260,7 +278,7 @@ export default function Marketplace() {
           </div>
 
           {/* Danh sách thẻ thửa đất mượt mà */}
-          <div className="space-y-2 max-h-[calc(100vh-215px)] overflow-y-auto no-scrollbar pr-0.5">
+          <div className="space-y-2 max-h-[calc(100vh-140px)] overflow-y-auto no-scrollbar pr-0.5">
             {filteredPlots.map((p) => {
               const isVacant = p.status === 'Đang trống' || p.status === 'AVAILABLE';
               const isSelected = selectedPlot?.id === p.id;
