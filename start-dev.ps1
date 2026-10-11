@@ -5,7 +5,16 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $runtimeDir = Join-Path $projectRoot '.run'
-$jdkHome = 'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot'
+
+# Tìm kiếm JDK 21 tự động trên hệ thống
+$jdkDirs = Get-ChildItem 'C:\Program Files\Eclipse Adoptium' -Directory -Filter 'jdk-21*' -ErrorAction SilentlyContinue | Sort-Object Name -Descending
+if ($jdkDirs -and $jdkDirs.Count -gt 0) {
+    $jdkHome = $jdkDirs[0].FullName
+} elseif ($env:JAVA_HOME -and (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
+    $jdkHome = $env:JAVA_HOME
+} else {
+    $jdkHome = 'C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot'
+}
 
 if (-not (Test-Path -LiteralPath (Join-Path $jdkHome 'bin\java.exe'))) {
     throw "JDK 21 not found at $jdkHome"
@@ -13,6 +22,16 @@ if (-not (Test-Path -LiteralPath (Join-Path $jdkHome 'bin\java.exe'))) {
 
 $env:JAVA_HOME = $jdkHome
 $env:Path = "$jdkHome\bin;$env:Path"
+
+# Thiết lập biến môi trường chuẩn cho kết nối Database (Postgres container trên port 5433)
+$env:DB_HOST = 'localhost'
+$env:DB_PORT = '5433'
+$env:DB_NAME = 'farmely'
+$env:DB_USER = 'postgres'
+$env:DB_USERNAME = 'postgres'
+$env:DB_PASSWORD = '12345'
+$env:DB_PASS = '12345'
+$env:DB_URL = 'jdbc:postgresql://localhost:5433/farmely'
 
 New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 
@@ -61,7 +80,12 @@ try {
     if ($Rebuild -or $missingJar) {
         Push-Location $backendRoot
         try {
-            & mvn package -DskipTests
+            $mvnwCmd = Join-Path $backendRoot 'mvnw.cmd'
+            if (Test-Path -LiteralPath $mvnwCmd) {
+                & $mvnwCmd package -DskipTests
+            } else {
+                & mvn package -DskipTests
+            }
             if ($LASTEXITCODE -ne 0) {
                 throw 'Backend build failed.'
             }
@@ -75,7 +99,7 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $frontendRoot 'node_modules'))) {
         Push-Location $frontendRoot
         try {
-            & npm.cmd ci
+            & cmd.exe /c "npm install"
             if ($LASTEXITCODE -ne 0) {
                 throw 'Frontend dependency installation failed.'
             }
@@ -125,8 +149,18 @@ try {
         $stdout = Join-Path $runtimeDir "$($service.Name).out.log"
         $stderr = Join-Path $runtimeDir "$($service.Name).err.log"
         $jarPath = Join-Path $backendRoot $service.Jar
+        $javaArgs = @(
+            "-Dspring.datasource.url=jdbc:postgresql://localhost:5433/farmely",
+            "-Dspring.datasource.username=postgres",
+            "-Dspring.datasource.password=12345",
+            "-Dspring.rabbitmq.host=localhost",
+            "-Dspring.rabbitmq.port=5672",
+            "-Dspring.rabbitmq.username=guest",
+            "-Dspring.rabbitmq.password=guest",
+            "-jar", $jarPath
+        )
         $process = Start-Process -FilePath (Join-Path $jdkHome 'bin\java.exe') `
-            -ArgumentList @('-jar', $jarPath) `
+            -ArgumentList $javaArgs `
             -WorkingDirectory (Split-Path -Parent $jarPath) `
             -RedirectStandardOutput $stdout `
             -RedirectStandardError $stderr `
@@ -158,7 +192,7 @@ try {
     $ports = @($services.Port) + $frontendPort
     foreach ($port in $ports) {
         $ready = $false
-        for ($attempt = 0; $attempt -lt 30; $attempt++) {
+        for ($attempt = 0; $attempt -lt 90; $attempt++) {
             if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
                 $ready = $true
                 break
@@ -171,11 +205,27 @@ try {
     }
 
     Write-Host ''
-    Write-Host 'Farmely is ready:' -ForegroundColor Green
-    Write-Host '  Frontend:      http://localhost:3000'
-    Write-Host '  API gateway:   http://localhost:8080'
-    Write-Host '  Payment API:   http://localhost:8085/swagger-ui.html'
-    Write-Host '  Communication: http://localhost:8087/swagger-ui.html'
+    Write-Host '=====================================================' -ForegroundColor Green
+    Write-Host ' Farmely Platform is up and running on DEV branch!' -ForegroundColor Green
+    Write-Host '=====================================================' -ForegroundColor Green
+    Write-Host '  Frontend UI:          http://localhost:3000' -ForegroundColor Cyan
+    Write-Host '  API Gateway:          http://localhost:8080' -ForegroundColor Cyan
+    Write-Host '  Identity Service:     http://localhost:8081'
+    Write-Host '  Farm Service:         http://localhost:8082'
+    Write-Host '  Knowledge Service:    http://localhost:8083'
+    Write-Host '  Rental Service:       http://localhost:8084'
+    Write-Host '  Payment Service:      http://localhost:8085'
+    Write-Host '  Cultivation Service:  http://localhost:8086'
+    Write-Host '  Communication Service:http://localhost:8087'
+    Write-Host '  Monitoring Service:   http://localhost:8088'
+    Write-Host '  AI Service:           http://localhost:8089'
+    Write-Host '  PostgreSQL:           localhost:5433 (db: farmely)'
+    Write-Host '=====================================================' -ForegroundColor Green
+    Write-Host ''
+    Write-Host 'Farmely stack is running in background. Use stop-dev.ps1 to stop.' -ForegroundColor Yellow
+    while ($true) {
+        Start-Sleep -Seconds 5
+    }
 }
 finally {
     Pop-Location
