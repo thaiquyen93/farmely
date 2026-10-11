@@ -1,0 +1,36 @@
+/* Transparent to solid navbar transition */
+.public-navbar-transparent {
+  background-color: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(0px);
+}
+
+.public-navbar-scrolled {
+  background-color: rgba(41, 76, 59, 0.94);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.nav-link {
+  position: relative;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background-color: var(--yellow);
+  transition: width 0.25s ease;
+  border-radius: 2px;
+}
+
+.nav-link:hover::after,
+.nav-link.active::after {
+  width: 100%;
+}

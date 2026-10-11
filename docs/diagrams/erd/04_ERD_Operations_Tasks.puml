@@ -1,0 +1,113 @@
+@startuml
+' Subject Area 4 — Operations & Tasks (khop farmely_27tables_sqlserver.sql)
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+hide methods
+hide stereotypes
+title SUB-ERD 4 — KE HOACH & TAC VU HIEN TRUONG
+
+entity "cultivation_plans" as plans {
+  * plan_id : INT <<PK, Identity>>
+  --
+  * rental_id : INT <<FK, UQ>>
+  expert_id : INT <<FK, NULL>>
+  * status : VARCHAR(50)
+  approval_deadline : DATETIME2
+  * auto_approved : BIT
+  * created_at : DATETIME2
+}
+
+entity "plan_versions" as versions {
+  * version_id : INT <<PK, Identity>>
+  --
+  * plan_id : INT <<FK>>
+  * version_number : INT
+  * status : VARCHAR(50)
+  * created_at : DATETIME2
+}
+
+entity "care_tasks" as tasks {
+  * task_id : INT <<PK, Identity>>
+  --
+  * rental_id : INT <<FK>>
+  plan_version_id : INT <<FK, NULL>>
+  assigned_to : INT <<FK, NULL>>
+  * task_name : NVARCHAR(255)
+  * task_type : VARCHAR(50)
+  * due_date : DATE
+  * status : VARCHAR(50)
+  evidence_image_url : VARCHAR(500)
+  actual_finish_at : DATETIME2
+  notes : NVARCHAR(500)
+  * created_at : DATETIME2
+  * updated_at : DATETIME2
+}
+
+entity "material_usages" as usages {
+  * usage_id : INT <<PK, Identity>>
+  --
+  * task_id : INT <<FK>>
+  * material_id : INT <<FK>>
+  * quantity : DECIMAL(10,2)
+}
+
+entity "farm_diaries" as diaries {
+  * diary_id : INT <<PK, Identity>>
+  --
+  * rental_id : INT <<FK>>
+  task_id : INT <<FK, NULL>>
+  * content : NVARCHAR(MAX)
+  image_url : VARCHAR(500)
+  * created_at : DATETIME2
+}
+
+entity "harvest_results" as harvests {
+  * harvest_id : INT <<PK, Identity>>
+  --
+  * rental_id : INT <<FK, UQ>>
+  * harvest_date : DATE
+  * yield_amount : DECIMAL(10,2)
+  image_url : VARCHAR(500)
+  * disposal_method : NVARCHAR(50)
+  confirmed_by : INT <<FK, NULL>>
+  * created_at : DATETIME2
+}
+
+entity "rentals (proxy)" as rental_proxy <<external>> {
+  * rental_id : INT <<PK>>
+}
+
+entity "users (proxy)" as user_proxy <<external>> {
+  * user_id : INT <<PK>>
+}
+
+entity "materials (proxy)" as material_proxy <<external>> {
+  * material_id : INT <<PK>>
+}
+
+rental_proxy ||--o| plans : "Assisted only"
+user_proxy ||--o{ plans : expert
+plans ||--o{ versions : "ON DELETE CASCADE"
+versions ||--o{ tasks
+rental_proxy ||--o{ tasks
+user_proxy ||--o{ tasks : assigned_to
+tasks ||--o{ usages : "ON DELETE CASCADE"
+material_proxy ||--o{ usages
+rental_proxy ||--o{ diaries
+tasks ||--o| diaries : "auto sync"
+rental_proxy ||--|| harvests : "1 rental = 1 harvest"
+user_proxy ||--o{ harvests : confirmed_by
+
+note bottom
+  CHECK: plans.status IN ('DRAFT','PENDING_APPROVAL','ACTIVE','COMPLETED','SUPERSEDED')
+  CHECK: tasks.status IN ('PENDING','ASSIGNED','IN_PROGRESS','COMPLETED','OVERDUE','SKIPPED')
+  CHECK: usages.quantity > 0, harvest.yield_amount > 0
+  UQ: plan_versions(plan_id, version_number)
+  BR15: evidence_image_url = anh minh chung hoan thanh task.
+  BR14: Task qua han 23:59 chua hoan thanh -> OVERDUE.
+  BR21: disposal_method IN ('SELF_RECEIVE','SELL','GIFT')
+  Trigger trg_tasks_updated tu dong cap nhat updated_at.
+end note
+@enduml

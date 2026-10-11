@@ -1,0 +1,88 @@
+/* Reusable Button and Input Components styling */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: var(--yellow);
+  color: var(--green-dark);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 800;
+  padding: 0.875rem 1.75rem;
+  border-radius: 0.75rem;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 16px rgba(245, 207, 98, 0.3);
+  letter-spacing: 0.02em;
+}
+
+.btn-primary:hover {
+  background-color: var(--yellow-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(245, 207, 98, 0.45);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  color: #FFFFFF;
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  padding: 0.875rem 1.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  transition: all 0.25s ease;
+}
+
+.btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+}
+
+.btn-outline-green {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: transparent;
+  color: var(--green);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.625rem;
+  border: 1px solid var(--border-strong);
+  transition: all 0.2s ease;
+}
+
+.btn-outline-green:hover {
+  background-color: rgba(66, 107, 79, 0.08);
+  border-color: var(--green);
+}
+
+.input-field {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.625rem;
+  border: 1px solid var(--border);
+  background-color: #FFFFFF;
+  color: var(--text-dark);
+  font-size: 0.875rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(66, 107, 79, 0.12);
+}
+
+.input-error {
+  border-color: #E53E3E !important;
+}
+
+.input-error:focus {
+  box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.15) !important;
+}

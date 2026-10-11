@@ -1,0 +1,116 @@
+@startuml usecase_clean
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam titleFontSize 14
+skinparam titleFontStyle bold
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #37474F
+}
+skinparam package {
+  BackgroundColor #FAFAFA
+  BorderColor #90A4AE
+}
+
+actor "Guest / Visitor" as Guest
+actor "Customer (KH)" as KH
+actor "Agricultural Expert (CGNN)" as CGNN
+actor "Field Worker (CVLĐ)" as CVLD
+actor "Administrator (AD)" as AD
+
+actor "Payment Gateway" as PG <<System>>
+actor "IoT Sensor Station" as IOT <<System>>
+actor "AI Service (RAG)" as AI <<System>>
+
+rectangle "Farmely Urban Farming Management System" {
+  package "Public & Account" {
+    usecase "UC01: Register Customer Account" as UC01
+    usecase "UC02: Authenticate User Login" as UC02
+    usecase "UC03: Book On-Site Inspection Tour" as UC03
+  }
+
+  package "Marketplace & Contracts" {
+    usecase "UC04: Browse Farmland Marketplace" as UC04
+    usecase "UC05: Configure Master Lease Agreement" as UC05
+    usecase "UC06: Process Upfront Lease Payment" as UC06
+    usecase "UC07: Renew Active Lease Contract" as UC07
+    usecase "UC08: Request Cancellation & Refund" as UC08
+    usecase "UC19: Purchase Delegated Care Package" as UC19
+  }
+
+  package "Agronomy & Operations" {
+    usecase "UC09: Formulate Standard Agronomy Process" as UC09
+    usecase "UC10: Track Cultivation Roadmap" as UC10
+    usecase "UC11: Execute Daily Care Task" as UC11
+    usecase "UC12: Submit Field Issue Report" as UC12
+  }
+
+  package "Telemetry & Diary & Harvest" {
+    usecase "UC13: Monitor Microclimate Telemetry" as UC13
+    usecase "UC14: Synchronize Automated Farm Diary" as UC14
+    usecase "UC15: Record Harvest Yield Weight" as UC15
+    usecase "UC16: Inspect & Accept Harvest Produce" as UC16
+  }
+
+  package "Communication & Admin" {
+    usecase "UC17: Consult Agricultural Specialist" as UC17
+    usecase "UC18: Query Farming Knowledge Assistant" as UC18
+    usecase "UC20: Manage Plots & 4-Day Maintenance" as UC20
+    usecase "UC21: Administer Users & Permissions" as UC21
+  }
+}
+
+Guest --> UC01
+Guest --> UC03
+Guest --> UC04
+Guest --> UC02
+
+KH --> UC02
+KH --> UC04
+KH --> UC05
+KH --> UC06
+KH --> UC07
+KH --> UC08
+KH --> UC10
+KH --> UC13
+KH --> UC14
+KH --> UC16
+KH --> UC17
+KH --> UC18
+KH --> UC19
+
+CGNN --> UC02
+CGNN --> UC09
+CGNN --> UC10
+CGNN --> UC13
+CGNN --> UC17
+
+CVLD --> UC02
+CVLD --> UC11
+CVLD --> UC12
+CVLD --> UC15
+
+AD --> UC02
+AD --> UC08
+AD --> UC20
+AD --> UC21
+
+UC06 --> PG
+UC07 --> PG
+UC08 --> PG
+UC19 --> PG
+IOT --> UC13
+UC18 --> AI
+
+UC05 ..> UC06 : <<include>>
+UC11 ..> UC14 : <<include>>
+UC15 ..> UC16 : <<include>>
+@enduml

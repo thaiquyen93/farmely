@@ -1,0 +1,92 @@
+@startuml 03_Agri_Expert_Subsystem
+
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam titleFontSize 15
+skinparam titleFontStyle bold
+skinparam linetype ortho
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+  FontStyle bold
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #455A64
+  FontSize 10
+}
+skinparam package {
+  BackgroundColor #F5F5F5
+  BorderColor #B0BEC5
+  FontStyle bold
+}
+
+title Agricultural Expert Subsystem - Clean Architecture View
+
+actor "Agri Expert" as CGNN
+
+rectangle "Agricultural Expert Business Functions" {
+
+  package "1. Agronomy Standards & Knowledge" as P1 #EDE7F6 {
+    usecase "UC-EXP01: Manage Crops &\nCompatibility Rules" as E01
+    usecase "UC-EXP02: Update Ecological\n& Soil Characteristics" as E02
+    usecase "UC-EXP03: Manage Standard\nProcess Templates" as E03
+    usecase "UC-EXP04: Define Growth Stages\n& IoT Thresholds" as E04
+    usecase "UC-EXP05: Manage Agronomy Docs\n(AI RAG Knowledge Base)" as E05
+  }
+
+  package "2. Cultivation Planning & Consultation" as P2 #D1C4E9 {
+    usecase "UC-EXP06: Conduct Pre-rental\nConsultation" as E06
+    usecase "UC-EXP07: Review & Customize\nCultivation Plan" as E07
+    usecase "UC-EXP08: Propose Cultivation\nPlan Revision" as E08
+  }
+
+  package "3. Advisory & Technical Support" as P3 #CE93D8 {
+    usecase "UC-EXP09: 1-on-1 Agronomy Chat\nwith Customer (Pest/Advice)" as E09
+    usecase "UC-EXP10: Handle Field Issues\n& Technical Chat with Staff" as E10
+  }
+}
+
+' Enforce vertical package order 1 -> 2 -> 3
+P1 -[hidden]down- P2
+P2 -[hidden]down- P3
+
+' Supporting Actors (Right)
+actor "AI Service (LLM)" as AI <<System>>
+actor "Customer" as KH
+actor "Field Staff" as CVLD
+
+AI -[hidden]down- KH
+KH -[hidden]down- CVLD
+
+' Primary Actor Associations
+CGNN -- E01
+CGNN -- E03
+CGNN -- E05
+CGNN -- E06
+CGNN -- E07
+CGNN -- E08
+CGNN -- E09
+CGNN -- E10
+
+' UML 2.5 Behavioral Sub-flows
+E01 ..> E02 : <<include>>
+E03 ..> E04 : <<include>>
+E08 ..> E10 : <<extend>>
+
+' Secondary Actors Connections
+E05 -- AI
+
+E06 -- KH
+E07 -- KH
+E08 -- KH
+E09 -- KH
+
+E10 -- CVLD
+
+@enduml

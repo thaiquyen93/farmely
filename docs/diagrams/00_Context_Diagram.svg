@@ -1,0 +1,255 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" style="background:#ffffff; font-family:'Segoe UI', Arial, sans-serif;">
+  <defs>
+    <!-- Drop Shadow Filter -->
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <filter id="shadow-proc" x="-8%" y="-8%" width="116%" height="116%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#166534" flood-opacity="0.15"/>
+    </filter>
+
+    <!-- Marker Arrowheads -->
+    <marker id="arrow-right" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#1e293b"/>
+    </marker>
+    <marker id="arrow-left" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 8 1.5 L 0 5 L 8 8.5 z" fill="#1e293b"/>
+    </marker>
+    <marker id="arrow-blue-right" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#0369a1"/>
+    </marker>
+    <marker id="arrow-blue-left" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 8 1.5 L 0 5 L 8 8.5 z" fill="#0369a1"/>
+    </marker>
+  </defs>
+
+  <!-- BACKGROUND DECORATION -->
+  <rect x="0" y="0" width="1600" height="900" fill="#f8fafc"/>
+  <rect x="20" y="20" width="1560" height="860" rx="16" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
+
+  <!-- HEADER -->
+  <g transform="translate(80, 50)">
+    <rect x="0" y="0" width="46" height="6" rx="3" fill="#16a34a"/>
+    <text x="0" y="30" font-size="22" font-weight="800" fill="#0f172a" letter-spacing="-0.5">SƠ ĐỒ NGỮ CẢNH HỆ THỐNG (CONTEXT DIAGRAM - DFD MỨC 0)</text>
+    <text x="0" y="52" font-size="13" font-weight="500" fill="#64748b">Chuẩn Mực ISAD: Khái Quát Hóa Luồng Dữ Liệu (Composite Flows) • Cân Đối Đối Xứng 4 - 4 Tuyệt Đối</text>
+  </g>
+
+  <!-- COLUMN HEADERS -->
+  <g font-size="12" font-weight="700" letter-spacing="0.5">
+    <!-- Left Column Header -->
+    <rect x="70" y="115" width="280" height="28" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="210" y="133" text-anchor="middle" fill="#475569">HỆ THỐNG NGOẠI VI (4 SERVICES)</text>
+
+    <!-- Right Column Header -->
+    <rect x="1250" y="115" width="280" height="28" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="1390" y="133" text-anchor="middle" fill="#475569">TÁC NHÂN CON NGƯỜI (4 ACTORS)</text>
+  </g>
+
+  <!-- ===================================================================== -->
+  <!-- LEFT ENTITIES (EXTERNAL SYSTEMS) - SHARP 90 DEG CORNERS (GANE & SARSON) -->
+  <!-- ===================================================================== -->
+  
+  <!-- 1. AI Service -->
+  <g id="entity-ai" filter="url(#shadow)">
+    <rect x="70" y="160" width="280" height="90" fill="#ffffff" stroke="#0284c7" stroke-width="2"/>
+    <rect x="70" y="160" width="280" height="26" fill="#f0f9ff"/>
+    <text x="210" y="178" font-size="11" font-weight="700" fill="#0369a1" text-anchor="middle">HỆ THỐNG ĐỐI TÁC NGOÀI</text>
+    <text x="210" y="206" font-size="14" font-weight="800" fill="#0f172a" text-anchor="middle">DỊCH VỤ TRÍ TUỆ NHÂN TẠO</text>
+    <text x="210" y="226" font-size="12" font-weight="600" fill="#64748b" text-anchor="middle">(AI / LLM Agricultural Engine)</text>
+  </g>
+
+  <!-- 2. Payment Gateway -->
+  <g id="entity-pay" filter="url(#shadow)">
+    <rect x="70" y="325" width="280" height="90" fill="#ffffff" stroke="#0d9488" stroke-width="2"/>
+    <rect x="70" y="325" width="280" height="26" fill="#f0fdfa"/>
+    <text x="210" y="343" font-size="11" font-weight="700" fill="#0f766e" text-anchor="middle">HỆ THỐNG ĐỐI TÁC NGOÀI</text>
+    <text x="210" y="371" font-size="14" font-weight="800" fill="#0f172a" text-anchor="middle">CỔNG THANH TOÁN TRỰC TUYẾN</text>
+    <text x="210" y="391" font-size="12" font-weight="600" fill="#64748b" text-anchor="middle">(VNPay / VietQR Gateway)</text>
+  </g>
+
+  <!-- 3. IoT Telemetry -->
+  <g id="entity-iot" filter="url(#shadow)">
+    <rect x="70" y="490" width="280" height="90" fill="#ffffff" stroke="#0891b2" stroke-width="2"/>
+    <rect x="70" y="490" width="280" height="26" fill="#ecfeff"/>
+    <text x="210" y="508" font-size="11" font-weight="700" fill="#0e7490" text-anchor="middle">THIẾT BỊ PHẦN CỨNG NGOẠI VI</text>
+    <text x="210" y="536" font-size="14" font-weight="800" fill="#0f172a" text-anchor="middle">HỆ THỐNG CẢM BIẾN IOT</text>
+    <text x="210" y="556" font-size="12" font-weight="600" fill="#64748b" text-anchor="middle">(Trạm Quan Trắc Vi Khí Hậu)</text>
+  </g>
+
+  <!-- 4. Weather Service -->
+  <g id="entity-weather" filter="url(#shadow)">
+    <rect x="70" y="655" width="280" height="90" fill="#ffffff" stroke="#d97706" stroke-width="2"/>
+    <rect x="70" y="655" width="280" height="26" fill="#fffbeb"/>
+    <text x="210" y="673" font-size="11" font-weight="700" fill="#b45309" text-anchor="middle">HỆ THỐNG ĐỐI TÁC NGOÀI</text>
+    <text x="210" y="701" font-size="14" font-weight="800" fill="#0f172a" text-anchor="middle">DỊCH VỤ DỰ BÁO THỜI TIẾT</text>
+    <text x="210" y="721" font-size="12" font-weight="600" fill="#64748b" text-anchor="middle">(OpenWeather API Service)</text>
+  </g>
+
+
+  <!-- ===================================================================== -->
+  <!-- RIGHT ENTITIES (HUMAN ACTORS) - SHARP 90 DEG CORNERS (GANE & SARSON) -->
+  <!-- ===================================================================== -->
+
+  <!-- 1. Customer -->
+  <g id="entity-kh" filter="url(#shadow)">
+    <rect x="1250" y="160" width="280" height="90" fill="#ffffff" stroke="#2563eb" stroke-width="2"/>
+    <rect x="1250" y="160" width="280" height="26" fill="#eff6ff"/>
+    <text x="1390" y="178" font-size="11" font-weight="700" fill="#1d4ed8" text-anchor="middle">TÁC NHÂN CON NGƯỜI (ACTOR)</text>
+    <text x="1390" y="206" font-size="14" font-weight="800" fill="#0f172a" text-anchor="middle">KHÁCH HÀNG (NGƯỜI THUÊ)</text>
+    <text x="1390" y="226" font-size="12" font-weight="600" fill="#64748b" text-anchor="middle">(Customer / Tenant)</text>
+  </g>
+
+  <!-- 2. Agri Expert -->
+  <g id="entity-cgnn" filter="url(#shadow)">
+    <rect x="1250" y="325" width="280" height="90" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
+    <rect x="1250" y="325" width="280" height="26" fill="#f5f3ff"/>
+    <text x="1390" y="343" font-size="11" font-weight="700" fill="#6d28d9" text-anchor="middle">TÁC NHÂN CON NGƯỜI (ACTOR)</text>
+    <text x="1390" y="371" font-size="14" font-weight="800" fill="#0f172a" text-anchor="middle">CHUYÊN GIA NÔNG NGHIỆP</text>
+    <text x="1390" y="391" font-size="12" font-weight="600" fill="#64748b" text-anchor="middle">(Agronomy Expert)</text>
+  </g>
+
+  <!-- 3. Field Staff -->
+  <g id="entity-cvld" filter="url(#shadow)">
+    <rect x="1250" y="490" width="280" height="90" fill="#ffffff" stroke="#ea580c" stroke-width="2"/>
+    <rect x="1250" y="490" width="280" height="26" fill="#fff7ed"/>
+    <text x="1390" y="508" font-size="11" font-weight="700" fill="#c2410c" text-anchor="middle">TÁC NHÂN CON NGƯỜI (ACTOR)</text>
+    <text x="1390" y="536" font-size="14" font-weight="800" fill="#0f172a" text-anchor="middle">CHUYÊN VIÊN LAO ĐỘNG</text>
+    <text x="1390" y="556" font-size="12" font-weight="600" fill="#64748b" text-anchor="middle">(Field Care Staff)</text>
+  </g>
+
+  <!-- 4. Admin -->
+  <g id="entity-admin" filter="url(#shadow)">
+    <rect x="1250" y="655" width="280" height="90" fill="#ffffff" stroke="#e11d48" stroke-width="2"/>
+    <rect x="1250" y="655" width="280" height="26" fill="#fff1f2"/>
+    <text x="1390" y="673" font-size="11" font-weight="700" fill="#be123c" text-anchor="middle">TÁC NHÂN CON NGƯỜI (ACTOR)</text>
+    <text x="1390" y="701" font-size="14" font-weight="800" fill="#0f172a" text-anchor="middle">QUẢN TRỊ VIÊN HỆ THỐNG</text>
+    <text x="1390" y="721" font-size="12" font-weight="600" fill="#64748b" text-anchor="middle">(Admin / Farm Owner)</text>
+  </g>
+
+
+  <!-- ===================================================================== -->
+  <!-- CENTER: PROCESS 0 (THE SYSTEM BLACK BOX) -->
+  <!-- ===================================================================== -->
+  <g id="process-0" filter="url(#shadow-proc)">
+    <!-- Container Body -->
+    <rect x="620" y="190" width="360" height="520" rx="24" fill="#ffffff" stroke="#16a34a" stroke-width="3"/>
+    
+    <!-- Top Header Bar for Process Number (Gane & Sarson standard) -->
+    <path d="M 620 214 A 24 24 0 0 1 644 190 L 956 190 A 24 24 0 0 1 980 214 L 980 250 L 620 250 Z" fill="#15803d"/>
+    <text x="800" y="232" font-size="18" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="1">TIẾN TRÌNH 0 (PROCESS 0)</text>
+
+    <!-- System Name and Scope -->
+    <text x="800" y="350" font-size="21" font-weight="900" fill="#0f172a" text-anchor="middle">HỆ THỐNG NỀN TẢNG</text>
+    <text x="800" y="380" font-size="24" font-weight="900" fill="#15803d" text-anchor="middle" letter-spacing="0.5">AGRITECH PLATFORM</text>
+    <text x="800" y="420" font-size="13" font-weight="700" fill="#475569" text-anchor="middle">(Thuê Thửa Đất &amp; Giám Sát Canh Tác)</text>
+
+    <line x1="680" y1="460" x2="920" y2="460" stroke="#bbf7d0" stroke-width="2"/>
+
+    <!-- Black Box Indicator Badge -->
+    <rect x="700" y="490" width="200" height="34" rx="17" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+    <text x="800" y="512" font-size="11" font-weight="800" fill="#166534" text-anchor="middle" letter-spacing="0.5">RANH GIỚI HỘP ĐEN (BLACK BOX)</text>
+
+    <text x="800" y="560" font-size="11" font-style="italic" fill="#64748b" text-anchor="middle">• Toàn bộ CSDL &amp; Modules nằm bên trong</text>
+    <text x="800" y="582" font-size="11" font-style="italic" fill="#64748b" text-anchor="middle">• Phân rã logic chi tiết tại DFD Mức 1</text>
+  </g>
+
+
+  <!-- ===================================================================== -->
+  <!-- COMPOSITE DATA FLOWS (LEFT SIDE: EXTERNAL SYSTEMS <--> PROCESS 0)    -->
+  <!-- ===================================================================== -->
+
+  <!-- 1. AI SERVICE FLOWS -->
+  <!-- SYS -> AI [DF-01] -->
+  <path d="M 620 225 L 350 225" fill="none" stroke="#0284c7" stroke-width="1.6" marker-end="url(#arrow-blue-left)"/>
+  <rect x="375" y="212" width="220" height="24" rx="4" fill="#ffffff" stroke="#bae6fd" stroke-width="1"/>
+  <text x="485" y="228" font-size="10.5" font-weight="700" fill="#0369a1" text-anchor="middle">[DF-01] Ngữ cảnh &amp; Câu hỏi nông học</text>
+
+  <!-- AI -> SYS [DF-02] -->
+  <path d="M 350 195 L 620 195" fill="none" stroke="#0284c7" stroke-width="1.6" marker-end="url(#arrow-blue-right)"/>
+  <rect x="375" y="182" width="220" height="24" rx="4" fill="#ffffff" stroke="#bae6fd" stroke-width="1"/>
+  <text x="485" y="198" font-size="10.5" font-weight="700" fill="#0369a1" text-anchor="middle">[DF-02] Khuyến nghị &amp; Phác đồ kỹ thuật</text>
+
+
+  <!-- 2. PAYMENT GATEWAY FLOWS -->
+  <!-- SYS -> PAY [DF-03] -->
+  <path d="M 620 385 L 350 385" fill="none" stroke="#0d9488" stroke-width="1.6" marker-end="url(#arrow-blue-left)"/>
+  <rect x="375" y="372" width="220" height="24" rx="4" fill="#ffffff" stroke="#99f6e4" stroke-width="1"/>
+  <text x="485" y="388" font-size="10.5" font-weight="700" fill="#0f766e" text-anchor="middle">[DF-03] Yêu cầu thanh toán &amp; Biểu phí</text>
+
+  <!-- PAY -> SYS [DF-04] -->
+  <path d="M 350 355 L 620 355" fill="none" stroke="#0d9488" stroke-width="1.6" marker-end="url(#arrow-blue-right)"/>
+  <rect x="375" y="342" width="220" height="24" rx="4" fill="#ffffff" stroke="#99f6e4" stroke-width="1"/>
+  <text x="485" y="358" font-size="10.5" font-weight="700" fill="#0f766e" text-anchor="middle">[DF-04] Xác nhận kết quả giao dịch</text>
+
+
+  <!-- 3. IOT TELEMETRY FLOW -->
+  <!-- IOT -> SYS [DF-05] -->
+  <path d="M 350 535 L 620 535" fill="none" stroke="#0891b2" stroke-width="1.6" marker-end="url(#arrow-blue-right)"/>
+  <rect x="375" y="522" width="220" height="24" rx="4" fill="#ffffff" stroke="#a5f3fc" stroke-width="1"/>
+  <text x="485" y="538" font-size="10.5" font-weight="700" fill="#0e7490" text-anchor="middle">[DF-05] Dữ liệu quan trắc vi khí hậu</text>
+
+
+  <!-- 4. WEATHER SERVICE FLOW -->
+  <!-- WEATHER -> SYS [DF-06] -->
+  <path d="M 350 700 L 620 700" fill="none" stroke="#d97706" stroke-width="1.6" marker-end="url(#arrow-blue-right)"/>
+  <rect x="375" y="687" width="220" height="24" rx="4" fill="#ffffff" stroke="#fde68a" stroke-width="1"/>
+  <text x="485" y="703" font-size="10.5" font-weight="700" fill="#b45309" text-anchor="middle">[DF-06] Bản tin dự báo thời tiết 7 ngày</text>
+
+
+  <!-- ===================================================================== -->
+  <!-- COMPOSITE DATA FLOWS (RIGHT SIDE: PROCESS 0 <--> HUMAN ACTORS)       -->
+  <!-- ===================================================================== -->
+
+  <!-- 1. CUSTOMER (KH) FLOWS -->
+  <!-- KH -> SYS [DF-07] -->
+  <path d="M 1250 195 L 980 195" fill="none" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arrow-blue-left)"/>
+  <rect x="1005" y="182" width="220" height="24" rx="4" fill="#ffffff" stroke="#bfdbfe" stroke-width="1"/>
+  <text x="1115" y="198" font-size="10.5" font-weight="700" fill="#1d4ed8" text-anchor="middle">[DF-07] Đăng ký, Thuê đất &amp; Duyệt kế hoạch</text>
+
+  <!-- SYS -> KH [DF-08] -->
+  <path d="M 980 225 L 1250 225" fill="none" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arrow-blue-right)"/>
+  <rect x="1005" y="212" width="220" height="24" rx="4" fill="#ffffff" stroke="#bfdbfe" stroke-width="1"/>
+  <text x="1115" y="228" font-size="10.5" font-weight="700" fill="#1d4ed8" text-anchor="middle">[DF-08] Thông tin Plot, Hợp đồng &amp; Diary</text>
+
+
+  <!-- 2. AGRI EXPERT (CGNN) FLOWS -->
+  <!-- CGNN -> SYS [DF-09] -->
+  <path d="M 1250 355 L 980 355" fill="none" stroke="#7c3aed" stroke-width="1.6" marker-end="url(#arrow-blue-left)"/>
+  <rect x="1005" y="342" width="220" height="24" rx="4" fill="#ffffff" stroke="#ddd6fe" stroke-width="1"/>
+  <text x="1115" y="358" font-size="10.5" font-weight="700" fill="#6d28d9" text-anchor="middle">[DF-09] Tiêu chuẩn giống &amp; Kế hoạch vụ</text>
+
+  <!-- SYS -> CGNN [DF-10] -->
+  <path d="M 980 385 L 1250 385" fill="none" stroke="#7c3aed" stroke-width="1.6" marker-end="url(#arrow-blue-right)"/>
+  <rect x="1005" y="372" width="220" height="24" rx="4" fill="#ffffff" stroke="#ddd6fe" stroke-width="1"/>
+  <text x="1115" y="388" font-size="10.5" font-weight="700" fill="#6d28d9" text-anchor="middle">[DF-10] Yêu cầu tư vấn &amp; Cảnh báo sự cố</text>
+
+
+  <!-- 3. FIELD STAFF (CVLD) FLOWS -->
+  <!-- CVLD -> SYS [DF-11] -->
+  <path d="M 1250 520 L 980 520" fill="none" stroke="#ea580c" stroke-width="1.6" marker-end="url(#arrow-blue-left)"/>
+  <rect x="1005" y="507" width="220" height="24" rx="4" fill="#ffffff" stroke="#fed7aa" stroke-width="1"/>
+  <text x="1115" y="523" font-size="10.5" font-weight="700" fill="#c2410c" text-anchor="middle">[DF-11] Báo cáo nghiệm thu &amp; Ảnh thực địa</text>
+
+  <!-- SYS -> CVLD [DF-12] -->
+  <path d="M 980 550 L 1250 550" fill="none" stroke="#ea580c" stroke-width="1.6" marker-end="url(#arrow-blue-right)"/>
+  <rect x="1005" y="537" width="220" height="24" rx="4" fill="#ffffff" stroke="#fed7aa" stroke-width="1"/>
+  <text x="1115" y="553" font-size="10.5" font-weight="700" fill="#c2410c" text-anchor="middle">[DF-12] Lịch Care Task &amp; Hướng dẫn kỹ thuật</text>
+
+
+  <!-- 4. ADMIN FLOWS -->
+  <!-- AD -> SYS [DF-13] -->
+  <path d="M 1250 685 L 980 685" fill="none" stroke="#e11d48" stroke-width="1.6" marker-end="url(#arrow-blue-left)"/>
+  <rect x="1005" y="672" width="220" height="24" rx="4" fill="#ffffff" stroke="#fecdd3" stroke-width="1"/>
+  <text x="1115" y="688" font-size="10.5" font-weight="700" fill="#be123c" text-anchor="middle">[DF-13] Cấu hình Plot, Bảng giá &amp; Nhân sự</text>
+
+  <!-- SYS -> AD [DF-14] -->
+  <path d="M 980 715 L 1250 715" fill="none" stroke="#e11d48" stroke-width="1.6" marker-end="url(#arrow-blue-right)"/>
+  <rect x="1005" y="702" width="220" height="24" rx="4" fill="#ffffff" stroke="#fecdd3" stroke-width="1"/>
+  <text x="1115" y="718" font-size="10.5" font-weight="700" fill="#be123c" text-anchor="middle">[DF-14] Báo cáo doanh thu &amp; Nhật ký kiểm toán</text>
+
+  <!-- FOOTER -->
+  <g transform="translate(80, 840)">
+    <text x="0" y="0" font-size="11" font-weight="600" fill="#94a3b8">ISAD Technical Deliverable • Nền tảng AgriTech (ISP392) • Phương pháp luận Gane &amp; Sarson / Yourdon &amp; DeMarco</text>
+    <text x="1440" y="0" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="end">Trạng thái: Khái quát hóa 14 luồng tổng hợp • Tỉ lệ 16:9</text>
+  </g>
+</svg>

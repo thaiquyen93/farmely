@@ -1,0 +1,93 @@
+@startuml
+' Subject Area 3 — Orders & Rentals (khop farmely_27tables_sqlserver.sql)
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+hide methods
+hide stereotypes
+title SUB-ERD 3 — DON HANG & THUE DAT
+
+entity "orders" as orders {
+  * order_id : INT <<PK, Identity>>
+  --
+  * customer_id : INT <<FK>>
+  * total_amount : DECIMAL(14,2)
+  * status : VARCHAR(50)
+  * expires_at : DATETIME2
+  grace_until : DATETIME2
+  * created_at : DATETIME2
+  * updated_at : DATETIME2
+}
+
+entity "rentals" as rentals {
+  * rental_id : INT <<PK, Identity>>
+  --
+  * order_id : INT <<FK>>
+  * plot_id : INT <<FK>>
+  * variety_id : INT <<FK>>
+  * start_date : DATE
+  * end_date : DATE
+  * cultivation_mode : VARCHAR(50)
+  * locked_price : DECIMAL(14,2)
+  * status : VARCHAR(50)
+  * created_at : DATETIME2
+  * updated_at : DATETIME2
+}
+
+entity "service_requests" as requests {
+  * request_id : INT <<PK, Identity>>
+  --
+  * rental_id : INT <<FK>>
+  staff_id : INT <<FK, NULL>>
+  * service_name : NVARCHAR(150)
+  * price : DECIMAL(14,2)
+  * status : VARCHAR(50)
+  * created_at : DATETIME2
+}
+
+entity "payment_transactions" as payments {
+  * transaction_id : INT <<PK, Identity>>
+  --
+  order_id : INT <<FK, NULL>>
+  service_request_id : INT <<FK, NULL>>
+  * type : VARCHAR(50)
+  * amount : DECIMAL(14,2)
+  * payment_method : VARCHAR(50)
+  gateway_ref : VARCHAR(100)
+  * status : VARCHAR(50)
+  * created_at : DATETIME2
+}
+
+entity "users (proxy)" as user_proxy <<external>> {
+  * user_id : INT <<PK>>
+}
+
+entity "plots (proxy)" as plot_proxy <<external>> {
+  * plot_id : INT <<PK>>
+}
+
+entity "varieties (proxy)" as variety_proxy <<external>> {
+  * variety_id : INT <<PK>>
+}
+
+user_proxy ||--o{ orders : customer
+orders ||--o{ rentals : "1 order gom N rental"
+plot_proxy ||--o{ rentals
+variety_proxy ||--o{ rentals
+rentals ||--o{ requests
+user_proxy ||--o{ requests : staff
+orders ||--o{ payments : "rental payment"
+requests ||--o{ payments : "service payment"
+
+note bottom
+  Mo hinh Gio hang: 1 Order gom nhieu thua dat, giu cho 15 phut (expires_at) + grace 3 phut.
+  CHECK: orders.status IN ('PENDING_PAYMENT','PAID','EXPIRED','CANCELLED')
+  CHECK: rentals.cultivation_mode IN ('SELF_GROWING','ASSISTED_GROWING')
+  CHECK: rentals.end_date > start_date, locked_price >= 0
+  CHECK: payments.type IN ('PAYMENT','REFUND')
+  CHECK: payments.status IN ('PENDING','SUCCESS','FAILED')
+  Payment la mock gateway (RP 10.3).
+  Trigger trg_orders_updated, trg_rentals_updated tu dong cap nhat updated_at.
+end note
+@enduml
