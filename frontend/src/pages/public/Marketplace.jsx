@@ -482,15 +482,15 @@ export default function Marketplace() {
                           e.stopPropagation();
                           handleToggleSelectPlotForContract(p);
                         }}
-                        className={`text-[10px] px-2 py-0.5 rounded-lg font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                        className={`text-[10px] px-2 py-0.5 rounded-lg font-bold transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap ${
                           isPlotSelectedForContract(p)
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/80'
                         }`}
                         title={
                           isPlotSelectedForContract(p)
-                            ? 'Đã chọn vào hợp đồng'
-                            : 'Thêm thửa này vào hợp đồng Master'
+                            ? 'Đã chọn vào hợp đồng (Bấm để bỏ)'
+                            : 'Thêm thửa này vào hợp đồng'
                         }
                       >
                         {isPlotSelectedForContract(p) ? (
@@ -501,7 +501,7 @@ export default function Marketplace() {
                         ) : (
                           <>
                             <Plus className="w-3 h-3" />
-                            <span>Gộp HĐ</span>
+                            <span>Thêm vào HĐ</span>
                           </>
                         )}
                       </button>

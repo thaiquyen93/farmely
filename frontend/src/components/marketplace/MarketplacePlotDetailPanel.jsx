@@ -402,7 +402,7 @@ export default function MarketplacePlotDetailPanel({
             <span>
               {isPlotSelectedForContract
                 ? '✓ Đã chọn vào hợp đồng (Bấm để gỡ)'
-                : '+ Thêm vào hợp đồng Master'}
+                : '+ Thêm vào HĐ'}
             </span>
           </button>
         )}
