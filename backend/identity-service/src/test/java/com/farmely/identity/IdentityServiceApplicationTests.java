@@ -1,4 +1,4 @@
-package com.smartagrirent.identity;
+package com.farmely.identity;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
