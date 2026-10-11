@@ -615,14 +615,24 @@ INSERT INTO lands (land_id, land_name, address) VALUES
 (3, 'Trang trại Thung lũng Sinh thái Đà Lạt', 'Xã Tà Nung, TP. Đà Lạt, Tỉnh Lâm Đồng')
 ON CONFLICT (land_id) DO NOTHING;
 
--- 4. BẢNG PLOTS (Thửa đất cho thuê)
+-- 4. BẢNG PLOTS (Thửa đất cho thuê - Đầy đủ 16 thửa chuẩn GIS Marketplace)
 INSERT INTO plots (plot_id, land_id, plot_code, area, image_url, price_per_period, status, is_published) VALUES
 (1, 1, 'P-01', 50.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 1200000.00, 'RENT', TRUE),
 (2, 1, 'P-02', 45.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1050000.00, 'RENT', TRUE),
 (3, 1, 'P-03', 60.00, 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80', 1400000.00, 'RENT', TRUE),
 (4, 1, 'P-04', 55.00, 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80', 1300000.00, 'AVAIL', TRUE),
 (5, 1, 'P-05', 70.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1600000.00, 'AVAIL', TRUE),
-(6, 1, 'P-06', 40.00, 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80', 950000.00, 'MAINT', FALSE)
+(6, 1, 'P-06', 40.00, 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80', 950000.00, 'MAINT', FALSE),
+(7, 1, 'P-07', 50.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 1200000.00, 'AVAIL', TRUE),
+(8, 1, 'P-08', 65.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1500000.00, 'AVAIL', TRUE),
+(9, 1, 'P-09', 45.00, 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80', 1050000.00, 'AVAIL', TRUE),
+(10, 1, 'P-10', 55.00, 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80', 1300000.00, 'AVAIL', TRUE),
+(11, 1, 'P-11', 50.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1200000.00, 'AVAIL', TRUE),
+(12, 1, 'P-12', 60.00, 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80', 1400000.00, 'AVAIL', TRUE),
+(13, 1, 'P-13', 40.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 950000.00, 'AVAIL', TRUE),
+(14, 1, 'P-14', 75.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1750000.00, 'AVAIL', TRUE),
+(15, 1, 'P-15', 50.00, 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80', 1200000.00, 'AVAIL', TRUE),
+(16, 1, 'P-16', 80.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1900000.00, 'AVAIL', TRUE)
 ON CONFLICT (plot_id) DO NOTHING;
 
 -- 5. BẢNG CROPS & VARIETIES (10 LOẠI RAU AN TOÀN VIETGAP CHUẨN)
@@ -886,10 +896,10 @@ ON CONFLICT (document_id) DO NOTHING;
 -- ============================================================
 
 -- Bảng site_visits (Đăng ký thăm quan thực địa)
-INSERT INTO site_visits (visit_id, user_id, plot_id, visit_date, slot, status, created_at) VALUES
-(1, 1, 1, CURRENT_DATE - INTERVAL '5 days', 'MORNING', 'COMPLETED', NOW() - INTERVAL '7 days'),
-(2, 2, 2, CURRENT_DATE + INTERVAL '2 days', 'MORNING', 'CONFIRMED', NOW() - INTERVAL '2 days'),
-(3, 3, 3, CURRENT_DATE + INTERVAL '3 days', 'AFTERNOON', 'PENDING', NOW() - INTERVAL '1 day')
+INSERT INTO site_visits (visit_id, plot_id, visitor_name, visitor_phone, visit_date, visit_slot, status, created_at) VALUES
+(1, 1, 'Lô Thái Quyền', '0901234567', CURRENT_DATE - INTERVAL '5 days', 'MORNING', 'COMPLETED', NOW() - INTERVAL '7 days'),
+(2, 2, 'Đào Duy Anh', '0912345678', CURRENT_DATE + INTERVAL '2 days', 'MORNING', 'CONFIRMED', NOW() - INTERVAL '2 days'),
+(3, 3, 'Tạ Nguyễn Khôi Nguyên', '0988776655', CURRENT_DATE + INTERVAL '3 days', 'AFTERNOON', 'PENDING', NOW() - INTERVAL '1 day')
 ON CONFLICT (visit_id) DO NOTHING;
 
 -- Bảng contract_cancellations (Yêu cầu hủy hợp đồng & hoàn tiền)
