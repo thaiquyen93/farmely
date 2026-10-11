@@ -5,6 +5,7 @@ import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import DashboardRail from '../../components/dashboard/DashboardRail';
 import {
   Building2,
   Grid3X3,
@@ -32,12 +33,14 @@ import {
   ArrowRight,
   Activity,
   Layers,
-  Sparkles
+  Sparkles,
+  BriefcaseBusiness
 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'dispatch' | 'contracts' | 'visits' | 'users' | 'iot-alerts'
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Dispatch Service Orders State (UC37: Care Task Dispatch)
   const [serviceDispatches, setServiceDispatches] = useState([
@@ -208,47 +211,14 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
       <PublicNavbar />
 
-      <main className="flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
+      <main className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
         
-        {/* Top Executive Header */}
-        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
-              <span>Phân Hệ Vận Hành & Quản Trị Hệ Thống (Administrator Hub)</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-heading font-black text-brand-dark">
-              Bảng Điều Hành Quản Trị • <span className="text-brand-green">{user?.fullName || 'Ban Quản Trị'}</span>
-            </h1>
-            <p className="text-xs sm:text-sm text-brand-muted max-w-3xl leading-relaxed">
-              Theo dõi doanh thu thời gian thực, điều phối ca trực cho công nhân nông trại, xử lý hoàn tiền theo BR10, duyệt lịch tham quan và quản trị người dùng.
-            </p>
-          </div>
-
-          {/* Quick Shortcuts */}
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <Link to="/admin/master-data">
-              <Button variant="secondary" size="sm" className="gap-2 font-bold shadow-sm">
-                <Layers className="w-4 h-4 text-brand-yellow" />
-                <span>Quản Lý Master Data</span>
-              </Button>
-            </Link>
-
-            <Link to="/marketplace">
-              <Button variant="outline" size="sm" className="gap-2 font-bold bg-white shadow-sm">
-                <Eye className="w-4 h-4" />
-                <span>Xem Sàn Marketplace</span>
-              </Button>
-            </Link>
-          </div>
-        </div>
-
         {/* Operational KPI Metric Gauges */}
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm space-y-1 text-center">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Doanh Thu Tháng
             </span>
@@ -258,7 +228,7 @@ export default function AdminDashboard() {
             <span className="text-[10px] text-emerald-700 font-bold block">↑ +18.4% vs tháng trước</span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm space-y-1 text-center">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Tỷ Lệ Lấp Đầy Đất
             </span>
@@ -268,7 +238,7 @@ export default function AdminDashboard() {
             <span className="text-[10px] text-brand-muted font-medium block">32 / 41 thửa đang thuê</span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm space-y-1 text-center">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Ca Trực Chờ Giao
             </span>
@@ -278,7 +248,7 @@ export default function AdminDashboard() {
             <span className="text-[10px] text-amber-700 font-bold block">Cần điều phối ngay</span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm space-y-1 text-center">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Lịch Tham Quan Mới
             </span>
@@ -288,7 +258,7 @@ export default function AdminDashboard() {
             <span className="text-[10px] text-sky-700 font-bold block">Chờ gọi xác nhận</span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm space-y-1 text-center">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Yêu Cầu Hoàn Cọc
             </span>
@@ -298,7 +268,7 @@ export default function AdminDashboard() {
             <span className="text-[10px] text-rose-700 font-bold block">Chờ phê duyệt</span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm space-y-1 text-center">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Trạm Cảm Biến IoT
             </span>
@@ -313,10 +283,8 @@ export default function AdminDashboard() {
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           
           {/* Admin Left Menu */}
-          <aside className="w-full lg:w-72 shrink-0 bg-white rounded-2xl border border-brand-border p-4 shadow-sm space-y-1.5 lg:sticky lg:top-28">
-            <div className="px-3 py-2 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-              Phân Hệ Vận Hành
-            </div>
+          <DashboardRail user={user} fallbackName="Ban Quản Trị" roleLabel="Quản trị hệ thống" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
+            <div className={`px-2 pb-2 text-[11px] font-bold text-stone-400 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Phân Hệ Vận Hành</div>
 
             {[
               { id: 'overview', label: 'Tổng Quan Hoạt Động', icon: Activity, count: null },
@@ -332,7 +300,8 @@ export default function AdminDashboard() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                  title={sidebarCollapsed ? tab.label : undefined}
+                  className={`relative group w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                     isActive
                       ? 'bg-[#294C38] text-white shadow-sm'
                       : 'text-stone-700 hover:bg-stone-50 hover:text-brand-dark'
@@ -340,29 +309,33 @@ export default function AdminDashboard() {
                 >
                   <div className="flex items-center gap-2.5">
                     <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-stone-400'}`} />
-                    <span>{tab.label}</span>
+                    <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{tab.label}</span>
                   </div>
                   {tab.count !== null && tab.count > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-[10px] font-bold ${
                       isActive ? 'bg-brand-yellow text-brand-dark' : 'bg-amber-100 text-amber-800'
                     }`}>
                       {tab.count}
                     </span>
                   )}
+                  {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">{tab.label}</span>}
                 </button>
               );
             })}
 
             <div className="pt-3 border-t border-brand-border/60">
-              <Link
-                to="/admin/master-data"
-                className="w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5"
-              >
+              <Link to="/admin/master-data" title={sidebarCollapsed ? 'Quản lý Master Data' : undefined} className={`relative group w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
                 <Layers className="w-4 h-4 text-brand-green" />
-                <span>Quản Lý Master Data →</span>
+                <span className={sidebarCollapsed ? 'lg:hidden' : ''}>Quản Lý Master Data →</span>
+                {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">Quản lý Master Data</span>}
+              </Link>
+              <Link to="/admin/master-data/services" title={sidebarCollapsed ? 'Dịch vụ & CareTask' : undefined} className={`relative group mt-1 w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+                <BriefcaseBusiness className="w-4 h-4 text-brand-green" />
+                <span className={sidebarCollapsed ? 'lg:hidden' : ''}>Dịch Vụ & CareTask</span>
+                {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">Dịch vụ & CareTask</span>}
               </Link>
             </div>
-          </aside>
+          </DashboardRail>
 
           {/* Admin Main Display Area */}
           <section className="flex-1 min-w-0 w-full space-y-6">

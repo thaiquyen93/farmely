@@ -136,6 +136,34 @@ export const DEMO_EXPERTS = [
 ];
 
 export const INITIAL_THREADS = [
+  // Khách tiềm năng: hỏi chuyên gia trước khi quyết định thuê thửa đất
+  {
+    id: 'CONS-PRE-01',
+    role: 'customer',
+    roleLabel: 'Khách Đang Quan Tâm',
+    rentalStatus: 'NOT_RENTED',
+    customerName: 'Mai Anh Thư',
+    customerAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
+    plotCode: 'CHƯA CHỌN',
+    plotName: 'Đang tìm thửa phù hợp',
+    crop: 'Rau ăn lá cho gia đình',
+    stage: 'Tư vấn trước khi thuê',
+    expertName: 'ThS. Nguyễn Hoàng Nam',
+    isOnline: true,
+    lastTime: '5 phút trước',
+    status: 'PENDING',
+    unread: true,
+    messages: [
+      {
+        id: 'M-PRE-01',
+        sender: 'customer',
+        senderName: 'Mai Anh Thư',
+        text: 'Chào chuyên gia, gia đình tôi mới bắt đầu trồng rau và chưa thuê thửa nào. Diện tích khoảng 50–80m² có phù hợp để trồng rau ăn lá cuối tuần không ạ?',
+        time: '16:20',
+        seen: false
+      }
+    ]
+  },
   // 1. Khách hàng 1: Lô Thái Quyền (Thửa Sen Vàng A1 - P-01)
   {
     id: 'CONS-401',
@@ -433,7 +461,20 @@ export function getStoredThreads() {
       return INITIAL_THREADS;
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length >= 8 ? parsed : INITIAL_THREADS;
+    if (!Array.isArray(parsed) || parsed.length < 8) return INITIAL_THREADS;
+
+    // Non-destructive seed migration: keep the user's existing messages and only
+    // add newly introduced demo conversations that are not in localStorage yet.
+    const missingSeedThreads = INITIAL_THREADS.filter(
+      (seedThread) => !parsed.some((thread) => thread.id === seedThread.id)
+    );
+    if (missingSeedThreads.length > 0) {
+      const mergedThreads = [...missingSeedThreads, ...parsed];
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedThreads));
+      return mergedThreads;
+    }
+
+    return parsed;
   } catch (err) {
     console.error('[ChatStorage] Error loading threads from localStorage:', err);
     return INITIAL_THREADS;
@@ -528,5 +569,35 @@ export function markThreadAsReadInStorage(threadId) {
   updatedThreads[threadIndex] = thread;
   saveThreads(updatedThreads);
 
+  return { thread, threads: updatedThreads };
+}
+
+export function updateThreadRentalInStorage({ threadId, customerName, customerAvatar, plotCode, plotName, crop }) {
+  const threads = getStoredThreads();
+  const existingIndex = threads.findIndex((thread) => thread.id === threadId);
+  const existing = existingIndex >= 0 ? threads[existingIndex] : null;
+  const thread = {
+    ...(existing || {}),
+    id: threadId,
+    role: 'customer',
+    roleLabel: 'Khách Thuê Đất',
+    rentalStatus: 'RENTED',
+    customerName: customerName || existing?.customerName || 'Khách hàng Farmely',
+    customerAvatar: customerAvatar || existing?.customerAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+    plotCode,
+    plotName,
+    crop: crop || 'Cây trồng VietGAP',
+    stage: 'Đã xác nhận thuê thửa',
+    expertName: existing?.expertName || 'ThS. Nguyễn Hoàng Nam',
+    isOnline: true,
+    lastTime: 'Vừa cập nhật',
+    status: existing?.status || 'PENDING',
+    unread: existing?.unread || false,
+    messages: existing?.messages || []
+  };
+  const updatedThreads = existingIndex >= 0
+    ? threads.map((item, index) => index === existingIndex ? thread : item)
+    : [thread, ...threads];
+  saveThreads(updatedThreads);
   return { thread, threads: updatedThreads };
 }

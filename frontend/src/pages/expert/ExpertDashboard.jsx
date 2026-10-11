@@ -5,6 +5,7 @@ import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import DashboardRail from '../../components/dashboard/DashboardRail';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import {
   Sprout,
@@ -48,8 +49,9 @@ import {
 export default function ExpertDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'issues' | 'templates' | 'compatibility' | 'knowledge'
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const isExpertUser = user?.role === 'expert';
+  const isExpertUser = user?.role === 'EXPERT';
   const expertSenderName = isExpertUser && user?.fullName ? user.fullName : 'ThS. Nguyễn Hoàng Nam';
 
   const {
@@ -66,11 +68,13 @@ export default function ExpertDashboard() {
     senderName: expertSenderName
   });
   const [chatSearchQuery, setChatSearchQuery] = useState('');
-  const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'worker' | 'pending'
+  const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'pre_rental' | 'worker' | 'pending'
   const [chatInputText, setChatInputText] = useState('');
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const chatContainerRef = useRef(null);
+  const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
+  const preRentalCount = chatThreads.filter(isPreRentalThread).length;
 
   // Quick advice recommendations pills
   const quickPrescriptions = [
@@ -439,62 +443,14 @@ export default function ExpertDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
       <PublicNavbar />
 
-      <main className="flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
+      <main className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
         
-        {/* Top Header */}
-        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
-              <Sprout className="w-3.5 h-3.5 text-brand-green" />
-              <span>Phân Hệ Nghiên Cứu & Hỗ Trợ Nông Học (Agricultural Expert Hub)</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-heading font-black text-brand-dark">
-              Bàn Làm Việc Chuyên Gia • <span className="text-brand-green">{user?.fullName || 'ThS. Nguyễn Hoàng Nam'}</span>
-            </h1>
-            <p className="text-xs sm:text-sm text-brand-muted max-w-3xl leading-relaxed">
-              Tư vấn trực tiếp 1-on-1 cho khách thuê đất, chỉ đạo kỹ thuật công nhân hiện trường, chẩn đoán sự cố nông nghiệp, quản lý quy trình canh tác VietGAP và nạp kho tri thức AI RAG.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <Button
-              variant={activeTab === 'templates' ? 'primary' : 'secondary'}
-              size="sm"
-              onClick={() => setActiveTab('templates')}
-              className="gap-2 font-bold shadow-sm cursor-pointer"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-brand-yellow" />
-              <span>Quy Trình VietGAP</span>
-            </Button>
-
-            <Button
-              variant={activeTab === 'compatibility' ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => setActiveTab('compatibility')}
-              className="gap-2 font-bold bg-white shadow-sm cursor-pointer"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-              <span>Ma Trận Thổ Nhưỡng</span>
-            </Button>
-
-            <Button
-              variant={activeTab === 'knowledge' ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => setActiveTab('knowledge')}
-              className="gap-2 font-bold bg-white shadow-sm cursor-pointer"
-            >
-              <BookOpen className="w-4 h-4 text-brand-green" />
-              <span>Kho Tri Thức AI</span>
-            </Button>
-          </div>
-        </div>
-
         {/* Top Agronomy Metrics */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm text-center space-y-1">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Thửa Đất Giám Sát
             </span>
@@ -504,17 +460,19 @@ export default function ExpertDashboard() {
             <span className="text-[10px] text-emerald-700 font-bold block">100% đạt chuẩn VietGAP</span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm text-center space-y-1">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Hộp Thư Cần Phản Hồi
             </span>
             <div className="text-2xl font-heading font-black text-amber-600">
               {chatThreads.filter(c => c.status === 'PENDING').length} Tin nhắn
             </div>
-            <span className="text-[10px] text-amber-700 font-bold block">Khách thuê & Công nhân</span>
+            <span className="text-xs text-amber-700 font-bold block">
+              {preRentalCount} khách chưa thuê
+            </span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm text-center space-y-1">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Sự Cố Hiện Trường
             </span>
@@ -524,7 +482,7 @@ export default function ExpertDashboard() {
             <span className="text-[10px] text-rose-700 font-bold block">Báo cáo từ công nhân</span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm text-center space-y-1">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Quy Trình Chuẩn
             </span>
@@ -534,7 +492,7 @@ export default function ExpertDashboard() {
             <span className="text-[10px] text-emerald-700 font-bold block">Đang áp dụng thực địa</span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm text-center space-y-1 col-span-2 lg:col-span-1">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5 col-span-2 lg:col-span-1">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Kho Tri Thức & AI
             </span>
@@ -549,10 +507,8 @@ export default function ExpertDashboard() {
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           
           {/* Expert Menu (5 core functions per SRS) */}
-          <aside className="w-full lg:w-72 shrink-0 bg-white rounded-2xl border border-brand-border p-4 shadow-sm space-y-1.5 lg:sticky lg:top-28">
-            <div className="px-3 py-2 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-              Bàn Làm Việc Kỹ Thuật
-            </div>
+          <DashboardRail user={user} fallbackName="ThS. Nguyễn Hoàng Nam" roleLabel="Chuyên gia nông nghiệp" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
+            <div className={`px-2 pb-2 text-[11px] font-bold text-stone-400 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Bàn Làm Việc Kỹ Thuật</div>
 
             {[
               { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
@@ -567,7 +523,8 @@ export default function ExpertDashboard() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                  title={sidebarCollapsed ? tab.label : undefined}
+                  className={`relative group w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                     isActive
                       ? 'bg-[#294C38] text-white shadow-sm'
                       : 'text-stone-700 hover:bg-stone-50 hover:text-brand-dark'
@@ -575,19 +532,20 @@ export default function ExpertDashboard() {
                 >
                   <div className="flex items-center gap-2.5">
                     <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-stone-400'}`} />
-                    <span className="truncate">{tab.label}</span>
+                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} truncate`}>{tab.label}</span>
                   </div>
                   {tab.count !== null && tab.count > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
                       isActive ? 'bg-brand-yellow text-brand-dark' : 'bg-amber-100 text-amber-800'
                     }`}>
                       {tab.count}
                     </span>
                   )}
+                  {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">{tab.label}</span>}
                 </button>
               );
             })}
-          </aside>
+          </DashboardRail>
 
           {/* Expert Main Display Content */}
           <section className="flex-1 min-w-0 w-full space-y-6">
@@ -605,14 +563,14 @@ export default function ExpertDashboard() {
                   }`}>
                     {/* Sidebar Header */}
                     <div className="p-4 border-b border-brand-border/70 bg-white space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <h3 className="font-heading font-black text-lg text-brand-dark">
                             Hộp Thư Tư Vấn & Chỉ Đạo
                           </h3>
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         </div>
-                        <span className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                        <span className="text-xs font-bold text-amber-900 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 whitespace-nowrap">
                           {chatThreads.filter(c => c.status === 'PENDING').length} Chờ trả lời
                         </span>
                       </div>
@@ -638,10 +596,10 @@ export default function ExpertDashboard() {
                       </div>
 
                       {/* Filter Chips */}
-                      <div className="flex items-center gap-1.5 pt-0.5 overflow-x-auto no-scrollbar">
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5" aria-label="Lọc hội thoại">
                         <button
                           onClick={() => setChatFilter('all')}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer shrink-0 ${
+                          className={`min-h-9 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
                             chatFilter === 'all'
                               ? 'bg-[#294C38] text-white shadow-xs'
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
@@ -651,17 +609,27 @@ export default function ExpertDashboard() {
                         </button>
                         <button
                           onClick={() => setChatFilter('customer')}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer shrink-0 ${
+                          className={`min-h-9 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
                             chatFilter === 'customer'
                               ? 'bg-emerald-700 text-white shadow-xs'
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          Khách thuê ({chatThreads.filter(c => c.role === 'customer').length})
+                          Đã thuê ({chatThreads.filter(c => c.role === 'customer' && !isPreRentalThread(c)).length})
+                        </button>
+                        <button
+                          onClick={() => setChatFilter('pre_rental')}
+                          className={`min-h-9 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+                            chatFilter === 'pre_rental'
+                              ? 'bg-sky-700 text-white shadow-xs'
+                              : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
+                          }`}
+                        >
+                          Chưa thuê ({preRentalCount})
                         </button>
                         <button
                           onClick={() => setChatFilter('worker')}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer shrink-0 ${
+                          className={`min-h-9 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
                             chatFilter === 'worker'
                               ? 'bg-amber-600 text-white shadow-xs'
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
@@ -671,7 +639,7 @@ export default function ExpertDashboard() {
                         </button>
                         <button
                           onClick={() => setChatFilter('pending')}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer shrink-0 ${
+                          className={`min-h-9 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
                             chatFilter === 'pending'
                               ? 'bg-rose-600 text-white shadow-xs'
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
@@ -692,7 +660,8 @@ export default function ExpertDashboard() {
                             thread.plotName.toLowerCase().includes(q) ||
                             thread.crop.toLowerCase().includes(q) ||
                             thread.roleLabel.toLowerCase().includes(q);
-                          if (chatFilter === 'customer') return matchesQuery && thread.role === 'customer';
+                          if (chatFilter === 'customer') return matchesQuery && thread.role === 'customer' && !isPreRentalThread(thread);
+                          if (chatFilter === 'pre_rental') return matchesQuery && isPreRentalThread(thread);
                           if (chatFilter === 'worker') return matchesQuery && thread.role === 'worker';
                           if (chatFilter === 'pending') return matchesQuery && thread.status === 'PENDING';
                           return matchesQuery;
@@ -743,18 +712,18 @@ export default function ExpertDashboard() {
                                   </span>
                                 </div>
 
-                                {/* Role Badge & Plot */}
+                                {/* Rental status & current plot */}
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                  <span className={`px-2 py-1 rounded-full text-xs font-bold border ${
                                     thread.role === 'worker'
-                                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                      : 'bg-emerald-50 text-emerald-900 border border-emerald-200'
+                                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                      : isPreRentalThread(thread)
+                                        ? 'bg-sky-50 text-sky-800 border-sky-200'
+                                        : 'bg-emerald-50 text-emerald-900 border-emerald-200'
                                   }`}>
-                                    {thread.roleLabel}
+                                    {thread.role === 'worker' ? 'Nhân viên' : isPreRentalThread(thread) ? 'Chưa thuê' : 'Đã thuê'}
                                   </span>
-                                  <span className="text-[10px] font-semibold text-brand-green bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 truncate max-w-[130px]">
-                                    {thread.plotName} ({thread.plotCode})
-                                  </span>
+                                  {!isPreRentalThread(thread) && <span className="max-w-[170px] truncate rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-brand-green">{thread.plotName} ({thread.plotCode})</span>}
                                 </div>
 
                                 {/* Last message snippet */}
@@ -795,8 +764,8 @@ export default function ExpertDashboard() {
                       }`}>
                         
                         {/* Messenger Top Header */}
-                        <div className="p-3.5 sm:p-4 border-b border-brand-border bg-white flex items-center justify-between gap-3 shrink-0 shadow-2xs">
-                          <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-3.5 sm:p-4 border-b border-brand-border bg-white flex flex-col xl:flex-row xl:items-center justify-between gap-3 shrink-0 shadow-2xs">
+                          <div className="flex items-center gap-3 min-w-0 w-full">
                             {/* Back button for mobile */}
                             <button
                               onClick={() => setMobileShowChat(false)}
@@ -817,18 +786,11 @@ export default function ExpertDashboard() {
                             </div>
 
                             <div className="min-w-0">
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-1.5">
                                 <h4 className="font-bold text-brand-dark text-sm sm:text-base truncate">
                                   {activeThread.customerName}
                                 </h4>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                  activeThread.role === 'worker'
-                                    ? 'bg-amber-100 text-amber-900 border-amber-300'
-                                    : 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                                }`}>
-                                  {activeThread.roleLabel}
-                                </span>
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                <span className={`text-xs font-bold px-2 py-1 rounded-full border ${
                                   activeThread.status === 'PENDING'
                                     ? 'bg-rose-50 text-rose-800 border-rose-200'
                                     : 'bg-emerald-50 text-emerald-800 border-emerald-200'
@@ -836,20 +798,24 @@ export default function ExpertDashboard() {
                                   {activeThread.status === 'PENDING' ? 'Chưa phản hồi' : 'Đã phản hồi'}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-stone-500 truncate flex items-center gap-1.5">
-                                <span className="text-emerald-700 font-semibold">{activeThread.plotName} ({activeThread.plotCode})</span>
-                                <span>• {activeThread.crop}</span>
-                                <span className="text-stone-400">({activeThread.stage})</span>
+                              <p className="text-xs text-stone-500 truncate flex items-center gap-1.5 mt-1">
+                                <span className="text-emerald-700 font-semibold">{activeThread.role === 'worker' ? `Nhân viên • ${activeThread.plotName} (${activeThread.plotCode})` : isPreRentalThread(activeThread) ? 'Chưa thuê đất' : `Đã thuê • ${activeThread.plotName} (${activeThread.plotCode})`}</span>
                               </p>
                             </div>
                           </div>
 
                           {/* Right Badge Status */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                              Chỉ Đạo & Tư Vấn 1-on-1
-                            </span>
+                          <div className="flex flex-wrap items-center gap-2 xl:justify-end shrink-0 w-full xl:w-auto pl-12 xl:pl-0">
+                            {activeThread.role === 'customer' && (
+                              <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black border ${
+                                isPreRentalThread(activeThread)
+                                  ? 'bg-sky-50 text-sky-900 border-sky-200'
+                                  : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                              }`}>
+                                <span className={`w-2 h-2 rounded-full ${isPreRentalThread(activeThread) ? 'bg-sky-500' : 'bg-emerald-500'}`} />
+                                {isPreRentalThread(activeThread) ? 'Chưa thuê đất' : `Đang thuê ${activeThread.plotCode}`}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -859,7 +825,7 @@ export default function ExpertDashboard() {
                           {/* Date separator */}
                           <div className="flex items-center justify-center my-2">
                             <span className="text-[11px] font-semibold text-stone-400 bg-white px-3 py-1 rounded-full border border-stone-200/80 shadow-2xs">
-                              Hôm nay • Kênh trao đổi nông học 1-on-1 ({activeThread.roleLabel})
+                              Hôm nay • Trao đổi với {activeThread.customerName}
                             </span>
                           </div>
 

@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import VietQrModal from '../../components/payment/VietQrModal';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
+import { chatService } from '../../api/communication/chatService';
+import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 
 export default function BookPlot() {
   const { id } = useParams();
@@ -61,13 +63,27 @@ export default function BookPlot() {
   const subtotalCare = careMonthlyPrice * rentalMonths;
   const totalAmount = subtotalPlot + subtotalCare;
 
+  const syncRentalToChat = () => {
+    if (!user) return;
+    const demoProfile = DEMO_CUSTOMERS.find((customer) => customer.email?.toLowerCase() === user.email?.toLowerCase());
+    const safeKey = user.email?.replace(/[^a-zA-Z0-9]/g, '_') || user.id || 'customer';
+    chatService.updateRentalContext({
+      threadId: demoProfile?.threadId || `CONS-${safeKey}`,
+      customerName: user.fullName,
+      customerAvatar: user.avatar,
+      plotCode: plot.code,
+      plotName: plot.name,
+      crop: plot.compatibleCrops?.[0] || 'Cây trồng VietGAP'
+    });
+  };
+
   const handleConfirmBooking = async () => {
     setIsProcessing(true);
 
     if (paymentMethod === 'VIETQR') {
       try {
         const descText = `FARMELY ${plot.code} ${user?.fullName ? user.fullName.replace(/\s+/g, '') : 'KHACH'}`;
-        const response = await fetch('http://localhost:8085/api/v1/payments/vietqr/generate', {
+        const response = await fetch('/api/v1/payments/vietqr/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -117,6 +133,7 @@ export default function BookPlot() {
       setIsProcessing(false);
       const generatedCode = `CTR-FARM-${Math.floor(100000 + Math.random() * 900000)}`;
       setContractCode(generatedCode);
+      syncRentalToChat();
       setIsSuccess(true);
     }, 1000);
   };
@@ -126,6 +143,7 @@ export default function BookPlot() {
     setShowCardModal(false);
     const generatedCode = `CTR-FARM-${Math.floor(100000 + Math.random() * 900000)}`;
     setContractCode(generatedCode);
+    syncRentalToChat();
     setIsSuccess(true);
   };
 

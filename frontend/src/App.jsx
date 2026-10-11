@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useAuthStore } from './stores/authStore';
 
 // Public Pages
 import Home from './pages/public/Home';
@@ -33,6 +34,29 @@ import Compatibility from './pages/admin/Compatibility';
 import KnowledgeDocuments from './pages/admin/KnowledgeDocuments';
 import ProcessTemplates from './pages/admin/ProcessTemplates';
 import ProcessTemplateDetail from './pages/admin/ProcessTemplateDetail';
+import Services from './pages/admin/Services';
+
+const dashboardByRole = {
+  CUSTOMER: '/customer/dashboard',
+  ADMIN: '/admin/dashboard',
+  EXPERT: '/expert/dashboard',
+  STAFF: '/staff/dashboard'
+};
+
+function RoleRoute({ role, children }) {
+  const { user, isAuthenticated } = useAuthStore();
+  const location = useLocation();
+
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (user.role !== role) {
+    return <Navigate to={dashboardByRole[user.role] || '/'} replace />;
+  }
+
+  return children;
+}
 
 export default function App() {
   return (
@@ -50,14 +74,14 @@ export default function App() {
         <Route path="/marketplace/plot/:id/book" element={<BookPlot />} />
 
         {/* Role-Specific Dashboards */}
-        <Route path="/customer/dashboard" element={<CustomerDashboard />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/expert/dashboard" element={<ExpertDashboard />} />
-        <Route path="/staff/dashboard" element={<FieldWorkerDashboard />} />
+        <Route path="/customer/dashboard" element={<RoleRoute role="CUSTOMER"><CustomerDashboard /></RoleRoute>} />
+        <Route path="/admin/dashboard" element={<RoleRoute role="ADMIN"><AdminDashboard /></RoleRoute>} />
+        <Route path="/expert/dashboard" element={<RoleRoute role="EXPERT"><ExpertDashboard /></RoleRoute>} />
+        <Route path="/staff/dashboard" element={<RoleRoute role="STAFF"><FieldWorkerDashboard /></RoleRoute>} />
         <Route path="/worker/dashboard" element={<Navigate to="/staff/dashboard" replace />} />
 
         {/* Admin Master Data Nested Routes */}
-        <Route path="/admin/master-data" element={<MasterDataLayout />}>
+        <Route path="/admin/master-data" element={<RoleRoute role="ADMIN"><MasterDataLayout /></RoleRoute>}>
           <Route index element={<MasterDataDashboard />} />
           
           {/* Land Management */}
@@ -82,6 +106,7 @@ export default function App() {
 
           {/* Knowledge & Templates */}
           <Route path="knowledge-documents" element={<KnowledgeDocuments />} />
+          <Route path="services" element={<Services />} />
           <Route path="process-templates" element={<ProcessTemplates />} />
           <Route path="process-templates/:id" element={<ProcessTemplateDetail />} />
         </Route>

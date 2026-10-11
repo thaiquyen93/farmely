@@ -5,6 +5,7 @@ import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import DashboardRail from '../../components/dashboard/DashboardRail';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { DEMO_WORKERS } from '../../api/communication/chatStorage';
 import {
@@ -26,12 +27,14 @@ import {
   Scale,
   MapPin,
   PlusCircle,
-  Eye
+  Eye,
+  ArrowRight
 } from 'lucide-react';
 
 export default function FieldWorkerDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'issues' | 'harvest' | 'chat'
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // 1. Assigned Care Tasks for Today (UC11 / Screen 52)
   const [tasks, setTasks] = useState([
@@ -238,44 +241,33 @@ export default function FieldWorkerDashboard() {
 
   const completedCount = tasks.filter((t) => t.status === 'COMPLETED').length;
   const pendingCount = tasks.length - completedCount;
+  const nextTask = tasks.find((task) => task.status === 'IN_PROGRESS') || tasks.find((task) => task.status === 'PENDING');
+  const orderedTasks = [...tasks].sort((first, second) => Number(first.status === 'COMPLETED') - Number(second.status === 'COMPLETED'));
 
   return (
-    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
       <PublicNavbar />
 
-      <main className="flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
+      <main className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
         
-        {/* Top Header */}
-        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
-              <UserCheck className="w-3.5 h-3.5 text-amber-700" />
-              <span>Phân Hệ Vận Hành Hiện Trường (Field Worker Hub)</span>
+        {nextTask && (
+          <section className="rounded-2xl bg-brand-dark p-4 text-white shadow-md" aria-labelledby="next-task-title">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div>
+                <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-bold text-brand-yellow">
+                  <Clock className="h-4 w-4" /> Việc cần làm tiếp theo • hạn {nextTask.deadline}
+                </div>
+                <h2 id="next-task-title" className="font-heading text-lg font-black text-white sm:text-xl">{nextTask.title}</h2>
+                <p className="mt-0.5 text-xs text-white/80">{nextTask.plotName} ({nextTask.plotCode}) • {nextTask.crop}</p>
+              </div>
+              <Button onClick={() => { setActiveTab('tasks'); setSelectedTaskToExecute(nextTask); }} className="w-full lg:w-auto" icon={ArrowRight}>Mở nhiệm vụ</Button>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-heading font-black text-brand-dark">
-              Ca Trực Hiện Trường • <span className="text-brand-green">{user?.fullName || 'Trần Văn Lực'}</span>
-            </h1>
-            <p className="text-xs sm:text-sm text-brand-muted max-w-3xl leading-relaxed">
-              Theo dõi ca trực được phân công, thực hiện tưới bón theo hướng dẫn kỹ thuật của Chuyên gia Nam, chụp ảnh đối chứng hiện trường tự động đồng bộ vào Farm Diary của khách và cân điện tử nghiệm thu nông sản.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setShowNewIssueModal(true)}
-              className="gap-2 font-bold shadow-sm"
-            >
-              <AlertTriangle className="w-4 h-4 text-brand-yellow" />
-              <span>Báo Cáo Sự Cố Ruộng</span>
-            </Button>
-          </div>
-        </div>
+          </section>
+        )}
 
         {/* Daily Shift KPI Metric Gauges */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm text-center space-y-1">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Nhiệm Vụ Hôm Nay
             </span>
@@ -287,7 +279,7 @@ export default function FieldWorkerDashboard() {
             </span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm text-center space-y-1">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Ca Trực Hiện Tại
             </span>
@@ -297,7 +289,7 @@ export default function FieldWorkerDashboard() {
             <span className="text-[10px] text-amber-700 font-bold block">14:00 - 17:30 (2 nhiệm vụ)</span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm text-center space-y-1">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Sự Cố Đã Gửi
             </span>
@@ -307,7 +299,7 @@ export default function FieldWorkerDashboard() {
             <span className="text-[10px] text-rose-700 font-bold block">ThS. Nam đã chỉ đạo</span>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-brand-border shadow-sm text-center space-y-1">
+          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Sản Lượng Cân Hôm Nay
             </span>
@@ -322,10 +314,8 @@ export default function FieldWorkerDashboard() {
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           
           {/* Worker Menu */}
-          <aside className="w-full lg:w-72 shrink-0 bg-white rounded-2xl border border-brand-border p-4 shadow-sm space-y-1.5 lg:sticky lg:top-28">
-            <div className="px-3 py-2 text-[11px] font-bold text-stone-400 uppercase tracking-wider">
-              Nghiệp Vụ Hiện Trường
-            </div>
+          <DashboardRail user={user} fallbackName="Trần Văn Lực" roleLabel="Nhân sự hiện trường" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
+            <div className={`px-2 pb-2 text-[11px] font-bold text-stone-400 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Nghiệp Vụ Hiện Trường</div>
 
             {[
               { id: 'tasks', label: 'Ca Trực & Nhiệm Vụ Hôm Nay', icon: CheckCircle2, count: pendingCount },
@@ -339,7 +329,8 @@ export default function FieldWorkerDashboard() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${
+                  title={sidebarCollapsed ? tab.label : undefined}
+                  className={`relative group w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                     isActive
                       ? 'bg-[#294C38] text-white shadow-sm'
                       : 'text-stone-700 hover:bg-stone-50 hover:text-brand-dark'
@@ -347,19 +338,20 @@ export default function FieldWorkerDashboard() {
                 >
                   <div className="flex items-center gap-2.5">
                     <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-stone-400'}`} />
-                    <span>{tab.label}</span>
+                    <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{tab.label}</span>
                   </div>
                   {tab.count !== null && tab.count > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-[10px] font-bold ${
                       isActive ? 'bg-brand-yellow text-brand-dark' : 'bg-amber-100 text-amber-800'
                     }`}>
                       {tab.count}
                     </span>
                   )}
+                  {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">{tab.label}</span>}
                 </button>
               );
             })}
-          </aside>
+          </DashboardRail>
 
           {/* Worker Main Section */}
           <section className="flex-1 min-w-0 w-full space-y-6">
@@ -382,7 +374,7 @@ export default function FieldWorkerDashboard() {
                 </div>
 
                 <div className="space-y-4">
-                  {tasks.map((task) => {
+                  {orderedTasks.map((task) => {
                     const isDone = task.status === 'COMPLETED';
                     return (
                       <div
