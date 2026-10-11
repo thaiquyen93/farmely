@@ -235,10 +235,10 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
-      <PublicNavbar />
+    <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
+      <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
 
-      <main className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
+      <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
         
         {/* Operational KPI Metric Gauges */}
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
@@ -308,7 +308,7 @@ export default function AdminDashboard() {
           
           {/* Admin Left Menu */}
           <DashboardRail user={user} fallbackName="Ban Quản Trị" roleLabel="Quản trị hệ thống" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
-            <div className={`px-2 pb-2 text-[11px] font-bold text-stone-400 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Phân Hệ Vận Hành</div>
+            <div className={`px-2 pb-2 text-xs font-bold text-stone-500 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Phân Hệ Vận Hành</div>
 
             {[
               { id: 'overview', label: 'Tổng Quan Hoạt Động', icon: Activity, count: null },
@@ -325,7 +325,8 @@ export default function AdminDashboard() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   title={sidebarCollapsed ? tab.label : undefined}
-                  className={`relative group w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
+                  aria-label={sidebarCollapsed ? tab.label : undefined}
+                  className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                     isActive
                       ? 'bg-[#294C38] text-white shadow-sm'
                       : 'text-stone-700 hover:bg-stone-50 hover:text-brand-dark'
@@ -336,7 +337,7 @@ export default function AdminDashboard() {
                     <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{tab.label}</span>
                   </div>
                   {tab.count !== null && tab.count > 0 && (
-                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-xs font-bold ${
                       isActive ? 'bg-brand-yellow text-brand-dark' : 'bg-amber-100 text-amber-800'
                     }`}>
                       {tab.count}
@@ -348,12 +349,12 @@ export default function AdminDashboard() {
             })}
 
             <div className="pt-3 border-t border-brand-border/60">
-              <Link to="/admin/master-data" title={sidebarCollapsed ? 'Quản lý Master Data' : undefined} className={`relative group w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+              <Link to="/admin/master-data" title={sidebarCollapsed ? 'Quản lý Master Data' : undefined} aria-label={sidebarCollapsed ? 'Quản lý Master Data' : undefined} className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
                 <Layers className="w-4 h-4 text-brand-green" />
                 <span className={sidebarCollapsed ? 'lg:hidden' : ''}>Quản Lý Master Data →</span>
                 {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">Quản lý Master Data</span>}
               </Link>
-              <Link to="/admin/master-data/services" title={sidebarCollapsed ? 'Dịch vụ & CareTask' : undefined} className={`relative group mt-1 w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+              <Link to="/admin/master-data/services" title={sidebarCollapsed ? 'Dịch vụ & CareTask' : undefined} aria-label={sidebarCollapsed ? 'Dịch vụ & CareTask' : undefined} className={`relative group mt-1 min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
                 <BriefcaseBusiness className="w-4 h-4 text-brand-green" />
                 <span className={sidebarCollapsed ? 'lg:hidden' : ''}>Dịch Vụ & CareTask</span>
                 {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">Dịch vụ & CareTask</span>}
