@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, LogOut, ChevronDown, Menu, X, Shield, Sprout, ClipboardCheck, ShieldCheck, Settings, LayoutDashboard, Check, Bell, Lock } from 'lucide-react';
+import { Search, ShoppingCart, User, LogOut, ChevronDown, Menu, X, Shield, Sprout, ClipboardCheck, ShieldCheck, Settings, LayoutDashboard, Check, Bell, Lock, Calendar } from 'lucide-react';
 import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
@@ -134,6 +134,17 @@ export default function PublicNavbar() {
               }`}
             >
               Marketplace
+            </Link>
+
+            {/* Đặt Lịch Tham Quan */}
+            <Link
+              to="/site-visit/book"
+              className={`text-sm font-semibold transition-colors hover:text-brand-yellow flex items-center gap-1.5 ${
+                location.pathname.startsWith('/site-visit') ? 'text-brand-yellow font-bold' : 'text-white/95'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5 text-brand-yellow" />
+              <span>Đặt lịch tham quan</span>
             </Link>
 
             {/* Dynamic Role Dashboard Link (Khi đã đăng nhập) */}
@@ -453,6 +464,15 @@ export default function PublicNavbar() {
             className="block py-2 text-sm font-semibold text-white hover:text-brand-yellow"
           >
             Marketplace
+          </Link>
+
+          <Link
+            to="/site-visit/book"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block py-2 text-sm font-semibold text-white hover:text-brand-yellow flex items-center gap-2"
+          >
+            <Calendar className="w-4 h-4 text-brand-yellow" />
+            <span>Đặt lịch tham quan</span>
           </Link>
 
           {isAuthenticated && (

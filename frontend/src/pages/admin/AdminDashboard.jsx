@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
+import { siteVisitsService } from '../../api/siteVisitsService';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
@@ -110,31 +111,49 @@ export default function AdminDashboard() {
   // Selected Refund Modal
   const [selectedRefundToReview, setSelectedRefundToReview] = useState(null);
 
-  // Site Visit Bookings (UC03 / Screen 33)
-  const [siteVisits, setSiteVisits] = useState([
-    {
-      id: 'VST-201',
-      fullName: 'Trần Đình Trọng',
-      phone: '0977 123 456',
-      email: 'trong.tran@gmail.com',
-      visitDate: '12/10/2026 (Thứ 7)',
-      session: 'Ca sáng (08:30 - 11:00)',
-      groupSize: 'Gia đình 4 người',
-      notes: 'Muốn xem trực tiếp chất lượng đất trước khi thuê luống trồng dâu tây.',
-      status: 'PENDING'
-    },
-    {
-      id: 'VST-202',
-      fullName: 'Vũ Thị Minh Hằng',
-      phone: '0918 889 900',
-      email: 'hang.vu@company.vn',
-      visitDate: '13/10/2026 (Chủ Nhật)',
-      session: 'Ca chiều (14:30 - 17:00)',
-      groupSize: 'Nhóm đồng nghiệp 6 người',
-      notes: 'Tham quan mô hình IoT và đặt thuê 2 thửa liền kề.',
-      status: 'CONFIRMED'
+  // Site Visit Bookings (UC03 / SCR-PUB-05 / Table site_visits in SQL Server)
+  const [siteVisits, setSiteVisits] = useState([]);
+  const [isLoadingVisits, setIsLoadingVisits] = useState(false);
+
+  // Đồng bộ thời gian thực từ Database SQL Server isp392_agritech
+  const loadSiteVisitsFromDb = async () => {
+    try {
+      const data = await siteVisitsService.getAll();
+      if (Array.isArray(data)) {
+        const mapped = data.map((v) => ({
+          id: v.visit_id || v.id,
+          visit_id: v.visit_id || v.id,
+          plot_id: v.plot_id,
+          plotCode: v.plot_code || (v.plot_id ? `L01-P0${v.plot_id}` : null),
+          area: v.area,
+          fullName: v.visitor_name || v.fullName,
+          phone: v.visitor_phone || v.phone,
+          email: v.visitor_email || v.email,
+          visitDate: v.visit_date || v.visitDate,
+          session:
+            v.visit_slot === 'MORNING'
+              ? 'Ca sáng (08:30 - 10:30)'
+              : v.visit_slot === 'AFTERNOON'
+              ? 'Ca chiều (14:30 - 16:30)'
+              : (v.session || 'Ca sáng'),
+          groupSize: v.group_size ? `Đoàn ${v.group_size} người` : (v.groupSize || '1 người'),
+          notes: v.notes || 'Khảo sát hiện trạng thực tế thửa đất.',
+          status: v.status || 'PENDING',
+          createdAt: v.created_at
+        }));
+        setSiteVisits(mapped);
+      }
+    } catch (err) {
+      console.warn('Lỗi đồng bộ site_visits từ Database:', err);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    loadSiteVisitsFromDb();
+    // Tự động làm mới mỗi 4 giây để Admin thấy ngay đơn mới khi khách vừa book
+    const interval = setInterval(loadSiteVisitsFromDb, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   // System Users List (UC21: Users & RBAC)
   const [systemUsers, setSystemUsers] = useState([
@@ -203,11 +222,16 @@ export default function AdminDashboard() {
     setSelectedRefundToReview(null);
   };
 
-  // Handle Confirm Visit
-  const handleConfirmVisit = (visitId) => {
-    setSiteVisits((prev) =>
-      prev.map((v) => (v.id === visitId ? { ...v, status: 'CONFIRMED' } : v))
-    );
+  // Handle Confirm Visit -> Lưu trực tiếp vào Database SQL Server
+  const handleConfirmVisit = async (visitId) => {
+    try {
+      await siteVisitsService.confirm(visitId);
+      setSiteVisits((prev) =>
+        prev.map((v) => (v.id === visitId || v.visit_id === visitId ? { ...v, status: 'CONFIRMED' } : v))
+      );
+    } catch (err) {
+      console.error('Lỗi khi xác nhận lịch thăm:', err);
+    }
   };
 
   return (
@@ -545,56 +569,105 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* TAB 4: SITE VISIT BOOKINGS (UC03 / Screen 33) */}
+            {/* TAB 4: SITE VISIT BOOKINGS (UC03 / SCR-PUB-05 / Table site_visits) */}
             {activeTab === 'visits' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Lịch Hẹn Tham Quan Nông Trại Thực Tế (UC03)
-                  </h3>
-                  <p className="text-xs text-brand-muted mt-0.5">
-                    Quản lý các lượt đăng ký trải nghiệm thực tế thửa đất từ khách hàng tiềm năng.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-brand-green" />
+                      <h3 className="font-heading font-black text-xl text-brand-dark">
+                        Lịch Hẹn Tham Quan Nông Trại Thực Tế (SCR-PUB-05)
+                      </h3>
+                    </div>
+                    <p className="text-xs text-brand-muted mt-0.5">
+                      Dữ liệu kết nối trực tiếp bảng <strong>site_visits</strong> (Database SQL Server <code className="text-emerald-700 bg-emerald-50 px-1 rounded">isp392_agritech</code>).
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-stone-500 bg-stone-100 px-3 py-1 rounded-xl">
+                      Tổng: {siteVisits.length} lượt hẹn
+                    </span>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={loadSiteVisitsFromDb}
+                      className="text-xs font-bold gap-1.5"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Đồng bộ DB</span>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
-                  {siteVisits.map((visit) => (
-                    <div
-                      key={visit.id}
-                      className="p-5 rounded-2xl border border-brand-border bg-white space-y-3 text-xs"
-                    >
-                      <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
-                        <span className="font-bold text-brand-dark text-sm">{visit.fullName}</span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          visit.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {visit.status === 'CONFIRMED' ? 'Đã xác nhận đón tiếp' : 'Chưa liên hệ'}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-600">
-                        <p>Số điện thoại: <strong className="text-brand-dark">{visit.phone}</strong></p>
-                        <p>Email: {visit.email}</p>
-                        <p>Ngày hẹn: <strong className="text-brand-dark">{visit.visitDate}</strong></p>
-                        <p>Khung giờ: {visit.session}</p>
-                        <p className="sm:col-span-2">Đoàn khách: <strong>{visit.groupSize}</strong> • Ghi chú: "{visit.notes}"</p>
-                      </div>
-
-                      {visit.status === 'PENDING' && (
-                        <div className="pt-2 flex justify-end gap-2">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleConfirmVisit(visit.id)}
-                            className="font-bold"
-                          >
-                            <PhoneCall className="w-3.5 h-3.5 mr-1.5" />
-                            <span>Đã gọi & Xác nhận lịch đón</span>
-                          </Button>
-                        </div>
-                      )}
+                  {siteVisits.length === 0 ? (
+                    <div className="text-center py-12 text-stone-500 space-y-2">
+                      <Calendar className="w-10 h-10 mx-auto text-stone-300" />
+                      <p className="font-bold text-sm">Chưa có lịch hẹn tham quan nào trong Database</p>
+                      <p className="text-xs text-stone-400">Đơn đặt từ trang /site-visit/book sẽ xuất hiện ngay tại đây.</p>
                     </div>
-                  ))}
+                  ) : (
+                    siteVisits.map((visit) => (
+                      <div
+                        key={visit.id}
+                        className="p-5 rounded-2xl border border-brand-border bg-white space-y-3 text-xs hover:border-emerald-300 transition-colors shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-stone-100 text-stone-700">
+                              VST-{visit.visit_id || visit.id}
+                            </span>
+                            <span className="font-bold text-brand-dark text-sm">{visit.fullName}</span>
+                            {visit.plotCode && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                Ghim thửa: {visit.plotCode}
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              visit.status === 'CONFIRMED'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                : 'bg-amber-100 text-amber-800 border border-amber-200'
+                            }`}
+                          >
+                            {visit.status === 'CONFIRMED' ? '✓ Đã xác nhận đón tiếp' : '⏳ Chưa liên hệ (PENDING)'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-600">
+                          <p>
+                            Số điện thoại: <strong className="text-brand-dark">{visit.phone}</strong>
+                          </p>
+                          <p>Email: {visit.email || 'Không cung cấp'}</p>
+                          <p>
+                            Ngày hẹn: <strong className="text-brand-dark">{visit.visitDate}</strong>
+                          </p>
+                          <p>
+                            Khung giờ: <strong className="text-emerald-800">{visit.session}</strong>
+                          </p>
+                          <p className="sm:col-span-2">
+                            Quy mô đoàn: <strong>{visit.groupSize}</strong> • Ghi chú: "{visit.notes}"
+                          </p>
+                        </div>
+
+                        {visit.status === 'PENDING' && (
+                          <div className="pt-2 flex justify-end gap-2 border-t border-brand-border/40">
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleConfirmVisit(visit.id)}
+                              className="font-bold shadow-xs"
+                            >
+                              <PhoneCall className="w-3.5 h-3.5 mr-1.5" />
+                              <span>Đã gọi & Xác nhận lịch đón</span>
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}

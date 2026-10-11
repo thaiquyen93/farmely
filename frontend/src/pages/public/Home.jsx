@@ -95,7 +95,47 @@ export default function Home() {
       {/* 1. Cinematic Hero matching reference */}
       <Hero />
 
-      {/* 2. Featured Plots Section */}
+      {/* 2. Top Booking / Site Visit CTA Banner (Đưa lên đầu ngay sau Hero) */}
+      <section id="site-visit-cta" className="py-16 sm:py-20 bg-brand-green text-white relative overflow-hidden border-b border-emerald-900/30">
+        {/* Subtle ambient lighting */}
+        <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-400/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-brand-yellow/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 space-y-5">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 text-brand-yellow text-xs font-bold uppercase tracking-wider border border-white/15">
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Tham Quan Trực Tiếp Miễn Phí</span>
+          </div>
+
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-heading font-black text-white tracking-tight">
+            Bắt Đầu Trải Nghiệm Canh Tác Ngay Hôm Nay
+          </h2>
+
+          <p className="max-w-xl mx-auto text-sm sm:text-base text-stone-200/90 leading-relaxed">
+            Bạn vẫn chưa chắc chắn về loại rau hoặc điều kiện đất? Hãy để lại thông tin đặt lịch tham quan trang trại để được chuyên gia tư vấn trực tiếp và chu đáo nhất.
+          </p>
+
+          <div className="pt-3 flex flex-col items-center justify-center">
+            <Link to="/site-visit/book" className="group relative inline-flex items-center justify-center">
+              {/* Outer Glow */}
+              <div className="absolute -inset-1 rounded-2xl bg-brand-yellow/60 blur-lg opacity-75 group-hover:opacity-100 transition duration-300 group-hover:scale-105" />
+
+              {/* Prominent Button */}
+              <button className="relative inline-flex items-center justify-center gap-3 px-8 sm:px-10 py-4 rounded-xl bg-brand-yellow hover:bg-[#ffc83b] text-brand-dark font-heading font-black text-sm sm:text-base uppercase tracking-wider shadow-xl shadow-black/15 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer">
+                <Calendar className="w-5 h-5 text-brand-dark stroke-[2.5]" />
+                <span>ĐẶT LỊCH THAM QUAN VƯỜN</span>
+                <ArrowRight className="w-4 h-4 text-brand-dark stroke-[2.5] group-hover:translate-x-1.5 transition-transform" />
+              </button>
+            </Link>
+
+            <p className="mt-3 text-xs text-emerald-200/80">
+              ✓ Miễn phí 100% • Nhân viên gọi lại xác nhận trong vòng 2 giờ
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. Featured Plots Section */}
       <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
           <div>
@@ -500,45 +540,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 8. Call to Action Banner */}
-      <section className="py-16 sm:py-20 bg-brand-green text-white relative overflow-hidden">
-        {/* Subtle ambient lighting */}
-        <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-400/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-brand-yellow/15 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 space-y-5">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 text-brand-yellow text-xs font-bold uppercase tracking-wider border border-white/15">
-            <Calendar className="w-3.5 h-3.5" />
-            <span>Tham Quan Trực Tiếp Miễn Phí</span>
-          </div>
-
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-heading font-black text-white tracking-tight">
-            Bắt Đầu Trải Nghiệm Canh Tác Ngay Hôm Nay
-          </h2>
-
-          <p className="max-w-xl mx-auto text-sm sm:text-base text-stone-200/90 leading-relaxed">
-            Bạn vẫn chưa chắc chắn về loại rau hoặc điều kiện đất? Hãy để lại thông tin đặt lịch tham quan trang trại để được chuyên gia tư vấn trực tiếp và chu đáo nhất.
-          </p>
-
-          <div className="pt-3 flex flex-col items-center justify-center">
-            <Link to="/site-visit/book" className="group relative inline-flex items-center justify-center">
-              {/* Outer Glow */}
-              <div className="absolute -inset-1 rounded-2xl bg-brand-yellow/60 blur-lg opacity-75 group-hover:opacity-100 transition duration-300 group-hover:scale-105" />
-
-              {/* Prominent Button */}
-              <button className="relative inline-flex items-center justify-center gap-3 px-8 sm:px-10 py-4 rounded-xl bg-brand-yellow hover:bg-[#ffc83b] text-brand-dark font-heading font-black text-sm sm:text-base uppercase tracking-wider shadow-xl shadow-black/15 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0">
-                <Calendar className="w-5 h-5 text-brand-dark stroke-[2.5]" />
-                <span>ĐẶT LỊCH THAM QUAN VƯỜN</span>
-                <ArrowRight className="w-4 h-4 text-brand-dark stroke-[2.5] group-hover:translate-x-1.5 transition-transform" />
-              </button>
-            </Link>
-
-            <p className="mt-3 text-xs text-emerald-200/80">
-              ✓ Miễn phí 100% • Nhân viên gọi lại xác nhận trong vòng 2 giờ
-            </p>
-          </div>
-        </div>
-      </section>
 
       {/* Footer */}
       <Footer />
