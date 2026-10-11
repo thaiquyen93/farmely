@@ -97,11 +97,45 @@ export default function BookPlot() {
         return;
       }
     }
+
+    // Nếu không có param plots trên URL, đọc từ localStorage để bảo toàn khi quay lại
+    try {
+      const saved = localStorage.getItem('farmely_master_lease_selected_plots');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const matched = parsed
+            .map((p) => findPlotByAnyCode(p.code || p.id))
+            .filter(Boolean);
+          if (matched.length > 0) {
+            setSelectedPlots(matched);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     const target = findPlotByAnyCode(id);
     if (target && !selectedPlots.some((p) => p.id === target.id)) {
       setSelectedPlots([target]);
     }
   }, [id, searchParams]);
+
+  // Luôn đồng bộ danh sách thửa đất trong hợp đồng vào localStorage
+  useEffect(() => {
+    if (selectedPlots && selectedPlots.length > 0) {
+      try {
+        localStorage.setItem(
+          'farmely_master_lease_selected_plots',
+          JSON.stringify(selectedPlots)
+        );
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [selectedPlots]);
 
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;
@@ -227,6 +261,11 @@ export default function BookPlot() {
       const generatedCode = `MLA-2026-${Math.floor(100000 + Math.random() * 900000)}`;
       setContractCode(generatedCode);
       syncRentalToChat();
+      try {
+        localStorage.removeItem('farmely_master_lease_selected_plots');
+      } catch (e) {
+        console.error(e);
+      }
       setIsSuccess(true);
     }, 1000);
   };
@@ -237,6 +276,11 @@ export default function BookPlot() {
     const generatedCode = `MLA-2026-${Math.floor(100000 + Math.random() * 900000)}`;
     setContractCode(generatedCode);
     syncRentalToChat();
+    try {
+      localStorage.removeItem('farmely_master_lease_selected_plots');
+    } catch (e) {
+      console.error(e);
+    }
     setIsSuccess(true);
   };
 
@@ -253,11 +297,11 @@ export default function BookPlot() {
       <div className="pt-28 pb-8 bg-brand-dark text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <Link
-            to="/marketplace"
+            to={`/marketplace?plots=${selectedPlots.map((p) => p.code || p.id).join(',')}`}
             className="inline-flex items-center gap-1.5 text-xs text-brand-yellow font-bold hover:underline mb-3"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Quay lại Marketplace</span>
+            <span>← Quay lại Bản đồ Marketplace (Tiếp tục chọn thêm thửa)</span>
           </Link>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -475,17 +519,27 @@ export default function BookPlot() {
                     </p>
                   </div>
 
-                  {/* Add Plot Trigger Button */}
-                  {availablePlotsToAdd.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setIsAddPlotModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+                  {/* Add Plot Trigger Buttons */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      to={`/marketplace?plots=${selectedPlots.map((p) => p.code || p.id).join(',')}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all shadow-2xs border border-slate-200"
                     >
-                      <Plus className="w-4 h-4 text-emerald-600" />
-                      <span>+ Chọn thêm thửa đất</span>
-                    </button>
-                  )}
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Xem bản đồ vệ tinh & chọn thêm</span>
+                    </Link>
+
+                    {availablePlotsToAdd.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddPlotModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0"
+                      >
+                        <Plus className="w-4 h-4 text-emerald-600" />
+                        <span>+ Chọn nhanh</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* List of Selected Plots in this Contract */}

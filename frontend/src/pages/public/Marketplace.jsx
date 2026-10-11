@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
@@ -10,6 +10,8 @@ import { LogIn, Search, X, ChevronRight, Sparkles, Layers, Plus, Check, ArrowRig
 
 export default function Marketplace() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { user, isAuthenticated, login } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,13 +21,87 @@ export default function Marketplace() {
   const [plotToBook, setPlotToBook] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Master Lease Agreement: Chọn nhiều thửa đất trực tiếp trên bản đồ Marketplace
-  const [contractSelectedPlots, setContractSelectedPlots] = useState([]);
-
   // Danh sách các thửa đất từ GeoJSON
   const allPlots = useMemo(() => {
     return FARMS_GEOJSON_DATA.features.map((f) => f.properties);
   }, []);
+
+  // Master Lease Agreement: Chọn nhiều thửa đất trực tiếp trên bản đồ Marketplace (Bảo toàn qua localStorage & URL)
+  const [contractSelectedPlots, setContractSelectedPlots] = useState(() => {
+    try {
+      const saved = localStorage.getItem('farmely_master_lease_selected_plots');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return [];
+  });
+
+  // Tự động khôi phục danh sách thửa đất khi URL thay đổi hoặc quay lại trang
+  useEffect(() => {
+    const plotsQuery = searchParams.get('plots');
+    if (plotsQuery) {
+      const codes = plotsQuery.split(',').map((c) => c.trim().toLowerCase()).filter(Boolean);
+      const matched = allPlots.filter((p) => {
+        const idLower = (p.id || '').toLowerCase();
+        const codeLower = (p.code || '').toLowerCase();
+        const labelLower = (p.label || '').toLowerCase();
+        return codes.some(
+          (c) =>
+            idLower === c ||
+            codeLower === c ||
+            labelLower === c ||
+            codeLower.replace('plot ', '').trim() === c ||
+            c.replace('plot ', '').trim() === codeLower ||
+            idLower.includes(c) ||
+            c.includes(idLower)
+        );
+      });
+      if (matched.length > 0) {
+        setContractSelectedPlots(matched);
+        return;
+      }
+    }
+
+    // Nếu không có trên URL thì đọc từ localStorage
+    try {
+      const saved = localStorage.getItem('farmely_master_lease_selected_plots');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const matched = parsed
+            .map((sp) => allPlots.find((p) => (p.id || p.code) === (sp.id || sp.code)) || sp)
+            .filter(Boolean);
+          if (matched.length > 0) {
+            setContractSelectedPlots(matched);
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [location.search, location.key, allPlots]);
+
+  // Tự động lưu vào localStorage mỗi khi danh sách thửa đất thay đổi
+  useEffect(() => {
+    try {
+      if (contractSelectedPlots.length > 0) {
+        localStorage.setItem(
+          'farmely_master_lease_selected_plots',
+          JSON.stringify(contractSelectedPlots)
+        );
+      } else {
+        localStorage.removeItem('farmely_master_lease_selected_plots');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [contractSelectedPlots]);
 
   // Lọc theo search input & bộ lọc trạng thái
   const filteredPlots = useMemo(() => {
@@ -569,7 +645,10 @@ export default function Marketplace() {
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => setContractSelectedPlots([])}
+              onClick={() => {
+                setContractSelectedPlots([]);
+                localStorage.removeItem('farmely_master_lease_selected_plots');
+              }}
               className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
             >
               Hủy
