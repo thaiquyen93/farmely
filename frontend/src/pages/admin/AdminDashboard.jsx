@@ -265,7 +265,7 @@ export default function AdminDashboard() {
             <div className="text-xl sm:text-2xl font-heading font-black text-rose-600">
               {refundRequests.filter(r => r.status === 'PENDING').length} phiếu
             </div>
-            <span className="text-[10px] text-rose-700 font-bold block">Quy chuẩn BR10</span>
+            <span className="text-[10px] text-rose-700 font-bold block">Chờ phê duyệt</span>
           </div>
 
           <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
@@ -384,14 +384,14 @@ export default function AdminDashboard() {
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-rose-900 flex items-center gap-1.5">
                           <RotateCcw className="w-4 h-4 text-rose-700" />
-                          <span>Yêu Cầu Hoàn Cọc (BR10)</span>
+                          <span>Yêu Cầu Hoàn Cọc Chờ Duyệt</span>
                         </span>
                         <span className="px-2 py-0.5 rounded bg-rose-200 text-rose-900 font-bold text-[10px]">
                           1 Phiếu Chờ Duyệt
                         </span>
                       </div>
                       <p className="text-stone-700 leading-relaxed">
-                        Khách hàng yêu cầu hủy hợp đồng trước thời hạn canh tác. Hệ thống đã tính sẵn mức hoàn trả 80% theo quy định BR10.
+                        Khách hàng yêu cầu hủy hợp đồng trước thời hạn canh tác. Hệ thống đã tính sẵn mức hoàn trả 80% theo quy định hủy hợp đồng.
                       </p>
                     </div>
                   </div>
@@ -494,7 +494,7 @@ export default function AdminDashboard() {
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div>
                   <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Phê Duyệt Hủy Hợp Đồng & Hoàn Tiền (BR10)
+                    Phê Duyệt Hủy Hợp Đồng & Hoàn Tiền
                   </h3>
                   <p className="text-xs text-brand-muted mt-0.5">
                     Chính sách hoàn tiền tự động: Hoàn 80% trước 7 ngày, hoàn 50% trước 1-7 ngày.
@@ -553,7 +553,7 @@ export default function AdminDashboard() {
                     Lịch Hẹn Tham Quan Nông Trại Thực Tế (UC03)
                   </h3>
                   <p className="text-xs text-brand-muted mt-0.5">
-                    Quản lý các lượt đăng ký trải nghiệm thực tế luống đất từ khách hàng tiềm năng.
+                    Quản lý các lượt đăng ký trải nghiệm thực tế thửa đất từ khách hàng tiềm năng.
                   </p>
                 </div>
 

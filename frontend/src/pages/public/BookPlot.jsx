@@ -187,7 +187,7 @@ export default function BookPlot() {
                 <Clock className="w-5 h-5 text-brand-yellow animate-pulse" />
                 <div>
                   <span className="text-[10px] text-stone-300 block font-bold uppercase tracking-wider">
-                    Khóa giữ chỗ (BR08)
+                    Khóa giữ chỗ 15 phút
                   </span>
                   <span className="font-mono text-lg font-black text-brand-yellow">
                     {formattedTimer}
@@ -285,7 +285,7 @@ export default function BookPlot() {
                 Chúc Mừng Bạn Đã Thuê Thửa Đất!
               </h2>
               <p className="text-sm text-brand-muted mt-2 max-w-lg mx-auto">
-                Hợp đồng điện tử đã được ghi nhận. Đội ngũ Farmely đang chuẩn bị Starter Kit và phân công nhân sự phụ trách thửa đất của bạn.
+                Hợp đồng điện tử đã được ghi nhận. Thửa đất của bạn đã sẵn sàng và được kích hoạt trên hệ thống giám sát Farmely.
               </p>
             </div>
 
@@ -519,14 +519,6 @@ export default function BookPlot() {
                     <strong className="text-brand-dark">{subtotalCare.toLocaleString('vi-VN')} đ</strong>
                   </div>
 
-                  <div className="flex justify-between text-emerald-700 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
-                    <span className="font-semibold flex items-center gap-1">
-                      <Sprout className="w-3.5 h-3.5" />
-                      01 Bộ Starter Kit (BR09):
-                    </span>
-                    <span className="font-bold">Miễn phí 0 đ</span>
-                  </div>
-
                   <div className="flex justify-between pt-4 border-t border-brand-border text-base font-black text-brand-green">
                     <span>Tổng thanh toán 100% Upfront:</span>
                     <span>{totalAmount.toLocaleString('vi-VN')} đ</span>
@@ -536,7 +528,7 @@ export default function BookPlot() {
                 <div className="p-3.5 rounded-2xl bg-brand-cream/60 border border-brand-border text-[11px] text-stone-600 space-y-1">
                   <p className="font-bold text-brand-dark flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5 text-brand-green" />
-                    Chính sách hoàn tiền theo BR10:
+                    Chính sách hoàn tiền hợp đồng:
                   </p>
                   <p>• Hoàn 80% khi hủy trước ngày bắt đầu 3 ngày.</p>
                   <p>• Hoàn 50% khi hủy trong vòng 3 ngày trước ngày bắt đầu.</p>
@@ -553,7 +545,7 @@ export default function BookPlot() {
                 </Button>
 
                 <p className="text-[11px] text-center text-brand-muted">
-                  Bằng việc bấm xác nhận, bạn đồng ý với Điều khoản thuê đất Farmely và quy chuẩn VietGAP BR03.
+                  Bằng việc bấm xác nhận, bạn đồng ý với Điều khoản thuê đất Farmely và quy chuẩn canh tác VietGAP.
                 </p>
               </div>
             </div>

@@ -13,7 +13,7 @@ const HERO_SLIDES = [
   {
     image: "/images/moc-chau-2811.jpg",
     headingLine1: "Nông nghiệp sạch",
-    headingLine2: "Minh bạch từng luống đất",
+    headingLine2: "Minh bạch từng thửa đất",
     description: "Trực tiếp giám sát qua trạm IoT vi khí hậu, nhật ký canh tác điện tử của công nhân và nhận hướng dẫn 1-1 từ chuyên gia nông nghiệp."
   },
   {
@@ -99,7 +99,7 @@ export default function Hero() {
               size="lg"
               className="uppercase tracking-wider text-sm px-9 py-4 shadow-yellow-glow font-black"
             >
-              KHÁM PHÁ KHU VỰC
+              KHÁM PHÁ VƯỜN NGAY
             </Button>
           </Link>
         </div>

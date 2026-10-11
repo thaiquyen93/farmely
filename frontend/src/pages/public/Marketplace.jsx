@@ -1,220 +1,96 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import PublicNavbar from '../../components/layout/PublicNavbar';
-import Footer from '../../components/layout/Footer';
+import React, { useState, useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
-
-// Marketplace GIS Components
-import MarketplaceFilterSidebar from '../../components/marketplace/MarketplaceFilterSidebar';
 import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceInteractiveMap';
-import MarketplacePlotCards from '../../components/marketplace/MarketplacePlotCards';
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
-
-// GIS Data
-import {
-  FARMS_GIS_DATA,
-  MARKETPLACE_PLOTS_GIS,
-  ALL_CROPS_FILTER_OPTIONS
-} from '../../data/marketplaceGisData';
-
-import {
-  SlidersHorizontal,
-  X,
-  LogIn,
-  AlertCircle,
-  Sprout
-} from 'lucide-react';
+import { FARMS_GEOJSON_DATA } from '../../data/marketplaceGisData';
+import { LogIn, Search, X, ChevronRight, Sparkles } from 'lucide-react';
 
 export default function Marketplace() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { isAuthenticated, login } = useAuthStore();
+  const { user, isAuthenticated, login } = useAuthStore();
 
-  // Filters State
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLocation, setSelectedLocation] = useState('ALL');
-  const [selectedCrop, setSelectedCrop] = useState('ALL');
-  const [areaMin, setAreaMin] = useState('');
-  const [areaMax, setAreaMax] = useState('');
-  const [priceMax, setPriceMax] = useState(10000000);
-  const [facilities, setFacilities] = useState({
-    irrigation: false,
-    iot: false,
-    waterSource: false,
-    organicSoil: false,
-    techSupport: false
-  });
-
-  // Status Tab Filter ('ALL' | 'AVAILABLE' | 'RENTED' | 'MAINTENANCE' | 'UPCOMING')
-  const [activeStatusTab, setActiveStatusTab] = useState('ALL');
-
-  // Selected Plot for GIS Map & Detail Panel (defaults to Plot P-01 matching reference screenshot)
-  const [selectedPlotId, setSelectedPlotId] = useState('PLT-HV-01');
-
-  // Mobile Drawers
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [showMobileDetail, setShowMobileDetail] = useState(false);
-
-  // Auth / Booking Confirmation Modal
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedPlotId, setSelectedPlotId] = useState('P-01');
+  const [showDetailPanel, setShowDetailPanel] = useState(true);
   const [plotToBook, setPlotToBook] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Sync with URL params if provided
-  useEffect(() => {
-    if (searchParams.get('landId')) {
-      setSelectedLocation(searchParams.get('landId'));
-    }
-    if (searchParams.get('crop')) {
-      setSelectedCrop(searchParams.get('crop'));
-    }
-  }, [searchParams]);
-
-  // Current active farm
-  const currentFarm = useMemo(() => {
-    if (selectedLocation === 'ALL') {
-      return FARMS_GIS_DATA[0]; // Happy Valley default
-    }
-    return FARMS_GIS_DATA.find((f) => f.id === selectedLocation) || FARMS_GIS_DATA[0];
-  }, [selectedLocation]);
-
-  // Toggle facility filter checkbox
-  const toggleFacility = (facilityKey) => {
-    setFacilities((prev) => ({
-      ...prev,
-      [facilityKey]: !prev[facilityKey]
-    }));
-  };
-
-  // Reset all filters
-  const handleResetFilters = () => {
-    setSearchQuery('');
-    setSelectedLocation('ALL');
-    setSelectedCrop('ALL');
-    setAreaMin('');
-    setAreaMax('');
-    setPriceMax(10000000);
-    setFacilities({
-      irrigation: false,
-      iot: false,
-      waterSource: false,
-      organicSoil: false,
-      techSupport: false
-    });
-    setActiveStatusTab('ALL');
-  };
-
-  const hasActiveFilters = Boolean(
-    searchQuery ||
-    selectedLocation !== 'ALL' ||
-    selectedCrop !== 'ALL' ||
-    areaMin ||
-    areaMax ||
-    priceMax < 10000000 ||
-    Object.values(facilities).some(Boolean) ||
-    activeStatusTab !== 'ALL'
-  );
-
-  // Filter plots based on all criteria
-  const filteredPlots = useMemo(() => {
-    return MARKETPLACE_PLOTS_GIS.filter((plot) => {
-      // 1. Status tab
-      if (activeStatusTab !== 'ALL' && plot.status !== activeStatusTab) {
-        return false;
-      }
-
-      // 2. Location
-      if (selectedLocation !== 'ALL' && plot.farmId !== selectedLocation) {
-        return false;
-      }
-
-      // 3. Crop
-      if (selectedCrop !== 'ALL') {
-        const matchesMainCrop = plot.crop.toLowerCase().includes(selectedCrop.toLowerCase());
-        const matchesCompatible = plot.compatibleCrops?.some((c) =>
-          c.name.toLowerCase().includes(selectedCrop.toLowerCase())
-        );
-        if (!matchesMainCrop && !matchesCompatible) return false;
-      }
-
-      // 4. Area
-      if (areaMin && plot.area < Number(areaMin)) return false;
-      if (areaMax && plot.area > Number(areaMax)) return false;
-
-      // 5. Price
-      if (priceMax && plot.rentalPrice > priceMax) return false;
-
-      // 6. Facilities
-      if (facilities.irrigation && !plot.facilities?.irrigation) return false;
-      if (facilities.iot && !plot.facilities?.iot) return false;
-      if (facilities.waterSource && !plot.facilities?.waterSource) return false;
-      if (facilities.organicSoil && !plot.facilities?.organicSoil) return false;
-      if (facilities.techSupport && !plot.facilities?.techSupport) return false;
-
-      // 7. Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchesCode = plot.code.toLowerCase().includes(q);
-        const matchesName = plot.name.toLowerCase().includes(q);
-        const matchesFarm = plot.farmName.toLowerCase().includes(q);
-        const matchesCrop = plot.crop.toLowerCase().includes(q);
-        if (!matchesCode && !matchesName && !matchesFarm && !matchesCrop) return false;
-      }
-
-      return true;
-    });
-  }, [
-    activeStatusTab,
-    selectedLocation,
-    selectedCrop,
-    areaMin,
-    areaMax,
-    priceMax,
-    facilities,
-    searchQuery
-  ]);
-
-  // Compute status counts for the tabs bar
-  const statusCounts = useMemo(() => {
-    const counts = { ALL: MARKETPLACE_PLOTS_GIS.length, AVAILABLE: 0, RENTED: 0, MAINTENANCE: 0, UPCOMING: 0 };
-    MARKETPLACE_PLOTS_GIS.forEach((p) => {
-      if (counts[p.status] !== undefined) counts[p.status]++;
-    });
-    return counts;
+  // Danh sách các thửa đất từ GeoJSON
+  const allPlots = useMemo(() => {
+    return FARMS_GEOJSON_DATA.features.map((f) => f.properties);
   }, []);
 
-  // Currently selected plot object
+  // Lọc theo search input & bộ lọc trạng thái
+  const filteredPlots = useMemo(() => {
+    let result = allPlots;
+    if (statusFilter === 'AVAILABLE') {
+      result = result.filter((p) => p.status === 'Đang trống' || p.status === 'AVAILABLE');
+    } else if (statusFilter === 'RENTED') {
+      result = result.filter((p) => p.status === 'Đã thuê' || p.status === 'RENTED');
+    }
+
+    if (!searchQuery.trim()) return result;
+    const q = searchQuery.toLowerCase();
+    return result.filter(
+      (p) =>
+        p.id?.toLowerCase().includes(q) ||
+        p.name?.toLowerCase().includes(q) ||
+        p.code?.toLowerCase().includes(q) ||
+        p.crops?.some((c) => c.toLowerCase().includes(q))
+    );
+  }, [allPlots, searchQuery, statusFilter]);
+
+  // Thửa đất đang được chọn
   const selectedPlot = useMemo(() => {
     return (
-      filteredPlots.find((p) => p.id === selectedPlotId) ||
-      MARKETPLACE_PLOTS_GIS.find((p) => p.id === selectedPlotId) ||
-      filteredPlots[0] ||
-      null
+      allPlots.find((p) => p.id === selectedPlotId || p.code === selectedPlotId) ||
+      allPlots[0]
     );
-  }, [selectedPlotId, filteredPlots]);
+  }, [allPlots, selectedPlotId]);
 
-  // Handle plot selection from map or card
+  // Thống kê số thửa sẵn có
+  const availableCount = useMemo(() => {
+    return allPlots.filter((p) => p.status === 'Đang trống' || p.status === 'AVAILABLE').length;
+  }, [allPlots]);
+
+  // Chọn thửa đất
   const handleSelectPlot = (plot) => {
-    setSelectedPlotId(plot.id);
-    if (window.innerWidth < 1024) {
-      setShowMobileDetail(true);
-    }
+    const id = plot.id || plot.code;
+    setSelectedPlotId(id);
+    setShowDetailPanel(true);
+    // Cuộn mượt mà đến item tương ứng trong danh sách bên trái
+    setTimeout(() => {
+      const el = document.getElementById(`plot-card-${id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 50);
   };
 
-  // Handle booking action
+  // Đóng panel chi tiết
+  const handleCloseDetail = () => {
+    setShowDetailPanel(false);
+  };
+
+  // Tiến hành thuê thửa đất
   const handleBookPlot = (plot) => {
-    if (!plot || plot.status !== 'AVAILABLE') return;
+    if (!plot) return;
+    const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE';
+    if (!isVacant) return;
 
     if (!isAuthenticated) {
       setPlotToBook(plot);
       setShowAuthModal(true);
     } else {
-      // Navigate to existing Farmely booking page
       navigate(`/marketplace/plot/${plot.id}/book`);
     }
   };
 
+  // Đăng nhập nhanh tài khoản mẫu khách hàng
   const handleQuickDemoLogin = () => {
     login(DEMO_ACCOUNTS.customer);
     setShowAuthModal(false);
@@ -224,221 +100,324 @@ export default function Marketplace() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
-      {/* 1. Global Navbar preserved */}
-      <PublicNavbar />
+    <div className="relative w-screen h-screen overflow-hidden bg-slate-900 select-none font-sans">
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          1. BẢN ĐỒ VỆ TINH TRÀN TOÀN BỘ MÀN HÌNH (MapLibre GL JS + ESRI Satellite)
+      ───────────────────────────────────────────────────────────────────────────── */}
+      <div id="map" className="absolute inset-0 z-0 w-full h-full">
+        <MarketplaceInteractiveMap
+          plotsData={FARMS_GEOJSON_DATA}
+          selectedPlot={selectedPlot}
+          onSelectPlot={handleSelectPlot}
+          onResetView={handleCloseDetail}
+        />
+      </div>
 
-      {/* 2. Main Marketplace Container */}
-      <main className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 w-full space-y-6">
-        
-        {/* Mobile Filter & Detail Trigger Bar */}
-        <div className="flex lg:hidden items-center justify-between gap-2 bg-white p-3 rounded-2xl border border-brand-border shadow-sm min-w-0">
-          <button
-            type="button"
-            onClick={() => setShowMobileFilters(true)}
-            className="flex-1 min-w-0 min-h-11 py-2 px-2 rounded-xl bg-brand-cream border border-brand-border text-xs font-bold text-brand-dark flex items-center justify-center gap-2 cursor-pointer"
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          2. THANH ĐIỀU HƯỚNG CAPSULE LƠ LỬNG (FLOATING ISLAND CAPSULE NAVBAR)
+      ───────────────────────────────────────────────────────────────────────────── */}
+      <header className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3.5 px-4 py-2 bg-white/90 backdrop-blur-2xl rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] border border-white/80 pointer-events-auto transition-all duration-300 hover:bg-white/98 hover:shadow-[0_16px_48px_rgba(0,0,0,0.12)]">
+        {/* Logo Farmely tinh tế */}
+        <Link to="/" className="flex items-center gap-2 group pr-1 shrink-0">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white text-sm shadow-md shadow-emerald-600/25 group-hover:scale-105 transition-transform">
+            🌱
+          </div>
+          <div className="hidden xl:block">
+            <span className="text-sm font-black tracking-tight text-slate-800 block leading-tight">
+              FARMELY
+            </span>
+            <span className="block text-[8px] font-bold text-emerald-600 uppercase tracking-widest -mt-0.5">
+              Smart Agri
+            </span>
+          </div>
+        </Link>
+
+        {/* Phân cách mờ */}
+        <div className="h-4 w-[1px] bg-slate-200/80 shrink-0" />
+
+        {/* Menu liên kết phong cách Pill */}
+        <nav className="flex items-center gap-1 text-xs font-semibold text-slate-600 shrink-0">
+          <Link
+            to="/"
+            className="px-3 py-1.5 rounded-full hover:text-slate-900 hover:bg-slate-100/70 transition-all"
           >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-brand-green" />
-            <span className="truncate">Bộ lọc {hasActiveFilters && '• Đang lọc'}</span>
-          </button>
+            Trang chủ
+          </Link>
+          <Link
+            to="/marketplace"
+            className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-bold flex items-center gap-1.5 shadow-2xs border border-emerald-200/60 transition-all"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Marketplace
+          </Link>
+          <Link
+            to="/about"
+            className="px-3 py-1.5 rounded-full hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+          >
+            Về Farmely
+          </Link>
+        </nav>
 
-          {selectedPlot && (
+        {/* Phân cách mờ */}
+        <div className="h-4 w-[1px] bg-slate-200/80 shrink-0" />
+
+        {/* Thanh tìm kiếm nhanh dạng viên thuốc */}
+        <div className="relative shrink-0">
+          <input
+            type="text"
+            placeholder="Tìm thửa đất, loại cây..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-7 pr-6 py-1.5 text-xs rounded-full bg-slate-100/80 border border-slate-200/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 w-44 focus:w-56 transition-all duration-300 text-slate-800 placeholder:text-slate-400"
+          />
+          <span className="absolute left-2.5 top-2 text-slate-400 text-[11px]">🔍</span>
+          {searchQuery && (
             <button
               type="button"
-              onClick={() => setShowMobileDetail(true)}
-              className="flex-1 min-w-0 min-h-11 py-2 px-2 rounded-xl bg-[#294C38] text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
-              <Sprout className="w-3.5 h-3.5 text-brand-yellow" />
-              <span className="truncate">Xem {selectedPlot.code}</span>
+              <X className="w-3 h-3" />
             </button>
           )}
         </div>
 
-        {/* 3. Plot-first layout: selector in the center, details on the right */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start min-w-0">
+        {/* Phân cách mờ */}
+        <div className="h-4 w-[1px] bg-slate-200/80 shrink-0" />
 
-          {/* MAIN CENTER CONTENT */}
-          <div className="lg:col-span-8 xl:col-span-9 space-y-4 min-w-0">
-            <div className="hidden lg:block">
-            <MarketplaceFilterSidebar
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              selectedLocation={selectedLocation}
-              setSelectedLocation={setSelectedLocation}
-              selectedCrop={selectedCrop}
-              setSelectedCrop={setSelectedCrop}
-              areaMin={areaMin}
-              setAreaMin={setAreaMin}
-              areaMax={areaMax}
-              setAreaMax={setAreaMax}
-              priceMax={priceMax}
-              setPriceMax={setPriceMax}
-              facilities={facilities}
-              toggleFacility={toggleFacility}
-              availableCrops={ALL_CROPS_FILTER_OPTIONS}
-              locations={FARMS_GIS_DATA}
-              onResetFilters={handleResetFilters}
-              hasActiveFilters={hasActiveFilters}
-              compact
-            />
+        {/* Nút Đăng nhập / Tài khoản */}
+        {!isAuthenticated ? (
+          <div className="flex items-center gap-1 shrink-0">
+            <Link
+              to="/login"
+              className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 transition rounded-full hover:bg-slate-100/70"
+            >
+              Đăng nhập
+            </Link>
+            <Link
+              to="/register"
+              className="px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-full shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
+            >
+              Đăng ký
+            </Link>
+          </div>
+        ) : (
+          <Link
+            to={user?.role === 'ADMIN' ? '/admin/dashboard' : '/customer/dashboard'}
+            className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 rounded-full border border-emerald-200/80 transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 shrink-0"
+          >
+            <span className="text-sm">🌿</span>
+            <span>{user?.name ? user.name.split(' ')[0] : 'Vườn của tôi'}</span>
+          </Link>
+        )}
+      </header>
+
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          3. BẢNG TIỆN ÍCH & DANH SÁCH BÊN TRÁI (LEFT ASIDE PANEL)
+      ───────────────────────────────────────────────────────────────────────────── */}
+      <aside className="absolute top-4 left-6 z-20 w-84 flex flex-col gap-3 pointer-events-auto">
+        {/* Danh sách các thửa đất với hiệu ứng cao cấp */}
+        <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.08)] border border-white/80 transition-all duration-300">
+          {/* Header với icon & số lượng */}
+          <div className="flex items-center justify-between px-1 mb-2.5">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 text-white flex items-center justify-center text-xs shadow-md shadow-emerald-600/20">
+                🌱
+              </div>
+              <div>
+                <span className="text-xs font-black text-slate-800 tracking-tight uppercase block leading-none">
+                  Thửa đất nổi bật
+                </span>
+                <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Tiêu chuẩn VietGAP
+                </span>
+              </div>
             </div>
-
-            {/* Top: Interactive GIS Map */}
-            <MarketplaceInteractiveMap
-              plots={filteredPlots}
-              selectedPlot={selectedPlot}
-              onSelectPlot={handleSelectPlot}
-              currentFarm={currentFarm}
-              onSelectFarm={(farmId) => setSelectedLocation(farmId)}
-            />
-
-            {/* Bottom: Plot Status Tabs and Cards Grid */}
-            <MarketplacePlotCards
-              plots={filteredPlots}
-              selectedPlot={selectedPlot}
-              onSelectPlot={handleSelectPlot}
-              onBookPlot={handleBookPlot}
-              activeStatusTab={activeStatusTab}
-              setActiveStatusTab={setActiveStatusTab}
-              statusCounts={statusCounts}
-            />
+            <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 rounded-full shadow-2xs">
+              {filteredPlots.length} thửa
+            </span>
           </div>
 
-          {/* PLOT DETAIL PANEL (Desktop) */}
-          <div className="hidden lg:block lg:col-span-4 xl:col-span-3 sticky top-28">
-            <MarketplacePlotDetailPanel
-              plot={selectedPlot}
-              onBookPlot={handleBookPlot}
-              onFocusOnMap={() => {
-                // Scrolls smoothly to map if scrolled past
-                window.scrollTo({ top: 100, behavior: 'smooth' });
-              }}
-            />
+          {/* Quick filter tabs */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl mb-2.5 border border-slate-200/50">
+            <button
+              type="button"
+              onClick={() => setStatusFilter('ALL')}
+              className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                statusFilter === 'ALL'
+                  ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Tất cả ({allPlots.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('AVAILABLE')}
+              className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                statusFilter === 'AVAILABLE'
+                  ? 'bg-emerald-600 text-white shadow-xs shadow-emerald-600/30'
+                  : 'text-slate-500 hover:text-emerald-700'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${statusFilter === 'AVAILABLE' ? 'bg-white' : 'bg-emerald-500'}`} />
+              Đang trống ({allPlots.filter(p => p.status === 'Đang trống' || p.status === 'AVAILABLE').length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('RENTED')}
+              className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                statusFilter === 'RENTED'
+                  ? 'bg-slate-700 text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Đã thuê
+            </button>
           </div>
 
+          {/* Danh sách thẻ thửa đất mượt mà */}
+          <div className="space-y-2 max-h-[calc(100vh-140px)] overflow-y-auto no-scrollbar pr-0.5">
+            {filteredPlots.map((p) => {
+              const isVacant = p.status === 'Đang trống' || p.status === 'AVAILABLE';
+              const isSelected = selectedPlot?.id === p.id;
+              const displayPrice = p.price || (p.rentalPrice ? `${p.rentalPrice.toLocaleString('vi-VN')} đ` : '1.200.000 đ');
+              return (
+                <div
+                  id={`plot-card-${p.id}`}
+                  key={p.id}
+                  onClick={() => handleSelectPlot(p)}
+                  className={`group relative p-2.5 rounded-2xl border transition-all duration-300 ease-out cursor-pointer flex items-center justify-between active:scale-[0.98] ${
+                    isSelected
+                      ? 'border-emerald-500 bg-gradient-to-r from-emerald-50/90 via-emerald-50/40 to-white/95 shadow-[0_6px_20px_rgba(16,185,129,0.18)] ring-2 ring-emerald-400/30 scale-[1.01]'
+                      : 'border-slate-100/90 bg-white/90 hover:border-emerald-300/80 hover:bg-emerald-50/30 hover:shadow-md hover:-translate-y-0.5 hover:scale-[1.008]'
+                  }`}
+                >
+                  {/* Thanh chỉ báo phát sáng góc trái khi đang chọn */}
+                  {isSelected && (
+                    <div className="absolute left-0 top-2 bottom-2 w-1.5 rounded-r-full bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-sm shadow-emerald-500/50" />
+                  )}
+
+                  <div className="flex-1 min-w-0 pr-2 pl-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 transition-transform duration-300 group-hover:scale-125 ${
+                          isVacant
+                            ? 'bg-emerald-500 ring-2 ring-emerald-200'
+                            : 'bg-slate-400'
+                        }`}
+                      />
+                      <span className={`font-black text-xs tracking-tight transition-colors ${
+                        isSelected ? 'text-emerald-950 font-extrabold' : 'text-slate-800'
+                      }`}>
+                        {p.id}
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100/90 px-1.5 py-0.5 rounded-md">
+                        {p.area}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[11px] font-black text-emerald-700 tracking-tight">
+                        {displayPrice}<span className="text-[9px] font-normal text-slate-400">/tháng</span>
+                      </span>
+                      {p.crops && p.crops.length > 0 && (
+                        <span className="text-[10px] text-slate-400 font-medium truncate max-w-[110px]">
+                          • {p.crops[0]}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span
+                      className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold transition-all duration-300 flex items-center gap-1 shadow-2xs ${
+                        isVacant
+                          ? isSelected
+                            ? 'bg-emerald-600 text-white ring-2 ring-emerald-300/60 shadow-xs'
+                            : 'bg-emerald-100/90 text-emerald-800 border border-emerald-200/80 group-hover:bg-emerald-200/80'
+                          : 'bg-slate-100 text-slate-500 border border-slate-200/70'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          isVacant
+                            ? isSelected
+                              ? 'bg-white'
+                              : 'bg-emerald-500 animate-pulse'
+                            : 'bg-slate-400'
+                        }`}
+                      />
+                      {isVacant ? 'Đang trống' : 'Đã thuê'}
+                    </span>
+                    <ChevronRight
+                      className={`w-3.5 h-3.5 transition-all duration-300 ${
+                        isSelected
+                          ? 'text-emerald-600 translate-x-0.5 opacity-100'
+                          : 'text-slate-300 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:text-emerald-500'
+                      }`}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
+      </aside>
 
-      </main>
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          4. PANEL CHI TIẾT THỬA ĐẤT BÊN PHẢI (SLIDE-IN DRAWER)
+      ───────────────────────────────────────────────────────────────────────────── */}
+      <MarketplacePlotDetailPanel
+        plot={selectedPlot}
+        isOpen={showDetailPanel && Boolean(selectedPlot)}
+        onClose={handleCloseDetail}
+        onBookPlot={handleBookPlot}
+      />
 
-      {/* 4. Global Footer preserved */}
-      <Footer />
-
-      {/* ================= MODALS & MOBILE DRAWERS ================= */}
-
-      {/* Mobile Filter Modal */}
-      {showMobileFilters && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm lg:hidden animate-fade-in">
-          <div className="w-full max-w-sm bg-white h-full overflow-y-auto p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-brand-border">
-              <h3 className="font-heading font-black text-base text-brand-dark">Bộ Lọc Canh Tác</h3>
-              <button
-                type="button"
-                onClick={() => setShowMobileFilters(false)}
-                className="p-1 rounded-lg text-stone-400 hover:text-brand-dark"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <MarketplaceFilterSidebar
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              selectedLocation={selectedLocation}
-              setSelectedLocation={setSelectedLocation}
-              selectedCrop={selectedCrop}
-              setSelectedCrop={setSelectedCrop}
-              areaMin={areaMin}
-              setAreaMin={setAreaMin}
-              areaMax={areaMax}
-              setAreaMax={setAreaMax}
-              priceMax={priceMax}
-              setPriceMax={setPriceMax}
-              facilities={facilities}
-              toggleFacility={toggleFacility}
-              availableCrops={ALL_CROPS_FILTER_OPTIONS}
-              locations={FARMS_GIS_DATA}
-              onResetFilters={handleResetFilters}
-              hasActiveFilters={hasActiveFilters}
-            />
-
-            <div className="pt-2">
-              <Button
-                variant="primary"
-                className="w-full"
-                onClick={() => setShowMobileFilters(false)}
-              >
-                Áp dụng bộ lọc ({filteredPlots.length} thửa)
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile Plot Detail Bottom Sheet */}
-      {showMobileDetail && selectedPlot && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-sm lg:hidden animate-fade-in">
-          <div className="w-full max-h-[85vh] bg-white rounded-t-3xl overflow-y-auto p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-brand-border">
-              <span className="font-heading font-black text-sm text-brand-dark">
-                Chi Tiết {selectedPlot.code}
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowMobileDetail(false)}
-                className="p-1 rounded-lg text-stone-400 hover:text-brand-dark"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <MarketplacePlotDetailPanel
-              plot={selectedPlot}
-              onBookPlot={(plot) => {
-                setShowMobileDetail(false);
-                handleBookPlot(plot);
-              }}
-              onFocusOnMap={() => {
-                setShowMobileDetail(false);
-                window.scrollTo({ top: 120, behavior: 'smooth' });
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Authentication Prompt Modal for Rental Booking */}
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          5. MODAL XÁC THỰC THUÊ THỬA ĐẤT (CHO TÀI KHOẢN KHÁCH)
+      ───────────────────────────────────────────────────────────────────────────── */}
       <Modal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         title="Yêu Cầu Đăng Nhập Để Thuê Thửa Đất"
-        subtitle={plotToBook ? `${plotToBook.code} • ${plotToBook.name}` : undefined}
+        subtitle={plotToBook ? `${plotToBook.code || plotToBook.id} • ${plotToBook.name}` : undefined}
       >
-        <div className="space-y-4 text-center py-2">
-          <div className="w-14 h-14 rounded-full bg-emerald-100 text-brand-green flex items-center justify-center mx-auto">
+        <div className="space-y-4 text-center py-2 text-slate-800">
+          <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto">
             <LogIn className="w-7 h-7" />
           </div>
 
           <div className="space-y-1">
-            <h4 className="font-heading font-bold text-base text-brand-dark">
+            <h4 className="font-heading font-bold text-base text-slate-900">
               Đăng nhập tài khoản Farmely
             </h4>
-            <p className="text-xs text-brand-muted max-w-sm mx-auto leading-relaxed">
-              Bạn cần đăng nhập tài khoản khách hàng để tiến hành ký hợp đồng thuê thửa đất, chọn hình thức chăm sóc (Assisted/Self) và thanh toán VietQR.
+            <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+              Bạn cần đăng nhập tài khoản khách hàng để tiến hành ký hợp đồng thuê thửa đất, chọn hình
+              thức canh tác và thanh toán VietQR.
             </p>
           </div>
 
           {plotToBook && (
-            <div className="p-3 bg-brand-cream rounded-xl text-left text-xs border border-brand-border space-y-1">
-              <p><strong>Thửa đất:</strong> {plotToBook.code} ({plotToBook.farmName})</p>
-              <p><strong>Diện tích:</strong> {plotToBook.areaFormatted}</p>
-              <p><strong>Giá thuê:</strong> {plotToBook.rentalPriceFormatted}</p>
+            <div className="p-3 bg-slate-50 rounded-xl text-left text-xs border border-slate-200 space-y-1">
+              <p>
+                <strong>Thửa đất:</strong> {plotToBook.code || plotToBook.id} ({plotToBook.name})
+              </p>
+              <p>
+                <strong>Diện tích:</strong> {plotToBook.area}
+              </p>
+              <p>
+                <strong>Giá thuê:</strong> {plotToBook.price || `${plotToBook.rentalPrice?.toLocaleString('vi-VN')} đ`}/tháng
+              </p>
             </div>
           )}
 
           <div className="space-y-2 pt-2">
             <Button
               variant="primary"
-              className="w-full font-bold uppercase tracking-wider text-xs"
+              className="w-full font-bold uppercase tracking-wider text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={handleQuickDemoLogin}
             >
               Đăng nhập nhanh (Tài khoản mẫu Khách Hàng)
@@ -457,7 +436,6 @@ export default function Marketplace() {
           </div>
         </div>
       </Modal>
-
     </div>
   );
 }

@@ -148,7 +148,7 @@ export default function PlotDetail() {
                   <span className="text-xs text-brand-muted">/ tháng canh tác</span>
                 </div>
                 <p className="text-[11px] text-stone-500 mt-1">
-                  Đã bao gồm 01 bộ Starter Kit (cây giống F1 + khay giá thể hữu cơ ban đầu theo BR09).
+                  Mặt bằng canh tác chuẩn hóa, kết nối trọn gói trạm quan trắc IoT vi khí hậu.
                 </p>
               </div>
 
@@ -172,7 +172,7 @@ export default function PlotDetail() {
 
                 <div className="p-3 rounded-xl bg-brand-cream/50 col-span-2">
                   <span className="text-[10px] text-brand-muted uppercase font-bold block">Thổ nhưỡng & pH</span>
-                  <span className="font-semibold text-brand-dark mt-0.5 block">
+                  <span className="font-bold text-brand-dark text-xs mt-0.5 block truncate">
                     {plot.soilType}
                   </span>
                 </div>
@@ -181,38 +181,39 @@ export default function PlotDetail() {
               {/* Action Buttons */}
               <div className="space-y-3 pt-2">
                 {plot.status === 'AVAILABLE' ? (
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    className="w-full uppercase font-black tracking-wider text-sm shadow-yellow-glow"
-                    onClick={handleBookPlotClick}
-                  >
-                    THUÊ THỬA ĐẤT NÀY NGAY
-                  </Button>
+                  <>
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      className="w-full uppercase font-black tracking-wider text-xs shadow-yellow-glow"
+                      onClick={handleStartBooking}
+                    >
+                      BẮT ĐẦU ĐẶT THUÊ THỬA ĐẤT
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="md"
+                      className="w-full text-xs font-bold"
+                      onClick={() => setShowVisitModal(true)}
+                    >
+                      Đăng Ký Tham Quan Khảo Sát Thửa Đất
+                    </Button>
+                  </>
                 ) : (
-                  <div className="p-3.5 rounded-xl bg-stone-100 text-center text-xs text-stone-600 font-bold border border-stone-200">
-                    Thửa đất hiện không ở trạng thái khả dụng cho thuê
+                  <div className="p-4 rounded-2xl bg-stone-100 text-center text-xs font-bold text-stone-500">
+                    Thửa đất này hiện không mở cho thuê
                   </div>
                 )}
-
-                <Button
-                  variant="outline"
-                  size="md"
-                  className="w-full font-bold text-xs"
-                  onClick={() => navigate(`/site-visit/book?plotId=${plot.id}`)}
-                >
-                  <Calendar className="w-4 h-4" />
-                  <span>ĐẶT LỊCH THAM QUAN VƯỜN THỰC TẾ</span>
-                </Button>
               </div>
 
-              <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 text-[11px] space-y-1 border border-emerald-200">
+              {/* Guarantees */}
+              <div className="p-3.5 rounded-2xl bg-brand-cream/60 border border-brand-border text-[11px] text-stone-600 space-y-1">
                 <p className="font-bold flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   Quyền lợi khi thuê đất tại Farmely:
                 </p>
                 <p>• Khóa giữ chỗ 15 phút + 10 phút Grace Period khi nhập mã thanh toán.</p>
-                <p>• Chính sách hoàn tiền minh bạch (80% trước 3 ngày, 50% dưới 3 ngày theo BR10).</p>
+                <p>• Chính sách hoàn tiền minh bạch (80% trước 3 ngày, 50% dưới 3 ngày).</p>
               </div>
             </div>
           </div>
@@ -281,7 +282,7 @@ export default function PlotDetail() {
         <div className="space-y-6">
           <div>
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-brand-green/10 text-brand-green uppercase tracking-wider">
-              Quy Chuẩn Tương Thích BR03
+              Tiêu Chuẩn Giống Cây Trồng
             </span>
             <h2 className="text-2xl sm:text-3xl font-heading font-black text-brand-dark mt-2">
               Các Giống Cây Trồng Được Phê Duyệt Cho Thửa Này
@@ -358,7 +359,7 @@ export default function PlotDetail() {
               Quy Trình Thuê Đất: Cần Đăng Nhập Tài Khoản
             </p>
             <p className="leading-relaxed">
-              Để kích hoạt thời hạn khóa giữ chỗ 15 phút (BR08) cho thửa <strong>{plot.name}</strong> và hoàn tất thủ tục Book Plot, vui lòng đăng nhập hoặc đăng ký tài khoản mới.
+              Để kích hoạt thời hạn khóa giữ chỗ 15 phút cho thửa <strong>{plot.name}</strong> và hoàn tất thủ tục Book Plot, vui lòng đăng nhập hoặc đăng ký tài khoản mới.
             </p>
           </div>
 

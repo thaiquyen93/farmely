@@ -138,7 +138,7 @@ export default function ProcessTemplateDetail() {
                   <div className="p-3 rounded-xl bg-brand-cream/50 border border-brand-border/60 flex items-start gap-2.5">
                     <Package className="w-4 h-4 text-brand-yellow shrink-0 mt-0.5" />
                     <div>
-                      <span className="text-[10px] text-brand-muted uppercase font-bold block">Định mức vật tư tiêu hao:</span>
+                      <span className="text-[10px] text-brand-muted uppercase font-bold block">Kỹ thuật & Chế phẩm sinh học:</span>
                       <span className="font-semibold text-brand-dark">{step.materialsRequired}</span>
                     </div>
                   </div>
