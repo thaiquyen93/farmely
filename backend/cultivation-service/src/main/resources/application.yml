@@ -4,10 +4,9 @@ server:
 spring:
   application:
     name: cultivation-service
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5433/farmely}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:password}
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:farmely}}
+    username: ${DB_USERNAME:${DB_USER:postgres}}
+    password: ${DB_PASSWORD:${DB_PASS:password}}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
