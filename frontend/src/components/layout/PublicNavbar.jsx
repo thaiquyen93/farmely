@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, LogOut, ChevronDown, Menu, X, Shield, Sprout, ClipboardCheck, ShieldCheck, Settings, LayoutDashboard, Check, Bell, Lock, Calendar } from 'lucide-react';
+import { Search, ShoppingCart, User, LogOut, ChevronDown, Menu, X, Shield, Sprout, ClipboardCheck, ShieldCheck, Settings, LayoutDashboard, Check, Bell, Lock, Calendar, Clock, ExternalLink } from 'lucide-react';
 import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
@@ -35,6 +35,12 @@ export default function PublicNavbar() {
   const { user, isAuthenticated, logout, switchRole } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Role flags for strictly scoped navigation (RBAC)
+  const isCustomerOrGuest = !isAuthenticated || user?.role === 'CUSTOMER';
+  const isStaff = isAuthenticated && user?.role === 'STAFF';
+  const isExpert = isAuthenticated && user?.role === 'EXPERT';
+  const isAdmin = isAuthenticated && user?.role === 'ADMIN';
 
   // Sync profileForm with user on change
   useEffect(() => {
@@ -115,155 +121,251 @@ export default function PublicNavbar() {
             </Link>
           </div>
 
-          {/* CENTER: Navigation Links */}
-          <div className="hidden lg:flex items-center gap-7 px-4">
-            <Link
-              to="/"
-              className={`text-sm font-semibold transition-colors hover:text-brand-yellow ${
-                location.pathname === '/' ? 'text-brand-yellow font-bold' : 'text-white/95'
-              }`}
-            >
-              Trang chủ
-            </Link>
+          {/* CENTER: Navigation Links (Tách biệt nghiêm ngặt theo vai trò / RBAC) */}
+          <div className="hidden lg:flex items-center gap-6 px-4">
+            {/* 1. KHÁCH HÀNG & KHÁCH VÃNG LAI (CUSTOMER / GUEST) */}
+            {isCustomerOrGuest && (
+              <>
+                <Link
+                  to="/"
+                  className={`text-sm font-semibold transition-colors hover:text-brand-yellow ${
+                    location.pathname === '/' ? 'text-brand-yellow font-bold' : 'text-white/95'
+                  }`}
+                >
+                  Trang chủ
+                </Link>
 
-            {/* Marketplace Link */}
-            <Link
-              to="/marketplace"
-              className={`text-sm font-semibold transition-colors hover:text-brand-yellow ${
-                location.pathname.startsWith('/marketplace') ? 'text-brand-yellow font-bold' : 'text-white/95'
-              }`}
-            >
-              Marketplace
-            </Link>
+                <Link
+                  to="/marketplace"
+                  className={`text-sm font-semibold transition-colors hover:text-brand-yellow ${
+                    location.pathname.startsWith('/marketplace') ? 'text-brand-yellow font-bold' : 'text-white/95'
+                  }`}
+                >
+                  Marketplace
+                </Link>
 
-            {/* Đặt Lịch Tham Quan */}
-            <Link
-              to="/site-visit/book"
-              className={`text-sm font-semibold transition-colors hover:text-brand-yellow flex items-center gap-1.5 ${
-                location.pathname.startsWith('/site-visit') ? 'text-brand-yellow font-bold' : 'text-white/95'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5 text-brand-yellow" />
-              <span>Đặt lịch tham quan</span>
-            </Link>
+                <Link
+                  to="/site-visit/book"
+                  className={`text-sm font-semibold transition-colors hover:text-brand-yellow flex items-center gap-1.5 ${
+                    location.pathname.startsWith('/site-visit') ? 'text-brand-yellow font-bold' : 'text-white/95'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5 text-brand-yellow" />
+                  <span>Đặt lịch tham quan</span>
+                </Link>
 
-            {/* Dynamic Role Dashboard Link (Khi đã đăng nhập) */}
-            {isAuthenticated && (
-              <Link
-                to={getDashboardRoute(user?.role)}
-                className={`text-sm font-semibold transition-colors hover:text-brand-yellow flex items-center gap-1.5 ${
-                  location.pathname.includes('/dashboard') ? 'text-brand-yellow font-bold' : 'text-white/95'
-                }`}
-              >
-                <Sprout className="w-4 h-4 text-brand-yellow" />
-                <span>
-                  {user?.role === 'ADMIN'
-                    ? 'Bảng Quản Trị'
-                    : user?.role === 'EXPERT'
-                    ? 'Bàn Làm Việc Chuyên Gia'
-                    : user?.role === 'STAFF'
-                    ? 'Ca Trực Hiện Trường'
-                    : 'Vườn của tôi'}
-                </span>
-              </Link>
+                {isAuthenticated && (
+                  <Link
+                    to="/customer/dashboard"
+                    className={`text-sm font-semibold transition-colors hover:text-brand-yellow flex items-center gap-1.5 ${
+                      location.pathname.includes('/customer/dashboard') ? 'text-brand-yellow font-bold' : 'text-white/95'
+                    }`}
+                  >
+                    <Sprout className="w-4 h-4 text-brand-yellow" />
+                    <span>Vườn của tôi</span>
+                  </Link>
+                )}
+
+                {/* Về Farmely (Direct Link to /about + Hover Dropdown for sections) */}
+                <div
+                  className="relative py-2 flex items-center"
+                  onMouseEnter={() => setAboutDropdownOpen(true)}
+                  onMouseLeave={() => setAboutDropdownOpen(false)}
+                >
+                  <Link
+                    to="/about"
+                    className={`flex items-center gap-1.5 text-sm font-semibold hover:text-brand-yellow transition-colors ${
+                      location.pathname === '/about' ? 'text-brand-yellow font-bold' : 'text-white/95'
+                    }`}
+                  >
+                    <span>Về Farmely</span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                        aboutDropdownOpen ? 'rotate-180 text-brand-yellow' : 'text-white/70'
+                      }`}
+                    />
+                  </Link>
+
+                  {/* Dropdown Menu */}
+                  {aboutDropdownOpen && (
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-72 z-50 animate-fadeIn">
+                      <div className="bg-brand-dark/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-2 space-y-1 text-left">
+                        <Link
+                          to="/about"
+                          onClick={() => setAboutDropdownOpen(false)}
+                          className="w-full text-left p-2.5 rounded-xl hover:bg-white/10 transition-colors group flex items-start gap-3"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-brand-yellow group-hover:scale-105 transition-transform shrink-0 mt-0.5">
+                            <ShieldCheck className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-white group-hover:text-brand-yellow transition-colors">
+                              Giới thiệu Farmely
+                            </p>
+                            <p className="text-[11px] text-stone-300 line-clamp-1">
+                              Tầm nhìn, sứ mệnh & 4 trụ cột vận hành
+                            </p>
+                          </div>
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => handleScrollToSection('how-it-works')}
+                          className="w-full text-left p-2.5 rounded-xl hover:bg-white/10 transition-colors group flex items-start gap-3 cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-brand-yellow group-hover:scale-105 transition-transform shrink-0 mt-0.5">
+                            <ClipboardCheck className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-white group-hover:text-brand-yellow transition-colors">
+                              Cách hoạt động
+                            </p>
+                            <p className="text-[11px] text-stone-300 line-clamp-1">
+                              Quy trình khép kín 4 bước canh tác
+                            </p>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleScrollToSection('experience')}
+                          className="w-full text-left p-2.5 rounded-xl hover:bg-white/10 transition-colors group flex items-start gap-3 cursor-pointer"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-brand-yellow group-hover:scale-105 transition-transform shrink-0 mt-0.5">
+                            <Sprout className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-white group-hover:text-brand-yellow transition-colors">
+                              Trải nghiệm canh tác
+                            </p>
+                            <p className="text-[11px] text-stone-300 line-clamp-1">
+                              Tự canh tác (Self) hoặc Ủy thác (Assisted)
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
-            {/* Về Farmely (Direct Link to /about + Hover Dropdown for sections) */}
-            <div
-              className="relative py-2 flex items-center"
-              onMouseEnter={() => setAboutDropdownOpen(true)}
-              onMouseLeave={() => setAboutDropdownOpen(false)}
-            >
-              <Link
-                to="/about"
-                className={`flex items-center gap-1.5 text-sm font-semibold hover:text-brand-yellow transition-colors ${
-                  location.pathname === '/about' ? 'text-brand-yellow font-bold' : 'text-white/95'
-                }`}
-              >
-                <span>Về Farmely</span>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    aboutDropdownOpen ? 'rotate-180 text-brand-yellow' : 'text-white/70'
+            {/* 2. CHUYÊN VIÊN LAO ĐỘNG (STAFF) */}
+            {isStaff && (
+              <>
+                <Link
+                  to="/staff/dashboard"
+                  className={`text-sm font-bold transition-all flex items-center gap-2 px-3.5 py-1.5 rounded-xl ${
+                    location.pathname.includes('/staff/dashboard')
+                      ? 'bg-amber-400 text-brand-dark shadow-sm'
+                      : 'text-white/95 hover:text-brand-yellow hover:bg-white/10'
                   }`}
-                />
-              </Link>
+                >
+                  <Clock className="w-4 h-4" />
+                  <span>Ca Trực Hiện Trường</span>
+                </Link>
 
-              {/* Dropdown Menu */}
-              {aboutDropdownOpen && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-72 z-50 animate-fadeIn">
-                  <div className="bg-brand-dark/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-2 space-y-1 text-left">
-                    <Link
-                      to="/about"
-                      onClick={() => setAboutDropdownOpen(false)}
-                      className="w-full text-left p-2.5 rounded-xl hover:bg-white/10 transition-colors group flex items-start gap-3"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-brand-yellow group-hover:scale-105 transition-transform shrink-0 mt-0.5">
-                        <ShieldCheck className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-white group-hover:text-brand-yellow transition-colors">
-                          Giới thiệu Farmely
-                        </p>
-                        <p className="text-[11px] text-stone-300 line-clamp-1">
-                          Tầm nhìn, sứ mệnh & 4 trụ cột vận hành
-                        </p>
-                      </div>
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={() => handleScrollToSection('how-it-works')}
-                      className="w-full text-left p-2.5 rounded-xl hover:bg-white/10 transition-colors group flex items-start gap-3 cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-brand-yellow group-hover:scale-105 transition-transform shrink-0 mt-0.5">
-                        <ClipboardCheck className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-white group-hover:text-brand-yellow transition-colors">
-                          Cách hoạt động
-                        </p>
-                        <p className="text-[11px] text-stone-300 line-clamp-1">
-                          Quy trình khép kín 4 bước canh tác
-                        </p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleScrollToSection('experience')}
-                      className="w-full text-left p-2.5 rounded-xl hover:bg-white/10 transition-colors group flex items-start gap-3 cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-brand-yellow group-hover:scale-105 transition-transform shrink-0 mt-0.5">
-                        <Sprout className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-white group-hover:text-brand-yellow transition-colors">
-                          Trải nghiệm canh tác
-                        </p>
-                        <p className="text-[11px] text-stone-300 line-clamp-1">
-                          Tự canh tác (Self) hoặc Ủy thác (Assisted)
-                        </p>
-                      </div>
-                    </button>
-                  </div>
+                <div className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-brand-yellow border border-amber-400/30 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span>Khu Vực Tác Nghiệp: Chuyên Viên Lao Động</span>
                 </div>
-              )}
-            </div>
+
+                <Link
+                  to="/"
+                  className="text-xs text-stone-300 hover:text-brand-yellow transition-colors flex items-center gap-1 ml-2"
+                  title="Xem Cổng thông tin công khai Farmely"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Cổng công khai</span>
+                </Link>
+              </>
+            )}
+
+            {/* 3. CHUYÊN GIA NÔNG NGHIỆP (EXPERT) */}
+            {isExpert && (
+              <>
+                <Link
+                  to="/expert/dashboard"
+                  className={`text-sm font-bold transition-all flex items-center gap-2 px-3.5 py-1.5 rounded-xl ${
+                    location.pathname.includes('/expert/dashboard')
+                      ? 'bg-brand-yellow text-brand-dark shadow-sm'
+                      : 'text-white/95 hover:text-brand-yellow hover:bg-white/10'
+                  }`}
+                >
+                  <ClipboardCheck className="w-4 h-4" />
+                  <span>Bàn Làm Việc Chuyên Gia</span>
+                </Link>
+
+                <div className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Giám Sát Canh Tác & Chuẩn VietGAP</span>
+                </div>
+
+                <Link
+                  to="/"
+                  className="text-xs text-stone-300 hover:text-brand-yellow transition-colors flex items-center gap-1 ml-2"
+                  title="Xem Cổng thông tin công khai Farmely"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Cổng công khai</span>
+                </Link>
+              </>
+            )}
+
+            {/* 4. QUẢN TRỊ VIÊN HỆ THỐNG (ADMIN) */}
+            {isAdmin && (
+              <>
+                <Link
+                  to="/admin/dashboard"
+                  className={`text-sm font-bold transition-all flex items-center gap-2 px-3.5 py-1.5 rounded-xl ${
+                    location.pathname === '/admin/dashboard'
+                      ? 'bg-brand-yellow text-brand-dark shadow-sm'
+                      : 'text-white/95 hover:text-brand-yellow hover:bg-white/10'
+                  }`}
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span>Bảng Quản Trị</span>
+                </Link>
+
+                <Link
+                  to="/admin/master-data"
+                  className={`text-sm font-bold transition-all flex items-center gap-2 px-3.5 py-1.5 rounded-xl ${
+                    location.pathname.startsWith('/admin/master-data')
+                      ? 'bg-brand-yellow text-brand-dark shadow-sm'
+                      : 'text-white/95 hover:text-brand-yellow hover:bg-white/10'
+                  }`}
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Dữ Liệu Nền Tảng (Master Data)</span>
+                </Link>
+
+                <Link
+                  to="/"
+                  className="text-xs text-stone-300 hover:text-brand-yellow transition-colors flex items-center gap-1 ml-2"
+                  title="Xem Cổng thông tin công khai Farmely"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Cổng công khai</span>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* RIGHT: Customer Dashboard shortcut (if logged in) + Search + Role Switcher + Auth */}
           <div className="hidden md:flex items-center gap-3">
 
-            {/* Search Icon */}
-            <div className="flex items-center pr-2 border-r border-white/20 h-10">
-              <Link
-                to="/marketplace"
-                className="p-2 text-white/90 hover:text-brand-yellow hover:bg-white/10 rounded-full transition-colors"
-                title="Tìm kiếm thửa đất"
-              >
-                <Search className="w-5 h-5 stroke-[2.2]" />
-              </Link>
-            </div>
+            {/* Search Icon (Chỉ hiển thị cho Customer hoặc Guest tìm kiếm đất) */}
+            {isCustomerOrGuest && (
+              <div className="flex items-center pr-2 border-r border-white/20 h-10">
+                <Link
+                  to="/marketplace"
+                  className="p-2 text-white/90 hover:text-brand-yellow hover:bg-white/10 rounded-full transition-colors"
+                  title="Tìm kiếm thửa đất"
+                >
+                  <Search className="w-5 h-5 stroke-[2.2]" />
+                </Link>
+              </div>
+            )}
 
             {/* Quick Demo Role Switcher */}
             <div className="relative pl-4">
@@ -447,82 +549,153 @@ export default function PublicNavbar() {
         </div>
       </div>
 
-      {/* Mobile Menu Drawer */}
+      {/* Mobile Menu Drawer (Tách biệt theo vai trò) */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-brand-dark/98 border-t border-white/15 px-4 pt-3 pb-6 space-y-3">
-          <Link
-            to="/"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-sm font-semibold text-white hover:text-brand-yellow"
-          >
-            Trang chủ
-          </Link>
+          {/* KHÁCH HÀNG & GUEST */}
+          {isCustomerOrGuest && (
+            <>
+              <Link
+                to="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2 text-sm font-semibold text-white hover:text-brand-yellow"
+              >
+                Trang chủ
+              </Link>
 
-          <Link
-            to="/marketplace"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-sm font-semibold text-white hover:text-brand-yellow"
-          >
-            Marketplace
-          </Link>
+              <Link
+                to="/marketplace"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2 text-sm font-semibold text-white hover:text-brand-yellow"
+              >
+                Marketplace
+              </Link>
 
-          <Link
-            to="/site-visit/book"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-sm font-semibold text-white hover:text-brand-yellow flex items-center gap-2"
-          >
-            <Calendar className="w-4 h-4 text-brand-yellow" />
-            <span>Đặt lịch tham quan</span>
-          </Link>
+              <Link
+                to="/site-visit/book"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2 text-sm font-semibold text-white hover:text-brand-yellow flex items-center gap-2"
+              >
+                <Calendar className="w-4 h-4 text-brand-yellow" />
+                <span>Đặt lịch tham quan</span>
+              </Link>
 
-          {isAuthenticated && (
-            <Link
-              to={getDashboardRoute(user?.role)}
-              onClick={() => setMobileMenuOpen(false)}
-              className="block py-2 text-sm font-bold text-brand-yellow flex items-center gap-2"
-            >
-              <Sprout className="w-4 h-4" />
-              <span>
-                {user?.role === 'ADMIN'
-                  ? 'Bảng Quản Trị Hệ Thống'
-                  : user?.role === 'EXPERT'
-                  ? 'Bàn Làm Việc Chuyên Gia'
-                  : user?.role === 'STAFF'
-                  ? 'Ca Trực Hiện Trường'
-                  : 'Vườn Của Tôi (Dashboard)'}
-              </span>
-            </Link>
+              {isAuthenticated && (
+                <Link
+                  to="/customer/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block py-2 text-sm font-bold text-brand-yellow flex items-center gap-2"
+                >
+                  <Sprout className="w-4 h-4" />
+                  <span>Vườn Của Tôi (Dashboard)</span>
+                </Link>
+              )}
+
+              <div className="py-1 px-2 rounded-xl bg-white/5 space-y-1">
+                <p className="text-[11px] font-bold text-brand-yellow uppercase tracking-wider py-1">
+                  Về Farmely:
+                </p>
+                <Link
+                  to="/about"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full text-left py-1.5 text-xs text-stone-200 hover:text-brand-yellow flex items-center gap-2"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-brand-yellow" />
+                  <span>Giới thiệu Farmely (Tầm nhìn & Trụ cột)</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => handleScrollToSection('how-it-works')}
+                  className="w-full text-left py-1.5 text-xs text-stone-200 hover:text-brand-yellow flex items-center gap-2 cursor-pointer"
+                >
+                  <ClipboardCheck className="w-3.5 h-3.5 text-brand-yellow" />
+                  <span>Cách hoạt động (Quy trình 4 bước)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleScrollToSection('experience')}
+                  className="w-full text-left py-1.5 text-xs text-stone-200 hover:text-brand-yellow flex items-center gap-2 cursor-pointer"
+                >
+                  <Sprout className="w-3.5 h-3.5 text-brand-yellow" />
+                  <span>Trải nghiệm canh tác (Self & Assisted)</span>
+                </button>
+              </div>
+            </>
           )}
 
-          <div className="py-1 px-2 rounded-xl bg-white/5 space-y-1">
-            <p className="text-[11px] font-bold text-brand-yellow uppercase tracking-wider py-1">
-              Về Farmely:
-            </p>
-            <Link
-              to="/about"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-left py-1.5 text-xs text-stone-200 hover:text-brand-yellow flex items-center gap-2"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-brand-yellow" />
-              <span>Giới thiệu Farmely (Tầm nhìn & Trụ cột)</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => handleScrollToSection('how-it-works')}
-              className="w-full text-left py-1.5 text-xs text-stone-200 hover:text-brand-yellow flex items-center gap-2"
-            >
-              <ClipboardCheck className="w-3.5 h-3.5 text-brand-yellow" />
-              <span>Cách hoạt động (Quy trình 4 bước)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleScrollToSection('experience')}
-              className="w-full text-left py-1.5 text-xs text-stone-200 hover:text-brand-yellow flex items-center gap-2"
-            >
-              <Sprout className="w-3.5 h-3.5 text-brand-yellow" />
-              <span>Trải nghiệm canh tác (Self & Assisted)</span>
-            </button>
-          </div>
+          {/* CHUYÊN VIÊN LAO ĐỘNG (STAFF) */}
+          {isStaff && (
+            <div className="space-y-2">
+              <Link
+                to="/staff/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2 text-sm font-bold text-amber-300 flex items-center gap-2"
+              >
+                <Clock className="w-4 h-4" />
+                <span>Ca Trực Hiện Trường (CVLĐ)</span>
+              </Link>
+              <Link
+                to="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-1.5 text-xs text-stone-300 hover:text-brand-yellow flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Cổng thông tin công khai</span>
+              </Link>
+            </div>
+          )}
+
+          {/* CHUYÊN GIA NÔNG NGHIỆP (EXPERT) */}
+          {isExpert && (
+            <div className="space-y-2">
+              <Link
+                to="/expert/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2 text-sm font-bold text-brand-yellow flex items-center gap-2"
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                <span>Bàn Làm Việc Chuyên Gia (CGNN)</span>
+              </Link>
+              <Link
+                to="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-1.5 text-xs text-stone-300 hover:text-brand-yellow flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Cổng thông tin công khai</span>
+              </Link>
+            </div>
+          )}
+
+          {/* QUẢN TRỊ VIÊN (ADMIN) */}
+          {isAdmin && (
+            <div className="space-y-2">
+              <Link
+                to="/admin/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2 text-sm font-bold text-brand-yellow flex items-center gap-2"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Bảng Quản Trị Hệ Thống</span>
+              </Link>
+              <Link
+                to="/admin/master-data"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-2 text-sm font-bold text-stone-200 hover:text-brand-yellow flex items-center gap-2"
+              >
+                <ShieldCheck className="w-4 h-4 text-brand-yellow" />
+                <span>Quản Trị Master Data</span>
+              </Link>
+              <Link
+                to="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block py-1.5 text-xs text-stone-300 hover:text-brand-yellow flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Cổng thông tin công khai</span>
+              </Link>
+            </div>
+          )}
           <div className="pt-3 border-t border-white/15 flex flex-col gap-2">
             {!isAuthenticated ? (
               <>
