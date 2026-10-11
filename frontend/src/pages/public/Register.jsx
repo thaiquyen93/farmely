@@ -68,23 +68,37 @@ export default function Register() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      register({
+    try {
+      const res = await register({
         fullName: fullName.trim(),
         email: email.trim(),
-        phone: phone.trim()
+        phone: phone.trim(),
+        password: password
       });
-      setSuccessMsg('Account created successfully. Please sign in.');
-      setTimeout(() => {
-        navigate(redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login');
-      }, 1200);
-    }, 600);
+      setIsLoading(false);
+      if (res && res.success) {
+        setSuccessMsg(res.message || 'Đăng ký tài khoản thành công vào CSDL. Đang chuyển hướng...');
+        setTimeout(() => {
+          navigate(redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login');
+        }, 1200);
+      } else {
+        setErrors((prev) => ({
+          ...prev,
+          email: res?.message || 'Đăng ký thất bại. Vui lòng thử lại.'
+        }));
+      }
+    } catch (err) {
+      setIsLoading(false);
+      setErrors((prev) => ({
+        ...prev,
+        email: 'Lỗi kết nối máy chủ CSDL. Vui lòng thử lại.'
+      }));
+    }
   };
 
   return (

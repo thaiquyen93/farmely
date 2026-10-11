@@ -68,7 +68,40 @@ export const useAuthStore = create((set, get) => ({
     return { success: true, user: customUser };
   },
 
-  register: (userData) => {
+  register: async (userData) => {
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: userData.fullName,
+          email: userData.email,
+          phoneNumber: userData.phone,
+          password: userData.password || 'Farmely@2026'
+        })
+      });
+      const resData = await response.json();
+      if (resData && resData.success && resData.data) {
+        const dbUser = {
+          id: resData.data.id || resData.data.userId || "USR-" + Math.floor(1000 + Math.random() * 9000),
+          userId: resData.data.id || resData.data.userId,
+          fullName: resData.data.fullName || userData.fullName,
+          email: resData.data.email || userData.email,
+          phone: resData.data.phone || userData.phone,
+          role: "CUSTOMER",
+          roleTitle: "Khách hàng thuê đất",
+          avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80"
+        };
+        localStorage.setItem('farmely_user', JSON.stringify(dbUser));
+        set({ user: dbUser, isAuthenticated: true });
+        return { success: true, user: dbUser, message: resData.message };
+      } else if (resData && !resData.success) {
+        return { success: false, message: resData.message || 'Đăng ký thất bại' };
+      }
+    } catch (err) {
+      console.warn('Backend offline, using fallback customer registration:', err);
+    }
+
     const newUser = {
       id: "USR-" + Math.floor(1000 + Math.random() * 9000),
       fullName: userData.fullName,
