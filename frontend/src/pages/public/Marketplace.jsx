@@ -92,7 +92,7 @@ export default function Marketplace() {
 
   // Đăng nhập nhanh tài khoản mẫu khách hàng
   const handleQuickDemoLogin = () => {
-    login(DEMO_ACCOUNTS.customer);
+    login('customer@farmely.vn', '123456');
     setShowAuthModal(false);
     if (plotToBook) {
       navigate(`/marketplace/plot/${plotToBook.id}/book`);
