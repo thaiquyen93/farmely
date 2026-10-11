@@ -65,6 +65,7 @@ import {
 export default function CustomerDashboard() {
   const { user } = useAuthStore();
   const { services: masterServices } = useServiceStore();
+  const [activeTab, setActiveTab] = useState('yards');
   const [selectedPlotId, setSelectedPlotId] = useState(null);
   const [showExpertChatModal, setShowExpertChatModal] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
