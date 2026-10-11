@@ -5,7 +5,7 @@ import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 
-export default function PublicNavbar() {
+export default function PublicNavbar({ dashboardRailCollapsed }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -41,6 +41,7 @@ export default function PublicNavbar() {
   const isStaff = isAuthenticated && user?.role === 'STAFF';
   const isExpert = isAuthenticated && user?.role === 'EXPERT';
   const isAdmin = isAuthenticated && user?.role === 'ADMIN';
+  const hasDashboardRail = typeof dashboardRailCollapsed === 'boolean';
 
   // Sync profileForm with user on change
   useEffect(() => {
@@ -100,7 +101,7 @@ export default function PublicNavbar() {
   };
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${navBackgroundClass}`}>
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-[left] duration-200 ${hasDashboardRail ? (dashboardRailCollapsed ? 'lg:left-16' : 'lg:left-72') : ''} ${navBackgroundClass}`}>
       <div className="w-full max-w-[1720px] mx-auto px-4 sm:px-8">
         <div className="flex items-center justify-between h-20">
           
