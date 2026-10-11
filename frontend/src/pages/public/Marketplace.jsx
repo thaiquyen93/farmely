@@ -359,7 +359,7 @@ export default function Marketplace() {
       {/* ─────────────────────────────────────────────────────────────────────────────
           3. BẢNG TIỆN ÍCH & DANH SÁCH BÊN TRÁI (LEFT ASIDE PANEL)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <aside className="absolute top-4 left-6 z-20 w-84 flex flex-col gap-3 pointer-events-auto">
+      <aside className="absolute top-20 left-6 z-20 w-84 flex flex-col gap-3 pointer-events-auto">
         {/* Danh sách các thửa đất với hiệu ứng cao cấp */}
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.08)] border border-white/80 transition-all duration-300">
           {/* Header với icon & số lượng */}
@@ -422,7 +422,7 @@ export default function Marketplace() {
           </div>
 
           {/* Danh sách thẻ thửa đất mượt mà */}
-          <div className="space-y-2 max-h-[calc(100vh-140px)] overflow-y-auto no-scrollbar pr-0.5">
+          <div className="space-y-2 max-h-[calc(100vh-210px)] overflow-y-auto no-scrollbar pr-0.5">
             {filteredPlots.map((p) => {
               const isVacant = p.status === 'Đang trống' || p.status === 'AVAILABLE';
               const isSelected = selectedPlot?.id === p.id;

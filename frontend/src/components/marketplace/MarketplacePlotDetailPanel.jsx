@@ -192,7 +192,7 @@ export default function MarketplacePlotDetailPanel({
   return (
     <aside
       id="detail-panel"
-      className={`absolute top-4 right-4 bottom-4 z-20 w-[370px] bg-white/95 backdrop-blur-2xl rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-white/80 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform will-change-transform ${
+      className={`absolute top-20 right-4 bottom-4 z-20 w-[370px] bg-white/95 backdrop-blur-2xl rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-white/80 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform will-change-transform ${
         isOpen
           ? 'translate-x-0 opacity-100 pointer-events-auto'
           : 'translate-x-[400px] opacity-0 pointer-events-none'
