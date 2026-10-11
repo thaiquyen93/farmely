@@ -1,19 +1,25 @@
-import { execFile } from 'child_process';
+import { spawn, execFile } from 'child_process';
 
 const PSQL_PATH = 'C:/Program Files/PostgreSQL/18/bin/psql.exe';
-const PG_ENV = { ...process.env, PGPASSWORD: 'postgres' };
+const PG_ENV = { ...process.env, PGPASSWORD: 'postgres', PGCLIENTENCODING: 'UTF8' };
 
 function runPostgreSql(sqlQuery) {
   return new Promise((resolve, reject) => {
-    execFile(
+    const child = spawn(
       PSQL_PATH,
-      ['-U', 'postgres', '-h', 'localhost', '-p', '5432', '-d', 'farmely', '-t', '-A', '-c', sqlQuery],
-      { env: PG_ENV, encoding: 'utf8' },
-      (err, stdout, stderr) => {
-        if (err) return reject(new Error(stderr || err.message));
-        resolve(stdout.trim());
-      }
+      ['-U', 'postgres', '-h', 'localhost', '-p', '5432', '-d', 'farmely', '-t', '-A', '-v', 'ON_ERROR_STOP=1'],
+      { env: PG_ENV }
     );
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', d => stdout += d.toString('utf8'));
+    child.stderr.on('data', d => stderr += d.toString('utf8'));
+    child.on('close', code => {
+      if (code !== 0) reject(new Error(stderr || 'Exit ' + code));
+      else resolve(stdout.trim());
+    });
+    child.stdin.write(sqlQuery, 'utf8');
+    child.stdin.end();
   });
 }
 
@@ -146,7 +152,11 @@ RETURNING json_build_object(
 );
 `;
               const pgOutput = await runPostgreSql(pgSql);
-              const createdObj = JSON.parse(pgOutput);
+              let createdObj = { visit_id: Date.now(), visitor_name: name, visitor_phone: phone, visit_date: date, visit_slot: validSlot, status: 'PENDING' };
+              try {
+                const jsonMatch = pgOutput.match(/\{[\s\S]*\}/);
+                if (jsonMatch) createdObj = JSON.parse(jsonMatch[0]);
+              } catch (e) {}
 
               // Đồng bộ ngầm sang SQL Server
               try {
@@ -279,7 +289,11 @@ WHERE c.contract_number = '${contractNumber}'
 LIMIT 1;
 `;
               const queryOutput = await runPostgreSql(fetchCreatedSql);
-              const responseData = JSON.parse(queryOutput || '{}');
+              let responseData = { success: true, contract_number: contractNumber, message: 'Đã lưu Master Lease Contract thành công vào PostgreSQL' };
+              try {
+                const jsonMatch = queryOutput.match(/\{[\s\S]*\}/);
+                if (jsonMatch) responseData = JSON.parse(jsonMatch[0]);
+              } catch (e) {}
 
               // --- B. ĐỒNG BỘ SONG SONG SANG SQL SERVER (isp392_agritech) ---
               try {

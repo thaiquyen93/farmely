@@ -1265,8 +1265,7 @@ export default function CustomerDashboard() {
                   <AssistedGrowingDashboard
                     plot={currentSelectedPlot}
                     onOpenExpertChat={() => {
-                      setActiveTab('ai');
-                      setSelectedPlotId(null);
+                      setShowExpertChatModal(true);
                     }}
                     onOpenHarvestModal={() => setShowHarvestAcceptModal(true)}
                   />

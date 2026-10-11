@@ -24,3 +24,9 @@ Thumbs.db
 # Context & uploaded assets
 /context
 /images/
+
+# Local tools & references (kept on local machine, excluded from git)
+/.vscode/
+/references/
+/tools/
+.cursorrules
