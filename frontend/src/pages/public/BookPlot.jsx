@@ -199,6 +199,36 @@ export default function BookPlot() {
     });
   };
 
+  const persistBookingToDatabase = async (method = paymentMethod) => {
+    try {
+      const response = await fetch('/api/bookings/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: user?.id || 4,
+          customerEmail: user?.email || 'customer.khoi@gmail.com',
+          customerName: user?.fullName || 'Tạ Nguyễn Khôi Nguyên',
+          totalAmount: totalAmount,
+          paymentMethod: method || 'VIETQR',
+          cultivationMode: selectedMode === 'ASSISTED' ? 'ASSISTED_GROWING' : 'SELF_GROWING',
+          rentalMonths: rentalMonths,
+          plots: selectedPlots.map((p) => ({
+            id: p.id,
+            code: p.code,
+            price: p.rentalPrice || 1200000
+          }))
+        })
+      });
+      const data = await response.json();
+      if (data?.success && data?.contract_code) {
+        return data.contract_code;
+      }
+    } catch (err) {
+      console.error('Lỗi lưu CSDL SQL Server:', err);
+    }
+    return `MLA-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+  };
+
   const handleConfirmBooking = async () => {
     setIsProcessing(true);
 
@@ -255,32 +285,32 @@ export default function BookPlot() {
       return;
     }
 
-    // Default flow for other payment methods
-    setTimeout(() => {
-      setIsProcessing(false);
-      const generatedCode = `MLA-2026-${Math.floor(100000 + Math.random() * 900000)}`;
-      setContractCode(generatedCode);
-      syncRentalToChat();
-      try {
-        localStorage.removeItem('farmely_master_lease_selected_plots');
-      } catch (e) {
-        console.error(e);
-      }
-      setIsSuccess(true);
-    }, 1000);
-  };
-
-  const handlePaymentSuccess = () => {
-    setShowQrModal(false);
-    setShowCardModal(false);
-    const generatedCode = `MLA-2026-${Math.floor(100000 + Math.random() * 900000)}`;
-    setContractCode(generatedCode);
+    // Default flow: save directly to database
+    const savedCode = await persistBookingToDatabase(paymentMethod);
+    setIsProcessing(false);
+    setContractCode(savedCode);
     syncRentalToChat();
     try {
       localStorage.removeItem('farmely_master_lease_selected_plots');
     } catch (e) {
       console.error(e);
     }
+    setIsSuccess(true);
+  };
+
+  const handlePaymentSuccess = async () => {
+    setShowQrModal(false);
+    setShowCardModal(false);
+    setIsProcessing(true);
+    const savedCode = await persistBookingToDatabase(paymentMethod);
+    setContractCode(savedCode);
+    syncRentalToChat();
+    try {
+      localStorage.removeItem('farmely_master_lease_selected_plots');
+    } catch (e) {
+      console.error(e);
+    }
+    setIsProcessing(false);
     setIsSuccess(true);
   };
 
