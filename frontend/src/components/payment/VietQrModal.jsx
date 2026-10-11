@@ -19,6 +19,7 @@ export default function VietQrModal({
   qrData,
   onPaymentSuccess,
   plotInfo,
+  serviceInfo,
   totalAmount
 }) {
   const [copiedField, setCopiedField] = useState(null);
@@ -68,7 +69,7 @@ export default function VietQrModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-900/75 backdrop-blur-sm animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-stone-900/75 backdrop-blur-sm animate-fade-in overflow-y-auto">
       <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden my-auto animate-scale-up">
         
         {/* Modal Header */}
@@ -91,7 +92,7 @@ export default function VietQrModal({
             </div>
           </div>
 
-          <h2 className="text-xl sm:text-2xl font-heading font-black">
+          <h2 className="text-xl sm:text-2xl font-heading font-black text-white">
             Quét Mã VietQR Thanh Toán
           </h2>
           <p className="text-xs text-emerald-100 mt-1">
@@ -124,9 +125,13 @@ export default function VietQrModal({
             <div className="text-2xl sm:text-3xl font-heading font-black text-brand-green mt-0.5">
               {(Number(qrData.amount) || totalAmount || 0).toLocaleString('vi-VN')} đ
             </div>
-            {plotInfo && (
+            {(serviceInfo || plotInfo) && (
               <span className="text-xs text-stone-600 block mt-1 font-medium">
-                Đặt thuê thửa đất: <strong>{plotInfo.code} - {plotInfo.name}</strong>
+                {serviceInfo ? (
+                  <>Đăng ký dịch vụ: <strong className="text-emerald-700">{serviceInfo.name}</strong> {plotInfo ? <>• Thửa: <strong>{plotInfo.name || plotInfo.code}</strong></> : null}</>
+                ) : (
+                  <>Đặt thuê thửa đất: <strong>{plotInfo.code} - {plotInfo.name}</strong></>
+                )}
               </span>
             )}
           </div>

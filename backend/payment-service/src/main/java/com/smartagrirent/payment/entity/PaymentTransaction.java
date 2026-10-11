@@ -23,6 +23,10 @@ public class PaymentTransaction {
     @Column(name = "service_request_id")
     private Integer serviceRequestId;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "service_request_id", insertable = false, updatable = false)
+    private ServiceRequest serviceRequest;
+
     @Column(name = "cancellation_request_id")
     private Integer cancellationRequestId;
 
@@ -160,6 +164,14 @@ public class PaymentTransaction {
 
     public void setServiceRequestId(Integer serviceRequestId) {
         this.serviceRequestId = serviceRequestId;
+    }
+
+    public ServiceRequest getServiceRequest() {
+        return serviceRequest;
+    }
+
+    public void setServiceRequest(ServiceRequest serviceRequest) {
+        this.serviceRequest = serviceRequest;
     }
 
     public Integer getCancellationRequestId() {
