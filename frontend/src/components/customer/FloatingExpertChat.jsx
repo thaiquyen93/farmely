@@ -52,6 +52,7 @@ export default function FloatingExpertChat({
       >
         <button
           type="button"
+          onClick={onOpen}
           onPointerDown={(event) => beginDrag(event, 'launcher')}
           onPointerMove={moveDrag}
           onPointerUp={endDrag}
