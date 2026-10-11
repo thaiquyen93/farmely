@@ -3,6 +3,80 @@ import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { FARMS_GEOJSON_DATA, FARM_GPS_BOUNDS } from '../../data/marketplaceGisData';
 
+// Helper format giá tiền ngắn gọn phong cách Airbnb (ví dụ: 1.2 tr, 1.45 tr)
+function formatCompactPrice(props) {
+  if (props.rentalPrice) {
+    const millions = props.rentalPrice / 1000000;
+    return `${millions % 1 === 0 ? millions : millions.toFixed(2).replace(/\.?0+$/, '')} tr`;
+  }
+  if (props.price) {
+    const num = parseInt(String(props.price).replace(/\D/g, ''));
+    if (!isNaN(num) && num > 0) {
+      const millions = num / 1000000;
+      return `${millions % 1 === 0 ? millions : millions.toFixed(2).replace(/\.?0+$/, '')} tr`;
+    }
+  }
+  return '';
+}
+
+// Lấy class Tailwind cho Badge Marker theo chuẩn sàn Airbnb / BĐS
+function getBadgeClassName(props, isSelected) {
+  const isVacant = props.status === 'Đang trống' || props.status === 'AVAILABLE';
+  const base =
+    'w-max whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] inline-flex items-center gap-1.5 cursor-pointer select-none transition-all duration-300 pointer-events-auto ';
+
+  if (isSelected) {
+    return (
+      base +
+      'bg-emerald-600 text-white shadow-xl shadow-emerald-950/50 border-2 border-white scale-115 ring-3 ring-emerald-400/60 z-30 font-black'
+    );
+  }
+
+  if (isVacant) {
+    // Thửa CÒN TRỐNG: Nền trắng tinh khiết, viền emerald nổi bật, đổ bóng sắc nét
+    return (
+      base +
+      'bg-white text-slate-900 border border-emerald-400/80 shadow-[0_4px_14px_rgba(0,0,0,0.18)] hover:scale-110 hover:border-emerald-500 hover:shadow-xl hover:z-20 font-bold'
+    );
+  }
+
+  // Thửa ĐÃ THUÊ: Nền tối mờ, chìm xuống nền bản đồ để người dùng nhận diện ngay ô đã có chủ
+  return (
+    base +
+    'bg-slate-900/85 text-slate-400 border border-slate-700/80 shadow-sm opacity-75 hover:opacity-100 hover:scale-105 hover:bg-slate-800/90 font-medium'
+  );
+}
+
+// Render HTML nội dung của Pin Marker (hiển thị mã thửa & giá tiền hoặc trạng thái)
+function renderBadgeContent(props, isSelected) {
+  const isVacant = props.status === 'Đang trống' || props.status === 'AVAILABLE';
+  const priceStr = formatCompactPrice(props);
+
+  if (isSelected) {
+    return `
+      <span class="w-1.5 h-1.5 rounded-full bg-white shrink-0 animate-ping"></span>
+      <span class="font-extrabold tracking-tight">${props.id}</span>
+      <span class="opacity-60">•</span>
+      <span class="font-black tracking-tight">${priceStr || (isVacant ? '' : 'Đã thuê')}</span>
+    `;
+  }
+
+  if (isVacant) {
+    return `
+      <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-200"></span>
+      <span class="font-bold text-slate-500 text-[9px]">${props.id}</span>
+      <span class="font-black text-emerald-800 text-[11px] tracking-tight">${priceStr}</span>
+    `;
+  }
+
+  // Thửa đã thuê
+  return `
+    <span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
+    <span class="font-semibold text-slate-400 text-[10px]">${props.id}</span>
+    <span class="text-slate-400 text-[9px] font-medium bg-slate-800/80 px-1 py-0.5 rounded">Đã thuê</span>
+  `;
+}
+
 export default function MarketplaceInteractiveMap({
   plotsData = FARMS_GEOJSON_DATA,
   selectedPlot = null,
@@ -157,7 +231,7 @@ export default function MarketplaceInteractiveMap({
         filter: ['==', 'id', selectedPlot?.id || 'P-01']
       });
 
-      // 6. Thêm HTML badge nhãn mã thửa nổi trên tâm mỗi thửa đất - Hỗ trợ bấm trực tiếp & Hiệu ứng mượt mà
+      // 6. Thêm HTML badge nhãn mã thửa nổi trên tâm mỗi thửa đất - Phong cách sàn TMĐT (Airbnb / BĐS)
       markerNodesRef.current.clear();
       plotsData.features.forEach((f) => {
         const coords = f.geometry.coordinates[0];
@@ -170,14 +244,8 @@ export default function MarketplaceInteractiveMap({
         wrapper.className = 'select-none pointer-events-auto';
 
         const badge = document.createElement('div');
-        badge.className = `w-max whitespace-nowrap px-2.5 py-1 rounded-lg text-[10px] font-black tracking-tight inline-flex items-center gap-1.5 cursor-pointer select-none transition-all duration-300 shadow-md ${
-          isCurrentSelected
-            ? 'bg-emerald-600 text-white shadow-emerald-500/30 border-2 border-white scale-110 ring-2 ring-emerald-400'
-            : 'bg-white/95 text-slate-800 border border-slate-200 hover:scale-105 hover:border-emerald-400 hover:shadow-lg'
-        }`;
-        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${
-          f.properties.status === 'Đã thuê' ? 'bg-slate-400' : 'bg-emerald-500'
-        }"></span><span>${f.properties.id}</span>`;
+        badge.className = getBadgeClassName(f.properties, isCurrentSelected);
+        badge.innerHTML = renderBadgeContent(f.properties, isCurrentSelected);
 
         badge.onclick = (e) => {
           e.stopPropagation();
@@ -191,7 +259,7 @@ export default function MarketplaceInteractiveMap({
           .addTo(map);
 
         markersRef.current.push(marker);
-        markerNodesRef.current.set(f.properties.id, { badge, status: f.properties.status });
+        markerNodesRef.current.set(f.properties.id, { badge, properties: f.properties });
       });
 
       // 7. Thêm 4 Marker định vị 4 toạ độ GPS góc khu đất
@@ -281,15 +349,12 @@ export default function MarketplaceInteractiveMap({
       map.setFilter('plots-selected-fill', ['==', 'id', plotId]);
     }
 
-    // Cập nhật chuyển động mượt mà của badge marker
+    // Cập nhật chuyển động mượt mà của badge marker (Airbnb style)
     markerNodesRef.current.forEach((node, id) => {
       const isSel = id === plotId;
-      if (node.badge) {
-        node.badge.className = `w-max whitespace-nowrap px-2.5 py-1 rounded-lg text-[10px] font-black tracking-tight inline-flex items-center gap-1.5 cursor-pointer select-none transition-all duration-300 shadow-md ${
-          isSel
-            ? 'bg-emerald-600 text-white shadow-emerald-500/30 border-2 border-white scale-110 ring-2 ring-emerald-400'
-            : 'bg-white/95 text-slate-800 border border-slate-200 hover:scale-105 hover:border-emerald-400 hover:shadow-lg'
-        }`;
+      if (node.badge && node.properties) {
+        node.badge.className = getBadgeClassName(node.properties, isSel);
+        node.badge.innerHTML = renderBadgeContent(node.properties, isSel);
       }
     });
 
@@ -343,9 +408,9 @@ export default function MarketplaceInteractiveMap({
     }
 
     markerNodesRef.current.forEach((node) => {
-      if (node.badge) {
-        node.badge.className =
-          'w-max whitespace-nowrap px-2.5 py-1 rounded-lg text-[10px] font-black tracking-tight inline-flex items-center gap-1.5 cursor-pointer select-none transition-all duration-300 shadow-md bg-white/95 text-slate-800 border border-slate-200 hover:scale-105 hover:border-emerald-400 hover:shadow-lg';
+      if (node.badge && node.properties) {
+        node.badge.className = getBadgeClassName(node.properties, false);
+        node.badge.innerHTML = renderBadgeContent(node.properties, false);
       }
     });
 
