@@ -5,6 +5,7 @@ import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import {
   Sprout,
   Wheat,
@@ -34,7 +35,6 @@ import {
   Sparkles,
   X,
   ChevronRight,
-  CheckCheck,
   ZoomIn,
   Info,
   Maximize2,
@@ -49,207 +49,22 @@ export default function ExpertDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'issues' | 'templates' | 'compatibility' | 'knowledge'
 
-  // 1. Unified Messenger Threads (Customers 1-on-1 + Field Workers)
-  const [chatThreads, setChatThreads] = useState([
-    {
-      id: 'CONS-401',
-      role: 'customer',
-      roleLabel: 'Khách Thuê Đất',
-      customerName: 'Lô Thái Quyền',
-      customerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      plotCode: 'P-01',
-      plotName: 'Thửa Sen Vàng A1',
-      crop: 'Cà chua bi Cherry F1',
-      stage: 'Ngày 35 • Ra hoa & Đậu quả',
-      isOnline: true,
-      lastTime: '15 phút trước',
-      status: 'PENDING',
-      unread: true,
-      messages: [
-        {
-          id: 1,
-          sender: 'customer',
-          senderName: 'Lô Thái Quyền',
-          text: 'Chào chuyên gia Nam! Lá cây cà chua của tôi ở tầng dưới hơi ngả vàng, liệu có phải do thiếu đạm cá hay độ ẩm đất quá cao không?',
-          photoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80',
-          photoCaption: 'Ảnh hiện trường: Lá cà chua tầng dưới có dấu hiệu vàng úa mép lá',
-          time: '15:10'
-        },
-        {
-          id: 2,
-          sender: 'customer',
-          senderName: 'Lô Thái Quyền',
-          text: 'Tôi xem trên app thấy độ ẩm đất báo 72%, không biết có cần chỉnh béc phun sương giảm lại không chuyên gia?',
-          time: '15:12'
-        }
-      ]
-    },
-    {
-      id: 'WORK-101',
-      role: 'worker',
-      roleLabel: 'Công Nhân CVLĐ',
-      customerName: 'Trần Văn Lực (Tổ trưởng CVLĐ)',
-      customerAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-      plotCode: 'P-03',
-      plotName: 'Thửa Rừng Sác C3',
-      crop: 'Dưa leo Baby Đà Lạt',
-      stage: 'Ngày 18 • Đang leo giàn',
-      isOnline: true,
-      lastTime: '10 phút trước',
-      status: 'PENDING',
-      unread: true,
-      messages: [
-        {
-          id: 1,
-          sender: 'worker',
-          senderName: 'Trần Văn Lực (CVLĐ)',
-          text: 'ThS. Nam ơi, thửa C3 sáng nay em đã bấm tỉa lá già, chiều nay có nên phun chế phẩm gừng ớt sinh học phòng bọ trĩ luôn không?',
-          photoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80',
-          photoCaption: 'Ảnh kiểm tra: Mặt dưới lá non có vệt bạc li ti của bọ trĩ',
-          time: '09:15'
-        },
-        {
-          id: 2,
-          sender: 'worker',
-          senderName: 'Trần Văn Lực (CVLĐ)',
-          text: 'Em đã chuẩn bị sẵn bình phun sương sinh học, xin ý kiến tỉ lệ pha từ chuyên gia.',
-          time: '09:16'
-        }
-      ]
-    },
-    {
-      id: 'CONS-402',
-      role: 'customer',
-      roleLabel: 'Khách Thuê Đất',
-      customerName: 'Nguyễn Văn Hùng',
-      customerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-      plotCode: 'P-02',
-      plotName: 'Thửa Mộc Châu B2',
-      crop: 'Xà lách Romaine VietGAP',
-      stage: 'Ngày 24 • Chuẩn bị thu hoạch',
-      isOnline: false,
-      lastTime: '2 giờ trước',
-      status: 'REPLIED',
-      unread: false,
-      messages: [
-        {
-          id: 1,
-          sender: 'customer',
-          senderName: 'Nguyễn Văn Hùng',
-          text: 'Xà lách đã đạt ngày 24, tôi muốn thu hoạch vào sáng thứ Bảy này thì từ hôm nay có cần ngưng tưới đạm vi sinh không?',
-          photoUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80',
-          photoCaption: 'Ảnh hiện trường: Luống xà lách Romaine xanh mướt trước ngày thu hoạch',
-          time: '13:30'
-        },
-        {
-          id: 2,
-          sender: 'expert',
-          senderName: 'ThS. Nguyễn Hoàng Nam',
-          text: 'Chào anh Hùng! Đúng chuẩn quy trình cách ly an toàn VietGAP (UC09), anh ngưng bón dinh dưỡng từ hôm nay. Chỉ duy trì tưới ẩm nước sạch mỗi sáng sớm để lá giòn ngọt tự nhiên trước khi thu hoạch nhé.',
-          prescriptionTag: 'Phác đồ cách ly VietGAP 5 ngày',
-          time: '13:42'
-        },
-        {
-          id: 3,
-          sender: 'customer',
-          senderName: 'Nguyễn Văn Hùng',
-          text: 'Dạ cảm ơn chuyên gia Nam nhiều! Thứ Bảy tôi sẽ lên nông trại tự tay thu hoạch cùng gia đình.',
-          time: '13:45'
-        }
-      ]
-    },
-    {
-      id: 'WORK-102',
-      role: 'worker',
-      roleLabel: 'Công Nhân CVLĐ',
-      customerName: 'Nguyễn Văn Đạt (Kỹ thuật béc tưới)',
-      customerAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=200&q=80',
-      plotCode: 'P-01',
-      plotName: 'Thửa Sen Vàng A1',
-      crop: 'Cà chua bi Cherry F1',
-      stage: 'Ngày 35 • Đang nuôi hoa',
-      isOnline: false,
-      lastTime: 'Hôm qua',
-      status: 'REPLIED',
-      unread: false,
-      messages: [
-        {
-          id: 1,
-          sender: 'worker',
-          senderName: 'Nguyễn Văn Đạt (CVLĐ)',
-          text: 'Báo cáo chuyên gia Nam: Đầu béc tưới số 3 tại thửa P-01 đã được súc rửa màng lọc và thay béc mới. Độ ẩm đất đã cân bằng 68%.',
-          time: '16:00'
-        },
-        {
-          id: 2,
-          sender: 'expert',
-          senderName: 'ThS. Nguyễn Hoàng Nam',
-          text: 'Rất tốt Đạt ơi! Em ghi nhận vào sổ theo dõi thiết bị tưới tự động nhé.',
-          time: '16:15'
-        }
-      ]
-    },
-    {
-      id: 'CONS-403',
-      role: 'customer',
-      roleLabel: 'Khách Thuê Đất',
-      customerName: 'Phạm Thu Hương',
-      customerAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-      plotCode: 'P-03',
-      plotName: 'Thửa Rừng Sác C3',
-      crop: 'Dưa leo Baby Đà Lạt',
-      stage: 'Ngày 18 • Đang leo giàn',
-      isOnline: true,
-      lastTime: 'Hôm qua',
-      status: 'REPLIED',
-      unread: false,
-      messages: [
-        {
-          id: 1,
-          sender: 'customer',
-          senderName: 'Phạm Thu Hương',
-          text: 'Chuyên gia ơi, sáng nay tôi xem camera thấy hoa dưa leo nở rộ nhiều, có cần gọi công nhân thụ phấn bổ sung không?',
-          time: '09:10'
-        },
-        {
-          id: 2,
-          sender: 'expert',
-          senderName: 'ThS. Nguyễn Hoàng Nam',
-          text: 'Chào chị Hương, dưa baby tự thụ phấn tốt và vườn có thả đàn ong mật tự nhiên trong nhà lưới. Chị yên tâm quả sẽ đậu tự nhiên, không cần can thiệp nhân tạo nhé!',
-          prescriptionTag: 'Quy trình thụ phấn sinh thái',
-          time: '09:25'
-        }
-      ]
-    },
-    {
-      id: 'CONS-404',
-      role: 'customer',
-      roleLabel: 'Khách Thuê Đất',
-      customerName: 'Trần Minh Quân',
-      customerAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-      plotCode: 'P-04',
-      plotName: 'Thửa Đất Đỏ D4',
-      crop: 'Dâu tây Hana chịu nhiệt',
-      stage: 'Ngày 40 • Nuôi quả non',
-      isOnline: false,
-      lastTime: '1 ngày trước',
-      status: 'PENDING',
-      unread: true,
-      messages: [
-        {
-          id: 1,
-          sender: 'customer',
-          senderName: 'Trần Minh Quân',
-          text: 'Chào anh Nam! Cây dâu tây bắt đầu bói quả non rồi. Giai đoạn này bổ sung Kali hữu cơ từ chuối ủ men như thế nào để quả ngọt mọng?',
-          photoUrl: 'https://images.unsplash.com/photo-1543528176-61b239494933?auto=format&fit=crop&w=800&q=80',
-          photoCaption: 'Ảnh hiện trường: Chùm dâu tây Hana bói lứa quả đầu tiên',
-          time: '11:20'
-        }
-      ]
-    }
-  ]);
+  const isExpertUser = user?.role === 'expert';
+  const expertSenderName = isExpertUser && user?.fullName ? user.fullName : 'ThS. Nguyễn Hoàng Nam';
 
-  const [selectedThreadId, setSelectedThreadId] = useState('CONS-401');
+  const {
+    threads: chatThreads,
+    selectedThreadId,
+    setSelectedThreadId,
+    currentThread: activeRealtimeThread,
+    sendMessage: sendExpertMessage,
+    markAsRead: markExpertThreadAsRead,
+    refreshThreads
+  } = useRealtimeChat({
+    role: 'expert',
+    initialThreadId: 'CONS-401',
+    senderName: expertSenderName
+  });
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'worker' | 'pending'
   const [chatInputText, setChatInputText] = useState('');
@@ -292,9 +107,7 @@ export default function ExpertDashboard() {
   const handleSelectThread = (threadId) => {
     setSelectedThreadId(threadId);
     setMobileShowChat(true);
-    setChatThreads((prev) =>
-      prev.map((t) => (t.id === threadId ? { ...t, unread: false } : t))
-    );
+    markExpertThreadAsRead(threadId);
   };
 
   // Handle send message in Messenger chat
@@ -302,34 +115,11 @@ export default function ExpertDashboard() {
     if (e) e.preventDefault();
     if (!chatInputText.trim()) return;
 
-    const currentThread = chatThreads.find((t) => t.id === selectedThreadId);
-    if (!currentThread) return;
+    const currentExpert = (isExpertUser && user?.fullName)
+      ? user.fullName
+      : (activeRealtimeThread?.expertName || expertSenderName);
 
-    const newMessage = {
-      id: Date.now(),
-      sender: 'expert',
-      senderName: 'ThS. Nguyễn Hoàng Nam',
-      text: chatInputText.trim(),
-      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      date: 'Hôm nay',
-      prescriptionTag: 'Phác đồ tư vấn kỹ thuật'
-    };
-
-    setChatThreads((prev) =>
-      prev.map((thread) => {
-        if (thread.id === selectedThreadId) {
-          return {
-            ...thread,
-            status: 'REPLIED',
-            unread: false,
-            lastTime: 'Vừa xong',
-            messages: [...thread.messages, newMessage]
-          };
-        }
-        return thread;
-      })
-    );
-
+    sendExpertMessage(chatInputText.trim(), currentExpert);
     setChatInputText('');
     setTimeout(() => {
       if (chatContainerRef.current) {
@@ -916,10 +706,12 @@ export default function ExpertDashboard() {
                             <div
                               key={thread.id}
                               onClick={() => handleSelectThread(thread.id)}
-                              className={`p-3.5 flex items-start gap-3 cursor-pointer transition-colors relative ${
+                              className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all duration-200 relative ${
                                 isSelected
                                   ? 'bg-white border-l-4 border-l-[#294C38] shadow-sm'
-                                  : 'hover:bg-white/80'
+                                  : thread.unread
+                                    ? 'bg-emerald-50/70 hover:bg-emerald-50 border-l-4 border-l-rose-500 shadow-2xs'
+                                    : 'hover:bg-white/80'
                               }`}
                             >
                               {/* Avatar with Online Status */}
@@ -974,11 +766,13 @@ export default function ExpertDashboard() {
                                     {lastMsg?.text || (hasPhoto ? '[Đã gửi ảnh hiện trường]' : '')}
                                   </p>
 
-                                  {thread.status === 'PENDING' ? (
+                                  {thread.unread ? (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-500 text-white shrink-0 animate-pulse">
+                                      MỚI
+                                    </span>
+                                  ) : thread.status === 'PENDING' ? (
                                     <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" title="Chờ phản hồi" />
-                                  ) : (
-                                    <CheckCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" title="Đã tư vấn" />
-                                  )}
+                                  ) : null}
                                 </div>
                               </div>
                             </div>
@@ -1092,9 +886,8 @@ export default function ExpertDashboard() {
                                     {msg.text}
                                   </div>
 
-                                  <div className="text-[10px] text-stone-400 flex items-center gap-1 px-1">
-                                    <CheckCheck className="w-3 h-3 text-emerald-600" />
-                                    <span>Đã gửi thành công</span>
+                                  <div className="text-[10px] flex items-center justify-end px-1 text-stone-400">
+                                    <span>{msg.time}</span>
                                   </div>
                                 </div>
                               );
@@ -1156,6 +949,8 @@ export default function ExpertDashboard() {
                               </div>
                             );
                           })}
+
+
                         </div>
 
                         {/* Quick Prescriptions Suggestion Bar */}

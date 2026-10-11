@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import { useRealtimeChat } from '../../hooks/useRealtimeChat';
+import { DEMO_WORKERS } from '../../api/communication/chatStorage';
 import {
   UserCheck,
   CheckCircle2,
@@ -23,7 +25,6 @@ import {
   QrCode,
   Scale,
   MapPin,
-  Check,
   PlusCircle,
   Eye
 } from 'lucide-react';
@@ -133,24 +134,32 @@ export default function FieldWorkerDashboard() {
   const [selectedHarvestTask, setSelectedHarvestTask] = useState(null);
   const [scaleWeightInput, setScaleWeightInput] = useState('');
 
-  // 4. Chat with Expert State (Screen 55)
-  const [expertChatMessages, setExpertChatMessages] = useState([
-    {
-      id: 1,
-      sender: 'expert',
-      senderName: 'ThS. Nguyễn Hoàng Nam',
-      text: 'Lực ơi, thửa C3 chiều nay sau 16:30 em nhớ phun sương chế phẩm gừng ớt tỉ lệ 1:200 nhé. Cây đang đâm chồi non không được phun buổi trưa nắng!',
-      time: '09:18 AM'
-    },
-    {
-      id: 2,
-      sender: 'worker',
-      senderName: 'Trần Văn Lực (CVLĐ)',
-      text: 'Dạ em rõ rồi ThS. Nam! Em đã chuẩn bị sẵn bình phun vi sinh, ca chiều em sẽ làm đúng giờ và chụp ảnh gửi báo cáo!',
-      time: '09:20 AM'
-    }
-  ]);
+  // 4. Realtime Chat with Expert State & Worker Identity
+  const [selectedWorkerThreadId, setSelectedWorkerThreadId] = useState('WORK-101');
+  const currentWorkerProfile = useMemo(() => {
+    return DEMO_WORKERS.find((w) => w.threadId === selectedWorkerThreadId) || DEMO_WORKERS[0];
+  }, [selectedWorkerThreadId]);
+
+  const activeWorkerSenderName = currentWorkerProfile.name;
+
+  const {
+    currentThread: workerChatThread,
+    sendMessage: sendWorkerMessage,
+    markAsRead: markWorkerChatAsRead
+  } = useRealtimeChat({
+    role: 'worker',
+    initialThreadId: selectedWorkerThreadId,
+    senderName: activeWorkerSenderName
+  });
+
   const [chatInput, setChatInput] = useState('');
+  const workerChatScrollRef = useRef(null);
+
+  useEffect(() => {
+    if (activeTab === 'chat' && workerChatScrollRef.current) {
+      workerChatScrollRef.current.scrollTop = workerChatScrollRef.current.scrollHeight;
+    }
+  }, [activeTab, workerChatThread?.messages]);
 
   // Handle Complete Task
   const handleConfirmCompleteTask = (e) => {
@@ -220,19 +229,10 @@ export default function FieldWorkerDashboard() {
 
   // Send message to expert
   const handleSendMessageToExpert = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!chatInput.trim()) return;
 
-    setExpertChatMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        sender: 'worker',
-        senderName: 'Trần Văn Lực (CVLĐ)',
-        text: chatInput,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ]);
+    sendWorkerMessage(chatInput.trim(), activeWorkerSenderName);
     setChatInput('');
   };
 
@@ -573,46 +573,89 @@ export default function FieldWorkerDashboard() {
 
             {/* TAB 4: CHAT WITH EXPERT (Kênh trao đổi với ThS. Nam) */}
             {activeTab === 'chat' && (
-              <div className="bg-white rounded-3xl border border-brand-border shadow-sm overflow-hidden flex flex-col h-[650px]">
-                <div className="p-4 bg-brand-cream border-b border-brand-border flex items-center justify-between">
+              <div className="bg-white rounded-3xl border border-brand-border shadow-sm overflow-hidden flex flex-col h-[680px]">
+                {/* Header */}
+                <div className="p-4 bg-brand-cream border-b border-brand-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-brand-green text-white flex items-center justify-center font-bold">
                       N
                     </div>
                     <div>
-                      <h4 className="font-bold text-brand-dark text-sm">ThS. Nguyễn Hoàng Nam (Chuyên gia nông nghiệp)</h4>
+                      <h4 className="font-bold text-brand-dark text-sm">
+                        {workerChatThread?.expertName || 'ThS. Nguyễn Hoàng Nam'} (Chuyên gia nông nghiệp)
+                      </h4>
                       <p className="text-[11px] text-emerald-700 flex items-center gap-1 font-semibold">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         Đang trực tuyến • Sẵn sàng chỉ đạo kỹ thuật
                       </p>
                     </div>
                   </div>
+
+                  {/* Worker Switcher */}
+                  <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-xl border border-brand-border text-xs">
+                    <span className="text-stone-500 font-bold text-[11px]">Đang đóng vai:</span>
+                    <select
+                      value={selectedWorkerThreadId}
+                      onChange={(e) => setSelectedWorkerThreadId(e.target.value)}
+                      className="px-2 py-1 rounded-lg bg-brand-cream/60 border border-brand-border text-xs font-bold text-brand-dark focus:outline-none"
+                    >
+                      {DEMO_WORKERS.map((w) => (
+                        <option key={w.threadId} value={w.threadId}>
+                          {w.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div className="flex-1 p-5 overflow-y-auto space-y-3.5 text-xs">
-                  {expertChatMessages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex flex-col ${msg.sender === 'worker' ? 'items-end' : 'items-start'}`}
-                    >
-                      <div className="text-[10px] text-stone-400 mb-1 px-1">{msg.senderName} • {msg.time}</div>
-                      <div
-                        className={`max-w-[75%] p-3.5 rounded-2xl leading-relaxed ${
-                          msg.sender === 'worker'
-                            ? 'bg-[#294C38] text-white rounded-br-none shadow-sm'
-                            : 'bg-brand-cream text-brand-dark rounded-bl-none border border-brand-border'
-                        }`}
-                      >
-                        {msg.text}
-                      </div>
+                {/* Messages Body */}
+                <div
+                  ref={workerChatScrollRef}
+                  className="flex-1 p-5 overflow-y-auto space-y-3.5 text-xs bg-stone-50/30"
+                >
+                  {(!workerChatThread?.messages || workerChatThread.messages.length === 0) ? (
+                    <div className="text-center py-12 text-stone-400">
+                      Chưa có tin nhắn nào trong kênh này. Hãy gửi báo cáo hiện trường cho ThS. Nam!
                     </div>
-                  ))}
+                  ) : (
+                    workerChatThread.messages.map((msg) => {
+                      const isMe = msg.sender === 'worker';
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                        >
+                          <div className="text-[10px] text-stone-400 mb-1 px-1">
+                            {isMe ? (msg.senderName || activeWorkerSenderName) : (msg.senderName || 'ThS. Nguyễn Hoàng Nam')} • {msg.time}
+                          </div>
+                          <div
+                            className={`max-w-[75%] p-3.5 rounded-2xl leading-relaxed ${
+                              isMe
+                                ? 'bg-[#294C38] text-white rounded-br-none shadow-sm'
+                                : 'bg-white text-stone-800 rounded-bl-none border border-brand-border shadow-xs'
+                            }`}
+                          >
+                            {msg.prescriptionTag && (
+                              <div className="mb-1.5 inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                {msg.prescriptionTag}
+                              </div>
+                            )}
+                            <p className="whitespace-pre-wrap">{msg.text}</p>
+                          </div>
+
+
+                        </div>
+                      );
+                    })
+                  )}
+
+
                 </div>
 
                 <form onSubmit={handleSendMessageToExpert} className="p-3.5 bg-white border-t border-brand-border flex items-center gap-2">
                   <input
                     type="text"
-                    placeholder="Nhập câu hỏi hoặc tình hình hiện trường gửi ThS. Nam..."
+                    placeholder={`Nhập câu hỏi hoặc tình hình hiện trường gửi ThS. Nam (với tên ${activeWorkerSenderName})...`}
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     className="flex-1 px-4 py-2.5 text-xs rounded-xl bg-stone-50 border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-green/20"

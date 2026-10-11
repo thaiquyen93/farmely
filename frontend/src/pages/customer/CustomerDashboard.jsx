@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
@@ -7,6 +7,10 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import SelfGrowingDashboard from '../../components/customer/SelfGrowingDashboard';
 import AssistedGrowingDashboard from '../../components/customer/AssistedGrowingDashboard';
+import VietQrModal from '../../components/payment/VietQrModal';
+import CardPaymentModal from '../../components/payment/CardPaymentModal';
+import { useRealtimeChat } from '../../hooks/useRealtimeChat';
+import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -49,6 +53,8 @@ import {
   ChevronRight,
   ShoppingBag,
   Check,
+  MessageSquare,
+  UserCheck,
   QrCode,
   Flame,
   Tag
@@ -58,6 +64,95 @@ export default function CustomerDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('yards');
   const [selectedPlotId, setSelectedPlotId] = useState('PLOT-MC-02');
+
+  // Chat Communication & Identity Resolution:
+  // Detect if current logged-in user is a custom registered user (not the default demo USR-001)
+  const isCustomUser = Boolean(
+    user &&
+    user.id !== 'USR-001' &&
+    user.email !== 'customer@farmely.vn' &&
+    !DEMO_CUSTOMERS.some((c) => c.email && user.email && c.email.toLowerCase() === user.email.toLowerCase())
+  );
+
+  const customAccount = useMemo(() => {
+    if (!isCustomUser || !user) return null;
+    const safeKey = user.email
+      ? user.email.replace(/[^a-zA-Z0-9]/g, '_')
+      : (user.id ? String(user.id).replace(/[^a-zA-Z0-9]/g, '_') : 'custom_user');
+    return {
+      id: `CUST-${safeKey}`,
+      threadId: `CONS-${safeKey}`,
+      name: user.fullName || user.email?.split('@')[0] || 'Khách Hàng',
+      email: user.email,
+      phone: user.phone || '0901 888 999',
+      avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+      plotCode: 'P-01',
+      plotName: 'Thửa Canh Tác Của ' + (user.fullName || user.email?.split('@')[0] || 'Khách Hàng'),
+      crop: 'Rau củ VietGAP',
+      expertName: 'ThS. Nguyễn Hoàng Nam'
+    };
+  }, [user, isCustomUser]);
+
+  // Default thread for the active user account
+  const defaultUserThreadId = useMemo(() => {
+    if (customAccount) return customAccount.threadId;
+    if (user?.email) {
+      const match = DEMO_CUSTOMERS.find((c) => c.email && c.email.toLowerCase() === user.email.toLowerCase());
+      if (match) return match.threadId;
+    }
+    return DEMO_CUSTOMERS[0].threadId; // 'CONS-401' for Lô Thái Quyền (demo)
+  }, [customAccount, user?.email]);
+
+  const availableCustomerOptions = useMemo(() => {
+    if (customAccount) {
+      return [customAccount, ...DEMO_CUSTOMERS];
+    }
+    return DEMO_CUSTOMERS;
+  }, [customAccount]);
+
+  const [selectedCustomerThreadId, setSelectedCustomerThreadId] = useState(defaultUserThreadId);
+
+  // CRITICAL: Whenever user changes in auth store (login, logout, switch demo role in navbar):
+  // ALWAYS reset the chat thread to the current logged-in user's own thread!
+  useEffect(() => {
+    setSelectedCustomerThreadId(defaultUserThreadId);
+  }, [defaultUserThreadId]);
+
+  const currentCustomerProfile = useMemo(() => {
+    return (
+      availableCustomerOptions.find((c) => c.threadId === selectedCustomerThreadId) ||
+      availableCustomerOptions[0]
+    );
+  }, [availableCustomerOptions, selectedCustomerThreadId]);
+
+  // Sender name is strictly tied to the selected profile
+  const activeCustomerSenderName = currentCustomerProfile?.name || user?.fullName || 'Khách Hàng';
+
+  const {
+    currentThread: customerChatThread,
+    sendMessage: sendCustomerMessage
+  } = useRealtimeChat({
+    role: 'customer',
+    initialThreadId: selectedCustomerThreadId,
+    senderName: activeCustomerSenderName
+  });
+
+  const [customerChatInput, setCustomerChatInput] = useState('');
+  const customerChatScrollRef = useRef(null);
+
+  useEffect(() => {
+    if (activeTab === 'chat' && customerChatScrollRef.current) {
+      customerChatScrollRef.current.scrollTop = customerChatScrollRef.current.scrollHeight;
+    }
+  }, [activeTab, customerChatThread?.messages]);
+
+  const handleSendCustomerChat = (e) => {
+    if (e) e.preventDefault();
+    if (!customerChatInput.trim()) return;
+
+    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName);
+    setCustomerChatInput('');
+  };
 
   // IoT Section States
   const [selectedIotPlotId, setSelectedIotPlotId] = useState('PLOT-CC-01');
@@ -76,6 +171,9 @@ export default function CustomerDashboard() {
   const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('VIETQR');
   const [showCheckoutSuccessModal, setShowCheckoutSuccessModal] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [showServiceQrModal, setShowServiceQrModal] = useState(false);
+  const [showServiceCardModal, setShowServiceCardModal] = useState(false);
+  const [serviceQrData, setServiceQrData] = useState(null);
 
   // Modals for Other Screen Flows
   const [showNewDiaryModal, setShowNewDiaryModal] = useState(false);
@@ -426,29 +524,135 @@ export default function CustomerDashboard() {
     setSelectedServiceToBuy(svc);
   };
 
-  const handleConfirmPayment = (e) => {
+  // Fetch existing cultivation service requests from backend to populate active orders
+  useEffect(() => {
+    fetch('http://localhost:8085/api/v1/payments/service/requests')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
+          const backendOrders = data.data.map(req => ({
+            id: `REQ-${req.requestId}`,
+            serviceName: req.serviceName,
+            plotName: req.rentalId === 1 ? 'Thửa Sen Vàng A1' : 'Thửa Mộc Châu B2',
+            price: `${(Number(req.price) || 0).toLocaleString('vi-VN')} đ`,
+            date: req.scheduledDate || 'Hôm nay',
+            status: req.status === 'DONE' ? 'COMPLETED' : 'IN_PROGRESS',
+            statusLabel: req.status === 'DONE' ? 'Đã hoàn tất' : (req.status === 'ASSIGNED' ? 'Đang thực hiện' : 'Chờ thanh toán'),
+            worker: req.status === 'DONE' ? 'Trần Văn Lực (CVLĐ)' : 'Nguyễn Văn Hưng (CVLĐ)',
+            paymentMethod: req.paymentMethod === 'VIETQR' ? 'Chuyển khoản VietQR' : req.paymentMethod === 'WALLET' ? 'Ví Farmely' : (req.paymentMethod || 'Thẻ Quốc tế')
+          }));
+          setActiveServiceOrders(prev => {
+            const ids = new Set(prev.map(p => p.id));
+            const merged = [...prev];
+            backendOrders.forEach(b => {
+              if (!ids.has(b.id)) {
+                merged.unshift(b);
+              }
+            });
+            return merged;
+          });
+        }
+      })
+      .catch(err => console.debug('Backend service requests initial sync skipped:', err));
+  }, []);
+
+  const handleConfirmPayment = async (e) => {
     e.preventDefault();
     if (!selectedServiceToBuy) return;
 
-    setIsProcessingPayment(true);
-    setTimeout(() => {
-      const selectedPlotObj = customerPlots.find(p => p.id === checkoutPlotId);
-      const newOrder = {
-        id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-        serviceName: selectedServiceToBuy.name,
-        plotName: selectedPlotObj ? selectedPlotObj.name : 'Thửa đất đã chọn',
-        price: selectedServiceToBuy.formattedPrice,
-        date: `${checkoutDate} • Mới tạo`,
-        status: 'IN_PROGRESS',
-        statusLabel: 'Đang thực hiện',
-        worker: 'Đang điều phối CVLĐ',
-        paymentMethod: checkoutPaymentMethod === 'VIETQR' ? 'Chuyển khoản VietQR' : 'Ví Farmely'
-      };
+    // Flow 1: VietQR Payment
+    if (checkoutPaymentMethod === 'VIETQR') {
+      setIsProcessingPayment(true);
+      try {
+        const response = await fetch('http://localhost:8085/api/v1/payments/service/vietqr/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            serviceName: selectedServiceToBuy.name,
+            amount: selectedServiceToBuy.price,
+            rentalId: 1,
+            plotCode: checkoutPlotId,
+            scheduledDate: checkoutDate,
+            notes: checkoutNotes
+          })
+        });
 
-      setActiveServiceOrders(prev => [newOrder, ...prev]);
-      setIsProcessingPayment(false);
-      setShowCheckoutSuccessModal(true);
-    }, 700);
+        const data = await response.json();
+        if (data?.success && data?.data) {
+          setServiceQrData(data.data);
+          setShowServiceQrModal(true);
+          return;
+        }
+      } catch (err) {
+        console.warn('Backend payment-service error, fallbacking to client QR:', err);
+      } finally {
+        setIsProcessingPayment(false);
+      }
+
+      // Client Fallback if service temporarily offline
+      setServiceQrData({
+        transactionId: Math.floor(1000 + Math.random() * 9000),
+        amount: selectedServiceToBuy.price,
+        qrImageUrl: `https://img.vietqr.io/image/ICB-108876543210-compact2.png?amount=${selectedServiceToBuy.price}&addInfo=FARMELY+DV+${checkoutPlotId}&accountName=FARMELY+AGRIRENT+CORP`,
+        bankName: 'VietinBank (ICB)',
+        accountNo: '108876543210',
+        accountName: 'FARMELY AGRIRENT CORP',
+        description: `FARMELY DV ${checkoutPlotId}`
+      });
+      setShowServiceQrModal(true);
+      return;
+    }
+
+    // Flow 2: Card Payment (Visa, Mastercard, Napas)
+    if (checkoutPaymentMethod === 'CARD') {
+      setShowServiceCardModal(true);
+      return;
+    }
+
+    // Flow 3: Farmely Wallet Payment
+    if (checkoutPaymentMethod === 'WALLET') {
+      setIsProcessingPayment(true);
+      try {
+        await fetch('http://localhost:8085/api/v1/payments/service/wallet/charge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            serviceName: selectedServiceToBuy.name,
+            amount: selectedServiceToBuy.price,
+            rentalId: 1,
+            plotCode: checkoutPlotId,
+            scheduledDate: checkoutDate,
+            notes: checkoutNotes
+          })
+        });
+      } catch (err) {
+        console.warn('Wallet charge backend error:', err);
+      } finally {
+        setIsProcessingPayment(false);
+      }
+
+      handleServicePaymentSuccess({ paymentMethod: 'Ví Farmely', amount: selectedServiceToBuy.price });
+    }
+  };
+
+  const handleServicePaymentSuccess = (paidResult) => {
+    setShowServiceQrModal(false);
+    setShowServiceCardModal(false);
+    const selectedPlotObj = customerPlots.find(p => p.id === checkoutPlotId);
+    const newOrder = {
+      id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      serviceName: selectedServiceToBuy?.name || 'Dịch vụ canh tác',
+      plotName: selectedPlotObj ? selectedPlotObj.name : 'Thửa đất đã chọn',
+      price: selectedServiceToBuy ? selectedServiceToBuy.formattedPrice : `${(paidResult?.amount || 0).toLocaleString('vi-VN')} đ`,
+      date: `${checkoutDate} • Mới kích hoạt`,
+      status: 'IN_PROGRESS',
+      statusLabel: 'Đang thực hiện',
+      worker: 'Đang điều phối CVLĐ',
+      paymentMethod: paidResult?.paymentMethod || (checkoutPaymentMethod === 'VIETQR' ? 'Chuyển khoản VietQR' : checkoutPaymentMethod === 'CARD' ? 'Thẻ Quốc tế / Nội địa' : 'Ví Farmely')
+    };
+
+    setActiveServiceOrders(prev => [newOrder, ...prev]);
+    setShowCheckoutSuccessModal(true);
   };
 
   const currentSelectedPlot = customerPlots.find((p) => p.id === selectedPlotId);
@@ -502,6 +706,13 @@ export default function CustomerDashboard() {
       desc: 'Quản lý các thửa đang canh tác',
       icon: Sprout,
       badge: `${customerPlots.length} Thửa`
+    },
+    {
+      id: 'chat',
+      label: 'Nhắn Tin Với Chuyên Gia',
+      desc: 'Tư vấn ThS. Nam & Trao đổi CVLĐ',
+      icon: MessageSquare,
+      badge: 'Trực tuyến'
     },
     {
       id: 'services',
@@ -1053,6 +1264,90 @@ export default function CustomerDashboard() {
                   />
                 )}
 
+                {/* Section 2: Đội Ngũ Nhân Sự Phụ Trách Thửa Đất */}
+                <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <UserCheck className="w-5 h-5 text-brand-green" />
+                        <h3 className="font-heading font-black text-lg text-brand-dark">
+                          Đội Ngũ Nhân Sự Phụ Trách Thửa Đất
+                        </h3>
+                      </div>
+                      <p className="text-xs text-brand-muted mt-0.5">
+                        Nhân sự được phân công đồng hành cố định xuyên suốt mùa vụ canh tác của bạn.
+                      </p>
+                    </div>
+
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        setActiveTab('chat');
+                        setSelectedPlotId(null);
+                      }}
+                      className="gap-2 text-xs font-bold shadow-sm"
+                    >
+                      <MessageSquare className="w-4 h-4 text-brand-yellow" />
+                      <span>Nhắn tin tư vấn với Chuyên gia</span>
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Agricultural Expert */}
+                    <div className="p-4 rounded-2xl bg-brand-cream/60 border border-brand-border flex items-start gap-3.5">
+                      <img
+                        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80"
+                        alt="Chuyên gia"
+                        className="w-12 h-12 rounded-xl object-cover border border-brand-border shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-heading font-black text-sm text-brand-dark">
+                            ThS. Nguyễn Hoàng Nam
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Chuyên gia trưởng
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-600 mt-0.5">
+                          Viện Nông nghiệp Công nghệ cao • Giám sát VietGAP, kiểm soát độ ẩm và phác đồ dinh dưỡng thửa đất.
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-[10px] text-emerald-700 font-bold">Đang online trực tuyến</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Field Worker */}
+                    <div className="p-4 rounded-2xl bg-brand-cream/60 border border-brand-border flex items-start gap-3.5">
+                      <img
+                        src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80"
+                        alt="Công nhân"
+                        className="w-12 h-12 rounded-xl object-cover border border-brand-border shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-heading font-black text-sm text-brand-dark">
+                            {currentSelectedPlot.worker}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            Tổ trưởng CVLĐ
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-600 mt-0.5">
+                          Trực tiếp thực hiện tưới ẩm 2 ca/ngày, nhổ cỏ tỉa cành và cập nhật ảnh chụp thực tế vào Farm Diary.
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-500" />
+                          <span className="text-[10px] text-amber-700 font-bold">Ca trực hôm nay: Hoàn tất 100%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             ) : null}
 
@@ -1132,6 +1427,17 @@ export default function CustomerDashboard() {
                               style={{ width: `${plot.progressPercent}%` }}
                             />
                           </div>
+                        </div>
+
+                        {/* Assigned Personnel */}
+                        <div className="flex items-center justify-between text-[11px] px-2 py-1.5 rounded-xl bg-stone-50 border border-stone-100">
+                          <span className="text-stone-600 font-medium flex items-center gap-1 truncate">
+                            <UserCheck className="w-3.5 h-3.5 text-brand-green shrink-0" />
+                            <span>ThS. Nam</span>
+                          </span>
+                          <span className="text-amber-800 font-bold text-[10px] truncate max-w-[130px] shrink-0">
+                            {plot.worker}
+                          </span>
                         </div>
 
                         {/* Compact IoT Telemetry */}
@@ -1657,6 +1963,8 @@ export default function CustomerDashboard() {
                     <p>Thời hạn: <strong className="text-brand-dark">03 Tháng (Còn 42 ngày)</strong></p>
                     <p>Chế độ: <strong className="text-brand-dark">Assisted-growing</strong></p>
                     <p>Tổng phí: <strong className="text-brand-dark">3.600.000 đ</strong></p>
+                    <p>Chuyên gia phụ trách: <strong className="text-emerald-800">ThS. Nguyễn Hoàng Nam</strong></p>
+                    <p>Công nhân trực tiếp: <strong className="text-amber-800">Trần Văn Lực (Tổ trưởng CVLĐ)</strong></p>
                   </div>
                   <div className="pt-3 flex gap-3">
                     <Button variant="outline" size="sm" onClick={() => setShowRenewContractModal(true)}>
@@ -1783,6 +2091,198 @@ export default function CustomerDashboard() {
               </div>
             )}
 
+            {/* ============================================================== */}
+            {/* VIEW CHAT: TRỰC TIẾP CHUYÊN GIA NÔNG NGHIỆP & CÔNG NHÂN HIỆN TRƯỜNG */}
+            {/* ============================================================== */}
+            {activeTab === 'chat' && !selectedPlotId && (
+              <div className="bg-white rounded-3xl border border-brand-border shadow-sm overflow-hidden flex flex-col h-[750px] animate-fadeIn">
+                {/* Header */}
+                <div className="p-4 sm:p-5 bg-stone-50 border-b border-brand-border flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <img
+                        src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80"
+                        alt="Chuyên gia"
+                        className="w-12 h-12 rounded-2xl object-cover border-2 border-brand-green/30"
+                      />
+                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-heading font-black text-base text-brand-dark">
+                          {customerChatThread?.expertName || 'ThS. Nguyễn Hoàng Nam'}
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          Chuyên gia VietGAP trưởng
+                        </span>
+                      </div>
+                      <p className="text-xs text-brand-muted">
+                        Đang phụ trách & tư vấn kỹ thuật canh tác cho bạn • Phản hồi trung bình &lt; 5 phút
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Messages Body */}
+                <div
+                  ref={customerChatScrollRef}
+                  className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-brand-cream/20"
+                >
+                  <div className="text-center my-2">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-stone-100 text-stone-500 border border-stone-200 uppercase tracking-wider">
+                      Đoạn chat được đồng bộ Realtime qua BroadcastBus & LocalStorage
+                    </span>
+                  </div>
+
+                  {(!customerChatThread?.messages || customerChatThread.messages.length === 0) ? (
+                    <div className="text-center py-16 space-y-3">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-brand-green flex items-center justify-center mx-auto">
+                        <MessageSquare className="w-7 h-7" />
+                      </div>
+                      <h4 className="font-heading font-black text-base text-brand-dark">
+                        Bắt đầu cuộc trò chuyện với {customerChatThread?.expertName || 'ThS. Nguyễn Hoàng Nam'}
+                      </h4>
+                      <p className="text-xs text-stone-500 max-w-md mx-auto">
+                        Gửi câu hỏi về tình trạng thửa đất, quy trình dinh dưỡng hoặc đặt ca trực kiểm tra sâu bệnh.
+                      </p>
+                    </div>
+                  ) : (
+                    customerChatThread.messages.map((msg) => {
+                      const isMe = msg.sender === 'customer';
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex gap-3 max-w-xl ${isMe ? 'ml-auto flex-row-reverse' : ''}`}
+                        >
+                          {!isMe && (
+                            <img
+                              src={
+                                msg.sender === 'worker'
+                                  ? 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80'
+                                  : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
+                              }
+                              alt="Avatar"
+                              className="w-8 h-8 rounded-full object-cover shrink-0 mt-1 border border-brand-border"
+                            />
+                          )}
+                          <div className={`space-y-1 ${isMe ? 'items-end' : 'items-start'}`}>
+                            <div className="flex items-center gap-2 px-1">
+                              <span className="text-[11px] font-bold text-stone-600">
+                                {isMe
+                                  ? (msg.senderName || activeCustomerSenderName)
+                                  : (msg.sender === 'worker'
+                                      ? (msg.senderName || 'Công nhân hiện trường')
+                                      : (customerChatThread?.expertName || 'ThS. Nguyễn Hoàng Nam'))
+                                }
+                              </span>
+                              {!isMe && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
+                                  {msg.sender === 'worker' ? 'Công nhân CVLĐ' : 'Chuyên gia'}
+                                </span>
+                              )}
+                            </div>
+
+                            <div
+                              className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
+                                isMe
+                                  ? 'bg-brand-green text-white rounded-br-none shadow-sm'
+                                  : 'bg-white text-stone-800 rounded-bl-none border border-brand-border shadow-xs'
+                              }`}
+                            >
+                              {msg.prescriptionTag && (
+                                <div className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>{msg.prescriptionTag}</span>
+                                </div>
+                              )}
+
+                              {msg.photoUrl && (
+                                <div className="mb-2 rounded-xl overflow-hidden border border-brand-border/40">
+                                  <img
+                                    src={msg.photoUrl}
+                                    alt="Minh chứng"
+                                    className="max-h-56 w-full object-cover"
+                                  />
+                                  {msg.photoCaption && (
+                                    <p className="p-2 text-[11px] bg-black/60 text-white font-medium">
+                                      {msg.photoCaption}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+
+                              <p className="whitespace-pre-wrap">{msg.text}</p>
+                            </div>
+
+                            {/* Timestamp */}
+                            <div className={`flex items-center gap-1 text-[10px] px-1 ${isMe ? 'justify-end text-emerald-100' : 'justify-start text-stone-400'}`}>
+                              <span>{msg.time}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Quick prompt suggestions */}
+                <div className="p-3 bg-stone-50 border-t border-brand-border/60 flex flex-wrap gap-2 text-xs">
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider self-center mr-1">
+                    Hỏi nhanh:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sendCustomerMessage('Chào ThS. Nam! Độ ẩm đất hiện tại ở thửa của tôi đang 68% thì có cần tưới thêm không?', activeCustomerSenderName);
+                    }}
+                    className="px-3 py-1 rounded-full bg-white border border-brand-border text-stone-600 hover:bg-brand-green hover:text-white transition-all text-xs"
+                  >
+                    💧 Độ ẩm đất hiện tại có cần tưới thêm?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sendCustomerMessage('Chuyên gia ơi, lá cây ở tầng dưới hơi ngả vàng thì có phải bị thiếu đạm không?', activeCustomerSenderName);
+                    }}
+                    className="px-3 py-1 rounded-full bg-white border border-brand-border text-stone-600 hover:bg-brand-green hover:text-white transition-all text-xs"
+                  >
+                    🍅 Tầng lá chân bị vàng có cần xử lý?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sendCustomerMessage('Tôi muốn nhờ chuyên gia lên phác đồ bón phân trùn quế đợt mới cho rau.', activeCustomerSenderName);
+                    }}
+                    className="px-3 py-1 rounded-full bg-white border border-brand-border text-stone-600 hover:bg-brand-green hover:text-white transition-all text-xs"
+                  >
+                    🪱 Nhờ phác đồ bón phân trùn quế
+                  </button>
+                </div>
+
+                {/* Input Bar */}
+                <form
+                  onSubmit={handleSendCustomerChat}
+                  className="p-3.5 bg-white border-t border-brand-border flex items-center gap-2.5"
+                >
+                  <input
+                    type="text"
+                    value={customerChatInput}
+                    onChange={(e) => setCustomerChatInput(e.target.value)}
+                    placeholder={`Nhập câu hỏi gửi ${customerChatThread?.expertName || 'ThS. Nguyễn Hoàng Nam'}...`}
+                    className="flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl bg-stone-50 border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-green/20"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!customerChatInput.trim()}
+                    className="px-4 py-2.5 rounded-xl bg-brand-green text-white hover:bg-brand-dark disabled:opacity-50 transition-all font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Gửi tin nhắn</span>
+                  </button>
+                </form>
+              </div>
+            )}
+
           </main>
 
         </div>
@@ -1793,7 +2293,7 @@ export default function CustomerDashboard() {
 
       {/* MODAL 1: CHECKOUT / BUY SERVICE (Thanh Toán Dịch Vụ Canh Tác) */}
       <Modal
-        isOpen={Boolean(selectedServiceToBuy)}
+        isOpen={Boolean(selectedServiceToBuy) && !showServiceQrModal && !showServiceCardModal}
         onClose={() => setSelectedServiceToBuy(null)}
         title="Thanh Toán Dịch Vụ Canh Tác"
         subtitle={selectedServiceToBuy?.name}
@@ -1869,7 +2369,7 @@ export default function CustomerDashboard() {
               <label className="block font-bold text-brand-dark">
                 Phương thức thanh toán: <span className="text-rose-500">*</span>
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <label className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
                   checkoutPaymentMethod === 'VIETQR'
                     ? 'border-brand-green bg-emerald-50/60 ring-1 ring-brand-green'
@@ -1885,6 +2385,24 @@ export default function CustomerDashboard() {
                   <div className="min-w-0">
                     <span className="font-bold text-brand-dark block text-xs">Chuyển khoản VietQR</span>
                     <span className="text-[10px] text-stone-500 block">Quét mã QR tự động 24/7</span>
+                  </div>
+                </label>
+
+                <label className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+                  checkoutPaymentMethod === 'CARD'
+                    ? 'border-brand-green bg-emerald-50/60 ring-1 ring-brand-green'
+                    : 'border-brand-border bg-white hover:bg-stone-50'
+                }`}>
+                  <input
+                    type="radio"
+                    name="paymethod"
+                    checked={checkoutPaymentMethod === 'CARD'}
+                    onChange={() => setCheckoutPaymentMethod('CARD')}
+                    className="text-brand-green focus:ring-brand-green"
+                  />
+                  <div className="min-w-0">
+                    <span className="font-bold text-brand-dark block text-xs">Thẻ Quốc Tế / Nội Địa</span>
+                    <span className="text-[10px] text-stone-500 block">Visa, Mastercard, Napas</span>
                   </div>
                 </label>
 
@@ -1908,7 +2426,7 @@ export default function CustomerDashboard() {
               </div>
             </div>
 
-            {/* QR Mockup Preview if VIETQR */}
+            {/* Preview Prompt */}
             {checkoutPaymentMethod === 'VIETQR' && (
               <div className="p-3 rounded-xl bg-stone-50 border border-stone-200 flex items-center gap-3 text-xs">
                 <div className="w-12 h-12 bg-white rounded-lg border border-stone-300 flex items-center justify-center shrink-0">
@@ -1916,7 +2434,19 @@ export default function CustomerDashboard() {
                 </div>
                 <div>
                   <p className="font-bold text-brand-dark">Mã VietQR động tự động xác nhận</p>
-                  <p className="text-[11px] text-stone-500">Hệ thống tự động kích hoạt dịch vụ ngay khi ngân hàng báo có.</p>
+                  <p className="text-[11px] text-stone-500">Pop-up quét mã QR ngân hàng chuẩn Napas 24/7 và lưu giao dịch liên kết vào cơ sở dữ liệu.</p>
+                </div>
+              </div>
+            )}
+
+            {checkoutPaymentMethod === 'CARD' && (
+              <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-200 flex items-center gap-3 text-xs">
+                <div className="w-12 h-12 bg-white rounded-lg border border-emerald-300 flex items-center justify-center shrink-0 text-emerald-700">
+                  <CreditCard className="w-8 h-8" />
+                </div>
+                <div>
+                  <p className="font-bold text-brand-dark">Thanh toán thẻ bảo mật PCI-DSS</p>
+                  <p className="text-[11px] text-stone-500">Pop-up giao diện thẻ ảo 3D trực quan, hỗ trợ Visa, Mastercard và ATM Napas nội địa.</p>
                 </div>
               </div>
             )}
@@ -2128,6 +2658,35 @@ export default function CustomerDashboard() {
           </div>
         </div>
       </Modal>
+
+      {/* Cultivation Service VietQR Pop-up Modal */}
+      <VietQrModal
+        isOpen={showServiceQrModal}
+        onClose={() => setShowServiceQrModal(false)}
+        qrData={serviceQrData}
+        plotInfo={customerPlots.find(p => p.id === checkoutPlotId)}
+        serviceInfo={selectedServiceToBuy}
+        totalAmount={selectedServiceToBuy?.price}
+        onPaymentSuccess={handleServicePaymentSuccess}
+      />
+
+      {/* Cultivation Service Card Payment Pop-up Modal */}
+      <CardPaymentModal
+        isOpen={showServiceCardModal}
+        onClose={() => setShowServiceCardModal(false)}
+        totalAmount={selectedServiceToBuy?.price}
+        plotInfo={customerPlots.find(p => p.id === checkoutPlotId)}
+        serviceInfo={selectedServiceToBuy}
+        chargeEndpoint="http://localhost:8085/api/v1/payments/service/card/charge"
+        additionalPayload={{
+          serviceName: selectedServiceToBuy?.name,
+          rentalId: 1,
+          plotCode: checkoutPlotId,
+          scheduledDate: checkoutDate,
+          notes: checkoutNotes
+        }}
+        onPaymentSuccess={handleServicePaymentSuccess}
+      />
 
       {/* Footer */}
       <Footer />

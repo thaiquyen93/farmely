@@ -21,6 +21,8 @@ import {
   FileText,
   UserCheck
 } from 'lucide-react';
+import VietQrModal from '../../components/payment/VietQrModal';
+import CardPaymentModal from '../../components/payment/CardPaymentModal';
 
 export default function BookPlot() {
   const { id } = useParams();
@@ -38,6 +40,9 @@ export default function BookPlot() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [contractCode, setContractCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [qrData, setQrData] = useState(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -56,14 +61,72 @@ export default function BookPlot() {
   const subtotalCare = careMonthlyPrice * rentalMonths;
   const totalAmount = subtotalPlot + subtotalCare;
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     setIsProcessing(true);
+
+    if (paymentMethod === 'VIETQR') {
+      try {
+        const descText = `FARMELY ${plot.code} ${user?.fullName ? user.fullName.replace(/\s+/g, '') : 'KHACH'}`;
+        const response = await fetch('http://localhost:8085/api/v1/payments/vietqr/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: totalAmount,
+            plotCode: plot.code,
+            description: descText,
+            customerName: user?.fullName || 'Khách hàng Farmely'
+          })
+        });
+
+        const resData = await response.json();
+        if (resData?.success && resData?.data) {
+          setQrData(resData.data);
+          setShowQrModal(true);
+          setIsProcessing(false);
+          return;
+        }
+      } catch (err) {
+        console.warn('Backend payment-service offline, using quick VietQR client fallback:', err);
+      }
+
+      // Fallback if backend service is unreachable
+      const fallbackDesc = `FARMELY ${plot.code} KHACH`;
+      const fallbackImg = `https://img.vietqr.io/image/ICB-108876543210-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(fallbackDesc)}&accountName=${encodeURIComponent('FARMELY AGRIRENT CORP')}`;
+      setQrData({
+        transactionId: null,
+        qrImageUrl: fallbackImg,
+        amount: totalAmount,
+        bankName: 'VietinBank (ICB)',
+        accountNo: '108876543210',
+        accountName: 'FARMELY AGRIRENT CORP',
+        description: fallbackDesc
+      });
+      setShowQrModal(true);
+      setIsProcessing(false);
+      return;
+    }
+
+    if (paymentMethod === 'CARD') {
+      setIsProcessing(false);
+      setShowCardModal(true);
+      return;
+    }
+
+    // Default flow for other payment methods
     setTimeout(() => {
       setIsProcessing(false);
       const generatedCode = `CTR-FARM-${Math.floor(100000 + Math.random() * 900000)}`;
       setContractCode(generatedCode);
       setIsSuccess(true);
     }, 1000);
+  };
+
+  const handlePaymentSuccess = (paidResult) => {
+    setShowQrModal(false);
+    setShowCardModal(false);
+    const generatedCode = `CTR-FARM-${Math.floor(100000 + Math.random() * 900000)}`;
+    setContractCode(generatedCode);
+    setIsSuccess(true);
   };
 
   const handleQuickCustomerLogin = () => {
@@ -229,6 +292,16 @@ export default function BookPlot() {
                 </span>
               </div>
               <div className="flex justify-between items-center">
+                <span className="text-stone-500">Chuyên gia phụ trách:</span>
+                <span className="font-bold text-emerald-800">ThS. Nguyễn Hoàng Nam</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-stone-500">Công nhân phụ trách (CVLĐ):</span>
+                <span className="font-bold text-amber-900">
+                  {selectedMode === 'ASSISTED' ? 'Trần Văn Lực (Tổ trưởng CVLĐ)' : 'Khách tự chăm sóc'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
                 <span className="text-stone-500">Thời hạn:</span>
                 <span className="font-bold text-brand-dark">{rentalMonths} Tháng canh tác</span>
               </div>
@@ -304,6 +377,14 @@ export default function BookPlot() {
                   >
                     <p className="font-heading text-sm font-bold text-brand-dark">Self-Growing</p>
                     <p className="text-xs text-stone-500 mt-1">Tự chăm sóc tại vườn cuối tuần</p>
+                    <div className="mt-2.5 space-y-1 text-[11px] text-stone-600 border-t border-brand-border/40 pt-2">
+                      <p className="flex items-center gap-1 font-medium text-emerald-800">
+                        ✓ Chuyên gia đồng hành: ThS. Nam (Tư vấn kỹ thuật online)
+                      </p>
+                      <p className="text-stone-500">
+                        ✓ Khách hàng tự trải nghiệm làm nông tại vườn
+                      </p>
+                    </div>
                     <p className="text-xs font-bold text-brand-green mt-3">Miễn phí dịch vụ chăm sóc</p>
                   </button>
 
@@ -318,6 +399,14 @@ export default function BookPlot() {
                   >
                     <p className="font-heading text-sm font-bold text-brand-dark">Assisted-Growing</p>
                     <p className="text-xs text-stone-500 mt-1">Đội ngũ Farmely chăm sóc trọn gói hàng ngày</p>
+                    <div className="mt-2.5 space-y-1 text-[11px] text-stone-600 border-t border-brand-border/40 pt-2">
+                      <p className="flex items-center gap-1 font-medium text-emerald-800">
+                        ✓ Chuyên gia phụ trách: ThS. Nguyễn Hoàng Nam (Quy trình VietGAP)
+                      </p>
+                      <p className="text-amber-900 font-medium">
+                        ✓ Công nhân phụ trách (CVLĐ): Phân công cố định (Tưới, nhổ cỏ 2 ca/ngày)
+                      </p>
+                    </div>
                     <p className="text-xs font-bold text-brand-green mt-3">+{plot.careServicePrice.toLocaleString('vi-VN')} đ/tháng</p>
                   </button>
                 </div>
@@ -447,6 +536,25 @@ export default function BookPlot() {
         )}
 
       </main>
+
+      {/* VietQR Payment Pop-up Modal */}
+      <VietQrModal
+        isOpen={showQrModal}
+        onClose={() => setShowQrModal(false)}
+        qrData={qrData}
+        onPaymentSuccess={handlePaymentSuccess}
+        plotInfo={plot}
+        totalAmount={totalAmount}
+      />
+
+      {/* Card Payment Pop-up Modal */}
+      <CardPaymentModal
+        isOpen={showCardModal}
+        onClose={() => setShowCardModal(false)}
+        totalAmount={totalAmount}
+        plotInfo={plot}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
 
       <Footer />
     </div>

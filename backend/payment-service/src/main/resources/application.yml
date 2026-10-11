@@ -5,9 +5,9 @@ spring:
   application:
     name: payment-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartagrirent_payment
+    url: jdbc:postgresql://localhost:5432/Farmely
     username: postgres
-    password: password
+    password: "@Bin054206"
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
