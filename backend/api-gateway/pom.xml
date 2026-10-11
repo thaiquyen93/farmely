@@ -6,15 +6,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.smartagrirent</groupId>
-        <artifactId>smartagrirent-backend</artifactId>
+        <groupId>com.farmely</groupId>
+        <artifactId>farmely-backend</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>api-gateway</artifactId>
     <name>api-gateway</name>
-    <description>API Gateway Service for Smart AgriRent</description>
+    <description>API Gateway Service for Farmely</description>
 
     <dependencies>
         <dependency>

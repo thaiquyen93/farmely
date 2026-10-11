@@ -5,9 +5,9 @@ spring:
   application:
     name: identity-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartagrirent_identity
-    username: postgres
-    password: password
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:farmely}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:12345}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -23,3 +23,8 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration: 86400000 # 1 day in ms
+
