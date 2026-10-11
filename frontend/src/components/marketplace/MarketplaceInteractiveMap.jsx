@@ -1,364 +1,412 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Minus, LocateFixed, Maximize2, Minimize2, Check, Sparkles } from 'lucide-react';
-import { MARKETPLACE_PLOTS_GIS } from '../../data/marketplaceGisData';
-
-/**
- * 16 PLOTS mapped to Ultra-HD farmland orthophoto.
- * Matches exact GIF styling:
- * - Thin crisp white plot boundaries
- * - White rectangular badges centered at top boundary
- * - Active plot (P-01): Cyan/mint #00E5A3 border, 4 corner anchor dots, semi-transparent pale green fill
- * - Anchored speech bubble tooltip with status and feature checkmarks
- */
-export const GRID_16_PLOTS = [
-  { id: 'PLT-HV-01', code: 'Plot P-01', label: 'P-01', x: 30,  y: 30,  w: 205, h: 360 },
-  { id: 'PLT-HV-02', code: 'Plot P-02', label: 'P-02', x: 250, y: 30,  w: 205, h: 360 },
-  { id: 'PLT-HV-03', code: 'Plot P-03', label: 'P-03', x: 475, y: 30,  w: 250, h: 360 },
-  { id: 'PLT-HV-04', code: 'Plot P-04', label: 'P-04', x: 745, y: 30,  w: 230, h: 360 },
-  { id: 'PLT-HV-05', code: 'Plot P-05', label: 'P-05', x: 30,  y: 415, w: 205, h: 420 },
-  { id: 'PLT-HV-06', code: 'Plot P-06', label: 'P-06', x: 250, y: 415, w: 205, h: 420 },
-  { id: 'PLT-HV-07', code: 'Plot P-07', label: 'P-07', x: 475, y: 415, w: 250, h: 420 },
-  { id: 'PLT-HV-08', code: 'Plot P-08', label: 'P-08', x: 745, y: 415, w: 230, h: 420 },
-  { id: 'PLT-HV-09', code: 'Plot P-09', label: 'P-09', x: 30,  y: 865, w: 205, h: 240 },
-  { id: 'PLT-HV-10', code: 'Plot P-10', label: 'P-10', x: 250, y: 865, w: 205, h: 240 },
-  { id: 'PLT-HV-11', code: 'Plot P-11', label: 'P-11', x: 475, y: 865, w: 250, h: 240 },
-  { id: 'PLT-HV-12', code: 'Plot P-12', label: 'P-12', x: 745, y: 865, w: 230, h: 240 },
-  { id: 'PLT-HV-13', code: 'Plot P-13', label: 'P-13', x: 30,  y: 1130, w: 205, h: 240 },
-  { id: 'PLT-HV-14', code: 'Plot P-14', label: 'P-14', x: 250, y: 1130, w: 205, h: 240 },
-  { id: 'PLT-HV-15', code: 'Plot P-15', label: 'P-15', x: 475, y: 1130, w: 250, h: 240 },
-  { id: 'PLT-HV-16', code: 'Plot P-16', label: 'P-16', x: 745, y: 1130, w: 230, h: 240 },
-];
+import React, { useEffect, useRef } from 'react';
+import * as maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { FARMS_GEOJSON_DATA, FARM_GPS_BOUNDS } from '../../data/marketplaceGisData';
 
 export default function MarketplaceInteractiveMap({
-  plots = [],
+  plotsData = FARMS_GEOJSON_DATA,
   selectedPlot = null,
   onSelectPlot,
-  currentFarm,
-  activeStatusTab = 'ALL'
+  onResetView
 }) {
-  const ref = useRef(null);
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [drag, setDrag] = useState(false);
-  const [dStart, setDStart] = useState({ x: 0, y: 0 });
-  const [hov, setHov] = useState(null);
-  const [fs, setFs] = useState(false);
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
+  const markerNodesRef = useRef(new Map());
+  const isFirstRenderRef = useRef(true);
 
-  const selCode = selectedPlot?.code || 'Plot P-01';
-
+  // Khởi tạo bản đồ vệ tinh ESRI với MapLibre GL JS tại toạ độ thực của trang trại
   useEffect(() => {
-    if (!selectedPlot) return;
-    const g = GRID_16_PLOTS.find((p) => p.code === selectedPlot.code);
-    // ponytail: only auto-pan when zoomed in; at zoom=1 the whole map is visible
-    if (g && zoom > 1) {
-      setPan({
-        x: (500 - g.x - g.w / 2) * 0.25,
-        y: (700 - g.y - g.h / 2) * 0.25
+    if (!mapContainerRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: {
+        version: 8,
+        sources: {
+          'satellite-tiles': {
+            type: 'raster',
+            tiles: [
+              'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            ],
+            tileSize: 256
+          }
+        },
+        layers: [
+          {
+            id: 'satellite',
+            type: 'raster',
+            source: 'satellite-tiles',
+            minzoom: 0,
+            maxzoom: 19
+          }
+        ]
+      },
+      center: FARM_GPS_BOUNDS.center, // [106.350258, 10.687662]
+      zoom: 15.1,
+      pitch: 35,
+      bearing: -8
+    });
+
+    mapRef.current = map;
+
+    map.on('load', () => {
+      // 1. Thêm nguồn & Layer ranh giới toàn bộ khu đất (Từ 4 mốc GPS)
+      map.addSource('farm-boundary', {
+        type: 'geojson',
+        data: {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [FARM_GPS_BOUNDS.polygon]
+          }
+        }
+      });
+
+      // Viền ranh giới tổng khu đất (Đường viền màu vàng/cam nét đứt nổi bật)
+      map.addLayer({
+        id: 'farm-boundary-line',
+        type: 'line',
+        source: 'farm-boundary',
+        paint: {
+          'line-color': '#F59E0B',
+          'line-width': 2.5,
+          'line-dasharray': [3, 2],
+          'line-opacity': 0.95
+        }
+      });
+
+      // 2. Thêm nguồn dữ liệu GeoJSON các thửa đất đã được chia lưới chính xác
+      map.addSource('plots', {
+        type: 'geojson',
+        data: plotsData
+      });
+
+      // 3. Layer fill trong suốt - Chỉ dùng làm vùng click/hover, KHÔNG hiển thị màu
+      map.addLayer({
+        id: 'plots-fill',
+        type: 'fill',
+        source: 'plots',
+        paint: {
+          'fill-color': 'rgba(0, 0, 0, 0)',
+          'fill-opacity': 0
+        }
+      });
+
+      // 3b. Layer fill hover - Chỉ hiện khi rê chuột vào 1 thửa cụ thể
+      map.addLayer({
+        id: 'plots-fill-hover',
+        type: 'fill',
+        source: 'plots',
+        paint: {
+          'fill-color': 'rgba(16, 185, 129, 0.20)',
+          'fill-opacity': 1
+        },
+        filter: ['==', 'id', '']
+      });
+
+      // 4. Layer viền polygon nét đứt mỏng giữa các thửa - Không gây sọc
+      map.addLayer({
+        id: 'plots-outline',
+        type: 'line',
+        source: 'plots',
+        paint: {
+          'line-color': 'rgba(255, 255, 255, 0.55)',
+          'line-width': 1,
+          'line-dasharray': [4, 3],
+          'line-opacity': 1
+        }
+      });
+
+      // 5a. Layer glow mờ phía ngoài thửa được chọn (tạo hiệu ứng phát sáng)
+      map.addLayer({
+        id: 'plots-selected-glow',
+        type: 'line',
+        source: 'plots',
+        paint: {
+          'line-color': '#34D399',
+          'line-width': 8,
+          'line-opacity': 0.4,
+          'line-blur': 4
+        },
+        filter: ['==', 'id', selectedPlot?.id || 'P-01']
+      });
+
+      // 5b. Layer viền sắc nét thửa được chọn
+      map.addLayer({
+        id: 'plots-selected-border',
+        type: 'line',
+        source: 'plots',
+        paint: {
+          'line-color': '#10B981',
+          'line-width': 2.5,
+          'line-opacity': 1
+        },
+        filter: ['==', 'id', selectedPlot?.id || 'P-01']
+      });
+
+      // 5c. Layer fill highlight nhẹ cho thửa đang chọn
+      map.addLayer({
+        id: 'plots-selected-fill',
+        type: 'fill',
+        source: 'plots',
+        paint: {
+          'fill-color': 'rgba(16, 185, 129, 0.15)',
+          'fill-opacity': 1
+        },
+        filter: ['==', 'id', selectedPlot?.id || 'P-01']
+      });
+
+      // 6. Thêm HTML badge nhãn mã thửa nổi trên tâm mỗi thửa đất - Hỗ trợ bấm trực tiếp & Hiệu ứng mượt mà
+      markerNodesRef.current.clear();
+      plotsData.features.forEach((f) => {
+        const coords = f.geometry.coordinates[0];
+        const centerLng = (coords[0][0] + coords[1][0] + coords[2][0] + coords[3][0]) / 4;
+        const centerLat = (coords[0][1] + coords[1][1] + coords[2][1] + coords[3][1]) / 4;
+
+        const isCurrentSelected = (selectedPlot?.id || 'P-01') === f.properties.id;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'select-none pointer-events-auto';
+
+        const badge = document.createElement('div');
+        badge.className = `w-max whitespace-nowrap px-2.5 py-1 rounded-lg text-[10px] font-black tracking-tight inline-flex items-center gap-1.5 cursor-pointer select-none transition-all duration-300 shadow-md ${
+          isCurrentSelected
+            ? 'bg-emerald-600 text-white shadow-emerald-500/30 border-2 border-white scale-110 ring-2 ring-emerald-400'
+            : 'bg-white/95 text-slate-800 border border-slate-200 hover:scale-105 hover:border-emerald-400 hover:shadow-lg'
+        }`;
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${
+          f.properties.status === 'Đã thuê' ? 'bg-slate-400' : 'bg-emerald-500'
+        }"></span><span>${f.properties.id}</span>`;
+
+        badge.onclick = (e) => {
+          e.stopPropagation();
+          onSelectPlot?.(f.properties);
+        };
+
+        wrapper.appendChild(badge);
+
+        const marker = new maplibregl.Marker({ element: wrapper })
+          .setLngLat([centerLng, centerLat])
+          .addTo(map);
+
+        markersRef.current.push(marker);
+        markerNodesRef.current.set(f.properties.id, { badge, status: f.properties.status });
+      });
+
+      // 7. Thêm 4 Marker định vị 4 toạ độ GPS góc khu đất
+      const corners = [
+        FARM_GPS_BOUNDS.topLeft,
+        FARM_GPS_BOUNDS.topRight,
+        FARM_GPS_BOUNDS.bottomLeft,
+        FARM_GPS_BOUNDS.bottomRight
+      ];
+
+      corners.forEach((c) => {
+        const pinWrapper = document.createElement('div');
+        pinWrapper.className = 'select-none pointer-events-none';
+
+        const pin = document.createElement('div');
+        pin.className =
+          'w-max whitespace-nowrap px-2 py-1 rounded-md bg-amber-500/90 text-white text-[9px] font-mono font-bold shadow-lg border border-white inline-flex items-center gap-1 select-none';
+        pin.innerHTML = `<span>📌</span><span>${c.label}</span>`;
+        pinWrapper.appendChild(pin);
+
+        const cornerMarker = new maplibregl.Marker({ element: pinWrapper, anchor: 'bottom' })
+          .setLngLat([c.lng, c.lat])
+          .addTo(map);
+
+        markersRef.current.push(cornerMarker);
+      });
+
+      // 8. Click vào thửa đất trên bản đồ
+      map.on('click', 'plots-fill', (e) => {
+        if (e.features && e.features.length > 0) {
+          const plotId = e.features[0].properties.id;
+          const feat = plotsData.features.find((item) => item.properties.id === plotId);
+          if (feat) {
+            onSelectPlot?.(feat.properties);
+          }
+        }
+      });
+
+      // 9. Đổi icon con trỏ + hiệu ứng hover sáng khi rê chuột
+      map.on('mousemove', 'plots-fill', (e) => {
+        map.getCanvas().style.cursor = 'pointer';
+        if (e.features && e.features.length > 0) {
+          map.setFilter('plots-fill-hover', ['==', 'id', e.features[0].properties.id]);
+        }
+      });
+      map.on('mouseleave', 'plots-fill', () => {
+        map.getCanvas().style.cursor = '';
+        map.setFilter('plots-fill-hover', ['==', 'id', '']);
+      });
+
+      // 10. Tự động căn khung hình bao quát toàn bộ 16 thửa đất và 4 mốc GPS
+      map.fitBounds(
+        [
+          [106.343656, 10.680931],
+          [106.356997, 10.694331]
+        ],
+        {
+          padding: { top: 90, bottom: 60, left: 350, right: 400 },
+          bearing: -8,
+          pitch: 35,
+          duration: 0
+        }
+      );
+    });
+
+    return () => {
+      markersRef.current.forEach((m) => m.remove());
+      markersRef.current = [];
+      map.remove();
+    };
+  }, []);
+
+  // Xử lý khi selectedPlot thay đổi -> Highlight & Camera flyTo mượt mà
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const plotId = selectedPlot?.id || selectedPlot?.label || '';
+    // Cập nhật tất cả các layer liên quan đến thửa đang chọn
+    if (map.getLayer('plots-selected-border')) {
+      map.setFilter('plots-selected-border', ['==', 'id', plotId]);
+    }
+    if (map.getLayer('plots-selected-glow')) {
+      map.setFilter('plots-selected-glow', ['==', 'id', plotId]);
+    }
+    if (map.getLayer('plots-selected-fill')) {
+      map.setFilter('plots-selected-fill', ['==', 'id', plotId]);
+    }
+
+    // Cập nhật chuyển động mượt mà của badge marker
+    markerNodesRef.current.forEach((node, id) => {
+      const isSel = id === plotId;
+      if (node.badge) {
+        node.badge.className = `w-max whitespace-nowrap px-2.5 py-1 rounded-lg text-[10px] font-black tracking-tight inline-flex items-center gap-1.5 cursor-pointer select-none transition-all duration-300 shadow-md ${
+          isSel
+            ? 'bg-emerald-600 text-white shadow-emerald-500/30 border-2 border-white scale-110 ring-2 ring-emerald-400'
+            : 'bg-white/95 text-slate-800 border border-slate-200 hover:scale-105 hover:border-emerald-400 hover:shadow-lg'
+        }`;
+      }
+    });
+
+    if (!plotId) return;
+
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      return;
+    }
+
+    // Tìm toạ độ của feature
+    const feat = plotsData.features.find(
+      (f) => f.properties.id === plotId || f.properties.code === selectedPlot?.code
+    );
+
+    if (feat) {
+      const coords = feat.geometry.coordinates[0];
+      const centerLng = (coords[0][0] + coords[1][0] + coords[2][0] + coords[3][0]) / 4;
+      const centerLat = (coords[0][1] + coords[1][1] + coords[2][1] + coords[3][1]) / 4;
+
+      map.flyTo({
+        center: [centerLng, centerLat],
+        zoom: 16.3,
+        pitch: 35, // Nghiêng 35 độ tạo góc nhìn thực địa 3D
+        bearing: -8, // Xoay nhẹ góc nhìn
+        duration: 1200, // Thời gian lướt mượt mà 1.2s không bị khựng
+        easing: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), // Cubic In-Out easing
+        padding: { right: 380, top: 40, bottom: 40, left: 40 }, // Chừa trống chỗ cho drawer chi tiết bên phải
+        essential: true
       });
     }
-  }, [selectedPlot]);
+  }, [selectedPlot, plotsData]);
 
-  const zIn = () => setZoom((z) => Math.min(z + 0.25, 2.5));
-  const zOut = () =>
-    setZoom((z) => {
-      const n = Math.max(z - 0.25, 0.85);
-      if (n <= 1) setPan({ x: 0, y: 0 });
-      return n;
+  // Điều khiển phóng to / thu nhỏ với hiệu ứng mượt
+  const handleZoomIn = () => mapRef.current?.zoomIn({ duration: 350 });
+  const handleZoomOut = () => mapRef.current?.zoomOut({ duration: 350 });
+
+  // Reset về góc nhìn tổng quan trang trại
+  const handleReset = () => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (map.getLayer('plots-selected-border')) {
+      map.setFilter('plots-selected-border', ['==', 'id', '']);
+    }
+    if (map.getLayer('plots-selected-glow')) {
+      map.setFilter('plots-selected-glow', ['==', 'id', '']);
+    }
+    if (map.getLayer('plots-selected-fill')) {
+      map.setFilter('plots-selected-fill', ['==', 'id', '']);
+    }
+
+    markerNodesRef.current.forEach((node) => {
+      if (node.badge) {
+        node.badge.className =
+          'w-max whitespace-nowrap px-2.5 py-1 rounded-lg text-[10px] font-black tracking-tight inline-flex items-center gap-1.5 cursor-pointer select-none transition-all duration-300 shadow-md bg-white/95 text-slate-800 border border-slate-200 hover:scale-105 hover:border-emerald-400 hover:shadow-lg';
+      }
     });
-  const reset = () => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  };
-  const md = (e) => {
-    if (e.button !== 0) return;
-    setDrag(true);
-    setDStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-  };
-  const mm = (e) => {
-    if (!drag) return;
-    setPan({ x: e.clientX - dStart.x, y: e.clientY - dStart.y });
-  };
-  const mu = () => setDrag(false);
 
-  const click = (p) => {
-    const m =
-      plots.find((i) => i.code === p.code || i.id === p.id) ||
-      MARKETPLACE_PLOTS_GIS.find((i) => i.code === p.code) || {
-        id: p.id,
-        code: p.code,
-        label: p.label,
-        name: `Thửa Đất ${p.label}`,
-        status: 'AVAILABLE',
-        areaFormatted: '150 m²',
-        rentalPriceFormatted: '1.000.000 đ/tháng'
-      };
-    onSelectPlot?.(m);
-  };
+    map.fitBounds(
+      [
+        [106.343656, 10.680931],
+        [106.356997, 10.694331]
+      ],
+      {
+        padding: { top: 90, bottom: 60, left: 350, right: 400 },
+        bearing: -8,
+        pitch: 35,
+        duration: 1000
+      }
+    );
 
-  // Find currently selected plot geometry for anchor tooltip
-  const activeGeo = GRID_16_PLOTS.find((p) => p.code === selCode) || GRID_16_PLOTS[0];
+    onResetView?.();
+  };
 
   return (
-    <div
-      ref={ref}
-      onMouseDown={md}
-      onMouseMove={mm}
-      onMouseUp={mu}
-      onMouseLeave={() => setDrag(false)}
-      className={`relative w-full h-full overflow-hidden select-none bg-stone-900 ${
-        fs ? 'fixed inset-0 z-50' : ''
-      } ${drag ? 'cursor-grabbing' : 'cursor-grab'}`}
-    >
-      {/* 1. Base Map Canvas with Ultra-HD Satellite Orthophoto */}
-      <div
-        className="absolute inset-0 w-full h-full origin-center"
-        style={{
-          transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
-          transition: 'transform 0.2s ease-out'
-        }}
-      >
-        <img
-          src="/images/land_rect_ultra_hd.jpg"
-          alt="Orthophoto GIS Map"
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-          style={{ imageRendering: 'crisp-edges' }}
-          draggable={false}
-        />
+    <div className="relative w-full h-full">
+      {/* 1. Canvas Bản Đồ MapLibre GL JS */}
+      <div ref={mapContainerRef} className="absolute inset-0 z-0 w-full h-full" />
 
-        {/* 2. SVG Vector Cadastral Grid Layer */}
-        <svg
-          viewBox="0 0 1000 1400"
-          className="w-full h-full absolute inset-0"
-          preserveAspectRatio="none"
-        >
-          <defs>
-            {/* Subtle glow for selected cyan boundary */}
-            <filter id="cyan-glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#00E5A3" floodOpacity="0.6" />
-            </filter>
-            {/* Soft drop shadow for floating badges and tooltips */}
-            <filter id="badge-shadow" x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#000000" floodOpacity="0.25" />
-            </filter>
-          </defs>
-
-          {/* Render All Plots */}
-          {GRID_16_PLOTS.map((p) => {
-            const isSel = selCode === p.code;
-            const isHov = hov === p.code;
-            const real =
-              plots.find((i) => i.code === p.code) ||
-              MARKETPLACE_PLOTS_GIS.find((i) => i.code === p.code);
-            const st = real?.status || 'AVAILABLE';
-            const vis = activeStatusTab === 'ALL' || st === activeStatusTab;
-            const cx = p.x + p.w / 2;
-
-            return (
-              <g
-                key={p.code}
-                className="cursor-pointer transition-opacity duration-300"
-                style={{ opacity: vis ? 1 : 0.25 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  click(p);
-                }}
-                onMouseEnter={() => setHov(p.code)}
-                onMouseLeave={() => setHov(null)}
-              >
-                {/* Parcel Boundary / Fill */}
-                <rect
-                  x={p.x}
-                  y={p.y}
-                  width={p.w}
-                  height={p.h}
-                  rx="6"
-                  fill={
-                    isSel
-                      ? 'rgba(0, 229, 163, 0.16)' // Vibrant pale green / mint tint from GIF
-                      : isHov
-                      ? 'rgba(255, 255, 255, 0.08)'
-                      : 'rgba(255, 255, 255, 0.02)'
-                  }
-                  stroke={
-                    isSel
-                      ? '#00E5A3' // Exact Cyan / Mint stroke from GIF
-                      : isHov
-                      ? '#FFFFFF'
-                      : 'rgba(255, 255, 255, 0.65)' // Clean crisp white lines
-                  }
-                  strokeWidth={isSel ? 3.0 : isHov ? 2.0 : 1.4}
-                  filter={isSel ? 'url(#cyan-glow)' : undefined}
-                  style={{ transition: 'all 0.2s ease-in-out' }}
-                />
-
-                {/* 4 Corner Vertex / Anchor Nodes for Selected Plot (matching GIF) */}
-                {isSel && (
-                  <g pointerEvents="none">
-                    {/* Top-Left */}
-                    <circle cx={p.x} cy={p.y} r="4" fill="#FFFFFF" stroke="#00E5A3" strokeWidth="2.5" />
-                    {/* Top-Right */}
-                    <circle cx={p.x + p.w} cy={p.y} r="4" fill="#FFFFFF" stroke="#00E5A3" strokeWidth="2.5" />
-                    {/* Bottom-Left */}
-                    <circle cx={p.x} cy={p.y + p.h} r="4" fill="#FFFFFF" stroke="#00E5A3" strokeWidth="2.5" />
-                    {/* Bottom-Right */}
-                    <circle cx={p.x + p.w} cy={p.y + p.h} r="4" fill="#FFFFFF" stroke="#00E5A3" strokeWidth="2.5" />
-                  </g>
-                )}
-
-                {/* Plot ID Badge - White capsule centered on top boundary */}
-                <g
-                  transform={`translate(${cx - 22}, ${p.y + 8})`}
-                  pointerEvents="none"
-                  filter="url(#badge-shadow)"
-                >
-                  <rect
-                    x="0"
-                    y="0"
-                    width="44"
-                    height="20"
-                    rx="5"
-                    fill="#FFFFFF"
-                    stroke={isSel ? '#00E5A3' : 'rgba(226, 232, 240, 0.9)'}
-                    strokeWidth={isSel ? 1.5 : 1}
-                  />
-                  <text
-                    x="22"
-                    y="14"
-                    textAnchor="middle"
-                    fill="#1E293B"
-                    fontSize="10"
-                    fontWeight="700"
-                    fontFamily="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif"
-                    letterSpacing="0.02em"
-                  >
-                    {p.label}
-                  </text>
-                </g>
-              </g>
-            );
-          })}
-
-          {/* 3. Anchored Speech Bubble Tooltip for Selected Plot (matching GIF frame 2/4) */}
-          {activeGeo && (
-            <g
-              transform={`translate(${activeGeo.x + activeGeo.w + 14}, ${activeGeo.y + 30})`}
-              pointerEvents="none"
-              filter="url(#badge-shadow)"
-              className="animate-in fade-in duration-200"
-            >
-              {/* Triangle Pointer Arrow */}
-              <polygon points="-8,16 0,10 0,22" fill="#FFFFFF" />
-
-              {/* Tooltip Card Body */}
-              <rect
-                x="0"
-                y="0"
-                width="165"
-                height="70"
-                rx="10"
-                fill="#FFFFFF"
-                stroke="#E2E8F0"
-                strokeWidth="1"
-              />
-
-              {/* Status Header */}
-              <g transform="translate(12, 18)">
-                <circle cx="4" cy="0" r="3.5" fill="#10B981" />
-                <text
-                  x="14"
-                  y="4"
-                  fill="#059669"
-                  fontSize="11"
-                  fontWeight="700"
-                  fontFamily="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif"
-                >
-                  Đang trống
-                </text>
-              </g>
-
-              {/* Checkmark 1: Đất trù phú */}
-              <g transform="translate(12, 38)">
-                <circle cx="4" cy="0" r="2" fill="#00E5A3" />
-                <text
-                  x="14"
-                  y="3"
-                  fill="#475569"
-                  fontSize="10"
-                  fontWeight="600"
-                  fontFamily="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif"
-                >
-                  Đất màu mỡ, tơi xốp
-                </text>
-              </g>
-
-              {/* Checkmark 2: Bằng phẳng, gần nguồn nước */}
-              <g transform="translate(12, 54)">
-                <circle cx="4" cy="0" r="2" fill="#00E5A3" />
-                <text
-                  x="14"
-                  y="3"
-                  fill="#475569"
-                  fontSize="10"
-                  fontWeight="600"
-                  fontFamily="-apple-system, BlinkMacSystemFont, 'Inter', sans-serif"
-                >
-                  Bằng phẳng · Gần nước
-                </text>
-              </g>
-            </g>
-          )}
-        </svg>
-      </div>
-
-      {/* 4. Subtle Map UI Controls (Zoom In/Out, Locate, Scale Bar) */}
-      <div className="absolute bottom-5 right-5 z-20 flex flex-col items-end gap-2 pointer-events-auto">
-        <div className="bg-white/95 backdrop-blur-md shadow-xl border border-slate-200/90 rounded-2xl p-1.5 flex flex-col gap-1 text-slate-700">
+      {/* 2. Điều khiển bản đồ góc phải dưới (Map Controls) */}
+      <div className="absolute bottom-6 right-8 z-20 flex flex-col gap-2 pointer-events-auto">
+        <div className="bg-white/95 backdrop-blur-md rounded-xl p-1 shadow-lg border border-slate-100 flex flex-col">
           <button
             type="button"
-            onClick={zIn}
-            className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-slate-100 hover:text-emerald-700 transition-colors cursor-pointer"
+            onClick={handleZoomIn}
+            className="w-9 h-9 flex items-center justify-center text-slate-700 font-bold hover:bg-slate-100 rounded-lg text-lg cursor-pointer transition"
             title="Phóng to"
           >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
+            +
           </button>
-          <div className="w-full h-px bg-slate-200" />
+          <div className="h-[1px] bg-slate-100 mx-1" />
           <button
             type="button"
-            onClick={zOut}
-            className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-slate-100 hover:text-emerald-700 transition-colors cursor-pointer"
+            onClick={handleZoomOut}
+            className="w-9 h-9 flex items-center justify-center text-slate-700 font-bold hover:bg-slate-100 rounded-lg text-lg cursor-pointer transition"
             title="Thu nhỏ"
           >
-            <Minus className="w-4 h-4 stroke-[2.5]" />
-          </button>
-          <div className="w-full h-px bg-slate-200" />
-          <button
-            type="button"
-            onClick={reset}
-            className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-slate-100 hover:text-emerald-700 transition-colors cursor-pointer"
-            title="Vị trí trung tâm"
-          >
-            <LocateFixed className="w-4 h-4 stroke-[2]" />
-          </button>
-          <div className="w-full h-px bg-slate-200" />
-          <button
-            type="button"
-            onClick={() => setFs(!fs)}
-            className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-slate-100 hover:text-emerald-700 transition-colors cursor-pointer"
-            title="Toàn màn hình"
-          >
-            {fs ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            -
           </button>
         </div>
+        <button
+          type="button"
+          onClick={handleReset}
+          title="Về góc nhìn tổng quan"
+          className="w-10 h-10 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-100 text-base cursor-pointer transition"
+        >
+          🧭
+        </button>
+      </div>
 
-        {/* Small Scale Bar & Coordinate Tag */}
-        <div className="bg-white/90 backdrop-blur-md shadow-md border border-slate-200/80 rounded-xl px-2.5 py-1 flex items-center gap-2 text-[10px] text-slate-600 font-medium font-mono">
-          <div className="flex items-center gap-1">
-            <span className="w-6 h-1 border-b-2 border-l-2 border-r-2 border-slate-700 block"></span>
-            <span>50m</span>
-          </div>
-          <span className="text-slate-300">|</span>
-          <span>10°41′N 106°20′E</span>
-        </div>
+      {/* 3. Badge hiển thị toạ độ trung tâm GPS của khu đất */}
+      <div className="absolute bottom-6 left-6 z-20 hidden lg:flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-slate-100 text-[10px] text-slate-600 font-mono font-medium pointer-events-none">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        <span>Tọa độ khu đất: 10°41′15″N 106°21′01″E</span>
+        <span className="text-slate-300">|</span>
+        <span>16 Thửa đất VietGAP</span>
       </div>
     </div>
   );

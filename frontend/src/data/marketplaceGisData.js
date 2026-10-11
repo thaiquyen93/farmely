@@ -738,3 +738,882 @@ export const ALL_CROPS_FILTER_OPTIONS = [
   'Rau dền',
   'Thảo mộc'
 ];
+
+
+/**
+ * 4 GPS CORNERS THEO YÊU CẦU:
+ * - Trên trái:  10°41'22.19"N 106°20'37.16"E  => lat=10.689497, lng=106.343656
+ * - Trên phải: 10°41'39.59"N 106°20'57.94"E  => lat=10.694331, lng=106.349428
+ * - Dưới trái: 10°40'51.35"N 106°21'03.43"E  => lat=10.680931, lng=106.350953
+ * - Dưới phải: 10°41'09.20"N 106°21'25.19"E  => lat=10.685889, lng=106.356997
+ */
+export const FARM_GPS_BOUNDS = {
+  topLeft: { dms: "10°41'22.19\"N 106°20'37.16\"E", lng: 106.343656, lat: 10.689497, label: "Giới hạn" },
+  topRight: { dms: "10°41'39.59\"N 106°20'57.94\"E", lng: 106.349428, lat: 10.694331, label: "Giới hạn" },
+  bottomLeft: { dms: "10°40'51.35\"N 106°21'03.43\"E", lng: 106.350953, lat: 10.680931, label: "Giới hạn" },
+  bottomRight: { dms: "10°41'09.20\"N 106°21'25.19\"E", lng: 106.356997, lat: 10.685889, label: "Giới hạn" },
+  center: [106.350258, 10.687662],
+  polygon: [
+    [106.343656, 10.689497],
+    [106.349428, 10.694331],
+    [106.356997, 10.685889],
+    [106.350953, 10.680931],
+    [106.343656, 10.689497]
+  ]
+};
+
+export const FARMS_GEOJSON_DATA = {
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-01",
+        "code": "Plot P-01",
+        "name": "Thửa Ruộng Bậc Thang P-01",
+        "area": "150 m²",
+        "rentalPrice": 1200000,
+        "price": "1.200.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🌶️ Ớt chuông",
+          "🍆 Cà tím",
+          "🍅 Cà chua bi"
+        ],
+        "direction": "Đông Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.343813,
+              10.689452
+            ],
+            [
+              106.345118,
+              10.690545
+            ],
+            [
+              106.346782,
+              10.688616
+            ],
+            [
+              106.345463,
+              10.687517
+            ],
+            [
+              106.343813,
+              10.689452
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-02",
+        "code": "Plot P-02",
+        "name": "Thửa Cây Thảo Mộc P-02",
+        "area": "180 m²",
+        "rentalPrice": 1450000,
+        "price": "1.450.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🌿 Bạc hà",
+          "🌱 Hương thảo",
+          "🍃 Húng quế"
+        ],
+        "direction": "Chính Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.345257,
+              10.690661
+            ],
+            [
+              106.346562,
+              10.691754
+            ],
+            [
+              106.348241,
+              10.689832
+            ],
+            [
+              106.346922,
+              10.688733
+            ],
+            [
+              106.345257,
+              10.690661
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-03",
+        "code": "Plot P-03",
+        "name": "Thửa Nông Nghiệp Hữu Cơ P-03",
+        "area": "200 m²",
+        "rentalPrice": 1700000,
+        "price": "1.700.000 đ",
+        "status": "Đã thuê",
+        "crops": [
+          "🍓 Dâu tây",
+          "🥬 Xà lách"
+        ],
+        "direction": "Đông Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.3467,
+              10.69187
+            ],
+            [
+              106.348006,
+              10.692963
+            ],
+            [
+              106.3497,
+              10.691048
+            ],
+            [
+              106.348381,
+              10.689948
+            ],
+            [
+              106.3467,
+              10.69187
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-04",
+        "code": "Plot P-04",
+        "name": "Thửa Trồng Dược Liệu P-04",
+        "area": "160 m²",
+        "rentalPrice": 1300000,
+        "price": "1.300.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🌼 Cúc la mã",
+          "🌱 Xạ hương"
+        ],
+        "direction": "Chính Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.348144,
+              10.693079
+            ],
+            [
+              106.34945,
+              10.694172
+            ],
+            [
+              106.351159,
+              10.692263
+            ],
+            [
+              106.34984,
+              10.691164
+            ],
+            [
+              106.348144,
+              10.693079
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-05",
+        "code": "Plot P-05",
+        "name": "Thửa Đất Nắng Sớm P-05",
+        "area": "175 m²",
+        "rentalPrice": 1350000,
+        "price": "1.350.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🍅 Cà chua bi",
+          "🥒 Dưa chuột"
+        ],
+        "direction": "Chính Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.345638,
+              10.687311
+            ],
+            [
+              106.346959,
+              10.688411
+            ],
+            [
+              106.348622,
+              10.686482
+            ],
+            [
+              106.347288,
+              10.685376
+            ],
+            [
+              106.345638,
+              10.687311
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-06",
+        "code": "Plot P-06",
+        "name": "Thửa Đất Cánh Đồng P-06",
+        "area": "190 m²",
+        "rentalPrice": 1500000,
+        "price": "1.500.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🌽 Bắp ngọt",
+          "🫘 Đậu cove"
+        ],
+        "direction": "Đông Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.347099,
+              10.688528
+            ],
+            [
+              106.348419,
+              10.689628
+            ],
+            [
+              106.350098,
+              10.687705
+            ],
+            [
+              106.348764,
+              10.686599
+            ],
+            [
+              106.347099,
+              10.688528
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-07",
+        "code": "Plot P-07",
+        "name": "Thửa Rau Củ Quả P-07",
+        "area": "155 m²",
+        "rentalPrice": 1250000,
+        "price": "1.250.000 đ",
+        "status": "Đã thuê",
+        "crops": [
+          "🥕 Cà rốt",
+          "🥔 Khoai tây"
+        ],
+        "direction": "Chính Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.34856,
+              10.689744
+            ],
+            [
+              106.34988,
+              10.690844
+            ],
+            [
+              106.351575,
+              10.688929
+            ],
+            [
+              106.35024,
+              10.687823
+            ],
+            [
+              106.34856,
+              10.689744
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-08",
+        "code": "Plot P-08",
+        "name": "Thửa Hoa Màu P-08",
+        "area": "165 m²",
+        "rentalPrice": 1300000,
+        "price": "1.300.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🌻 Hướng dương",
+          "🫑 Ớt chuông"
+        ],
+        "direction": "Đông Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.35002,
+              10.690961
+            ],
+            [
+              106.351341,
+              10.692061
+            ],
+            [
+              106.353051,
+              10.690153
+            ],
+            [
+              106.351716,
+              10.689046
+            ],
+            [
+              106.35002,
+              10.690961
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-09",
+        "code": "Plot P-09",
+        "name": "Thửa Vườn Thơm P-09",
+        "area": "170 m²",
+        "rentalPrice": 1400000,
+        "price": "1.400.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🥦 Bông cải",
+          "🥬 Cải thìa"
+        ],
+        "direction": "Đông Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.347463,
+              10.68517
+            ],
+            [
+              106.348799,
+              10.686277
+            ],
+            [
+              106.350463,
+              10.684348
+            ],
+            [
+              106.349113,
+              10.683234
+            ],
+            [
+              106.347463,
+              10.68517
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-10",
+        "code": "Plot P-10",
+        "name": "Thửa Xanh Mướt P-10",
+        "area": "185 m²",
+        "rentalPrice": 1600000,
+        "price": "1.600.000 đ",
+        "status": "Đã thuê",
+        "crops": [
+          "🥗 Xà lách xoăn",
+          "🌿 Hẹ"
+        ],
+        "direction": "Chính Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.348941,
+              10.686394
+            ],
+            [
+              106.350277,
+              10.687501
+            ],
+            [
+              106.351956,
+              10.685579
+            ],
+            [
+              106.350606,
+              10.684466
+            ],
+            [
+              106.348941,
+              10.686394
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-11",
+        "code": "Plot P-11",
+        "name": "Thửa Nắng Vàng P-11",
+        "area": "160 m²",
+        "rentalPrice": 1250000,
+        "price": "1.250.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🍅 Cà chua",
+          "🫑 Ớt hiểm"
+        ],
+        "direction": "Đông Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.350419,
+              10.687619
+            ],
+            [
+              106.351755,
+              10.688726
+            ],
+            [
+              106.353449,
+              10.68681
+            ],
+            [
+              106.352099,
+              10.685697
+            ],
+            [
+              106.350419,
+              10.687619
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-12",
+        "code": "Plot P-12",
+        "name": "Thửa Đất Màu P-12",
+        "area": "195 m²",
+        "rentalPrice": 1450000,
+        "price": "1.450.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🍉 Dưa hấu",
+          "🍈 Dưa lưới"
+        ],
+        "direction": "Chính Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.351896,
+              10.688843
+            ],
+            [
+              106.353232,
+              10.68995
+            ],
+            [
+              106.354942,
+              10.688042
+            ],
+            [
+              106.353592,
+              10.686929
+            ],
+            [
+              106.351896,
+              10.688843
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-13",
+        "code": "Plot P-13",
+        "name": "Thửa Phù Sa P-13",
+        "area": "165 m²",
+        "rentalPrice": 1350000,
+        "price": "1.350.000 đ",
+        "status": "Đã thuê",
+        "crops": [
+          "🍠 Khoai lang",
+          "🥔 Khoai mỡ"
+        ],
+        "direction": "Chính Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.349288,
+              10.683029
+            ],
+            [
+              106.350639,
+              10.684143
+            ],
+            [
+              106.352303,
+              10.682213
+            ],
+            [
+              106.350938,
+              10.681093
+            ],
+            [
+              106.349288,
+              10.683029
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-14",
+        "code": "Plot P-14",
+        "name": "Thửa Bờ Kênh P-14",
+        "area": "175 m²",
+        "rentalPrice": 1550000,
+        "price": "1.550.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🥒 Bí xanh",
+          "🎃 Bí đỏ"
+        ],
+        "direction": "Đông Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.350783,
+              10.684261
+            ],
+            [
+              106.352134,
+              10.685375
+            ],
+            [
+              106.353813,
+              10.683453
+            ],
+            [
+              106.352448,
+              10.682332
+            ],
+            [
+              106.350783,
+              10.684261
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-15",
+        "code": "Plot P-15",
+        "name": "Thửa Sinh Thái P-15",
+        "area": "180 m²",
+        "rentalPrice": 1650000,
+        "price": "1.650.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🍓 Dâu tây",
+          "🍇 Nho đen"
+        ],
+        "direction": "Chính Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.352278,
+              10.685493
+            ],
+            [
+              106.353629,
+              10.686607
+            ],
+            [
+              106.355323,
+              10.684692
+            ],
+            [
+              106.353958,
+              10.683572
+            ],
+            [
+              106.352278,
+              10.685493
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-16",
+        "code": "Plot P-16",
+        "name": "Thửa An Nhiên P-16",
+        "area": "150 m²",
+        "rentalPrice": 1200000,
+        "price": "1.200.000 đ",
+        "status": "Đã thuê",
+        "crops": [
+          "🫒 Trà ô long",
+          "🌱 Đậu đỏ"
+        ],
+        "direction": "Đông Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.353773,
+              10.686725
+            ],
+            [
+              106.355124,
+              10.687839
+            ],
+            [
+              106.356834,
+              10.685931
+            ],
+            [
+              106.355468,
+              10.684811
+            ],
+            [
+              106.353773,
+              10.686725
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+};
