@@ -6,40 +6,87 @@ spring:
     name: api-gateway
   cloud:
     gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:5173"
+              - "http://localhost:3000"
+              - "http://localhost:4173"
+              - "http://127.0.0.1:5173"
+              - "http://127.0.0.1:3000"
+            allowedMethods:
+              - "GET"
+              - "POST"
+              - "PUT"
+              - "DELETE"
+              - "PATCH"
+              - "OPTIONS"
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
       routes:
         - id: identity-service
-          uri: http://localhost:8081
+          uri: http://${IDENTITY_SERVICE_HOST:localhost}:${IDENTITY_SERVICE_PORT:8081}
           predicates:
             - Path=/api/auth/**, /api/users/**
+
         - id: farm-service
-          uri: http://localhost:8082
+          uri: http://${FARM_SERVICE_HOST:localhost}:${FARM_SERVICE_PORT:8082}
           predicates:
             - Path=/api/lands/**, /api/plots/**, /api/site-visits/**
+
         - id: knowledge-service
-          uri: http://localhost:8083
+          uri: http://${KNOWLEDGE_SERVICE_HOST:localhost}:${KNOWLEDGE_SERVICE_PORT:8083}
           predicates:
-            - Path=/api/crops/**, /api/varieties/**, /api/templates/**, /api/compatibility/**
+            - Path=/api/crops/**, /api/varieties/**, /api/templates/**, /api/compatibility/**, /api/documents/**, /api/knowledge/**
+
         - id: rental-service
-          uri: http://localhost:8084
+          uri: http://${RENTAL_SERVICE_HOST:localhost}:${RENTAL_SERVICE_PORT:8084}
           predicates:
-            - Path=/api/reservations/**, /api/rentals/**, /api/cancellations/**
+            - Path=/api/contracts/**, /api/rentals/**, /api/reservations/**, /api/cancellations/**
+
         - id: payment-service
-          uri: http://localhost:8085
+          uri: http://${PAYMENT_SERVICE_HOST:localhost}:${PAYMENT_SERVICE_PORT:8085}
           predicates:
             - Path=/api/payments/**
+
         - id: cultivation-service
-          uri: http://localhost:8086
+          uri: http://${CULTIVATION_SERVICE_HOST:localhost}:${CULTIVATION_SERVICE_PORT:8086}
           predicates:
-            - Path=/api/tasks/**, /api/diary/**, /api/services/**, /api/issues/**, /api/harvest/**
+            - Path=/api/tasks/**, /api/care-tasks/**, /api/diaries/**, /api/diary/**, /api/services/**, /api/issues/**, /api/harvest/**, /api/harvests/**, /api/service-requests/**, /api/cultivation/**
+
         - id: communication-service
-          uri: http://localhost:8087
+          uri: http://${COMMUNICATION_SERVICE_HOST:localhost}:${COMMUNICATION_SERVICE_PORT:8087}
           predicates:
             - Path=/api/conversations/**, /api/messages/**, /api/consultations/**, /api/notifications/**
+
         - id: monitoring-service
-          uri: http://localhost:8088
+          uri: http://${MONITORING_SERVICE_HOST:localhost}:${MONITORING_SERVICE_PORT:8088}
           predicates:
             - Path=/api/sensors/**, /api/weather/**, /api/alerts/**, /api/files/**
+
         - id: ai-service
-          uri: http://localhost:8089
+          uri: http://${AI_SERVICE_HOST:localhost}:${AI_SERVICE_PORT:8089}
           predicates:
             - Path=/api/ai/**
+
+jwt:
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,gateway"
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    root: INFO
+    org.springframework.cloud.gateway: INFO
+    com.farmely.gateway: DEBUG

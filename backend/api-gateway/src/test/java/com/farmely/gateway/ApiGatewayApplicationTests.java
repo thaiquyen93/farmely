@@ -1,4 +1,4 @@
-package com.smartagrirent.gateway;
+package com.farmely.gateway;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
