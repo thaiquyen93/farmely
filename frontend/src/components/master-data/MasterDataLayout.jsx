@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore';
 
 export default function MasterDataLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { user } = useAuthStore();
   const location = useLocation();
 
@@ -17,6 +18,7 @@ export default function MasterDataLayout() {
     if (pathname.includes('/varieties')) return 'Danh Mục Giống Cây (Varieties)';
     if (pathname.includes('/compatibility')) return 'Ma Trận Tương Thích Thổ Nhưỡng – Giống Cây';
     if (pathname.includes('/knowledge-documents')) return 'Kho Tri Thức & Sổ Tay Kỹ Thuật (RAG)';
+    if (pathname.includes('/services')) return 'Dịch Vụ Canh Tác & Mẫu CareTask';
     if (pathname.includes('/process-templates')) return 'Quy Trình Canh Tác Chuẩn VietGAP';
     return 'Tổng Quan Quản Trị Master Data';
   };
@@ -27,6 +29,8 @@ export default function MasterDataLayout() {
       <AdminSidebar
         mobileOpen={mobileSidebarOpen}
         setMobileOpen={setMobileSidebarOpen}
+        collapsed={sidebarCollapsed}
+        setCollapsed={setSidebarCollapsed}
       />
 
       {/* Backdrop for Mobile */}
@@ -38,7 +42,7 @@ export default function MasterDataLayout() {
       )}
 
       {/* Main Wrapper */}
-      <div className="flex-1 lg:pl-72 flex flex-col min-w-0">
+      <div className={`flex-1 ${sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72'} flex flex-col min-w-0 transition-[padding] duration-300`}>
         
         {/* Top Navbar */}
         <header className="sticky top-0 z-20 h-20 bg-white/90 backdrop-blur-md border-b border-brand-border px-4 sm:px-8 flex items-center justify-between">

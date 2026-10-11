@@ -571,3 +571,33 @@ export function markThreadAsReadInStorage(threadId) {
 
   return { thread, threads: updatedThreads };
 }
+
+export function updateThreadRentalInStorage({ threadId, customerName, customerAvatar, plotCode, plotName, crop }) {
+  const threads = getStoredThreads();
+  const existingIndex = threads.findIndex((thread) => thread.id === threadId);
+  const existing = existingIndex >= 0 ? threads[existingIndex] : null;
+  const thread = {
+    ...(existing || {}),
+    id: threadId,
+    role: 'customer',
+    roleLabel: 'Khách Thuê Đất',
+    rentalStatus: 'RENTED',
+    customerName: customerName || existing?.customerName || 'Khách hàng Farmely',
+    customerAvatar: customerAvatar || existing?.customerAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+    plotCode,
+    plotName,
+    crop: crop || 'Cây trồng VietGAP',
+    stage: 'Đã xác nhận thuê thửa',
+    expertName: existing?.expertName || 'ThS. Nguyễn Hoàng Nam',
+    isOnline: true,
+    lastTime: 'Vừa cập nhật',
+    status: existing?.status || 'PENDING',
+    unread: existing?.unread || false,
+    messages: existing?.messages || []
+  };
+  const updatedThreads = existingIndex >= 0
+    ? threads.map((item, index) => index === existingIndex ? thread : item)
+    : [thread, ...threads];
+  saveThreads(updatedThreads);
+  return { thread, threads: updatedThreads };
+}

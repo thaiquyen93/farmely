@@ -280,7 +280,7 @@ export default function PublicNavbar() {
                       onClick={() => {
                         switchRole(acc.role);
                         setRoleSwitcherOpen(false);
-                        navigate(getDashboardRoute(acc.role));
+                        navigate(getDashboardRoute(acc.role), { replace: true });
                       }}
                       className="w-full text-left px-3 py-2 text-xs hover:bg-brand-cream/80 flex items-center justify-between transition-colors"
                     >

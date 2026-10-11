@@ -3,8 +3,11 @@ import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
+import { useServiceStore } from '../../stores/serviceStore';
+import DashboardRail from '../../components/dashboard/DashboardRail';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import {
@@ -41,7 +44,6 @@ import {
   CreditCard,
   MapPin,
   RefreshCw,
-  PhoneCall,
   ClipboardList,
   Bot,
   Sun,
@@ -58,9 +60,11 @@ import {
 
 export default function CustomerDashboard() {
   const { user } = useAuthStore();
+  const { services: masterServices } = useServiceStore();
   const [activeTab, setActiveTab] = useState('yards');
   const [selectedPlotId, setSelectedPlotId] = useState(null);
   const [showExpertChatModal, setShowExpertChatModal] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Chat Communication & Identity Resolution:
   // Detect if current logged-in user is a custom registered user (not the default demo USR-001)
@@ -509,9 +513,22 @@ export default function CustomerDashboard() {
     }
   ]);
 
+  const serviceIconMap = { calendar: Calendar, layers: Layers, sprout: Sprout };
+  const customerServiceCatalog = masterServices
+    .filter((service) => service.active)
+    .map((service) => ({
+      ...service,
+      category: service.customerCategory,
+      formattedPrice: `${service.price.toLocaleString('vi-VN')} đ`,
+      icon: serviceIconMap[service.iconKey] || Sprout,
+      color: service.customerCategory === 'SINGLE'
+        ? 'bg-purple-50 text-purple-800 border-purple-200'
+        : 'bg-emerald-50 text-emerald-800 border-emerald-200',
+      features: service.tasks.map((task) => task.title)
+    }));
   const filteredServices = serviceCategoryFilter === 'ALL'
-    ? serviceCatalog
-    : serviceCatalog.filter(s => s.category === serviceCategoryFilter);
+    ? customerServiceCatalog
+    : customerServiceCatalog.filter(s => s.category === serviceCategoryFilter);
 
   // Handle buy service
   const handleOpenBuyServiceModal = (svc) => {
@@ -544,6 +561,34 @@ export default function CustomerDashboard() {
   };
 
   const currentSelectedPlot = customerPlots.find((p) => p.id === selectedPlotId);
+  const plotOperations = {
+    'PLOT-CC-01': {
+      tasks: [
+        { id: 'TSK-103', title: 'Bón bổ sung 5kg phân trùn quế', time: '15:00 hôm nay', status: 'IN_PROGRESS', owner: 'Trần Văn Lực' },
+        { id: 'TSK-104', title: 'Kiểm tra độ ẩm & tưới vi sinh', time: '07:30 ngày mai', status: 'PENDING', owner: 'Trần Văn Lực' },
+        { id: 'TSK-099', title: 'Tỉa lá già tầng gốc', time: '09:10 hôm qua', status: 'COMPLETED', owner: 'Trần Văn Lực' }
+      ],
+      diary: [
+        { time: '08:25 • Hôm nay', title: 'Đã tưới 15L nước vi sinh', note: 'Độ ẩm sau tưới đạt 68%, đã có ảnh minh chứng.', author: 'Trần Văn Lực' },
+        { time: '16:40 • Hôm qua', title: 'Chuyên gia cập nhật phác đồ dinh dưỡng', note: 'Giảm 20% đạm cá, bổ sung phân trùn quế quanh gốc.', author: 'ThS. Nguyễn Hoàng Nam' }
+      ]
+    },
+    'PLOT-MC-02': {
+      tasks: [
+        { id: 'TSK-207', title: 'Kiểm tra độ cuộn bắp trước thu hoạch', time: '09:00 hôm nay', status: 'PENDING', owner: 'Khách hàng' },
+        { id: 'TSK-205', title: 'Tưới ẩm nhẹ buổi sáng', time: '07:00 hôm nay', status: 'COMPLETED', owner: 'Khách hàng' }
+      ],
+      diary: [{ time: '07:20 • Hôm nay', title: 'Tưới ẩm trước thu hoạch', note: 'Độ ẩm giữ ở mức 62%, lá không đọng nước.', author: 'Lô Thái Quyền' }]
+    },
+    'PLOT-CG-03': {
+      tasks: [
+        { id: 'TSK-308', title: 'Buộc ngọn dưa leo lên giàn', time: '14:30 hôm nay', status: 'IN_PROGRESS', owner: 'Nguyễn Văn Đạt' },
+        { id: 'TSK-309', title: 'Kiểm tra bọ trĩ mặt dưới lá', time: '16:00 hôm nay', status: 'PENDING', owner: 'Nguyễn Văn Đạt' }
+      ],
+      diary: [{ time: '10:15 • Hôm nay', title: 'Kiểm tra sinh trưởng dây leo', note: 'Cây cao trung bình 82cm, chưa ghi nhận sâu bệnh.', author: 'Nguyễn Văn Đạt' }]
+    }
+  };
+  const currentPlotOperations = plotOperations[selectedPlotId] || { tasks: [], diary: [] };
 
   const handleSendMessage = (textToSend) => {
     const query = textToSend || chatInput;
@@ -596,13 +641,6 @@ export default function CustomerDashboard() {
       badge: `${customerPlots.length} Thửa`
     },
     {
-      id: 'chat',
-      label: 'Nhắn Tin Với Chuyên Gia',
-      desc: 'Tư vấn ThS. Nam & Trao đổi CVLĐ',
-      icon: MessageSquare,
-      badge: 'Trực tuyến'
-    },
-    {
       id: 'services',
       label: 'Dịch vụ canh tác',
       desc: 'Ủy thác trọn vụ, ngày/tuần & dịch vụ lẻ',
@@ -651,107 +689,35 @@ export default function CustomerDashboard() {
       {/* 2. Main Page Container mở rộng tối đa (max-w-[1720px]) ăn khớp với Navbar */}
       <div className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
         
-        {/* Welcome Greeting Banner */}
-        <div className="bg-white rounded-2xl p-4 sm:px-5 sm:py-4 border border-brand-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1.5 min-w-0">
-            <div className="inline-flex max-w-full items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-cream text-brand-green border border-brand-border">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="truncate">Thời tiết nông trại: 28°C • Độ ẩm 68% • Nắng ráo lý tưởng</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-heading font-black text-brand-dark">
-              Vườn Của Tôi • <span className="text-brand-green">{user?.fullName || 'Lô Thái Quyền'}</span>
-            </h1>
-            <p className="text-xs text-brand-muted max-w-3xl leading-relaxed">
-              Theo dõi thửa đất, vi khí hậu IoT, dịch vụ chăm sóc và mùa vụ VietGAP của bạn.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setActiveTab('services');
-                setSelectedPlotId(null);
-              }}
-              className="gap-2 shadow-sm font-bold"
-            >
-              <ShoppingBag className="w-4 h-4 text-brand-yellow" />
-              <span>Dịch vụ canh tác</span>
-            </Button>
-
-            <Link to="/marketplace">
-              <Button variant="primary" size="sm" className="gap-2 shadow-sm font-bold">
-                <PlusCircle className="w-4 h-4" />
-                <span>+ Thuê thêm thửa đất</span>
-              </Button>
-            </Link>
-          </div>
-        </div>
-
         {/* 3. Layout with Left Sidebar + Right Content */}
-        <div className="flex flex-col lg:flex-row gap-8 items-start min-w-0">
+        <div className="flex flex-col lg:flex-row gap-6 items-start min-w-0">
           
           {/* ================= LEFT SIDEBAR ================= */}
-          <aside className="w-full lg:w-80 shrink-0 lg:sticky lg:top-28 space-y-5">
-            
-            {/* Customer Mini Profile Card */}
-            <div className="bg-white rounded-2xl p-5 border border-brand-border shadow-sm text-center">
-              <div className="relative inline-block mb-3">
-                <img
-                  src={user?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80"}
-                  alt={user?.fullName}
-                  className="w-16 h-16 rounded-full object-cover border-2 border-brand-yellow mx-auto shadow-sm"
-                />
-                <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-white" />
-              </div>
-              <h3 className="font-heading font-bold text-base text-brand-dark">
-                {user?.fullName || 'Lô Thái Quyền'}
-              </h3>
-              <p className="text-xs text-brand-muted truncate mt-0.5">
-                {user?.email || 'customer@farmely.vn'}
-              </p>
-              <div className="mt-3 pt-3 border-t border-brand-border/60 flex items-center justify-around text-xs">
-                <div>
-                  <span className="font-black text-brand-dark block text-sm">03</span>
-                  <span className="text-[11px] text-brand-muted">Thửa đất</span>
-                </div>
-                <div className="w-px h-6 bg-brand-border/80" />
-                <div>
-                  <span className="font-black text-brand-green block text-sm">14</span>
-                  <span className="text-[11px] text-brand-muted">Ngày vụ</span>
-                </div>
-                <div className="w-px h-6 bg-brand-border/80" />
-                <div>
-                  <span className="font-black text-amber-600 block text-sm">24.5kg</span>
-                  <span className="text-[11px] text-brand-muted">Sản lượng</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Sidebar Navigation Menu */}
-            <div className="bg-white rounded-2xl p-3 border border-brand-border shadow-sm space-y-1">
-              <p className="px-3 py-2 text-[11px] font-bold text-brand-muted uppercase tracking-wider">
+          <DashboardRail
+            user={user}
+            fallbackName="Lô Thái Quyền"
+            roleLabel="Khách hàng"
+            collapsed={sidebarCollapsed}
+            setCollapsed={setSidebarCollapsed}
+            footer={<div className="text-xs"><p className="font-bold text-brand-dark">Hỗ trợ kỹ thuật 24/7</p><p className="mt-1 font-heading font-black text-brand-green">1900 688 889</p></div>}
+          >
+            <div className="space-y-1">
+              <p className={`px-3 py-2 text-[11px] font-bold text-brand-muted uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
                 Chức Năng Quản Lý
               </p>
 
               {navMenuItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = item.id === 'chat'
-                  ? showExpertChatModal
-                  : activeTab === item.id && !selectedPlotId;
+                const isActive = activeTab === item.id && !selectedPlotId;
                 return (
                   <button
                     key={item.id}
                     onClick={() => {
-                      if (item.id === 'chat') {
-                        setShowExpertChatModal(true);
-                        return;
-                      }
                       setActiveTab(item.id);
                       setSelectedPlotId(null);
                     }}
-                    className={`w-full text-left px-3.5 py-3 rounded-xl transition-all flex items-center justify-between text-xs cursor-pointer ${
+                    title={sidebarCollapsed ? item.label : undefined}
+                    className={`relative group w-full text-left px-3.5 py-3 rounded-xl transition-all flex items-center justify-between text-xs cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                       isActive
                         ? 'bg-brand-green text-white shadow-md font-bold'
                         : 'text-stone-700 hover:bg-brand-cream/80 hover:text-brand-dark font-medium'
@@ -767,12 +733,12 @@ export default function CustomerDashboard() {
                             : 'text-brand-green'
                         }`}
                       />
-                      <span>{item.label}</span>
+                      <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{item.label}</span>
                     </div>
 
                     {item.badge && (
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           isActive
                             ? 'bg-white/20 text-white'
                             : 'bg-brand-cream text-brand-green border border-brand-border'
@@ -781,34 +747,19 @@ export default function CustomerDashboard() {
                         {item.badge}
                       </span>
                     )}
+                    {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs font-bold text-white shadow-lg group-hover:lg:block">{item.label}</span>}
                   </button>
                 );
               })}
             </div>
 
-            {/* Support Card */}
-            <div className="bg-brand-cream/80 rounded-2xl p-4 border border-brand-border space-y-2 text-xs">
-              <div className="flex items-center gap-2 font-bold text-brand-dark">
-                <PhoneCall className="w-4 h-4 text-brand-green" />
-                <span>Hỗ Trợ Kỹ Thuật Viên 24/7</span>
-              </div>
-              <p className="text-[11px] text-stone-600">
-                Đội ngũ CVLĐ và Kỹ sư nông nghiệp luôn sẵn sàng hỗ trợ bạn tại nông trại.
-              </p>
-              <div className="pt-1">
-                <span className="font-heading font-black text-brand-green text-sm block">
-                  1900 688 889
-                </span>
-              </div>
-            </div>
-
-          </aside>
+          </DashboardRail>
 
           {/* ================= RIGHT MAIN CONTENT ================= */}
           <main className="flex-1 min-w-0 w-full space-y-6">
             
             {/* Quick Stat Summary Cards */}
-            {!selectedPlotId && (
+            {false && !selectedPlotId && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="p-4 rounded-2xl bg-white border border-brand-border shadow-sm hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between text-xs text-brand-muted mb-1">
@@ -982,6 +933,56 @@ export default function CustomerDashboard() {
                       Thời hạn: Còn 42 ngày
                     </p>
                   </div>
+                </div>
+
+                {/* Tasks and diary belong to the selected plot */}
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <section className="rounded-2xl border border-brand-border bg-white p-5 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between gap-3 border-b border-brand-border/60 pb-3">
+                      <div>
+                        <h3 className="font-heading text-lg font-black text-brand-dark">Công việc của thửa</h3>
+                        <p className="text-xs text-brand-muted">Đang làm gì, ai thực hiện và hạn hoàn thành.</p>
+                      </div>
+                      <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">{currentPlotOperations.tasks.filter((task) => task.status !== 'COMPLETED').length} việc mở</span>
+                    </div>
+                    <div className="space-y-2">
+                      {currentPlotOperations.tasks.map((task) => (
+                        <div key={task.id} className="flex items-start gap-3 rounded-xl border border-brand-border bg-brand-cream/35 p-3">
+                          <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${task.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : task.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'}`}>
+                            {task.status === 'COMPLETED' ? <CheckCircle2 className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="font-bold text-brand-dark">{task.title}</p>
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${task.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : task.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-800' : 'bg-stone-100 text-stone-600'}`}>{task.status === 'COMPLETED' ? 'Đã xong' : task.status === 'IN_PROGRESS' ? 'Đang làm' : 'Chờ làm'}</span>
+                            </div>
+                            <p className="mt-1 text-[11px] text-brand-muted">{task.id} • {task.owner} • {task.time}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border border-brand-border bg-white p-5 shadow-sm">
+                    <div className="mb-4 flex items-center justify-between gap-3 border-b border-brand-border/60 pb-3">
+                      <div>
+                        <h3 className="font-heading text-lg font-black text-brand-dark">Nhật ký riêng của thửa</h3>
+                        <p className="text-xs text-brand-muted">Minh chứng chăm sóc và cập nhật kỹ thuật gần nhất.</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => setShowNewDiaryModal(true)}>Thêm nhật ký</Button>
+                    </div>
+                    <div className="space-y-4">
+                      {currentPlotOperations.diary.map((entry, index) => (
+                        <div key={`${entry.time}-${index}`} className="relative border-l-2 border-emerald-200 pl-4">
+                          <span className="absolute -left-[5px] top-1 h-2 w-2 rounded-full bg-emerald-500" />
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-brand-muted">{entry.time}</p>
+                          <p className="mt-1 font-bold text-brand-dark">{entry.title}</p>
+                          <p className="mt-1 text-xs leading-relaxed text-stone-600">{entry.note}</p>
+                          <p className="mt-1 text-[10px] font-semibold text-brand-green">Cập nhật bởi {entry.author}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 </div>
 
                 {/* Section 1: IoT Telemetry & 24h Real-time Sensor Charts (No Warnings) */}
@@ -1338,7 +1339,7 @@ export default function CustomerDashboard() {
                           : 'bg-brand-cream/80 text-stone-700 hover:bg-stone-100 border border-brand-border'
                       }`}
                     >
-                      Tất cả ({serviceCatalog.length})
+                      Tất cả ({customerServiceCatalog.length})
                     </button>
                     <button
                       onClick={() => setServiceCategoryFilter('FULL')}
@@ -1925,7 +1926,7 @@ export default function CustomerDashboard() {
             {/* VIEW CHAT: TRỰC TIẾP CHUYÊN GIA NÔNG NGHIỆP & CÔNG NHÂN HIỆN TRƯỜNG */}
             {/* ============================================================== */}
             <Modal
-              isOpen={showExpertChatModal}
+              isOpen={false}
               onClose={() => setShowExpertChatModal(false)}
               title="Nhắn tin với chuyên gia"
               subtitle="Trao đổi nhanh mà không rời màn hình quản lý vườn"
@@ -2118,6 +2119,18 @@ export default function CustomerDashboard() {
                 </form>
               </div>
             </Modal>
+
+            <FloatingExpertChat
+              isOpen={showExpertChatModal}
+              onOpen={() => setShowExpertChatModal(true)}
+              onClose={() => setShowExpertChatModal(false)}
+              thread={customerChatThread}
+              senderName={activeCustomerSenderName}
+              input={customerChatInput}
+              setInput={setCustomerChatInput}
+              onSubmit={handleSendCustomerChat}
+              scrollRef={customerChatScrollRef}
+            />
 
           </main>
 

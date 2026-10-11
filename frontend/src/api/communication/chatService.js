@@ -9,6 +9,7 @@ import {
   getStoredThreadById,
   appendMessage,
   markThreadAsReadInStorage,
+  updateThreadRentalInStorage,
   DEMO_CUSTOMERS,
   DEMO_WORKERS,
   DEMO_EXPERTS
@@ -16,7 +17,8 @@ import {
 
 export const CHAT_EVENTS = {
   MESSAGE_SENT: 'CHAT_MESSAGE_SENT',
-  THREAD_READ: 'CHAT_THREAD_READ'
+  THREAD_READ: 'CHAT_THREAD_READ',
+  RENTAL_UPDATED: 'CHAT_RENTAL_UPDATED'
 };
 
 export const chatService = {
@@ -94,12 +96,23 @@ export const chatService = {
     return result;
   },
 
+  updateRentalContext(payload) {
+    const result = updateThreadRentalInStorage(payload);
+    communicationBus.postMessage({
+      type: CHAT_EVENTS.RENTAL_UPDATED,
+      threadId: payload.threadId,
+      thread: result.thread,
+      timestamp: Date.now()
+    });
+    return result;
+  },
+
   /**
    * Listen for real-time chat updates across tabs or windows
    */
   onChatUpdate(callback) {
     const unsubscribeBus = communicationBus.subscribe((data) => {
-      if (data?.type === CHAT_EVENTS.MESSAGE_SENT || data?.type === CHAT_EVENTS.THREAD_READ) {
+      if (data?.type === CHAT_EVENTS.MESSAGE_SENT || data?.type === CHAT_EVENTS.THREAD_READ || data?.type === CHAT_EVENTS.RENTAL_UPDATED) {
         callback(data);
       }
     });
