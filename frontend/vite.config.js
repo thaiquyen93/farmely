@@ -10,8 +10,14 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  optimizeDeps: {
+    exclude: ['maplibre-gl-worker.mjs'],
+  },
   server: {
     port: 3000,
+    watch: {
+      ignored: ['**/public/docs/**', '**/docs/**'],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
