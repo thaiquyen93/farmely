@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Heart,
   Zap,
   X,
   Droplets,
@@ -21,7 +20,6 @@ export default function MarketplacePlotDetailPanel({
   onBookPlot,
   onClose
 }) {
-  const [isSaved, setIsSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
   if (!plot) return null;
@@ -333,12 +331,12 @@ export default function MarketplacePlotDetailPanel({
       </div>
 
       {/* 3. Bottom Action CTA Buttons */}
-      <div className="p-3.5 border-t border-slate-100 bg-white/95 backdrop-blur-md space-y-2 shrink-0">
+      <div className="p-3.5 border-t border-slate-100 bg-white/95 backdrop-blur-md shrink-0">
         <button
           type="button"
           onClick={() => onBookPlot(plot)}
           disabled={!isVacant}
-          className={`w-full py-3 rounded-2xl font-black text-xs tracking-wide shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`w-full py-3.5 rounded-2xl font-black text-xs tracking-wide shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
             isVacant
               ? 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30 active:scale-[0.98]'
               : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
@@ -346,23 +344,6 @@ export default function MarketplacePlotDetailPanel({
         >
           <Zap className="w-4 h-4 fill-current" />
           <span>{isVacant ? 'Thuê ngay thửa này' : 'Thửa đất đã có người thuê'}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setIsSaved(!isSaved)}
-          className={`w-full py-2.5 rounded-2xl border font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-            isSaved
-              ? 'bg-rose-50/80 border-rose-200 text-rose-600 shadow-2xs'
-              : 'border-slate-200/80 hover:bg-slate-50 text-slate-600 hover:border-slate-300'
-          }`}
-        >
-          <Heart
-            className={`w-3.5 h-3.5 transition-transform ${
-              isSaved ? 'fill-rose-500 text-rose-500 scale-110' : 'text-slate-400'
-            }`}
-          />
-          <span>{isSaved ? 'Đã lưu vào danh sách quan tâm' : 'Lưu vào danh sách quan tâm'}</span>
         </button>
       </div>
     </aside>
