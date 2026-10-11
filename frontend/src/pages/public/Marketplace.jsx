@@ -6,7 +6,7 @@ import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceInteractiveMap';
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
 import { FARMS_GEOJSON_DATA } from '../../data/marketplaceGisData';
-import { LogIn, Search, X, ChevronRight, Sparkles } from 'lucide-react';
+import { LogIn, Search, X, ChevronRight, Sparkles, Layers, Plus, Check, ArrowRight } from 'lucide-react';
 
 export default function Marketplace() {
   const navigate = useNavigate();
@@ -18,6 +18,9 @@ export default function Marketplace() {
   const [showDetailPanel, setShowDetailPanel] = useState(true);
   const [plotToBook, setPlotToBook] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Master Lease Agreement: Chọn nhiều thửa đất trực tiếp trên bản đồ Marketplace
+  const [contractSelectedPlots, setContractSelectedPlots] = useState([]);
 
   // Danh sách các thửa đất từ GeoJSON
   const allPlots = useMemo(() => {
@@ -76,17 +79,79 @@ export default function Marketplace() {
     setShowDetailPanel(false);
   };
 
-  // Tiến hành thuê thửa đất
+  // Chọn / Bỏ chọn thửa đất vào danh sách Hợp đồng Master Lease
+  const handleToggleSelectPlotForContract = (plot) => {
+    if (!plot) return;
+    const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE';
+    if (!isVacant) return;
+
+    setContractSelectedPlots((prev) => {
+      const exists = prev.some((p) => (p.id || p.code) === (plot.id || plot.code));
+      if (exists) {
+        return prev.filter((p) => (p.id || p.code) !== (plot.id || plot.code));
+      } else {
+        return [...prev, plot];
+      }
+    });
+  };
+
+  const isPlotSelectedForContract = (plot) => {
+    if (!plot) return false;
+    return contractSelectedPlots.some((p) => (p.id || p.code) === (plot.id || plot.code));
+  };
+
+  // Tổng diện tích các thửa đất đã chọn
+  const totalSelectedArea = useMemo(() => {
+    return contractSelectedPlots.reduce((sum, p) => {
+      const raw = p.areaFormatted || p.area || 0;
+      const num = typeof raw === 'number' ? raw : parseInt(raw, 10) || 50;
+      return sum + num;
+    }, 0);
+  }, [contractSelectedPlots]);
+
+  // Tổng tiền thuê hàng tháng
+  const totalSelectedPrice = useMemo(() => {
+    return contractSelectedPlots.reduce((sum, p) => {
+      const price = p.rentalPrice || (typeof p.price === 'number' ? p.price : 1200000);
+      return sum + price;
+    }, 0);
+  }, [contractSelectedPlots]);
+
+  // Tiến hành thuê thửa đất (từ nút "Thuê ngay thửa này" hoặc Floating Bar)
   const handleBookPlot = (plot) => {
     if (!plot) return;
     const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE';
     if (!isVacant) return;
 
+    // Nếu đã có các thửa đất khác được chọn thì gộp tất cả vào hợp đồng
+    const allSelected = isPlotSelectedForContract(plot)
+      ? contractSelectedPlots
+      : contractSelectedPlots.length > 0
+      ? [...contractSelectedPlots, plot]
+      : [plot];
+
+    const firstPlot = allSelected[0];
+    const plotCodes = allSelected.map((p) => p.code || p.id).join(',');
+
     if (!isAuthenticated) {
-      setPlotToBook(plot);
+      setPlotToBook(firstPlot);
       setShowAuthModal(true);
     } else {
-      navigate(`/marketplace/plot/${plot.id}/book`);
+      navigate(`/marketplace/plot/${firstPlot.id || firstPlot.code}/book?plots=${plotCodes}`);
+    }
+  };
+
+  // Tiến hành thuê từ Thanh nổi Master Lease
+  const handleProceedToMultiPlotLease = () => {
+    if (contractSelectedPlots.length === 0) return;
+    const firstPlot = contractSelectedPlots[0];
+    const plotCodes = contractSelectedPlots.map((p) => p.code || p.id).join(',');
+
+    if (!isAuthenticated) {
+      setPlotToBook(firstPlot);
+      setShowAuthModal(true);
+    } else {
+      navigate(`/marketplace/plot/${firstPlot.id || firstPlot.code}/book?plots=${plotCodes}`);
     }
   };
 
@@ -95,7 +160,10 @@ export default function Marketplace() {
     login('customer@farmely.vn', '123456');
     setShowAuthModal(false);
     if (plotToBook) {
-      navigate(`/marketplace/plot/${plotToBook.id}/book`);
+      const plotCodes = contractSelectedPlots.length > 0
+        ? contractSelectedPlots.map((p) => p.code || p.id).join(',')
+        : (plotToBook.code || plotToBook.id);
+      navigate(`/marketplace/plot/${plotToBook.id || plotToBook.code}/book?plots=${plotCodes}`);
     }
   };
 
@@ -331,6 +399,38 @@ export default function Marketplace() {
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
+                    {isVacant && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSelectPlotForContract(p);
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded-lg font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                          isPlotSelectedForContract(p)
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/80'
+                        }`}
+                        title={
+                          isPlotSelectedForContract(p)
+                            ? 'Đã chọn vào hợp đồng'
+                            : 'Thêm thửa này vào hợp đồng Master'
+                        }
+                      >
+                        {isPlotSelectedForContract(p) ? (
+                          <>
+                            <Check className="w-3 h-3 stroke-[3]" />
+                            <span>Đã chọn</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-3 h-3" />
+                            <span>Gộp HĐ</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
                     <span
                       className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold transition-all duration-300 flex items-center gap-1 shadow-2xs ${
                         isVacant
@@ -374,6 +474,8 @@ export default function Marketplace() {
         isOpen={showDetailPanel && Boolean(selectedPlot)}
         onClose={handleCloseDetail}
         onBookPlot={handleBookPlot}
+        isPlotSelectedForContract={isPlotSelectedForContract(selectedPlot)}
+        onToggleSelectPlotForContract={handleToggleSelectPlotForContract}
       />
 
       {/* ─────────────────────────────────────────────────────────────────────────────
@@ -436,6 +538,53 @@ export default function Marketplace() {
           </div>
         </div>
       </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          6. THANH ĐIỀU HƯỚNG GỘP HỢP ĐỒNG MASTER LEASE (KHI ĐÃ CHỌN >= 1 THỬA ĐẤT)
+      ───────────────────────────────────────────────────────────────────────────── */}
+      {contractSelectedPlots.length > 0 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3 bg-slate-900/95 backdrop-blur-2xl rounded-2xl border border-emerald-500/40 shadow-[0_16px_50px_rgba(0,0,0,0.35)] text-white animate-fadeIn max-w-[95vw] sm:max-w-fit">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/25 shrink-0">
+              <Layers className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/40">
+                  Master Lease ({contractSelectedPlots.length} thửa)
+                </span>
+                <span className="text-xs font-bold text-white truncate max-w-[180px] sm:max-w-[280px]">
+                  {contractSelectedPlots.map((p) => p.code || p.id).join(', ')}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 mt-0.5">
+                Tổng diện tích: <strong className="text-white">{totalSelectedArea} m²</strong> •{' '}
+                <strong className="text-emerald-400">{totalSelectedPrice.toLocaleString('vi-VN')} đ/tháng</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="h-7 w-[1px] bg-slate-700/80 shrink-0" />
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setContractSelectedPlots([])}
+              className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={handleProceedToMultiPlotLease}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <span>Ký Hợp Đồng ({contractSelectedPlots.length} thửa)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

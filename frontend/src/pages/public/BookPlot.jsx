@@ -37,8 +37,28 @@ export default function BookPlot() {
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated, login } = useAuthStore();
 
+  // Helper to match plot by any identifier (P-01, Plot P-01, PLT-HV-01, P-101, etc.)
+  const findPlotByAnyCode = (code) => {
+    if (!code) return null;
+    const clean = code.trim().toLowerCase();
+    return plotsData.find((p) => {
+      const pId = (p.id || '').toLowerCase();
+      const pCode = (p.code || '').toLowerCase();
+      const pLabel = (p.label || '').toLowerCase();
+      return (
+        pId === clean ||
+        pCode === clean ||
+        pLabel === clean ||
+        pCode.replace('plot ', '').trim() === clean ||
+        clean.replace('plot ', '').trim() === pCode ||
+        pId.replace('plt-hv-', 'p-') === clean ||
+        (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', ''))
+      );
+    });
+  };
+
   // Initial plot from route param or fallback to first
-  const initialPlot = plotsData.find((p) => p.id === id || p.code === id) || plotsData[0];
+  const initialPlot = findPlotByAnyCode(id) || plotsData[0];
 
   // Master Lease Agreement: 1 Contract contains N plots (BR01 / SSoT)
   const [selectedPlots, setSelectedPlots] = useState([initialPlot]);
@@ -64,13 +84,24 @@ export default function BookPlot() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  // If URL changes, sync initial plot
+  // If URL changes or plots query param exists, sync plots
   useEffect(() => {
-    const target = plotsData.find((p) => p.id === id || p.code === id);
+    const plotsQuery = searchParams.get('plots');
+    if (plotsQuery) {
+      const codes = plotsQuery.split(',').map((c) => c.trim()).filter(Boolean);
+      const matched = codes
+        .map((code) => findPlotByAnyCode(code))
+        .filter(Boolean);
+      if (matched.length > 0) {
+        setSelectedPlots(matched);
+        return;
+      }
+    }
+    const target = findPlotByAnyCode(id);
     if (target && !selectedPlots.some((p) => p.id === target.id)) {
       setSelectedPlots([target]);
     }
-  }, [id]);
+  }, [id, searchParams]);
 
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;

@@ -19,35 +19,24 @@ function formatCompactPrice(props) {
   return '';
 }
 
-// Lấy class Tailwind cho Badge Marker theo chuẩn sàn Airbnb / BĐS
+// Lấy class Tailwind cho Badge Marker theo chuẩn sàn Airbnb / BĐS cao cấp
 function getBadgeClassName(props, isSelected) {
   const isVacant = props.status === 'Đang trống' || props.status === 'AVAILABLE';
-  const base =
-    'w-max whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] inline-flex items-center gap-1.5 cursor-pointer select-none transition-all duration-300 pointer-events-auto ';
 
   if (isSelected) {
-    return (
-      base +
-      'bg-emerald-600 text-white shadow-xl shadow-emerald-950/50 border-2 border-white scale-115 ring-3 ring-emerald-400/60 z-30 font-black'
-    );
+    return 'w-max whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] inline-flex items-center gap-1.5 cursor-pointer select-none transition-all duration-300 pointer-events-auto bg-emerald-600 text-white shadow-xl shadow-emerald-950/40 border-2 border-white scale-110 ring-2 ring-emerald-400 z-30 font-black';
   }
 
   if (isVacant) {
-    // Thửa CÒN TRỐNG: Nền trắng tinh khiết, viền emerald nổi bật, đổ bóng sắc nét
-    return (
-      base +
-      'bg-white text-slate-900 border border-emerald-400/80 shadow-[0_4px_14px_rgba(0,0,0,0.18)] hover:scale-110 hover:border-emerald-500 hover:shadow-xl hover:z-20 font-bold'
-    );
+    // Thửa CÒN TRỐNG: Badge giá siêu gọn (width ~42px), không tràn lấn thửa bên cạnh
+    return 'w-max whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1 cursor-pointer select-none transition-all duration-200 pointer-events-auto bg-white/95 text-slate-900 border border-emerald-400/80 shadow-[0_2px_8px_rgba(0,0,0,0.15)] hover:scale-115 hover:border-emerald-500 hover:shadow-lg hover:z-20 font-extrabold';
   }
 
-  // Thửa ĐÃ THUÊ: Nền tối mờ, chìm xuống nền bản đồ để người dùng nhận diện ngay ô đã có chủ
-  return (
-    base +
-    'bg-slate-900/85 text-slate-400 border border-slate-700/80 shadow-sm opacity-75 hover:opacity-100 hover:scale-105 hover:bg-slate-800/90 font-medium'
-  );
+  // Thửa ĐÃ THUÊ: Tag cực kỳ khiêm tốn (width ~34px), tối mờ, chìm dưới nền
+  return 'w-max whitespace-nowrap px-1.5 py-0.5 rounded-full text-[9px] inline-flex items-center gap-1 cursor-pointer select-none transition-all duration-200 pointer-events-auto bg-slate-900/70 text-slate-400 border border-slate-700/60 shadow-xs opacity-60 hover:opacity-100 hover:scale-105 font-medium';
 }
 
-// Render HTML nội dung của Pin Marker (hiển thị mã thửa & giá tiền hoặc trạng thái)
+// Render HTML nội dung của Pin Marker (chỉ hiển thị giá ngắn gọn để tránh chồng lấn thông tin)
 function renderBadgeContent(props, isSelected) {
   const isVacant = props.status === 'Đang trống' || props.status === 'AVAILABLE';
   const priceStr = formatCompactPrice(props);
@@ -55,25 +44,24 @@ function renderBadgeContent(props, isSelected) {
   if (isSelected) {
     return `
       <span class="w-1.5 h-1.5 rounded-full bg-white shrink-0 animate-ping"></span>
-      <span class="font-extrabold tracking-tight">${props.id}</span>
-      <span class="opacity-60">•</span>
-      <span class="font-black tracking-tight">${priceStr || (isVacant ? '' : 'Đã thuê')}</span>
+      <span class="tracking-tight">${props.id}</span>
+      <span class="opacity-50">•</span>
+      <span class="tracking-tight">${priceStr || 'Đã thuê'}</span>
     `;
   }
 
   if (isVacant) {
+    // Chỉ hiển thị chấm xanh + Giá tiền ngắn gọn (ví dụ: 1.2 tr) -> Siêu gọn, không chạm nhau!
     return `
-      <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0 ring-2 ring-emerald-200"></span>
-      <span class="font-bold text-slate-500 text-[9px]">${props.id}</span>
-      <span class="font-black text-emerald-800 text-[11px] tracking-tight">${priceStr}</span>
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+      <span class="tracking-tight text-slate-900">${priceStr}</span>
     `;
   }
 
-  // Thửa đã thuê
+  // Thửa đã thuê: Chấm xám + Mã thửa siêu gọn
   return `
-    <span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
-    <span class="font-semibold text-slate-400 text-[10px]">${props.id}</span>
-    <span class="text-slate-400 text-[9px] font-medium bg-slate-800/80 px-1 py-0.5 rounded">Đã thuê</span>
+    <span class="w-1 h-1 rounded-full bg-slate-400/80 shrink-0"></span>
+    <span class="tracking-tight">${props.id}</span>
   `;
 }
 
@@ -272,15 +260,14 @@ export default function MarketplaceInteractiveMap({
 
       corners.forEach((c) => {
         const pinWrapper = document.createElement('div');
-        pinWrapper.className = 'select-none pointer-events-none';
+        pinWrapper.className = 'select-none pointer-events-none flex items-center justify-center';
 
         const pin = document.createElement('div');
         pin.className =
-          'w-max whitespace-nowrap px-2 py-1 rounded-md bg-amber-500/90 text-white text-[9px] font-mono font-bold shadow-lg border border-white inline-flex items-center gap-1 select-none';
-        pin.innerHTML = `<span>📌</span><span>${c.label}</span>`;
+          'w-2 h-2 rounded-full bg-amber-400 border border-white shadow-xs';
         pinWrapper.appendChild(pin);
 
-        const cornerMarker = new maplibregl.Marker({ element: pinWrapper, anchor: 'bottom' })
+        const cornerMarker = new maplibregl.Marker({ element: pinWrapper, anchor: 'center' })
           .setLngLat([c.lng, c.lat])
           .addTo(map);
 
