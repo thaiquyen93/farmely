@@ -1,0 +1,44 @@
+@startuml
+' Subject Area 1 — RBAC (khớp farmely_27tables_sqlserver.sql)
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+hide methods
+hide stereotypes
+title SUB-ERD 1 — ĐỊNH DANH & PHÂN QUYỀN (RBAC)
+
+entity "roles" as roles {
+  * role_id : INT <<PK, Identity>>
+  --
+  * role_name : VARCHAR(50) <<UQ>>
+}
+
+entity "users" as users {
+  * user_id : INT <<PK, Identity>>
+  --
+  * role_id : INT <<FK>>
+  * email : VARCHAR(255) <<UQ>>
+  * password_hash : VARCHAR(255)
+  * full_name : NVARCHAR(100)
+  phone_number : VARCHAR(20) <<UQ>>
+  address : NVARCHAR(255)
+  avatar_url : VARCHAR(500)
+  * status : VARCHAR(20)
+  * created_at : DATETIME2
+  * updated_at : DATETIME2
+}
+
+roles ||--o{ users : assigned
+
+note right of roles
+  4 role co dinh:
+  ROLE_CUSTOMER, ROLE_EXPERT,
+  ROLE_STAFF, ROLE_ADMIN
+end note
+
+note bottom of users
+  CHECK: status IN ('ACTIVE', 'LOCKED', 'INACTIVE')
+  Trigger trg_users_updated tu dong cap nhat updated_at
+end note
+@enduml

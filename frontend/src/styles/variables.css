@@ -1,0 +1,17 @@
+:root {
+  --green-dark: #294C3B;
+  --green: #426B4F;
+  --green-light: #718D63;
+  --yellow: #F5CF62;
+  --yellow-hover: #e5be4e;
+  --cream: #F5F2E9;
+  --cream-card: #FFFFFF;
+  --white: #FFFFFF;
+  --text-dark: #25352C;
+  --muted: #718078;
+  --border: rgba(41, 76, 59, 0.14);
+  --border-strong: rgba(41, 76, 59, 0.28);
+  --shadow-sm: 0 2px 8px rgba(41, 76, 59, 0.05);
+  --shadow-md: 0 8px 24px -4px rgba(41, 76, 59, 0.08);
+  --shadow-lg: 0 16px 36px -6px rgba(41, 76, 59, 0.14);
+}

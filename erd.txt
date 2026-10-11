@@ -1,0 +1,445 @@
+@startuml
+!define Table(name,desc) class name as "desc" << (T,#FFAAAA) >>
+!define PK(x) <b>+ x</b>
+!define FK(x) <u>x</u>
+!define COLUMN(x) x
+
+hide methods
+hide stereotypes
+
+skinparam class {
+    BackgroundColor White
+    ArrowColor Black
+    BorderColor Black
+}
+
+' =========================================================================
+' 1. USER & ROLE MANAGEMENT
+' =========================================================================
+Table(Role, "Role\n(Vai trò)") {
+    PK(role_id) : INT
+    COLUMN(role_name) : VARCHAR
+}
+
+Table(User, "User\n(Tài khoản)") {
+    PK(user_id) : INT
+    FK(role_id) : INT
+    COLUMN(email) : VARCHAR
+    COLUMN(password_hash) : VARCHAR
+    COLUMN(full_name) : VARCHAR
+    COLUMN(status) : VARCHAR
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Role "1" -- "0..*" User
+
+' =========================================================================
+' 2. LAND & PLOT MANAGEMENT
+' =========================================================================
+Table(Land, "Land\n(Khu đất)") {
+    PK(land_id) : INT
+    COLUMN(land_name) : VARCHAR
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Table(Plot, "Plot\n(Thửa đất)") {
+    PK(plot_id) : INT
+    FK(land_id) : INT
+    COLUMN(plot_code) : VARCHAR
+    COLUMN(area) : DECIMAL
+    COLUMN(image_url) : VARCHAR
+    COLUMN(price_per_period) : DECIMAL
+    COLUMN(water_source) : VARCHAR
+    COLUMN(technical_condition) : VARCHAR
+    COLUMN(status) : VARCHAR
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Land "1" -- "1..*" Plot
+
+' =========================================================================
+' 3. CROP, VARIETY & KNOWLEDGE BASE
+' =========================================================================
+Table(Crop, "Crop\n(Nhóm cây)") {
+    PK(crop_id) : INT
+    COLUMN(crop_name) : VARCHAR
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Table(Variety, "Variety\n(Giống cây)") {
+    PK(variety_id) : INT
+    FK(crop_id) : INT
+    COLUMN(variety_name) : VARCHAR
+    COLUMN(expected_duration) : INT
+    COLUMN(buffer_time) : INT
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Table(Plot_Crop_Compatibility, "Plot_Crop_Compatibility\n(Tương thích)") {
+    PK(FK(plot_id)) : INT
+    PK(FK(variety_id)) : INT
+}
+
+Crop "1" -- "1..*" Variety
+Plot "1" -- "0..*" Plot_Crop_Compatibility
+Variety "1" -- "0..*" Plot_Crop_Compatibility
+
+Table(StandardProcessTemplate, "StandardProcessTemplate\n(Quy trình chuẩn)") {
+    PK(template_id) : INT
+    FK(variety_id) : INT
+    FK(expert_id) : INT
+    COLUMN(version) : VARCHAR
+    COLUMN(min_temp) : DECIMAL
+    COLUMN(max_temp) : DECIMAL
+    COLUMN(min_humidity) : DECIMAL
+    COLUMN(max_humidity) : DECIMAL
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Table(TemplateStep, "TemplateStep\n(Bước canh tác)") {
+    PK(step_id) : INT
+    FK(template_id) : INT
+    COLUMN(step_order) : INT
+    COLUMN(step_name) : VARCHAR
+    COLUMN(description) : TEXT
+    COLUMN(day_offset) : INT
+    COLUMN(duration_days) : INT
+    COLUMN(task_type) : VARCHAR
+}
+
+Table(Material, "Material\n(Vật tư)") {
+    PK(material_id) : INT
+    COLUMN(material_name) : VARCHAR
+    COLUMN(unit) : VARCHAR
+}
+
+Table(TemplateMaterial, "TemplateMaterial\n(Định mức vật tư)") {
+    PK(id) : INT
+    FK(step_id) : INT
+    FK(material_id) : INT
+    COLUMN(quantity) : DECIMAL
+}
+
+Table(KnowledgeDocument, "KnowledgeDocument\n(Tài liệu AI)") {
+    PK(document_id) : INT
+    FK(expert_id) : INT
+    COLUMN(title) : VARCHAR
+    COLUMN(content) : TEXT
+    COLUMN(category) : VARCHAR
+    COLUMN(file_url) : VARCHAR
+    COLUMN(status) : VARCHAR
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Variety "1" -- "0..*" StandardProcessTemplate
+User "1" -- "0..*" StandardProcessTemplate
+StandardProcessTemplate "1" -- "1..*" TemplateStep
+TemplateStep "1" -- "0..*" TemplateMaterial
+Material "1" -- "0..*" TemplateMaterial
+User "1" -- "0..*" KnowledgeDocument
+
+' =========================================================================
+' 4. RENTALS & TRANSACTIONS
+' =========================================================================
+Table(Reservation, "Reservation\n(Đơn giữ chỗ)") {
+    PK(reservation_id) : INT
+    FK(customer_id) : INT
+    COLUMN(created_at) : DATETIME
+    COLUMN(expires_at) : DATETIME
+    COLUMN(grace_expires_at) : DATETIME
+    COLUMN(status) : VARCHAR
+}
+
+Table(ReservationItem, "ReservationItem\n(Chi tiết giữ chỗ)") {
+    PK(item_id) : INT
+    FK(reservation_id) : INT
+    FK(plot_id) : INT
+    FK(variety_id) : INT
+    COLUMN(start_date) : DATE
+    COLUMN(end_date) : DATE
+    COLUMN(cultivation_mode) : VARCHAR
+    COLUMN(locked_price) : DECIMAL
+}
+
+Table(Rental, "Rental\n(Hợp đồng)") {
+    PK(rental_id) : INT
+    FK(customer_id) : INT
+    FK(plot_id) : INT
+    FK(variety_id) : INT
+    COLUMN(start_date) : DATE
+    COLUMN(end_date) : DATE
+    COLUMN(cultivation_mode) : VARCHAR
+    COLUMN(locked_price_per_period) : DECIMAL
+    COLUMN(total_amount) : DECIMAL
+    COLUMN(status) : VARCHAR
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Table(PaymentTransaction, "PaymentTransaction\n(Thanh toán)") {
+    PK(transaction_id) : INT
+    FK(customer_id) : INT
+    FK(reservation_id) : INT
+    FK(rental_id) : INT
+    FK(service_request_id) : INT
+    COLUMN(payment_type) : VARCHAR
+    COLUMN(amount) : DECIMAL
+    COLUMN(status) : VARCHAR
+    COLUMN(payment_method) : VARCHAR
+    COLUMN(gateway_ref) : VARCHAR
+    COLUMN(created_at) : DATETIME
+    COLUMN(completed_at) : DATETIME
+}
+
+Table(Refund, "Refund\n(Hoàn tiền)") {
+    PK(refund_id) : INT
+    FK(transaction_id) : INT
+    FK(rental_id) : INT
+    COLUMN(refund_percentage) : DECIMAL
+    COLUMN(refund_amount) : DECIMAL
+    COLUMN(reason) : TEXT
+    COLUMN(status) : VARCHAR
+    COLUMN(created_at) : DATETIME
+}
+
+User "1" -- "0..*" Reservation
+Reservation "1" -- "1..5" ReservationItem
+Plot "1" -- "0..*" ReservationItem
+Variety "1" -- "0..*" ReservationItem
+
+User "1" -- "0..*" Rental
+Plot "1" -- "0..*" Rental
+Variety "1" -- "0..*" Rental
+
+User "1" -- "0..*" PaymentTransaction
+Reservation "1" -- "0..1" PaymentTransaction
+Rental "1" -- "0..1" PaymentTransaction
+PaymentTransaction "1" -- "0..*" Refund
+Rental "1" -- "0..*" Refund
+
+' =========================================================================
+' 5. OPERATIONS & CULTIVATION
+' =========================================================================
+Table(CultivationPlan, "CultivationPlan\n(KH Canh tác)") {
+    PK(plan_id) : INT
+    FK(rental_id) : INT
+    FK(expert_id) : INT
+    COLUMN(status) : VARCHAR
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Table(CultivationPlanVersion, "CultivationPlanVersion\n(Phiên bản KH)") {
+    PK(version_id) : INT
+    FK(plan_id) : INT
+    FK(template_id) : INT
+    COLUMN(version_number) : INT
+    COLUMN(change_reason) : TEXT
+    COLUMN(status) : VARCHAR
+    FK(reviewed_by) : INT
+    COLUMN(reviewed_at) : DATETIME
+    COLUMN(created_at) : DATETIME
+}
+
+Table(CareTask, "CareTask\n(Nhiệm vụ)") {
+    PK(task_id) : INT
+    FK(rental_id) : INT
+    FK(plan_version_id) : INT
+    FK(assigned_to) : INT
+    COLUMN(task_name) : VARCHAR
+    COLUMN(task_type) : VARCHAR
+    COLUMN(due_date) : DATE
+    COLUMN(status) : VARCHAR
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Table(TaskEvidence, "TaskEvidence\n(Ảnh minh chứng)") {
+    PK(evidence_id) : INT
+    FK(task_id) : INT
+    COLUMN(image_url) : VARCHAR
+    COLUMN(created_at) : DATETIME
+}
+
+Table(MaterialUsage, "MaterialUsage\n(Tiêu hao vật tư)") {
+    PK(usage_id) : INT
+    FK(task_id) : INT
+    FK(material_id) : INT
+    COLUMN(quantity) : DECIMAL
+    COLUMN(created_at) : DATETIME
+}
+
+Table(FarmDiary, "FarmDiary\n(Nhật ký)") {
+    PK(diary_id) : INT
+    FK(rental_id) : INT
+    FK(task_id) : INT
+    COLUMN(activity_time) : DATETIME
+    COLUMN(content) : TEXT
+    COLUMN(image_url) : VARCHAR
+    COLUMN(created_at) : DATETIME
+}
+
+Table(ServiceRequest, "ServiceRequest\n(Yêu cầu DV)") {
+    PK(request_id) : INT
+    FK(rental_id) : INT
+    FK(staff_id) : INT
+    COLUMN(service_name) : VARCHAR
+    COLUMN(price) : DECIMAL
+    COLUMN(status) : VARCHAR
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Rental "1" -- "0..*" CultivationPlan
+User "1" -- "0..*" CultivationPlan
+CultivationPlan "1" -- "1..*" CultivationPlanVersion
+StandardProcessTemplate "1" -- "0..*" CultivationPlanVersion
+User "0..1" -- "0..*" CultivationPlanVersion : "Reviewer"
+
+CultivationPlanVersion "1" -- "0..*" CareTask
+Rental "1" -- "0..*" CareTask
+User "1" -- "0..*" CareTask
+
+CareTask "1" -- "1..*" TaskEvidence
+CareTask "1" -- "0..*" MaterialUsage
+Material "1" -- "0..*" MaterialUsage
+
+Rental "1" -- "0..*" FarmDiary
+CareTask "0..1" -- "0..1" FarmDiary
+
+Rental "1" -- "0..*" ServiceRequest
+User "1" -- "0..*" ServiceRequest
+ServiceRequest "1" -- "0..1" PaymentTransaction
+
+' =========================================================================
+' 6. MONITORING, COMMUNICATION & OTHERS
+' =========================================================================
+Table(SensorReading, "SensorReading\n(Dữ liệu IoT)") {
+    PK(reading_id) : INT
+    FK(plot_id) : INT
+    COLUMN(recorded_at) : DATETIME
+    COLUMN(temperature) : DECIMAL
+    COLUMN(air_humidity) : DECIMAL
+    COLUMN(soil_humidity) : DECIMAL
+}
+
+Table(IssueReport, "IssueReport\n(Báo cáo sự cố)") {
+    PK(issue_id) : INT
+    FK(rental_id) : INT
+    FK(reporter_id) : INT
+    COLUMN(description) : TEXT
+    COLUMN(image_url) : VARCHAR
+    COLUMN(expert_advice) : TEXT
+    COLUMN(created_at) : DATETIME
+    COLUMN(updated_at) : DATETIME
+}
+
+Table(HarvestResult, "HarvestResult\n(KQ Thu hoạch)") {
+    PK(harvest_id) : INT
+    FK(rental_id) : INT
+    COLUMN(harvest_date) : DATE
+    COLUMN(yield_amount) : DECIMAL
+    COLUMN(image_url) : VARCHAR
+    COLUMN(created_at) : DATETIME
+}
+
+Table(PlotInspection, "PlotInspection\n(Nghiệm thu Plot)") {
+    PK(inspection_id) : INT
+    FK(rental_id) : INT
+    FK(plot_id) : INT
+    FK(staff_id) : INT
+    COLUMN(condition_notes) : TEXT
+    COLUMN(image_url) : VARCHAR
+    FK(approved_by) : INT
+    COLUMN(approved_at) : DATETIME
+    COLUMN(status) : VARCHAR
+    COLUMN(created_at) : DATETIME
+}
+
+Plot "1" -- "0..*" SensorReading
+Rental "1" -- "0..*" IssueReport
+User "1" -- "0..*" IssueReport
+Rental "1" -- "0..*" HarvestResult
+Rental "1" -- "0..1" PlotInspection
+Plot "1" -- "0..*" PlotInspection
+User "1" -- "0..*" PlotInspection
+
+' --- CHAT & CONSULTATION ---
+Table(Consultation, "Consultation\n(Yêu cầu tư vấn)") {
+    PK(consultation_id) : INT
+    FK(customer_id) : INT
+    FK(expert_id) : INT
+    FK(rental_id) : INT
+    COLUMN(type) : VARCHAR
+    COLUMN(status) : VARCHAR
+    COLUMN(created_at) : DATETIME
+}
+
+Table(Conversation, "Conversation\n(Hội thoại)") {
+    PK(conversation_id) : INT
+    FK(consultation_id) : INT
+    FK(rental_id) : INT
+    COLUMN(type) : VARCHAR
+    COLUMN(created_at) : DATETIME
+}
+
+Table(Message, "Message\n(Tin nhắn)") {
+    PK(message_id) : INT
+    FK(conversation_id) : INT
+    FK(sender_id) : INT
+    COLUMN(content) : TEXT
+    COLUMN(created_at) : DATETIME
+}
+
+Table(MessageAttachment, "MessageAttachment\n(Đính kèm)") {
+    PK(attachment_id) : INT
+    FK(message_id) : INT
+    COLUMN(file_url) : VARCHAR
+    COLUMN(file_type) : VARCHAR
+}
+
+User "1" -- "0..*" Consultation
+User "1" -- "0..*" Consultation : "Expert"
+Rental "0..1" -- "0..*" Consultation
+Consultation "0..1" -- "1" Conversation
+Rental "0..1" -- "0..*" Conversation
+Conversation "1" -- "0..*" Message
+User "1" -- "0..*" Message
+Message "1" -- "0..*" MessageAttachment
+
+' --- SYSTEM LOGS & NOTIFICATIONS ---
+Table(Notification, "Notification\n(Thông báo)") {
+    PK(notification_id) : INT
+    FK(user_id) : INT
+    COLUMN(type) : VARCHAR
+    COLUMN(title) : VARCHAR
+    COLUMN(content) : TEXT
+    COLUMN(reference_type) : VARCHAR
+    COLUMN(reference_id) : INT
+    COLUMN(is_read) : BOOLEAN
+    COLUMN(created_at) : DATETIME
+}
+
+Table(AuditLog, "AuditLog\n(Nhật ký hệ thống)") {
+    PK(log_id) : INT
+    FK(user_id) : INT
+    COLUMN(action) : VARCHAR
+    COLUMN(entity_type) : VARCHAR
+    COLUMN(entity_id) : INT
+    COLUMN(old_value) : TEXT
+    COLUMN(new_value) : TEXT
+    COLUMN(ip_address) : VARCHAR
+    COLUMN(created_at) : DATETIME
+}
+
+User "1" -- "0..*" Notification
+User "1" -- "0..*" AuditLog
+
+@enduml
