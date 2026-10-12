@@ -6,6 +6,7 @@ import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceInteractiveMap';
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
 import { FARMS_GEOJSON_DATA } from '../../data/marketplaceGisData';
+import { getStatusConfig, isAvailableStatus } from '../../utils/mapTheme';
 import { LogIn, Search, X, ChevronRight, Sparkles, Layers, Plus, Check, ArrowRight } from 'lucide-react';
 
 export default function Marketplace() {
@@ -20,6 +21,10 @@ export default function Marketplace() {
   const [showDetailPanel, setShowDetailPanel] = useState(true);
   const [plotToBook, setPlotToBook] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  // Pha animation mở màn của bản đồ, được nhấc lên đây để các panel biết khi nào vào sân khấu
+  const [introPhase, setIntroPhase] = useState('waiting');
+  const panelsReady = introPhase === 'settling' || introPhase === 'done';
 
   // Danh sách các thửa đất từ GeoJSON
   const allPlots = useMemo(() => {
@@ -107,9 +112,9 @@ export default function Marketplace() {
   const filteredPlots = useMemo(() => {
     let result = allPlots;
     if (statusFilter === 'AVAILABLE') {
-      result = result.filter((p) => p.status === 'Đang trống' || p.status === 'AVAILABLE');
+      result = result.filter((p) => isAvailableStatus(p.status));
     } else if (statusFilter === 'RENTED') {
-      result = result.filter((p) => p.status === 'Đã thuê' || p.status === 'RENTED');
+      result = result.filter((p) => getStatusConfig(p.status).key === 'RENTED');
     }
 
     if (!searchQuery.trim()) return result;
@@ -133,7 +138,7 @@ export default function Marketplace() {
 
   // Thống kê số thửa sẵn có
   const availableCount = useMemo(() => {
-    return allPlots.filter((p) => p.status === 'Đang trống' || p.status === 'AVAILABLE').length;
+    return allPlots.filter((p) => isAvailableStatus(p.status)).length;
   }, [allPlots]);
 
   // Chọn thửa đất
@@ -158,8 +163,7 @@ export default function Marketplace() {
   // Chọn / Bỏ chọn thửa đất vào danh sách Hợp đồng Master Lease
   const handleToggleSelectPlotForContract = (plot) => {
     if (!plot) return;
-    const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE';
-    if (!isVacant) return;
+    if (!isAvailableStatus(plot.status)) return;
 
     setContractSelectedPlots((prev) => {
       const exists = prev.some((p) => (p.id || p.code) === (plot.id || plot.code));
@@ -196,8 +200,7 @@ export default function Marketplace() {
   // Tiến hành thuê thửa đất (từ nút "Thuê ngay thửa này" hoặc Floating Bar)
   const handleBookPlot = (plot) => {
     if (!plot) return;
-    const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE';
-    if (!isVacant) return;
+    if (!isAvailableStatus(plot.status)) return;
 
     // Nếu đã có các thửa đất khác được chọn thì gộp tất cả vào hợp đồng
     const allSelected = isPlotSelectedForContract(plot)
@@ -254,23 +257,30 @@ export default function Marketplace() {
           selectedPlot={selectedPlot}
           onSelectPlot={handleSelectPlot}
           onResetView={handleCloseDetail}
+          onPhaseChange={setIntroPhase}
         />
       </div>
 
       {/* ─────────────────────────────────────────────────────────────────────────────
           2. THANH ĐIỀU HƯỚNG CAPSULE LƠ LỬNG (FLOATING ISLAND CAPSULE NAVBAR)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <header className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3.5 px-4 py-2 bg-white/90 backdrop-blur-2xl rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.08)] border border-white/80 pointer-events-auto transition-all duration-300 hover:bg-white/98 hover:shadow-[0_16px_48px_rgba(0,0,0,0.12)]">
+      <header
+        className={`absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3.5 px-4 py-2 bg-white/80 backdrop-blur-xl rounded-full shadow-rail border border-white/80 transition-all duration-300 hover:bg-white/95 hover:shadow-float ${
+          panelsReady
+            ? 'animate-dropInTop pointer-events-auto'
+            : 'opacity-0 pointer-events-none'
+        }`}
+      >
         {/* Logo Farmely tinh tế */}
         <Link to="/" className="flex items-center gap-2 group pr-1 shrink-0">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white text-sm shadow-md shadow-emerald-600/25 group-hover:scale-105 transition-transform">
             🌱
           </div>
           <div className="hidden xl:block">
-            <span className="text-sm font-black tracking-tight text-slate-800 block leading-tight">
+            <span className="text-sm font-extrabold tracking-tight text-slate-800 block leading-tight">
               FARMELY
             </span>
-            <span className="block text-[8px] font-bold text-emerald-600 uppercase tracking-widest -mt-0.5">
+            <span className="block text-[8px] font-semibold text-emerald-600 uppercase tracking-widest -mt-0.5">
               Smart Agri
             </span>
           </div>
@@ -289,7 +299,7 @@ export default function Marketplace() {
           </Link>
           <Link
             to="/marketplace"
-            className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-bold flex items-center gap-1.5 shadow-2xs border border-emerald-200/60 transition-all"
+            className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold flex items-center gap-1.5 shadow-sm border border-emerald-200/60 transition-all"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             Marketplace
@@ -303,10 +313,11 @@ export default function Marketplace() {
         </nav>
 
         {/* Phân cách mờ */}
-        <div className="h-4 w-[1px] bg-slate-200/80 shrink-0" />
+        <div className="h-4 w-[1px] bg-slate-200/80 shrink-0 hidden lg:block" />
 
-        {/* Thanh tìm kiếm nhanh dạng viên thuốc */}
-        <div className="relative shrink-0">
+        {/* Thanh tìm kiếm nhanh dạng viên thuốc — ẩn dưới lg vì danh sách thửa
+            (thứ duy nhất nó lọc) cũng bị ẩn, tránh để lại một control vô tác dụng */}
+        <div className="relative shrink-0 hidden lg:block">
           <input
             type="text"
             placeholder="Tìm thửa đất, loại cây..."
@@ -340,7 +351,7 @@ export default function Marketplace() {
             </Link>
             <Link
               to="/register"
-              className="px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-full shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
+              className="px-3.5 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-full shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
             >
               Đăng ký
             </Link>
@@ -348,7 +359,7 @@ export default function Marketplace() {
         ) : (
           <Link
             to={user?.role === 'ADMIN' ? '/admin/dashboard' : '/customer/dashboard'}
-            className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 rounded-full border border-emerald-200/80 transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 shrink-0"
+            className="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 rounded-full border border-emerald-200/80 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
           >
             <span className="text-sm">🌿</span>
             <span>{user?.name ? user.name.split(' ')[0] : 'Vườn của tôi'}</span>
@@ -359,9 +370,15 @@ export default function Marketplace() {
       {/* ─────────────────────────────────────────────────────────────────────────────
           3. BẢNG TIỆN ÍCH & DANH SÁCH BÊN TRÁI (LEFT ASIDE PANEL)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <aside className="absolute top-20 left-6 z-20 w-84 flex flex-col gap-3 pointer-events-auto">
+      <aside
+        className={`absolute top-20 left-6 z-20 w-84 hidden lg:flex flex-col gap-3 ${
+          panelsReady
+            ? 'animate-slideInLeft pointer-events-auto'
+            : 'opacity-0 pointer-events-none'
+        }`}
+      >
         {/* Danh sách các thửa đất với hiệu ứng cao cấp */}
-        <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.08)] border border-white/80 transition-all duration-300">
+        <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-3.5 shadow-float border border-white/80 transition-all duration-300">
           {/* Header với icon & số lượng */}
           <div className="flex items-center justify-between px-1 mb-2.5">
             <div className="flex items-center gap-2">
@@ -369,7 +386,7 @@ export default function Marketplace() {
                 🌱
               </div>
               <div>
-                <span className="text-xs font-black text-slate-800 tracking-tight uppercase block leading-none">
+                <span className="text-xs font-semibold text-slate-800 tracking-tight uppercase block leading-none">
                   Thửa đất nổi bật
                 </span>
                 <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1 mt-0.5">
@@ -378,7 +395,7 @@ export default function Marketplace() {
                 </span>
               </div>
             </div>
-            <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 rounded-full shadow-2xs">
+            <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 rounded-full shadow-sm">
               {filteredPlots.length} thửa
             </span>
           </div>
@@ -388,9 +405,9 @@ export default function Marketplace() {
             <button
               type="button"
               onClick={() => setStatusFilter('ALL')}
-              className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+              className={`flex-1 py-1 text-[10px] font-semibold rounded-lg transition-all cursor-pointer ${
                 statusFilter === 'ALL'
-                  ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60'
+                  ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/60'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
@@ -399,21 +416,27 @@ export default function Marketplace() {
             <button
               type="button"
               onClick={() => setStatusFilter('AVAILABLE')}
-              className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+              className={`flex-1 py-1 text-[10px] font-semibold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 statusFilter === 'AVAILABLE'
-                  ? 'bg-emerald-600 text-white shadow-xs shadow-emerald-600/30'
+                  ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30'
                   : 'text-slate-500 hover:text-emerald-700'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${statusFilter === 'AVAILABLE' ? 'bg-white' : 'bg-emerald-500'}`} />
-              Đang trống ({allPlots.filter(p => p.status === 'Đang trống' || p.status === 'AVAILABLE').length})
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{
+                  backgroundColor:
+                    statusFilter === 'AVAILABLE' ? '#FFFFFF' : getStatusConfig('AVAILABLE').color
+                }}
+              />
+              Đang trống ({availableCount})
             </button>
             <button
               type="button"
               onClick={() => setStatusFilter('RENTED')}
-              className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+              className={`flex-1 py-1 text-[10px] font-semibold rounded-lg transition-all cursor-pointer ${
                 statusFilter === 'RENTED'
-                  ? 'bg-slate-700 text-white shadow-xs'
+                  ? 'bg-slate-700 text-white shadow-sm'
                   : 'text-slate-500 hover:text-slate-800'
               }`}
             >
@@ -423,8 +446,9 @@ export default function Marketplace() {
 
           {/* Danh sách thẻ thửa đất mượt mà */}
           <div className="space-y-2 max-h-[calc(100vh-210px)] overflow-y-auto no-scrollbar pr-0.5">
-            {filteredPlots.map((p) => {
-              const isVacant = p.status === 'Đang trống' || p.status === 'AVAILABLE';
+            {filteredPlots.map((p, index) => {
+              const statusConfig = getStatusConfig(p.status);
+              const isVacant = isAvailableStatus(p.status);
               const isSelected = selectedPlot?.id === p.id;
               const displayPrice = p.price || (p.rentalPrice ? `${p.rentalPrice.toLocaleString('vi-VN')} đ` : '1.200.000 đ');
               return (
@@ -432,7 +456,10 @@ export default function Marketplace() {
                   id={`plot-card-${p.id}`}
                   key={p.id}
                   onClick={() => handleSelectPlot(p)}
+                  style={panelsReady ? { animationDelay: `${index * 35}ms` } : undefined}
                   className={`group relative p-2.5 rounded-2xl border transition-all duration-300 ease-out cursor-pointer flex items-center justify-between active:scale-[0.98] ${
+                    panelsReady ? 'animate-fadeInUp' : ''
+                  } ${
                     isSelected
                       ? 'border-emerald-500 bg-gradient-to-r from-emerald-50/90 via-emerald-50/40 to-white/95 shadow-[0_6px_20px_rgba(16,185,129,0.18)] ring-2 ring-emerald-400/30 scale-[1.01]'
                       : 'border-slate-100/90 bg-white/90 hover:border-emerald-300/80 hover:bg-emerald-50/30 hover:shadow-md hover:-translate-y-0.5 hover:scale-[1.008]'
@@ -447,27 +474,26 @@ export default function Marketplace() {
                     <div className="flex items-center gap-1.5">
                       <span
                         className={`w-2 h-2 rounded-full shrink-0 transition-transform duration-300 group-hover:scale-125 ${
-                          isVacant
-                            ? 'bg-emerald-500 ring-2 ring-emerald-200'
-                            : 'bg-slate-400'
+                          isVacant ? 'ring-2 ring-emerald-200' : ''
                         }`}
+                        style={{ backgroundColor: statusConfig.color }}
                       />
-                      <span className={`font-black text-xs tracking-tight transition-colors ${
-                        isSelected ? 'text-emerald-950 font-extrabold' : 'text-slate-800'
+                      <span className={`font-extrabold text-xs tracking-tight transition-colors whitespace-nowrap ${
+                        isSelected ? 'text-emerald-950' : 'text-slate-800'
                       }`}>
                         {p.id}
                       </span>
-                      <span className="text-[10px] font-semibold text-slate-500 bg-slate-100/90 px-1.5 py-0.5 rounded-md">
+                      <span className="text-[10px] font-medium text-slate-500 bg-slate-100/90 px-1.5 py-0.5 rounded-md whitespace-nowrap">
                         {p.area}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[11px] font-black text-emerald-700 tracking-tight">
+                    <div className="flex items-center gap-1.5 mt-1 min-w-0">
+                      <span className="text-[11px] font-extrabold text-emerald-700 tracking-tight whitespace-nowrap shrink-0">
                         {displayPrice}<span className="text-[9px] font-normal text-slate-400">/tháng</span>
                       </span>
                       {p.crops && p.crops.length > 0 && (
-                        <span className="text-[10px] text-slate-400 font-medium truncate max-w-[110px]">
+                        <span className="text-[10px] text-slate-400 font-medium truncate min-w-0">
                           • {p.crops[0]}
                         </span>
                       )}
@@ -482,9 +508,15 @@ export default function Marketplace() {
                           e.stopPropagation();
                           handleToggleSelectPlotForContract(p);
                         }}
-                        className={`text-[10px] px-2 py-0.5 rounded-lg font-bold transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap ${
+                        aria-label={
                           isPlotSelectedForContract(p)
-                            ? 'bg-emerald-600 text-white shadow-xs'
+                            ? `Bỏ thửa ${p.id} khỏi hợp đồng`
+                            : `Thêm thửa ${p.id} vào hợp đồng`
+                        }
+                        aria-pressed={isPlotSelectedForContract(p)}
+                        className={`w-6 h-6 shrink-0 rounded-lg transition-all flex items-center justify-center cursor-pointer ${
+                          isPlotSelectedForContract(p)
+                            ? 'bg-emerald-600 text-white shadow-sm'
                             : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/80'
                         }`}
                         title={
@@ -494,38 +526,32 @@ export default function Marketplace() {
                         }
                       >
                         {isPlotSelectedForContract(p) ? (
-                          <>
-                            <Check className="w-3 h-3 stroke-[3]" />
-                            <span>Đã chọn</span>
-                          </>
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
                         ) : (
-                          <>
-                            <Plus className="w-3 h-3" />
-                            <span>Thêm vào HĐ</span>
-                          </>
+                          <Plus className="w-3.5 h-3.5" />
                         )}
                       </button>
                     )}
 
                     <span
-                      className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold transition-all duration-300 flex items-center gap-1 shadow-2xs ${
+                      className={`text-[10px] px-2.5 py-0.5 rounded-full font-semibold transition-all duration-300 flex items-center gap-1 shadow-sm whitespace-nowrap shrink-0 ${
                         isVacant
                           ? isSelected
-                            ? 'bg-emerald-600 text-white ring-2 ring-emerald-300/60 shadow-xs'
+                            ? 'bg-emerald-600 text-white ring-2 ring-emerald-300/60'
                             : 'bg-emerald-100/90 text-emerald-800 border border-emerald-200/80 group-hover:bg-emerald-200/80'
                           : 'bg-slate-100 text-slate-500 border border-slate-200/70'
                       }`}
                     >
                       <span
                         className={`w-1.5 h-1.5 rounded-full ${
-                          isVacant
-                            ? isSelected
-                              ? 'bg-white'
-                              : 'bg-emerald-500 animate-pulse'
-                            : 'bg-slate-400'
+                          isVacant && !isSelected ? 'animate-pulse' : ''
                         }`}
+                        style={{
+                          backgroundColor:
+                            isVacant && isSelected ? '#FFFFFF' : statusConfig.color
+                        }}
                       />
-                      {isVacant ? 'Đang trống' : 'Đã thuê'}
+                      {statusConfig.label}
                     </span>
                     <ChevronRight
                       className={`w-3.5 h-3.5 transition-all duration-300 ${
@@ -547,7 +573,8 @@ export default function Marketplace() {
       ───────────────────────────────────────────────────────────────────────────── */}
       <MarketplacePlotDetailPanel
         plot={selectedPlot}
-        isOpen={showDetailPanel && Boolean(selectedPlot)}
+        isOpen={showDetailPanel && Boolean(selectedPlot) && panelsReady}
+        entranceDelayMs={200}
         onClose={handleCloseDetail}
         onBookPlot={handleBookPlot}
         isPlotSelectedForContract={isPlotSelectedForContract(selectedPlot)}
@@ -619,17 +646,17 @@ export default function Marketplace() {
           6. THANH ĐIỀU HƯỚNG GỘP HỢP ĐỒNG MASTER LEASE (KHI ĐÃ CHỌN >= 1 THỬA ĐẤT)
       ───────────────────────────────────────────────────────────────────────────── */}
       {contractSelectedPlots.length > 0 && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3 bg-slate-900/95 backdrop-blur-2xl rounded-2xl border border-emerald-500/40 shadow-[0_16px_50px_rgba(0,0,0,0.35)] text-white animate-fadeIn max-w-[95vw] sm:max-w-fit">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3 bg-slate-900/95 backdrop-blur-2xl rounded-2xl border border-emerald-500/40 shadow-float text-white animate-fadeIn max-w-[95vw] sm:max-w-fit">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/25 shrink-0">
               <Layers className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/40">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/40">
                   Master Lease ({contractSelectedPlots.length} thửa)
                 </span>
-                <span className="text-xs font-bold text-white truncate max-w-[180px] sm:max-w-[280px]">
+                <span className="text-xs font-semibold text-white truncate max-w-[180px] sm:max-w-[280px]">
                   {contractSelectedPlots.map((p) => p.code || p.id).join(', ')}
                 </span>
               </div>
@@ -656,7 +683,7 @@ export default function Marketplace() {
             <button
               type="button"
               onClick={handleProceedToMultiPlotLease}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-extrabold text-xs uppercase tracking-wider shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
             >
               <span>Ký Hợp Đồng ({contractSelectedPlots.length} thửa)</span>
               <ArrowRight className="w-3.5 h-3.5" />

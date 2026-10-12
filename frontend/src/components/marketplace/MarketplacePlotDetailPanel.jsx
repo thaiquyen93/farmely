@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Leaf
 } from 'lucide-react';
+import { isAvailableStatus } from '../../utils/mapTheme';
 
 /* ──────────────────────────────────────────────────────────────────────────────
    Mini Radial Progress Ring  (SVG, 0-dependency)
@@ -60,7 +61,8 @@ export default function MarketplacePlotDetailPanel({
   onBookPlot,
   onClose,
   isPlotSelectedForContract = false,
-  onToggleSelectPlotForContract = null
+  onToggleSelectPlotForContract = null,
+  entranceDelayMs = 0
 }) {
   const [copied, setCopied] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -74,7 +76,7 @@ export default function MarketplacePlotDetailPanel({
 
   if (!plot) return null;
 
-  const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE';
+  const isVacant = isAvailableStatus(plot.status);
   const displayStatus = isVacant ? 'Đang trống' : 'Đã thuê';
   const plotCode = plot.code || `Plot ${plot.id}`;
   const plotName = plot.name || `Thửa Ruộng ${plot.id}`;
@@ -192,10 +194,13 @@ export default function MarketplacePlotDetailPanel({
   return (
     <aside
       id="detail-panel"
-      className={`absolute top-20 right-4 bottom-4 z-20 w-[370px] bg-white/95 backdrop-blur-2xl rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-white/80 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform will-change-transform ${
+      style={{ transitionDelay: isOpen ? `${entranceDelayMs}ms` : '0ms' }}
+      className={`absolute z-20 bg-white shadow-panel border border-white/80 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform will-change-transform
+        inset-x-0 bottom-0 top-auto max-h-[70vh] rounded-t-3xl
+        lg:inset-x-auto lg:top-20 lg:right-4 lg:bottom-4 lg:max-h-none lg:w-[370px] lg:rounded-3xl ${
         isOpen
-          ? 'translate-x-0 opacity-100 pointer-events-auto'
-          : 'translate-x-[400px] opacity-0 pointer-events-none'
+          ? 'translate-y-0 lg:translate-x-0 opacity-100 pointer-events-auto'
+          : 'translate-y-full lg:translate-y-0 lg:translate-x-[400px] opacity-0 pointer-events-none'
       }`}
     >
       {/* ─────────────────────────────────────────────────────────────────────────────
@@ -240,7 +245,7 @@ export default function MarketplacePlotDetailPanel({
           <div className="flex items-center gap-1.5">
             <span
               id="detail-tag-status"
-              className={`px-2.5 py-1 rounded-full text-[11px] font-black tracking-wide flex items-center gap-1.5 shadow-sm backdrop-blur-md border ${
+              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide flex items-center gap-1.5 shadow-sm backdrop-blur-md border ${
                 isVacant
                   ? 'bg-emerald-500/90 text-white border-emerald-400/50 shadow-emerald-950/30'
                   : 'bg-slate-800/90 text-slate-300 border-slate-700/60'
@@ -253,7 +258,7 @@ export default function MarketplacePlotDetailPanel({
               />
               {displayStatus}
             </span>
-            <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-white/20 text-white backdrop-blur-md border border-white/25 shadow-2xs">
+            <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-white/20 text-white backdrop-blur-md border border-white/25 shadow-sm">
               ✨ VietGAP
             </span>
           </div>
@@ -280,7 +285,7 @@ export default function MarketplacePlotDetailPanel({
 
         {/* Thông báo copy liên kết */}
         {copied && (
-          <div className="absolute top-14 right-4 bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-lg z-20 animate-fade-in">
+          <div className="absolute top-14 right-4 bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg shadow-lg z-20 animate-fadeIn">
             Đã chép liên kết!
           </div>
         )}
@@ -288,7 +293,7 @@ export default function MarketplacePlotDetailPanel({
         {/* Bottom Hero Overlay: Mã thửa + Tên thửa + Dot indicators */}
         <div className="absolute bottom-3 left-4 right-4 text-white z-10 pointer-events-none">
           <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="px-2 py-0.5 rounded-md bg-white/20 backdrop-blur-md text-[10px] font-black text-white border border-white/30 tracking-wider">
+            <span className="px-2 py-0.5 rounded-md bg-white/20 backdrop-blur-md text-[10px] font-extrabold text-white border border-white/30 tracking-wider">
               {plotCode}
             </span>
             <span className="text-[11px] text-emerald-200 font-semibold drop-shadow">
@@ -297,7 +302,7 @@ export default function MarketplacePlotDetailPanel({
           </div>
           <h3
             id="detail-title"
-            className="text-lg font-black text-white leading-tight drop-shadow-md truncate"
+            className="text-lg font-extrabold text-white leading-tight drop-shadow-md truncate"
           >
             {plotName}
           </h3>
@@ -332,7 +337,7 @@ export default function MarketplacePlotDetailPanel({
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                 Giá thuê hàng tháng
               </span>
               <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
@@ -342,7 +347,7 @@ export default function MarketplacePlotDetailPanel({
             <div className="flex items-baseline gap-1.5">
               <span
                 id="detail-price"
-                className="text-2xl font-black text-emerald-600 tracking-tight tabular-nums"
+                className="text-2xl font-extrabold text-emerald-600 tracking-tight tabular-nums"
               >
                 {plotPrice}
               </span>
@@ -351,14 +356,14 @@ export default function MarketplacePlotDetailPanel({
           </div>
 
           <div className="text-right">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">
               Quy mô
             </span>
             <div className="flex items-center gap-1.5">
-              <span className="bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/60 text-xs font-black text-slate-800">
+              <span className="bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/60 text-xs font-medium text-slate-800">
                 {plotArea}
               </span>
-              <span className="bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/60 text-xs font-black text-slate-800">
+              <span className="bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/60 text-xs font-medium text-slate-800">
                 {direction}
               </span>
             </div>
@@ -414,7 +419,7 @@ export default function MarketplacePlotDetailPanel({
                 <ShieldCheck className="w-5 h-5" />
               </div>
               <div className="leading-snug">
-                <p className="font-black text-emerald-900 text-xs">
+                <p className="font-semibold text-emerald-900 text-xs">
                   Bảo chứng chất lượng Farmely
                 </p>
                 <p className="text-[11px] text-emerald-700/80 mt-0.5">
@@ -427,15 +432,15 @@ export default function MarketplacePlotDetailPanel({
             <div className="grid grid-cols-3 gap-2">
               <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100 text-center">
                 <p className="text-[10px] text-slate-400 font-medium">Diện tích</p>
-                <p className="text-sm font-black text-slate-800 mt-0.5">{plotArea}</p>
+                <p className="text-sm font-medium text-slate-800 mt-0.5">{plotArea}</p>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100 text-center">
                 <p className="text-[10px] text-slate-400 font-medium">Hướng</p>
-                <p className="text-sm font-black text-slate-800 mt-0.5">{direction}</p>
+                <p className="text-sm font-medium text-slate-800 mt-0.5">{direction}</p>
               </div>
               <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-100 text-center">
                 <p className="text-[10px] text-slate-400 font-medium">Đơn giá</p>
-                <p className="text-sm font-black text-emerald-600 mt-0.5">
+                <p className="text-sm font-extrabold text-emerald-600 mt-0.5">
                   {unitPricePerSqm.toLocaleString('vi-VN')}
                 </p>
                 <p className="text-[9px] text-slate-400">đ/m²</p>
@@ -477,7 +482,7 @@ export default function MarketplacePlotDetailPanel({
                         <span className="text-xs font-bold text-slate-800">{crop}</span>
                       </div>
                       <span
-                        className={`text-xs font-black ${
+                        className={`text-xs font-semibold ${
                           matchPercent >= 95 ? 'text-emerald-600' : 'text-amber-600'
                         }`}
                       >
@@ -518,7 +523,7 @@ export default function MarketplacePlotDetailPanel({
                   return (
                     <div
                       key={idx}
-                      className="p-3 rounded-xl bg-white border border-slate-100 shadow-2xs flex items-center gap-3 hover:border-emerald-200 transition-all group"
+                      className="p-3 rounded-xl bg-white border border-slate-100 shadow-sm flex items-center gap-3 hover:border-emerald-200 transition-all group"
                     >
                       <div
                         className={`w-9 h-9 rounded-xl ${metric.iconBg} ${metric.iconColor} flex items-center justify-center shrink-0 border ${metric.iconBorder} group-hover:scale-105 transition-transform`}
@@ -586,7 +591,7 @@ export default function MarketplacePlotDetailPanel({
           type="button"
           onClick={() => onBookPlot(plot)}
           disabled={!isVacant}
-          className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`w-full py-3 rounded-2xl font-extrabold text-sm tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
             isVacant
               ? 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]'
               : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
@@ -603,7 +608,7 @@ export default function MarketplacePlotDetailPanel({
             onClick={() => onToggleSelectPlotForContract(plot)}
             className={`w-full py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               isPlotSelectedForContract
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-xs'
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm'
                 : 'border-slate-200/90 bg-white hover:bg-slate-50 text-slate-600 hover:border-slate-300 hover:text-slate-800'
             }`}
           >

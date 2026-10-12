@@ -7,7 +7,6 @@ html {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Nunito', system-ui, -apple-system, sans-serif;
-  font-weight: 700;
   color: var(--text-dark);
   letter-spacing: -0.015em;
 }
@@ -74,4 +73,20 @@ h1, h2, h3, h4, h5, h6 {
 .dashboard-readable > :not(nav) .dashboard-compact {
   font-size: 0.75rem;
   line-height: 1rem;
+}
+
+/* Tôn trọng tuỳ chọn giảm chuyển động của hệ điều hành (accessibility) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  html {
+    scroll-behavior: auto !important;
+  }
 }
