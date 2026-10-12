@@ -287,6 +287,7 @@ export default function CustomerDashboard() {
       waterSource: 'Hệ thống tưới nhỏ giọt bán tự động'
     }
   ];
+  const selectedCheckoutPlot = customerPlots.find((plot) => plot.id === checkoutPlotId) || customerPlots[0];
 
   // IoT Data for Different Timeframes (Hourly, Daily, Weekly)
   const iotDatasets = {
@@ -795,12 +796,12 @@ export default function CustomerDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-brand-cream flex flex-col font-sans overflow-x-hidden">
+    <div className="dashboard-readable min-h-screen bg-brand-cream flex flex-col font-sans overflow-x-hidden">
       {/* 1. Top Navbar giữ nguyên theo toàn bộ website */}
-      <PublicNavbar />
+      <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
 
       {/* 2. Main Page Container mở rộng tối đa (max-w-[1720px]) ăn khớp với Navbar */}
-      <div className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
+      <div className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
         
         {/* 3. Layout with Left Sidebar + Right Content */}
         <div className="flex flex-col lg:flex-row gap-6 items-start min-w-0">
@@ -815,7 +816,7 @@ export default function CustomerDashboard() {
             footer={<div className="text-xs"><p className="font-bold text-brand-dark">Hỗ trợ kỹ thuật 24/7</p><p className="mt-1 font-heading font-black text-brand-green">1900 688 889</p></div>}
           >
             <div className="space-y-1">
-              <p className={`px-3 py-2 text-[11px] font-bold text-brand-muted uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
+              <p className={`px-3 py-2 text-xs font-bold text-brand-muted uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
                 Chức Năng Quản Lý
               </p>
 
@@ -830,13 +831,14 @@ export default function CustomerDashboard() {
                       setSelectedPlotId(null);
                     }}
                     title={sidebarCollapsed ? item.label : undefined}
-                    className={`relative group w-full text-left px-3.5 py-3 rounded-xl transition-all flex items-center justify-between text-xs cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
+                    aria-label={sidebarCollapsed ? item.label : undefined}
+                    className={`relative group min-h-11 w-full text-left px-3.5 py-3 rounded-xl transition-all flex items-center justify-between text-sm cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                       isActive
                         ? 'bg-brand-green text-white shadow-md font-bold'
                         : 'text-stone-700 hover:bg-brand-cream/80 hover:text-brand-dark font-medium'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className={`flex min-w-0 flex-1 items-center gap-2.5 ${sidebarCollapsed ? 'lg:flex-none' : ''}`}>
                       <Icon
                         className={`w-4 h-4 shrink-0 ${
                           isActive
@@ -846,12 +848,12 @@ export default function CustomerDashboard() {
                             : 'text-brand-green'
                         }`}
                       />
-                      <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{item.label}</span>
+                      <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} whitespace-nowrap text-[13px]`}>{item.label}</span>
                     </div>
 
                     {item.badge && (
                       <span
-                        className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`${sidebarCollapsed ? 'lg:hidden' : ''} ml-1.5 shrink-0 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
                           isActive
                             ? 'bg-white/20 text-white'
                             : 'bg-brand-cream text-brand-green border border-brand-border'
@@ -2354,10 +2356,23 @@ export default function CustomerDashboard() {
               >
                 {customerPlots.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({p.id}) • {p.crop} ({p.location})
+                    {p.name} ({p.id}) • {p.crop}
                   </option>
                 ))}
               </select>
+              {selectedCheckoutPlot && (
+                <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-brand-border bg-brand-cream/60 p-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-brand-green" aria-hidden="true">
+                    <Sprout className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-bold text-brand-dark">{selectedCheckoutPlot.location}</p>
+                    <p className="mt-0.5 text-brand-muted">
+                      {selectedCheckoutPlot.area} • {selectedCheckoutPlot.mode === 'Assisted-Growing' ? 'Chăm sóc trọn gói' : 'Tự chăm sóc'}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Date to start */}
