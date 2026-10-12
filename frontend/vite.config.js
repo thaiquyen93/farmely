@@ -20,6 +20,10 @@ export default defineConfig({
       ignored: ['**/public/docs/**', '**/docs/**'],
     },
     proxy: {
+      '/api/v1/payments': {
+        target: 'http://localhost:8085',
+        changeOrigin: true,
+      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,

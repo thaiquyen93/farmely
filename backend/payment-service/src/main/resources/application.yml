@@ -5,9 +5,9 @@ spring:
   application:
     name: payment-service
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/farmely}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/Farmely}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:password}
+    password: ${DB_PASSWORD:@Bin054206}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -23,3 +23,9 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+vnpay:
+  tmn-code: ${VNP_TMN_CODE:5E6U88TK}
+  hash-secret: ${VNP_HASH_SECRET:FVODBIXVDLVSNWYKDIZEOXHWAIMCHDSH}
+  pay-url: ${VNP_PAY_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+  return-url: ${VNP_RETURN_URL:http://localhost:3000/payment/vnpay-return}

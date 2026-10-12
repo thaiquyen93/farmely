@@ -5,10 +5,14 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $runtimeDir = Join-Path $projectRoot '.run'
-$jdkHome = 'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot'
+$jdkCandidates = @(
+    'C:\Program Files\Java\jdk-25',
+    'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot'
+)
+$jdkHome = $jdkCandidates | Where-Object { Test-Path (Join-Path $_ 'bin\java.exe') } | Select-Object -First 1
 
-if (-not (Test-Path -LiteralPath (Join-Path $jdkHome 'bin\java.exe'))) {
-    throw "JDK 21 not found at $jdkHome"
+if (-not $jdkHome) {
+    throw "JDK not found in: $($jdkCandidates -join ', ')"
 }
 
 $env:JAVA_HOME = $jdkHome
@@ -61,7 +65,8 @@ try {
     if ($Rebuild -or $missingJar) {
         Push-Location $backendRoot
         try {
-            & mvn package -DskipTests
+            $mvnCmd = if (Test-Path '.\mvnw.cmd') { '.\mvnw.cmd' } else { 'mvn' }
+            & $mvnCmd package -DskipTests
             if ($LASTEXITCODE -ne 0) {
                 throw 'Backend build failed.'
             }
