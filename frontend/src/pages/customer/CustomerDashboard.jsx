@@ -6,6 +6,9 @@ import { useServiceStore } from '../../stores/serviceStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import VietQrModal from '../../components/payment/VietQrModal';
+import VnPayModal from '../../components/payment/VnPayModal';
+import SelfGrowingDashboard from '../../components/customer/SelfGrowingDashboard';
+import AssistedGrowingDashboard from '../../components/customer/AssistedGrowingDashboard';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
@@ -180,12 +183,23 @@ export default function CustomerDashboard() {
     return d.toISOString().split('T')[0];
   });
   const [checkoutNotes, setCheckoutNotes] = useState('');
-  const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('VIETQR');
+  const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('VNPAY');
   const [showCheckoutSuccessModal, setShowCheckoutSuccessModal] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [showServiceQrModal, setShowServiceQrModal] = useState(false);
+  const [showServiceVnPayModal, setShowServiceVnPayModal] = useState(false);
   const [showServiceCardModal, setShowServiceCardModal] = useState(false);
   const [serviceQrData, setServiceQrData] = useState(null);
+
+  // Tự động đóng modal thông báo thành công sau 3 giây
+  useEffect(() => {
+    if (showCheckoutSuccessModal) {
+      const timer = setTimeout(() => {
+        setShowCheckoutSuccessModal(false);
+        setSelectedServiceToBuy(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showCheckoutSuccessModal]);
 
   // Modals for Other Screen Flows
   const [showNewDiaryModal, setShowNewDiaryModal] = useState(false);
@@ -631,7 +645,7 @@ export default function CustomerDashboard() {
             status: req.status === 'DONE' ? 'COMPLETED' : 'IN_PROGRESS',
             statusLabel: req.status === 'DONE' ? 'Đã hoàn tất' : (req.status === 'ASSIGNED' ? 'Đang thực hiện' : 'Chờ thanh toán'),
             worker: req.status === 'DONE' ? 'Trần Văn Lực (CVLĐ)' : 'Nguyễn Văn Hưng (CVLĐ)',
-            paymentMethod: req.paymentMethod === 'VIETQR' ? 'Chuyển khoản VietQR' : req.paymentMethod === 'WALLET' ? 'Ví Farmely' : (req.paymentMethod || 'Thẻ Quốc tế')
+            paymentMethod: req.paymentMethod === 'VNPAY' ? 'Cổng VNPAY' : req.paymentMethod === 'WALLET' ? 'Ví Farmely' : (req.paymentMethod || 'Thẻ Quốc tế')
           }));
           setActiveServiceOrders(prev => {
             const ids = new Set(prev.map(p => p.id));
@@ -652,46 +666,9 @@ export default function CustomerDashboard() {
     e.preventDefault();
     if (!selectedServiceToBuy) return;
 
-    // Flow 1: VietQR Payment
-    if (checkoutPaymentMethod === 'VIETQR') {
-      setIsProcessingPayment(true);
-      try {
-        const response = await fetch('http://localhost:8085/api/v1/payments/service/vietqr/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            serviceName: selectedServiceToBuy.name,
-            amount: selectedServiceToBuy.price,
-            rentalId: 1,
-            plotCode: checkoutPlotId,
-            scheduledDate: checkoutDate,
-            notes: checkoutNotes
-          })
-        });
-
-        const data = await response.json();
-        if (data?.success && data?.data) {
-          setServiceQrData(data.data);
-          setShowServiceQrModal(true);
-          return;
-        }
-      } catch (err) {
-        console.warn('Backend payment-service error, fallbacking to client QR:', err);
-      } finally {
-        setIsProcessingPayment(false);
-      }
-
-      // Client Fallback if service temporarily offline
-      setServiceQrData({
-        transactionId: Math.floor(1000 + Math.random() * 9000),
-        amount: selectedServiceToBuy.price,
-        qrImageUrl: `https://img.vietqr.io/image/ICB-108876543210-compact2.png?amount=${selectedServiceToBuy.price}&addInfo=FARMELY+DV+${checkoutPlotId}&accountName=FARMELY+AGRIRENT+CORP`,
-        bankName: 'VietinBank (ICB)',
-        accountNo: '108876543210',
-        accountName: 'FARMELY AGRIRENT CORP',
-        description: `FARMELY DV ${checkoutPlotId}`
-      });
-      setShowServiceQrModal(true);
+    // Flow 1: VNPay Sandbox Payment
+    if (checkoutPaymentMethod === 'VNPAY') {
+      setShowServiceVnPayModal(true);
       return;
     }
 
@@ -744,7 +721,7 @@ export default function CustomerDashboard() {
     };
 
     setActiveServiceOrders(prev => [newOrder, ...prev]);
-    setShowCheckoutSuccessModal(true);
+    setSelectedServiceToBuy(null);
   };
 
   const currentSelectedPlot = customerPlots.find((p) => p.id === selectedPlotId);
@@ -2235,20 +2212,20 @@ export default function CustomerDashboard() {
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <label className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
-                  checkoutPaymentMethod === 'VIETQR'
-                    ? 'border-brand-green bg-emerald-50/60 ring-1 ring-brand-green'
+                  checkoutPaymentMethod === 'VNPAY'
+                    ? 'border-blue-600 bg-blue-50/60 ring-1 ring-blue-600'
                     : 'border-brand-border bg-white hover:bg-stone-50'
                 }`}>
                   <input
                     type="radio"
                     name="paymethod"
-                    checked={checkoutPaymentMethod === 'VIETQR'}
-                    onChange={() => setCheckoutPaymentMethod('VIETQR')}
-                    className="text-brand-green focus:ring-brand-green"
+                    checked={checkoutPaymentMethod === 'VNPAY'}
+                    onChange={() => setCheckoutPaymentMethod('VNPAY')}
+                    className="text-blue-600 focus:ring-blue-600"
                   />
                   <div className="min-w-0">
-                    <span className="font-bold text-brand-dark block text-xs">Chuyển khoản VietQR</span>
-                    <span className="text-[10px] text-stone-500 block">Quét mã QR tự động 24/7</span>
+                    <span className="font-bold text-brand-dark block text-xs">Cổng Thanh Toán VNPAY</span>
+                    <span className="text-[10px] text-blue-700 block font-semibold">VNPAY-QR & Thẻ ATM Sandbox</span>
                   </div>
                 </label>
 
@@ -2291,14 +2268,14 @@ export default function CustomerDashboard() {
             </div>
 
             {/* Preview Prompt */}
-            {checkoutPaymentMethod === 'VIETQR' && (
-              <div className="p-3 rounded-xl bg-stone-50 border border-stone-200 flex items-center gap-3 text-xs">
-                <div className="w-12 h-12 bg-white rounded-lg border border-stone-300 flex items-center justify-center shrink-0">
-                  <QrCode className="w-8 h-8 text-brand-dark" />
+            {checkoutPaymentMethod === 'VNPAY' && (
+              <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 flex items-center gap-3 text-xs">
+                <div className="w-12 h-12 bg-white rounded-lg border border-blue-300 flex items-center justify-center shrink-0 text-blue-700">
+                  <ShieldCheck className="w-8 h-8" />
                 </div>
                 <div>
-                  <p className="font-bold text-brand-dark">Mã VietQR động tự động xác nhận</p>
-                  <p className="text-[11px] text-stone-500">Pop-up quét mã QR ngân hàng chuẩn Napas 24/7 và lưu giao dịch liên kết vào cơ sở dữ liệu.</p>
+                  <p className="font-bold text-brand-dark">Cổng thanh toán VNPAY Sandbox chuẩn 2.1.0</p>
+                  <p className="text-[11px] text-stone-500">Hỗ trợ quét mã VNPAY-QR, Thẻ ATM NCB test mode và thẻ quốc tế Visa/Mastercard với xác thực SHA-512.</p>
                 </div>
               </div>
             )}
@@ -2354,11 +2331,14 @@ export default function CustomerDashboard() {
           </div>
           <div>
             <h4 className="font-heading text-lg font-bold text-brand-dark">
-              Đã Nhận Yêu Cầu Dịch Vụ!
+              Đăng Ký Dịch Vụ Thành Công!
             </h4>
-            <p className="text-sm text-stone-600 mt-1">
-              Thanh toán thành công. Đội ngũ chuyên viên lao động tại nông trại đã nhận việc và sẽ thực hiện đúng hẹn theo quy trình chuẩn VietGAP.
+            <p className="text-sm font-medium text-stone-600 mt-1">
+              Dịch vụ canh tác đã được kích hoạt thành công
             </p>
+            <span className="text-[11px] text-emerald-600 mt-1 block font-medium">
+              (Tự động đóng sau 3 giây...)
+            </span>
           </div>
           <div className="p-3.5 rounded-xl bg-brand-cream text-left text-xs space-y-1 border border-brand-border">
             <p><strong>Gói dịch vụ:</strong> {selectedServiceToBuy?.name}</p>
@@ -2533,14 +2513,18 @@ export default function CustomerDashboard() {
         </div>
       </Modal>
 
-      {/* Cultivation Service VietQR Pop-up Modal */}
-      <VietQrModal
-        isOpen={showServiceQrModal}
-        onClose={() => setShowServiceQrModal(false)}
-        qrData={serviceQrData}
+      {/* Cultivation Service VNPay Pop-up Modal */}
+      <VnPayModal
+        isOpen={showServiceVnPayModal}
+        onClose={() => setShowServiceVnPayModal(false)}
         plotInfo={customerPlots.find(p => p.id === checkoutPlotId)}
         serviceInfo={selectedServiceToBuy}
         totalAmount={selectedServiceToBuy?.price}
+        additionalPayload={{
+          plotCode: checkoutPlotId,
+          scheduledDate: checkoutDate,
+          notes: checkoutNotes
+        }}
         onPaymentSuccess={handleServicePaymentSuccess}
       />
 

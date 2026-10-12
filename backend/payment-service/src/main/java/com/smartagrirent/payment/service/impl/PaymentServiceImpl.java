@@ -1,20 +1,25 @@
 package com.smartagrirent.payment.service.impl;
 
+import com.smartagrirent.payment.config.VNPayConfig;
 import com.smartagrirent.payment.constant.PaymentStatus;
 import com.smartagrirent.payment.constant.RequestStatus;
 import com.smartagrirent.payment.constant.TransactionType;
 import com.smartagrirent.payment.dto.request.CardPaymentRequest;
 import com.smartagrirent.payment.dto.request.CultivationPaymentRequest;
 import com.smartagrirent.payment.dto.request.VietQrGenerateRequest;
+import com.smartagrirent.payment.dto.request.VnPayCreateRequest;
 import com.smartagrirent.payment.dto.response.PaymentResponse;
 import com.smartagrirent.payment.dto.response.ServiceRequestResponse;
 import com.smartagrirent.payment.dto.response.VietQrResponse;
+import com.smartagrirent.payment.dto.response.VnPayResponse;
 import com.smartagrirent.payment.entity.CultivationService;
 import com.smartagrirent.payment.entity.PaymentTransaction;
 import com.smartagrirent.payment.entity.ServiceRequest;
 import com.smartagrirent.payment.repository.CultivationServiceRepository;
 import com.smartagrirent.payment.repository.PaymentTransactionRepository;
 import com.smartagrirent.payment.repository.ServiceRequestRepository;
+import com.smartagrirent.payment.exception.PaymentSandboxException;
+import com.smartagrirent.payment.service.PaymentSandboxService;
 import com.smartagrirent.payment.service.PaymentService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,8 +28,7 @@ import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +37,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final ServiceRequestRepository serviceRequestRepository;
     private final CultivationServiceRepository cultivationServiceRepository;
+    private final PaymentSandboxService paymentSandboxService;
+    private final VNPayConfig vnPayConfig;
 
     private static final String DEFAULT_BANK_ID = "ICB"; // VietinBank
     private static final String DEFAULT_BANK_NAME = "VietinBank (Ngân hàng TMCP Công Thương Việt Nam)";
@@ -41,10 +47,14 @@ public class PaymentServiceImpl implements PaymentService {
 
     public PaymentServiceImpl(PaymentTransactionRepository paymentTransactionRepository,
                               ServiceRequestRepository serviceRequestRepository,
-                              CultivationServiceRepository cultivationServiceRepository) {
+                              CultivationServiceRepository cultivationServiceRepository,
+                              PaymentSandboxService paymentSandboxService,
+                              VNPayConfig vnPayConfig) {
         this.paymentTransactionRepository = paymentTransactionRepository;
         this.serviceRequestRepository = serviceRequestRepository;
         this.cultivationServiceRepository = cultivationServiceRepository;
+        this.paymentSandboxService = paymentSandboxService;
+        this.vnPayConfig = vnPayConfig;
     }
 
     @Override
@@ -108,6 +118,25 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
+    public PaymentResponse cancelPayment(Integer transactionId) {
+        PaymentTransaction transaction = paymentTransactionRepository.findById(transactionId)
+                .orElseThrow(() -> new RuntimeException("Giao dịch không tồn tại với ID: " + transactionId));
+
+        if (transaction.getStatus() == PaymentStatus.PENDING) {
+            transaction.setStatus(PaymentStatus.FAILED);
+            String ref = transaction.getGatewayRef() != null ? transaction.getGatewayRef() : "TXN";
+            if (!ref.contains("_CANCELLED")) {
+                transaction.setGatewayRef(ref + "_CANCELLED");
+            }
+            PaymentTransaction updated = paymentTransactionRepository.save(transaction);
+            return mapToResponse(updated);
+        }
+
+        return mapToResponse(transaction);
+    }
+
+    @Override
+    @Transactional(noRollbackFor = PaymentSandboxException.class)
     public PaymentResponse processCardPayment(CardPaymentRequest request) {
         BigDecimal amount = (request.getAmount() != null && request.getAmount().compareTo(BigDecimal.ZERO) > 0)
                 ? request.getAmount()
@@ -122,14 +151,13 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         Integer serviceRequestId = request.getServiceRequestId();
-        // If this request is for a cultivation service:
         if (serviceRequestId == null && (request.getServiceName() != null || request.getServiceId() != null)) {
             Integer resolvedSvcId = mapServiceCodeToId(request.getServiceId(), request.getServiceName());
             ServiceRequest svcReq = ServiceRequest.builder()
                     .rentalId(request.getRentalId() != null && request.getRentalId() > 0 ? request.getRentalId() : 1)
                     .serviceId(resolvedSvcId)
                     .scheduledDate(request.getScheduledDate() != null ? request.getScheduledDate() : LocalDate.now().plusDays(1))
-                    .status(RequestStatus.ASSIGNED)
+                    .status(RequestStatus.PENDING)
                     .build();
             ServiceRequest savedSvcReq = serviceRequestRepository.save(svcReq);
             serviceRequestId = savedSvcReq.getRequestId();
@@ -138,20 +166,44 @@ public class PaymentServiceImpl implements PaymentService {
         String cleanCard = request.getCardNumber() != null ? request.getCardNumber().replaceAll("\\s+", "") : "";
         String last4 = cleanCard.length() >= 4 ? cleanCard.substring(cleanCard.length() - 4) : "4242";
         long timestamp = System.currentTimeMillis();
-        String gatewayRef = method + "_TXN_" + (timestamp % 10000000) + "_L4_" + last4;
 
+        // Bước 1: Lưu giao dịch vào Database trước ở trạng thái PENDING
         PaymentTransaction transaction = PaymentTransaction.builder()
                 .contractId(request.getContractId())
                 .serviceRequestId(serviceRequestId)
                 .type(TransactionType.PAYMENT)
                 .amount(amount)
                 .paymentMethod(method)
-                .gatewayRef(gatewayRef)
-                .status(PaymentStatus.SUCCESS)
+                .gatewayRef("SANDBOX_PENDING_" + (timestamp % 10000000) + "_L4_" + last4)
+                .status(PaymentStatus.PENDING)
                 .build();
 
-        PaymentTransaction saved = paymentTransactionRepository.save(transaction);
-        return mapToResponse(saved);
+        PaymentTransaction savedTx = paymentTransactionRepository.save(transaction);
+
+        // Bước 2: Kiểm tra thông tin thẻ qua Sandbox
+        try {
+            paymentSandboxService.validateCard(request);
+
+            // Bước 3a: Thẻ hợp lệ -> Cập nhật sang SUCCESS
+            savedTx.setStatus(PaymentStatus.SUCCESS);
+            savedTx.setGatewayRef("SANDBOX_" + method + "_TXN_" + (timestamp % 10000000) + "_L4_" + last4);
+            PaymentTransaction updated = paymentTransactionRepository.save(savedTx);
+
+            if (updated.getServiceRequestId() != null) {
+                serviceRequestRepository.findById(updated.getServiceRequestId()).ifPresent(req -> {
+                    req.setStatus(RequestStatus.ASSIGNED);
+                    serviceRequestRepository.save(req);
+                });
+            }
+
+            return mapToResponse(updated);
+        } catch (PaymentSandboxException ex) {
+            // Bước 3b: Thẻ lỗi/từ chối -> Cập nhật FAILED vào Database để lưu vết đối soát
+            savedTx.setStatus(PaymentStatus.FAILED);
+            savedTx.setGatewayRef("SANDBOX_REJECTED_" + ex.getErrorCode());
+            paymentTransactionRepository.save(savedTx);
+            throw ex;
+        }
     }
 
     // =========================================================================
@@ -198,7 +250,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = PaymentSandboxException.class)
     public PaymentResponse processServiceCard(CultivationPaymentRequest request) {
         Integer resolvedServiceId = resolveServiceId(request);
         Integer resolvedRentalId = (request.getRentalId() != null && request.getRentalId() > 0)
@@ -232,19 +284,39 @@ public class PaymentServiceImpl implements PaymentService {
         String cleanCard = request.getCardNumber() != null ? request.getCardNumber().replaceAll("\\s+", "") : "";
         String last4 = cleanCard.length() >= 4 ? cleanCard.substring(cleanCard.length() - 4) : "8899";
         long timestamp = System.currentTimeMillis();
-        String gatewayRef = method + "_SVC_" + (timestamp % 10000000) + "_L4_" + last4;
 
+        // Bước 1: Lưu giao dịch vào Database ở trạng thái PENDING trước
         PaymentTransaction transaction = PaymentTransaction.builder()
                 .serviceRequestId(savedRequest.getRequestId())
                 .type(TransactionType.PAYMENT)
                 .amount(amount)
                 .paymentMethod(method)
-                .gatewayRef(gatewayRef)
-                .status(PaymentStatus.SUCCESS)
+                .gatewayRef("SANDBOX_PENDING_" + (timestamp % 10000000) + "_L4_" + last4)
+                .status(PaymentStatus.PENDING)
                 .build();
 
         PaymentTransaction savedTx = paymentTransactionRepository.save(transaction);
-        return mapToResponse(savedTx);
+
+        // Bước 2: Kiểm tra thẻ qua Sandbox
+        try {
+            paymentSandboxService.validateCultivationCard(request);
+
+            // Bước 3a: Thẻ hợp lệ -> Cập nhật SUCCESS
+            savedTx.setStatus(PaymentStatus.SUCCESS);
+            savedTx.setGatewayRef("SANDBOX_" + method + "_SVC_" + (timestamp % 10000000) + "_L4_" + last4);
+            PaymentTransaction updated = paymentTransactionRepository.save(savedTx);
+
+            savedRequest.setStatus(RequestStatus.ASSIGNED);
+            serviceRequestRepository.save(savedRequest);
+
+            return mapToResponse(updated);
+        } catch (PaymentSandboxException ex) {
+            // Bước 3b: Thẻ lỗi/từ chối -> Cập nhật FAILED vào Database để lưu vết đối soát
+            savedTx.setStatus(PaymentStatus.FAILED);
+            savedTx.setGatewayRef("SANDBOX_REJECTED_" + ex.getErrorCode());
+            paymentTransactionRepository.save(savedTx);
+            throw ex;
+        }
     }
 
     @Override
@@ -332,6 +404,32 @@ public class PaymentServiceImpl implements PaymentService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    @Transactional
+    public PaymentResponse simulateSandboxPayment(Integer transactionId) {
+        PaymentTransaction transaction = paymentTransactionRepository.findById(transactionId)
+                .orElseThrow(() -> new RuntimeException("Giao dịch không tồn tại với ID: " + transactionId));
+
+        transaction.setStatus(PaymentStatus.SUCCESS);
+        transaction.setGatewayRef("SANDBOX_WEBHOOK_PAID_" + (System.currentTimeMillis() % 10000000));
+        PaymentTransaction updated = paymentTransactionRepository.save(transaction);
+
+        if (updated.getServiceRequestId() != null) {
+            serviceRequestRepository.findById(updated.getServiceRequestId()).ifPresent(req -> {
+                req.setStatus(RequestStatus.ASSIGNED);
+                serviceRequestRepository.save(req);
+            });
+        }
+
+        return mapToResponse(updated);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentResponse getTransactionStatus(Integer transactionId) {
+        return getTransactionById(transactionId);
+    }
+
     // =========================================================================
     // HELPER METHODS
     // =========================================================================
@@ -408,6 +506,176 @@ public class PaymentServiceImpl implements PaymentService {
                 .status(saved.getStatus().name())
                 .createdAt(saved.getCreatedAt())
                 .build();
+    }
+
+    // =========================================================================
+    // VNPAY SANDBOX INTEGRATION
+    // =========================================================================
+
+    @Override
+    @Transactional
+    public VnPayResponse createVnPayPayment(VnPayCreateRequest request, String ipAddress) {
+        BigDecimal amount = (request.getAmount() != null && request.getAmount().compareTo(BigDecimal.ZERO) > 0)
+                ? request.getAmount()
+                : new BigDecimal("1800000.00");
+
+        // 1. Tạo Transaction PENDING trong PostgreSQL
+        PaymentTransaction transaction = new PaymentTransaction();
+        transaction.setContractId(request.getContractId());
+        transaction.setType(TransactionType.PAYMENT);
+        transaction.setAmount(amount);
+        transaction.setPaymentMethod("VNPAY");
+        transaction.setStatus(PaymentStatus.PENDING);
+        PaymentTransaction saved = paymentTransactionRepository.save(transaction);
+
+        // 1.1 Link đơn dịch vụ canh tác nếu có
+        if (request.getServiceName() != null || request.getPlotCode() != null) {
+            ServiceRequest sRequest = ServiceRequest.builder()
+                    .serviceId(request.getServiceId() != null ? request.getServiceId() : 1)
+                    .rentalId(request.getRentalId() != null ? request.getRentalId() : 1)
+                    .scheduledDate(request.getScheduledDate() != null ? LocalDate.parse(request.getScheduledDate()) : LocalDate.now().plusDays(1))
+                    .status(RequestStatus.PENDING)
+                    .build();
+            ServiceRequest savedSReq = serviceRequestRepository.save(sRequest);
+            saved.setServiceRequestId(savedSReq.getRequestId());
+        }
+
+        String txnRef = "FARMELY_" + saved.getTransactionId() + "_" + (System.currentTimeMillis() % 100000);
+        saved.setGatewayRef(txnRef);
+        paymentTransactionRepository.save(saved);
+
+        // 2. Build tham số VNPay 2.1.0
+        String vnpVersion = vnPayConfig.getVnpVersion();
+        String vnpCommand = vnPayConfig.getVnpCommand();
+        String vnpTmnCode = vnPayConfig.getVnpTmnCode();
+        long vnpAmount = amount.multiply(new BigDecimal(100)).longValue();
+
+        Map<String, String> vnpParams = new HashMap<>();
+        vnpParams.put("vnp_Version", vnpVersion);
+        vnpParams.put("vnp_Command", vnpCommand);
+        vnpParams.put("vnp_TmnCode", vnpTmnCode);
+        vnpParams.put("vnp_Amount", String.valueOf(vnpAmount));
+        vnpParams.put("vnp_CurrCode", "VND");
+
+        if (request.getBankCode() != null && !request.getBankCode().isBlank()) {
+            vnpParams.put("vnp_BankCode", request.getBankCode());
+        }
+
+        vnpParams.put("vnp_TxnRef", txnRef);
+
+        String orderInfo = request.getOrderInfo() != null && !request.getOrderInfo().isBlank()
+                ? request.getOrderInfo()
+                : ("Thanh toan Farmely GD " + saved.getTransactionId());
+        vnpParams.put("vnp_OrderInfo", removeAccents(orderInfo));
+        vnpParams.put("vnp_OrderType", "other");
+        vnpParams.put("vnp_Locale", "vn");
+
+        String returnUrl = (request.getReturnUrl() != null && !request.getReturnUrl().isBlank())
+                ? request.getReturnUrl()
+                : vnPayConfig.getVnpReturnUrl();
+        vnpParams.put("vnp_ReturnUrl", returnUrl);
+
+        String clientIp = (ipAddress != null && !ipAddress.isBlank() && !ipAddress.equals("0:0:0:0:0:0:0:1")) ? ipAddress : "127.0.0.1";
+        vnpParams.put("vnp_IpAddr", clientIp);
+
+        java.text.SimpleDateFormat formatter = new java.text.SimpleDateFormat("yyyyMMddHHmmss");
+        formatter.setTimeZone(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
+        Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
+        String vnpCreateDate = formatter.format(cld.getTime());
+        vnpParams.put("vnp_CreateDate", vnpCreateDate);
+
+        cld.add(Calendar.MINUTE, 15);
+        String vnpExpireDate = formatter.format(cld.getTime());
+        vnpParams.put("vnp_ExpireDate", vnpExpireDate);
+
+        // 3. Tạo chữ ký SHA-512 và payment URL
+        String queryUrl = VNPayConfig.buildQueryUrl(vnpParams);
+        String vnpSecureHash = VNPayConfig.hashAllFields(vnpParams, vnPayConfig.getVnpHashSecret());
+        String paymentUrl = vnPayConfig.getVnpPayUrl() + "?" + queryUrl + "&vnp_SecureHash=" + vnpSecureHash;
+
+        return new VnPayResponse(
+                saved.getTransactionId(),
+                txnRef,
+                paymentUrl,
+                amount,
+                orderInfo,
+                PaymentStatus.PENDING.name(),
+                vnpTmnCode,
+                returnUrl,
+                saved.getCreatedAt()
+        );
+    }
+
+    @Override
+    @Transactional
+    public PaymentResponse processVnPayReturn(Map<String, String> queryParams) {
+        Map<String, String> fields = new HashMap<>();
+        for (Map.Entry<String, String> entry : queryParams.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            if (value != null && !value.isEmpty()) {
+                fields.put(key, value);
+            }
+        }
+
+        String vnpSecureHash = fields.remove("vnp_SecureHash");
+        fields.remove("vnp_SecureHashType");
+
+        String txnRef = queryParams.get("vnp_TxnRef");
+        String responseCode = queryParams.get("vnp_ResponseCode");
+        String vnpTransactionNo = queryParams.get("vnp_TransactionNo");
+
+        PaymentTransaction transaction = null;
+        if (txnRef != null) {
+            transaction = paymentTransactionRepository.findAll().stream()
+                    .filter(t -> txnRef.equals(t.getGatewayRef()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (transaction == null && txnRef.startsWith("FARMELY_")) {
+                try {
+                    String[] parts = txnRef.split("_");
+                    if (parts.length >= 2) {
+                        Integer txnId = Integer.parseInt(parts[1]);
+                        transaction = paymentTransactionRepository.findById(txnId).orElse(null);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        if (transaction == null) {
+            throw new RuntimeException("Không tìm thấy giao dịch với mã tham chiếu: " + txnRef);
+        }
+
+        // ResponseCode "00" = Thanh toán thành công trên VNPay Sandbox
+        if ("00".equals(responseCode)) {
+            transaction.setStatus(PaymentStatus.SUCCESS);
+            transaction.setGatewayRef(vnpTransactionNo != null ? ("VNPAY_" + vnpTransactionNo) : txnRef);
+            PaymentTransaction saved = paymentTransactionRepository.save(transaction);
+
+            if (saved.getServiceRequestId() != null) {
+                serviceRequestRepository.findById(saved.getServiceRequestId()).ifPresent(req -> {
+                    req.setStatus(RequestStatus.ASSIGNED);
+                    serviceRequestRepository.save(req);
+                });
+            }
+            return mapToResponse(saved);
+        } else {
+            transaction.setStatus(PaymentStatus.FAILED);
+            if (vnpTransactionNo != null) {
+                transaction.setGatewayRef("VNPAY_FAILED_" + vnpTransactionNo);
+            }
+            PaymentTransaction saved = paymentTransactionRepository.save(transaction);
+            return mapToResponse(saved);
+        }
+    }
+
+    private String removeAccents(String text) {
+        if (text == null) return "";
+        String nfdNormalizedString = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD);
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+        return pattern.matcher(nfdNormalizedString).replaceAll("").replaceAll("đ", "d").replaceAll("Đ", "D");
     }
 
     private PaymentResponse mapToResponse(PaymentTransaction tx) {

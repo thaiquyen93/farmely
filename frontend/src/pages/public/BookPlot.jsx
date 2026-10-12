@@ -28,7 +28,7 @@ import {
   Sparkles,
   X
 } from 'lucide-react';
-import VietQrModal from '../../components/payment/VietQrModal';
+import VnPayModal from '../../components/payment/VnPayModal';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
@@ -94,11 +94,11 @@ export default function BookPlot() {
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
   const [selectedMode, setSelectedMode] = useState('ASSISTED');
   const [rentalMonths, setRentalMonths] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState('VIETQR');
+  const [paymentMethod, setPaymentMethod] = useState('VNPAY');
   const [isSuccess, setIsSuccess] = useState(false);
   const [contractCode, setContractCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showQrModal, setShowQrModal] = useState(false);
+  const [showVnPayModal, setShowVnPayModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
   const [qrData, setQrData] = useState(null);
 
@@ -266,50 +266,9 @@ export default function BookPlot() {
   const handleConfirmBooking = async () => {
     setIsProcessing(true);
 
-    if (paymentMethod === 'VIETQR') {
-      try {
-        const descText = `FARMELY ${plotCodesSummary} ${
-          user?.fullName ? user.fullName.replace(/\s+/g, '') : 'KHACH'
-        }`.substring(0, 50);
-
-        const response = await fetch('/api/v1/payments/vietqr/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            amount: totalAmount,
-            plotCode: plotCodesSummary,
-            description: descText,
-            customerName: user?.fullName || 'Khách hàng Farmely'
-          })
-        });
-
-        const resData = await response.json();
-        if (resData?.success && resData?.data) {
-          setQrData(resData.data);
-          setShowQrModal(true);
-          setIsProcessing(false);
-          return;
-        }
-      } catch (err) {
-        console.warn('Backend payment-service offline, using quick VietQR client fallback:', err);
-      }
-
-      // Fallback if backend service is unreachable
-      const fallbackDesc = `FARMELY ${plotCodesSummary} KHACH`.substring(0, 50);
-      const fallbackImg = `https://img.vietqr.io/image/ICB-108876543210-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(
-        fallbackDesc
-      )}&accountName=${encodeURIComponent('FARMELY AGRIRENT CORP')}`;
-      setQrData({
-        transactionId: null,
-        qrImageUrl: fallbackImg,
-        amount: totalAmount,
-        bankName: 'VietinBank (ICB)',
-        accountNo: '108876543210',
-        accountName: 'FARMELY AGRIRENT CORP',
-        description: fallbackDesc
-      });
-      setShowQrModal(true);
+    if (paymentMethod === 'VNPAY') {
       setIsProcessing(false);
+      setShowVnPayModal(true);
       return;
     }
 
@@ -333,7 +292,7 @@ export default function BookPlot() {
   };
 
   const handlePaymentSuccess = async () => {
-    setShowQrModal(false);
+    setShowVnPayModal(false);
     setShowCardModal(false);
     setIsProcessing(true);
     const savedCode = await persistBookingToDatabase(paymentMethod);
@@ -771,17 +730,17 @@ export default function BookPlot() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod('VIETQR')}
+                    onClick={() => setPaymentMethod('VNPAY')}
                     className={`p-4 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
-                      paymentMethod === 'VIETQR'
-                        ? 'border-brand-green bg-emerald-50/60 ring-2 ring-brand-green/20'
+                      paymentMethod === 'VNPAY'
+                        ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
                         : 'border-brand-border bg-white hover:bg-brand-cream/50'
                     }`}
                   >
-                    <QrCode className="w-5 h-5 text-brand-green" />
+                    <ShieldCheck className="w-5 h-5 text-blue-600" />
                     <div className="text-left">
-                      <p className="text-xs font-bold text-brand-dark">Chuyển khoản VietQR</p>
-                      <p className="text-[10px] text-stone-500">Quét mã ngân hàng 24/7</p>
+                      <p className="text-xs font-bold text-brand-dark">Cổng VNPAY Sandbox</p>
+                      <p className="text-[10px] text-blue-700 font-medium">VNPAY-QR, Thẻ ATM NCB</p>
                     </div>
                   </button>
 
@@ -969,11 +928,10 @@ export default function BookPlot() {
         </div>
       )}
 
-      {/* VietQR Payment Pop-up Modal */}
-      <VietQrModal
-        isOpen={showQrModal}
-        onClose={() => setShowQrModal(false)}
-        qrData={qrData}
+      {/* VNPay Sandbox Payment Pop-up Modal */}
+      <VnPayModal
+        isOpen={showVnPayModal}
+        onClose={() => setShowVnPayModal(false)}
         onPaymentSuccess={handlePaymentSuccess}
         plotInfo={{
           code: plotCodesSummary,
