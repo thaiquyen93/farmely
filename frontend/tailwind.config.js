@@ -22,7 +22,7 @@ export default {
       },
       fontFamily: {
         heading: ['Nunito', 'sans-serif'],
-        sans: ['Inter', 'sans-serif'],
+        sans: ['Nunito', 'sans-serif'],
       },
       borderColor: {
         DEFAULT: 'rgba(41, 76, 59, 0.14)',

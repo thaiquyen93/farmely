@@ -521,12 +521,12 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                           <button
                             onClick={() => {
                               setUserDropdownOpen(false);
-                              setIsProfileModalOpen(true);
+                              navigate('/customer/dashboard?view=contracts');
                             }}
                             className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
                           >
                             <ClipboardCheck className="w-4 h-4 text-brand-green" />
-                            <span>Hợp đồng thuê của tôi</span>
+                            <span>Hợp đồng & lịch sử thuê</span>
                           </button>
                         )}
 
