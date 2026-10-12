@@ -454,6 +454,123 @@ export const MARKETPLACE_PLOTS_GIS = [
     centroid: [395, 350]
   },
   {
+    id: 'PLT-HV-10',
+    code: 'Plot P-10',
+    label: 'P-10',
+    name: 'Thửa Đất Vườn Rau Xanh P-10',
+    farmId: 'FARM-HV-01',
+    farmName: 'Trang trại Happy Valley',
+    farmLocation: 'Huyện Quế Phong, Nghệ An',
+    area: 125,
+    areaFormatted: '125 m²',
+    rentalPrice: 1500000,
+    rentalPriceFormatted: '1.500.000 đ/tháng',
+    unitPrice: '12.000 đ/m²/tháng',
+    status: 'AVAILABLE',
+    crop: 'Bắp cải tí hon',
+    imageUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
+    gallery: [
+      'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80'
+    ],
+    facilities: {
+      irrigation: true,
+      iot: true,
+      waterSource: true,
+      organicSoil: true,
+      techSupport: true
+    },
+    specs: {
+      orientation: 'Đông',
+      ph: '6.3 – 6.8',
+      temp: '17 – 25°C',
+      season: 'Mát mẻ quanh năm'
+    },
+    compatibleCrops: [
+      { name: 'Bắp cải tí hon', icon: '🥬', type: 'leafy' },
+      { name: 'Xúp lơ baby', icon: '🥦', type: 'flower' }
+    ],
+    polygon: [[510, 255], [560, 270], [550, 325], [500, 320]],
+    centroid: [530, 290]
+  },
+  {
+    id: 'PLT-HV-11',
+    code: 'Plot P-11',
+    label: 'P-11',
+    name: 'Thửa Đất Sườn Đồi P-11',
+    farmId: 'FARM-HV-01',
+    farmName: 'Trang trại Happy Valley',
+    farmLocation: 'Huyện Quế Phong, Nghệ An',
+    area: 175,
+    areaFormatted: '175 m²',
+    rentalPrice: 2100000,
+    rentalPriceFormatted: '2.100.000 đ/tháng',
+    unitPrice: '12.000 đ/m²/tháng',
+    status: 'RENTED',
+    crop: 'Ớt chuông Sweet Pepper',
+    imageUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=1000&q=80',
+    gallery: [
+      'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=1000&q=80'
+    ],
+    facilities: {
+      irrigation: true,
+      iot: true,
+      waterSource: true,
+      organicSoil: true,
+      techSupport: true
+    },
+    specs: {
+      orientation: 'Nam',
+      ph: '6.2 – 6.6',
+      temp: '20 – 30°C',
+      season: 'Xuân – Hè'
+    },
+    compatibleCrops: [
+      { name: 'Ớt chuông', icon: '🫑', type: 'fruit' },
+      { name: 'Cà tím', icon: '🍆', type: 'fruit' }
+    ],
+    polygon: [[530, 210], [600, 240], [610, 300], [545, 290]],
+    centroid: [570, 260]
+  },
+  {
+    id: 'PLT-HV-12',
+    code: 'Plot P-12',
+    label: 'P-12',
+    name: 'Thửa Đất Rãnh Tưới Tự Động P-12',
+    farmId: 'FARM-HV-01',
+    farmName: 'Trang trại Happy Valley',
+    farmLocation: 'Huyện Quế Phong, Nghệ An',
+    area: 130,
+    areaFormatted: '130 m²',
+    rentalPrice: 1550000,
+    rentalPriceFormatted: '1.550.000 đ/tháng',
+    unitPrice: '11.900 đ/m²/tháng',
+    status: 'AVAILABLE',
+    crop: 'Xà lách Romaine VietGAP',
+    imageUrl: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1000&q=80',
+    gallery: [
+      'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1000&q=80'
+    ],
+    facilities: {
+      irrigation: true,
+      iot: true,
+      waterSource: true,
+      organicSoil: true,
+      techSupport: true
+    },
+    specs: {
+      orientation: 'Đông Nam',
+      ph: '6.3 – 6.8',
+      temp: '18 – 28°C',
+      season: 'Quanh năm'
+    },
+    compatibleCrops: [
+      { name: 'Xà lách Romaine', icon: '🥬', type: 'leafy' },
+      { name: 'Rau cần tây', icon: '🌿', type: 'leafy' }
+    ],
+    polygon: [[430, 355], [485, 360], [490, 410], [425, 415]],
+    centroid: [460, 385]
+  },
+  {
     id: 'PLT-HV-13',
     code: 'Plot P-13',
     label: 'P-13',
@@ -1122,6 +1239,165 @@ export const FARMS_GEOJSON_DATA = {
             [
               106.347463,
               10.68517
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-10",
+        "code": "Plot P-10",
+        "name": "Thửa Xanh Mướt P-10",
+        "area": "185 m²",
+        "rentalPrice": 1600000,
+        "price": "1.600.000 đ",
+        "status": "Đã thuê",
+        "crops": [
+          "🥗 Xà lách xoăn",
+          "🌿 Hẹ"
+        ],
+        "direction": "Chính Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.348941,
+              10.686394
+            ],
+            [
+              106.350277,
+              10.687501
+            ],
+            [
+              106.351956,
+              10.685579
+            ],
+            [
+              106.350606,
+              10.684466
+            ],
+            [
+              106.348941,
+              10.686394
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-11",
+        "code": "Plot P-11",
+        "name": "Thửa Nắng Vàng P-11",
+        "area": "160 m²",
+        "rentalPrice": 1250000,
+        "price": "1.250.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🍅 Cà chua",
+          "🫑 Ớt hiểm"
+        ],
+        "direction": "Đông Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.350419,
+              10.687619
+            ],
+            [
+              106.351755,
+              10.688726
+            ],
+            [
+              106.353449,
+              10.68681
+            ],
+            [
+              106.352099,
+              10.685697
+            ],
+            [
+              106.350419,
+              10.687619
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "P-12",
+        "code": "Plot P-12",
+        "name": "Thửa Đất Màu P-12",
+        "area": "195 m²",
+        "rentalPrice": 1450000,
+        "price": "1.450.000 đ",
+        "status": "Đang trống",
+        "crops": [
+          "🍉 Dưa hấu",
+          "🍈 Dưa lưới"
+        ],
+        "direction": "Chính Nam",
+        "ph": "6.2 - 6.6",
+        "temp": "20 - 28°C",
+        "img": "https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80",
+        "facilities": {
+          "irrigation": true,
+          "iot": true,
+          "organicSoil": true,
+          "waterSource": true
+        }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.351896,
+              10.688843
+            ],
+            [
+              106.353232,
+              10.68995
+            ],
+            [
+              106.354942,
+              10.688042
+            ],
+            [
+              106.353592,
+              10.686929
+            ],
+            [
+              106.351896,
+              10.688843
             ]
           ]
         ]
