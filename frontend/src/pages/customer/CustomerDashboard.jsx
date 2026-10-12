@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import { useAuthStore } from '../../stores/authStore';
 import { useServiceStore } from '../../stores/serviceStore';
@@ -65,6 +65,7 @@ import {
 
 export default function CustomerDashboard() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { services: masterServices } = useServiceStore();
   const [activeTab, setActiveTab] = useState('yards');
@@ -191,6 +192,8 @@ export default function CustomerDashboard() {
   const [diaryPlotId, setDiaryPlotId] = useState('PLOT-MC-02');
   const [diaryFocusPlotId, setDiaryFocusPlotId] = useState('PLOT-CC-01');
   const [showHarvestAcceptModal, setShowHarvestAcceptModal] = useState(false);
+  const [harvestDeliveryMethod, setHarvestDeliveryMethod] = useState('DELIVERY');
+  const [harvestAcceptance, setHarvestAcceptance] = useState({ status: 'PENDING', confirmedAt: null, deliveryMethod: null });
 
   // Ngữ cảnh thửa: khi đi từ trang 1 thửa sang Nhật ký / Lịch / Dịch vụ thì chỉ hiện
   // dữ liệu của ĐÚNG thửa đó (null = xem tất cả thửa, khi vào từ sidebar)
@@ -215,6 +218,7 @@ export default function CustomerDashboard() {
     }
   }, [harvestPlans, harvestStorageKey]);
   const [showRenewContractModal, setShowRenewContractModal] = useState(false);
+  const [emergencyRequests, setEmergencyRequests] = useState({});
 
   // Form states
   const [diaryNote, setDiaryNote] = useState('');
@@ -577,6 +581,41 @@ export default function CustomerDashboard() {
     setSelectedServiceToBuy(svc);
   };
 
+  const handleEmergencyCareRequest = async (plot) => {
+    if (emergencyRequests[plot.id]?.status === 'PROCESSING') return;
+    const request = {
+      id: `REQ-EMERGENCY-${Date.now()}`,
+      serviceName: 'Chăm sóc khẩn cấp theo cảnh báo IoT',
+      plotName: plot.name,
+      price: 'Liên hệ xác nhận',
+      date: 'Vừa gửi',
+      status: 'IN_PROGRESS',
+      statusLabel: 'Đang tiếp nhận',
+      worker: 'Farmely đang điều phối CVLĐ',
+      paymentMethod: 'Chưa thanh toán'
+    };
+    setEmergencyRequests((current) => ({ ...current, [plot.id]: { ...request, status: 'PROCESSING' } }));
+    setActiveServiceOrders((orders) => [request, ...orders]);
+    try {
+      const response = await fetch('http://localhost:8085/api/services/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rentalId: plot.id === 'PLOT-CC-01' ? 1 : plot.id === 'PLOT-MC-02' ? 2 : 3,
+          serviceId: 1,
+          scheduledDate: new Date().toISOString().slice(0, 10),
+          notes: `Yêu cầu chăm sóc khẩn cấp từ cảnh báo IoT cho ${plot.name}`
+        })
+      });
+      const data = await response.json().catch(() => null);
+      if (data?.data?.requestId) {
+        setEmergencyRequests((current) => ({ ...current, [plot.id]: { ...current[plot.id], id: `REQ-${data.data.requestId}` } }));
+      }
+    } catch (error) {
+      console.debug('Emergency service request fallback active:', error);
+    }
+  };
+
   // Fetch existing cultivation service requests from backend to populate active orders
   useEffect(() => {
     fetch('http://localhost:8085/api/v1/payments/service/requests')
@@ -749,10 +788,21 @@ export default function CustomerDashboard() {
   };
 
   useEffect(() => {
-    const requestedPlotId = new URLSearchParams(location.search).get('plot');
+    const query = new URLSearchParams(location.search);
+    const requestedPlotId = query.get('plot');
+    const requestedView = query.get('view');
+    const fromPlotId = query.get('fromPlot');
     if (requestedPlotId && customerPlots.some((plot) => plot.id === requestedPlotId)) {
       setActiveTab('yards');
       setSelectedPlotId(requestedPlotId);
+    } else if (['contracts', 'harvest', 'process', 'iot', 'diary', 'tasks', 'services'].includes(requestedView)) {
+      setSelectedPlotId(null);
+      setActiveTab(requestedView);
+      if (requestedView === 'iot') setIotReturnPlotId(fromPlotId || null);
+    } else if (!requestedPlotId && !requestedView) {
+      setSelectedPlotId(null);
+      setActiveTab('yards');
+      setIotReturnPlotId(null);
     }
   }, [location.search]);
 
@@ -782,6 +832,38 @@ export default function CustomerDashboard() {
       ],
       diary: [{ time: '10:15 • Hôm nay', title: 'Kiểm tra sinh trưởng dây leo', note: 'Cây cao trung bình 82cm, chưa ghi nhận sâu bệnh.', author: 'Nguyễn Văn Đạt' }]
     }
+  };
+  const cultivationProcesses = {
+    'PLOT-CC-01': [
+      { stage: 'Gieo trồng & bén rễ', date: '12/08/2026', guide: 'Giữ ẩm đất 60–70%, kiểm tra cây con mỗi sáng.', status: 'COMPLETED' },
+      { stage: 'Sinh trưởng thân lá', date: '25/08/2026', guide: 'Bổ sung dinh dưỡng hữu cơ và tỉa lá già định kỳ.', status: 'COMPLETED' },
+      { stage: 'Ra hoa & đậu trái non', date: '10/09/2026', guide: 'Theo dõi sâu bệnh, giữ thông thoáng và tưới vi sinh.', status: 'IN_PROGRESS' },
+      { stage: 'Thu hoạch & nghiệm thu', date: '18/11/2026', guide: 'Cân đối chứng, chụp ảnh và đóng thùng QR truy xuất.', status: 'PENDING' }
+    ],
+    'PLOT-MC-02': [
+      { stage: 'Làm đất & gieo hạt', date: '08/09/2026', guide: 'Gieo theo hàng, phủ ẩm nhẹ và tránh úng mặt luống.', status: 'COMPLETED' },
+      { stage: 'Cuộn bắp & chăm sóc', date: '20/09/2026', guide: 'Tưới nhẹ buổi sáng, kiểm tra sâu ăn lá bằng mắt thường.', status: 'IN_PROGRESS' },
+      { stage: 'Sắp thu hoạch', date: '12/10/2026', guide: 'Ngưng tưới trước thu hoạch theo chỉ số ẩm đất an toàn.', status: 'PENDING' }
+    ],
+    'PLOT-CG-03': [
+      { stage: 'Gieo trồng', date: '18/09/2026', guide: 'Cố định cây con và giữ ẩm đều trong 7 ngày đầu.', status: 'COMPLETED' },
+      { stage: 'Leo giàn & đơm hoa', date: '02/10/2026', guide: 'Buộc ngọn định kỳ, kiểm tra bọ trĩ mặt dưới lá.', status: 'IN_PROGRESS' },
+      { stage: 'Thu hoạch lứa đầu', date: '28/10/2026', guide: 'Thu hái quả đạt kích thước, tránh làm trầy thân dây.', status: 'PENDING' }
+    ]
+  };
+  const iotAlerts = {
+    'PLOT-CC-01': [
+      { level: 'HIGH', title: 'Mưa có thể đến sau 45 phút', metric: 'Dự báo mưa 8.2 mm', time: '5 phút trước' },
+      { level: 'MEDIUM', title: 'Độ ẩm đất tăng nhanh', metric: '68% → 72% trong 30 phút', time: '12 phút trước' }
+    ],
+    'PLOT-MC-02': [
+      { level: 'MEDIUM', title: 'Cường độ nắng cao lúc 12:00', metric: '38.000 Lux', time: '18 phút trước' },
+      { level: 'LOW', title: 'Độ ẩm đất gần ngưỡng thấp', metric: '62% · ngưỡng khuyến nghị 60–75%', time: '32 phút trước' }
+    ],
+    'PLOT-CG-03': [
+      { level: 'HIGH', title: 'Gió tăng cao tại khu vực giàn', metric: '28 km/h', time: '8 phút trước' },
+      { level: 'MEDIUM', title: 'Nhiệt độ tăng', metric: '29°C · cao hơn 2°C so với hôm qua', time: '25 phút trước' }
+    ]
   };
   const currentPlotOperations = plotOperations[selectedPlotId] || { tasks: [], diary: [] };
 
@@ -879,14 +961,18 @@ export default function CustomerDashboard() {
             ['Tổng quan', LayoutDashboard, 'overview'],
             ['Lịch canh tác', Calendar, 'tasks'],
             ['Dịch vụ canh tác', ShoppingBag, 'services'],
-            ['Nhật ký nông trại', BookOpen, 'diary']
+            ['Nhật ký nông trại', BookOpen, 'diary'],
+            ['Quy trình canh tác chuẩn', ClipboardList, 'process'],
+            ['Kết quả thu hoạch & nghiệm thu', Apple, 'harvest']
           ].map(([label, Icon, id]) => {
             const isActive = id === 'overview' ? (activeTab === 'yards' || Boolean(selectedPlotId)) : (!selectedPlotId && activeTab === id);
             return (
               <button key={id} type="button" onClick={() => {
                 setSelectedPlotId(null);
                 setPlotScopeId(null);
-                setActiveTab(id === 'overview' ? 'yards' : id);
+                const nextTab = id === 'overview' ? 'yards' : id;
+                setActiveTab(nextTab);
+                navigate(nextTab === 'yards' ? '/customer/dashboard' : `/customer/dashboard?view=${nextTab}`);
               }} className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-0' : ''} ${isActive ? 'bg-white text-[#063d2b] shadow-md' : 'text-white hover:bg-white/10'}`} title={sidebarCollapsed ? label : undefined}>
                 <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-emerald-700' : 'text-white/85'}`} />
                 {!sidebarCollapsed && <span className="truncate">{label}</span>}
@@ -919,10 +1005,10 @@ export default function CustomerDashboard() {
                 services={customerServiceCatalog}
                 harvestPlan={harvestPlans[currentSelectedPlot.id] || null}
                 onOpenHarvest={(plot) => setHarvestModalPlotId(plot.id)}
-                onNavigate={(nextTab) => openPlotScopedTab(nextTab, currentSelectedPlot.id)}
-                onSelectPlot={setSelectedPlotId}
+                onNavigate={(nextTab) => { setSelectedPlotId(null); setActiveTab(nextTab); navigate(`/customer/dashboard?view=${nextTab}`); }}
+                onSelectPlot={(plotId) => navigate(`/customer/dashboard?plot=${plotId}`)}
                 onOpenAiChat={() => { setChatOpenMode('ai'); setShowExpertChatModal(true); }}
-                onOpenIotDetail={() => { setIotReturnPlotId(selectedPlotId); setSelectedIotPlotId(selectedPlotId); setActiveTab('iot'); setSelectedPlotId(null); }}
+                onOpenIotDetail={() => { setIotReturnPlotId(selectedPlotId); setSelectedIotPlotId(selectedPlotId); setActiveTab('iot'); setSelectedPlotId(null); navigate(`/customer/dashboard?view=iot&fromPlot=${selectedPlotId}`); }}
                 onOpenTask={(task) => { setTaskPhotoPreview(''); setSelectedTaskDetail({ ...task, plot: currentSelectedPlot }); }}
                 onSelectService={(service) => { setCheckoutPlotId(currentSelectedPlot.id); handleOpenBuyServiceModal(service); }}
               />
@@ -1033,7 +1119,7 @@ export default function CustomerDashboard() {
                   {customerPlots.map((plot) => (
                     <div
                       key={plot.id}
-                      onClick={() => setSelectedPlotId(plot.id)}
+                      onClick={() => navigate(`/customer/dashboard?plot=${plot.id}`)}
                       className="bg-white rounded-2xl p-4 sm:p-5 border border-brand-border shadow-sm space-y-3 hover:shadow-md hover:border-brand-green/40 transition-all cursor-pointer flex flex-col justify-between group"
                     >
                       <div className="space-y-3">
@@ -1117,7 +1203,7 @@ export default function CustomerDashboard() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedPlotId(plot.id);
+                            navigate(`/customer/dashboard?plot=${plot.id}`);
                           }}
                           className="w-full py-2.5 px-3 rounded-xl bg-brand-green hover:bg-brand-dark text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                         >
@@ -1359,7 +1445,7 @@ export default function CustomerDashboard() {
                 {/* Top Control Bar: Select Plot + Timeframe Switcher */}
                 <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <button type="button" onClick={() => { if (iotReturnPlotId) { setSelectedPlotId(iotReturnPlotId); setIotReturnPlotId(null); } else { setActiveTab('yards'); } }} className="mb-3 flex items-center gap-1.5 text-xs font-black text-brand-green hover:underline"><ArrowLeft className="h-4 w-4" />Quay lại {iotReturnPlotId ? 'chi tiết thửa' : 'tổng quan'}</button>
+                    <button type="button" onClick={() => { if (iotReturnPlotId) { navigate(`/customer/dashboard?plot=${iotReturnPlotId}`); } else { navigate('/customer/dashboard'); } }} className="mb-3 flex items-center gap-1.5 text-xs font-black text-brand-green hover:underline"><ArrowLeft className="h-4 w-4" />Quay lại {iotReturnPlotId ? 'chi tiết thửa' : 'tổng quan'}</button>
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-cream text-brand-green border border-brand-border mb-2">
                       <Radio className="w-3.5 h-3.5 text-brand-green" />
                       <span>Trạm Quan Trắc IoT Không Dây</span>
@@ -1481,6 +1567,13 @@ export default function CustomerDashboard() {
                   </div>
                 </div>
 
+                <section className="rounded-3xl border border-brand-border bg-white p-5 shadow-sm sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-orange-600">Theo dõi bất thường</p><h3 className="mt-1 font-heading text-xl font-black text-brand-dark">Cảnh báo IoT · {currentIotPlot.name}</h3></div><span className="rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black text-orange-700">{(iotAlerts[currentIotPlot.id] || []).length} cảnh báo</span></div>
+                  <div className="mt-4 space-y-2">{(iotAlerts[currentIotPlot.id] || []).map((alert) => <div key={`${currentIotPlot.id}-${alert.title}`} className="flex flex-wrap items-center gap-3 rounded-2xl border border-brand-border bg-brand-cream/35 p-3"><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${alert.level === 'HIGH' ? 'bg-rose-100 text-rose-700' : alert.level === 'MEDIUM' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>{alert.level === 'HIGH' ? 'Cao' : alert.level === 'MEDIUM' ? 'Trung bình' : 'Thấp'}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-brand-dark">{alert.title}</p><p className="mt-0.5 text-xs text-brand-muted">{alert.metric} · {alert.time}</p></div></div>)}</div>
+                  {currentIotPlot.mode === 'Self-Growing' && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4"><div><p className="text-sm font-black text-rose-900">Cần Farmely hỗ trợ ngay?</p><p className="mt-1 text-xs text-rose-800/80">Gửi yêu cầu chăm sóc khẩn cấp cho thửa tự trồng này.</p></div><button type="button" onClick={() => handleEmergencyCareRequest(currentIotPlot)} disabled={emergencyRequests[currentIotPlot.id]?.status === 'PROCESSING'} className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-rose-300">{emergencyRequests[currentIotPlot.id]?.status === 'PROCESSING' ? 'Đã gửi · Đang xử lý' : 'Yêu cầu chăm sóc khẩn cấp'}</button></div>}
+                  {emergencyRequests[currentIotPlot.id] && <div className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-800">Service Request {emergencyRequests[currentIotPlot.id].id} · Đang tiếp nhận và điều phối nhân sự Farmely.</div>}
+                </section>
+
                 {/* Interactive Chart Container */}
                 <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border/60 pb-3">
@@ -1540,7 +1633,17 @@ export default function CustomerDashboard() {
               </div>
             )}
 
-            {/* TAB 4: NHẬT KÝ CANH TÁC */}
+            {/* TAB 4: QUY TRÌNH CANH TÁC CHUẨN */}
+            {activeTab === 'process' && !selectedPlotId && (
+              <div className="space-y-5 rounded-3xl border border-brand-border bg-white p-5 shadow-sm sm:p-7">
+                <div><p className="text-xs font-bold uppercase tracking-widest text-brand-green">Quy trình VietGAP</p><h2 className="mt-1 font-heading text-2xl font-black text-brand-dark">Quy trình canh tác chuẩn</h2><p className="mt-1 text-sm text-brand-muted">Hướng dẫn và tiến độ được Farmely thiết lập cho từng thửa. Khách hàng chỉ có quyền xem.</p></div>
+                <div className="space-y-4">
+                  {customerPlots.map((plot) => <section key={plot.id} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25"><div className="flex items-center gap-3 border-b border-brand-border bg-white p-4"><img src={plot.image} alt="" className="h-12 w-16 rounded-xl object-cover" /><div className="min-w-0 flex-1"><h3 className="truncate font-heading font-black text-brand-dark">{plot.name}</h3><p className="truncate text-xs text-brand-muted">{plot.crop} · {plot.mode === 'Self-Growing' ? 'Tự trồng' : 'Farmely chăm sóc'}</p></div><span className="rounded-full bg-stone-100 px-3 py-1 text-[10px] font-bold text-stone-600">Chỉ xem</span></div><div className="grid gap-3 p-4 lg:grid-cols-2">{(cultivationProcesses[plot.id] || []).map((step, index) => <article key={`${plot.id}-${step.stage}`} className="relative rounded-xl border border-brand-border bg-white p-4"><div className="flex items-start gap-3"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${step.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'}`}>{step.status === 'COMPLETED' ? '✓' : index + 1}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold text-brand-dark">{step.stage}</h4><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${step.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>{step.status === 'COMPLETED' ? 'Đã hoàn tất' : step.status === 'IN_PROGRESS' ? 'Đang thực hiện' : 'Sắp tới'}</span></div><p className="mt-1 text-xs font-semibold text-brand-green">Ngày thực hiện: {step.date}</p><p className="mt-2 text-xs leading-relaxed text-stone-600">{step.guide}</p></div></div></article>)}</div></section>)}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: NHẬT KÝ CANH TÁC */}
             {activeTab === 'diary' && !selectedPlotId && (
               <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)]">
                 <div className="space-y-3">
@@ -1605,19 +1708,16 @@ export default function CustomerDashboard() {
                       Minh bạch cân điện tử, đối chứng sản lượng và đặt lịch giao rau sạch tận nhà.
                     </p>
                   </div>
-                  <Button variant="primary" size="sm" onClick={() => setShowHarvestAcceptModal(true)}>
-                    Xác nhận nghiệm thu vụ mùa
-                  </Button>
+                  {harvestAcceptance.status === 'CONFIRMED' ? <span className="rounded-full bg-emerald-100 px-3 py-2 text-xs font-black text-emerald-800">✓ Đã xác nhận nghiệm thu</span> : <Button variant="primary" size="sm" onClick={() => setShowHarvestAcceptModal(true)}>Xác nhận nghiệm thu vụ mùa</Button>}
                 </div>
 
-                <div className="p-5 rounded-2xl bg-brand-cream border border-brand-border space-y-3 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-brand-dark text-sm">Đợt thu hoạch gần nhất: Cà chua bi Cherry</span>
-                    <span className="text-emerald-700 font-black text-base">12.5 kg</span>
+                <div className="grid gap-4 rounded-2xl border border-brand-border bg-brand-cream p-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:p-5">
+                  <img src="/images/Mucangchai3.jpg" alt="Ảnh cân đối chứng" className="h-32 w-full rounded-xl object-cover sm:h-full" />
+                  <div className="space-y-3 text-xs">
+                    <div className="flex flex-wrap justify-between gap-2"><span className="font-bold text-brand-dark text-sm">Đợt thu hoạch gần nhất: Cà chua bi Cherry</span><span className="text-emerald-700 font-black text-base">12.5 kg</span></div>
+                    <p className="text-stone-600">Thu hoạch ngày 02/10. Ảnh cân đối chứng và thông tin đóng thùng QR đã được lưu trong hồ sơ nghiệm thu.</p>
+                    <div className="flex flex-wrap gap-2"><span className="rounded-full bg-white px-3 py-1 font-bold text-stone-600">Ảnh minh chứng đã lưu</span><span className={`rounded-full px-3 py-1 font-bold ${harvestAcceptance.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{harvestAcceptance.status === 'CONFIRMED' ? `Đã xác nhận · ${harvestAcceptance.deliveryMethod === 'FARM' ? 'Nhận tại nông trại' : 'Giao tận nhà'}` : 'Chờ khách xác nhận'}</span></div>
                   </div>
-                  <p className="text-stone-600">
-                    Thu hoạch ngày 02/10. Sản lượng đã được đóng thùng có mã QR truy xuất nguồn gốc và giao tới địa chỉ nhà bạn.
-                  </p>
                 </div>
               </div>
             )}
@@ -1972,14 +2072,17 @@ export default function CustomerDashboard() {
               </div>
             </Modal>
 
-            {activeTab === 'yards' && !selectedPlotId && <nav className={`fixed bottom-4 left-1/2 z-40 grid -translate-x-1/2 grid-cols-3 gap-1 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur-md transition-[left] duration-200 ${sidebarCollapsed ? 'lg:left-[calc(50%+2rem)]' : 'lg:left-[calc(50%+9rem)]'}`} aria-label="Lối tắt quản lý vườn">
+            {activeTab === 'yards' && !selectedPlotId && <nav className={`fixed bottom-4 left-1/2 z-40 grid w-[min(75vw,calc(100vw-1.5rem))] -translate-x-1/2 grid-cols-6 gap-1 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur-md transition-[left,width] duration-200 ${sidebarCollapsed ? 'lg:left-[calc(50%+2rem)]' : 'lg:left-[calc(50%+9rem)]'}`} aria-label="Điều hướng quản lý vườn">
               {[
+                ['yards', 'Tổng quan', LayoutDashboard],
                 ['tasks', 'Công việc', Calendar],
                 ['services', 'Thuê dịch vụ', ShoppingBag],
-                ['diary', 'Nhật ký', BookOpen]
+                ['diary', 'Nhật ký', BookOpen],
+                ['process', 'Quy trình', ClipboardList],
+                ['harvest', 'Nghiệm thu', Apple]
               ].map(([id, label, Icon]) => {
-                const isActive = !selectedPlotId && activeTab === id;
-                return <button key={id} type="button" onClick={() => { setSelectedPlotId(null); setActiveTab(id); }} className={`flex min-w-[112px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition ${isActive ? 'bg-[#063d2b] text-white shadow-md' : 'text-stone-500 hover:bg-emerald-50 hover:text-emerald-800'}`}><Icon className="h-4 w-4" />{label}</button>;
+                const isActive = id === 'yards' ? (activeTab === 'yards' || Boolean(selectedPlotId)) : (!selectedPlotId && activeTab === id);
+                return <button key={id} type="button" onClick={() => { setSelectedPlotId(null); setActiveTab(id); navigate(id === 'yards' ? '/customer/dashboard' : `/customer/dashboard?view=${id}`); }} className={`flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-[11px] font-black transition sm:gap-2 sm:px-3 sm:text-xs ${isActive ? 'bg-[#063d2b] text-white shadow-md' : 'text-stone-500 hover:bg-emerald-50 hover:text-emerald-800'}`}><Icon className="h-4 w-4 shrink-0" />{label}</button>;
               })}
             </nav>}
 
@@ -2362,11 +2465,11 @@ export default function CustomerDashboard() {
             <label className="block font-bold text-brand-dark mb-1">Phương thức nhận nông sản:</label>
             <div className="space-y-2">
               <label className="flex items-center gap-2 p-2.5 rounded-xl border border-brand-border bg-white cursor-pointer">
-                <input type="radio" name="deliver" defaultChecked />
-                <span>Đóng thùng bảo quản và giao hỏa tốc đến địa chỉ nhà tôi</span>
+                <input type="radio" name="deliver" checked={harvestDeliveryMethod === 'DELIVERY'} onChange={() => setHarvestDeliveryMethod('DELIVERY')} />
+                <span>Đóng thùng bảo quản và giao tận nhà</span>
               </label>
               <label className="flex items-center gap-2 p-2.5 rounded-xl border border-brand-border bg-white cursor-pointer">
-                <input type="radio" name="deliver" />
+                <input type="radio" name="deliver" checked={harvestDeliveryMethod === 'FARM'} onChange={() => setHarvestDeliveryMethod('FARM')} />
                 <span>Tôi sẽ tự đến nông trại nhận vào cuối tuần này</span>
               </label>
             </div>
@@ -2380,7 +2483,7 @@ export default function CustomerDashboard() {
               variant="primary"
               size="sm"
               onClick={() => {
-                alert('Xác nhận nghiệm thu thành công! Đơn vị vận chuyển sẽ sớm giao rau tươi cho bạn.');
+                setHarvestAcceptance({ status: 'CONFIRMED', confirmedAt: new Date().toISOString(), deliveryMethod: harvestDeliveryMethod });
                 setShowHarvestAcceptModal(false);
               }}
             >
