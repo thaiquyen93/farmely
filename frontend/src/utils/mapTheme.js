@@ -56,6 +56,7 @@ export const LAYER_IDS = {
   plotsExtrusion: 'plots-extrusion',
   plotsFill: 'plots-fill',
   plotsFillHover: 'plots-fill-hover',
+  plotsOutlineSoft: 'plots-outline-soft',
   plotsOutline: 'plots-outline',
   plotsDim: 'plots-dim',
   plotsSelectedGlow: 'plots-selected-glow',
