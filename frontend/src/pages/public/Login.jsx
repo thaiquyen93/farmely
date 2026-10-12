@@ -36,12 +36,18 @@ export default function Login() {
       if (res.success) {
         setSuccessMessage(`Welcome back, ${res.user.fullName}.`);
         setTimeout(() => {
-          if (redirectParam) {
-            navigate(redirectParam);
-          } else if (res.user.role === 'ADMIN' || res.user.role === 'EXPERT' || res.user.role === 'STAFF') {
-            navigate('/admin/master-data');
-          } else {
+          if (res.user.role === 'CUSTOMER') {
             navigate('/customer/dashboard');
+          } else if (redirectParam) {
+            navigate(redirectParam);
+          } else if (res.user.role === 'ADMIN') {
+            navigate('/admin/dashboard');
+          } else if (res.user.role === 'EXPERT') {
+            navigate('/expert/dashboard');
+          } else if (res.user.role === 'STAFF') {
+            navigate('/staff/dashboard');
+          } else {
+            navigate('/');
           }
         }, 600);
       } else {
@@ -57,12 +63,18 @@ export default function Login() {
     const res = login(acc.email, 'Farmely@2026');
     setSuccessMessage(`Welcome back, ${res.user.fullName}.`);
     setTimeout(() => {
-      if (redirectParam) {
-        navigate(redirectParam);
-      } else if (res.user.role === 'ADMIN' || res.user.role === 'EXPERT' || res.user.role === 'STAFF') {
-        navigate('/admin/master-data');
-      } else {
+      if (res.user.role === 'CUSTOMER') {
         navigate('/customer/dashboard');
+      } else if (redirectParam) {
+        navigate(redirectParam);
+      } else if (res.user.role === 'ADMIN') {
+        navigate('/admin/dashboard');
+      } else if (res.user.role === 'EXPERT') {
+        navigate('/expert/dashboard');
+      } else if (res.user.role === 'STAFF') {
+        navigate('/staff/dashboard');
+      } else {
+        navigate('/');
       }
     }, 500);
   };
@@ -126,7 +138,7 @@ export default function Login() {
                 <div>
                   <span className="font-bold block">Yêu cầu đăng nhập (Sign In Required)</span>
                   <span className="text-[11px] text-amber-800">
-                    Vui lòng đăng nhập để tiếp tục bước hoàn tất thủ tục thuê thửa đất (Book Plot).
+                    Vui lòng đăng nhập để tiếp tục hoàn tất thủ tục thuê thửa đất.
                   </span>
                 </div>
               </div>

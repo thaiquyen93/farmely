@@ -159,8 +159,14 @@ export default function CustomerNavbar({ activeTab, setActiveTab }) {
                       onClick={() => {
                         switchRole(acc.role);
                         setRoleSwitcherOpen(false);
-                        if (acc.role === 'ADMIN' || acc.role === 'EXPERT' || acc.role === 'STAFF') {
-                          navigate('/admin/master-data');
+                        if (acc.role === 'ADMIN') {
+                          navigate('/admin/dashboard');
+                        } else if (acc.role === 'EXPERT') {
+                          navigate('/expert/dashboard');
+                        } else if (acc.role === 'STAFF') {
+                          navigate('/staff/dashboard');
+                        } else {
+                          navigate('/customer/dashboard');
                         }
                       }}
                       className="w-full text-left px-3 py-2 text-xs hover:bg-brand-cream/80 flex items-center justify-between transition-colors"

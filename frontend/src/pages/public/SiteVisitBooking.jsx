@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import SiteVisitForm from '../../components/public/SiteVisitForm';
-import { Calendar, MapPin, Clock, Users, ArrowLeft } from 'lucide-react';
+import { Calendar, PhoneCall, ArrowLeft } from 'lucide-react';
 
 export default function SiteVisitBooking() {
   const [searchParams] = useSearchParams();
@@ -57,7 +57,7 @@ export default function SiteVisitBooking() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-brand-green mt-1.5 shrink-0" />
-                  <span><strong>Thời gian đón tiếp:</strong> Ca sáng 08:30 - 10:30, Ca chiều 14:30 - 16:30 hằng ngày kể cả cuối tuần.</span>
+                  <span><strong>Xác nhận chu đáo:</strong> Bạn chỉ cần để lại thông tin liên hệ, nhân viên Farmely sẽ gọi điện tư vấn và sắp xếp khung giờ thuận tiện nhất cho bạn.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-brand-green mt-1.5 shrink-0" />
