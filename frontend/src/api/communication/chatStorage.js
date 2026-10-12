@@ -140,7 +140,7 @@ export const INITIAL_THREADS = [
   {
     id: 'CONS-PRE-01',
     role: 'customer',
-    roleLabel: 'Khách Đang Quan Tâm',
+    roleLabel: 'Khách chưa thuê',
     rentalStatus: 'NOT_RENTED',
     customerName: 'Mai Anh Thư',
     customerAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',

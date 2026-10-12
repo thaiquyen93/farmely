@@ -3,6 +3,8 @@ import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import { plotsData } from '../../data/plots';
+import { MARKETPLACE_PLOTS_GIS } from '../../data/marketplaceGisData';
+import { getSafeCropById, safeCrops } from '../../data/safeCrops';
 import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
@@ -31,17 +33,41 @@ import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 
+const marketplaceBookingPlots = MARKETPLACE_PLOTS_GIS.map((plot) => ({
+  ...plot,
+  catalog: 'marketplace',
+  code: plot.label || String(plot.code || '').replace(/^Plot\s+/i, ''),
+  landName: plot.farmName,
+  area: plot.areaFormatted || `${plot.area} m²`,
+  formattedPrice: plot.rentalPriceFormatted,
+  careServicePrice: plot.careServicePrice || 600000,
+  iotStationId: `IOT-${plot.label || plot.id}`,
+  compatibleCrops: safeCrops.map((crop) => crop.variety)
+}));
+
+const bookingPlotsData = [
+  ...marketplaceBookingPlots,
+  ...plotsData.map((plot) => ({ ...plot, catalog: 'legacy' }))
+];
+
 export default function BookPlot() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated, login } = useAuthStore();
+  const [selectedCropByPlot] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
+    } catch {
+      return {};
+    }
+  });
 
   // Helper to match plot by any identifier (P-01, Plot P-01, PLT-HV-01, P-101, etc.)
   const findPlotByAnyCode = (code) => {
     if (!code) return null;
     const clean = code.trim().toLowerCase();
-    return plotsData.find((p) => {
+    return bookingPlotsData.find((p) => {
       const pId = (p.id || '').toLowerCase();
       const pCode = (p.code || '').toLowerCase();
       const pLabel = (p.label || '').toLowerCase();
@@ -58,9 +84,9 @@ export default function BookPlot() {
   };
 
   // Initial plot from route param or fallback to first
-  const initialPlot = findPlotByAnyCode(id) || plotsData[0];
+  const initialPlot = findPlotByAnyCode(id) || marketplaceBookingPlots[0] || plotsData[0];
 
-  // Master Lease Agreement: 1 Contract contains N plots (BR01 / SSoT)
+  // One rental contract can contain multiple selected plots (BR01 / SSoT).
   const [selectedPlots, setSelectedPlots] = useState([initialPlot]);
   const [isAddPlotModalOpen, setIsAddPlotModalOpen] = useState(false);
 
@@ -142,7 +168,10 @@ export default function BookPlot() {
   const formattedTimer = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   // List of other available plots that can be added to this Master Contract
-  const availablePlotsToAdd = plotsData.filter(
+  const activePlotCatalog = selectedPlots.some((plot) => plot.catalog === 'marketplace')
+    ? marketplaceBookingPlots
+    : bookingPlotsData.filter((plot) => plot.catalog === 'legacy');
+  const availablePlotsToAdd = activePlotCatalog.filter(
     (p) =>
       (p.status === 'AVAILABLE' || p.status === 'Đang trống') &&
       !selectedPlots.some((sp) => sp.id === p.id)
@@ -158,7 +187,7 @@ export default function BookPlot() {
     setSelectedPlots((prev) => prev.filter((p) => p.id !== plotIdToRemove));
   };
 
-  // Aggregate Calculations for Master Lease Agreement
+  // Aggregate calculations for the multi-plot rental contract.
   const totalAreaM2 = selectedPlots.reduce((sum, p) => {
     const num = typeof p.area === 'number' ? p.area : parseInt(p.area, 10) || 50;
     return sum + num;
@@ -182,6 +211,8 @@ export default function BookPlot() {
   const primaryPlot = selectedPlots[0] || initialPlot;
   const plotCodesList = selectedPlots.map((p) => p.code).join(', ');
   const plotCodesSummary = selectedPlots.map((p) => p.code).join('-');
+  const selectedCropFor = (plot) => getSafeCropById(selectedCropByPlot[plot.id]);
+  const primaryCrop = selectedCropFor(primaryPlot);
 
   const syncRentalToChat = () => {
     if (!user) return;
@@ -194,8 +225,8 @@ export default function BookPlot() {
       customerName: user.fullName,
       customerAvatar: user.avatar,
       plotCode: plotCodesList,
-      plotName: `Hợp đồng Master Lease (${selectedPlots.length} thửa: ${plotCodesList})`,
-      crop: primaryPlot.compatibleCrops?.[0] || 'Cây trồng VietGAP'
+      plotName: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`,
+      crop: primaryCrop?.variety || primaryPlot.compatibleCrops?.[0] || 'Cây trồng VietGAP'
     });
   };
 
@@ -215,7 +246,10 @@ export default function BookPlot() {
           plots: selectedPlots.map((p) => ({
             id: p.id,
             code: p.code,
-            price: p.rentalPrice || 1200000
+            price: p.rentalPrice || 1200000,
+            cropId: selectedCropFor(p)?.id || null,
+            cropName: selectedCropFor(p)?.name || null,
+            varietyName: selectedCropFor(p)?.variety || null
           }))
         })
       });
@@ -337,7 +371,7 @@ export default function BookPlot() {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-brand-yellow text-brand-dark">
-                  Màn hình: Book Plot
+                  Thuê thửa đất
                 </span>
                 <span className="text-xs text-stone-300 flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-brand-yellow" />
@@ -345,11 +379,11 @@ export default function BookPlot() {
                 </span>
                 <span className="text-xs text-stone-300">•</span>
                 <span className="text-xs font-bold text-emerald-300 bg-emerald-900/60 px-2 py-0.5 rounded-full border border-emerald-500/40">
-                  Master Lease Agreement (1 Hợp đồng khung)
+                  Một hợp đồng cho toàn bộ thửa đã chọn
                 </span>
               </div>
               <h1 className="text-2xl sm:text-4xl font-heading font-black text-white">
-                Ký Hợp Đồng Thuê Đất & Thanh Toán
+                Ký Hợp Đồng Thuê Thửa Đất & Thanh Toán
               </h1>
             </div>
 
@@ -384,7 +418,7 @@ export default function BookPlot() {
                 Sign In Required (Yêu Cầu Đăng Nhập)
               </span>
               <h2 className="text-2xl sm:text-3xl font-heading font-black text-brand-dark">
-                Vui lòng đăng nhập để tiếp tục thuê đất
+                Vui lòng đăng nhập để tiếp tục thuê thửa đất
               </h2>
               <p className="text-sm text-brand-muted mt-2 max-w-lg mx-auto leading-relaxed">
                 Theo quy trình an toàn của Farmely, bạn cần tài khoản để kích hoạt mã giữ chỗ 15 phút
@@ -467,10 +501,10 @@ export default function BookPlot() {
                 Thanh Toán & Kích Hoạt Hợp Đồng Thành Công
               </span>
               <h2 className="text-2xl sm:text-3xl font-heading font-black text-brand-dark">
-                Chúc Mừng Bạn Đã Ký Hợp Đồng Thuê Đất!
+                Chúc Mừng Bạn Đã Ký Hợp Đồng Thuê Thửa Đất!
               </h2>
               <p className="text-sm text-brand-muted mt-2 max-w-lg mx-auto">
-                Hợp đồng Master Lease ({selectedPlots.length} thửa đất) đã được ký số thành công.
+                Hợp đồng thuê {selectedPlots.length} thửa đất đã được ký số thành công.
                 Tất cả các thửa đất đã sẵn sàng và được bàn giao độc lập trên Dashboard cá nhân.
               </p>
             </div>
@@ -478,7 +512,7 @@ export default function BookPlot() {
             {/* Contract Details Card */}
             <div className="p-5 rounded-2xl bg-brand-cream/80 border border-brand-border text-left space-y-3 text-xs">
               <div className="flex justify-between items-center pb-2 border-b border-brand-border">
-                <span className="text-stone-500">Mã hợp đồng Master:</span>
+                <span className="text-stone-500">Mã hợp đồng thuê:</span>
                 <span className="font-mono font-bold text-brand-green text-sm">{contractCode}</span>
               </div>
               <div className="flex justify-between items-center">
@@ -545,7 +579,7 @@ export default function BookPlot() {
                       </h3>
                     </div>
                     <p className="text-xs text-stone-500 mt-0.5">
-                      Master Lease: Ký 1 hợp đồng duy nhất cho nhiều thửa, thanh toán gộp 1 lần.
+                      Một hợp đồng duy nhất cho các thửa đã chọn, thanh toán gộp một lần.
                     </p>
                   </div>
 
@@ -597,6 +631,11 @@ export default function BookPlot() {
                           <h4 className="font-heading font-bold text-sm text-brand-dark">
                             {p.name}
                           </h4>
+                          <p className={`text-[11px] font-semibold ${selectedCropFor(p) ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {selectedCropFor(p)
+                              ? `Cây trồng: ${selectedCropFor(p).variety}`
+                              : 'Chưa chọn cây trồng — có thể chọn tại Marketplace'}
+                          </p>
                           <div className="flex items-center gap-3 text-xs text-stone-600">
                             <span className="flex items-center gap-1">
                               <Maximize2 className="w-3 h-3 text-brand-green" /> {p.area}
@@ -770,7 +809,7 @@ export default function BookPlot() {
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-elevated space-y-6 sticky top-28">
                 <div className="border-b border-brand-border/60 pb-4">
                   <span className="text-[10px] uppercase font-bold text-brand-muted tracking-wider">
-                    Đơn Đặt Thuê Thửa Đất (Master Lease)
+                    Đơn Đặt Thuê Thửa Đất
                   </span>
                   <h3 className="text-xl font-heading font-black text-brand-dark mt-1">
                     Tổng Kết Chi Phí
@@ -780,7 +819,7 @@ export default function BookPlot() {
                 <div className="space-y-3 text-xs">
                   <div className="flex justify-between text-stone-600">
                     <span>
-                      Giá thuê đất ({selectedPlots.length} thửa, {totalAreaM2} m² x {rentalMonths} tháng):
+                      Giá thuê thửa đất ({selectedPlots.length} thửa, {totalAreaM2} m² x {rentalMonths} tháng):
                     </span>
                     <strong className="text-brand-dark">
                       {subtotalPlot.toLocaleString('vi-VN')} đ
@@ -804,7 +843,7 @@ export default function BookPlot() {
                           key={p.id}
                           className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold"
                         >
-                          {p.code} ({p.area})
+                          {p.code} ({p.area}){selectedCropFor(p) ? ` • ${selectedCropFor(p).name}` : ''}
                         </span>
                       ))}
                     </div>
@@ -836,7 +875,7 @@ export default function BookPlot() {
                 </Button>
 
                 <p className="text-[11px] text-center text-brand-muted">
-                  Bằng việc bấm xác nhận, bạn đồng ý với Điều khoản thuê đất Farmely và quy chuẩn canh tác VietGAP.
+                  Bằng việc bấm xác nhận, bạn đồng ý với điều khoản thuê thửa đất Farmely và quy chuẩn canh tác VietGAP.
                 </p>
               </div>
             </div>
@@ -938,7 +977,7 @@ export default function BookPlot() {
         onPaymentSuccess={handlePaymentSuccess}
         plotInfo={{
           code: plotCodesSummary,
-          name: `Hợp đồng Master Lease (${selectedPlots.length} thửa đất)`
+          name: `Hợp đồng thuê ${selectedPlots.length} thửa đất`
         }}
         totalAmount={totalAmount}
       />
@@ -950,7 +989,7 @@ export default function BookPlot() {
         totalAmount={totalAmount}
         plotInfo={{
           code: plotCodesSummary,
-          name: `Hợp đồng Master Lease (${selectedPlots.length} thửa đất)`
+          name: `Hợp đồng thuê ${selectedPlots.length} thửa đất`
         }}
         onPaymentSuccess={handlePaymentSuccess}
       />

@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { GripHorizontal, MessageSquare, Minus, Send, Sparkles } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { MessageSquare, Minus, Send, Sparkles } from 'lucide-react';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -12,11 +12,31 @@ export default function FloatingExpertChat({
   input,
   setInput,
   onSubmit,
+  onAiSubmit,
+  aiMessages = [],
+  openMode = 'expert',
   scrollRef
 }) {
+  const [chatMode, setChatMode] = useState('expert');
   const [launcherPosition, setLauncherPosition] = useState(null);
-  const [panelPosition, setPanelPosition] = useState(null);
   const dragRef = useRef(null);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) setChatMode(openMode);
+  }, [isOpen, openMode]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleOutsidePointer = (event) => {
+      if (panelRef.current && !panelRef.current.contains(event.target)) onClose();
+    };
+    const timer = window.setTimeout(() => document.addEventListener('pointerdown', handleOutsidePointer), 0);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('pointerdown', handleOutsidePointer);
+    };
+  }, [isOpen, onClose]);
 
   const beginDrag = (event, type) => {
     const rect = event.currentTarget.closest('[data-draggable]').getBoundingClientRect();
@@ -26,15 +46,14 @@ export default function FloatingExpertChat({
 
   const moveDrag = (event) => {
     if (!dragRef.current) return;
-    const width = dragRef.current.type === 'panel' ? 390 : 56;
-    const height = dragRef.current.type === 'panel' ? 560 : 56;
+    const width = 56;
+    const height = 56;
     const next = {
       x: clamp(event.clientX - dragRef.current.dx, 12, window.innerWidth - width - 12),
       y: clamp(event.clientY - dragRef.current.dy, 84, window.innerHeight - height - 12)
     };
     dragRef.current.moved = true;
-    if (dragRef.current.type === 'panel') setPanelPosition(next);
-    else setLauncherPosition(next);
+    setLauncherPosition(next);
   };
 
   const endDrag = () => {
@@ -42,6 +61,13 @@ export default function FloatingExpertChat({
     dragRef.current = null;
     if (drag?.type === 'launcher' && !drag.moved) onOpen();
   };
+
+  const panelStyle = launcherPosition
+    ? {
+        left: launcherPosition.x >= 390 ? launcherPosition.x - 382 : launcherPosition.x + 68,
+        top: clamp(launcherPosition.y - 450, 84, Math.max(84, window.innerHeight - 532))
+      }
+    : { right: 92, bottom: 24 };
 
   if (!isOpen) {
     return (
@@ -52,10 +78,10 @@ export default function FloatingExpertChat({
       >
         <button
           type="button"
-          onClick={onOpen}
           onPointerDown={(event) => beginDrag(event, 'launcher')}
           onPointerMove={moveDrag}
           onPointerUp={endDrag}
+          onPointerCancel={() => { dragRef.current = null; }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') onOpen();
           }}
@@ -72,38 +98,34 @@ export default function FloatingExpertChat({
 
   return (
     <section
-      data-draggable
-      className="fixed z-50 hidden h-[min(560px,calc(100vh-110px))] w-[390px] flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated lg:flex"
-      style={panelPosition ? { left: panelPosition.x, top: panelPosition.y } : { right: 24, bottom: 24 }}
+      ref={panelRef}
+      className="fixed z-50 hidden h-[min(520px,calc(100vh-110px))] w-[370px] flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated lg:flex"
+      style={panelStyle}
       aria-label="Cửa sổ chat với chuyên gia"
     >
-      <header
-        onPointerDown={(event) => beginDrag(event, 'panel')}
-        onPointerMove={moveDrag}
-        onPointerUp={endDrag}
-        className="flex touch-none cursor-move items-center gap-3 border-b border-white/10 bg-brand-dark px-4 py-3 text-white"
-      >
-        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" alt="Chuyên gia" className="h-9 w-9 rounded-xl object-cover" />
+      <header className="flex items-center gap-2 border-b border-white/10 bg-brand-dark px-3 py-2 text-white">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-black">{thread?.expertName || 'ThS. Nguyễn Hoàng Nam'}</p>
-          <p className="text-[10px] text-white/65">Đang trực tuyến • kéo thanh này để di chuyển</p>
+          <p className="truncate text-xs font-black">{chatMode === 'ai' ? 'Farmely AI' : (thread?.expertName || 'ThS. Nguyễn Hoàng Nam')}</p>
         </div>
-        <GripHorizontal className="h-4 w-4 text-white/45" />
+        <div className="flex shrink-0 rounded-lg bg-white/10 p-0.5">
+          <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setChatMode('ai')} className={`rounded-md px-2 py-1 text-[9px] font-black ${chatMode === 'ai' ? 'bg-purple-500 text-white' : 'text-white/65'}`}>AI</button>
+          <button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => setChatMode('expert')} className={`rounded-md px-2 py-1 text-[9px] font-black ${chatMode === 'expert' ? 'bg-brand-yellow text-brand-dark' : 'text-white/65'}`}>Chuyên gia</button>
+        </div>
         <button type="button" onClick={onClose} onPointerDown={(event) => event.stopPropagation()} className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-white/10" aria-label="Thu nhỏ chat"><Minus className="h-5 w-5" /></button>
       </header>
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-brand-cream/25 p-4">
-        {!thread?.messages?.length ? (
+        {!(chatMode === 'ai' ? aiMessages : thread?.messages)?.length ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <MessageSquare className="mb-3 h-8 w-8 text-brand-green" />
-            <p className="font-bold text-brand-dark">Bắt đầu trao đổi với chuyên gia</p>
+            <p className="font-bold text-brand-dark">{chatMode === 'ai' ? 'Hỏi trợ lý AI' : 'Bắt đầu trao đổi với chuyên gia'}</p>
             <p className="mt-1 text-xs text-brand-muted">Hỏi về cây trồng, độ ẩm hoặc dịch vụ chăm sóc.</p>
           </div>
-        ) : thread.messages.map((message) => {
-          const isMe = message.sender === 'customer';
+        ) : (chatMode === 'ai' ? aiMessages : thread.messages).map((message) => {
+          const isMe = message.sender === 'customer' || message.sender === 'user';
           return (
             <div key={message.id} className={`max-w-[86%] ${isMe ? 'ml-auto' : ''}`}>
-              <p className={`mb-1 text-[10px] font-bold text-stone-500 ${isMe ? 'text-right' : ''}`}>{isMe ? (message.senderName || senderName) : (message.senderName || thread?.expertName || 'Chuyên gia')}</p>
+              <p className={`mb-1 text-[10px] font-bold text-stone-500 ${isMe ? 'text-right' : ''}`}>{isMe ? (message.senderName || senderName) : (message.senderName || (chatMode === 'ai' ? 'Farmely AI' : thread?.expertName) || 'Chuyên gia')}</p>
               <div className={`rounded-2xl p-3 text-xs leading-relaxed shadow-sm ${isMe ? 'rounded-br-sm bg-brand-green text-white' : 'rounded-bl-sm border border-brand-border bg-white text-stone-700'}`}>
                 {message.prescriptionTag && <p className="mb-2 inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800"><Sparkles className="h-3 w-3" />{message.prescriptionTag}</p>}
                 {message.photoUrl && <img src={message.photoUrl} alt="Ảnh trao đổi" className="mb-2 max-h-28 w-full rounded-xl object-cover" />}
@@ -115,7 +137,7 @@ export default function FloatingExpertChat({
         })}
       </div>
 
-      <form onSubmit={onSubmit} className="flex items-center gap-2 border-t border-brand-border bg-white p-3">
+      <form onSubmit={(event) => { if (chatMode === 'ai') { event.preventDefault(); onAiSubmit?.(input); } else { onSubmit(event); } }} className="flex items-center gap-2 border-t border-brand-border bg-white p-3">
         <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Nhập câu hỏi..." className="min-w-0 flex-1 rounded-xl border border-brand-border bg-stone-50 px-3 py-2.5 text-xs outline-none focus:ring-2 focus:ring-brand-green/20" />
         <button type="submit" disabled={!input.trim()} className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-green text-white hover:bg-brand-dark disabled:opacity-40" aria-label="Gửi tin nhắn"><Send className="h-4 w-4" /></button>
       </form>

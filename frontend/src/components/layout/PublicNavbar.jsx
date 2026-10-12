@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, LogOut, ChevronDown, Menu, X, Shield, Sprout, ClipboardCheck, ShieldCheck, Settings, LayoutDashboard, Check, Bell, Lock, Calendar, Clock, ExternalLink } from 'lucide-react';
+import { Search, ShoppingCart, User, LogOut, ChevronDown, Menu, X, Shield, Sprout, ClipboardCheck, ShieldCheck, Settings, LayoutDashboard, Check, Bell, Lock, Calendar, Clock, ExternalLink, Home, Info } from 'lucide-react';
 import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 
-export default function PublicNavbar({ dashboardRailCollapsed }) {
+export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false);
   const [aboutDropdownOpen, setAboutDropdownOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   // User Profile & Settings Modals
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -106,7 +107,7 @@ export default function PublicNavbar({ dashboardRailCollapsed }) {
         <div className="flex items-center justify-between h-20">
           
           {/* LEFT: Brand Logo + Vertical Divider matching reference image */}
-          <div className="flex items-center">
+          <div className={hideBrand ? 'hidden' : 'flex items-center'}>
             <Link to="/" className="flex items-center gap-2.5 group pr-6 lg:pr-8 lg:border-r lg:border-white/20 h-12">
               <div className="w-10 h-10 rounded-full bg-brand-yellow flex items-center justify-center text-brand-dark shadow-sm group-hover:scale-105 transition-transform">
                 <Sprout className="w-5 h-5 text-brand-dark stroke-[2.5]" />
@@ -123,31 +124,31 @@ export default function PublicNavbar({ dashboardRailCollapsed }) {
           </div>
 
           {/* CENTER: Navigation Links (Tách biệt nghiêm ngặt theo vai trò / RBAC) */}
-          <div className="hidden lg:flex items-center gap-6 px-4">
+          <div className="hidden xl:flex min-w-0 items-center gap-2 whitespace-nowrap px-2 2xl:gap-5 2xl:px-4">
             {/* 1. KHÁCH HÀNG & KHÁCH VÃNG LAI (CUSTOMER / GUEST) */}
             {isCustomerOrGuest && (
               <>
                 <Link
                   to="/"
-                  className={`text-sm font-semibold transition-colors hover:text-brand-yellow ${
+                  className={`whitespace-nowrap text-xs 2xl:text-sm font-semibold transition-colors hover:text-brand-yellow ${
                     location.pathname === '/' ? 'text-brand-yellow font-bold' : 'text-white/95'
                   }`}
                 >
-                  Trang chủ
+                  <span className="flex items-center gap-1.5"><Home className="h-3.5 w-3.5" />Trang chủ</span>
                 </Link>
 
                 <Link
                   to="/marketplace"
-                  className={`text-sm font-semibold transition-colors hover:text-brand-yellow ${
+                  className={`whitespace-nowrap text-xs 2xl:text-sm font-semibold transition-colors hover:text-brand-yellow ${
                     location.pathname.startsWith('/marketplace') ? 'text-brand-yellow font-bold' : 'text-white/95'
                   }`}
                 >
-                  Marketplace
+                  <span className="flex items-center gap-1.5"><ShoppingCart className="h-3.5 w-3.5" />Marketplace</span>
                 </Link>
 
                 <Link
                   to="/site-visit/book"
-                  className={`text-sm font-semibold transition-colors hover:text-brand-yellow flex items-center gap-1.5 ${
+                  className={`flex items-center gap-1.5 whitespace-nowrap text-xs 2xl:text-sm font-semibold transition-colors hover:text-brand-yellow ${
                     location.pathname.startsWith('/site-visit') ? 'text-brand-yellow font-bold' : 'text-white/95'
                   }`}
                 >
@@ -158,7 +159,7 @@ export default function PublicNavbar({ dashboardRailCollapsed }) {
                 {isAuthenticated && (
                   <Link
                     to="/customer/dashboard"
-                    className={`text-sm font-semibold transition-colors hover:text-brand-yellow flex items-center gap-1.5 ${
+                    className={`flex items-center gap-1.5 whitespace-nowrap text-xs 2xl:text-sm font-semibold transition-colors hover:text-brand-yellow ${
                       location.pathname.includes('/customer/dashboard') ? 'text-brand-yellow font-bold' : 'text-white/95'
                     }`}
                   >
@@ -175,10 +176,11 @@ export default function PublicNavbar({ dashboardRailCollapsed }) {
                 >
                   <Link
                     to="/about"
-                    className={`flex items-center gap-1.5 text-sm font-semibold hover:text-brand-yellow transition-colors ${
+                    className={`flex items-center gap-1.5 whitespace-nowrap text-xs 2xl:text-sm font-semibold hover:text-brand-yellow transition-colors ${
                       location.pathname === '/about' ? 'text-brand-yellow font-bold' : 'text-white/95'
                     }`}
                   >
+                    <Info className="h-3.5 w-3.5" />
                     <span>Về Farmely</span>
                     <ChevronDown
                       className={`w-3.5 h-3.5 transition-transform duration-200 ${
@@ -368,6 +370,25 @@ export default function PublicNavbar({ dashboardRailCollapsed }) {
               </div>
             )}
 
+            {isAuthenticated && user?.role === 'CUSTOMER' && (
+              <div className="relative">
+                <button type="button" onClick={() => setNotificationOpen((value) => !value)} className="relative flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10 hover:text-brand-yellow" aria-label="Thông báo IoT">
+                  <Bell className="h-4 w-4" />
+                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-[#294C3B] bg-orange-400" />
+                </button>
+                {notificationOpen && (
+                  <div className="absolute right-0 z-[70] mt-3 w-80 rounded-2xl border border-brand-border bg-white p-3 text-brand-dark shadow-elevated">
+                    <div className="flex items-center justify-between border-b border-brand-border pb-2"><p className="text-xs font-black">Cảnh báo IoT gần đây</p><span className="text-[10px] font-bold text-emerald-600">3 thông báo</span></div>
+                    <div className="mt-2 space-y-1">
+                      <button type="button" onClick={() => { setNotificationOpen(false); navigate(`/customer/dashboard?plot=PLOT-CC-01&notice=${Date.now()}`); }} className="w-full rounded-xl bg-sky-50 p-3 text-left transition hover:ring-2 hover:ring-sky-200"><p className="text-xs font-bold text-sky-900">Mưa có thể đến sau 45 phút</p><p className="mt-1 text-[10px] text-sky-700">Thửa Sen Vàng A1 · lịch tưới đã được tạm hoãn.</p></button>
+                      <button type="button" onClick={() => { setNotificationOpen(false); navigate(`/customer/dashboard?plot=PLOT-MC-02&notice=${Date.now()}`); }} className="w-full rounded-xl bg-amber-50 p-3 text-left transition hover:ring-2 hover:ring-amber-200"><p className="text-xs font-bold text-amber-900">Cường độ nắng cao lúc 12:00</p><p className="mt-1 text-[10px] text-amber-700">Thửa Mộc Châu B2 · nên kiểm tra độ ẩm đất.</p></button>
+                      <button type="button" onClick={() => { setNotificationOpen(false); navigate(`/customer/dashboard?plot=PLOT-CG-03&notice=${Date.now()}`); }} className="w-full rounded-xl bg-stone-50 p-3 text-left transition hover:ring-2 hover:ring-stone-200"><p className="text-xs font-bold text-stone-800">Gió tăng lên 28 km/h</p><p className="mt-1 text-[10px] text-stone-600">Thửa Rừng Sác C3 · kiểm tra dây buộc giàn.</p></button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Quick Demo Role Switcher */}
             <div className="relative pl-4">
               <button
@@ -496,6 +517,19 @@ export default function PublicNavbar({ dashboardRailCollapsed }) {
                           <span>Hồ sơ cá nhân (Profile)</span>
                         </button>
 
+                        {user?.role === 'CUSTOMER' && (
+                          <button
+                            onClick={() => {
+                              setUserDropdownOpen(false);
+                              setIsProfileModalOpen(true);
+                            }}
+                            className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
+                          >
+                            <ClipboardCheck className="w-4 h-4 text-brand-green" />
+                            <span>Hợp đồng thuê của tôi</span>
+                          </button>
+                        )}
+
                         {/* 3. Cài đặt tài khoản (Settings) */}
                         <button
                           onClick={() => {
@@ -538,7 +572,7 @@ export default function PublicNavbar({ dashboardRailCollapsed }) {
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="flex md:hidden items-center gap-2">
+          <div className="flex xl:hidden items-center gap-2">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
@@ -552,24 +586,26 @@ export default function PublicNavbar({ dashboardRailCollapsed }) {
 
       {/* Mobile Menu Drawer (Tách biệt theo vai trò) */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-brand-dark/98 border-t border-white/15 px-4 pt-3 pb-6 space-y-3">
+        <div className="xl:hidden bg-brand-dark/98 border-t border-white/15 px-4 pt-3 pb-6 space-y-3">
           {/* KHÁCH HÀNG & GUEST */}
           {isCustomerOrGuest && (
             <>
               <Link
                 to="/"
                 onClick={() => setMobileMenuOpen(false)}
-                className="block py-2 text-sm font-semibold text-white hover:text-brand-yellow"
+                className="flex items-center gap-2 py-2 text-sm font-semibold text-white hover:text-brand-yellow"
               >
-                Trang chủ
+                <Home className="h-4 w-4 text-brand-yellow" />
+                <span>Trang chủ</span>
               </Link>
 
               <Link
                 to="/marketplace"
                 onClick={() => setMobileMenuOpen(false)}
-                className="block py-2 text-sm font-semibold text-white hover:text-brand-yellow"
+                className="flex items-center gap-2 py-2 text-sm font-semibold text-white hover:text-brand-yellow"
               >
-                Marketplace
+                <ShoppingCart className="h-4 w-4 text-brand-yellow" />
+                <span>Marketplace</span>
               </Link>
 
               <Link
@@ -803,6 +839,14 @@ export default function PublicNavbar({ dashboardRailCollapsed }) {
               className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
             />
           </div>
+
+          {user?.role === 'CUSTOMER' && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+              <div className="flex items-center gap-2 font-bold text-emerald-900"><ClipboardCheck className="h-4 w-4" /> Hợp đồng thuê của tôi</div>
+              <p className="mt-1 text-[11px] text-emerald-800">Quản lý thời hạn, thửa đang thuê và quyền lợi trong hồ sơ khách hàng.</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-bold text-emerald-900"><span className="rounded-full bg-white px-2 py-1">3 thửa đang thuê</span><span className="rounded-full bg-white px-2 py-1">Đang hiệu lực</span></div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
             <Button
