@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import { useAuthStore } from '../../stores/authStore';
 import { useServiceStore } from '../../stores/serviceStore';
@@ -64,6 +64,7 @@ import {
 
 export default function CustomerDashboard() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { services: masterServices } = useServiceStore();
   const [activeTab, setActiveTab] = useState('yards');
@@ -729,12 +730,18 @@ export default function CustomerDashboard() {
     const query = new URLSearchParams(location.search);
     const requestedPlotId = query.get('plot');
     const requestedView = query.get('view');
+    const fromPlotId = query.get('fromPlot');
     if (requestedPlotId && customerPlots.some((plot) => plot.id === requestedPlotId)) {
       setActiveTab('yards');
       setSelectedPlotId(requestedPlotId);
     } else if (['contracts', 'harvest', 'process', 'iot', 'diary', 'tasks', 'services'].includes(requestedView)) {
       setSelectedPlotId(null);
       setActiveTab(requestedView);
+      if (requestedView === 'iot') setIotReturnPlotId(fromPlotId || null);
+    } else if (!requestedPlotId && !requestedView) {
+      setSelectedPlotId(null);
+      setActiveTab('yards');
+      setIotReturnPlotId(null);
     }
   }, [location.search]);
 
@@ -901,7 +908,9 @@ export default function CustomerDashboard() {
             return (
               <button key={id} type="button" onClick={() => {
                 setSelectedPlotId(null);
-                setActiveTab(id === 'overview' ? 'yards' : id);
+                const nextTab = id === 'overview' ? 'yards' : id;
+                setActiveTab(nextTab);
+                navigate(nextTab === 'yards' ? '/customer/dashboard' : `/customer/dashboard?view=${nextTab}`);
               }} className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-0' : ''} ${isActive ? 'bg-white text-[#063d2b] shadow-md' : 'text-white hover:bg-white/10'}`} title={sidebarCollapsed ? label : undefined}>
                 <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-emerald-700' : 'text-white/85'}`} />
                 {!sidebarCollapsed && <span className="truncate">{label}</span>}
@@ -932,13 +941,10 @@ export default function CustomerDashboard() {
                 plots={customerPlots}
                 operations={currentPlotOperations}
                 services={customerServiceCatalog}
-                onNavigate={(nextTab) => {
-                  setActiveTab(nextTab);
-                  setSelectedPlotId(null);
-                }}
-                onSelectPlot={setSelectedPlotId}
+                onNavigate={(nextTab) => { setSelectedPlotId(null); setActiveTab(nextTab); navigate(`/customer/dashboard?view=${nextTab}`); }}
+                onSelectPlot={(plotId) => navigate(`/customer/dashboard?plot=${plotId}`)}
                 onOpenAiChat={() => { setChatOpenMode('ai'); setShowExpertChatModal(true); }}
-                onOpenIotDetail={() => { setIotReturnPlotId(selectedPlotId); setSelectedIotPlotId(selectedPlotId); setActiveTab('iot'); setSelectedPlotId(null); }}
+                onOpenIotDetail={() => { setIotReturnPlotId(selectedPlotId); setSelectedIotPlotId(selectedPlotId); setActiveTab('iot'); setSelectedPlotId(null); navigate(`/customer/dashboard?view=iot&fromPlot=${selectedPlotId}`); }}
                 onOpenTask={(task) => { setTaskPhotoPreview(''); setSelectedTaskDetail({ ...task, plot: currentSelectedPlot }); }}
                 onSelectService={(service) => { setCheckoutPlotId(currentSelectedPlot.id); handleOpenBuyServiceModal(service); }}
               />
@@ -1027,7 +1033,7 @@ export default function CustomerDashboard() {
                   {customerPlots.map((plot) => (
                     <div
                       key={plot.id}
-                      onClick={() => setSelectedPlotId(plot.id)}
+                      onClick={() => navigate(`/customer/dashboard?plot=${plot.id}`)}
                       className="bg-white rounded-2xl p-4 sm:p-5 border border-brand-border shadow-sm space-y-3 hover:shadow-md hover:border-brand-green/40 transition-all cursor-pointer flex flex-col justify-between group"
                     >
                       <div className="space-y-3">
@@ -1111,7 +1117,7 @@ export default function CustomerDashboard() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedPlotId(plot.id);
+                            navigate(`/customer/dashboard?plot=${plot.id}`);
                           }}
                           className="w-full py-2.5 px-3 rounded-xl bg-brand-green hover:bg-brand-dark text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                         >
@@ -1348,7 +1354,7 @@ export default function CustomerDashboard() {
                 {/* Top Control Bar: Select Plot + Timeframe Switcher */}
                 <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <button type="button" onClick={() => { if (iotReturnPlotId) { setSelectedPlotId(iotReturnPlotId); setIotReturnPlotId(null); } else { setActiveTab('yards'); } }} className="mb-3 flex items-center gap-1.5 text-xs font-black text-brand-green hover:underline"><ArrowLeft className="h-4 w-4" />Quay lại {iotReturnPlotId ? 'chi tiết thửa' : 'tổng quan'}</button>
+                    <button type="button" onClick={() => { if (iotReturnPlotId) { navigate(`/customer/dashboard?plot=${iotReturnPlotId}`); } else { navigate('/customer/dashboard'); } }} className="mb-3 flex items-center gap-1.5 text-xs font-black text-brand-green hover:underline"><ArrowLeft className="h-4 w-4" />Quay lại {iotReturnPlotId ? 'chi tiết thửa' : 'tổng quan'}</button>
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-cream text-brand-green border border-brand-border mb-2">
                       <Radio className="w-3.5 h-3.5 text-brand-green" />
                       <span>Trạm Quan Trắc IoT Không Dây</span>
@@ -1975,14 +1981,17 @@ export default function CustomerDashboard() {
               </div>
             </Modal>
 
-            {activeTab === 'yards' && !selectedPlotId && <nav className={`fixed bottom-4 left-1/2 z-40 grid -translate-x-1/2 grid-cols-3 gap-1 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur-md transition-[left] duration-200 ${sidebarCollapsed ? 'lg:left-[calc(50%+2rem)]' : 'lg:left-[calc(50%+9rem)]'}`} aria-label="Lối tắt quản lý vườn">
+            {activeTab === 'yards' && !selectedPlotId && <nav className={`fixed bottom-4 left-1/2 z-40 grid w-[min(75vw,calc(100vw-1.5rem))] -translate-x-1/2 grid-cols-6 gap-1 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur-md transition-[left,width] duration-200 ${sidebarCollapsed ? 'lg:left-[calc(50%+2rem)]' : 'lg:left-[calc(50%+9rem)]'}`} aria-label="Điều hướng quản lý vườn">
               {[
+                ['yards', 'Tổng quan', LayoutDashboard],
                 ['tasks', 'Công việc', Calendar],
                 ['services', 'Thuê dịch vụ', ShoppingBag],
-                ['diary', 'Nhật ký', BookOpen]
+                ['diary', 'Nhật ký', BookOpen],
+                ['process', 'Quy trình', ClipboardList],
+                ['harvest', 'Nghiệm thu', Apple]
               ].map(([id, label, Icon]) => {
-                const isActive = !selectedPlotId && activeTab === id;
-                return <button key={id} type="button" onClick={() => { setSelectedPlotId(null); setActiveTab(id); }} className={`flex min-w-[112px] items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition ${isActive ? 'bg-[#063d2b] text-white shadow-md' : 'text-stone-500 hover:bg-emerald-50 hover:text-emerald-800'}`}><Icon className="h-4 w-4" />{label}</button>;
+                const isActive = id === 'yards' ? (activeTab === 'yards' || Boolean(selectedPlotId)) : (!selectedPlotId && activeTab === id);
+                return <button key={id} type="button" onClick={() => { setSelectedPlotId(null); setActiveTab(id); navigate(id === 'yards' ? '/customer/dashboard' : `/customer/dashboard?view=${id}`); }} className={`flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-[11px] font-black transition sm:gap-2 sm:px-3 sm:text-xs ${isActive ? 'bg-[#063d2b] text-white shadow-md' : 'text-stone-500 hover:bg-emerald-50 hover:text-emerald-800'}`}><Icon className="h-4 w-4 shrink-0" />{label}</button>;
               })}
             </nav>}
 
