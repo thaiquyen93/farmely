@@ -3,22 +3,22 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: smartagrirent-postgres
+    container_name: farmely-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: smartagrirent_main
+      POSTGRES_DB: farmely_main
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../smart_agrirent_postgresql_v2.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - smartagrirent-net
+      - farmely-net
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: smartagrirent-rabbitmq
+    container_name: farmely-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -26,10 +26,10 @@ services:
       - "5672:5672"
       - "15672:15672"
     networks:
-      - smartagrirent-net
+      - farmely-net
 
 networks:
-  smartagrirent-net:
+  farmely-net:
     driver: bridge
 
 volumes:

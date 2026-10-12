@@ -1,13 +1,13 @@
 server:
-  port: 8088
+  port: ${PORT:8088}
 
 spring:
   application:
     name: monitoring-service
   datasource:
-    url: jdbc:postgresql://localhost:5433/farmely
-    username: postgres
-    password: 12345
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5433}/${DB_NAME:farmely}}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:12345}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -27,9 +27,8 @@ springdoc:
 farmely:
   sensor:
     simulation:
-      enabled: true
+      enabled: ${SENSOR_SIMULATION_ENABLED:true}
       # Chu kỳ sinh dữ liệu mới (ms) - 15000ms = 15 giây (rất thích hợp để demo realtime)
-      interval-ms: 15000
+      interval-ms: ${SENSOR_SIMULATION_INTERVAL_MS:15000}
       # Danh sách các PlotId cần sinh dữ liệu giả lập
-      plots: "1,2,3,4"
-
+      plots: ${SENSOR_SIMULATION_PLOTS:1,2,3,4}
