@@ -42,8 +42,9 @@ export default function MarketplacePlotDetailPanel({
 
   if (!plot) return null;
 
-  const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE';
-  const displayStatus = isVacant ? 'Đang trống' : 'Đã thuê';
+  const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE' || plot.status === 'AVAIL';
+  const isMaintenance = plot.status === 'Bảo trì' || plot.status === 'MAINT' || plot.statusCode === 'MAINT';
+  const displayStatus = isVacant ? 'Đang trống' : (isMaintenance ? 'Bảo trì (4 ngày)' : 'Đã thuê');
   const plotCode = String(plot.code || plot.id || '').replace(/^Plot\s+/i, '');
   const plotName = plot.name || `Thửa đất ${plot.id}`;
   const farmName = plot.farmName || 'Happy Valley';

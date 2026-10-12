@@ -1,14 +1,62 @@
 import { spawn, execFile } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 const PSQL_PATH = 'C:/Program Files/PostgreSQL/18/bin/psql.exe';
-const PG_ENV = { ...process.env, PGPASSWORD: 'postgres', PGCLIENTENCODING: 'UTF8' };
+
+function getPgConfig() {
+  const candidates = [
+    path.resolve(process.cwd(), '../.env.supabase.local'),
+    path.resolve(process.cwd(), '.env.supabase.local')
+  ];
+  for (const envPath of candidates) {
+    if (fs.existsSync(envPath)) {
+      try {
+        const text = fs.readFileSync(envPath, 'utf8');
+        const vars = {};
+        for (const line of text.split('\n')) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+            const sep = trimmed.indexOf('=');
+            vars[trimmed.slice(0, sep).trim()] = trimmed.slice(sep + 1).trim();
+          }
+        }
+        if (vars.DB_URL && vars.DB_PASSWORD) {
+          const match = vars.DB_URL.match(/jdbc:postgresql:\/\/([^:/]+)(?::(\d+))?\/([^?]+)/);
+          if (match) {
+            return {
+              host: match[1],
+              port: match[2] || '5432',
+              database: match[3],
+              user: vars.DB_USERNAME || 'postgres',
+              password: vars.DB_PASSWORD,
+              isSupabase: true
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('Could not parse .env.supabase.local:', e);
+      }
+    }
+  }
+  return {
+    host: 'localhost',
+    port: '5432',
+    database: 'farmely',
+    user: 'postgres',
+    password: 'postgres',
+    isSupabase: false
+  };
+}
 
 function runPostgreSql(sqlQuery) {
   return new Promise((resolve, reject) => {
+    const cfg = getPgConfig();
+    const env = { ...process.env, PGPASSWORD: cfg.password, PGCLIENTENCODING: 'UTF8' };
     const child = spawn(
       PSQL_PATH,
-      ['-U', 'postgres', '-h', 'localhost', '-p', '5432', '-d', 'farmely', '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
-      { env: PG_ENV }
+      ['-U', cfg.user, '-h', cfg.host, '-p', cfg.port, '-d', cfg.database, '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
+      { env }
     );
     let stdout = '';
     let stderr = '';
@@ -49,15 +97,17 @@ export function siteVisitsApiPlugin() {
           try {
             const sql = `
 SELECT json_build_object(
-  'engine', 'PostgreSQL 18.6',
-  'database', 'farmely',
+  'engine', 'PostgreSQL (Supabase Cloud Pooler)',
+  'database', 'postgres',
   'port', 5432,
-  'ddl_source', 'ISP392_FINAL_20tables.sql',
+  'ddl_source', 'farmely_full_database.sql',
   'contracts_count', (SELECT count(*) FROM contracts),
   'rentals_count', (SELECT count(*) FROM rentals),
   'payment_transactions_count', (SELECT count(*) FROM payment_transactions),
   'site_visits_count', (SELECT count(*) FROM site_visits),
   'rented_plots_count', (SELECT count(*) FROM plots WHERE status = 'RENT'),
+  'available_plots_count', (SELECT count(*) FROM plots WHERE status = 'AVAIL'),
+  'maintenance_plots_count', (SELECT count(*) FROM plots WHERE status = 'MAINT'),
   'total_plots_count', (SELECT count(*) FROM plots)
 );
 `;
@@ -67,6 +117,66 @@ SELECT json_build_object(
           } catch (err) {
             res.statusCode = 500;
             res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 0.1 GET /api/v1/plots or GET /api/plots (Live 16 Plots from Supabase PostgreSQL)
+        if (req.method === 'GET' && (url === '/api/v1/plots' || url === '/api/plots' || url.startsWith('/api/v1/plots?') || url.startsWith('/api/plots?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh sách thửa đất thành công từ Supabase PostgreSQL',
+  'data', COALESCE(
+    (
+      SELECT json_agg(row_to_json(t))
+      FROM (
+        SELECT 
+          p.plot_id,
+          p.plot_code,
+          'Plot ' || p.plot_code AS code,
+          p.area,
+          p.area || ' m²' AS area_text,
+          p.price_per_period,
+          TO_CHAR(p.price_per_period, 'FM999,999,999') || ' đ' AS price_text,
+          p.status,
+          CASE 
+            WHEN p.status = 'AVAIL' THEN 'Đang trống'
+            WHEN p.status = 'RENT' THEN 'Đã thuê'
+            WHEN p.status = 'MAINT' THEN 'Bảo trì'
+            ELSE 'Đang trống'
+          END AS status_text,
+          p.image_url,
+          p.is_published,
+          l.land_id,
+          l.land_name,
+          COALESCE(
+            (
+              SELECT json_agg(DISTINCT c.crop_name)
+              FROM plot_variety_compatibility pvc
+              JOIN varieties v ON pvc.variety_id = v.variety_id
+              JOIN crops c ON v.crop_id = c.crop_id
+              WHERE pvc.plot_id = p.plot_id
+            ),
+            '[]'::json
+          ) AS compatible_crops
+        FROM plots p
+        LEFT JOIN lands l ON p.land_id = l.land_id
+        ORDER BY p.plot_id
+      ) t
+    ),
+    '[]'::json
+  )
+);
+`;
+            const pgResult = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(pgResult || '{}');
+          } catch (err) {
+            console.error('PostgreSQL error on GET /api/v1/plots:', err);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
           }
           return;
         }

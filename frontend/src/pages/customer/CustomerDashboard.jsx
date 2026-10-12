@@ -9,6 +9,7 @@ import VietQrModal from '../../components/payment/VietQrModal';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
+import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import {
@@ -190,6 +191,29 @@ export default function CustomerDashboard() {
   const [diaryPlotId, setDiaryPlotId] = useState('PLOT-MC-02');
   const [diaryFocusPlotId, setDiaryFocusPlotId] = useState('PLOT-CC-01');
   const [showHarvestAcceptModal, setShowHarvestAcceptModal] = useState(false);
+
+  // Ngữ cảnh thửa: khi đi từ trang 1 thửa sang Nhật ký / Lịch / Dịch vụ thì chỉ hiện
+  // dữ liệu của ĐÚNG thửa đó (null = xem tất cả thửa, khi vào từ sidebar)
+  const [plotScopeId, setPlotScopeId] = useState(null);
+
+  // Kế hoạch thu hoạch theo từng thửa: { [plotId]: plan }
+  const [harvestModalPlotId, setHarvestModalPlotId] = useState(null);
+  const harvestStorageKey = `farmely_harvest_plans_${user?.id || 'guest'}`;
+  const [harvestPlans, setHarvestPlans] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(harvestStorageKey) || '{}');
+      return saved && typeof saved === 'object' ? saved : {};
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(harvestStorageKey, JSON.stringify(harvestPlans));
+    } catch {
+      /* hết dung lượng / chế độ ẩn danh: bỏ qua, kế hoạch vẫn còn trong phiên */
+    }
+  }, [harvestPlans, harvestStorageKey]);
   const [showRenewContractModal, setShowRenewContractModal] = useState(false);
 
   // Form states
@@ -686,6 +710,43 @@ export default function CustomerDashboard() {
 
   const currentSelectedPlot = customerPlots.find((p) => p.id === selectedPlotId);
   const diaryFocusPlot = customerPlots.find((p) => p.id === diaryFocusPlotId) || customerPlots[0];
+  const scopedPlot = customerPlots.find((p) => p.id === plotScopeId) || null;
+  const scopedPlots = scopedPlot ? [scopedPlot] : customerPlots;
+  const scopedServiceOrders = scopedPlot
+    ? activeServiceOrders.filter((ord) => ord.plotName === scopedPlot.name)
+    : activeServiceOrders;
+  const harvestModalPlot = customerPlots.find((p) => p.id === harvestModalPlotId) || null;
+
+  /** Từ trang 1 thửa sang trang chức năng: giữ nguyên ngữ cảnh thửa đó */
+  const openPlotScopedTab = (tab, plotId) => {
+    setPlotScopeId(plotId);
+    if (tab === 'diary') setDiaryFocusPlotId(plotId);
+    if (tab === 'services') setCheckoutPlotId(plotId);
+    setActiveTab(tab);
+    setSelectedPlotId(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const backToScopedPlot = () => {
+    const id = plotScopeId;
+    setPlotScopeId(null);
+    setSelectedPlotId(id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleConfirmHarvestPlan = (plan) => {
+    setHarvestPlans((prev) => ({ ...prev, [plan.plotId]: plan }));
+    setHarvestModalPlotId(null);
+  };
+
+  const handleCancelHarvestPlan = (plotId) => {
+    setHarvestPlans((prev) => {
+      const next = { ...prev };
+      delete next[plotId];
+      return next;
+    });
+    setHarvestModalPlotId(null);
+  };
 
   useEffect(() => {
     const requestedPlotId = new URLSearchParams(location.search).get('plot');
@@ -824,6 +885,7 @@ export default function CustomerDashboard() {
             return (
               <button key={id} type="button" onClick={() => {
                 setSelectedPlotId(null);
+                setPlotScopeId(null);
                 setActiveTab(id === 'overview' ? 'yards' : id);
               }} className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-0' : ''} ${isActive ? 'bg-white text-[#063d2b] shadow-md' : 'text-white hover:bg-white/10'}`} title={sidebarCollapsed ? label : undefined}>
                 <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-emerald-700' : 'text-white/85'}`} />
@@ -855,16 +917,37 @@ export default function CustomerDashboard() {
                 plots={customerPlots}
                 operations={currentPlotOperations}
                 services={customerServiceCatalog}
-                onNavigate={(nextTab) => {
-                  setActiveTab(nextTab);
-                  setSelectedPlotId(null);
-                }}
+                harvestPlan={harvestPlans[currentSelectedPlot.id] || null}
+                onOpenHarvest={(plot) => setHarvestModalPlotId(plot.id)}
+                onNavigate={(nextTab) => openPlotScopedTab(nextTab, currentSelectedPlot.id)}
                 onSelectPlot={setSelectedPlotId}
                 onOpenAiChat={() => { setChatOpenMode('ai'); setShowExpertChatModal(true); }}
                 onOpenIotDetail={() => { setIotReturnPlotId(selectedPlotId); setSelectedIotPlotId(selectedPlotId); setActiveTab('iot'); setSelectedPlotId(null); }}
                 onOpenTask={(task) => { setTaskPhotoPreview(''); setSelectedTaskDetail({ ...task, plot: currentSelectedPlot }); }}
                 onSelectService={(service) => { setCheckoutPlotId(currentSelectedPlot.id); handleOpenBuyServiceModal(service); }}
               />
+            )}
+
+            {/* Thanh ngữ cảnh: đang xem chức năng của riêng 1 thửa */}
+            {!selectedPlotId && scopedPlot && ['tasks', 'diary', 'services'].includes(activeTab) && (
+              <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <button type="button" onClick={backToScopedPlot} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
+                    <ArrowLeft className="h-4 w-4" />Quay lại thửa
+                  </button>
+                  <img src={scopedPlot.image} alt="" className="hidden h-10 w-14 shrink-0 rounded-lg object-cover sm:block" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-brand-dark">
+                      {scopedPlot.name}
+                      <span className="font-normal text-brand-muted"> / {activeTab === 'diary' ? 'Nhật ký' : activeTab === 'tasks' ? 'Lịch canh tác' : 'Dịch vụ'}</span>
+                    </p>
+                    <p className="truncate text-xs text-brand-muted">{scopedPlot.crop} · {scopedPlot.id}</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setPlotScopeId(null)} className="shrink-0 rounded-xl border border-brand-border px-3 py-2 text-xs font-semibold text-brand-dark hover:bg-stone-50">
+                  Xem tất cả thửa
+                </button>
+              </div>
             )}
 
             {false && !selectedPlotId && activeTab === 'yards' && (
@@ -1055,7 +1138,7 @@ export default function CustomerDashboard() {
                   <button type="button" onClick={() => setActiveTab('services')} className="rounded-xl bg-brand-yellow px-4 py-2 text-xs font-black text-brand-dark hover:brightness-95"><ShoppingBag className="mr-1 inline h-4 w-4" />Đặt dịch vụ</button>
                 </div>
                 <div className="space-y-4">
-                  {customerPlots.map((plot) => {
+                  {scopedPlots.map((plot) => {
                     const tasks = plotOperations[plot.id]?.tasks || [];
                     return (
                       <section key={plot.id} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25">
@@ -1216,7 +1299,7 @@ export default function CustomerDashboard() {
                   <div className="flex items-center justify-between border-b border-brand-border/60 pb-3">
                     <div>
                       <h3 className="font-heading font-black text-lg text-brand-dark">
-                        Lịch Sử Dịch Vụ Đã Đăng Ký ({activeServiceOrders.length})
+                        Lịch Sử Dịch Vụ Đã Đăng Ký ({scopedServiceOrders.length})
                       </h3>
                       <p className="text-xs text-brand-muted mt-0.5">
                         Theo dõi tiến độ thực hiện của công nhân nông trại cho từng đơn dịch vụ.
@@ -1228,7 +1311,12 @@ export default function CustomerDashboard() {
                   </div>
 
                   <div className="space-y-3">
-                    {activeServiceOrders.map((ord) => (
+                    {scopedServiceOrders.length === 0 && (
+                      <p className="rounded-xl bg-brand-cream/50 p-4 text-center text-xs text-brand-muted">
+                        {scopedPlot ? `Chưa có dịch vụ nào cho ${scopedPlot.name}.` : 'Bạn chưa đăng ký dịch vụ nào.'}
+                      </p>
+                    )}
+                    {scopedServiceOrders.map((ord) => (
                       <div
                         key={ord.id}
                         className="p-4 rounded-2xl bg-brand-cream/60 border border-brand-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
@@ -1456,7 +1544,7 @@ export default function CustomerDashboard() {
             {activeTab === 'diary' && !selectedPlotId && (
               <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)]">
                 <div className="space-y-3">
-                  {customerPlots.map((plot) => (
+                  {scopedPlots.map((plot) => (
                     <section key={plot.id} className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition ${diaryFocusPlotId === plot.id ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-brand-border'}`}>
                       <div role="button" tabIndex={0} onClick={() => setDiaryFocusPlotId(plot.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') setDiaryFocusPlotId(plot.id); }} className="flex w-full flex-wrap items-center gap-3 border-b border-brand-border p-3 text-left hover:bg-emerald-50/40">
                         <img src={plot.image} alt="" className="h-11 w-14 rounded-xl object-cover" />
@@ -1500,7 +1588,7 @@ export default function CustomerDashboard() {
                     ].map(([label, value, Icon, tone]) => <div key={label} className="rounded-xl border border-brand-border p-3"><span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tone}`}><Icon className="h-4 w-4" /></span><p className="mt-2 text-[10px] text-brand-muted">{label}</p><p className="text-sm font-black text-brand-dark">{value}</p></div>)}
                   </div>
                   <div className="mt-3 rounded-xl bg-amber-50 p-3"><p className="text-xs font-black text-amber-900">Cảnh báo thời tiết đang được theo dõi</p><p className="mt-1 text-[11px] text-amber-800">Dữ liệu mới nhất được đồng bộ từ trạm của {diaryFocusPlot.name}.</p></div>
-                  <button type="button" onClick={() => { setSelectedIotPlotId(diaryFocusPlot.id); setIotReturnPlotId(null); setActiveTab('iot'); }} className="mt-4 w-full rounded-xl bg-brand-green px-4 py-3 text-xs font-black text-white transition hover:bg-brand-dark">Xem dashboard IoT chi tiết</button>
+                  <button type="button" onClick={() => { setSelectedIotPlotId(diaryFocusPlot.id); setIotReturnPlotId(scopedPlot ? scopedPlot.id : null); setPlotScopeId(null); setActiveTab('iot'); }} className="mt-4 w-full rounded-xl bg-brand-green px-4 py-3 text-xs font-black text-white transition hover:bg-brand-dark">Xem dashboard IoT chi tiết</button>
                 </aside>
               </div>
             )}
@@ -2246,6 +2334,16 @@ export default function CustomerDashboard() {
           </div>
         </div>
       </Modal>
+
+      {/* Modal: Chuẩn bị thu hoạch cho RIÊNG 1 thửa */}
+      <PlotHarvestModal
+        plot={harvestModalPlot}
+        isOpen={Boolean(harvestModalPlot)}
+        existingPlan={harvestModalPlot ? harvestPlans[harvestModalPlot.id] || null : null}
+        onClose={() => setHarvestModalPlotId(null)}
+        onConfirm={handleConfirmHarvestPlan}
+        onCancelPlan={handleCancelHarvestPlan}
+      />
 
       {/* Modal: Accept Harvest */}
       <Modal
