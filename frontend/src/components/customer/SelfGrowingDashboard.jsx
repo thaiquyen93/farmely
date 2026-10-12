@@ -3,43 +3,20 @@ import {
   Calendar,
   Droplets,
   Thermometer,
-  BookOpen,
-  Camera,
   AlertTriangle,
-  Send,
   ShieldCheck,
   Sun,
   Activity,
   Wrench
 } from 'lucide-react';
-import Button from '../common/Button';
 
 export default function SelfGrowingDashboard({ plot }) {
-  const [diaryNote, setDiaryNote] = useState('');
-  const [personalDiaryEntries, setPersonalDiaryEntries] = useState([
-    {
-      id: 1,
-      date: 'Hôm qua · 16:45',
-      note: 'Xới nhẹ rãnh luống và tưới ẩm bổ sung. Cây phát triển đều.',
-      photos: ['/images/moc-chau-2811.jpg']
-    }
-  ]);
   const [completedSteps, setCompletedSteps] = useState([0, 1]);
 
   const toggleStep = (idx) => {
     setCompletedSteps((prev) =>
       prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]
     );
-  };
-
-  const handleAddDiary = (e) => {
-    e.preventDefault();
-    if (!diaryNote.trim()) return;
-    setPersonalDiaryEntries([
-      { id: Date.now(), date: 'Vừa xong', note: diaryNote, photos: ['/images/moc-chau-2811.jpg'] },
-      ...personalDiaryEntries
-    ]);
-    setDiaryNote('');
   };
 
   const soilMoistureNum = parseInt(plot.soilMoisture) || 62;
@@ -155,58 +132,7 @@ export default function SelfGrowingDashboard({ plot }) {
         </div>
       </div>
 
-      {/* 3. NHẬT KÝ CANH TÁC */}
-      <div className="bg-white rounded-2xl p-5 border border-brand-border shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-brand-green" />
-            <h4 className="font-heading font-black text-sm text-brand-dark">Nhật Ký Canh Tác</h4>
-          </div>
-          <span className="text-xs text-stone-400 font-medium">{personalDiaryEntries.length} mục</span>
-        </div>
-
-        <form onSubmit={handleAddDiary} className="space-y-2">
-          <textarea
-            value={diaryNote}
-            onChange={(e) => setDiaryNote(e.target.value)}
-            placeholder="Ghi chú tình trạng luống rau hoặc công việc đã làm..."
-            className="w-full h-20 p-3 rounded-xl border border-brand-border bg-stone-50 text-xs focus:outline-none focus:ring-1 focus:ring-brand-green resize-none"
-          />
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 text-stone-600 text-xs font-semibold hover:bg-stone-50 cursor-pointer"
-            >
-              <Camera className="w-3.5 h-3.5 text-stone-500" />
-              <span>Thêm ảnh</span>
-            </button>
-            <Button type="submit" variant="primary" size="sm" className="text-xs font-bold">
-              <Send className="w-3 h-3 mr-1" /> Lưu nhật ký
-            </Button>
-          </div>
-        </form>
-
-        <div className="space-y-2 pt-1">
-          {personalDiaryEntries.map((entry) => (
-            <div key={entry.id} className="p-3 rounded-xl bg-stone-50 border border-stone-200 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-bold text-brand-dark">Ghi chép của bạn</span>
-                <span className="text-stone-400">{entry.date}</span>
-              </div>
-              <p className="text-xs text-stone-700">{entry.note}</p>
-              {entry.photos && (
-                <div className="flex gap-2 pt-0.5">
-                  {entry.photos.map((ph, i) => (
-                    <img key={i} src={ph} alt="Ảnh" className="w-16 h-16 rounded-lg object-cover border border-stone-200" />
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 4. DỊCH VỤ PHÁT SINH */}
+      {/* 3. DỊCH VỤ PHÁT SINH */}
       <div className="bg-white rounded-2xl p-5 border border-brand-border shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

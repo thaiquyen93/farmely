@@ -21,7 +21,7 @@ export default function MarketplacePlotCards({
   statusCounts = {}
 }) {
   const tabs = [
-    { key: 'ALL', label: `Tất cả plots (${statusCounts.ALL || 0})` },
+    { key: 'ALL', label: `Tất cả thửa đất (${statusCounts.ALL || 0})` },
     { key: 'AVAILABLE', label: `Đang trống (${statusCounts.AVAILABLE || 0})` },
     { key: 'RENTED', label: `Đã thuê (${statusCounts.RENTED || 0})` },
     { key: 'MAINTENANCE', label: `Bảo trì (${statusCounts.MAINTENANCE || 0})` },

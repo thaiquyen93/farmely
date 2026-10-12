@@ -218,8 +218,10 @@ COMMENT ON TABLE process_templates IS 'Standard cultivation process template per
 CREATE TABLE template_steps (
     step_id       SERIAL        PRIMARY KEY,
     template_id   INT           NOT NULL REFERENCES process_templates(template_id) ON DELETE CASCADE,
+    step_order    INT           NOT NULL DEFAULT 1,
     step_name     VARCHAR(150)  NOT NULL,
     description   TEXT,
+    materials_needed TEXT,
     day_offset    INT           NOT NULL,
     duration_days INT           NOT NULL DEFAULT 1,
     task_type     VARCHAR(50),
@@ -615,24 +617,14 @@ INSERT INTO lands (land_id, land_name, address) VALUES
 (3, 'Trang trại Thung lũng Sinh thái Đà Lạt', 'Xã Tà Nung, TP. Đà Lạt, Tỉnh Lâm Đồng')
 ON CONFLICT (land_id) DO NOTHING;
 
--- 4. BẢNG PLOTS (Thửa đất cho thuê - Đầy đủ 16 thửa chuẩn GIS Marketplace)
+-- 4. BẢNG PLOTS (Thửa đất cho thuê)
 INSERT INTO plots (plot_id, land_id, plot_code, area, image_url, price_per_period, status, is_published) VALUES
 (1, 1, 'P-01', 50.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 1200000.00, 'RENT', TRUE),
 (2, 1, 'P-02', 45.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1050000.00, 'RENT', TRUE),
 (3, 1, 'P-03', 60.00, 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80', 1400000.00, 'RENT', TRUE),
 (4, 1, 'P-04', 55.00, 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80', 1300000.00, 'AVAIL', TRUE),
 (5, 1, 'P-05', 70.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1600000.00, 'AVAIL', TRUE),
-(6, 1, 'P-06', 40.00, 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80', 950000.00, 'MAINT', FALSE),
-(7, 1, 'P-07', 50.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 1200000.00, 'AVAIL', TRUE),
-(8, 1, 'P-08', 65.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1500000.00, 'AVAIL', TRUE),
-(9, 1, 'P-09', 45.00, 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80', 1050000.00, 'AVAIL', TRUE),
-(10, 1, 'P-10', 55.00, 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80', 1300000.00, 'AVAIL', TRUE),
-(11, 1, 'P-11', 50.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1200000.00, 'AVAIL', TRUE),
-(12, 1, 'P-12', 60.00, 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80', 1400000.00, 'AVAIL', TRUE),
-(13, 1, 'P-13', 40.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 950000.00, 'AVAIL', TRUE),
-(14, 1, 'P-14', 75.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1750000.00, 'AVAIL', TRUE),
-(15, 1, 'P-15', 50.00, 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80', 1200000.00, 'AVAIL', TRUE),
-(16, 1, 'P-16', 80.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1900000.00, 'AVAIL', TRUE)
+(6, 1, 'P-06', 40.00, 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80', 950000.00, 'MAINT', FALSE)
 ON CONFLICT (plot_id) DO NOTHING;
 
 -- 5. BẢNG CROPS & VARIETIES (10 LOẠI RAU AN TOÀN VIETGAP CHUẨN)
@@ -808,6 +800,23 @@ INSERT INTO template_steps (step_id, template_id, step_name, description, day_of
 (87, 10, 'Kiểm tra sâu &amp; Cách ly tuyệt đối', 'Kiểm tra sâu xanh ăn lá (bắt tay hoặc phun BT nếu mật độ cao). Ngừng tuyệt đối phân bón thuốc BVTV.. Minh chứng: Ảnh thảm rau dền đỏ mơn mởn', 21, 1, 'SAFETY_INTERVAL', 22.0, 32.0, 60.0, 75.0),
 (88, 10, 'Thu hoạch &amp; Nghiệm thu', 'Nhổ cả cây rửa sạch đất rễ (hoặc cắt ngang thân chừa 3cm để tái sinh). Cân ký và chụp ảnh minh chứng.. Minh chứng: Ảnh bó rau dền đỏ trên cân điện tử', 26, 1, 'HARVEST', 20.0, 30.0, 60.0, 70.0)
 ON CONFLICT (step_id) DO NOTHING;
+
+-- Keep the explicit display order expected by knowledge-service while preserving
+-- the richer day-based schedule from the imported cultivation dataset.
+WITH ordered_steps AS (
+    SELECT step_id,
+           ROW_NUMBER() OVER (PARTITION BY template_id ORDER BY day_offset, step_id) AS display_order
+    FROM template_steps
+)
+UPDATE template_steps target
+SET step_order = ordered_steps.display_order
+FROM ordered_steps
+WHERE target.step_id = ordered_steps.step_id;
+
+UPDATE template_steps
+SET step_name = REPLACE(step_name, '&amp;', '&'),
+    description = REPLACE(REPLACE(description, '&amp;', '&'), '.. ', '. ')
+WHERE step_name LIKE '%&amp;%' OR description LIKE '%&amp;%' OR description LIKE '%.. %';
 
 -- 9. CONTRACTS & RENTALS (Khách hàng & Hợp đồng thực tế)
 INSERT INTO contracts (contract_id, renter_id, contract_number, total_amount, status, created_at) VALUES

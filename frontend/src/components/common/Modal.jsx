@@ -63,7 +63,7 @@ export default function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-brand-dark/70 backdrop-blur-sm transition-opacity animate-fadeIn"
@@ -73,7 +73,7 @@ export default function Modal({
       {/* Modal Dialog */}
       <div
         ref={dialogRef}
-        className={`relative w-full ${maxWidth} bg-white rounded-2xl shadow-elevated border border-brand-border overflow-hidden z-10 animate-scaleUp`}
+        className={`relative z-10 flex max-h-[calc(100dvh-2rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated animate-scaleUp`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -102,7 +102,7 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        <div className="px-6 py-5 max-h-[80vh] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {children}
         </div>
       </div>
