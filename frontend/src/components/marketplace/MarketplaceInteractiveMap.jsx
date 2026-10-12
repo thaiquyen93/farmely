@@ -69,13 +69,42 @@ export default function MarketplaceInteractiveMap({
   plotsData = FARMS_GEOJSON_DATA,
   selectedPlot = null,
   onSelectPlot,
-  onResetView
+  onResetView,
+  interactive = true,
+  showControls = true,
+  showAllPlots = true,
+  showCoordinates = true,
+  focusSelected = false,
+  className = ''
 }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
   const markerNodesRef = useRef(new Map());
   const isFirstRenderRef = useRef(true);
+
+  const getFeatureCenter = (feature) => {
+    if (!feature?.geometry?.coordinates?.[0]) return FARM_GPS_BOUNDS.center;
+    const coords = feature.geometry.coordinates[0];
+    const points = coords.slice(0, -1);
+    return [
+      points.reduce((sum, point) => sum + point[0], 0) / points.length,
+      points.reduce((sum, point) => sum + point[1], 0) / points.length
+    ];
+  };
+
+  const getVisiblePlotsData = () => {
+    if (showAllPlots || !selectedPlot) return plotsData;
+    const selectedId = selectedPlot.id || selectedPlot.label;
+    const selectedFeature = plotsData.features.find(
+      (feature) =>
+        feature.properties.id === selectedId || feature.properties.code === selectedPlot.code
+    );
+    return {
+      type: 'FeatureCollection',
+      features: selectedFeature ? [selectedFeature] : []
+    };
+  };
 
   // Khởi tạo bản đồ vệ tinh ESRI với MapLibre GL JS tại toạ độ thực của trang trại
   useEffect(() => {
@@ -107,7 +136,8 @@ export default function MarketplaceInteractiveMap({
       center: FARM_GPS_BOUNDS.center, // [106.350258, 10.687662]
       zoom: 15.1,
       pitch: 35,
-      bearing: -8
+      bearing: -8,
+      interactive
     });
 
     mapRef.current = map;
@@ -141,7 +171,7 @@ export default function MarketplaceInteractiveMap({
       // 2. Thêm nguồn dữ liệu GeoJSON các thửa đất đã được chia lưới chính xác
       map.addSource('plots', {
         type: 'geojson',
-        data: plotsData
+        data: getVisiblePlotsData()
       });
 
       // 3. Layer fill trong suốt - Chỉ dùng làm vùng click/hover, KHÔNG hiển thị màu
@@ -221,10 +251,8 @@ export default function MarketplaceInteractiveMap({
 
       // 6. Thêm HTML badge nhãn mã thửa nổi trên tâm mỗi thửa đất - Phong cách sàn TMĐT (Airbnb / BĐS)
       markerNodesRef.current.clear();
-      plotsData.features.forEach((f) => {
-        const coords = f.geometry.coordinates[0];
-        const centerLng = (coords[0][0] + coords[1][0] + coords[2][0] + coords[3][0]) / 4;
-        const centerLat = (coords[0][1] + coords[1][1] + coords[2][1] + coords[3][1]) / 4;
+      getVisiblePlotsData().features.forEach((f) => {
+        const [centerLng, centerLat] = getFeatureCenter(f);
 
         const isCurrentSelected = (selectedPlot?.id || 'P-01') === f.properties.id;
 
@@ -237,7 +265,7 @@ export default function MarketplaceInteractiveMap({
 
         badge.onclick = (e) => {
           e.stopPropagation();
-          onSelectPlot?.(f.properties);
+          if (interactive) onSelectPlot?.(f.properties);
         };
 
         wrapper.appendChild(badge);
@@ -251,12 +279,14 @@ export default function MarketplaceInteractiveMap({
       });
 
       // 7. Thêm 4 Marker định vị 4 toạ độ GPS góc khu đất
-      const corners = [
-        FARM_GPS_BOUNDS.topLeft,
-        FARM_GPS_BOUNDS.topRight,
-        FARM_GPS_BOUNDS.bottomLeft,
-        FARM_GPS_BOUNDS.bottomRight
-      ];
+      const corners = showAllPlots
+        ? [
+            FARM_GPS_BOUNDS.topLeft,
+            FARM_GPS_BOUNDS.topRight,
+            FARM_GPS_BOUNDS.bottomLeft,
+            FARM_GPS_BOUNDS.bottomRight
+          ]
+        : [];
 
       corners.forEach((c) => {
         const pinWrapper = document.createElement('div');
@@ -276,7 +306,7 @@ export default function MarketplaceInteractiveMap({
 
       // 8. Click vào thửa đất trên bản đồ
       map.on('click', 'plots-fill', (e) => {
-        if (e.features && e.features.length > 0) {
+          if (interactive && e.features && e.features.length > 0) {
           const plotId = e.features[0].properties.id;
           const feat = plotsData.features.find((item) => item.properties.id === plotId);
           if (feat) {
@@ -287,6 +317,7 @@ export default function MarketplaceInteractiveMap({
 
       // 9. Đổi icon con trỏ + hiệu ứng hover sáng khi rê chuột
       map.on('mousemove', 'plots-fill', (e) => {
+        if (!interactive) return;
         map.getCanvas().style.cursor = 'pointer';
         if (e.features && e.features.length > 0) {
           map.setFilter('plots-fill-hover', ['==', 'id', e.features[0].properties.id]);
@@ -298,18 +329,33 @@ export default function MarketplaceInteractiveMap({
       });
 
       // 10. Tự động căn khung hình bao quát toàn bộ 16 thửa đất và 4 mốc GPS
-      map.fitBounds(
-        [
-          [106.343656, 10.680931],
-          [106.356997, 10.694331]
-        ],
-        {
-          padding: { top: 90, bottom: 60, left: 350, right: 400 },
-          bearing: -8,
-          pitch: 35,
-          duration: 0
-        }
+      const selectedFeature = plotsData.features.find(
+        (feature) =>
+          feature.properties.id === (selectedPlot?.id || selectedPlot?.label) ||
+          feature.properties.code === selectedPlot?.code
       );
+
+      if (focusSelected && selectedFeature) {
+        map.jumpTo({
+          center: getFeatureCenter(selectedFeature),
+          zoom: 17.1,
+          pitch: 35,
+          bearing: -8
+        });
+      } else {
+        map.fitBounds(
+          [
+            [106.343656, 10.680931],
+            [106.356997, 10.694331]
+          ],
+          {
+            padding: { top: 90, bottom: 60, left: 350, right: 400 },
+            bearing: -8,
+            pitch: 35,
+            duration: 0
+          }
+        );
+      }
     });
 
     return () => {
@@ -317,7 +363,7 @@ export default function MarketplaceInteractiveMap({
       markersRef.current = [];
       map.remove();
     };
-  }, []);
+  }, [interactive, showAllPlots, focusSelected]);
 
   // Xử lý khi selectedPlot thay đổi -> Highlight & Camera flyTo mượt mà
   useEffect(() => {
@@ -325,6 +371,11 @@ export default function MarketplaceInteractiveMap({
     if (!map) return;
 
     const plotId = selectedPlot?.id || selectedPlot?.label || '';
+
+    const plotSource = map.getSource('plots');
+    if (plotSource && !showAllPlots) {
+      plotSource.setData(getVisiblePlotsData());
+    }
     // Cập nhật tất cả các layer liên quan đến thửa đang chọn
     if (map.getLayer('plots-selected-border')) {
       map.setFilter('plots-selected-border', ['==', 'id', plotId]);
@@ -358,22 +409,22 @@ export default function MarketplaceInteractiveMap({
     );
 
     if (feat) {
-      const coords = feat.geometry.coordinates[0];
-      const centerLng = (coords[0][0] + coords[1][0] + coords[2][0] + coords[3][0]) / 4;
-      const centerLat = (coords[0][1] + coords[1][1] + coords[2][1] + coords[3][1]) / 4;
+      const [centerLng, centerLat] = getFeatureCenter(feat);
 
       map.flyTo({
         center: [centerLng, centerLat],
         zoom: 16.3,
         pitch: 35, // Nghiêng 35 độ tạo góc nhìn thực địa 3D
         bearing: -8, // Xoay nhẹ góc nhìn
-        duration: 1200, // Thời gian lướt mượt mà 1.2s không bị khựng
+        duration: interactive ? 900 : 0,
         easing: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), // Cubic In-Out easing
-        padding: { right: 380, top: 40, bottom: 40, left: 40 }, // Chừa trống chỗ cho drawer chi tiết bên phải
+        padding: focusSelected
+          ? { right: 36, top: 36, bottom: 36, left: 36 }
+          : { right: 380, top: 40, bottom: 40, left: 40 },
         essential: true
       });
     }
-  }, [selectedPlot, plotsData]);
+  }, [selectedPlot, plotsData, interactive, showAllPlots, focusSelected]);
 
   // Điều khiển phóng to / thu nhỏ với hiệu ứng mượt
   const handleZoomIn = () => mapRef.current?.zoomIn({ duration: 350 });
@@ -383,6 +434,24 @@ export default function MarketplaceInteractiveMap({
   const handleReset = () => {
     const map = mapRef.current;
     if (!map) return;
+
+    if (focusSelected && selectedPlot) {
+      const selectedId = selectedPlot.id || selectedPlot.label;
+      const selectedFeature = plotsData.features.find(
+        (feature) =>
+          feature.properties.id === selectedId || feature.properties.code === selectedPlot.code
+      );
+      if (selectedFeature) {
+        map.flyTo({
+          center: getFeatureCenter(selectedFeature),
+          zoom: 17.1,
+          pitch: 35,
+          bearing: -8,
+          duration: 700
+        });
+        return;
+      }
+    }
 
     if (map.getLayer('plots-selected-border')) {
       map.setFilter('plots-selected-border', ['==', 'id', '']);
@@ -418,12 +487,12 @@ export default function MarketplaceInteractiveMap({
   };
 
   return (
-    <div className="relative w-full h-full">
+    <div className={`relative w-full h-full ${className}`}>
       {/* 1. Canvas Bản Đồ MapLibre GL JS */}
       <div ref={mapContainerRef} className="absolute inset-0 z-0 w-full h-full" />
 
       {/* 2. Điều khiển bản đồ góc phải dưới (Map Controls) */}
-      <div className="absolute bottom-6 right-8 z-20 flex flex-col gap-2 pointer-events-auto">
+      {showControls && interactive && <div className="absolute bottom-6 right-8 z-20 flex flex-col gap-2 pointer-events-auto">
         <div className="bg-white/95 backdrop-blur-md rounded-xl p-1 shadow-lg border border-slate-100 flex flex-col">
           <button
             type="button"
@@ -451,15 +520,15 @@ export default function MarketplaceInteractiveMap({
         >
           🧭
         </button>
-      </div>
+      </div>}
 
       {/* 3. Badge hiển thị toạ độ trung tâm GPS của khu đất */}
-      <div className="absolute bottom-6 left-6 z-20 hidden lg:flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-slate-100 text-[10px] text-slate-600 font-mono font-medium pointer-events-none">
+      {showCoordinates && <div className="absolute bottom-6 left-6 z-20 hidden lg:flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-slate-100 text-[10px] text-slate-600 font-mono font-medium pointer-events-none">
         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
         <span>Tọa độ khu đất: 10°41′15″N 106°21′01″E</span>
         <span className="text-slate-300">|</span>
         <span>16 Thửa đất VietGAP</span>
-      </div>
+      </div>}
     </div>
   );
 }

@@ -218,8 +218,10 @@ COMMENT ON TABLE process_templates IS 'Standard cultivation process template per
 CREATE TABLE template_steps (
     step_id       SERIAL        PRIMARY KEY,
     template_id   INT           NOT NULL REFERENCES process_templates(template_id) ON DELETE CASCADE,
+    step_order    INT           NOT NULL DEFAULT 1,
     step_name     VARCHAR(150)  NOT NULL,
     description   TEXT,
+    materials_needed TEXT,
     day_offset    INT           NOT NULL,
     duration_days INT           NOT NULL DEFAULT 1,
     task_type     VARCHAR(50),
@@ -799,6 +801,23 @@ INSERT INTO template_steps (step_id, template_id, step_name, description, day_of
 (88, 10, 'Thu hoạch &amp; Nghiệm thu', 'Nhổ cả cây rửa sạch đất rễ (hoặc cắt ngang thân chừa 3cm để tái sinh). Cân ký và chụp ảnh minh chứng.. Minh chứng: Ảnh bó rau dền đỏ trên cân điện tử', 26, 1, 'HARVEST', 20.0, 30.0, 60.0, 70.0)
 ON CONFLICT (step_id) DO NOTHING;
 
+-- Keep the explicit display order expected by knowledge-service while preserving
+-- the richer day-based schedule from the imported cultivation dataset.
+WITH ordered_steps AS (
+    SELECT step_id,
+           ROW_NUMBER() OVER (PARTITION BY template_id ORDER BY day_offset, step_id) AS display_order
+    FROM template_steps
+)
+UPDATE template_steps target
+SET step_order = ordered_steps.display_order
+FROM ordered_steps
+WHERE target.step_id = ordered_steps.step_id;
+
+UPDATE template_steps
+SET step_name = REPLACE(step_name, '&amp;', '&'),
+    description = REPLACE(REPLACE(description, '&amp;', '&'), '.. ', '. ')
+WHERE step_name LIKE '%&amp;%' OR description LIKE '%&amp;%' OR description LIKE '%.. %';
+
 -- 9. CONTRACTS & RENTALS (Khách hàng & Hợp đồng thực tế)
 INSERT INTO contracts (contract_id, renter_id, contract_number, total_amount, status, created_at) VALUES
 (1, 1, 'HD-2026-FARM-001', 3000000.00, 'ACTIVE', NOW() - INTERVAL '30 days'),
@@ -886,10 +905,10 @@ ON CONFLICT (document_id) DO NOTHING;
 -- ============================================================
 
 -- Bảng site_visits (Đăng ký thăm quan thực địa)
-INSERT INTO site_visits (visit_id, user_id, plot_id, visit_date, slot, status, created_at) VALUES
-(1, 1, 1, CURRENT_DATE - INTERVAL '5 days', 'MORNING', 'COMPLETED', NOW() - INTERVAL '7 days'),
-(2, 2, 2, CURRENT_DATE + INTERVAL '2 days', 'MORNING', 'CONFIRMED', NOW() - INTERVAL '2 days'),
-(3, 3, 3, CURRENT_DATE + INTERVAL '3 days', 'AFTERNOON', 'PENDING', NOW() - INTERVAL '1 day')
+INSERT INTO site_visits (visit_id, plot_id, visitor_name, visitor_phone, visit_date, visit_slot, status, created_at) VALUES
+(1, 1, 'Lô Thái Quyền', '0901234567', CURRENT_DATE - INTERVAL '5 days', 'MORNING', 'COMPLETED', NOW() - INTERVAL '7 days'),
+(2, 2, 'Đào Duy Anh', '0912345678', CURRENT_DATE + INTERVAL '2 days', 'MORNING', 'CONFIRMED', NOW() - INTERVAL '2 days'),
+(3, 3, 'Tạ Nguyễn Khôi Nguyên', '0988776655', CURRENT_DATE + INTERVAL '3 days', 'AFTERNOON', 'PENDING', NOW() - INTERVAL '1 day')
 ON CONFLICT (visit_id) DO NOTHING;
 
 -- Bảng contract_cancellations (Yêu cầu hủy hợp đồng & hoàn tiền)

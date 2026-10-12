@@ -210,7 +210,7 @@ export default function PlotDetail() {
               <div className="p-3.5 rounded-2xl bg-brand-cream/60 border border-brand-border text-[11px] text-stone-600 space-y-1">
                 <p className="font-bold flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  Quyền lợi khi thuê đất tại Farmely:
+                  Quyền lợi khi thuê thửa đất tại Farmely:
                 </p>
                 <p>• Khóa giữ chỗ 15 phút + 10 phút Grace Period khi nhập mã thanh toán.</p>
                 <p>• Chính sách hoàn tiền minh bạch (80% trước 3 ngày, 50% dưới 3 ngày).</p>
@@ -356,10 +356,10 @@ export default function PlotDetail() {
           <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2">
             <p className="font-bold flex items-center gap-1.5 text-amber-800">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              Quy Trình Thuê Đất: Cần Đăng Nhập Tài Khoản
+              Quy Trình Thuê Thửa Đất: Cần Đăng Nhập Tài Khoản
             </p>
             <p className="leading-relaxed">
-              Để kích hoạt thời hạn khóa giữ chỗ 15 phút cho thửa <strong>{plot.name}</strong> và hoàn tất thủ tục Book Plot, vui lòng đăng nhập hoặc đăng ký tài khoản mới.
+              Để khóa giữ chỗ 15 phút cho thửa <strong>{plot.name}</strong> và hoàn tất thủ tục thuê, vui lòng đăng nhập hoặc đăng ký tài khoản mới.
             </p>
           </div>
 
@@ -470,7 +470,7 @@ export default function PlotDetail() {
 
           <div className="p-4 rounded-xl bg-brand-cream text-xs space-y-2 border border-brand-border">
             <div className="flex justify-between">
-              <span>Tiền thuê đất ({plot.area}):</span>
+              <span>Tiền thuê thửa đất ({plot.area}):</span>
               <strong>{plot.formattedPrice}</strong>
             </div>
             <div className="flex justify-between">

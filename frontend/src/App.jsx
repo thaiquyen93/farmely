@@ -59,6 +59,16 @@ function RoleRoute({ role, children }) {
   return children;
 }
 
+function CustomerCommerceRoute({ children }) {
+  const { user, isAuthenticated } = useAuthStore();
+
+  if (isAuthenticated && (user?.role === 'STAFF' || user?.role === 'EXPERT')) {
+    return <Navigate to={dashboardByRole[user.role]} replace />;
+  }
+
+  return children;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -69,10 +79,10 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/site-visit/book" element={<SiteVisitBooking />} />
-        <Route path="/marketplace" element={<Marketplace />} />
-        <Route path="/marketplace/plot/:id" element={<PlotDetail />} />
-        <Route path="/marketplace/plot/:id/book" element={<BookPlot />} />
+        <Route path="/site-visit/book" element={<CustomerCommerceRoute><SiteVisitBooking /></CustomerCommerceRoute>} />
+        <Route path="/marketplace" element={<CustomerCommerceRoute><Marketplace /></CustomerCommerceRoute>} />
+        <Route path="/marketplace/plot/:id" element={<CustomerCommerceRoute><PlotDetail /></CustomerCommerceRoute>} />
+        <Route path="/marketplace/plot/:id/book" element={<CustomerCommerceRoute><BookPlot /></CustomerCommerceRoute>} />
         <Route path="/payment/vnpay-return" element={<VnPayReturn />} />
 
         {/* Role-Specific Dashboards */}

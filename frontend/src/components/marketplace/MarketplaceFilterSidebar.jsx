@@ -51,7 +51,7 @@ export default function MarketplaceFilterSidebar({
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
             <input
               type="search"
-              placeholder="Tìm tên vườn, mã plot, loại cây..."
+              placeholder="Tìm nông trại, mã thửa đất..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full min-h-11 pl-10 pr-3 text-xs bg-brand-cream/50 rounded-xl border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-green/30"

@@ -20,7 +20,7 @@ function runPostgreSql(sqlQuery) {
     try {
       const child = spawn(
         PSQL_PATH,
-        ['-U', process.env.PGUSER || 'postgres', '-h', 'localhost', '-p', process.env.PGPORT || '5432', '-d', process.env.PGDATABASE || 'Farmely', '-t', '-A', '-v', 'ON_ERROR_STOP=1'],
+        ['-U', process.env.PGUSER || 'postgres', '-h', 'localhost', '-p', process.env.PGPORT || '5432', '-d', process.env.PGDATABASE || 'farmely', '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
         { env: PG_ENV }
       );
       let stdout = '';
@@ -520,6 +520,264 @@ Write-Output $json
               res.end('[]');
             }
           }
+          return;
+        }
+
+        // 6. POST /api/auth/register (Persist new user directly to PostgreSQL and SQL Server)
+        if (req.method === 'POST' && (url === '/api/auth/register' || url === '/api/v1/auth/register')) {
+          const chunks = [];
+          req.on('data', chunk => chunks.push(chunk));
+          req.on('end', async () => {
+            try {
+              const body = Buffer.concat(chunks).toString('utf8');
+              const payload = JSON.parse(body || '{}');
+              const email = (payload.email || '').trim().toLowerCase().replace(/'/g, "''");
+              const fullName = (payload.fullName || payload.full_name || email.split('@')[0] || 'Khách hàng').trim().replace(/'/g, "''");
+              const phone = (payload.phoneNumber || payload.phone || '0901234567').trim().replace(/'/g, "''");
+              const password = payload.password || 'Farmely@2026';
+              const pwdHash = '$2a$10$' + Buffer.from(password).toString('base64').padEnd(53, 'A').slice(0, 53);
+
+              if (!email) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Email không được để trống' }));
+                return;
+              }
+
+              // Check if user already exists
+              const checkSql = `SELECT user_id, email FROM users WHERE LOWER(email) = LOWER('${email}') LIMIT 1;`;
+              const checkRes = await runPostgreSql(checkSql);
+              if (checkRes && checkRes.trim()) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Email này đã tồn tại trong hệ thống' }));
+                return;
+              }
+
+              // Insert into PostgreSQL
+              const insertPg = `
+INSERT INTO users (role_id, email, password_hash, full_name, phone_number, status, created_at, updated_at)
+VALUES (1, '${email}', '${pwdHash}', '${fullName}', '${phone}', 'ACTIVE', NOW(), NOW())
+RETURNING json_build_object(
+  'user_id', user_id,
+  'role_id', role_id,
+  'email', email,
+  'full_name', full_name,
+  'phone_number', phone_number,
+  'status', status,
+  'created_at', TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS')
+);
+`;
+              const pgOut = await runPostgreSql(insertPg);
+              const cleanJsonStr = (pgOut || '').trim().split('\n')[0];
+              const createdUser = JSON.parse(cleanJsonStr || '{}');
+
+              // Sync to SQL Server via Base64 for perfect Unicode support
+              try {
+                const b64 = Buffer.from(JSON.stringify({ email, pwdHash, fullName, phone }), 'utf8').toString('base64');
+                const msScript = `
+$bytes = [System.Convert]::FromBase64String("${b64}")
+$obj = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
+$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True")
+$conn.Open()
+$cmd = $conn.CreateCommand()
+$cmd.CommandText = "INSERT INTO users (role_id, email, password_hash, full_name, phone_number, status, created_at, updated_at) VALUES (1, @email, @pwd, @name, @phone, 'ACTIVE', GETDATE(), GETDATE())"
+[void]$cmd.Parameters.AddWithValue("@email", [string]$obj.email)
+[void]$cmd.Parameters.AddWithValue("@pwd", [string]$obj.pwdHash)
+[void]$cmd.Parameters.AddWithValue("@name", [string]$obj.fullName)
+[void]$cmd.Parameters.AddWithValue("@phone", [string]$obj.phone)
+[void]$cmd.ExecuteNonQuery()
+$conn.Close()
+`;
+                runPowershell(msScript).catch(() => {});
+              } catch (e) {}
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Đăng ký tài khoản thành công vào CSDL Farmely',
+                data: {
+                  id: createdUser.user_id,
+                  userId: createdUser.user_id,
+                  email: createdUser.email,
+                  fullName: createdUser.full_name,
+                  phone: createdUser.phone_number,
+                  role: 'CUSTOMER',
+                  roleTitle: 'Khách hàng thuê đất'
+                }
+              }));
+            } catch (err) {
+              console.error('Error on /api/auth/register:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 7. GET /api/users (List all registered users from PostgreSQL)
+        if (req.method === 'GET' && url === '/api/users') {
+          try {
+            const sql = `
+SELECT COALESCE(json_agg(row_to_json(u)), '[]'::json) FROM (
+  SELECT u.user_id, u.email, u.full_name, u.phone_number, r.role_name AS role, u.status, TO_CHAR(u.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
+  FROM users u
+  JOIN roles r ON u.role_id = r.role_id
+  ORDER BY u.user_id DESC
+) u;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '[]');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 8. GET /api/lands & /api/v1/lands (List all lands / farm zones)
+        if (req.method === 'GET' && (url === '/api/lands' || url === '/api/v1/lands' || url.startsWith('/api/lands?') || url.startsWith('/api/v1/lands?'))) {
+          try {
+            const sql = `
+SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
+  SELECT 
+    l.land_id, 
+    l.land_name, 
+    l.address,
+    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id) AS total_plots,
+    TO_CHAR(l.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
+  FROM lands l
+  ORDER BY l.land_id ASC
+) l;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '[]');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 9. GET /api/plots & /api/v1/plots (List plots with filters)
+        if (req.method === 'GET' && (url === '/api/plots' || url === '/api/v1/plots' || url.startsWith('/api/plots?') || url.startsWith('/api/v1/plots?'))) {
+          try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const statusFilter = urlObj.searchParams.get('status');
+            const landFilter = urlObj.searchParams.get('landId');
+            const publishedFilter = urlObj.searchParams.get('publishedOnly');
+
+            let whereClauses = [];
+            if (statusFilter) whereClauses.push(`p.status = '${statusFilter.replace(/'/g, "''")}'`);
+            if (landFilter) whereClauses.push(`p.land_id = ${parseInt(landFilter, 10)}`);
+            if (publishedFilter === 'true') whereClauses.push(`p.is_published = true`);
+
+            const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
+
+            const sql = `
+SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
+  SELECT 
+    p.plot_id, 
+    p.land_id, 
+    l.land_name,
+    p.plot_code, 
+    p.area, 
+    p.image_url, 
+    p.price_per_period, 
+    p.status::text AS status, 
+    p.is_published,
+    TO_CHAR(p.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
+    TO_CHAR(p.updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at
+  FROM plots p
+  JOIN lands l ON p.land_id = l.land_id
+  ${whereSql}
+  ORDER BY p.plot_id ASC
+) p;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '[]');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 10. GET /api/plots/:id & /api/v1/plots/:id
+        if (req.method === 'GET' && (url.match(/^\/api\/plots\/(\d+)$/) || url.match(/^\/api\/v1\/plots\/(\d+)$/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/plots\/(\d+)$/);
+          const plotId = parseInt(match[1], 10);
+          try {
+            const sql = `
+SELECT row_to_json(p) FROM (
+  SELECT 
+    p.plot_id, 
+    p.land_id, 
+    l.land_name,
+    p.plot_code, 
+    p.area, 
+    p.image_url, 
+    p.price_per_period, 
+    p.status::text AS status, 
+    p.is_published,
+    TO_CHAR(p.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
+    TO_CHAR(p.updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at
+  FROM plots p
+  JOIN lands l ON p.land_id = l.land_id
+  WHERE p.plot_id = ${plotId}
+) p;
+`;
+            const data = await runPostgreSql(sql);
+            if (!data || data === 'null') {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Không tìm thấy thửa đất' }));
+            } else {
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(data);
+            }
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 11. PATCH /api/plots/:id/status (Update plot status: AVAIL, RENT, MAINT)
+        if (req.method === 'PATCH' && (url.match(/^\/api\/plots\/(\d+)\/status/) || url.match(/^\/api\/v1\/plots\/(\d+)\/status/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/plots\/(\d+)\/status/);
+          const plotId = parseInt(match[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const newStatus = (payload.status || 'AVAIL').toUpperCase();
+              if (!['AVAIL', 'RENT', 'MAINT'].includes(newStatus)) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: 'Status không hợp lệ (chỉ chấp nhận AVAIL, RENT, MAINT)' }));
+                return;
+              }
+              await runPostgreSql(`UPDATE plots SET status = '${newStatus}' WHERE plot_id = ${plotId};`);
+              // Sync SQL Server
+              runPowershell(`$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True"); $conn.Open(); $cmd = $conn.CreateCommand(); $cmd.CommandText = "UPDATE plots SET status = '${newStatus}' WHERE plot_id = ${plotId}"; [void]$cmd.ExecuteNonQuery(); $conn.Close();`).catch(() => {});
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: `Cập nhật trạng thái thửa đất #${plotId} thành ${newStatus}`,
+                plotId,
+                status: newStatus
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: String(err) }));
+            }
+          });
           return;
         }
 

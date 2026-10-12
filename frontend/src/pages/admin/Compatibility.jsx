@@ -247,7 +247,7 @@ export default function Compatibility() {
       >
         <form onSubmit={handleCreateRule} className="space-y-4">
           <Select
-            label="Chọn Thửa Đất (Plot)"
+            label="Chọn Thửa Đất"
             required
             value={plotId}
             onChange={(e) => setPlotId(e.target.value)}
