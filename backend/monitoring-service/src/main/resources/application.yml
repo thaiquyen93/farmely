@@ -5,9 +5,9 @@ spring:
   application:
     name: monitoring-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartagrirent_monitoring
+    url: jdbc:postgresql://localhost:5433/farmely
     username: postgres
-    password: password
+    password: 12345
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -23,3 +23,13 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+farmely:
+  sensor:
+    simulation:
+      enabled: true
+      # Chu kỳ sinh dữ liệu mới (ms) - 15000ms = 15 giây (rất thích hợp để demo realtime)
+      interval-ms: 15000
+      # Danh sách các PlotId cần sinh dữ liệu giả lập
+      plots: "1,2,3,4"
+
