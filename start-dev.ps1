@@ -8,6 +8,12 @@ $projectRoot = $PSScriptRoot
 $runtimeDir = Join-Path $projectRoot '.run'
 $jdkHome = 'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot'
 
+# Prefer the configured Supabase database automatically so local development
+# does not require Docker when `.env.supabase.local` is present.
+if (-not $Supabase -and (Test-Path -LiteralPath (Join-Path $projectRoot '.env.supabase.local'))) {
+    $Supabase = $true
+}
+
 if (-not (Test-Path -LiteralPath (Join-Path $jdkHome 'bin\java.exe'))) {
     throw "JDK 21 not found at $jdkHome"
 }
