@@ -102,7 +102,7 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 max-h-[calc(100vh-10rem)] shrink-0 overflow-y-auto px-6 py-5">
           {children}
         </div>
       </div>
