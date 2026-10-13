@@ -169,7 +169,11 @@ export default function useMapIntroAnimation({
   }, [skip]);
 
   useEffect(() => {
-    if (!enabled || !map || !workingData || workingData.features.length === 0) return undefined;
+    if (!enabled || !map || !workingData) return undefined;
+    if (workingData.features.length === 0) {
+      setPhaseSafe('done');
+      return undefined;
+    }
 
     cancelledRef.current = false;
     const features = workingData.features;

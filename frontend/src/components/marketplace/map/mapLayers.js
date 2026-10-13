@@ -12,7 +12,6 @@ import {
   getStatusConfig,
 } from '../../../utils/mapTheme';
 import { buildWorldMaskWithHole } from '../../../utils/geoUtils';
-import { FARM_GPS_BOUNDS } from '../../../data/marketplaceGisData';
 
 /** Màu khối 3D của các thửa bị làm tối khi spotlight đang bật (slate-950) */
 export const DIM_EXTRUSION_COLOR = '#0B1120';
@@ -62,24 +61,40 @@ export function registerFarmLayers(map, plotsData, options = {}) {
 
   const available = getStatusConfig('AVAILABLE');
 
-  // 1. Ranh giới toàn bộ khu đất (từ 4 mốc GPS)
-  ensureSource(map, LAYER_IDS.farmBoundarySource, {
-    type: 'geojson',
-    data: {
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'Polygon',
-        coordinates: [FARM_GPS_BOUNDS.polygon],
-      },
+  const farmRing = options.farmBoundary && options.farmBoundary.length >= 3
+    ? options.farmBoundary
+    : null;
+
+  // 1. Ranh giới toàn bộ khu đất
+  const boundaryData = {
+    type: 'Feature',
+    properties: {},
+    geometry: {
+      type: 'Polygon',
+      coordinates: farmRing ? [farmRing] : [],
     },
-  });
+  };
+
+  const dimData = farmRing ? buildWorldMaskWithHole(farmRing) : { type: 'FeatureCollection', features: [] };
+
+  if (map.getSource(LAYER_IDS.farmBoundarySource)) {
+    map.getSource(LAYER_IDS.farmBoundarySource).setData(boundaryData);
+  } else {
+    ensureSource(map, LAYER_IDS.farmBoundarySource, {
+      type: 'geojson',
+      data: boundaryData,
+    });
+  }
 
   // 1b. Mặt nạ làm tối mọi thứ NGOÀI khu đất (spotlight — mặc định opacity 0)
-  ensureSource(map, LAYER_IDS.farmDimSource, {
-    type: 'geojson',
-    data: buildWorldMaskWithHole(FARM_GPS_BOUNDS.polygon),
-  });
+  if (map.getSource(LAYER_IDS.farmDimSource)) {
+    map.getSource(LAYER_IDS.farmDimSource).setData(dimData);
+  } else {
+    ensureSource(map, LAYER_IDS.farmDimSource, {
+      type: 'geojson',
+      data: dimData,
+    });
+  }
 
   ensureLayer(map, {
     id: LAYER_IDS.farmDimOutside,
