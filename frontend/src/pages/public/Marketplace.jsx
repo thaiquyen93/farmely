@@ -43,7 +43,7 @@ export default function Marketplace() {
     let active = true;
     async function loadPlotsFromDb() {
       try {
-        const res = await fetch('/api/v1/plots');
+        const res = await fetch('/api/plots/marketplace');
         if (res.ok) {
           const json = await res.json();
           const list = Array.isArray(json) ? json : (json.data || []);
@@ -53,7 +53,7 @@ export default function Marketplace() {
           }
         }
       } catch (err) {
-        console.warn('[Marketplace] Fetch /api/v1/plots fallback to GIS data:', err);
+        console.warn('[Marketplace] Fetch /api/plots/marketplace fallback to GIS data:', err);
       }
     }
     loadPlotsFromDb();
@@ -66,7 +66,7 @@ export default function Marketplace() {
 
     const dbMap = new Map();
     dbPlots.forEach((dp) => {
-      const codeKey = (dp.plot_code || dp.code || '').toUpperCase().replace('PLOT ', '').trim();
+      const codeKey = (dp.plot_code || dp.plotCode || dp.code || '').toUpperCase().replace('PLOT ', '').trim();
       dbMap.set(codeKey, dp);
     });
 
@@ -86,14 +86,18 @@ export default function Marketplace() {
         ...feat,
         properties: {
           ...p,
-          plot_id: match.plot_id || p.plot_id,
+          plot_id: match.plot_id || match.plotId || p.plot_id,
           status: liveStatus,
           statusCode: match.status,
           price: match.price_text || p.price,
-          rentalPrice: match.price_per_period ? Number(match.price_per_period) : p.rentalPrice,
+          rentalPrice: (match.price_per_period || match.pricePerPeriod) ? Number(match.price_per_period || match.pricePerPeriod) : p.rentalPrice,
           area: match.area_text || p.area,
           sizeNumber: match.area ? Number(match.area) : p.sizeNumber,
-          compatibleCrops: (match.compatible_crops && match.compatible_crops.length > 0) ? match.compatible_crops : p.compatibleCrops,
+          compatibleCrops: match.compatible_crops?.length
+            ? match.compatible_crops
+            : (match.compatibleVarieties?.length
+                ? match.compatibleVarieties.map((item) => item.cropName || item.varietyName)
+                : p.compatibleCrops),
           dbSynced: true
         }
       };

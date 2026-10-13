@@ -8,6 +8,7 @@ x-backend-common: &backend-common
     DB_NAME: farmely
     DB_USER: postgres
     DB_PASS: password
+    DB_URL: jdbc:postgresql://postgres:5432/farmely
     DB_USERNAME: postgres
     DB_PASSWORD: password
     JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970

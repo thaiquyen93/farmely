@@ -38,7 +38,7 @@ export default function CustomerDashboard() {
       const contracts = unwrapData(await apiFetch(`/api/contracts?renterId=${user.userId}`)) || [];
       const contractIds = new Set(contracts.map((item) => Number(item.contractId)));
       const results = await Promise.all([
-        apiFetch(`/api/rentals?renterId=${user.userId}`), apiFetch('/api/v1/plots'), apiFetch('/api/v1/lands'), apiFetch('/api/tasks'),
+        apiFetch(`/api/rentals?renterId=${user.userId}`), apiFetch('/api/plots'), apiFetch('/api/lands'), apiFetch('/api/tasks'),
         apiFetch('/api/diary'), apiFetch('/api/services'), apiFetch('/api/services/requests'), apiFetch('/api/harvest'), apiFetch('/api/templates')
       ]);
       const rentals = (unwrapData(results[0]) || []).filter((item) => contractIds.has(Number(item.contractId)));
