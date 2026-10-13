@@ -20,7 +20,7 @@ export default function CustomerPlotWorkspace({ plot, plots, operations, service
 
   return (
     <section className="min-h-[calc(100dvh-5rem)] bg-[#f5f7f2] px-4 pb-12 pt-5 sm:px-6 lg:px-10">
-      <div className="mx-auto max-w-[760px] space-y-5">
+      <div className="w-full max-w-none space-y-5">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />Nông trại đang trực tuyến</div>
