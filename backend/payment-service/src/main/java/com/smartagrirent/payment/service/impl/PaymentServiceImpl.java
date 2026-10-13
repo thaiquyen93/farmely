@@ -618,7 +618,7 @@ public class PaymentServiceImpl implements PaymentService {
             }
         }
 
-        String vnpSecureHash = fields.remove("vnp_SecureHash");
+        fields.remove("vnp_SecureHash");
         fields.remove("vnp_SecureHashType");
 
         String txnRef = queryParams.get("vnp_TxnRef");
