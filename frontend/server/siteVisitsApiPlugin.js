@@ -28,6 +28,11 @@ let cachedPlotsData = null;
 let cachedPlotsTime = 0;
 const CACHE_TTL_MS = 20000; // 20s in-memory cache
 
+function invalidatePlotsCache() {
+  cachedPlotsData = null;
+  cachedPlotsTime = 0;
+}
+
 function runPostgreSql(sqlQuery) {
   return new Promise((resolve, reject) => {
     const cfg = getPgConfig();
@@ -114,6 +119,10 @@ Write-Output $result
             }
           }
           return;
+        }
+
+        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && (url.startsWith('/api/plots') || url.startsWith('/api/v1/plots') || url.startsWith('/api/lands'))) {
+          invalidatePlotsCache();
         }
 
         // 0.1 GET /api/v1/plots or GET /api/plots (Live 16 Plots from Local / Docker PostgreSQL)
