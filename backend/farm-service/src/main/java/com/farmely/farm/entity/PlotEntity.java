@@ -37,6 +37,10 @@ public class PlotEntity {
     @Column(name = "image_url", columnDefinition = "TEXT")
     private String imageUrl;
 
+    /** Ranh giới thửa: chuỗi GeoJSON Polygon (WGS84, ring đóng). Null = chưa khoanh vùng. */
+    @Column(name = "boundary_geojson", columnDefinition = "TEXT")
+    private String boundaryGeojson;
+
     @Column(name = "price_per_period", nullable = false, precision = 15, scale = 2)
     private BigDecimal pricePerPeriod;
 

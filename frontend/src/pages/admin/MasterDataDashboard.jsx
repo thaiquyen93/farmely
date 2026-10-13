@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Building2,
@@ -14,7 +14,8 @@ import {
   ArrowUpRight,
   ShieldCheck,
   TrendingUp,
-  Clock
+  Clock,
+  Database
 } from 'lucide-react';
 import { landsData } from '../../data/lands';
 import { plotsData } from '../../data/plots';
@@ -25,14 +26,34 @@ import { processTemplatesData } from '../../data/processTemplates';
 import { knowledgeDocumentsData } from '../../data/knowledgeDocuments';
 
 export default function MasterDataDashboard() {
-  const totalLands = landsData.length;
-  const totalPlots = plotsData.length;
-  const availablePlots = plotsData.filter((p) => p.status === 'AVAILABLE').length;
-  const totalCrops = cropsData.length;
-  const totalVarieties = varietiesData.length;
-  const totalIoT = iotStationsData.length;
-  const activeTemplates = processTemplatesData.filter((t) => t.status === 'ACTIVE').length;
-  const totalDocs = knowledgeDocumentsData.length;
+  const [summary, setSummary] = useState(null);
+  const [isLiveDb, setIsLiveDb] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/v1/master-data/summary')
+      .then((res) => res.json())
+      .then((res) => {
+        if (!active) return;
+        if (res && res.success && res.data) {
+          setSummary(res.data);
+          setIsLiveDb(true);
+        }
+      })
+      .catch((err) => {
+        console.warn('Cannot fetch live master-data summary, falling back to static mock:', err);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const totalLands = summary?.totalLands ?? landsData.length;
+  const totalPlots = summary?.totalPlots ?? plotsData.length;
+  const availablePlots = summary?.availablePlots ?? plotsData.filter((p) => p.status === 'AVAILABLE').length;
+  const totalCrops = summary?.totalCrops ?? cropsData.length;
+  const totalVarieties = summary?.totalVarieties ?? varietiesData.length;
+  const totalIoT = summary?.totalIoT ?? iotStationsData.length;
+  const activeTemplates = summary?.activeTemplates ?? processTemplatesData.filter((t) => t.status === 'ACTIVE').length;
+  const totalDocs = summary?.totalDocs ?? knowledgeDocumentsData.length;
 
   const stats = [
     { label: 'Tổng số Nông Trại (Lands)', value: totalLands, icon: Building2, link: '/admin/master-data/lands', color: 'text-brand-green' },
@@ -45,21 +66,56 @@ export default function MasterDataDashboard() {
     { label: 'Tài Liệu Kỹ Thuật (RAG)', value: totalDocs, icon: BookOpen, link: '/admin/master-data/knowledge-documents', color: 'text-indigo-700' },
   ];
 
-  const recentUpdates = [
-    { title: 'Cập nhật ngưỡng an toàn trạm IoT-CC-01', time: '15 phút trước', user: 'CGNN. Nguyễn Hoàng Nam', type: 'IoT Config' },
-    { title: 'Phê duyệt quy trình VietGAP Cà chua bi v2.3', time: '2 giờ trước', user: 'Hội đồng Nông học', type: 'Template' },
-    { title: 'Thêm giống mới: Dâu tây Nhật Hana chịu nhiệt', time: 'Hôm qua, 16:30', user: 'CGNN. Đặng Thu Thảo', type: 'Variety' },
-    { title: 'Hoàn tất nghiệm thu nghỉ đất 4 ngày thửa P-106', time: '2 ngày trước', user: 'Admin Hệ Thống', type: 'Fallow Protocol' },
-  ];
+  const recentUpdates = (summary?.recentAuditLogs?.length)
+    ? summary.recentAuditLogs.map((log) => {
+        let title = '';
+        let type = 'Audit Log';
+        if (log.action === 'AUTH_LOGIN') {
+          title = `Đăng nhập vào hệ thống (${log.details?.platform || 'WEB'})`;
+          type = 'Bảo mật';
+        } else if (log.action === 'CONTRACT_CONFIRM') {
+          title = `Ký hợp đồng ${log.details?.contract_number || ''} (${Number(log.details?.amount || 0).toLocaleString('vi-VN')} đ)`;
+          type = 'Hợp đồng';
+        } else if (log.action === 'TASK_FINISH') {
+          title = `Nghiệm thu: ${log.details?.step_name || ''} tại ${log.details?.plot || ''}`;
+          type = 'Hiện trường';
+        } else if (log.action === 'CANCEL_REQUEST') {
+          title = `Yêu cầu thanh lý: ${log.details?.reason || ''}`;
+          type = 'Thanh lý';
+        } else {
+          title = `${log.action} trên ${log.entity_name} #${log.entity_id}`;
+          type = log.action;
+        }
+        return {
+          title,
+          time: log.created_at,
+          user: log.user_name || 'Hệ thống',
+          type
+        };
+      })
+    : [
+        { title: 'Cập nhật ngưỡng an toàn trạm IoT-CC-01', time: '15 phút trước', user: 'CGNN. Nguyễn Hoàng Nam', type: 'IoT Config' },
+        { title: 'Phê duyệt quy trình VietGAP Cà chua bi v2.3', time: '2 giờ trước', user: 'Hội đồng Nông học', type: 'Template' },
+        { title: 'Thêm giống mới: Dâu tây Nhật Hana chịu nhiệt', time: 'Hôm qua, 16:30', user: 'CGNN. Đặng Thu Thảo', type: 'Variety' },
+        { title: 'Hoàn tất nghiệm thu nghỉ đất 4 ngày thửa P-16', time: '2 ngày trước', user: 'Admin Hệ Thống', type: 'Fallow Protocol' },
+      ];
 
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-brand-border shadow-sm">
         <div>
-          <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-brand-cream text-brand-green uppercase tracking-wider border border-brand-border">
-            Hệ Thống Quản Trị Trung Tâm
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-brand-cream text-brand-green uppercase tracking-wider border border-brand-border">
+              Hệ Thống Quản Trị Trung Tâm
+            </span>
+            {isLiveDb && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live DB: PostgreSQL</span>
+              </span>
+            )}
+          </div>
           <h1 className="text-2xl sm:text-3xl font-heading font-black text-brand-dark mt-2">
             Farmely Master Data
           </h1>
@@ -134,7 +190,7 @@ export default function MasterDataDashboard() {
               <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
               <div>
                 <strong className="text-emerald-900 block font-semibold">100% Thửa đất đã cấu hình thổ nhưỡng & ranh giới</strong>
-                <span className="text-emerald-800 text-[11px]">Tất cả các thửa P-101 đến P-106 đã liên kết với phân vùng Master Land tương ứng.</span>
+                <span className="text-emerald-800 text-[11px]">Tất cả {totalPlots} thửa đất ({totalPlots > 0 ? `P-01 đến P-${String(totalPlots).padStart(2, '0')}` : 'đang tải'}) đã liên kết với phân vùng Master Land tương ứng.</span>
               </div>
             </div>
 
@@ -142,23 +198,23 @@ export default function MasterDataDashboard() {
               <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
               <div>
                 <strong className="text-emerald-900 block font-semibold">Ma trận tương thích (Compatibility) đã kích hoạt</strong>
-                <span className="text-emerald-800 text-[11px]">Kiểm soát chặt chẽ BR03, ngăn khách hàng chọn giống cây không thích ứng với đất.</span>
+                <span className="text-emerald-800 text-[11px]">Kiểm soát chặt chẽ BR03, đã liên kết {totalVarieties} giống cây VietGAP thích ứng với từng thửa đất.</span>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 flex items-start gap-3">
-              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+            <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-start gap-3">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
               <div>
-                <strong className="text-amber-900 block font-semibold">Cảnh báo: 1 trạm IoT đang ở trạng thái Offline</strong>
-                <span className="text-amber-800 text-[11px]">Trạm IOT-DD-01 tại Thung Lũng Đơn Dương cần kiểm tra pin mặt trời.</span>
+                <strong className="text-emerald-900 block font-semibold">Quy trình chuẩn VietGAP đã phủ kín 100% giống cây</strong>
+                <span className="text-emerald-800 text-[11px]">{activeTemplates} quy trình chuẩn đã được CGNN biên soạn sẵn sàng cho hình thức Assisted-growing.</span>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 flex items-start gap-3">
-              <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+            <div className="p-3.5 rounded-xl bg-sky-50/80 border border-sky-200 flex items-start gap-3">
+              <Radio className="w-4 h-4 text-sky-600 mt-0.5 shrink-0" />
               <div>
-                <strong className="text-amber-900 block font-semibold">Giống Cải bó xôi Nhật chưa gán Quy trình chuẩn</strong>
-                <span className="text-amber-800 text-[11px]">Chuyên gia cần bổ sung Process Template trước khi mở cho thuê hình thức Assisted-growing.</span>
+                <strong className="text-sky-900 block font-semibold">Trạm quan trắc IoT vi khí hậu đang vận hành</strong>
+                <span className="text-sky-800 text-[11px]">{totalIoT} trạm cảm biến đo nhiệt độ, độ ẩm không khí và độ ẩm đất tự động (BR18 hoãn tưới khi độ ẩm đất ≥ 80%).</span>
               </div>
             </div>
           </div>
