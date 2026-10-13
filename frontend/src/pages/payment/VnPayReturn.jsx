@@ -21,7 +21,7 @@ export default function VnPayReturn() {
 
     const verifyVnPayPayment = async () => {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/payments/vnpay/return${search}`);
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/payments/vnpay/return${search}`);
         if (res.ok) {
           const data = await res.json();
           setResult(data?.data);
