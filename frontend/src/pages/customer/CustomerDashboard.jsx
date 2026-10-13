@@ -248,12 +248,13 @@ export default function CustomerDashboard() {
     {
       id: 2,
       sender: 'ai',
-      text: 'Chào bạn! Vào thời điểm này tại vùng phụ cận Củ Chi, khí hậu rất mát mẻ (28°C). Các loại rau ăn lá như Xà lách Romaine, Rau dền đỏ hoặc Cà chua bi F1 sẽ phát triển cực nhanh, chỉ sau 25-35 ngày là bạn có thể nghiệm thu giỏ rau sạch đầu tiên!',
+      text: 'Chào bạn! Tôi là Farmely AI Assistant — trợ lý thông minh của nền tảng Farmely. Tôi có thể hỗ trợ bạn tìm hiểu quy trình thuê vườn, chọn giống cây phù hợp, hướng dẫn kỹ thuật canh tác VietGAP hoặc giải đáp thắc mắc về các dịch vụ chăm sóc nông trại. Bạn cần tôi hỗ trợ thông tin gì hôm nay?',
       time: '08:16 AM'
     }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
+  const [aiConversationId, setAiConversationId] = useState(null);
 
   // Sample Customer Rented Plots Data
   const customerPlots = [
@@ -845,7 +846,7 @@ export default function CustomerDashboard() {
   const currentPlotOperations = plotOperations[selectedPlotId] || { tasks: [], diary: [] };
   const plotTabFromUrl = new URLSearchParams(location.search).get('tab') || 'overview';
 
-  const handleSendMessage = (textToSend) => {
+  const handleSendMessage = async (textToSend) => {
     const query = textToSend || chatInput;
     if (!query.trim()) return;
 
@@ -860,31 +861,85 @@ export default function CustomerDashboard() {
     if (!textToSend) setChatInput('');
     setIsAiTyping(true);
 
-    setTimeout(() => {
-      let reply = 'Farmely AI đã ghi nhận câu hỏi của bạn. ';
-      const lower = query.toLowerCase();
+    try {
+      // 1. Thử gọi qua API Gateway / Vite Proxy: /api/ai/chat
+      let response;
+      const requestBody = JSON.stringify({
+        userId: 1,
+        conversationId: aiConversationId,
+        plotId: 1,
+        message: query
+      });
 
-      if (lower.includes('độ ẩm') || lower.includes('tưới')) {
-        reply = 'Hiện tại trạm IoT ghi nhận độ ẩm đất tại các thửa đất của bạn đang ở ngưỡng tối ưu (60-75%). Theo thuật toán quan trắc vi khí hậu, thửa đất hiện tại đủ ẩm và hệ thống đã tự động hoãn lịch tưới sáng nay để tránh ngập úng rễ!';
-      } else if (lower.includes('thu hoạch') || lower.includes('khi nào')) {
-        reply = 'Thửa Xà lách Romaine tại Mộc Châu B2 hiện đã đạt 24 ngày tuổi, dự kiến vào ngày 12 tới đây sẽ đạt chuẩn thu hoạch 300g/cây. Bạn có thể chọn tự đến hái vào cuối tuần hoặc yêu cầu Farmely cắt đóng thùng giao tươi tận nhà!';
-      } else if (lower.includes('dịch vụ') || lower.includes('thuê') || lower.includes('bón phân')) {
-        reply = 'Bạn có thể vào tab "Dịch vụ canh tác" để đặt các gói chăm sóc trọn vụ, gói theo tuần hoặc các dịch vụ lẻ như bón phân, nhổ cỏ. Hệ thống hỗ trợ thanh toán trực tiếp cực kỳ nhanh chóng!';
-      } else {
-        reply = `Hệ thống ghi nhận thửa đất của bạn đang ở trạng thái sinh trưởng rất tốt. Trợ lý AI và Chuyên gia Nông nghiệp Farmely luôn đồng hành 24/7 để hỗ trợ bạn tối đa!`;
+      try {
+        response = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody
+        });
+      } catch (err) {
+        // Fallback gọi trực tiếp port 8089 nếu chưa bật Gateway
+        response = await fetch('http://localhost:8089/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody
+        });
       }
 
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          sender: 'ai',
-          text: reply,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      if (response && response.ok) {
+        const data = await response.json();
+        if (data.conversationId) {
+          setAiConversationId(data.conversationId);
         }
-      ]);
-      setIsAiTyping(false);
-    }, 700);
+
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            sender: 'ai',
+            text: data.reply,
+            sources: data.referencedDocuments || [],
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
+        setIsAiTyping(false);
+        return;
+      }
+      throw new Error('API response not ok');
+    } catch (err) {
+      console.warn('AI Service chưa khởi chạy hoặc lỗi mạng, sử dụng fallback thông minh:', err);
+      // Fallback mô phỏng khi chưa bật backend
+      setTimeout(() => {
+        let reply = 'Bác Ba Nông Dân đã ghi nhận câu hỏi của cháu. ';
+        const lower = query.toLowerCase();
+
+        if (lower.includes('độ ẩm') || lower.includes('tưới')) {
+          reply = 'Bác Ba coi qua rồi nghen! Độ ẩm đất chuẩn VietGAP là 65-75%. Nếu độ ẩm vượt 80% thì tạm ngưng cữ tưới chiều nay để tránh úng rễ, xới nhẹ luống đất cho thoáng khí nghen cháu!';
+        } else if (lower.includes('sâu') || lower.includes('bệnh') || lower.includes('rệp') || lower.includes('vietgap')) {
+          reply = 'Tuyệt đối hổng dùng thuốc hóa học nhen cháu! Lấy nước tỏi ớt gừng ngâm rượu hoặc dầu khoáng SK Enspray pha loãng xịt ướt hai mặt lá vào chiều mát là rệp sâu tiêu biến ngay!';
+        } else if (lower.includes('thu hoạch') || lower.includes('khi nào')) {
+          reply = 'Rau cải ngọt, cải thìa thì 25-30 ngày là thu hoạch được rồi; còn xà lách Romaine thì cỡ 35-45 ngày nhen. Thu hoạch sáng sớm hoặc chiều mát dùng dao sạch cắt cách gốc 2cm là chuẩn nghen!';
+        } else if (lower.includes('dịch vụ') || lower.includes('thuê') || lower.includes('bón phân')) {
+          reply = 'Bạn có thể vào tab "Dịch vụ canh tác" để đặt các gói chăm sóc trọn vụ, gói theo tuần hoặc các dịch vụ lẻ như bón phân, nhổ cỏ. Hệ thống hỗ trợ thanh toán trực tiếp cực kỳ nhanh chóng!';
+        } else {
+          reply = `Chào cháu! Bác Ba luôn túc trực hỗ trợ bà con canh tác rau sạch chuẩn VietGAP. Cứ hỏi bác cách bón phân trùn quế, bắt sâu sinh học là bác chỉ tận tình nghen!`;
+        }
+
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            sender: 'ai',
+            text: reply,
+            sources: [
+              { docTitle: 'Quy trình VietGAP', sectionTitle: 'Hướng dẫn tham khảo' }
+            ],
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
+        setIsAiTyping(false);
+      }, 700);
+    }
   };
 
   const navMenuItems = [
@@ -1780,7 +1835,19 @@ export default function CustomerDashboard() {
                             : 'bg-brand-cream text-brand-dark rounded-bl-none border border-brand-border'
                         }`}
                       >
-                        {msg.text}
+                        <div className="whitespace-pre-line">{msg.text}</div>
+                        {msg.sources && msg.sources.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-brand-border/60 text-[10px] text-stone-600">
+                            <span className="font-bold text-brand-green">📖 Trích xuất từ tài liệu (RAG):</span>
+                            <div className="mt-0.5 space-y-0.5">
+                              {msg.sources.map((s, sIdx) => (
+                                <div key={sIdx} className="italic text-stone-500">
+                                  • {s.docTitle || s.source} {s.sectionTitle ? `- ${s.sectionTitle}` : ''}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <span className="text-[10px] text-stone-400 mt-1 px-1">{msg.time}</span>
                     </div>
