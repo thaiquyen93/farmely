@@ -108,7 +108,7 @@ export default function CardPaymentModal({
 
     setIsProcessing(true);
     try {
-      const endpoint = chargeEndpoint || 'http://localhost:8085/api/v1/payments/card/charge';
+      const endpoint = chargeEndpoint || `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/payments/card/charge`;
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -42,7 +42,7 @@ export default function VnPayModal({
         ...additionalPayload
       };
 
-      const res = await fetch('http://localhost:8085/api/v1/payments/vnpay/create', {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/payments/vnpay/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

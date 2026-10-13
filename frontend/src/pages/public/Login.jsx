@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, Shield, Sprout, AlertCircle, CheckCircle2, Info } from 'lucide-react';
-import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
+import { Mail, Lock, Sprout, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
@@ -19,7 +19,7 @@ export default function Login() {
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
@@ -30,53 +30,24 @@ export default function Login() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await login(email, password);
       setIsLoading(false);
-      const res = login(email, password);
       if (res.success) {
-        setSuccessMessage(`Welcome back, ${res.user.fullName}.`);
-        setTimeout(() => {
-          if (res.user.role === 'CUSTOMER') {
-            navigate('/customer/dashboard');
-          } else if (redirectParam) {
-            navigate(redirectParam);
-          } else if (res.user.role === 'ADMIN') {
-            navigate('/admin/dashboard');
-          } else if (res.user.role === 'EXPERT') {
-            navigate('/expert/dashboard');
-          } else if (res.user.role === 'STAFF') {
-            navigate('/staff/dashboard');
-          } else {
-            navigate('/');
-          }
-        }, 600);
+        setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
+        if (redirectParam) navigate(redirectParam);
+        else if (res.user.role === 'CUSTOMER') navigate('/customer/dashboard');
+        else if (res.user.role === 'ADMIN') navigate('/admin/dashboard');
+        else if (res.user.role === 'EXPERT') navigate('/expert/dashboard');
+        else if (res.user.role === 'STAFF') navigate('/staff/dashboard');
+        else navigate('/');
       } else {
-        setErrorMessage('Incorrect email or password.');
+        setErrorMessage(res.message || 'Email hoặc mật khẩu không chính xác.');
       }
-    }, 500);
-  };
-
-  const handleQuickDemoLogin = (acc) => {
-    setEmail(acc.email);
-    setPassword('Farmely@2026');
-    setErrorMessage('');
-    const res = login(acc.email, 'Farmely@2026');
-    setSuccessMessage(`Welcome back, ${res.user.fullName}.`);
-    setTimeout(() => {
-      if (res.user.role === 'CUSTOMER') {
-        navigate('/customer/dashboard');
-      } else if (redirectParam) {
-        navigate(redirectParam);
-      } else if (res.user.role === 'ADMIN') {
-        navigate('/admin/dashboard');
-      } else if (res.user.role === 'EXPERT') {
-        navigate('/expert/dashboard');
-      } else if (res.user.role === 'STAFF') {
-        navigate('/staff/dashboard');
-      } else {
-        navigate('/');
-      }
-    }, 500);
+    } catch {
+      setIsLoading(false);
+      setErrorMessage('Không thể kết nối máy chủ xác thực.');
+    }
   };
 
   return (
@@ -143,27 +114,6 @@ export default function Login() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Quick Demo Switcher Banner */}
-          <div className="p-3.5 rounded-2xl bg-white border border-brand-border shadow-sm space-y-2">
-            <p className="text-[11px] font-bold text-brand-muted uppercase tracking-wider flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-brand-yellow" />
-              Đăng nhập nhanh các Role Demo (1-Click):
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => handleQuickDemoLogin(acc)}
-                  className="px-2.5 py-1.5 rounded-xl bg-brand-cream hover:bg-brand-yellow/20 border border-brand-border text-left transition-colors flex items-center justify-between"
-                >
-                  <span className="font-bold text-brand-dark truncate">{acc.role}</span>
-                  <span className="text-[10px] text-brand-green">Vào ngay →</span>
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Alerts */}

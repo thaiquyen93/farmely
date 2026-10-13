@@ -5,7 +5,7 @@ import Footer from '../../components/layout/Footer';
 import { plotsData } from '../../data/plots';
 import { MARKETPLACE_PLOTS_GIS } from '../../data/marketplaceGisData';
 import { getSafeCropById, safeCrops } from '../../data/safeCrops';
-import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
+import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import {
@@ -21,7 +21,6 @@ import {
   QrCode,
   AlertCircle,
   FileText,
-  UserCheck,
   Plus,
   Trash2,
   Layers,
@@ -54,7 +53,7 @@ export default function BookPlot() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, isAuthenticated, login } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
   const [selectedCropByPlot] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
@@ -307,11 +306,6 @@ export default function BookPlot() {
     setIsSuccess(true);
   };
 
-  const handleQuickCustomerLogin = () => {
-    const customer = DEMO_ACCOUNTS.find((a) => a.role === 'CUSTOMER') || DEMO_ACCOUNTS[0];
-    login(customer.email, 'Farmely@2026');
-  };
-
   return (
     <div className="min-h-screen bg-brand-cream flex flex-col font-sans">
       <PublicNavbar />
@@ -433,20 +427,6 @@ export default function BookPlot() {
               </Link>
             </div>
 
-            {/* 1-Click Demo Customer Login Shortcut */}
-            <div className="pt-4 border-t border-brand-border/60">
-              <p className="text-xs text-brand-muted mb-2 font-medium">
-                Dành cho người kiểm thử (Tester / Giảng viên):
-              </p>
-              <button
-                type="button"
-                onClick={handleQuickCustomerLogin}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
-              >
-                <UserCheck className="w-4 h-4 text-emerald-600" />
-                <span>1-Click Đăng nhập Demo Customer (Nguyen Van An)</span>
-              </button>
-            </div>
           </div>
         ) : isSuccess ? (
           /* SUCCESS CONFIRMATION */

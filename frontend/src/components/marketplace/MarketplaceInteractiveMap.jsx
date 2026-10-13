@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { FARMS_GEOJSON_DATA, FARM_GPS_BOUNDS } from '../../data/marketplaceGisData';
@@ -75,6 +75,7 @@ export default function MarketplaceInteractiveMap({
   showAllPlots = true,
   showCoordinates = true,
   focusSelected = false,
+  onPhaseChange,
   className = ''
 }) {
   const mapContainerRef = useRef(null);
@@ -82,6 +83,7 @@ export default function MarketplaceInteractiveMap({
   const markersRef = useRef([]);
   const markerNodesRef = useRef(new Map());
   const isFirstRenderRef = useRef(true);
+  const [showLoadingStatus, setShowLoadingStatus] = useState(true);
 
   const getFeatureCenter = (feature) => {
     if (!feature?.geometry?.coordinates?.[0]) return FARM_GPS_BOUNDS.center;
@@ -109,8 +111,21 @@ export default function MarketplaceInteractiveMap({
   // Khởi tạo bản đồ vệ tinh ESRI với MapLibre GL JS tại toạ độ thực của trang trại
   useEffect(() => {
     if (!mapContainerRef.current) return;
+    let hideTimer;
+    let watchdog;
+    let map;
+    const finishLoading = () => {
+      onPhaseChange?.('done');
+      window.clearTimeout(watchdog);
+      hideTimer = window.setTimeout(() => setShowLoadingStatus(false), 500);
+    };
 
-    const map = new maplibregl.Map({
+    setShowLoadingStatus(true);
+    onPhaseChange?.('waiting');
+    watchdog = window.setTimeout(finishLoading, 6500);
+
+    try {
+      map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: {
         version: 8,
@@ -138,11 +153,24 @@ export default function MarketplaceInteractiveMap({
       pitch: 35,
       bearing: -8,
       interactive
-    });
+      });
+    } catch (error) {
+      console.error('Không thể khởi tạo bản đồ:', error);
+      finishLoading();
+      return () => { window.clearTimeout(hideTimer); window.clearTimeout(watchdog); };
+    }
 
     mapRef.current = map;
+    const canvas = map.getCanvas?.();
+    const handleContextLost = (event) => {
+      event.preventDefault?.();
+      console.error('WebGL context lost');
+      finishLoading();
+    };
+    canvas?.addEventListener?.('webglcontextlost', handleContextLost);
 
     map.on('load', () => {
+      finishLoading();
       // 1. Thêm nguồn & Layer ranh giới toàn bộ khu đất (Từ 4 mốc GPS)
       map.addSource('farm-boundary', {
         type: 'geojson',
@@ -359,11 +387,14 @@ export default function MarketplaceInteractiveMap({
     });
 
     return () => {
+      window.clearTimeout(hideTimer);
+      window.clearTimeout(watchdog);
+      canvas?.removeEventListener?.('webglcontextlost', handleContextLost);
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
       map.remove();
     };
-  }, [interactive, showAllPlots, focusSelected]);
+  }, [interactive, showAllPlots, focusSelected, onPhaseChange]);
 
   // Xử lý khi selectedPlot thay đổi -> Highlight & Camera flyTo mượt mà
   useEffect(() => {
@@ -372,6 +403,7 @@ export default function MarketplaceInteractiveMap({
 
     const plotId = selectedPlot?.id || selectedPlot?.label || '';
 
+    if (typeof map.getSource !== 'function') return;
     const plotSource = map.getSource('plots');
     if (plotSource && !showAllPlots) {
       plotSource.setData(getVisiblePlotsData());
@@ -490,6 +522,7 @@ export default function MarketplaceInteractiveMap({
     <div className={`relative w-full h-full ${className}`}>
       {/* 1. Canvas Bản Đồ MapLibre GL JS */}
       <div ref={mapContainerRef} className="absolute inset-0 z-0 w-full h-full" />
+      {showLoadingStatus && <div role="status" className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/70 text-sm font-bold text-white">Đang tải bản đồ...</div>}
 
       {/* 2. Điều khiển bản đồ góc phải dưới (Map Controls) */}
       {showControls && interactive && <div className="absolute bottom-6 right-8 z-20 flex flex-col gap-2 pointer-events-auto">

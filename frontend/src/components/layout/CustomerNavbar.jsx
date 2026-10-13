@@ -12,18 +12,16 @@ import {
   User,
   LogOut,
   FileText,
-  Shield,
   Search,
   Menu,
   X
 } from 'lucide-react';
-import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
+import { useAuthStore } from '../../stores/authStore';
 import Button from '../common/Button';
 
 export default function CustomerNavbar({ activeTab, setActiveTab }) {
-  const { user, logout, switchRole } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const navigate = useNavigate();
@@ -130,56 +128,6 @@ export default function CustomerNavbar({ activeTab, setActiveTab }) {
                     <p className="font-bold">⏱ Nhắc nhở thu hoạch (Thửa B2)</p>
                     <p className="text-[11px] text-stone-600">Xà lách Romaine dự kiến đến ngày thu hoạch sau 3 ngày nữa.</p>
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* Role Demo Switcher */}
-            <div className="relative hidden sm:block">
-              <button
-                onClick={() => setRoleSwitcherOpen(!roleSwitcherOpen)}
-                className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-black/5 hover:bg-black/10 text-[#294C3B] border border-black/10 flex items-center gap-1.5 transition-colors"
-                title="Chuyển đổi Role Demo"
-              >
-                <Shield className="w-3.5 h-3.5 text-[#F5CF62]" />
-                <span className="font-bold">CUSTOMER</span>
-                <ChevronDown className="w-3 h-3 text-stone-500" />
-              </button>
-
-              {roleSwitcherOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white text-brand-dark rounded-xl shadow-elevated border border-brand-border py-2 z-50">
-                  <div className="px-3 py-1.5 border-b border-brand-border/60">
-                    <p className="text-[11px] font-bold text-brand-muted uppercase tracking-wider">
-                      Chuyển quyền thử nghiệm:
-                    </p>
-                  </div>
-                  {DEMO_ACCOUNTS.map((acc) => (
-                    <button
-                      key={acc.id}
-                      onClick={() => {
-                        switchRole(acc.role);
-                        setRoleSwitcherOpen(false);
-                        if (acc.role === 'ADMIN') {
-                          navigate('/admin/dashboard');
-                        } else if (acc.role === 'EXPERT') {
-                          navigate('/expert/dashboard');
-                        } else if (acc.role === 'STAFF') {
-                          navigate('/staff/dashboard');
-                        } else {
-                          navigate('/customer/dashboard');
-                        }
-                      }}
-                      className="w-full text-left px-3 py-2 text-xs hover:bg-brand-cream/80 flex items-center justify-between transition-colors"
-                    >
-                      <div>
-                        <p className="font-bold text-brand-dark">{acc.fullName}</p>
-                        <p className="text-[11px] text-brand-muted">{acc.roleTitle}</p>
-                      </div>
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-cream text-brand-green border border-brand-border">
-                        {acc.role}
-                      </span>
-                    </button>
-                  ))}
                 </div>
               )}
             </div>

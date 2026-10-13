@@ -82,10 +82,8 @@ export default function Register() {
       });
       setIsLoading(false);
       if (res && res.success) {
-        setSuccessMsg(res.message || 'Đăng ký tài khoản thành công vào CSDL. Đang chuyển hướng...');
-        setTimeout(() => {
-          navigate(redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login');
-        }, 1200);
+        setSuccessMsg(res.message || 'Đăng ký tài khoản thành công.');
+        navigate(redirectParam || '/customer/dashboard');
       } else {
         setErrors((prev) => ({
           ...prev,

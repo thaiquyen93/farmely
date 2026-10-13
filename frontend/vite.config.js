@@ -1,11 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-import { siteVisitsApiPlugin } from './server/siteVisitsApiPlugin.js'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), siteVisitsApiPlugin()],
+  plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -29,10 +28,6 @@ export default defineConfig({
       ignored: ['**/public/docs/**', '**/docs/**'],
     },
     proxy: {
-      '/api/v1/payments': {
-        target: 'http://localhost:8085',
-        changeOrigin: true,
-      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,

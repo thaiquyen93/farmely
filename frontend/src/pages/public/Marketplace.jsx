@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
-import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
+import { useAuthStore } from '../../stores/authStore';
 import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceInteractiveMap';
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
 import { FARMS_GEOJSON_DATA } from '../../data/marketplaceGisData';
@@ -12,7 +12,7 @@ export default function Marketplace() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user, isAuthenticated, login } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -35,7 +35,7 @@ export default function Marketplace() {
     localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(selectedCropByPlot));
   }, [selectedCropByPlot]);
 
-  // Tải dữ liệu thực tế 16 thửa đất từ Supabase PostgreSQL API
+  // Tải dữ liệu thửa đất qua API gateway.
   const [dbPlots, setDbPlots] = useState([]);
   const [dbSource, setDbSource] = useState(null);
 
@@ -49,7 +49,7 @@ export default function Marketplace() {
           const list = Array.isArray(json) ? json : (json.data || []);
           if (list && list.length > 0 && active) {
             setDbPlots(list);
-            setDbSource('Supabase PostgreSQL');
+            setDbSource('Farmely PostgreSQL');
           }
         }
       } catch (err) {
@@ -60,7 +60,7 @@ export default function Marketplace() {
     return () => { active = false; };
   }, []);
 
-  // Hợp nhất GeoJSON với dữ liệu Live DB từ Supabase
+  // Hợp nhất hình học bản đồ với dữ liệu nghiệp vụ từ backend.
   const livePlotsGeoJson = useMemo(() => {
     if (!dbPlots || dbPlots.length === 0) return FARMS_GEOJSON_DATA;
 
@@ -315,16 +315,9 @@ export default function Marketplace() {
     }
   };
 
-  // Đăng nhập nhanh tài khoản mẫu khách hàng
   const handleQuickDemoLogin = () => {
-    login('customer@farmely.vn', '123456');
     setShowAuthModal(false);
-    if (plotToBook) {
-      const plotCodes = contractSelectedPlots.length > 0
-        ? contractSelectedPlots.map((p) => p.code || p.id).join(',')
-        : (plotToBook.code || plotToBook.id);
-      navigate(`/marketplace/plot/${plotToBook.id || plotToBook.code}/book?plots=${plotCodes}`);
-    }
+    navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`);
   };
 
   return (
@@ -360,7 +353,7 @@ export default function Marketplace() {
           </div>
         </Link>
 
-        {/* Badge Live DB Supabase */}
+        {/* Badge dữ liệu backend */}
         {dbSource && (
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50/90 border border-emerald-200/90 rounded-full shadow-2xs shrink-0">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
