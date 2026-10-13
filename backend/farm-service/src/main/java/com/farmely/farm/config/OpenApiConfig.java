@@ -1,0 +1,30 @@
+package com.farmely.farm.config;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Contact;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.servers.Server;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.List;
+
+@Configuration
+public class OpenApiConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+                .info(new Info()
+                        .title("Farmely Farm & Marketplace Service API")
+                        .version("1.0.0")
+                        .description("Microservice quản lý Nông trại (Lands), Thửa đất (Plots), Sàn Marketplace và Đặt lịch thăm quan thực địa (Site Visits)")
+                        .contact(new Contact()
+                                .name("Farmely Platform Team")
+                                .email("contact@farmely.vn")))
+                .servers(List.of(
+                        new Server().url("http://localhost:8082").description("Direct Service Port"),
+                        new Server().url("http://localhost:8080").description("API Gateway Proxy")
+                ));
+    }
+}

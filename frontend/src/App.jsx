@@ -12,6 +12,7 @@ import PlotDetail from './pages/public/PlotDetail';
 import BookPlot from './pages/public/BookPlot';
 import ForgotPassword from './pages/public/ForgotPassword';
 import About from './pages/public/About';
+import VnPayReturn from './pages/payment/VnPayReturn';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ExpertDashboard from './pages/expert/ExpertDashboard';
@@ -82,6 +83,7 @@ export default function App() {
         <Route path="/marketplace" element={<CustomerCommerceRoute><Marketplace /></CustomerCommerceRoute>} />
         <Route path="/marketplace/plot/:id" element={<CustomerCommerceRoute><PlotDetail /></CustomerCommerceRoute>} />
         <Route path="/marketplace/plot/:id/book" element={<CustomerCommerceRoute><BookPlot /></CustomerCommerceRoute>} />
+        <Route path="/payment/vnpay-return" element={<VnPayReturn />} />
 
         {/* Role-Specific Dashboards */}
         <Route path="/customer/dashboard" element={<RoleRoute role="CUSTOMER"><CustomerDashboard /></RoleRoute>} />

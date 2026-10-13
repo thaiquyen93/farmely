@@ -35,10 +35,80 @@ export default function Marketplace() {
     localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(selectedCropByPlot));
   }, [selectedCropByPlot]);
 
-  // Danh sách các thửa đất từ GeoJSON
-  const allPlots = useMemo(() => {
-    return FARMS_GEOJSON_DATA.features.map((f) => f.properties);
+  // Tải dữ liệu thực tế 16 thửa đất từ Supabase PostgreSQL API
+  const [dbPlots, setDbPlots] = useState([]);
+  const [dbSource, setDbSource] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    async function loadPlotsFromDb() {
+      try {
+        const res = await fetch('/api/v1/plots');
+        if (res.ok) {
+          const json = await res.json();
+          const list = Array.isArray(json) ? json : (json.data || []);
+          if (list && list.length > 0 && active) {
+            setDbPlots(list);
+            setDbSource('Supabase PostgreSQL');
+          }
+        }
+      } catch (err) {
+        console.warn('[Marketplace] Fetch /api/v1/plots fallback to GIS data:', err);
+      }
+    }
+    loadPlotsFromDb();
+    return () => { active = false; };
   }, []);
+
+  // Hợp nhất GeoJSON với dữ liệu Live DB từ Supabase
+  const livePlotsGeoJson = useMemo(() => {
+    if (!dbPlots || dbPlots.length === 0) return FARMS_GEOJSON_DATA;
+
+    const dbMap = new Map();
+    dbPlots.forEach((dp) => {
+      const codeKey = (dp.plot_code || dp.code || '').toUpperCase().replace('PLOT ', '').trim();
+      dbMap.set(codeKey, dp);
+    });
+
+    const updatedFeatures = FARMS_GEOJSON_DATA.features.map((feat) => {
+      const p = feat.properties;
+      const featKey = (p.id || p.code || '').toUpperCase().replace('PLOT ', '').trim();
+      const match = dbMap.get(featKey);
+      if (!match) return feat;
+
+      const liveStatus = match.status === 'AVAIL'
+        ? 'Đang trống'
+        : (match.status === 'RENT'
+            ? 'Đã thuê'
+            : (match.status === 'MAINT' ? 'Bảo trì' : match.status_text || p.status));
+
+      return {
+        ...feat,
+        properties: {
+          ...p,
+          plot_id: match.plot_id || p.plot_id,
+          status: liveStatus,
+          statusCode: match.status,
+          price: match.price_text || p.price,
+          rentalPrice: match.price_per_period ? Number(match.price_per_period) : p.rentalPrice,
+          area: match.area_text || p.area,
+          sizeNumber: match.area ? Number(match.area) : p.sizeNumber,
+          compatibleCrops: (match.compatible_crops && match.compatible_crops.length > 0) ? match.compatible_crops : p.compatibleCrops,
+          dbSynced: true
+        }
+      };
+    });
+
+    return {
+      ...FARMS_GEOJSON_DATA,
+      features: updatedFeatures
+    };
+  }, [dbPlots]);
+
+  // Danh sách các thửa đất từ GeoJSON đã được đồng bộ với DB
+  const allPlots = useMemo(() => {
+    return livePlotsGeoJson.features.map((f) => f.properties);
+  }, [livePlotsGeoJson]);
 
   // Danh sách chọn nhiều thửa đất trực tiếp trên Marketplace (bảo toàn qua localStorage & URL)
   const [contractSelectedPlots, setContractSelectedPlots] = useState(() => {
@@ -121,9 +191,9 @@ export default function Marketplace() {
   const filteredPlots = useMemo(() => {
     let result = allPlots;
     if (statusFilter === 'AVAILABLE') {
-      result = result.filter((p) => p.status === 'Đang trống' || p.status === 'AVAILABLE');
+      result = result.filter((p) => p.status === 'Đang trống' || p.status === 'AVAILABLE' || p.statusCode === 'AVAIL');
     } else if (statusFilter === 'RENTED') {
-      result = result.filter((p) => p.status === 'Đã thuê' || p.status === 'RENTED');
+      result = result.filter((p) => p.status === 'Đã thuê' || p.status === 'RENTED' || p.statusCode === 'RENT');
     }
 
     if (!searchQuery.trim()) return result;
@@ -147,7 +217,7 @@ export default function Marketplace() {
 
   // Thống kê số thửa sẵn có
   const availableCount = useMemo(() => {
-    return allPlots.filter((p) => p.status === 'Đang trống' || p.status === 'AVAILABLE').length;
+    return allPlots.filter((p) => p.status === 'Đang trống' || p.status === 'AVAILABLE' || p.statusCode === 'AVAIL').length;
   }, [allPlots]);
 
   // Chọn thửa đất
@@ -264,7 +334,7 @@ export default function Marketplace() {
       ───────────────────────────────────────────────────────────────────────────── */}
       <div id="map" className="absolute inset-0 z-0 w-full h-full">
         <MarketplaceInteractiveMap
-          plotsData={FARMS_GEOJSON_DATA}
+          plotsData={livePlotsGeoJson}
           selectedPlot={selectedPlot}
           onSelectPlot={handleSelectPlot}
           onResetView={handleCloseDetail}
@@ -289,6 +359,14 @@ export default function Marketplace() {
             </span>
           </div>
         </Link>
+
+        {/* Badge Live DB Supabase */}
+        {dbSource && (
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50/90 border border-emerald-200/90 rounded-full shadow-2xs shrink-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Live DB: {dbPlots.length} Plots</span>
+          </div>
+        )}
 
         {/* Phân cách mờ */}
         <div className="h-4 w-[1px] bg-slate-200/80 shrink-0" />

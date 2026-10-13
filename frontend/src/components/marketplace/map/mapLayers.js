@@ -17,6 +17,12 @@ import { FARM_GPS_BOUNDS } from '../../../data/marketplaceGisData';
 /** Màu khối 3D của các thửa bị làm tối khi spotlight đang bật (slate-950) */
 export const DIM_EXTRUSION_COLOR = '#0B1120';
 
+/** Độ mờ fill nền của thửa — đủ để thấy trạng thái, vẫn xuyên được ảnh vệ tinh */
+export const PLOT_FILL_OPACITY = 0.16;
+
+/** Độ mờ fill khi rê chuột vào thửa */
+export const PLOT_HOVER_FILL_OPACITY = 0.55;
+
 /** Thêm source nếu chưa tồn tại (chống đăng ký trùng khi HMR) */
 function ensureSource(map, id, spec) {
   if (!map.getSource(id)) {
@@ -118,39 +124,53 @@ export function registerFarmLayers(map, plotsData, options = {}) {
     },
   });
 
-  // 5. Layer fill trong suốt — chỉ làm vùng click/hover
+  // 5. Fill nền nhẹ theo trạng thái — vừa là vùng click/hover, vừa giúp phân biệt
+  //    thửa trống / đã thuê ngay từ cái nhìn đầu tiên (đủ nhạt để còn thấy ảnh vệ tinh)
   ensureLayer(map, {
     id: LAYER_IDS.plotsFill,
     type: 'fill',
     source: LAYER_IDS.plotsSource,
     paint: {
-      'fill-color': 'rgba(0, 0, 0, 0)',
-      'fill-opacity': 0,
+      'fill-color': buildStatusColorExpression('color'),
+      'fill-opacity': PLOT_FILL_OPACITY,
     },
   });
 
-  // 5b. Fill hover — chỉ hiện khi rê chuột vào 1 thửa cụ thể
+  // 5b. Fill hover — chỉ hiện khi rê chuột vào 1 thửa cụ thể, màu đậm theo trạng thái
   ensureLayer(map, {
     id: LAYER_IDS.plotsFillHover,
     type: 'fill',
     source: LAYER_IDS.plotsSource,
     paint: {
-      'fill-color': available.fillColor,
-      'fill-opacity': 0.45,
+      'fill-color': buildStatusColorExpression('hoverFillColor'),
+      'fill-opacity': PLOT_HOVER_FILL_OPACITY,
     },
     filter: ['==', ['get', 'id'], ''],
   });
 
-  // 6. Viền nét đứt mỏng giữa các thửa
+  // 6a. Viền nền rộng, mờ — giúp cạnh thửa đọc được cả trên đất tối lẫn rau sáng
+  ensureLayer(map, {
+    id: LAYER_IDS.plotsOutlineSoft,
+    type: 'line',
+    source: LAYER_IDS.plotsSource,
+    paint: {
+      'line-color': buildStatusColorExpression('strokeColor'),
+      'line-width': 4,
+      'line-blur': 3,
+      'line-opacity': 0.4,
+    },
+  });
+
+  // 6. Viền nét đứt mỏng, sắc nét giữa các thửa (màu theo trạng thái)
   ensureLayer(map, {
     id: LAYER_IDS.plotsOutline,
     type: 'line',
     source: LAYER_IDS.plotsSource,
     paint: {
-      'line-color': 'rgba(255, 255, 255, 0.55)',
-      'line-width': 1,
+      'line-color': buildStatusColorExpression('strokeColor'),
+      'line-width': 1.4,
       'line-dasharray': [4, 3],
-      'line-opacity': 1,
+      'line-opacity': 0.95,
     },
   });
 
