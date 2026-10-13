@@ -199,6 +199,54 @@ SELECT json_build_object(
           return;
         }
 
+        // 0.2 GET /api/v1/master-data/summary or GET /api/master-data/summary
+        if (req.method === 'GET' && (url === '/api/v1/master-data/summary' || url === '/api/master-data/summary' || url === '/api/admin/master-data/summary')) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy dữ liệu Master Data thành công từ PostgreSQL',
+  'data', json_build_object(
+    'totalLands', (SELECT count(*)::int FROM lands),
+    'totalPlots', (SELECT count(*)::int FROM plots),
+    'availablePlots', (SELECT count(*)::int FROM plots WHERE status = 'AVAIL'),
+    'rentedPlots', (SELECT count(*)::int FROM plots WHERE status = 'RENT'),
+    'maintenancePlots', (SELECT count(*)::int FROM plots WHERE status = 'MAINT'),
+    'totalCrops', (SELECT count(*)::int FROM crops),
+    'totalVarieties', (SELECT count(*)::int FROM varieties),
+    'totalIoT', 6,
+    'activeTemplates', (SELECT count(*)::int FROM process_templates),
+    'totalDocs', (SELECT count(*)::int FROM knowledge_documents),
+    'recentAuditLogs', (
+      SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
+        SELECT 
+          al.log_id,
+          al.action,
+          al.entity_name,
+          al.entity_id,
+          COALESCE(u.full_name, 'Hệ thống') as user_name,
+          TO_CHAR(al.created_at, 'YYYY-MM-DD HH24:MI:SS') as created_at,
+          al.details
+        FROM audit_logs al
+        LEFT JOIN users u ON al.user_id = u.user_id
+        ORDER BY al.created_at DESC
+        LIMIT 4
+      ) l
+    )
+  )
+);
+`;
+            const pgResult = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(pgResult || '{}');
+          } catch (err) {
+            console.error('PostgreSQL error on master-data summary:', err);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
         // 1. GET /api/site-visits
         if (req.method === 'GET' && (url === '/api/site-visits' || url.startsWith('/api/site-visits?'))) {
           try {
@@ -718,32 +766,337 @@ SELECT COALESCE(json_agg(row_to_json(u)), '[]'::json) FROM (
           return;
         }
 
-        // 8. GET /api/lands & /api/v1/lands (List all lands / farm zones)
+        // Helper tính diện tích m² theo toạ độ ring [lng, lat]
+        const EARTH_RADIUS_M = 6378137;
+        function calculateAreaM2(ring) {
+          if (!ring || !Array.isArray(ring) || ring.length < 3) return 0;
+          const rad = (d) => (d * Math.PI) / 180;
+          let total = 0;
+          const n = ring.length;
+          for (let i = 0; i < n; i++) {
+            const p1 = ring[i];
+            const p2 = ring[(i + 1) % n];
+            total += rad(p2[0] - p1[0]) * (2 + Math.sin(rad(p1[1])) + Math.sin(rad(p2[1])));
+          }
+          return Math.round(Math.abs((total * EARTH_RADIUS_M * EARTH_RADIUS_M) / 2) * 100) / 100;
+        }
+
+        // 8.1 GET /api/lands & /api/v1/lands (List all lands / farm zones)
         if (req.method === 'GET' && (url === '/api/lands' || url === '/api/v1/lands' || url.startsWith('/api/lands?') || url.startsWith('/api/v1/lands?'))) {
           try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const search = (urlObj.searchParams.get('search') || '').trim().toLowerCase();
+            let whereSql = '';
+            if (search) {
+              const sSafe = search.replace(/'/g, "''");
+              whereSql = `WHERE LOWER(l.land_name) LIKE '%${sSafe}%' OR LOWER(l.address) LIKE '%${sSafe}%'`;
+            }
+
             const sql = `
 SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
   SELECT 
-    l.land_id, 
-    l.land_name, 
+    l.land_id AS "landId", 
+    l.land_name AS "landName", 
     l.address,
-    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id) AS total_plots,
-    TO_CHAR(l.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
+    COALESCE(l.description, '') AS "description",
+    CASE 
+      WHEN l.boundary_geojson IS NOT NULL AND l.boundary_geojson != '' 
+      THEN l.boundary_geojson::json 
+      ELSE NULL 
+    END AS "boundary",
+    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id) AS "totalPlots",
+    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'AVAIL') AS "availablePlots",
+    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'RENT') AS "rentedPlots",
+    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'MAINT') AS "maintenancePlots",
+    TO_CHAR(l.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
+    TO_CHAR(l.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt"
   FROM lands l
+  ${whereSql}
   ORDER BY l.land_id ASC
 ) l;
 `;
-            const data = await runPostgreSql(sql);
+            const rawData = await runPostgreSql(sql);
+            const landsList = JSON.parse(rawData || '[]');
+            landsList.forEach(l => {
+              l.boundaryAreaM2 = l.boundary ? calculateAreaM2(l.boundary) : null;
+            });
+
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(data || '[]');
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Lấy danh sách nông trại thành công',
+              data: landsList
+            }));
           } catch (err) {
             res.statusCode = 500;
-            res.end(JSON.stringify({ error: String(err) }));
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, error: String(err) }));
           }
           return;
         }
 
-        // 9. GET /api/plots & /api/v1/plots (List plots with filters)
+        // 8.2 GET /api/lands/:id & /api/v1/lands/:id (Land detail + Plots list)
+        if (req.method === 'GET' && (url.match(/^\/api\/lands\/(\d+)$/) || url.match(/^\/api\/v1\/lands\/(\d+)$/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/lands\/(\d+)$/);
+          const landId = parseInt(match[1], 10);
+          try {
+            const sql = `
+SELECT row_to_json(l) FROM (
+  SELECT 
+    l.land_id AS "landId", 
+    l.land_name AS "landName", 
+    l.address,
+    COALESCE(l.description, '') AS "description",
+    CASE 
+      WHEN l.boundary_geojson IS NOT NULL AND l.boundary_geojson != '' 
+      THEN l.boundary_geojson::json 
+      ELSE NULL 
+    END AS "boundary",
+    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id) AS "totalPlots",
+    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'AVAIL') AS "availablePlots",
+    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'RENT') AS "rentedPlots",
+    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'MAINT') AS "maintenancePlots",
+    TO_CHAR(l.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
+    TO_CHAR(l.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt",
+    COALESCE(
+      (
+        SELECT json_agg(row_to_json(p)) FROM (
+          SELECT 
+            p.plot_id AS "plotId",
+            p.plot_code AS "plotCode",
+            p.area,
+            p.price_per_period AS "pricePerPeriod",
+            p.status::text AS "status",
+            p.is_published AS "isPublished",
+            p.image_url AS "imageUrl",
+            CASE 
+              WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
+              THEN p.boundary_geojson::json 
+              ELSE NULL 
+            END AS "boundary"
+          FROM plots p
+          WHERE p.land_id = l.land_id
+          ORDER BY p.plot_id ASC
+        ) p
+      ),
+      '[]'::json
+    ) AS "plots"
+  FROM lands l
+  WHERE l.land_id = ${landId}
+) l;
+`;
+            const rawData = await runPostgreSql(sql);
+            if (!rawData || rawData === 'null' || rawData.trim() === '') {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: `Không tìm thấy nông trại #${landId}` }));
+            } else {
+              const landObj = JSON.parse(rawData);
+              landObj.boundaryAreaM2 = landObj.boundary ? calculateAreaM2(landObj.boundary) : null;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Lấy chi tiết nông trại thành công',
+                data: landObj
+              }));
+            }
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 8.3 POST /api/lands & /api/v1/lands (Create New Land with Boundary)
+        if (req.method === 'POST' && (url === '/api/lands' || url === '/api/v1/lands')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const landName = (payload.landName || '').trim();
+              const address = (payload.address || '').trim();
+              const description = (payload.description || '').trim();
+              const boundary = Array.isArray(payload.boundary) ? payload.boundary : null;
+
+              if (!landName) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Vui lòng nhập tên khu nông trại.' }));
+                return;
+              }
+              if (!address) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Vui lòng nhập địa chỉ thực địa.' }));
+                return;
+              }
+
+              const boundaryJson = boundary ? JSON.stringify(boundary).replace(/'/g, "''") : null;
+              const boundarySqlVal = boundaryJson ? `'${boundaryJson}'` : 'NULL';
+              const nameSafe = landName.replace(/'/g, "''");
+              const addrSafe = address.replace(/'/g, "''");
+              const descSafe = description.replace(/'/g, "''");
+
+              const insertPg = `
+INSERT INTO lands (land_name, address, description, boundary_geojson, created_at, updated_at)
+VALUES ('${nameSafe}', '${addrSafe}', '${descSafe}', ${boundarySqlVal}, NOW(), NOW())
+RETURNING land_id, land_name, address, description, created_at, updated_at;
+`;
+              const pgOut = await runPostgreSql(insertPg);
+              const cleanRow = (pgOut || '').trim().split('\n')[0];
+              const parts = cleanRow.split('|');
+              const newLandId = parseInt(parts[0], 10);
+
+              // Sync to SQL Server isp392_agritech
+              try {
+                let centerLng = 106.35, centerLat = 10.68;
+                if (boundary && boundary.length > 0) {
+                  centerLng = boundary.reduce((s, p) => s + p[0], 0) / boundary.length;
+                  centerLat = boundary.reduce((s, p) => s + p[1], 0) / boundary.length;
+                }
+                const bArea = boundary ? calculateAreaM2(boundary) : 0;
+                const msScript = `
+$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True");
+$conn.Open();
+$cmd = $conn.CreateCommand();
+$cmd.CommandText = "INSERT INTO lands (land_name, address, gps_lat, gps_lng, total_area_sqm, created_at, updated_at) VALUES (@name, @addr, @lat, @lng, @area, GETDATE(), GETDATE())";
+[void]$cmd.Parameters.AddWithValue("@name", "${nameSafe}");
+[void]$cmd.Parameters.AddWithValue("@addr", "${addrSafe}");
+[void]$cmd.Parameters.AddWithValue("@lat", [decimal]${centerLat.toFixed(6)});
+[void]$cmd.Parameters.AddWithValue("@lng", [decimal]${centerLng.toFixed(6)});
+[void]$cmd.Parameters.AddWithValue("@area", [decimal]${bArea.toFixed(2)});
+[void]$cmd.ExecuteNonQuery();
+$conn.Close();
+`;
+                runPowershell(msScript).catch(() => {});
+              } catch (e) {}
+
+              invalidatePlotsCache();
+
+              const boundaryAreaM2 = boundary ? calculateAreaM2(boundary) : null;
+              res.statusCode = 201;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Tạo nông trại mới thành công',
+                data: {
+                  landId: newLandId,
+                  landName,
+                  address,
+                  description,
+                  boundary,
+                  boundaryAreaM2,
+                  totalPlots: 0,
+                  availablePlots: 0,
+                  rentedPlots: 0,
+                  maintenancePlots: 0,
+                  plots: []
+                }
+              }));
+            } catch (err) {
+              console.error('Error on POST /api/lands:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 8.4 PUT /api/lands/:id & /api/v1/lands/:id (Update Land)
+        if (req.method === 'PUT' && (url.match(/^\/api\/lands\/(\d+)$/) || url.match(/^\/api\/v1\/lands\/(\d+)$/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/lands\/(\d+)$/);
+          const landId = parseInt(match[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const landName = (payload.landName || '').trim();
+              const address = (payload.address || '').trim();
+              const description = (payload.description || '').trim();
+              const boundary = Array.isArray(payload.boundary) ? payload.boundary : null;
+
+              const boundaryJson = boundary ? JSON.stringify(boundary).replace(/'/g, "''") : null;
+              const boundarySqlVal = boundaryJson ? `'${boundaryJson}'` : 'NULL';
+              const nameSafe = landName.replace(/'/g, "''");
+              const addrSafe = address.replace(/'/g, "''");
+              const descSafe = description.replace(/'/g, "''");
+
+              const updateSql = `
+UPDATE lands 
+SET land_name = '${nameSafe}', address = '${addrSafe}', description = '${descSafe}', boundary_geojson = ${boundarySqlVal}, updated_at = NOW()
+WHERE land_id = ${landId};
+`;
+              await runPostgreSql(updateSql);
+
+              invalidatePlotsCache();
+
+              const boundaryAreaM2 = boundary ? calculateAreaM2(boundary) : null;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Cập nhật nông trại thành công',
+                data: {
+                  landId,
+                  landName,
+                  address,
+                  description,
+                  boundary,
+                  boundaryAreaM2
+                }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 8.5 DELETE /api/lands/:id & /api/v1/lands/:id (Delete Land)
+        if (req.method === 'DELETE' && (url.match(/^\/api\/lands\/(\d+)$/) || url.match(/^\/api\/v1\/lands\/(\d+)$/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/lands\/(\d+)$/);
+          const landId = parseInt(match[1], 10);
+          try {
+            // Check if any plots are rented
+            const checkSql = `SELECT COUNT(*) FROM plots WHERE land_id = ${landId} AND status = 'RENT';`;
+            const checkOut = await runPostgreSql(checkSql);
+            const rentedCount = parseInt((checkOut || '0').trim(), 10);
+            if (rentedCount > 0) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: false,
+                message: 'Không thể xóa nông trại khi còn thửa đất đang được thuê.'
+              }));
+              return;
+            }
+
+            await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id IN (SELECT plot_id FROM plots WHERE land_id = ${landId});`);
+            await runPostgreSql(`DELETE FROM plots WHERE land_id = ${landId};`);
+            await runPostgreSql(`DELETE FROM lands WHERE land_id = ${landId};`);
+
+            invalidatePlotsCache();
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Đã xóa nông trại thành công',
+              data: null
+            }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: String(err) }));
+          }
+          return;
+        }
+
+        // 9.1 GET /api/plots & /api/v1/plots (List plots with filters & camelCase data)
         if (req.method === 'GET' && (url === '/api/plots' || url === '/api/v1/plots' || url.startsWith('/api/plots?') || url.startsWith('/api/v1/plots?'))) {
           try {
             const urlObj = new URL(url, 'http://localhost:3000');
@@ -761,17 +1114,22 @@ SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
             const sql = `
 SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
   SELECT 
-    p.plot_id, 
-    p.land_id, 
-    l.land_name,
-    p.plot_code, 
+    p.plot_id AS "plotId", 
+    p.land_id AS "landId", 
+    l.land_name AS "landName",
+    p.plot_code AS "plotCode", 
     p.area, 
-    p.image_url, 
-    p.price_per_period, 
-    p.status::text AS status, 
-    p.is_published,
-    TO_CHAR(p.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
-    TO_CHAR(p.updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at
+    p.image_url AS "imageUrl", 
+    p.price_per_period AS "pricePerPeriod", 
+    p.status::text AS "status", 
+    p.is_published AS "isPublished",
+    CASE 
+      WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
+      THEN p.boundary_geojson::json 
+      ELSE NULL 
+    END AS "boundary",
+    TO_CHAR(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
+    TO_CHAR(p.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt"
   FROM plots p
   JOIN lands l ON p.land_id = l.land_id
   ${whereSql}
@@ -779,16 +1137,22 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
 ) p;
 `;
             const data = await runPostgreSql(sql);
+            const plotsList = JSON.parse(data || '[]');
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(data || '[]');
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Lấy danh sách thửa đất thành công',
+              data: plotsList
+            }));
           } catch (err) {
             res.statusCode = 500;
-            res.end(JSON.stringify({ error: String(err) }));
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, error: String(err) }));
           }
           return;
         }
 
-        // 10. GET /api/plots/:id & /api/v1/plots/:id
+        // 9.2 GET /api/plots/:id & /api/v1/plots/:id
         if (req.method === 'GET' && (url.match(/^\/api\/plots\/(\d+)$/) || url.match(/^\/api\/v1\/plots\/(\d+)$/))) {
           const match = url.match(/^\/api(?:\/v1)?\/plots\/(\d+)$/);
           const plotId = parseInt(match[1], 10);
@@ -796,34 +1160,213 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
             const sql = `
 SELECT row_to_json(p) FROM (
   SELECT 
-    p.plot_id, 
-    p.land_id, 
-    l.land_name,
-    p.plot_code, 
+    p.plot_id AS "plotId", 
+    p.land_id AS "landId", 
+    l.land_name AS "landName",
+    p.plot_code AS "plotCode", 
     p.area, 
-    p.image_url, 
-    p.price_per_period, 
-    p.status::text AS status, 
-    p.is_published,
-    TO_CHAR(p.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
-    TO_CHAR(p.updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at
+    p.image_url AS "imageUrl", 
+    p.price_per_period AS "pricePerPeriod", 
+    p.status::text AS "status", 
+    p.is_published AS "isPublished",
+    CASE 
+      WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
+      THEN p.boundary_geojson::json 
+      ELSE NULL 
+    END AS "boundary",
+    TO_CHAR(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
+    TO_CHAR(p.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt"
   FROM plots p
   JOIN lands l ON p.land_id = l.land_id
   WHERE p.plot_id = ${plotId}
 ) p;
 `;
             const data = await runPostgreSql(sql);
-            if (!data || data === 'null') {
+            if (!data || data === 'null' || data.trim() === '') {
               res.statusCode = 404;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: false, message: 'Không tìm thấy thửa đất' }));
             } else {
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(data);
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Lấy thông tin thửa đất thành công',
+                data: JSON.parse(data)
+              }));
             }
           } catch (err) {
             res.statusCode = 500;
-            res.end(JSON.stringify({ error: String(err) }));
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 9.3 POST /api/plots & /api/v1/plots (Create New Plot)
+        if (req.method === 'POST' && (url === '/api/plots' || url === '/api/v1/plots')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const landId = parseInt(payload.landId, 10);
+              const plotCode = (payload.plotCode || '').trim().toUpperCase();
+              const pricePerPeriod = parseFloat(payload.pricePerPeriod) || 1200000;
+              const status = (payload.status || 'AVAIL').toUpperCase();
+              const isPublished = payload.isPublished !== false;
+              const imageUrl = (payload.imageUrl || '').trim();
+              const boundary = Array.isArray(payload.boundary) ? payload.boundary : null;
+              let area = parseFloat(payload.area) || 0;
+
+              if (boundary && boundary.length >= 3) {
+                area = calculateAreaM2(boundary);
+              }
+
+              if (!landId) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Vui lòng chọn nông trại trực thuộc.' }));
+                return;
+              }
+              if (!plotCode) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Vui lòng nhập mã thửa đất.' }));
+                return;
+              }
+
+              const boundaryJson = boundary ? JSON.stringify(boundary).replace(/'/g, "''") : null;
+              const boundarySqlVal = boundaryJson ? `'${boundaryJson}'` : 'NULL';
+              const imgSqlVal = imageUrl ? `'${imageUrl.replace(/'/g, "''")}'` : 'NULL';
+
+              const insertPg = `
+INSERT INTO plots (land_id, plot_code, area, image_url, price_per_period, status, is_published, boundary_geojson, created_at, updated_at)
+VALUES (${landId}, '${plotCode.replace(/'/g, "''")}', ${area}, ${imgSqlVal}, ${pricePerPeriod}, '${status}', ${isPublished}, ${boundarySqlVal}, NOW(), NOW())
+RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_published, created_at, updated_at;
+`;
+              const pgOut = await runPostgreSql(insertPg);
+              const parts = (pgOut || '').trim().split('\n')[0].split('|');
+              const newPlotId = parseInt(parts[0], 10);
+
+              invalidatePlotsCache();
+
+              res.statusCode = 201;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Tạo thửa đất mới thành công',
+                data: {
+                  plotId: newPlotId,
+                  landId,
+                  plotCode,
+                  area,
+                  pricePerPeriod,
+                  status,
+                  isPublished,
+                  boundary,
+                  imageUrl
+                }
+              }));
+            } catch (err) {
+              console.error('Error on POST /api/plots:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 9.4 PUT /api/plots/:id & /api/v1/plots/:id (Update Plot)
+        if (req.method === 'PUT' && (url.match(/^\/api\/plots\/(\d+)$/) || url.match(/^\/api\/v1\/plots\/(\d+)$/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/plots\/(\d+)$/);
+          const plotId = parseInt(match[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const landId = parseInt(payload.landId, 10);
+              const plotCode = (payload.plotCode || '').trim().toUpperCase();
+              const pricePerPeriod = parseFloat(payload.pricePerPeriod) || 1200000;
+              const status = (payload.status || 'AVAIL').toUpperCase();
+              const isPublished = payload.isPublished !== false;
+              const imageUrl = (payload.imageUrl || '').trim();
+              const boundary = Array.isArray(payload.boundary) ? payload.boundary : null;
+              let area = parseFloat(payload.area) || 0;
+
+              if (boundary && boundary.length >= 3) {
+                area = calculateAreaM2(boundary);
+              }
+
+              const boundarySqlVal = boundary ? `'${JSON.stringify(boundary).replace(/'/g, "''")}'` : 'NULL';
+              const imgSqlVal = imageUrl ? `'${imageUrl.replace(/'/g, "''")}'` : 'NULL';
+
+              let setClauses = [
+                `land_id = ${landId}`,
+                `plot_code = '${plotCode.replace(/'/g, "''")}'`,
+                `price_per_period = ${pricePerPeriod}`,
+                `status = '${status}'`,
+                `is_published = ${isPublished}`,
+                `updated_at = NOW()`
+              ];
+              if (area > 0) setClauses.push(`area = ${area}`);
+              if (imageUrl) setClauses.push(`image_url = ${imgSqlVal}`);
+              if (boundary) setClauses.push(`boundary_geojson = ${boundarySqlVal}`);
+
+              const updateSql = `UPDATE plots SET ${setClauses.join(', ')} WHERE plot_id = ${plotId};`;
+              await runPostgreSql(updateSql);
+
+              invalidatePlotsCache();
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Cập nhật thửa đất thành công',
+                data: {
+                  plotId,
+                  landId,
+                  plotCode,
+                  area,
+                  pricePerPeriod,
+                  status,
+                  isPublished,
+                  boundary,
+                  imageUrl
+                }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 9.5 DELETE /api/plots/:id & /api/v1/plots/:id (Delete Plot)
+        if (req.method === 'DELETE' && (url.match(/^\/api\/plots\/(\d+)$/) || url.match(/^\/api\/v1\/plots\/(\d+)$/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/plots\/(\d+)$/);
+          const plotId = parseInt(match[1], 10);
+          try {
+            await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id = ${plotId};`);
+            await runPostgreSql(`DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = ${plotId});`);
+            await runPostgreSql(`DELETE FROM rentals WHERE plot_id = ${plotId};`);
+            await runPostgreSql(`DELETE FROM site_visits WHERE plot_id = ${plotId};`);
+            await runPostgreSql(`DELETE FROM plots WHERE plot_id = ${plotId};`);
+
+            invalidatePlotsCache();
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Đã xóa thửa đất thành công',
+              data: null
+            }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: String(err) }));
           }
           return;
         }
