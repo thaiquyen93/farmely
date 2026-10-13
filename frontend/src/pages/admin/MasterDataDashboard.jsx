@@ -17,8 +17,7 @@ import {
   Clock,
   Database
 } from 'lucide-react';
-import { landsData } from '../../data/lands';
-import { plotsData } from '../../data/plots';
+import { farmApi } from '../../api/farm/farmApi';
 import { cropsData } from '../../data/crops';
 import { varietiesData } from '../../data/varieties';
 import { iotStationsData } from '../../data/iotStations';
@@ -27,10 +26,26 @@ import { knowledgeDocumentsData } from '../../data/knowledgeDocuments';
 
 export default function MasterDataDashboard() {
   const [summary, setSummary] = useState(null);
+  const [dbLandsCount, setDbLandsCount] = useState(0);
+  const [dbPlotsCount, setDbPlotsCount] = useState(0);
+  const [dbAvailPlotsCount, setDbAvailPlotsCount] = useState(0);
   const [isLiveDb, setIsLiveDb] = useState(false);
 
   useEffect(() => {
     let active = true;
+
+    // Load lands & plots live count from database
+    Promise.all([
+      farmApi.listLands().catch(() => []),
+      farmApi.listPlots().catch(() => [])
+    ]).then(([lands, plots]) => {
+      if (!active) return;
+      setDbLandsCount((lands || []).length);
+      setDbPlotsCount((plots || []).length);
+      setDbAvailPlotsCount((plots || []).filter((p) => p.status === 'AVAIL' || p.status === 'AVAILABLE').length);
+      setIsLiveDb(true);
+    });
+
     fetch('/api/v1/master-data/summary')
       .then((res) => res.json())
       .then((res) => {
@@ -41,14 +56,14 @@ export default function MasterDataDashboard() {
         }
       })
       .catch((err) => {
-        console.warn('Cannot fetch live master-data summary, falling back to static mock:', err);
+        console.warn('Cannot fetch live master-data summary:', err);
       });
     return () => { active = false; };
   }, []);
 
-  const totalLands = summary?.totalLands ?? landsData.length;
-  const totalPlots = summary?.totalPlots ?? plotsData.length;
-  const availablePlots = summary?.availablePlots ?? plotsData.filter((p) => p.status === 'AVAILABLE').length;
+  const totalLands = summary?.totalLands ?? dbLandsCount;
+  const totalPlots = summary?.totalPlots ?? dbPlotsCount;
+  const availablePlots = summary?.availablePlots ?? dbAvailPlotsCount;
   const totalCrops = summary?.totalCrops ?? cropsData.length;
   const totalVarieties = summary?.totalVarieties ?? varietiesData.length;
   const totalIoT = summary?.totalIoT ?? iotStationsData.length;

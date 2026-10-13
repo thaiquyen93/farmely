@@ -3,10 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import Hero from '../../components/public/Hero';
-import PlotCard from '../../components/public/PlotCard';
 import FarmCard from '../../components/public/FarmCard';
-import { plotsData } from '../../data/plots';
-import { landsData } from '../../data/lands';
+import { farmApi } from '../../api/farm/farmApi';
 import {
   Sprout,
   Radio,
@@ -28,8 +26,14 @@ import {
 import Button from '../../components/common/Button';
 
 export default function Home() {
-  const featuredPlots = plotsData.slice(0, 3);
   const location = useLocation();
+  const [lands, setLands] = useState([]);
+
+  useEffect(() => {
+    farmApi.listLands()
+      .then((rows) => setLands(rows || []))
+      .catch((err) => console.warn('Không thể nạp danh sách nông trại:', err));
+  }, []);
 
   // Interactive IoT Simulator State
   const [simWeather, setSimWeather] = useState('ideal');
@@ -150,8 +154,20 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {landsData.map((land) => (
-            <FarmCard key={land.id} land={land} />
+          {lands.map((land) => (
+            <FarmCard
+              key={land.landId}
+              land={{
+                id: String(land.landId),
+                name: land.landName,
+                location: land.address,
+                description: land.description || 'Khu nông trại sinh thái chuẩn VietGAP với hệ thống quan trắc IoT 24/7.',
+                totalArea: land.boundaryAreaM2 ? `${Math.round(land.boundaryAreaM2).toLocaleString('vi-VN')} m²` : '25.000 m²',
+                totalPlots: land.totalPlots || 16,
+                activePlots: land.availablePlots || 10,
+                imageUrl: land.imageUrl || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80'
+              }}
+            />
           ))}
         </div>
       </section>

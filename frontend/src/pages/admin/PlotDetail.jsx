@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { plotsData } from '../../data/plots';
+import { farmApi, plotStatusBadge } from '../../api/farm/farmApi';
+import { formatArea } from '../../utils/polygonGeometry';
 import { iotStationsData } from '../../data/iotStations';
-import { varietiesData } from '../../data/varieties';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import {
@@ -13,16 +13,80 @@ import {
   Activity,
   Edit,
   ExternalLink,
-  Calendar,
-  Layers,
   Thermometer,
   Droplets,
-  CheckCircle2
+  CheckCircle2,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 export default function PlotDetail() {
   const { id } = useParams();
-  const plot = plotsData.find((p) => p.id === id) || plotsData[0];
+  const [plot, setPlot] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    farmApi.listPlots()
+      .then((rows) => {
+        const found = (rows || []).find((p) =>
+          String(p.plotId) === String(id) ||
+          (p.plotCode && p.plotCode.toLowerCase() === String(id).toLowerCase())
+        );
+        if (found) {
+          setPlot({
+            id: found.plotId,
+            code: found.plotCode,
+            name: `Thửa đất ${found.plotCode}`,
+            landId: found.landId,
+            landName: found.landName || 'Trang trại Happy Valley Củ Chi',
+            area: formatArea(Number(found.area)),
+            status: plotStatusBadge(found.status),
+            price: Number(found.pricePerPeriod),
+            formattedPrice: `${Number(found.pricePerPeriod || 0).toLocaleString('vi-VN')} đ/tháng`,
+            soilType: 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
+            description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát IoT 24/7.',
+            iotStationId: `IOT-${found.plotCode}`,
+            compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby'],
+            recentSensorReadings: {
+              temperature: '28.5 °C',
+              humidity: '74 %',
+              soilMoisture: '68 %'
+            }
+          });
+        } else {
+          setError('Không tìm thấy thửa đất trong Database.');
+        }
+      })
+      .catch((err) => setError(err.message || 'Lỗi nạp dữ liệu từ Database.'))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="py-20 flex flex-col items-center justify-center space-y-3">
+        <Loader2 className="w-8 h-8 text-brand-green animate-spin" />
+        <p className="text-sm text-stone-600 font-semibold">Đang tải thông tin thửa đất...</p>
+      </div>
+    );
+  }
+
+  if (error || !plot) {
+    return (
+      <div className="py-20 flex flex-col items-center justify-center space-y-4 text-center">
+        <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <p className="text-base font-bold text-brand-dark">{error || 'Không tìm thấy thửa đất.'}</p>
+        <Link to="/admin/master-data/plots">
+          <Button variant="outline" size="sm">Quay lại danh sách thửa đất</Button>
+        </Link>
+      </div>
+    );
+  }
+
   const station = iotStationsData.find((s) => s.id === plot.iotStationId);
 
   return (
@@ -50,7 +114,7 @@ export default function PlotDetail() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Link to={`/marketplace/plot/${plot.id}`} target="_blank">
+          <Link to={`/marketplace/plot/${plot.code || plot.id}`} target="_blank">
             <Button variant="outline" size="sm" icon={ExternalLink}>
               Xem trên Marketplace
             </Button>
@@ -142,7 +206,7 @@ export default function PlotDetail() {
 
       </div>
 
-      {/* Compatible Crops and Operational Notes */}
+      {/* Compatible Crops */}
       <div className="bg-white rounded-2xl p-6 border border-brand-border shadow-sm space-y-4">
         <h3 className="font-heading text-base font-bold text-brand-dark flex items-center gap-2">
           <Sprout className="w-5 h-5 text-brand-green" />
@@ -150,7 +214,7 @@ export default function PlotDetail() {
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {plot.compatibleCrops.map((c, idx) => (
+          {(plot.compatibleCrops || []).map((c, idx) => (
             <div
               key={idx}
               className="p-3.5 rounded-xl bg-brand-cream/50 border border-brand-border flex items-center gap-3 text-xs"

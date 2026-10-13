@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 3N7P6cv2zpz6wkhZ8zNHfcLYAziPx9pVSkxo2wqNTS1mIoeafPqEjTRQ9dwFbet
+\restrict 3PU8MefwnpGe1Fd2DrjTQASoHMh0Dd2t4v5e3JamsPik6kqJ4OZZiz8g7y8H388
 
 -- Dumped from database version 18.6
 -- Dumped by pg_dump version 18.6
@@ -1637,7 +1637,8 @@ CREATE TABLE public.plots (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     center_point text,
     polygon_coords text,
-    boundary_geojson text
+    boundary_geojson text,
+    description text
 );
 
 
@@ -2106,10 +2107,10 @@ ALTER SEQUENCE public.template_steps_step_id_seq OWNED BY public.template_steps.
 CREATE TABLE public.users (
     user_id integer NOT NULL,
     role_id integer NOT NULL,
-    email character varying(255) NOT NULL,
+    email character varying(150) NOT NULL,
     password_hash character varying(255) NOT NULL,
-    full_name character varying(255) NOT NULL,
-    phone_number character varying(255),
+    full_name character varying(150) NOT NULL,
+    phone_number character varying(20),
     address text,
     status public.user_status_enum DEFAULT 'ACTIVE'::public.user_status_enum NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -2516,9 +2517,9 @@ COPY public.knowledge_documents (document_id, kd_created_by, title, content, fil
 --
 
 COPY public.lands (land_id, land_name, address, created_at, updated_at, description, boundary_geojson) FROM stdin;
-2	Trang trại Cao nguyên Mộc Châu	Tiểu khu Mía Đường, Thị trấn Nông trường Mộc Châu, Sơn La	2026-10-12 14:44:59.085131+07	2026-10-12 14:44:59.085131+07	\N	\N
-3	Trang trại Thung lũng Sinh thái Đà Lạt	Xã Tà Nung, TP. Đà Lạt, Tỉnh Lâm Đồng	2026-10-12 14:44:59.085131+07	2026-10-12 14:44:59.085131+07	\N	\N
-1	Trang trại Happy Valley Củ Chi	Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh	2026-10-12 14:44:59.085131+07	2026-10-14 00:34:26.922961+07	\N	{"type":"Polygon","coordinates":[[[106.342, 10.686], [106.352, 10.686], [106.352, 10.696], [106.342, 10.696], [106.342, 10.686]]]}
+1	Trang trại Happy Valley Củ Chi	Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh	2026-10-12 14:44:59.085131+07	2026-10-14 01:35:00.470533+07	Nông trại sinh thái Củ Chi với hệ sinh thái công nghệ cao, trạm cảm biến IoT và quy trình canh tác VietGAP hữu cơ chuẩn hóa.	{"type":"Polygon","coordinates":[[[106.342, 10.686], [106.352, 10.686], [106.352, 10.696], [106.342, 10.696], [106.342, 10.686]]]}
+2	Trang trại Cao nguyên Mộc Châu	Tiểu khu Mía Đường, Thị trấn Nông trường Mộc Châu, Sơn La	2026-10-12 14:44:59.085131+07	2026-10-14 01:35:00.470533+07	Khu canh tác chuyên canh ôn đới cao nguyên với khí hậu quanh năm mát mẻ, thích hợp dâu tây và rau ôn đới.	\N
+3	Trang trại Thung lũng Sinh thái Đà Lạt	Xã Tà Nung, TP. Đà Lạt, Tỉnh Lâm Đồng	2026-10-12 14:44:59.085131+07	2026-10-14 01:35:00.470533+07	Thung lũng sinh thái xanh mát tại Đà Lạt, đất đỏ bazan giàu dinh dưỡng và nguồn nước suối tự nhiên.	\N
 \.
 
 
@@ -2642,23 +2643,23 @@ COPY public.plot_variety_compatibility (plot_id, variety_id) FROM stdin;
 -- Data for Name: plots; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.plots (plot_id, land_id, plot_code, area, image_url, price_per_period, status, is_published, created_at, updated_at, center_point, polygon_coords, boundary_geojson) FROM stdin;
-1	1	P-01	150.00	https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80	1200000.00	RENT	t	2026-10-12 14:44:59.086121+07	2026-10-14 00:34:26.917183+07	[106.344998, 10.689116]	[[[106.343813, 10.689452], [106.345118, 10.690545], [106.346782, 10.688616], [106.345463, 10.687517], [106.343813, 10.689452]]]	{"type":"Polygon","coordinates":[[[106.343813, 10.689452], [106.345118, 10.690545], [106.346782, 10.688616], [106.345463, 10.687517], [106.343813, 10.689452]]]}
-2	1	P-02	180.00	https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=800&q=80	1450000.00	RENT	t	2026-10-12 14:44:59.086121+07	2026-10-14 00:34:26.917183+07	[106.346448, 10.690328]	[[[106.345257, 10.690661], [106.346562, 10.691754], [106.348241, 10.689832], [106.346922, 10.688733], [106.345257, 10.690661]]]	{"type":"Polygon","coordinates":[[[106.345257, 10.690661], [106.346562, 10.691754], [106.348241, 10.689832], [106.346922, 10.688733], [106.345257, 10.690661]]]}
-3	1	P-03	200.00	https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80	1700000.00	RENT	t	2026-10-12 14:44:59.086121+07	2026-10-14 00:34:26.917183+07	[106.347897, 10.69154]	[[[106.3467, 10.69187], [106.348006, 10.692963], [106.3497, 10.691048], [106.348381, 10.689948], [106.3467, 10.69187]]]	{"type":"Polygon","coordinates":[[[106.3467, 10.69187], [106.348006, 10.692963], [106.3497, 10.691048], [106.348381, 10.689948], [106.3467, 10.69187]]]}
-4	1	P-04	160.00	https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80	1300000.00	AVAIL	t	2026-10-12 14:44:59.086121+07	2026-10-14 00:34:26.917183+07	[106.349347, 10.692751]	[[[106.348144, 10.693079], [106.34945, 10.694172], [106.351159, 10.692263], [106.34984, 10.691164], [106.348144, 10.693079]]]	{"type":"Polygon","coordinates":[[[106.348144, 10.693079], [106.34945, 10.694172], [106.351159, 10.692263], [106.34984, 10.691164], [106.348144, 10.693079]]]}
-5	1	P-05	175.00	https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80	1350000.00	AVAIL	t	2026-10-12 14:44:59.086121+07	2026-10-14 00:34:26.917183+07	[106.346829, 10.686978]	[[[106.345638, 10.687311], [106.346959, 10.688411], [106.348622, 10.686482], [106.347288, 10.685376], [106.345638, 10.687311]]]	{"type":"Polygon","coordinates":[[[106.345638, 10.687311], [106.346959, 10.688411], [106.348622, 10.686482], [106.347288, 10.685376], [106.345638, 10.687311]]]}
-6	1	P-06	190.00	https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80	1500000.00	MAINT	t	2026-10-12 14:44:59.086121+07	2026-10-14 00:34:26.917183+07	[106.348296, 10.688198]	[[[106.347099, 10.688528], [106.348419, 10.689628], [106.350098, 10.687705], [106.348764, 10.686599], [106.347099, 10.688528]]]	{"type":"Polygon","coordinates":[[[106.347099, 10.688528], [106.348419, 10.689628], [106.350098, 10.687705], [106.348764, 10.686599], [106.347099, 10.688528]]]}
-13	1	P-07	155.00	https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80	1250000.00	RENT	t	2026-10-12 15:33:16.041206+07	2026-10-14 00:34:26.917183+07	[106.349763, 10.689417]	[[[106.34856, 10.689744], [106.34988, 10.690844], [106.351575, 10.688929], [106.35024, 10.687823], [106.34856, 10.689744]]]	{"type":"Polygon","coordinates":[[[106.34856, 10.689744], [106.34988, 10.690844], [106.351575, 10.688929], [106.35024, 10.687823], [106.34856, 10.689744]]]}
-14	1	P-08	165.00	https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80	1300000.00	AVAIL	t	2026-10-12 15:33:16.04323+07	2026-10-14 00:34:26.917183+07	[106.35123, 10.690636]	[[[106.35002, 10.690961], [106.351341, 10.692061], [106.353051, 10.690153], [106.351716, 10.689046], [106.35002, 10.690961]]]	{"type":"Polygon","coordinates":[[[106.35002, 10.690961], [106.351341, 10.692061], [106.353051, 10.690153], [106.351716, 10.689046], [106.35002, 10.690961]]]}
-15	1	P-09	170.00	https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80	1400000.00	AVAIL	t	2026-10-12 15:33:16.043843+07	2026-10-14 00:34:26.917183+07	[106.34866, 10.68484]	[[[106.347463, 10.68517], [106.348799, 10.686277], [106.350463, 10.684348], [106.349113, 10.683234], [106.347463, 10.68517]]]	{"type":"Polygon","coordinates":[[[106.347463, 10.68517], [106.348799, 10.686277], [106.350463, 10.684348], [106.349113, 10.683234], [106.347463, 10.68517]]]}
-16	1	P-10	175.00	https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80	1450000.00	AVAIL	t	2026-10-12 15:33:16.044213+07	2026-10-14 00:34:26.917183+07	[106.35016, 10.68594]	[[[106.348963, 10.68627], [106.350299, 10.687377], [106.351963, 10.685448], [106.350613, 10.684334], [106.348963, 10.68627]]]	{"type":"Polygon","coordinates":[[[106.348963, 10.68627], [106.350299, 10.687377], [106.351963, 10.685448], [106.350613, 10.684334], [106.348963, 10.68627]]]}
-17	1	P-11	180.00	https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80	1500000.00	AVAIL	t	2026-10-12 15:33:16.044515+07	2026-10-14 00:34:26.917183+07	[106.35166, 10.68704]	[[[106.350463, 10.68737], [106.351799, 10.688477], [106.353463, 10.686548], [106.352113, 10.685434], [106.350463, 10.68737]]]	{"type":"Polygon","coordinates":[[[106.350463, 10.68737], [106.351799, 10.688477], [106.353463, 10.686548], [106.352113, 10.685434], [106.350463, 10.68737]]]}
-18	1	P-12	160.00	https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80	1350000.00	AVAIL	t	2026-10-12 15:33:16.044814+07	2026-10-14 00:34:26.917183+07	[106.35316, 10.68814]	[[[106.351963, 10.68847], [106.353299, 10.689577], [106.354963, 10.687648], [106.353613, 10.686534], [106.351963, 10.68847]]]	{"type":"Polygon","coordinates":[[[106.351963, 10.68847], [106.353299, 10.689577], [106.354963, 10.687648], [106.353613, 10.686534], [106.351963, 10.68847]]]}
-19	1	P-13	165.00	https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80	1350000.00	RENT	t	2026-10-12 15:33:16.04587+07	2026-10-14 00:34:26.917183+07	[106.350491, 10.682701]	[[[106.349288, 10.683029], [106.350639, 10.684143], [106.352303, 10.682213], [106.350938, 10.681093], [106.349288, 10.683029]]]	{"type":"Polygon","coordinates":[[[106.349288, 10.683029], [106.350639, 10.684143], [106.352303, 10.682213], [106.350938, 10.681093], [106.349288, 10.683029]]]}
-20	1	P-14	175.00	https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80	1550000.00	AVAIL	t	2026-10-12 15:33:16.046261+07	2026-10-14 00:34:26.917183+07	[106.351992, 10.683936]	[[[106.350783, 10.684261], [106.352134, 10.685375], [106.353813, 10.683453], [106.352448, 10.682332], [106.350783, 10.684261]]]	{"type":"Polygon","coordinates":[[[106.350783, 10.684261], [106.352134, 10.685375], [106.353813, 10.683453], [106.352448, 10.682332], [106.350783, 10.684261]]]}
-21	1	P-15	180.00	https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80	1650000.00	AVAIL	t	2026-10-12 15:33:16.046599+07	2026-10-14 00:34:26.917183+07	[106.353493, 10.685171]	[[[106.352278, 10.685493], [106.353629, 10.686607], [106.355323, 10.684692], [106.353958, 10.683572], [106.352278, 10.685493]]]	{"type":"Polygon","coordinates":[[[106.352278, 10.685493], [106.353629, 10.686607], [106.355323, 10.684692], [106.353958, 10.683572], [106.352278, 10.685493]]]}
-22	1	P-16	150.00	https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80	1200000.00	RENT	t	2026-10-12 15:33:16.046893+07	2026-10-14 00:34:26.917183+07	[106.354994, 10.686406]	[[[106.353773, 10.686725], [106.355124, 10.687839], [106.356834, 10.685931], [106.355468, 10.684811], [106.353773, 10.686725]]]	{"type":"Polygon","coordinates":[[[106.353773, 10.686725], [106.355124, 10.687839], [106.356834, 10.685931], [106.355468, 10.684811], [106.353773, 10.686725]]]}
+COPY public.plots (plot_id, land_id, plot_code, area, image_url, price_per_period, status, is_published, created_at, updated_at, center_point, polygon_coords, boundary_geojson, description) FROM stdin;
+1	1	P-01	150.00	https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80	1200000.00	RENT	t	2026-10-12 14:44:59.086121+07	2026-10-14 01:35:00.484098+07	[106.344998, 10.689116]	[[[106.343813, 10.689452], [106.345118, 10.690545], [106.346782, 10.688616], [106.345463, 10.687517], [106.343813, 10.689452]]]	{"type":"Polygon","coordinates":[[[106.343813, 10.689452], [106.345118, 10.690545], [106.346782, 10.688616], [106.345463, 10.687517], [106.343813, 10.689452]]]}	\N
+2	1	P-02	180.00	https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=800&q=80	1450000.00	RENT	t	2026-10-12 14:44:59.086121+07	2026-10-14 01:35:00.484098+07	[106.346448, 10.690328]	[[[106.345257, 10.690661], [106.346562, 10.691754], [106.348241, 10.689832], [106.346922, 10.688733], [106.345257, 10.690661]]]	{"type":"Polygon","coordinates":[[[106.345257, 10.690661], [106.346562, 10.691754], [106.348241, 10.689832], [106.346922, 10.688733], [106.345257, 10.690661]]]}	\N
+3	1	P-03	200.00	https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80	1700000.00	RENT	t	2026-10-12 14:44:59.086121+07	2026-10-14 01:35:00.484098+07	[106.347897, 10.69154]	[[[106.3467, 10.69187], [106.348006, 10.692963], [106.3497, 10.691048], [106.348381, 10.689948], [106.3467, 10.69187]]]	{"type":"Polygon","coordinates":[[[106.3467, 10.69187], [106.348006, 10.692963], [106.3497, 10.691048], [106.348381, 10.689948], [106.3467, 10.69187]]]}	\N
+4	1	P-04	160.00	https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80	1300000.00	AVAIL	t	2026-10-12 14:44:59.086121+07	2026-10-14 01:35:00.484098+07	[106.349347, 10.692751]	[[[106.348144, 10.693079], [106.34945, 10.694172], [106.351159, 10.692263], [106.34984, 10.691164], [106.348144, 10.693079]]]	{"type":"Polygon","coordinates":[[[106.348144, 10.693079], [106.34945, 10.694172], [106.351159, 10.692263], [106.34984, 10.691164], [106.348144, 10.693079]]]}	\N
+5	1	P-05	175.00	https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80	1350000.00	AVAIL	t	2026-10-12 14:44:59.086121+07	2026-10-14 01:35:00.484098+07	[106.346829, 10.686978]	[[[106.345638, 10.687311], [106.346959, 10.688411], [106.348622, 10.686482], [106.347288, 10.685376], [106.345638, 10.687311]]]	{"type":"Polygon","coordinates":[[[106.345638, 10.687311], [106.346959, 10.688411], [106.348622, 10.686482], [106.347288, 10.685376], [106.345638, 10.687311]]]}	\N
+6	1	P-06	190.00	https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80	1500000.00	MAINT	t	2026-10-12 14:44:59.086121+07	2026-10-14 01:35:00.484098+07	[106.348296, 10.688198]	[[[106.347099, 10.688528], [106.348419, 10.689628], [106.350098, 10.687705], [106.348764, 10.686599], [106.347099, 10.688528]]]	{"type":"Polygon","coordinates":[[[106.347099, 10.688528], [106.348419, 10.689628], [106.350098, 10.687705], [106.348764, 10.686599], [106.347099, 10.688528]]]}	\N
+13	1	P-07	155.00	https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80	1250000.00	RENT	t	2026-10-12 15:33:16.041206+07	2026-10-14 01:35:00.484098+07	[106.349763, 10.689417]	[[[106.34856, 10.689744], [106.34988, 10.690844], [106.351575, 10.688929], [106.35024, 10.687823], [106.34856, 10.689744]]]	{"type":"Polygon","coordinates":[[[106.34856, 10.689744], [106.34988, 10.690844], [106.351575, 10.688929], [106.35024, 10.687823], [106.34856, 10.689744]]]}	\N
+14	1	P-08	165.00	https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80	1300000.00	AVAIL	t	2026-10-12 15:33:16.04323+07	2026-10-14 01:35:00.484098+07	[106.35123, 10.690636]	[[[106.35002, 10.690961], [106.351341, 10.692061], [106.353051, 10.690153], [106.351716, 10.689046], [106.35002, 10.690961]]]	{"type":"Polygon","coordinates":[[[106.35002, 10.690961], [106.351341, 10.692061], [106.353051, 10.690153], [106.351716, 10.689046], [106.35002, 10.690961]]]}	\N
+15	1	P-09	170.00	https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80	1400000.00	AVAIL	t	2026-10-12 15:33:16.043843+07	2026-10-14 01:35:00.484098+07	[106.34866, 10.68484]	[[[106.347463, 10.68517], [106.348799, 10.686277], [106.350463, 10.684348], [106.349113, 10.683234], [106.347463, 10.68517]]]	{"type":"Polygon","coordinates":[[[106.347463, 10.68517], [106.348799, 10.686277], [106.350463, 10.684348], [106.349113, 10.683234], [106.347463, 10.68517]]]}	\N
+16	1	P-10	175.00	https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80	1450000.00	AVAIL	t	2026-10-12 15:33:16.044213+07	2026-10-14 01:35:00.484098+07	[106.35016, 10.68594]	[[[106.348963, 10.68627], [106.350299, 10.687377], [106.351963, 10.685448], [106.350613, 10.684334], [106.348963, 10.68627]]]	{"type":"Polygon","coordinates":[[[106.348963, 10.68627], [106.350299, 10.687377], [106.351963, 10.685448], [106.350613, 10.684334], [106.348963, 10.68627]]]}	\N
+17	1	P-11	180.00	https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80	1500000.00	AVAIL	t	2026-10-12 15:33:16.044515+07	2026-10-14 01:35:00.484098+07	[106.35166, 10.68704]	[[[106.350463, 10.68737], [106.351799, 10.688477], [106.353463, 10.686548], [106.352113, 10.685434], [106.350463, 10.68737]]]	{"type":"Polygon","coordinates":[[[106.350463, 10.68737], [106.351799, 10.688477], [106.353463, 10.686548], [106.352113, 10.685434], [106.350463, 10.68737]]]}	\N
+18	1	P-12	160.00	https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80	1350000.00	AVAIL	t	2026-10-12 15:33:16.044814+07	2026-10-14 01:35:00.484098+07	[106.35316, 10.68814]	[[[106.351963, 10.68847], [106.353299, 10.689577], [106.354963, 10.687648], [106.353613, 10.686534], [106.351963, 10.68847]]]	{"type":"Polygon","coordinates":[[[106.351963, 10.68847], [106.353299, 10.689577], [106.354963, 10.687648], [106.353613, 10.686534], [106.351963, 10.68847]]]}	\N
+19	1	P-13	165.00	https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80	1350000.00	RENT	t	2026-10-12 15:33:16.04587+07	2026-10-14 01:35:00.484098+07	[106.350491, 10.682701]	[[[106.349288, 10.683029], [106.350639, 10.684143], [106.352303, 10.682213], [106.350938, 10.681093], [106.349288, 10.683029]]]	{"type":"Polygon","coordinates":[[[106.349288, 10.683029], [106.350639, 10.684143], [106.352303, 10.682213], [106.350938, 10.681093], [106.349288, 10.683029]]]}	\N
+20	1	P-14	175.00	https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80	1550000.00	AVAIL	t	2026-10-12 15:33:16.046261+07	2026-10-14 01:35:00.484098+07	[106.351992, 10.683936]	[[[106.350783, 10.684261], [106.352134, 10.685375], [106.353813, 10.683453], [106.352448, 10.682332], [106.350783, 10.684261]]]	{"type":"Polygon","coordinates":[[[106.350783, 10.684261], [106.352134, 10.685375], [106.353813, 10.683453], [106.352448, 10.682332], [106.350783, 10.684261]]]}	\N
+21	1	P-15	180.00	https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80	1650000.00	AVAIL	t	2026-10-12 15:33:16.046599+07	2026-10-14 01:35:00.484098+07	[106.353493, 10.685171]	[[[106.352278, 10.685493], [106.353629, 10.686607], [106.355323, 10.684692], [106.353958, 10.683572], [106.352278, 10.685493]]]	{"type":"Polygon","coordinates":[[[106.352278, 10.685493], [106.353629, 10.686607], [106.355323, 10.684692], [106.353958, 10.683572], [106.352278, 10.685493]]]}	\N
+22	1	P-16	150.00	https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80	1200000.00	RENT	t	2026-10-12 15:33:16.046893+07	2026-10-14 01:35:00.484098+07	[106.354994, 10.686406]	[[[106.353773, 10.686725], [106.355124, 10.687839], [106.356834, 10.685931], [106.355468, 10.684811], [106.353773, 10.686725]]]	{"type":"Polygon","coordinates":[[[106.353773, 10.686725], [106.355124, 10.687839], [106.356834, 10.685931], [106.355468, 10.684811], [106.353773, 10.686725]]]}	\N
 \.
 
 
@@ -3143,18 +3144,18 @@ COPY public.template_steps (step_id, template_id, step_name, description, day_of
 --
 
 COPY public.users (user_id, role_id, email, password_hash, full_name, phone_number, address, status, created_at, updated_at) FROM stdin;
-13	1	quockhanh@gmail.com	$2a$10$FhRDREqOkQVcP.UrmrDA4.8wZs5LjV2KBEEl7rRBW3g3g7ptaZr1G	Khánh	0909090827	Hồ Chí Minh	ACTIVE	2026-10-12 14:56:27.474705+07	2026-10-12 14:56:27.474778+07
-1	1	customer@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	Lô Thái Quyền	0901234567	Tòa nhà Landmark 81, P.22, Q.Bình Thạnh, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
-2	1	duyanh@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	Đào Duy Anh	0912345678	Số 45 Lê Duẩn, P.Bến Nghé, Quận 1, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
-3	1	tanguyen@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	Tạ Nguyễn Khôi Nguyên	0988776655	Biệt thự Thảo Điền, TP.Thủ Đức, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
-4	1	vhoang@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	Nguyễn Văn Hoàng	0977123456	Khu Đô thị Phú Mỹ Hưng, Quận 7, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
-5	2	expert@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	ThS. Nguyễn Hoàng Nam	0903888999	Viện Khoa học Nông nghiệp Miền Nam, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
-6	2	thao.tran@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	ThS. Trần Phương Thảo	0903777888	Trung tâm Công nghệ Sinh học Nông nghiệp Đà Lạt	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
-7	2	duc.le@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	TS. Lê Hoàng Đức	0903666555	Đại học Nông Lâm TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
-8	3	worker@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	Trần Văn Lực	0933111222	Ấp 3, Xã Nhuận Đức, Huyện Củ Chi, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
-9	3	dat.nguyen@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	Nguyễn Văn Đạt	0933222333	Xã Thái Mỹ, Huyện Củ Chi, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
-10	3	hai.hoang@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	Hoàng Thanh Hải	0933444555	Thôn 4, Xã Tà Nung, TP.Đà Lạt, Lâm Đồng	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
-11	4	admin@farmely.vn	$2a$10$RmC9OTJuKQw0eu1h57WwSuXo61uTU/cvIOAU2q/yploeLuASfXrWG	Ban Quản Trị Farmely	0909000111	Trụ sở Farmely Tech Hub, Quận 1, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-12 15:46:28.494336+07
+13	1	quockhanh@gmail.com	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	Khánh	0909090827	Hồ Chí Minh	ACTIVE	2026-10-12 14:56:27.474705+07	2026-10-14 01:31:17.867836+07
+1	1	customer@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	Lô Thái Quyền	0901234567	Tòa nhà Landmark 81, P.22, Q.Bình Thạnh, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
+2	1	duyanh@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	Đào Duy Anh	0912345678	Số 45 Lê Duẩn, P.Bến Nghé, Quận 1, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
+3	1	tanguyen@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	Tạ Nguyễn Khôi Nguyên	0988776655	Biệt thự Thảo Điền, TP.Thủ Đức, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
+4	1	vhoang@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	Nguyễn Văn Hoàng	0977123456	Khu Đô thị Phú Mỹ Hưng, Quận 7, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
+5	2	expert@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	ThS. Nguyễn Hoàng Nam	0903888999	Viện Khoa học Nông nghiệp Miền Nam, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
+6	2	thao.tran@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	ThS. Trần Phương Thảo	0903777888	Trung tâm Công nghệ Sinh học Nông nghiệp Đà Lạt	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
+7	2	duc.le@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	TS. Lê Hoàng Đức	0903666555	Đại học Nông Lâm TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
+8	3	worker@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	Trần Văn Lực	0933111222	Ấp 3, Xã Nhuận Đức, Huyện Củ Chi, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
+9	3	dat.nguyen@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	Nguyễn Văn Đạt	0933222333	Xã Thái Mỹ, Huyện Củ Chi, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
+10	3	hai.hoang@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	Hoàng Thanh Hải	0933444555	Thôn 4, Xã Tà Nung, TP.Đà Lạt, Lâm Đồng	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
+11	4	admin@farmely.vn	$2a$10$sjxR7Cwpr5Z5Syeb91mpheBU1e.0rQgowepURnlyeayuzttH2Wbkq	Ban Quản Trị Farmely	0909000111	Trụ sở Farmely Tech Hub, Quận 1, TP.HCM	ACTIVE	2026-10-12 14:44:59.082006+07	2026-10-14 01:31:17.867836+07
 \.
 
 
@@ -3278,7 +3279,7 @@ SELECT pg_catalog.setval('public.payment_transactions_transaction_id_seq', 7, tr
 -- Name: plots_plot_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.plots_plot_id_seq', 23, true);
+SELECT pg_catalog.setval('public.plots_plot_id_seq', 22, true);
 
 
 --
@@ -3341,7 +3342,7 @@ SELECT pg_catalog.setval('public.template_steps_step_id_seq', 88, true);
 -- Name: users_user_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.users_user_id_seq', 14, true);
+SELECT pg_catalog.setval('public.users_user_id_seq', 15, true);
 
 
 --
@@ -4361,5 +4362,5 @@ ALTER TABLE ONLY public.varieties
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 3N7P6cv2zpz6wkhZ8zNHfcLYAziPx9pVSkxo2wqNTS1mIoeafPqEjTRQ9dwFbet
+\unrestrict 3PU8MefwnpGe1Fd2DrjTQASoHMh0Dd2t4v5e3JamsPik6kqJ4OZZiz8g7y8H388
 

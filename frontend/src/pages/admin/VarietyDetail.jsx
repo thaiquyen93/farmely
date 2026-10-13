@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { varietiesData } from '../../data/varieties';
 import { processTemplatesData } from '../../data/processTemplates';
 import { knowledgeDocumentsData } from '../../data/knowledgeDocuments';
-import { plotsData } from '../../data/plots';
+import { farmApi, plotStatusBadge } from '../../api/farm/farmApi';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import {
@@ -24,12 +24,23 @@ import {
 export default function VarietyDetail() {
   const { id } = useParams();
   const variety = varietiesData.find((v) => v.id === id) || varietiesData[0];
+  const [dbPlots, setDbPlots] = useState([]);
+
+  useEffect(() => {
+    farmApi.listPlots()
+      .then((rows) => setDbPlots(rows || []))
+      .catch((err) => console.warn('Không thể nạp danh sách thửa đất:', err));
+  }, []);
 
   const template = processTemplatesData.find((t) => t.varietyId === variety.id);
   const docs = knowledgeDocumentsData.filter((d) => d.varietyId === variety.id);
-  const compatiblePlots = plotsData.filter((p) =>
-    p.compatibleCrops.some((c) => variety.name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(variety.name.toLowerCase()))
-  );
+  const compatiblePlots = dbPlots.map((p) => ({
+    id: p.plotId,
+    code: p.plotCode,
+    name: `Thửa đất ${p.plotCode}`,
+    landName: p.landName || 'Happy Valley Củ Chi',
+    status: plotStatusBadge(p.status)
+  })).slice(0, 6);
 
   return (
     <div className="space-y-6">

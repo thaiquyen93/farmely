@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
-import { plotsData } from '../../data/plots';
-import { MARKETPLACE_PLOTS_GIS } from '../../data/marketplaceGisData';
+import { farmApi } from '../../api/farm/farmApi';
 import { getSafeCropById, safeCrops } from '../../data/safeCrops';
-import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
+import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import {
@@ -26,35 +25,24 @@ import {
   Trash2,
   Layers,
   Sparkles,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 
-const marketplaceBookingPlots = MARKETPLACE_PLOTS_GIS.map((plot) => ({
-  ...plot,
-  catalog: 'marketplace',
-  code: plot.label || String(plot.code || '').replace(/^Plot\s+/i, ''),
-  landName: plot.farmName,
-  area: plot.areaFormatted || `${plot.area} m²`,
-  formattedPrice: plot.rentalPriceFormatted,
-  careServicePrice: plot.careServicePrice || 600000,
-  iotStationId: `IOT-${plot.label || plot.id}`,
-  compatibleCrops: safeCrops.map((crop) => crop.variety)
-}));
-
-const bookingPlotsData = [
-  ...marketplaceBookingPlots,
-  ...plotsData.map((plot) => ({ ...plot, catalog: 'legacy' }))
-];
-
 export default function BookPlot() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated, login } = useAuthStore();
+  const [allPlots, setAllPlots] = useState([]);
+  const [loadingPlots, setLoadingPlots] = useState(true);
+  const [selectedPlots, setSelectedPlots] = useState([]);
+  const [isAddPlotModalOpen, setIsAddPlotModalOpen] = useState(false);
+
   const [selectedCropByPlot] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
@@ -63,11 +51,11 @@ export default function BookPlot() {
     }
   });
 
-  // Helper to match plot by any identifier (P-01, Plot P-01, PLT-HV-01, P-101, etc.)
-  const findPlotByAnyCode = (code) => {
-    if (!code) return null;
+  // Helper to match plot by any identifier
+  const findPlotByAnyCode = useCallback((code, plotsList = allPlots) => {
+    if (!code || !plotsList.length) return null;
     const clean = code.trim().toLowerCase();
-    return bookingPlotsData.find((p) => {
+    return plotsList.find((p) => {
       const pId = (p.id || '').toLowerCase();
       const pCode = (p.code || '').toLowerCase();
       const pLabel = (p.label || '').toLowerCase();
@@ -81,14 +69,42 @@ export default function BookPlot() {
         (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', ''))
       );
     });
-  };
+  }, [allPlots]);
 
-  // Initial plot from route param or fallback to first
-  const initialPlot = findPlotByAnyCode(id) || marketplaceBookingPlots[0] || plotsData[0];
+  // Load plots from PostgreSQL DB via Farm Service
+  useEffect(() => {
+    setLoadingPlots(true);
+    farmApi.listPlots()
+      .then((rows) => {
+        const mapped = (rows || []).map((p) => ({
+          id: String(p.plotId),
+          plotId: p.plotId,
+          code: p.plotCode,
+          label: p.plotCode,
+          name: `Thửa đất ${p.plotCode}`,
+          landName: p.landName || 'Trang trại Happy Valley Củ Chi',
+          area: `${Number(p.area)} m²`,
+          areaFormatted: `${Number(p.area)} m²`,
+          rentalPrice: Number(p.pricePerPeriod),
+          formattedPrice: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
+          rentalPriceFormatted: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
+          careServicePrice: Math.round(Number(p.pricePerPeriod) * 0.5),
+          status: p.status === 'AVAIL' ? 'AVAILABLE' : p.status === 'RENT' ? 'RENTED' : 'MAINTENANCE',
+          iotStationId: `IOT-${p.plotCode}`,
+          compatibleCrops: safeCrops.map((crop) => crop.variety),
+          imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80'
+        }));
+        setAllPlots(mapped);
 
-  // One rental contract can contain multiple selected plots (BR01 / SSoT).
-  const [selectedPlots, setSelectedPlots] = useState([initialPlot]);
-  const [isAddPlotModalOpen, setIsAddPlotModalOpen] = useState(false);
+        // Determine initial plot
+        const target = findPlotByAnyCode(id, mapped) || mapped[0];
+        if (target) {
+          setSelectedPlots([target]);
+        }
+      })
+      .catch((err) => console.error('Lỗi nạp plots trong BookPlot:', err))
+      .finally(() => setLoadingPlots(false));
+  }, [id, findPlotByAnyCode]);
 
   // 15-minute reservation timer (BR08)
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
@@ -168,10 +184,7 @@ export default function BookPlot() {
   const formattedTimer = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   // List of other available plots that can be added to this Master Contract
-  const activePlotCatalog = selectedPlots.some((plot) => plot.catalog === 'marketplace')
-    ? marketplaceBookingPlots
-    : bookingPlotsData.filter((plot) => plot.catalog === 'legacy');
-  const availablePlotsToAdd = activePlotCatalog.filter(
+  const availablePlotsToAdd = allPlots.filter(
     (p) =>
       (p.status === 'AVAILABLE' || p.status === 'Đang trống') &&
       !selectedPlots.some((sp) => sp.id === p.id)
@@ -307,9 +320,8 @@ export default function BookPlot() {
     setIsSuccess(true);
   };
 
-  const handleQuickCustomerLogin = () => {
-    const customer = DEMO_ACCOUNTS.find((a) => a.role === 'CUSTOMER') || DEMO_ACCOUNTS[0];
-    login(customer.email, 'Farmely@2026');
+  const handleQuickCustomerLogin = async () => {
+    await login('customer@farmely.vn', '123456');
   };
 
   return (
