@@ -1,6 +1,5 @@
 param(
-    [switch]$Rebuild,
-    [switch]$Supabase
+    [switch]$Rebuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,52 +20,18 @@ $env:Path = "$jdkHome\bin;$env:Path"
 
 New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 
-if ($Supabase) {
-    $supabaseEnvFile = Join-Path $projectRoot '.env.supabase.local'
-    if (-not (Test-Path -LiteralPath $supabaseEnvFile)) {
-        throw 'Missing .env.supabase.local. Copy .env.supabase.example and fill in the Supabase database connection values.'
-    }
-
-    foreach ($line in Get-Content -LiteralPath $supabaseEnvFile) {
-        $trimmedLine = $line.Trim()
-        if ([string]::IsNullOrWhiteSpace($trimmedLine) -or $trimmedLine.StartsWith('#')) {
-            continue
-        }
-
-        $separator = $trimmedLine.IndexOf('=')
-        if ($separator -lt 1) {
-            continue
-        }
-
-        $name = $trimmedLine.Substring(0, $separator).Trim()
-        $value = $trimmedLine.Substring($separator + 1).Trim().Trim('"').Trim("'")
-        [Environment]::SetEnvironmentVariable($name, $value, 'Process')
-    }
-
-    foreach ($requiredVariable in @('DB_URL', 'DB_USERNAME', 'DB_PASSWORD')) {
-        $requiredValue = [Environment]::GetEnvironmentVariable($requiredVariable, 'Process')
-        if ([string]::IsNullOrWhiteSpace($requiredValue) -or $requiredValue -match 'YOUR[_-]') {
-            throw "$requiredVariable is missing from .env.supabase.local."
-        }
-    }
-}
-
 Push-Location $projectRoot
 try {
-    $dockerCommand = $null
+    $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
     $dockerVersion = $null
     $dockerReady = $false
-    $localPostgres = $null
-    if (-not $Supabase) {
-        $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
-        if ($dockerCommand) {
-            $dockerVersion = & $dockerCommand.Source info --format '{{.ServerVersion}}' 2>$null
-            $dockerReady = $LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($dockerVersion)
-        }
-        $localPostgres = Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue
+    if ($dockerCommand) {
+        $dockerVersion = & $dockerCommand.Source info --format '{{.ServerVersion}}' 2>$null
+        $dockerReady = $LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($dockerVersion)
     }
+    $localPostgres = Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue
 
-    if (-not $Supabase -and -not $dockerReady -and -not $localPostgres) {
+    if (-not $dockerReady -and -not $localPostgres) {
         if (-not $dockerCommand) {
             throw 'Không tìm thấy Docker CLI và PostgreSQL local chưa chạy.'
         }
@@ -90,10 +55,7 @@ try {
         }
     }
 
-    if ($Supabase) {
-        Write-Host 'Using Supabase PostgreSQL.'
-    }
-    elseif ($dockerReady) {
+    if ($dockerReady) {
         & $dockerCommand.Source compose up -d
         $env:DB_URL = 'jdbc:postgresql://localhost:5433/farmely'
         Write-Host 'Using Docker PostgreSQL on port 5433.'

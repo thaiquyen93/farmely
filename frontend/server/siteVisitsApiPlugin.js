@@ -15,47 +15,12 @@ const PSQL_PATH = PSQL_CANDIDATES.find(p => {
 }) || 'psql';
 
 function getPgConfig() {
-  const candidates = [
-    path.resolve(process.cwd(), '../.env.supabase.local'),
-    path.resolve(process.cwd(), '.env.supabase.local')
-  ];
-  for (const envPath of candidates) {
-    if (fs.existsSync(envPath)) {
-      try {
-        const text = fs.readFileSync(envPath, 'utf8');
-        const vars = {};
-        for (const line of text.split('\n')) {
-          const trimmed = line.trim();
-          if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
-            const sep = trimmed.indexOf('=');
-            vars[trimmed.slice(0, sep).trim()] = trimmed.slice(sep + 1).trim();
-          }
-        }
-        if (vars.DB_URL && vars.DB_PASSWORD) {
-          const match = vars.DB_URL.match(/jdbc:postgresql:\/\/([^:/]+)(?::(\d+))?\/([^?]+)/);
-          if (match) {
-            return {
-              host: match[1],
-              port: match[2] || '5432',
-              database: match[3],
-              user: vars.DB_USERNAME || 'postgres',
-              password: vars.DB_PASSWORD,
-              isSupabase: true
-            };
-          }
-        }
-      } catch (e) {
-        console.warn('Could not parse .env.supabase.local:', e);
-      }
-    }
-  }
   return {
-    host: 'localhost',
+    host: process.env.PGHOST || 'localhost',
     port: process.env.PGPORT || '5432',
     database: process.env.PGDATABASE || 'farmely',
     user: process.env.PGUSER || 'postgres',
-    password: process.env.PGPASSWORD || '@Bin054206',
-    isSupabase: false
+    password: process.env.PGPASSWORD || 'postgres'
   };
 }
 
@@ -111,8 +76,8 @@ export function siteVisitsApiPlugin() {
           try {
             const sql = `
 SELECT json_build_object(
-  'engine', 'PostgreSQL (Supabase Cloud Pooler)',
-  'database', 'postgres',
+  'engine', 'PostgreSQL (Local / Docker)',
+  'database', 'farmely',
   'port', 5432,
   'ddl_source', 'farmely_full_database.sql',
   'contracts_count', (SELECT count(*) FROM contracts),
@@ -151,7 +116,7 @@ Write-Output $result
           return;
         }
 
-        // 0.1 GET /api/v1/plots or GET /api/plots (Live 16 Plots from Supabase PostgreSQL)
+        // 0.1 GET /api/v1/plots or GET /api/plots (Live 16 Plots from Local / Docker PostgreSQL)
         if (req.method === 'GET' && (url === '/api/v1/plots' || url === '/api/plots' || url.startsWith('/api/v1/plots?') || url.startsWith('/api/plots?'))) {
           if (cachedPlotsData && (Date.now() - cachedPlotsTime < CACHE_TTL_MS)) {
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -162,7 +127,7 @@ Write-Output $result
             const sql = `
 SELECT json_build_object(
   'success', true,
-  'message', 'Lấy danh sách thửa đất thành công từ Supabase PostgreSQL',
+  'message', 'Lấy danh sách thửa đất thành công từ PostgreSQL (Local / Docker)',
   'data', COALESCE(
     (
       SELECT json_agg(row_to_json(t))
