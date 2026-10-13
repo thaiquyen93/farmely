@@ -366,6 +366,7 @@ export default function CustomerDashboard() {
     id: 'NO_DATA', name: 'Chưa có dữ liệu', mode: 'Self-Growing', temp: 'Chưa có dữ liệu', soilMoisture: 'Chưa có dữ liệu', airHumidity: 'Chưa có dữ liệu', light: 'Chưa có dữ liệu', ph: 'Chưa có dữ liệu', stationId: 'Chưa có dữ liệu', location: 'Chưa có dữ liệu'
   };
   const [dashboardDataError, setDashboardDataError] = useState('');
+  const [livePlotOperations, setLivePlotOperations] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -375,6 +376,17 @@ export default function CustomerDashboard() {
       try {
         const rentals = unwrapData(await apiFetch(`/api/rentals?renterId=${customerId}`)) || [];
         const liveRentals = rentals.filter((rental) => !['CANCELLED', 'COMPLETED'].includes(rental.status));
+        const taskEntries = await Promise.all(liveRentals.map(async (rental) => {
+          let tasks = unwrapData(await apiFetch(`/api/tasks?rentalId=${rental.rentalId}`)) || [];
+          if (tasks.length === 0 && rental.cultivationMode !== 'SELF_GROWING') {
+            const template = processTemplates.find((item) => Number(item.varietyId) === Number(rental.varietyId)) || processTemplates[0];
+            if (template?.templateId) {
+              await apiFetch('/api/tasks/generate-from-template', { method: 'POST', body: JSON.stringify({ rentalId: rental.rentalId, templateId: template.templateId, startDate: rental.startDate || new Date().toISOString().slice(0, 10) }) });
+              tasks = unwrapData(await apiFetch(`/api/tasks?rentalId=${rental.rentalId}`)) || [];
+            }
+          }
+          return [rental.rentalId, tasks];
+        }));
         const sensorResults = await Promise.allSettled(liveRentals.map(async (rental) => {
           const [latest, history] = await Promise.all([
             apiFetch(`/api/sensors/plots/${rental.plotId}/latest`),
@@ -424,6 +436,15 @@ export default function CustomerDashboard() {
           };
         });
         const datasets = {};
+        const operations = {};
+        taskEntries.forEach(([rentalId, tasks]) => {
+          const rental = liveRentals.find((item) => item.rentalId === rentalId);
+          operations[`PLOT-${rental?.plotId}`] = {
+            tasks: tasks.map((task) => ({ id: task.taskCode || `TSK-${task.taskId}`, title: task.title || task.notes || 'Tác vụ chăm sóc', time: task.dueDate || 'Chưa có lịch', status: task.displayStatus || task.status, owner: task.workerName || 'Chưa phân công', rentalId })),
+            diary: []
+          };
+        });
+        setLivePlotOperations(operations);
         liveRentals.forEach((rental) => {
           const key = `PLOT-${rental.plotId}`;
           const readings = sensorByPlot.get(Number(rental.plotId))?.history || [];
@@ -454,7 +475,7 @@ export default function CustomerDashboard() {
     };
     loadCustomerDashboard();
     return () => { cancelled = true; };
-  }, [user?.id, user?.userId]);
+  }, [user?.id, user?.userId, processTemplates]);
 
   // Service Catalog (Shop Dịch Vụ Nông Nghiệp)
   const serviceCatalog = [
@@ -876,7 +897,7 @@ export default function CustomerDashboard() {
       { level: 'MEDIUM', title: 'Nhiệt độ tăng', metric: '29°C · cao hơn 2°C so với hôm qua', time: '25 phút trước' }
     ]
   } : {};
-  const currentPlotOperations = plotOperations[selectedPlotId] || { tasks: [], diary: [] };
+  const currentPlotOperations = livePlotOperations[selectedPlotId] || { tasks: [], diary: [] };
 
   const handleSendMessage = (textToSend) => {
     const query = textToSend || chatInput;
@@ -1082,7 +1103,7 @@ export default function CustomerDashboard() {
                         <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4"><p className="font-bold text-orange-700">🌧️ Sắp có mưa trong 45 phút</p><p className="text-sm text-slate-600">Đã tự động hoãn lịch tưới để tránh ngập úng.</p></div>
                         <div className="mt-3 divide-y divide-slate-100">{[['💧','Độ ẩm đất đang ở mức tốt','68% · Trong ngưỡng tối ưu 60–75%','5 phút trước'],['🌿','Cây sinh trưởng ổn định','Không phát hiện dấu hiệu bất thường','20 phút trước'],['☀️','Cường độ sáng đang tăng','28.500 lux · Phù hợp giai đoạn phát triển','1 giờ trước']].map(([icon,title,note,time]) => <div key={title} className="flex items-center gap-3 py-3"><span className="text-2xl">{icon}</span><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">{title}</p><p className="truncate text-sm text-slate-500">{note}</p></div><span className="whitespace-nowrap text-xs text-slate-400">{time}</span></div>)}</div>
                       </div>
-                      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><h2 className="text-2xl font-black text-slate-900">✅ Việc cần làm</h2><div className="mt-2 divide-y divide-slate-100">{(plotOperations['PLOT-MC-02']?.tasks || []).map((task) => <button key={task.id} type="button" onClick={() => setSelectedPlotId('PLOT-MC-02')} className="flex w-full items-center gap-3 py-3 text-left"><span className="text-xl">{task.status === 'COMPLETED' ? '✅' : '🌱'}</span><span className="min-w-0 flex-1"><span className="block truncate font-bold text-slate-800">{task.title}</span><span className="block text-xs text-slate-500">Thửa Mộc Châu B2</span></span><span className="whitespace-nowrap rounded-lg bg-slate-50 px-2 py-1 text-xs text-slate-500">{task.time}</span></button>)}</div></div>
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><h2 className="text-2xl font-black text-slate-900">✅ Việc cần làm</h2><div className="mt-2 divide-y divide-slate-100">{(livePlotOperations[customerPlots[0]?.id]?.tasks || []).map((task) => <button key={task.id} type="button" onClick={() => setSelectedPlotId(customerPlots[0]?.id)} className="flex w-full items-center gap-3 py-3 text-left"><span className="text-xl">{task.status === 'COMPLETED' ? '✅' : '🌱'}</span><span className="min-w-0 flex-1"><span className="block truncate font-bold text-slate-800">{task.title}</span><span className="block text-xs text-slate-500">{customerPlots[0]?.name}</span></span><span className="whitespace-nowrap rounded-lg bg-slate-50 px-2 py-1 text-xs text-slate-500">{task.time}</span></button>)}</div></div>
                     </div>
                     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,1fr)]"><div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex justify-between"><h2 className="text-xl font-black text-slate-900">🌱 Tiến độ mùa vụ</h2><strong className="text-emerald-700">{customerPlots[1]?.progressPercent || 68}%</strong></div><div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-lime-400" style={{width:`${customerPlots[1]?.progressPercent || 68}%`}} /></div><div className="mt-3 flex justify-between text-xs text-slate-500"><span>Gieo trồng</span><span>Sinh trưởng</span><span>Phát triển</span><span>Thu hoạch</span></div></div><div className="rounded-2xl bg-lime-100 p-5"><p className="font-bold text-emerald-800">Còn khoảng</p><p className="mt-1 text-4xl font-black text-slate-900">11 ngày nữa</p><p className="font-semibold text-slate-700">đến kỳ thu hoạch</p><p className="mt-2 text-sm text-slate-500">Xà lách Romaine</p></div></div>
                     <div><h2 className="mb-3 text-2xl font-black text-slate-900">📊 Chỉ số nông trại hôm nay</h2><div className="grid grid-cols-2 gap-3 xl:grid-cols-4">{[['🌡️','Nhiệt độ','22.4°C'],['💧','Độ ẩm đất','68%'],['☀️','Ánh sáng','28.500 lux'],['🌿','Độ pH đất','6.2']].map(([icon,label,value]) => <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><span className="text-2xl">{icon}</span><p className="mt-2 text-xs text-slate-500">{label}</p><p className="text-xl font-black text-slate-900">{value}</p><p className="text-xs font-semibold text-emerald-600">✓ Ổn định</p></div>)}</div></div>
@@ -1226,7 +1247,7 @@ export default function CustomerDashboard() {
                 </div>
                 <div className="space-y-4">
                   {scopedPlots.map((plot) => {
-                    const tasks = plotOperations[plot.id]?.tasks || [];
+                    const tasks = livePlotOperations[plot.id]?.tasks || [];
                     return (
                       <section key={plot.id} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25">
                         <div className="flex flex-wrap items-center gap-3 border-b border-brand-border bg-white px-4 py-3">
@@ -1681,7 +1702,7 @@ export default function CustomerDashboard() {
                         )}
                       </div>
                       <div className="grid gap-2 p-3 md:grid-cols-2">
-                        {(plotOperations[plot.id]?.diary || []).map((entry, index) => (
+                        {(livePlotOperations[plot.id]?.diary || []).map((entry, index) => (
                           <article key={`${plot.id}-${index}`} className="rounded-xl bg-brand-cream/45 p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                               <span className="font-bold text-brand-dark">{entry.time}</span>
