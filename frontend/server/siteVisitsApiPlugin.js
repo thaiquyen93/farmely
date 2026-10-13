@@ -59,6 +59,10 @@ function getPgConfig() {
   };
 }
 
+let cachedPlotsData = null;
+let cachedPlotsTime = 0;
+const CACHE_TTL_MS = 20000; // 20s in-memory cache
+
 function runPostgreSql(sqlQuery) {
   return new Promise((resolve, reject) => {
     const cfg = getPgConfig();
@@ -66,7 +70,7 @@ function runPostgreSql(sqlQuery) {
     const child = spawn(
       PSQL_PATH,
       ['-U', cfg.user, '-h', cfg.host, '-p', cfg.port, '-d', cfg.database, '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
-      { env }
+      { env, windowsHide: true }
     );
     let stdout = '';
     let stderr = '';
@@ -86,7 +90,7 @@ function runPowershell(script) {
     execFile(
       'powershell.exe',
       ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script],
-      { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 },
+      { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, windowsHide: true },
       (err, stdout, stderr) => {
         if (err) return reject(err || stderr);
         resolve(stdout.trim());
@@ -149,6 +153,11 @@ Write-Output $result
 
         // 0.1 GET /api/v1/plots or GET /api/plots (Live 16 Plots from Supabase PostgreSQL)
         if (req.method === 'GET' && (url === '/api/v1/plots' || url === '/api/plots' || url.startsWith('/api/v1/plots?') || url.startsWith('/api/plots?'))) {
+          if (cachedPlotsData && (Date.now() - cachedPlotsTime < CACHE_TTL_MS)) {
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(cachedPlotsData);
+            return;
+          }
           try {
             const sql = `
 SELECT json_build_object(
@@ -197,12 +206,21 @@ SELECT json_build_object(
 );
 `;
             const pgResult = await runPostgreSql(sql);
+            if (pgResult && pgResult.trim().startsWith('{')) {
+              cachedPlotsData = pgResult;
+              cachedPlotsTime = Date.now();
+            }
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(pgResult || '{}');
           } catch (err) {
             console.error('PostgreSQL error on GET /api/v1/plots:', err);
-            res.statusCode = 500;
-            res.end(JSON.stringify({ success: false, error: String(err) }));
+            if (cachedPlotsData) {
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(cachedPlotsData);
+            } else {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
           }
           return;
         }
