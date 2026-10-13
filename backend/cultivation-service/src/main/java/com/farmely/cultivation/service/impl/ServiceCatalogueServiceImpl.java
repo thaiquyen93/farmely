@@ -61,6 +61,10 @@ public class ServiceCatalogueServiceImpl implements ServiceCatalogueService {
                 .build();
 
         ServiceEntity saved = serviceRepository.save(entity);
+        if (saved.getServiceCode() == null || saved.getServiceCode().isBlank()) {
+            saved.setServiceCode(String.format("S%02d", saved.getServiceId()));
+            saved = serviceRepository.save(saved);
+        }
         return mapToResponse(saved);
     }
 
@@ -106,6 +110,7 @@ public class ServiceCatalogueServiceImpl implements ServiceCatalogueService {
     private ServiceResponse mapToResponse(ServiceEntity entity) {
         return ServiceResponse.builder()
                 .serviceId(entity.getServiceId())
+                .serviceCode(entity.getServiceCode())
                 .serviceName(entity.getServiceName())
                 .serviceType(entity.getServiceType())
                 .price(entity.getPrice())

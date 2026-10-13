@@ -24,6 +24,9 @@ public class ServiceEntity {
     @Column(name = "service_name", nullable = false, length = 150)
     private String serviceName;
 
+    @Column(name = "service_code", length = 20, unique = true)
+    private String serviceCode;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "service_type", nullable = false, columnDefinition = "service_type_enum")
     @JdbcType(PostgreSQLEnumJdbcType.class)

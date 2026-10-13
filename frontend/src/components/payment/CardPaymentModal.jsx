@@ -122,7 +122,7 @@ export default function CardPaymentModal({
           paymentMethod: cardType,
           plotCode: plotInfo?.code || 'PLT',
           serviceName: serviceInfo?.name,
-          serviceId: serviceInfo?.id,
+          serviceId: serviceInfo?.serviceId || serviceInfo?.id,
           ...additionalPayload
         })
       });
