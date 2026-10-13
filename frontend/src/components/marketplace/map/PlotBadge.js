@@ -1,20 +1,22 @@
 /**
- * PLOT BADGE — Factory tạo badge giá nổi trên tâm mỗi thửa đất (phong cách Airbnb).
+ * PLOT BADGE — Nhãn nổi trên tâm mỗi thửa đất.
  *
- * Điểm quan trọng: MỌI node con (chấm trạng thái, mã thửa, giá, khối thông tin
- * mở ra khi hover, mũi neo) được tạo MỘT LẦN trong factory. setSelected chỉ
- * bật/tắt class / hidden / textContent trên đúng các node đó —
- * KHÔNG gán lại innerHTML, vì gán innerHTML sẽ phá mọi CSS transition đang chạy.
+ * Yêu cầu hiển thị: MỌI thửa luôn hiện MÃ THỬA + TRẠNG THÁI ĐẤT để nhìn bản đồ là
+ * biết ngay thửa nào còn trống. Giá / diện tích / cây trồng / tiện ích là thông
+ * tin phụ, chỉ mở ra khi rê chuột (CSS group-hover) hoặc khi thửa đang được chọn.
  *
- * Ba tầng hiển thị (progressive disclosure) vì có 16 badge cùng lúc trên bản đồ:
- *  1. Thu gọn  : viên thuốc kính mờ + chấm trạng thái + giá rút gọn
- *  2. Hover    : mở rộng bằng CSS (group-hover) để hé diện tích, cây trồng, tiện ích
- *  3. Đang chọn: thẻ emerald đầy đủ mã thửa, tên, giá, diện tích, hướng, chip VietGAP
+ * Mọi node con được tạo MỘT LẦN trong factory. setSelected chỉ bật/tắt class,
+ * inline style, hidden và textContent trên các node đó — không gán lại HTML,
+ * vì làm vậy sẽ phá mọi CSS transition đang chạy.
+ *
+ * `element` là node MapLibre gắn class .maplibregl-marker và định vị bằng
+ * `position: absolute` + inline transform. Không được thêm utility position hay
+ * transform lên `element`: nó sẽ đè vị trí marker và kéo cả 16 badge về góc trái.
  */
 
 import { getStatusConfig, isAvailableStatus } from '../../../utils/mapTheme';
 
-/** Format giá tiền ngắn gọn phong cách Airbnb (ví dụ: 1.2 tr, 1.45 tr) */
+/** Format giá tiền ngắn gọn (ví dụ: 1.2 tr, 1.45 tr) */
 export function formatCompactPrice(props = {}) {
   const toCompact = (num) => {
     const millions = num / 1000000;
@@ -30,86 +32,89 @@ export function formatCompactPrice(props = {}) {
   return '';
 }
 
-const BASE_CLASS =
-  'relative w-max whitespace-nowrap inline-flex items-center cursor-pointer select-none pointer-events-auto transition-all duration-300 ease-out';
-
-/** Class của khung badge theo trạng thái + có đang được chọn hay không */
-export function getBadgeClassName(props = {}, isSelected = false) {
-  if (isSelected) {
-    return `${BASE_CLASS} gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-emerald-600 text-white shadow-xl shadow-emerald-950/40 border-2 border-white scale-110 ring-2 ring-emerald-400 animate-pulseGlow z-30 font-extrabold`;
-  }
-
-  if (isAvailableStatus(props.status)) {
-    // Thửa CÒN TRỐNG: viên thuốc kính mờ, thu gọn để không tràn lấn thửa bên cạnh
-    return `${BASE_CLASS} gap-1 px-2 py-0.5 rounded-full text-[10px] bg-white/95 backdrop-blur-md text-slate-900 border border-emerald-400/80 shadow-float ring-1 ring-white/50 hover:scale-105 hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-panel hover:z-20 font-extrabold`;
-  }
-
-  // Thửa ĐÃ THUÊ: tag khiêm tốn, tối mờ, chìm dưới nền
-  return `${BASE_CLASS} gap-1 px-1.5 py-0.5 rounded-full text-[9px] bg-slate-900/70 backdrop-blur-sm text-slate-300 border border-slate-700/60 shadow-sm opacity-60 hover:opacity-95 hover:scale-105 font-medium`;
-}
-
-/** Class của chấm trạng thái */
-function getDotClassName(props = {}, isSelected = false) {
-  if (isSelected) {
-    return 'rounded-full shrink-0 transition-all duration-300 w-1.5 h-1.5 bg-white animate-ping';
-  }
-  if (isAvailableStatus(props.status)) {
-    return 'rounded-full shrink-0 transition-all duration-300 w-1.5 h-1.5 animate-pulse';
-  }
-  return 'rounded-full shrink-0 transition-all duration-300 w-1 h-1 opacity-80';
-}
-
-/** Mũi neo nhỏ hình thoi dưới đáy badge — để viên thuốc "dính" vào thửa đất */
-export function getTailClassName(props = {}, isSelected = false) {
-  const base =
-    'absolute left-1/2 -translate-x-1/2 -bottom-[3px] w-2 h-2 rotate-45 rounded-[1px] pointer-events-none transition-all duration-300';
-
-  if (isSelected) {
-    return `${base} bg-emerald-600 border-b-2 border-r-2 border-white`;
-  }
-  if (isAvailableStatus(props.status)) {
-    return `${base} bg-white/95 border-b border-r border-emerald-400/80`;
-  }
-  return `${base} bg-slate-900/70 border-b border-r border-slate-700/60`;
-}
-
-/**
- * Khối thông tin phụ: thu gọn về chiều rộng 0 khi không chọn (chỉ mở khi hover),
- * mở sẵn khi đang được chọn. Hoàn toàn bằng CSS nên không rò listener.
- */
-function getRevealClassName(isSelected = false) {
-  const base =
-    'inline-flex items-center gap-1 overflow-hidden transition-all duration-300 ease-out';
-  if (isSelected) {
-    return `${base} max-w-[320px] opacity-100`;
-  }
-  return `${base} max-w-0 opacity-0 group-hover:max-w-[240px] group-hover:opacity-100`;
-}
-
-/** Class cho các nhãn phụ (diện tích, cây trồng, hướng...) */
-function getMutedClassName(isSelected = false) {
-  return isSelected
-    ? 'tracking-tight font-semibold text-white/80'
-    : 'tracking-tight font-semibold text-slate-500';
-}
-
-/** Vạch phân cách mảnh giữa phần giá và phần thông tin */
-function getDividerClassName(isSelected = false) {
-  return isSelected
-    ? 'inline-block w-px h-3 bg-white/40 shrink-0'
-    : 'inline-block w-px h-2.5 bg-slate-300 shrink-0';
-}
-
-/** Cắt tên thửa cho vừa 1 dòng (span inline nên không dùng được utility `truncate`) */
+/** Cắt chuỗi cho vừa 1 dòng (giữ lại cho nơi khác dùng) */
 export function truncateName(name = '', maxLength = 22) {
   const text = String(name || '').trim();
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
-/** Chip tin cậy (chỉ hiện khi thửa đang được chọn) */
-const TRUST_CHIP_CLASS =
-  'px-1.5 py-[1px] rounded-full bg-white/20 text-white text-[9px] font-bold tracking-tight';
+/** '#10B981' -> 'rgba(16, 185, 129, a)'; giá trị không phải hex thì trả nguyên */
+function withAlpha(hex, alpha) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+const BASE_CLASS =
+  'relative w-max whitespace-nowrap inline-flex items-center gap-1.5 rounded-full cursor-pointer select-none pointer-events-auto transition-all duration-300 ease-out';
+
+/** Khung badge theo trạng thái + đang được chọn hay không */
+export function getBadgeClassName(props = {}, isSelected = false) {
+  if (isSelected) {
+    return `${BASE_CLASS} pl-2 pr-1.5 py-1 text-[11px] bg-emerald-600 text-white border-2 border-white shadow-panel ring-2 ring-emerald-400/70 scale-110 animate-pulseGlow font-extrabold`;
+  }
+
+  if (isAvailableStatus(props.status)) {
+    return `${BASE_CLASS} pl-1.5 pr-1 py-[3px] text-[10px] bg-white/95 backdrop-blur-md text-slate-900 border border-emerald-300 shadow-float hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-panel font-extrabold`;
+  }
+
+  // Đã thuê / bảo trì: vẫn đọc được mã + trạng thái, nhưng tông trầm để không
+  // cạnh tranh với các thửa còn trống
+  return `${BASE_CLASS} pl-1.5 pr-1 py-[3px] text-[10px] bg-slate-900/80 backdrop-blur-md text-slate-200 border border-slate-600/70 shadow-float hover:-translate-y-0.5 hover:bg-slate-900/95 font-bold`;
+}
+
+/** Chấm trạng thái */
+function getDotClassName(props = {}, isSelected = false) {
+  const base = 'w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-300';
+  if (isSelected) return `${base} bg-white`;
+  if (isAvailableStatus(props.status)) return `${base} animate-pulse`;
+  return base;
+}
+
+/** Chip trạng thái đất — luôn hiển thị */
+function getStatusChipClassName(isSelected = false) {
+  return `px-1.5 py-[1px] rounded-full text-[9px] font-bold leading-[14px] tracking-tight transition-colors duration-300 ${
+    isSelected ? 'bg-white/20 text-white' : ''
+  }`;
+}
+
+/** Mũi neo nhỏ dưới đáy badge — để badge "dính" vào thửa đất */
+export function getTailClassName(props = {}, isSelected = false) {
+  const base =
+    'absolute left-1/2 -translate-x-1/2 -bottom-[4px] w-2 h-2 rotate-45 rounded-[1px] pointer-events-none transition-all duration-300';
+
+  if (isSelected) return `${base} bg-emerald-600 border-b-2 border-r-2 border-white`;
+  if (isAvailableStatus(props.status)) return `${base} bg-white/95 border-b border-r border-emerald-300`;
+  return `${base} bg-slate-900/80 border-b border-r border-slate-600/70`;
+}
+
+/**
+ * Khối thông tin phụ: rộng 0 khi thu gọn, chỉ mở khi hover (CSS thuần, không
+ * listener JS), mở sẵn khi đang được chọn.
+ */
+function getRevealClassName(isSelected = false) {
+  const base = 'inline-flex items-center gap-1.5 overflow-hidden transition-all duration-300 ease-out';
+  if (isSelected) return `${base} max-w-[200px] opacity-100`;
+  return `${base} max-w-0 opacity-0 group-hover:max-w-[220px] group-hover:opacity-100`;
+}
+
+function getDividerClassName(isSelected = false) {
+  return isSelected ? 'inline-block w-px h-3 bg-white/40 shrink-0' : 'inline-block w-px h-3 bg-slate-300/80 shrink-0';
+}
+
+function getMutedClassName(props = {}, isSelected = false) {
+  if (isSelected) return 'tracking-tight font-semibold text-white/85';
+  if (isAvailableStatus(props.status)) return 'tracking-tight font-semibold text-slate-500';
+  return 'tracking-tight font-semibold text-slate-400';
+}
+
+function getPriceClassName(props = {}, isSelected = false) {
+  if (isSelected) return 'tracking-tight font-extrabold text-white';
+  if (isAvailableStatus(props.status)) return 'tracking-tight font-extrabold text-emerald-700';
+  return 'tracking-tight font-semibold text-slate-400 line-through';
+}
 
 /**
  * Tạo 1 badge marker.
@@ -123,66 +128,49 @@ export function createPlotBadge({
   isSelected = false,
 } = {}) {
   const statusConfig = getStatusConfig(properties.status);
+  const vacant = isAvailableStatus(properties.status);
   const priceStr = formatCompactPrice(properties);
   const facilities = properties.facilities || {};
   const firstCrop = Array.isArray(properties.crops) ? properties.crops[0] : '';
 
+  // `element` = phần tử MapLibre định vị (position + transform). TUYỆT ĐỐI không gắn
+  // animation/transform/position lên nó: bất kỳ CSS cũ hay lạ nào chạm `transform`
+  // ở đây đều kéo badge về góc trái màn hình. Animation vào sân khấu nằm ở `enter`.
   const element = document.createElement('div');
-  element.className = 'group relative z-10 hover:z-40 select-none pointer-events-auto animate-fadeInUp';
-  element.style.animationDelay = `${Math.max(0, enterDelayMs)}ms`;
+  element.className = 'group z-10 hover:z-40 select-none pointer-events-auto';
+
+  const enter = document.createElement('div');
+  enter.className = 'animate-fadeInUp';
+  enter.style.animationDelay = `${Math.max(0, enterDelayMs)}ms`;
 
   const badge = document.createElement('div');
-  badge.className = getBadgeClassName(properties, isSelected);
+  badge.setAttribute('role', 'button');
+  badge.setAttribute('aria-label', `${properties.id || ''} — ${statusConfig.label}${priceStr ? `, ${priceStr}/tháng` : ''}`);
 
-  // --- Các node con, tạo MỘT LẦN duy nhất ---
+  // --- Phần luôn hiển thị: chấm + mã thửa + chip trạng thái ---
   const dot = document.createElement('span');
-  dot.className = getDotClassName(properties, isSelected);
-  dot.style.backgroundColor = isSelected ? '' : statusConfig.color;
 
   const idLabel = document.createElement('span');
   idLabel.className = 'tracking-tight';
   idLabel.textContent = properties.id || '';
 
-  const separator = document.createElement('span');
-  separator.className = 'opacity-50';
-  separator.textContent = '•';
+  const statusChip = document.createElement('span');
+  statusChip.textContent = statusConfig.label;
 
-  const priceLabel = document.createElement('span');
-  priceLabel.className = 'tracking-tight';
-  priceLabel.textContent = priceStr || statusConfig.label;
-
-  // --- Khối thông tin mở ra khi hover / khi được chọn ---
+  // --- Phần mở ra khi hover / khi chọn: giá, diện tích, cây trồng, tiện ích ---
   const reveal = document.createElement('span');
-  reveal.className = getRevealClassName(isSelected);
 
   const divider = document.createElement('span');
-  divider.className = getDividerClassName(isSelected);
 
-  const nameLabel = document.createElement('span');
-  nameLabel.className = 'tracking-tight font-bold';
-  nameLabel.textContent = truncateName(properties.name);
+  const priceLabel = document.createElement('span');
+  priceLabel.textContent = priceStr;
 
   const areaLabel = document.createElement('span');
-  areaLabel.className = getMutedClassName(isSelected);
   areaLabel.textContent = properties.area || '';
 
   const cropLabel = document.createElement('span');
-  cropLabel.className = getMutedClassName(isSelected);
   cropLabel.textContent = firstCrop || '';
 
-  const directionLabel = document.createElement('span');
-  directionLabel.className = getMutedClassName(isSelected);
-  directionLabel.textContent = properties.direction || '';
-
-  const statusLabel = document.createElement('span');
-  statusLabel.className = getMutedClassName(isSelected);
-  statusLabel.textContent = statusConfig.label;
-
-  const trustChip = document.createElement('span');
-  trustChip.className = TRUST_CHIP_CLASS;
-  trustChip.textContent = 'VietGAP';
-
-  // Micro-icon tiện ích — chỉ dựng node cho đúng 3 tiện ích cần khoe
   const facilityWrap = document.createElement('span');
   facilityWrap.className = 'inline-flex items-center gap-0.5 shrink-0';
 
@@ -201,43 +189,25 @@ export function createPlotBadge({
   facSoil.title = 'Đất hữu cơ';
   facSoil.textContent = '🌱';
 
-  facilityWrap.appendChild(facIrrigation);
-  facilityWrap.appendChild(facIot);
-  facilityWrap.appendChild(facSoil);
-
-  reveal.appendChild(divider);
-  reveal.appendChild(nameLabel);
-  reveal.appendChild(areaLabel);
-  reveal.appendChild(cropLabel);
-  reveal.appendChild(directionLabel);
-  reveal.appendChild(statusLabel);
-  reveal.appendChild(facilityWrap);
-  reveal.appendChild(trustChip);
+  facilityWrap.append(facIrrigation, facIot, facSoil);
+  reveal.append(divider, priceLabel, areaLabel, cropLabel, facilityWrap);
 
   const tail = document.createElement('span');
-  tail.className = getTailClassName(properties, isSelected);
 
-  badge.appendChild(dot);
-  badge.appendChild(idLabel);
-  badge.appendChild(separator);
-  badge.appendChild(priceLabel);
-  badge.appendChild(reveal);
-  badge.appendChild(tail);
-  element.appendChild(badge);
+  badge.append(dot, idLabel, statusChip, reveal, tail);
+  enter.appendChild(badge);
+  element.appendChild(enter);
 
   const nodes = {
+    enter,
     dot,
     idLabel,
-    separator,
-    priceLabel,
+    statusChip,
     reveal,
     divider,
-    nameLabel,
+    priceLabel,
     areaLabel,
     cropLabel,
-    directionLabel,
-    statusLabel,
-    trustChip,
     facilityWrap,
     facIrrigation,
     facIot,
@@ -251,80 +221,45 @@ export function createPlotBadge({
   };
   badge.addEventListener('click', handleClick);
 
-  /**
-   * Chỉ toggle class / hidden / textContent trên các node đã tồn tại.
-   *  - Đang chọn      : mã thửa + tên + giá + diện tích + hướng + chip VietGAP
-   *  - Trống, thu gọn : chấm + giá; hover hé diện tích + cây trồng + tiện ích
-   *  - Đã thuê        : chấm + mã thửa; hover hé nhãn "Đã thuê" (vẫn giữ tông mờ)
-   */
+  /** Chỉ đổi class / style / hidden trên các node đã có */
   function setSelected(selected) {
     const isSel = Boolean(selected);
-    const vacant = isAvailableStatus(properties.status);
 
     badge.className = getBadgeClassName(properties, isSel);
     dot.className = getDotClassName(properties, isSel);
     dot.style.backgroundColor = isSel ? '' : statusConfig.color;
-    tail.className = getTailClassName(properties, isSel);
+
+    statusChip.className = getStatusChipClassName(isSel);
+    statusChip.style.backgroundColor = isSel ? '' : withAlpha(statusConfig.color, vacant ? 0.14 : 0.28);
+    statusChip.style.color = isSel ? '' : vacant ? '#047857' : statusConfig.strokeColor || statusConfig.color;
+
     reveal.className = getRevealClassName(isSel);
     divider.className = getDividerClassName(isSel);
+    priceLabel.className = getPriceClassName(properties, isSel);
 
-    const mutedClass = getMutedClassName(isSel);
-    areaLabel.className = mutedClass;
-    cropLabel.className = mutedClass;
-    directionLabel.className = mutedClass;
-    statusLabel.className = mutedClass;
+    const muted = getMutedClassName(properties, isSel);
+    areaLabel.className = muted;
+    cropLabel.className = muted;
+    tail.className = getTailClassName(properties, isSel);
 
-    // Tiện ích: chỉ khoe ở thửa còn trống và chỉ khi dữ liệu thật có
-    facIrrigation.hidden = !(vacant && facilities.irrigation);
-    facIot.hidden = !(vacant && facilities.iot);
-    facSoil.hidden = !(vacant && facilities.organicSoil);
+    priceLabel.hidden = !priceStr;
+    areaLabel.hidden = !properties.area;
+    // Cây trồng + tiện ích chỉ khoe ở thửa còn trống; khi chọn thì để panel chi
+    // tiết bên phải lo, giữ badge gọn để không đè lên các thửa lân cận
+    cropLabel.hidden = isSel || !vacant || !firstCrop;
+    facIrrigation.hidden = isSel || !(vacant && facilities.irrigation);
+    facIot.hidden = isSel || !(vacant && facilities.iot);
+    facSoil.hidden = isSel || !(vacant && facilities.organicSoil);
+    facilityWrap.hidden = facIrrigation.hidden && facIot.hidden && facSoil.hidden;
 
-    if (isSel) {
-      idLabel.hidden = false;
-      separator.hidden = false;
-      priceLabel.hidden = false;
-      priceLabel.textContent = priceStr || statusConfig.label;
-
-      nameLabel.hidden = !properties.name;
-      areaLabel.hidden = !properties.area;
-      cropLabel.hidden = true;
-      directionLabel.hidden = !properties.direction;
-      statusLabel.hidden = vacant;
-      trustChip.hidden = false;
-    } else if (vacant) {
-      idLabel.hidden = true;
-      separator.hidden = true;
-      priceLabel.hidden = false;
-      priceLabel.textContent = priceStr;
-
-      nameLabel.hidden = true;
-      areaLabel.hidden = !properties.area;
-      cropLabel.hidden = !firstCrop;
-      directionLabel.hidden = true;
-      statusLabel.hidden = true;
-      trustChip.hidden = true;
-    } else {
-      idLabel.hidden = false;
-      separator.hidden = true;
-      priceLabel.hidden = true;
-
-      nameLabel.hidden = true;
-      areaLabel.hidden = true;
-      cropLabel.hidden = true;
-      directionLabel.hidden = true;
-      statusLabel.hidden = false;
-      trustChip.hidden = true;
-    }
+    badge.setAttribute('aria-pressed', String(isSel));
   }
 
   function destroy() {
     badge.removeEventListener('click', handleClick);
-    if (element.parentNode) {
-      element.parentNode.removeChild(element);
-    }
+    if (element.parentNode) element.parentNode.removeChild(element);
   }
 
-  // Trạng thái hiển thị ban đầu
   setSelected(isSelected);
 
   return { element, badge, nodes, setSelected, destroy };

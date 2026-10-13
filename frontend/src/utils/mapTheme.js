@@ -102,9 +102,11 @@ export const OVERVIEW_BOUNDS = [
   [106.356997, 10.694331],
 ];
 
-export const OVERVIEW_PADDING = { top: 90, bottom: 60, left: 350, right: 400 };
+// left: sidebar chiếm left-6 (24px) + w-84 (336px) = 360px -> chừa thêm khoảng thở.
+// right: drawer chiếm lg:right-4 (16px) + 370px = 386px.
+export const OVERVIEW_PADDING = { top: 90, bottom: 60, left: 384, right: 404 };
 
-export const FOCUS_PADDING = { top: 100, bottom: 80, left: 360, right: 420 };
+export const FOCUS_PADDING = { top: 110, bottom: 90, left: 392, right: 420 };
 
 /** Các preset camera của màn hình Marketplace */
 export const CAMERA = {

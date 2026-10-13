@@ -40,26 +40,33 @@ export default {
       spacing: {
         84: '21rem',
       },
+      // QUAN TRỌNG: các keyframe vào sân khấu dùng thuộc tính `translate` / `scale`
+      // RIÊNG, KHÔNG dùng `transform`. Với fill-mode `both`, một keyframe `transform`
+      // sẽ đè vĩnh viễn mọi transform khác của phần tử:
+      //  - marker MapLibre định vị bằng inline transform -> badge rơi về góc trái
+      //  - navbar căn giữa bằng -translate-x-1/2 -> navbar lệch sang phải
+      //  - hover:-translate-y của card -> mất hiệu ứng nhấc lên
+      // `translate` / `scale` được cộng dồn với `transform` nên không xung đột.
       keyframes: {
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
         fadeInUp: {
-          '0%': { opacity: '0', transform: 'translateY(8px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+          '0%': { opacity: '0', translate: '0 8px' },
+          '100%': { opacity: '1', translate: '0 0' },
         },
         slideInLeft: {
-          '0%': { opacity: '0', transform: 'translateX(-24px)' },
-          '100%': { opacity: '1', transform: 'translateX(0)' },
+          '0%': { opacity: '0', translate: '-24px 0' },
+          '100%': { opacity: '1', translate: '0 0' },
         },
         slideInRight: {
-          '0%': { opacity: '0', transform: 'translateX(24px)' },
-          '100%': { opacity: '1', transform: 'translateX(0)' },
+          '0%': { opacity: '0', translate: '24px 0' },
+          '100%': { opacity: '1', translate: '0 0' },
         },
         dropInTop: {
-          '0%': { opacity: '0', transform: 'translateY(-16px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+          '0%': { opacity: '0', translate: '0 -16px' },
+          '100%': { opacity: '1', translate: '0 0' },
         },
         pulseGlow: {
           '0%, 100%': {
@@ -72,8 +79,19 @@ export default {
           },
         },
         bracketIn: {
-          '0%': { opacity: '0', transform: 'scale(0.4)' },
-          '100%': { opacity: '1', transform: 'scale(1)' },
+          '0%': { opacity: '0', scale: '0.4' },
+          '100%': { opacity: '1', scale: '1' },
+        },
+        // Ảnh header thửa phóng chậm (Ken Burns) — chỉ chạy khi người dùng không tắt chuyển động
+        heroZoom: {
+          '0%': { scale: '1.12' },
+          '100%': { scale: '1.02' },
+        },
+        // Sóng lan toả từ tâm thửa đang chọn (áp lên vòng con, KHÔNG lên phần tử marker)
+        ripple: {
+          '0%': { opacity: '0.75', transform: 'scale(0.35)' },
+          '80%': { opacity: '0' },
+          '100%': { opacity: '0', transform: 'scale(2.6)' },
         },
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
@@ -88,6 +106,8 @@ export default {
         dropInTop: 'dropInTop 460ms cubic-bezier(0.22, 1, 0.36, 1) both',
         pulseGlow: 'pulseGlow 1800ms cubic-bezier(0.4, 0, 0.6, 1) infinite',
         bracketIn: 'bracketIn 380ms cubic-bezier(0.22, 1, 0.36, 1) both',
+        ripple: 'ripple 2400ms cubic-bezier(0.22, 1, 0.36, 1) infinite',
+        heroZoom: 'heroZoom 18s ease-out both',
         shimmer: 'shimmer 1600ms linear infinite',
       },
     },

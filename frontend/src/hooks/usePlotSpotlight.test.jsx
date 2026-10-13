@@ -164,7 +164,9 @@ describe('usePlotSpotlight (asserted against a fake map)', () => {
     expect(bounds).toHaveLength(2);
     expect(opts.maxZoom).toBe(17.5);
     expect(opts.padding.right).toBe(420);
-    expect(opts.padding.left).toBe(360);
+    // Thửa được chọn không được lọt vào vùng sidebar che (24px + 336px = 360px)
+    expect(opts.padding.left).toBe(392);
+    expect(opts.padding.left).toBeGreaterThan(360);
   });
 
   it('marches the selected border dasharray over time', async () => {
@@ -200,7 +202,7 @@ describe('usePlotSpotlight (asserted against a fake map)', () => {
     expect(map.paint[key]).not.toBe(first);
   });
 
-  it('adds exactly 4 corner brackets and removes them all on clear', async () => {
+  it('adds 4 corner brackets + 1 ripple, and removes them all on clear', async () => {
     const map = createFakeMap();
     const hookRef = await renderSpotlight({
       map,
@@ -210,11 +212,33 @@ describe('usePlotSpotlight (asserted against a fake map)', () => {
       isReady: true,
     });
 
-    expect(markerInstances).toHaveLength(4);
-    markerInstances.forEach((m, i) => {
+    // 4 góc vuông + 1 sóng radar ở tâm thửa
+    expect(markerInstances).toHaveLength(5);
+    const brackets = markerInstances.filter((m) => m.element.querySelector('.animate-bracketIn'));
+    const ripples = markerInstances.filter((m) => m.element.querySelector('.animate-ripple'));
+    expect(brackets).toHaveLength(4);
+    expect(ripples).toHaveLength(1);
+
+    // Sóng radar: animation (có transform) nằm trên vòng CON, không bao giờ trên
+    // phần tử marker — MapLibre định vị marker bằng chính transform của nó
+    const rippleEl = ripples[0].element;
+    expect(rippleEl.className).not.toContain('animate-');
+    expect(rippleEl.style.transform).toBe('');
+    expect(rippleEl.querySelectorAll('.animate-ripple')).toHaveLength(3);
+
+    brackets.forEach((m) => {
+      // Marker element không được mang animation (có transform) — chỉ lớp con
+      expect(m.element.className).not.toContain('animate-');
+    });
+
+    brackets.forEach((m, i) => {
       expect(m.added).toBe(true);
-      expect(m.element.className).toContain('animate-bracketIn');
-      expect(m.element.style.animationDelay).toBe(`${[0, 60, 120, 180][i]}ms`);
+      // Rotation lives on the inner <svg>: MapLibre overwrites the marker
+      // element's own style.transform when it positions the marker.
+      expect(m.element.style.transform).toBe('');
+      expect(m.element.querySelector('svg').style.transform).toBe(`rotate(${i * 90}deg)`);
+      const enter = m.element.querySelector('.animate-bracketIn');
+      expect(enter.style.animationDelay).toBe(`${[0, 60, 120, 180][i]}ms`);
     });
 
     await act(async () => {

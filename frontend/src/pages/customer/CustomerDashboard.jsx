@@ -843,6 +843,7 @@ export default function CustomerDashboard() {
     ]
   };
   const currentPlotOperations = plotOperations[selectedPlotId] || { tasks: [], diary: [] };
+  const plotTabFromUrl = new URLSearchParams(location.search).get('tab') || 'overview';
 
   const handleSendMessage = (textToSend) => {
     const query = textToSend || chatInput;
@@ -979,15 +980,21 @@ export default function CustomerDashboard() {
                 plot={currentSelectedPlot}
                 plots={customerPlots}
                 operations={currentPlotOperations}
+                iotData={iotDatasets[currentSelectedPlot.id]}
+                alerts={iotAlerts[currentSelectedPlot.id] || []}
+                stages={cultivationProcesses[currentSelectedPlot.id] || []}
                 services={customerServiceCatalog}
+                serviceOrders={activeServiceOrders.filter((o) => o.plotName === currentSelectedPlot.name)}
                 harvestPlan={harvestPlans[currentSelectedPlot.id] || null}
+                activeTab={plotTabFromUrl}
+                onTabChange={(tab) => navigate(`/customer/dashboard?plot=${currentSelectedPlot.id}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
+                onBack={() => navigate('/customer/dashboard')}
                 onOpenHarvest={(plot) => setHarvestModalPlotId(plot.id)}
-                onNavigate={(nextTab) => { setSelectedPlotId(null); setActiveTab(nextTab); navigate(`/customer/dashboard?view=${nextTab}`); }}
-                onSelectPlot={(plotId) => navigate(`/customer/dashboard?plot=${plotId}`)}
+                onSelectPlot={(plotId) => navigate(`/customer/dashboard?plot=${plotId}${plotTabFromUrl !== 'overview' ? `&tab=${plotTabFromUrl}` : ''}`)}
                 onOpenAiChat={() => { setChatOpenMode('ai'); setShowExpertChatModal(true); }}
-                onOpenIotDetail={() => { setIotReturnPlotId(selectedPlotId); setSelectedIotPlotId(selectedPlotId); setActiveTab('iot'); setSelectedPlotId(null); navigate(`/customer/dashboard?view=iot&fromPlot=${selectedPlotId}`); }}
                 onOpenTask={(task) => { setTaskPhotoPreview(''); setSelectedTaskDetail({ ...task, plot: currentSelectedPlot }); }}
                 onSelectService={(service) => { setCheckoutPlotId(currentSelectedPlot.id); handleOpenBuyServiceModal(service); }}
+                onAddDiary={(plot) => { setDiaryPlotId(plot.id); setShowNewDiaryModal(true); }}
               />
             )}
 
@@ -1070,129 +1077,118 @@ export default function CustomerDashboard() {
             {/* ============================================================== */}
             {/* VIEW B: DANH SÁCH TẤT CẢ THỬA ĐẤT (COMPACT GRID)              */}
             {/* ============================================================== */}
-            {activeTab === 'yards' && !selectedPlotId && (
-              <div className="space-y-5 p-4 sm:p-6">
-                <div className="flex flex-col justify-between gap-3 rounded-2xl bg-gradient-to-r from-[#123f2e] to-[#2f684d] px-5 py-3.5 text-white shadow-md sm:flex-row sm:items-center sm:px-6">
+            {activeTab === 'yards' && !selectedPlotId && (() => {
+              const hour = new Date().getHours();
+              const greeting = hour < 11 ? 'Chào buổi sáng' : hour < 14 ? 'Chào buổi trưa' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+              const firstName = (user?.fullName || user?.name || '').trim().split(/\s+/).pop() || 'bạn';
+              const openTasksAll = customerPlots.reduce((n, p) => n + (plotOperations[p.id]?.tasks || []).filter((t) => t.status !== 'COMPLETED').length, 0);
+              const highAlertsAll = customerPlots.reduce((n, p) => n + (iotAlerts[p.id] || []).filter((a) => a.level === 'HIGH').length, 0);
+              const openPlot = (plotId, tab) => navigate(`/customer/dashboard?plot=${plotId}${tab ? `&tab=${tab}` : ''}`);
+              return (
+              <div className="mx-auto max-w-[1400px] space-y-6 px-4 pb-16 pt-5 sm:px-6 lg:px-10 lg:pt-8">
+                <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-200">Tổng quan khu vườn</p>
-                    <h2 className="mt-0.5 font-heading text-lg font-black text-white sm:text-xl">
-                      Các thửa đất đang canh tác ({customerPlots.length})
-                    </h2>
-                    <p className="mt-0.5 text-[11px] text-white/70">
-                      Chọn một thửa để mở bảng điều khiển IoT, công việc và nhật ký chi tiết.
-                    </p>
+                    <p className="text-sm text-stone-500">{greeting}, {firstName}</p>
+                    <h1 className="mt-1 font-heading text-2xl font-bold text-[#18352b] sm:text-3xl">Vườn của tôi</h1>
                   </div>
-                  <Link
-                    to="/marketplace"
-                    className="flex items-center gap-1.5 self-start rounded-xl bg-brand-yellow px-3.5 py-2 text-xs font-black text-brand-dark transition hover:brightness-95 sm:self-auto"
-                  >
-                    <span>Khám phá thêm thửa đất</span>
-                    <ArrowRight className="w-4 h-4" />
+                  <Link to="/marketplace" className="flex items-center justify-center gap-1.5 self-start rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 sm:self-auto">
+                    Thuê thêm thửa đất<ArrowRight className="h-4 w-4" />
                   </Link>
-                </div>
+                </header>
 
-                {/* Compact 3-Column Responsive Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {customerPlots.map((plot) => (
-                    <div
-                      key={plot.id}
-                      onClick={() => navigate(`/customer/dashboard?plot=${plot.id}`)}
-                      className="bg-white rounded-2xl p-4 sm:p-5 border border-brand-border shadow-sm space-y-3 hover:shadow-md hover:border-brand-green/40 transition-all cursor-pointer flex flex-col justify-between group"
-                    >
-                      <div className="space-y-3">
-                        {/* Compact Image */}
-                        <div className="relative h-40 rounded-xl overflow-hidden bg-black/10">
-                          <img
-                            src={plot.image}
-                            alt={plot.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          />
-                          <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-brand-yellow text-brand-dark shadow-sm">
-                            {plot.id}
-                          </span>
-                          <span className="absolute top-2.5 right-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand-green text-white shadow-sm">
-                            {plot.mode}
-                          </span>
-                        </div>
-
-                        {/* Title & Location */}
-                        <div>
-                          <h3 className="font-heading font-black text-base text-brand-dark group-hover:text-brand-green transition-colors flex items-center justify-between">
-                            <span>{plot.name}</span>
-                            <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-brand-green group-hover:translate-x-1 transition-all" />
-                          </h3>
-                          <p className="text-xs text-brand-muted flex items-center gap-1 mt-0.5 truncate">
-                            <MapPin className="w-3.5 h-3.5 text-brand-green shrink-0" />
-                            <span className="truncate">{plot.location} • {plot.area}</span>
-                          </p>
-                        </div>
-
-                        {/* Progress */}
-                        <div className="p-3 rounded-xl bg-brand-cream/60 border border-brand-border/70 space-y-1.5 text-xs">
-                          <div className="flex justify-between items-center text-[11px]">
-                            <span className="font-bold text-brand-dark truncate flex items-center gap-1">
-                              <Sprout className="w-3.5 h-3.5 text-emerald-600" />
-                              <span className="truncate">{plot.crop}</span>
-                            </span>
-                            <span className="font-bold text-brand-green shrink-0">
-                              Ngày {plot.currentDay}/{plot.totalDays}
-                            </span>
-                          </div>
-                          <div className="w-full bg-stone-200 rounded-full h-1.5 overflow-hidden">
-                            <div
-                              className="bg-brand-green h-1.5 rounded-full"
-                              style={{ width: `${plot.progressPercent}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Assigned Personnel */}
-                        <div className="flex items-center justify-between text-[11px] px-2 py-1.5 rounded-xl bg-stone-50 border border-stone-100">
-                          <span className="text-stone-600 font-medium flex items-center gap-1 truncate">
-                            <UserCheck className="w-3.5 h-3.5 text-brand-green shrink-0" />
-                            <span>ThS. Nam</span>
-                          </span>
-                          <span className="text-amber-800 font-bold text-[10px] truncate max-w-[130px] shrink-0">
-                            {plot.worker}
-                          </span>
-                        </div>
-
-                        {/* Compact IoT Telemetry */}
-                        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                          <div className="p-1.5 rounded-lg bg-stone-50 border border-stone-100">
-                            <span className="text-[10px] text-stone-400 block font-medium">Nhiệt độ</span>
-                            <span className="font-bold text-brand-dark text-xs">{plot.temp}</span>
-                          </div>
-                          <div className="p-1.5 rounded-lg bg-stone-50 border border-stone-100">
-                            <span className="text-[10px] text-stone-400 block font-medium">Độ ẩm đất</span>
-                            <span className="font-bold text-emerald-600 text-xs">{plot.soilMoisture}</span>
-                          </div>
-                          <div className="p-1.5 rounded-lg bg-stone-50 border border-stone-100">
-                            <span className="text-[10px] text-stone-400 block font-medium">Trạm IoT</span>
-                            <span className="font-bold text-brand-dark text-[11px] truncate block">{plot.stationId}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Action Button: Opens Plot Management Dashboard */}
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/customer/dashboard?plot=${plot.id}`);
-                          }}
-                          className="w-full py-2.5 px-3 rounded-xl bg-brand-green hover:bg-brand-dark text-white text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          <Activity className="w-3.5 h-3.5 text-brand-yellow" />
-                          <span>QUẢN LÝ & GIÁM SÁT IOT</span>
-                        </button>
-                      </div>
+                <dl className="grid grid-cols-3 gap-3">
+                  {[
+                    ['Thửa đang canh tác', customerPlots.length, 'text-[#18352b]'],
+                    ['Việc chưa xong', openTasksAll, 'text-amber-700'],
+                    ['Cảnh báo cao', highAlertsAll, highAlertsAll ? 'text-rose-700' : 'text-[#18352b]']
+                  ].map(([label, value, tone]) => (
+                    <div key={label} className="rounded-2xl border border-stone-200/80 bg-white p-3 shadow-sm sm:p-4">
+                      <dt className="text-xs text-stone-500">{label}</dt>
+                      <dd className={`mt-1 text-2xl font-bold ${tone}`}>{value}</dd>
                     </div>
                   ))}
-                </div>
+                </dl>
+
+                {/* Mobile không có sidebar: lối vào các trang xem chung tất cả thửa */}
+                <nav aria-label="Xem theo tất cả thửa" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
+                  {[['tasks', 'Lịch canh tác', Calendar], ['services', 'Dịch vụ', ShoppingBag], ['diary', 'Nhật ký', BookOpen], ['process', 'Quy trình', ClipboardList], ['harvest', 'Nghiệm thu', Apple]].map(([id, label, Icon]) => (
+                    <button key={id} type="button" onClick={() => navigate(`/customer/dashboard?view=${id}`)} className="flex shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm">
+                      <Icon className="h-4 w-4 text-emerald-700" />{label}
+                    </button>
+                  ))}
+                </nav>
+
+                <section aria-labelledby="my-plots-heading">
+                  <h2 id="my-plots-heading" className="mb-3 font-heading text-lg font-bold text-[#18352b]">Thửa đất của bạn</h2>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {customerPlots.map((plot) => {
+                      const tasks = plotOperations[plot.id]?.tasks || [];
+                      const nextTask = tasks.find((t) => t.status === 'IN_PROGRESS') || tasks.find((t) => t.status === 'PENDING');
+                      const openCount = tasks.filter((t) => t.status !== 'COMPLETED').length;
+                      const topAlert = (iotAlerts[plot.id] || []).find((a) => a.level === 'HIGH');
+                      const daysLeft = Math.max(plot.totalDays - plot.currentDay, 0);
+                      return (
+                        <article key={plot.id} className="group flex flex-col overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
+                          <button type="button" onClick={() => openPlot(plot.id)} className="relative block h-40 w-full overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400" aria-label={`Mở ${plot.name}`}>
+                            <img src={plot.image} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                            <span className="absolute inset-0 bg-gradient-to-t from-[#0f2a20]/90 via-[#0f2a20]/30 to-transparent" />
+                            <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-[11px] font-semibold text-[#18352b]">{plot.mode === 'Self-Growing' ? 'Tự canh tác' : 'Farmely chăm sóc'}</span>
+                            {topAlert && <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-semibold text-white"><Flame className="h-3 w-3" />Cảnh báo</span>}
+                            <span className="absolute inset-x-3 bottom-3 text-white">
+                              <span className="block font-heading text-lg font-bold leading-tight">{plot.name}</span>
+                              <span className="mt-0.5 flex items-center gap-1 text-xs text-white/80"><MapPin className="h-3.5 w-3.5" />{plot.location} · {plot.area}</span>
+                            </span>
+                          </button>
+
+                          <div className="flex flex-1 flex-col gap-3 p-4">
+                            <div>
+                              <div className="flex items-center justify-between gap-2 text-sm">
+                                <span className="flex min-w-0 items-center gap-1.5 font-semibold text-[#18352b]"><Sprout className="h-4 w-4 shrink-0 text-emerald-600" /><span className="truncate">{plot.crop}</span></span>
+                                <span className="shrink-0 text-xs text-stone-500">{daysLeft > 0 ? `Còn ${daysLeft} ngày` : 'Đến vụ'}</span>
+                              </div>
+                              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${plot.progressPercent}%` }} /></div>
+                              <p className="mt-1 text-xs text-stone-500">{plot.stage}</p>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              {[['Nhiệt độ', plot.temp], ['Ẩm đất', plot.soilMoisture], ['Ánh sáng', plot.light]].map(([label, value]) => (
+                                <div key={label} className="rounded-xl bg-stone-50 px-2 py-2">
+                                  <p className="text-[11px] text-stone-500">{label}</p>
+                                  <p className="truncate text-sm font-semibold text-[#18352b]">{value}</p>
+                                </div>
+                              ))}
+                            </div>
+
+                            {topAlert ? (
+                              <button type="button" onClick={() => openPlot(plot.id, 'iot')} className="flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2 text-left text-xs text-rose-800 hover:bg-rose-100">
+                                <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block font-semibold">{topAlert.title}</span><span className="opacity-80">{topAlert.time}</span></span>
+                              </button>
+                            ) : nextTask ? (
+                              <button type="button" onClick={() => openPlot(plot.id, 'tasks')} className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-left text-xs text-amber-900 hover:bg-amber-100">
+                                <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block truncate font-semibold">{nextTask.title}</span><span className="opacity-80">{nextTask.time}</span></span>
+                              </button>
+                            ) : null}
+
+                            <div className="mt-auto flex items-center gap-2 pt-1">
+                              <button type="button" onClick={() => openPlot(plot.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
+                                Mở thửa<ChevronRight className="h-4 w-4" />
+                              </button>
+                              {[['tasks', Calendar, 'Công việc'], ['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
+                                <button key={tab} type="button" onClick={() => openPlot(plot.id, tab)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
+                                  <Icon className="h-4 w-4" />
+                                  {tab === 'tasks' && openCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">{openCount}</span>}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
               </div>
-            )}
+              );
+            })()}
 
             {activeTab === 'tasks' && !selectedPlotId && (
               <div className="mx-auto max-w-5xl space-y-5 rounded-3xl border border-brand-border bg-white p-5 shadow-sm sm:p-7">
@@ -2049,19 +2045,7 @@ export default function CustomerDashboard() {
               </div>
             </Modal>
 
-            {activeTab === 'yards' && !selectedPlotId && <nav className={`fixed bottom-4 left-1/2 z-40 grid w-[min(75vw,calc(100vw-1.5rem))] -translate-x-1/2 grid-cols-6 gap-1 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur-md transition-[left,width] duration-200 ${sidebarCollapsed ? 'lg:left-[calc(50%+2rem)]' : 'lg:left-[calc(50%+9rem)]'}`} aria-label="Điều hướng quản lý vườn">
-              {[
-                ['yards', 'Tổng quan', LayoutDashboard],
-                ['tasks', 'Công việc', Calendar],
-                ['services', 'Thuê dịch vụ', ShoppingBag],
-                ['diary', 'Nhật ký', BookOpen],
-                ['process', 'Quy trình', ClipboardList],
-                ['harvest', 'Nghiệm thu', Apple]
-              ].map(([id, label, Icon]) => {
-                const isActive = id === 'yards' ? (activeTab === 'yards' || Boolean(selectedPlotId)) : (!selectedPlotId && activeTab === id);
-                return <button key={id} type="button" onClick={() => { setSelectedPlotId(null); setActiveTab(id); navigate(id === 'yards' ? '/customer/dashboard' : `/customer/dashboard?view=${id}`); }} className={`flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-[11px] font-black transition sm:gap-2 sm:px-3 sm:text-xs ${isActive ? 'bg-[#063d2b] text-white shadow-md' : 'text-stone-500 hover:bg-emerald-50 hover:text-emerald-800'}`}><Icon className="h-4 w-4 shrink-0" />{label}</button>;
-              })}
-            </nav>}
+            
 
             <FloatingExpertChat
               isOpen={showExpertChatModal}

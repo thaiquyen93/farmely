@@ -111,7 +111,12 @@ describe('map constants', () => {
       [106.343656, 10.680931],
       [106.356997, 10.694331],
     ]);
-    expect(CAMERA.padding).toEqual({ top: 90, bottom: 60, left: 350, right: 400 });
+    expect(CAMERA.padding).toEqual({ top: 90, bottom: 60, left: 384, right: 404 });
+    // Padding trái phải lớn hơn phần sidebar che (left-6 24px + w-84 336px = 360px),
+    // nếu không thửa đất ở mép trái bị khung danh sách đè lên.
+    expect(CAMERA.padding.left).toBeGreaterThan(360);
+    // Padding phải lớn hơn drawer chi tiết (right-4 16px + 370px = 386px).
+    expect(CAMERA.padding.right).toBeGreaterThan(386);
     expect(CAMERA.intro.pitch).toBe(0);
     expect(CAMERA.overview.pitch).toBe(50);
     expect(CAMERA.settled.pitch).toBe(40);

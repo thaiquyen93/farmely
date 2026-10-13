@@ -14,9 +14,8 @@ import { FARMS_GEOJSON_DATA, FARM_GPS_BOUNDS } from '../data/marketplaceGisData'
 const features = FARMS_GEOJSON_DATA.features;
 
 describe('getRingCorners', () => {
-  // NOTE: the real dataset ships 13 plots (ids skip P-10..P-12), not 16.
   it('returns exactly 4 distinct corners for every real plot', () => {
-    expect(features).toHaveLength(13);
+    expect(features).toHaveLength(16);
     features.forEach((f) => {
       expect(getRingCorners(f)).toHaveLength(4);
     });
