@@ -114,52 +114,59 @@ try {
     }
     $localPostgres = ($null -ne $localPostgresPort)
 
-    if (-not $dockerReady -and -not $localPostgres) {
-        if (-not $dockerCommand) {
-            throw 'Không tìm thấy Docker CLI và PostgreSQL local chưa chạy.'
-        }
-        $dockerDesktopCandidates = @(
-            'C:\Program Files\Docker\Docker\Docker Desktop.exe',
-            "$env:LOCALAPPDATA\Programs\DockerDesktop\Docker Desktop.exe"
-        )
-        $dockerDesktop = $dockerDesktopCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-        if (-not $dockerDesktop) {
-            throw 'Không tìm thấy Docker Desktop hoặc PostgreSQL local.'
-        }
-
-        Write-Host 'Đang khởi động Docker Desktop...' -ForegroundColor Yellow
-        Start-Process -FilePath $dockerDesktop -WindowStyle Hidden
-        for ($attempt = 0; $attempt -lt 24; $attempt++) {
-            Start-Sleep -Seconds 5
-            if (Test-DockerReady -cmdPath $dockerCommand.Source) {
-                $dockerReady = $true
-                break
-            }
-        }
-
-        if (-not $dockerReady) {
-            Write-Warning 'Docker Desktop chưa phản hồi kịp. Nếu gặp lỗi, hãy bật Docker Desktop thủ công từ Start Menu.'
-        }
-    }
-
     $dbHost = if ($env:DB_HOST) { $env:DB_HOST } else { 'localhost' }
     $dbName = if ($env:DB_NAME) { $env:DB_NAME } else { 'farmely' }
     $dbUser = if ($env:DB_USER) { $env:DB_USER } else { 'postgres' }
     $dbPassword = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } elseif ($env:DB_PASS) { $env:DB_PASS } else { '12345' }
 
-    if ($dockerReady) {
+    $useDockerDb = ($env:USE_DOCKER_DB -eq 'true' -or $env:USE_DOCKER_DB -eq '1')
+
+    if ($localPostgres -and -not $useDockerDb) {
+        $env:DB_PORT = "$localPostgresPort"
+        $env:DB_URL = "jdbc:postgresql://${dbHost}:${localPostgresPort}/${dbName}"
+        Write-Host "Sử dụng PostgreSQL LOCAL trên cổng $localPostgresPort (database: $dbName)." -ForegroundColor Green
+    }
+    elseif ($dockerReady) {
         & $dockerCommand.Source compose up -d postgres rabbitmq
         $env:DB_PORT = '5432'
         $env:DB_URL = "jdbc:postgresql://${dbHost}:5432/${dbName}"
-        Write-Host "Using Docker PostgreSQL on port 5432 (database: $dbName)." -ForegroundColor Cyan
+        Write-Host "Sử dụng Docker PostgreSQL trên cổng 5432 (database: $dbName)." -ForegroundColor Cyan
     }
     elseif ($localPostgres) {
         $env:DB_PORT = "$localPostgresPort"
         $env:DB_URL = "jdbc:postgresql://${dbHost}:${localPostgresPort}/${dbName}"
-        Write-Host "Using local PostgreSQL on port $localPostgresPort (database: $dbName)." -ForegroundColor Cyan
+        Write-Host "Sử dụng PostgreSQL LOCAL trên cổng $localPostgresPort (database: $dbName)." -ForegroundColor Green
     }
     else {
-        throw 'Không tìm thấy Docker hoặc PostgreSQL local để kết nối cơ sở dữ liệu.'
+        # Chỉ khởi động Docker Desktop nếu cả local PostgreSQL và Docker daemon đều không có sẵn
+        if ($dockerCommand) {
+            $dockerDesktopCandidates = @(
+                'C:\Program Files\Docker\Docker\Docker Desktop.exe',
+                "$env:LOCALAPPDATA\Programs\DockerDesktop\Docker Desktop.exe"
+            )
+            $dockerDesktop = $dockerDesktopCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+            if ($dockerDesktop) {
+                Write-Host 'Đang khởi động Docker Desktop để chạy database...' -ForegroundColor Yellow
+                Start-Process -FilePath $dockerDesktop -WindowStyle Hidden
+                for ($attempt = 0; $attempt -lt 24; $attempt++) {
+                    Start-Sleep -Seconds 5
+                    if (Test-DockerReady -cmdPath $dockerCommand.Source) {
+                        $dockerReady = $true
+                        break
+                    }
+                }
+            }
+        }
+
+        if ($dockerReady) {
+            & $dockerCommand.Source compose up -d postgres rabbitmq
+            $env:DB_PORT = '5432'
+            $env:DB_URL = "jdbc:postgresql://${dbHost}:5432/${dbName}"
+            Write-Host "Sử dụng Docker PostgreSQL trên cổng 5432 (database: $dbName)." -ForegroundColor Cyan
+        }
+        else {
+            throw 'Không tìm thấy PostgreSQL local (hãy bật PostgreSQL service) hoặc Docker để kết nối cơ sở dữ liệu.'
+        }
     }
 
     $env:DB_HOST = $dbHost
