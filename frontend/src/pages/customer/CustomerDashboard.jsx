@@ -14,7 +14,7 @@ import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
 import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
-import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
+import { apiFetch, unwrapData } from '../../api/apiClient';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -70,7 +70,12 @@ export default function CustomerDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { services: masterServices } = useServiceStore();
+  const {
+    services: masterServices,
+    loading: servicesLoading,
+    error: servicesError,
+    loadServices
+  } = useServiceStore();
   const [activeTab, setActiveTab] = useState('yards');
   const [selectedPlotId, setSelectedPlotId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -80,75 +85,18 @@ export default function CustomerDashboard() {
   const [iotReturnPlotId, setIotReturnPlotId] = useState(null);
   const [showExpertChatModal, setShowExpertChatModal] = useState(false);
 
-  // Chat Communication & Identity Resolution:
-  // Detect if current logged-in user is a custom registered user (not the default demo USR-001)
-  const isCustomUser = Boolean(
-    user &&
-    user.id !== 'USR-001' &&
-    user.email !== 'customer@farmely.vn' &&
-    !DEMO_CUSTOMERS.some((c) => c.email && user.email && c.email.toLowerCase() === user.email.toLowerCase())
-  );
-
-  const customAccount = useMemo(() => {
-    if (!isCustomUser || !user) return null;
-    const safeKey = user.email
-      ? user.email.replace(/[^a-zA-Z0-9]/g, '_')
-      : (user.id ? String(user.id).replace(/[^a-zA-Z0-9]/g, '_') : 'custom_user');
-    return {
-      id: `CUST-${safeKey}`,
-      threadId: `CONS-${safeKey}`,
-      name: user.fullName || user.email?.split('@')[0] || 'Khách Hàng',
-      email: user.email,
-      phone: user.phone || '0901 888 999',
-      avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-      plotCode: 'P-01',
-      plotName: 'Thửa Canh Tác Của ' + (user.fullName || user.email?.split('@')[0] || 'Khách Hàng'),
-      crop: 'Rau củ VietGAP',
-      expertName: 'ThS. Nguyễn Hoàng Nam'
-    };
-  }, [user, isCustomUser]);
-
-  // Default thread for the active user account
-  const defaultUserThreadId = useMemo(() => {
-    if (customAccount) return customAccount.threadId;
-    if (user?.email) {
-      const match = DEMO_CUSTOMERS.find((c) => c.email && c.email.toLowerCase() === user.email.toLowerCase());
-      if (match) return match.threadId;
-    }
-    return DEMO_CUSTOMERS[0].threadId; // 'CONS-401' for Lô Thái Quyền (demo)
-  }, [customAccount, user?.email]);
-
-  const availableCustomerOptions = useMemo(() => {
-    if (customAccount) {
-      return [customAccount, ...DEMO_CUSTOMERS];
-    }
-    return DEMO_CUSTOMERS;
-  }, [customAccount]);
-
-  const [selectedCustomerThreadId, setSelectedCustomerThreadId] = useState(defaultUserThreadId);
-
-  // CRITICAL: Whenever user changes in auth store (login, logout, switch demo role in navbar):
-  // ALWAYS reset the chat thread to the current logged-in user's own thread!
   useEffect(() => {
-    setSelectedCustomerThreadId(defaultUserThreadId);
-  }, [defaultUserThreadId]);
+    loadServices().catch(() => {});
+  }, [loadServices]);
 
-  const currentCustomerProfile = useMemo(() => {
-    return (
-      availableCustomerOptions.find((c) => c.threadId === selectedCustomerThreadId) ||
-      availableCustomerOptions[0]
-    );
-  }, [availableCustomerOptions, selectedCustomerThreadId]);
-
-  // Sender name is strictly tied to the selected profile
-  const activeCustomerSenderName = currentCustomerProfile?.name || user?.fullName || 'Khách Hàng';
+  const activeCustomerSenderName = user?.fullName || user?.email || 'Khách hàng';
 
   const {
     currentThread: customerChatThread,
     sendMessage: sendCustomerMessage
   } = useRealtimeChat({
     role: 'customer',
-    initialThreadId: selectedCustomerThreadId,
+    initialThreadId: null,
     senderName: activeCustomerSenderName
   });
 
@@ -238,25 +186,11 @@ export default function CustomerDashboard() {
   const [diaryNote, setDiaryNote] = useState('');
 
   // AI Chatbot state
-  const [chatMessages, setChatMessages] = useState([
-    {
-      id: 1,
-      sender: 'user',
-      text: 'Mùa này tôi nên gieo thêm loại rau nào tại khu vực Củ Chi?',
-      time: '08:15 AM'
-    },
-    {
-      id: 2,
-      sender: 'ai',
-      text: 'Chào bạn! Vào thời điểm này tại vùng phụ cận Củ Chi, khí hậu rất mát mẻ (28°C). Các loại rau ăn lá như Xà lách Romaine, Rau dền đỏ hoặc Cà chua bi F1 sẽ phát triển cực nhanh, chỉ sau 25-35 ngày là bạn có thể nghiệm thu giỏ rau sạch đầu tiên!',
-      time: '08:16 AM'
-    }
-  ]);
+  const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
 
-  // Sample Customer Rented Plots Data
-  const customerPlots = [
+  const [customerPlots, setCustomerPlots] = useState(false ? [
     {
       id: 'PLOT-CC-01',
       mapPlotId: 'P-01',
@@ -338,11 +272,11 @@ export default function CustomerDashboard() {
       soilType: 'Đất phù sa pha cát hữu cơ',
       waterSource: 'Hệ thống tưới nhỏ giọt bán tự động'
     }
-  ];
+  ] : []);
   const selectedCheckoutPlot = customerPlots.find((plot) => plot.id === checkoutPlotId) || customerPlots[0];
 
   // IoT Data for Different Timeframes (Hourly, Daily, Weekly)
-  const iotDatasets = {
+  const [iotDatasets, setIotDatasets] = useState(false ? {
     'PLOT-CC-01': {
       hourly: [
         { time: '00:00', temp: 24.2, moisture: 65, airHumidity: 82, light: 0 },
@@ -418,10 +352,100 @@ export default function CustomerDashboard() {
         { time: 'Tuần 4', temp: 29.4, moisture: 70, airHumidity: 71, light: 53 }
       ]
     }
-  };
+  } : {});
 
-  const currentIotData = (iotDatasets[selectedIotPlotId] || iotDatasets['PLOT-CC-01'])[iotTimeframe];
+  const currentIotData = (iotDatasets[selectedIotPlotId]?.[iotTimeframe] || []);
   const currentIotPlot = customerPlots.find(p => p.id === selectedIotPlotId) || customerPlots[0];
+  const [dashboardDataError, setDashboardDataError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadCustomerDashboard = async () => {
+      const customerId = Number(user?.userId || user?.id);
+      if (!customerId) return;
+      try {
+        const rentals = unwrapData(await apiFetch(`/api/rentals?renterId=${customerId}`)) || [];
+        const liveRentals = rentals.filter((rental) => !['CANCELLED', 'COMPLETED'].includes(rental.status));
+        const sensorResults = await Promise.allSettled(liveRentals.map(async (rental) => {
+          const [latest, history] = await Promise.all([
+            apiFetch(`/api/sensors/plots/${rental.plotId}/latest`),
+            apiFetch(`/api/sensors/plots/${rental.plotId}/history?hours=168`)
+          ]);
+          return { plotId: rental.plotId, latest, history };
+        }));
+        if (cancelled) return;
+        const sensorByPlot = new Map(sensorResults
+          .filter((result) => result.status === 'fulfilled')
+          .map((result) => [Number(result.value.plotId), result.value]));
+        const now = new Date();
+        const mappedPlots = liveRentals.map((rental) => {
+          const start = rental.startDate ? new Date(rental.startDate) : now;
+          const end = rental.endDate ? new Date(rental.endDate) : now;
+          const totalDays = Number(rental.durationDays || rental.expectedDuration || 0);
+          const currentDay = Math.max(0, Math.min(totalDays, Math.floor((now - start) / 86400000) + 1));
+          const sensor = sensorByPlot.get(Number(rental.plotId))?.latest || {};
+          return {
+            id: `PLOT-${rental.plotId}`,
+            rentalId: rental.rentalId,
+            plotId: rental.plotId,
+            mapPlotId: rental.plotCode,
+            name: rental.plotName || `Thửa ${rental.plotCode}`,
+            location: rental.landAddress || 'Nông trại Farmely',
+            area: `${rental.plotArea || 0}m²`,
+            mode: rental.cultivationMode === 'SELF_GROWING' ? 'Self-Growing' : 'Assisted-Growing',
+            crop: rental.varietyName || 'Chưa chọn cây trồng',
+            stage: rental.displayStatus || rental.status,
+            currentDay,
+            totalDays,
+            progressPercent: totalDays ? Math.min(100, Math.round((currentDay / totalDays) * 100)) : 0,
+            image: rental.plotImageUrl || '/images/placeholder-farm.jpg',
+            temp: sensor.temperature != null ? `${sensor.temperature.toFixed(1)}°C` : 'Chưa có dữ liệu',
+            soilMoisture: sensor.soilHumidity != null ? `${sensor.soilHumidity.toFixed(0)}%` : 'Chưa có dữ liệu',
+            airHumidity: sensor.airHumidity != null ? `${sensor.airHumidity.toFixed(0)}%` : 'Chưa có dữ liệu',
+            light: 'Chưa có cảm biến',
+            ph: 'Chưa có cảm biến',
+            stationId: `IOT-${rental.plotId}`,
+            status: sensor.status || rental.status,
+            worker: rental.cultivationMode === 'SELF_GROWING' ? 'Khách hàng tự chăm sóc' : 'Farmely chăm sóc',
+            contractCode: rental.contractNumber || `HĐ #${rental.contractId}`,
+            expectedHarvestDate: end.toLocaleDateString('vi-VN'),
+            expectedYield: 'Chưa cập nhật',
+            soilType: 'Chưa cập nhật',
+            waterSource: 'Hệ thống tưới Farmely'
+          };
+        });
+        const datasets = {};
+        liveRentals.forEach((rental) => {
+          const key = `PLOT-${rental.plotId}`;
+          const readings = sensorByPlot.get(Number(rental.plotId))?.history || [];
+          const points = readings.map((reading) => ({
+            time: new Date(reading.recordedAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }),
+            temp: reading.temperature,
+            moisture: reading.soilHumidity,
+            airHumidity: reading.airHumidity,
+            light: 0
+          }));
+          datasets[key] = { hourly: points.slice(-24), daily: points, weekly: points };
+        });
+        setCustomerPlots(mappedPlots);
+        setIotDatasets(datasets);
+        if (mappedPlots[0]) {
+          setSelectedIotPlotId((value) => mappedPlots.some((plot) => plot.id === value) ? value : mappedPlots[0].id);
+          setCheckoutPlotId((value) => mappedPlots.some((plot) => plot.id === value) ? value : mappedPlots[0].id);
+          setDiaryFocusPlotId((value) => mappedPlots.some((plot) => plot.id === value) ? value : mappedPlots[0].id);
+        }
+        setDashboardDataError('');
+      } catch (error) {
+        if (!cancelled) {
+          setCustomerPlots([]);
+          setIotDatasets({});
+          setDashboardDataError(error.message || 'Không thể tải dữ liệu khu vườn từ máy chủ.');
+        }
+      }
+    };
+    loadCustomerDashboard();
+    return () => { cancelled = true; };
+  }, [user?.id, user?.userId]);
 
   // Service Catalog (Shop Dịch Vụ Nông Nghiệp)
   const serviceCatalog = [
@@ -548,32 +572,9 @@ export default function CustomerDashboard() {
   ];
 
   // Active / Purchased Service Orders
-  const [activeServiceOrders, setActiveServiceOrders] = useState([
-    {
-      id: 'REQ-8829',
-      serviceName: 'Dịch vụ nhổ cỏ & làm tơi đất',
-      plotName: 'Thửa Mộc Châu B2',
-      price: '50.000 đ',
-      date: 'Hôm nay • 09:00 AM',
-      status: 'IN_PROGRESS',
-      statusLabel: 'Đang thực hiện',
-      worker: 'Nguyễn Văn Hưng (CVLĐ)',
-      paymentMethod: 'Chuyển khoản VietQR'
-    },
-    {
-      id: 'REQ-8815',
-      serviceName: 'Gói chăm sóc định kỳ tuần (7 ngày)',
-      plotName: 'Thửa Sen Vàng A1',
-      price: '150.000 đ',
-      date: '02/10/2026',
-      status: 'COMPLETED',
-      statusLabel: 'Đã hoàn tất',
-      worker: 'Trần Văn Lực (CVLĐ)',
-      paymentMethod: 'Ví Farmely'
-    }
-  ]);
+  const [activeServiceOrders, setActiveServiceOrders] = useState([]);
 
-  const serviceIconMap = { calendar: Calendar, layers: Layers, sprout: Sprout };
+  const serviceIconMap = { calendar: Calendar, layers: Layers, droplets: Droplets, sprout: Sprout };
   const customerServiceCatalog = masterServices
     .filter((service) => service.active)
     .map((service) => ({
@@ -611,55 +612,44 @@ export default function CustomerDashboard() {
     setEmergencyRequests((current) => ({ ...current, [plot.id]: { ...request, status: 'PROCESSING' } }));
     setActiveServiceOrders((orders) => [request, ...orders]);
     try {
-      const response = await fetch('http://localhost:8085/api/services/requests', {
+      const data = unwrapData(await apiFetch('/api/services/requests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rentalId: plot.id === 'PLOT-CC-01' ? 1 : plot.id === 'PLOT-MC-02' ? 2 : 3,
           serviceId: 1,
           scheduledDate: new Date().toISOString().slice(0, 10),
           notes: `Yêu cầu chăm sóc khẩn cấp từ cảnh báo IoT cho ${plot.name}`
         })
-      });
-      const data = await response.json().catch(() => null);
-      if (data?.data?.requestId) {
-        setEmergencyRequests((current) => ({ ...current, [plot.id]: { ...current[plot.id], id: `REQ-${data.data.requestId}` } }));
+      }));
+      if (data?.requestId) {
+        setEmergencyRequests((current) => ({ ...current, [plot.id]: { ...current[plot.id], id: `REQ-${data.requestId}` } }));
       }
     } catch (error) {
-      console.debug('Emergency service request fallback active:', error);
+      setEmergencyRequests((current) => ({ ...current, [plot.id]: { ...current[plot.id], status: 'ERROR' } }));
     }
   };
 
   // Fetch existing cultivation service requests from backend to populate active orders
   useEffect(() => {
-    fetch('http://localhost:8085/api/v1/payments/service/requests')
-      .then(res => res.json())
-      .then(data => {
-        if (data?.success && Array.isArray(data.data) && data.data.length > 0) {
-          const backendOrders = data.data.map(req => ({
+    apiFetch('/api/services/requests')
+      .then(unwrapData)
+      .then(requests => {
+        if (Array.isArray(requests)) {
+          const backendOrders = requests.map(req => ({
             id: `REQ-${req.requestId}`,
-            serviceName: req.serviceName,
-            plotName: req.rentalId === 1 ? 'Thửa Sen Vàng A1' : 'Thửa Mộc Châu B2',
-            price: `${(Number(req.price) || 0).toLocaleString('vi-VN')} đ`,
+            serviceName: req.service?.serviceName || 'Dịch vụ canh tác',
+            plotName: req.plotName || (req.rentalId === 1 ? 'Thửa Sen Vàng A1' : req.rentalId === 2 ? 'Thửa Mộc Châu B2' : `Rental #${req.rentalId}`),
+            price: `${(Number(req.service?.price) || 0).toLocaleString('vi-VN')} đ`,
             date: req.scheduledDate || 'Hôm nay',
             status: req.status === 'DONE' ? 'COMPLETED' : 'IN_PROGRESS',
-            statusLabel: req.status === 'DONE' ? 'Đã hoàn tất' : (req.status === 'ASSIGNED' ? 'Đang thực hiện' : 'Chờ thanh toán'),
-            worker: req.status === 'DONE' ? 'Trần Văn Lực (CVLĐ)' : 'Nguyễn Văn Hưng (CVLĐ)',
-            paymentMethod: req.paymentMethod === 'VNPAY' ? 'Cổng VNPAY' : req.paymentMethod === 'WALLET' ? 'Ví Farmely' : (req.paymentMethod || 'Thẻ Quốc tế')
+            statusLabel: req.status === 'DONE' ? 'Đã hoàn tất' : (req.status === 'ASSIGNED' ? 'Đang thực hiện' : 'Chờ phân công'),
+            worker: req.status === 'ASSIGNED' || req.status === 'DONE' ? 'Đã được điều phối' : 'Chưa phân công',
+            paymentMethod: 'Đã ghi nhận trên hệ thống'
           }));
-          setActiveServiceOrders(prev => {
-            const ids = new Set(prev.map(p => p.id));
-            const merged = [...prev];
-            backendOrders.forEach(b => {
-              if (!ids.has(b.id)) {
-                merged.unshift(b);
-              }
-            });
-            return merged;
-          });
+          setActiveServiceOrders(backendOrders);
         }
       })
-      .catch(err => console.debug('Backend service requests initial sync skipped:', err));
+      .catch(() => setActiveServiceOrders([]));
   }, []);
 
   const handleConfirmPayment = async (e) => {
@@ -682,13 +672,12 @@ export default function CustomerDashboard() {
     if (checkoutPaymentMethod === 'WALLET') {
       setIsProcessingPayment(true);
       try {
-        await fetch('http://localhost:8085/api/v1/payments/service/wallet/charge', {
+        await apiFetch('/api/v1/payments/service/wallet/charge', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             serviceName: selectedServiceToBuy.name,
             amount: selectedServiceToBuy.price,
-            rentalId: 1,
+            rentalId: selectedCheckoutPlot?.rentalId,
             plotCode: checkoutPlotId,
             scheduledDate: checkoutDate,
             notes: checkoutNotes
@@ -704,24 +693,40 @@ export default function CustomerDashboard() {
     }
   };
 
-  const handleServicePaymentSuccess = (paidResult) => {
+  const handleServicePaymentSuccess = async (paidResult) => {
     setShowServiceQrModal(false);
     setShowServiceCardModal(false);
     const selectedPlotObj = customerPlots.find(p => p.id === checkoutPlotId);
-    const newOrder = {
-      id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      serviceName: selectedServiceToBuy?.name || 'Dịch vụ canh tác',
-      plotName: selectedPlotObj ? selectedPlotObj.name : 'Thửa đất đã chọn',
-      price: selectedServiceToBuy ? selectedServiceToBuy.formattedPrice : `${(paidResult?.amount || 0).toLocaleString('vi-VN')} đ`,
-      date: `${checkoutDate} • Mới kích hoạt`,
-      status: 'IN_PROGRESS',
-      statusLabel: 'Đang thực hiện',
-      worker: 'Đang điều phối CVLĐ',
-      paymentMethod: paidResult?.paymentMethod || (checkoutPaymentMethod === 'VIETQR' ? 'Chuyển khoản VietQR' : checkoutPaymentMethod === 'CARD' ? 'Thẻ Quốc tế / Nội địa' : 'Ví Farmely')
-    };
-
-    setActiveServiceOrders(prev => [newOrder, ...prev]);
-    setSelectedServiceToBuy(null);
+    const rentalId = selectedPlotObj?.rentalId;
+    if (!rentalId) {
+      alert('Không tìm thấy lượt thuê tương ứng trong database.');
+      return;
+    }
+    try {
+      const request = unwrapData(await apiFetch('/api/services/requests', {
+        method: 'POST',
+        body: JSON.stringify({
+          rentalId,
+          serviceId: selectedServiceToBuy.serviceId,
+          scheduledDate: checkoutDate,
+          notes: checkoutNotes
+        })
+      }));
+      setActiveServiceOrders((orders) => [{
+        id: `REQ-${request.requestId}`,
+        serviceName: request.service?.serviceName || selectedServiceToBuy.name,
+        plotName: request.plotName || selectedPlotObj?.name || 'Thửa đất đã chọn',
+        price: `${Number(request.service?.price || selectedServiceToBuy.price).toLocaleString('vi-VN')} đ`,
+        date: request.scheduledDate || checkoutDate,
+        status: 'IN_PROGRESS',
+        statusLabel: 'Chờ phân công',
+        worker: 'Chưa phân công',
+        paymentMethod: paidResult?.paymentMethod || checkoutPaymentMethod
+      }, ...orders]);
+      setSelectedServiceToBuy(null);
+    } catch (requestError) {
+      alert(`Thanh toán đã hoàn tất nhưng không thể tạo yêu cầu dịch vụ: ${requestError.message}`);
+    }
   };
 
   const currentSelectedPlot = customerPlots.find((p) => p.id === selectedPlotId);
@@ -783,7 +788,7 @@ export default function CustomerDashboard() {
     }
   }, [location.search]);
 
-  const plotOperations = {
+  const plotOperations = false ? {
     'PLOT-CC-01': {
       tasks: [
         { id: 'TSK-103', title: 'Bón bổ sung 5kg phân trùn quế', time: '15:00 hôm nay', status: 'IN_PROGRESS', owner: 'Trần Văn Lực' },
@@ -809,8 +814,8 @@ export default function CustomerDashboard() {
       ],
       diary: [{ time: '10:15 • Hôm nay', title: 'Kiểm tra sinh trưởng dây leo', note: 'Cây cao trung bình 82cm, chưa ghi nhận sâu bệnh.', author: 'Nguyễn Văn Đạt' }]
     }
-  };
-  const cultivationProcesses = {
+  } : {};
+  const cultivationProcesses = false ? {
     'PLOT-CC-01': [
       { stage: 'Gieo trồng & bén rễ', date: '12/08/2026', guide: 'Giữ ẩm đất 60–70%, kiểm tra cây con mỗi sáng.', status: 'COMPLETED' },
       { stage: 'Sinh trưởng thân lá', date: '25/08/2026', guide: 'Bổ sung dinh dưỡng hữu cơ và tỉa lá già định kỳ.', status: 'COMPLETED' },
@@ -827,8 +832,8 @@ export default function CustomerDashboard() {
       { stage: 'Leo giàn & đơm hoa', date: '02/10/2026', guide: 'Buộc ngọn định kỳ, kiểm tra bọ trĩ mặt dưới lá.', status: 'IN_PROGRESS' },
       { stage: 'Thu hoạch lứa đầu', date: '28/10/2026', guide: 'Thu hái quả đạt kích thước, tránh làm trầy thân dây.', status: 'PENDING' }
     ]
-  };
-  const iotAlerts = {
+  } : {};
+  const iotAlerts = false ? {
     'PLOT-CC-01': [
       { level: 'HIGH', title: 'Mưa có thể đến sau 45 phút', metric: 'Dự báo mưa 8.2 mm', time: '5 phút trước' },
       { level: 'MEDIUM', title: 'Độ ẩm đất tăng nhanh', metric: '68% → 72% trong 30 phút', time: '12 phút trước' }
@@ -841,7 +846,7 @@ export default function CustomerDashboard() {
       { level: 'HIGH', title: 'Gió tăng cao tại khu vực giàn', metric: '28 km/h', time: '8 phút trước' },
       { level: 'MEDIUM', title: 'Nhiệt độ tăng', metric: '29°C · cao hơn 2°C so với hôm qua', time: '25 phút trước' }
     ]
-  };
+  } : {};
   const currentPlotOperations = plotOperations[selectedPlotId] || { tasks: [], diary: [] };
 
   const handleSendMessage = (textToSend) => {
@@ -857,33 +862,13 @@ export default function CustomerDashboard() {
 
     setChatMessages((prev) => [...prev, userMsg]);
     if (!textToSend) setChatInput('');
-    setIsAiTyping(true);
-
-    setTimeout(() => {
-      let reply = 'Farmely AI đã ghi nhận câu hỏi của bạn. ';
-      const lower = query.toLowerCase();
-
-      if (lower.includes('độ ẩm') || lower.includes('tưới')) {
-        reply = 'Hiện tại trạm IoT ghi nhận độ ẩm đất tại các thửa đất của bạn đang ở ngưỡng tối ưu (60-75%). Theo thuật toán quan trắc vi khí hậu, thửa đất hiện tại đủ ẩm và hệ thống đã tự động hoãn lịch tưới sáng nay để tránh ngập úng rễ!';
-      } else if (lower.includes('thu hoạch') || lower.includes('khi nào')) {
-        reply = 'Thửa Xà lách Romaine tại Mộc Châu B2 hiện đã đạt 24 ngày tuổi, dự kiến vào ngày 12 tới đây sẽ đạt chuẩn thu hoạch 300g/cây. Bạn có thể chọn tự đến hái vào cuối tuần hoặc yêu cầu Farmely cắt đóng thùng giao tươi tận nhà!';
-      } else if (lower.includes('dịch vụ') || lower.includes('thuê') || lower.includes('bón phân')) {
-        reply = 'Bạn có thể vào tab "Dịch vụ canh tác" để đặt các gói chăm sóc trọn vụ, gói theo tuần hoặc các dịch vụ lẻ như bón phân, nhổ cỏ. Hệ thống hỗ trợ thanh toán trực tiếp cực kỳ nhanh chóng!';
-      } else {
-        reply = `Hệ thống ghi nhận thửa đất của bạn đang ở trạng thái sinh trưởng rất tốt. Trợ lý AI và Chuyên gia Nông nghiệp Farmely luôn đồng hành 24/7 để hỗ trợ bạn tối đa!`;
-      }
-
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          sender: 'ai',
-          text: reply,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
-      setIsAiTyping(false);
-    }, 700);
+    setIsAiTyping(false);
+    setChatMessages((prev) => [...prev, {
+      id: Date.now() + 1,
+      sender: 'ai',
+      text: 'Trợ lý AI chưa được backend cấu hình. Bạn có thể dùng kênh chuyên gia để nhận tư vấn từ dữ liệu thật.',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }]);
   };
 
   const navMenuItems = [
@@ -970,6 +955,11 @@ export default function CustomerDashboard() {
           
           {/* ================= RIGHT MAIN CONTENT ================= */}
           <main className={`min-w-0 w-full flex-1 ${selectedPlotId ? '' : 'space-y-6'}`}>
+            {dashboardDataError && (
+              <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                {dashboardDataError}
+              </div>
+            )}
             
             {/* ============================================================== */}
             {/* VIEW A: CHI TIẾT DASHBOARD QUẢN LÝ 1 THỬA ĐẤT CỤ THỂ         */}
@@ -1298,6 +1288,17 @@ export default function CustomerDashboard() {
                 </div>
 
                 {/* Service Cards Grid */}
+                {servicesLoading && masterServices.length === 0 && (
+                  <div className="rounded-2xl border border-brand-border bg-white p-8 text-center text-sm font-bold text-brand-muted">
+                    Đang tải danh mục dịch vụ từ database…
+                  </div>
+                )}
+                {servicesError && (
+                  <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">
+                    <span>Không thể tải dịch vụ: {servicesError}</span>
+                    <button type="button" onClick={() => loadServices(true).catch(() => {})} className="underline">Thử lại</button>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                   {filteredServices.map((svc) => {
                     const Icon = svc.icon;
@@ -1324,7 +1325,7 @@ export default function CustomerDashboard() {
                               <span className="font-heading font-black text-xl text-brand-green">
                                 {svc.formattedPrice}
                               </span>
-                              <span className="text-xs text-brand-muted">{svc.unit}</span>
+                              <span className="text-xs text-brand-muted">/ {svc.unit}</span>
                             </div>
                           </div>
 
@@ -1332,14 +1333,16 @@ export default function CustomerDashboard() {
                             {svc.description}
                           </p>
 
-                          <div className="pt-2 border-t border-brand-border/60 space-y-1.5">
-                            {svc.features.map((feat, idx) => (
-                              <div key={idx} className="flex items-start gap-2 text-[11px] text-stone-600">
-                                <Check className="w-3.5 h-3.5 text-brand-green shrink-0 mt-0.5" />
-                                <span>{feat}</span>
-                              </div>
-                            ))}
-                          </div>
+                          {svc.features.length > 0 && (
+                            <div className="pt-2 border-t border-brand-border/60 space-y-1.5">
+                              {svc.features.map((feat, idx) => (
+                                <div key={idx} className="flex items-start gap-2 text-[11px] text-stone-600">
+                                  <Check className="w-3.5 h-3.5 text-brand-green shrink-0 mt-0.5" />
+                                  <span>{feat}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         <div className="pt-3 border-t border-brand-border/60">
@@ -1762,7 +1765,7 @@ export default function CustomerDashboard() {
                   </div>
 
                   <button
-                    onClick={() => setChatMessages([chatMessages[0]])}
+                    onClick={() => setChatMessages([])}
                     className="p-2 text-stone-400 hover:text-rose-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
                     title="Xóa đoạn chat"
                   >
@@ -2535,10 +2538,10 @@ export default function CustomerDashboard() {
         totalAmount={selectedServiceToBuy?.price}
         plotInfo={customerPlots.find(p => p.id === checkoutPlotId)}
         serviceInfo={selectedServiceToBuy}
-        chargeEndpoint="http://localhost:8085/api/v1/payments/service/card/charge"
+        chargeEndpoint="/api/v1/payments/service/card/charge"
         additionalPayload={{
           serviceName: selectedServiceToBuy?.name,
-          rentalId: 1,
+          rentalId: selectedCheckoutPlot?.rentalId,
           plotCode: checkoutPlotId,
           scheduledDate: checkoutDate,
           notes: checkoutNotes

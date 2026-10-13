@@ -34,7 +34,7 @@ export default function VnPayModal({
           ? `Thanh toan dich vu ${serviceInfo.name}`
           : `Thanh toan thue dat ${plotInfo?.code || ''}`,
         contractId: contractId || null,
-        serviceId: serviceInfo?.id || null,
+        serviceId: serviceInfo?.serviceId || serviceInfo?.id || null,
         serviceName: serviceInfo?.name || null,
         plotCode: plotInfo?.code || null,
         bankCode: '', // Để trống để VNPay hiển thị đầy đủ các lựa chọn trên cổng
