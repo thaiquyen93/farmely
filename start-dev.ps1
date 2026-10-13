@@ -7,8 +7,10 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $runtimeDir = Join-Path $projectRoot '.run'
 $jdkCandidates = @(
-    'C:\Program Files\Java\jdk-25',
-    'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot'
+    'C:\Users\Acer\.antigravity-ide\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
+    'C:\Users\Acer\.vscode\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
+    'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot',
+    'C:\Program Files\Java\jdk-25'
 )
 $jdkHome = $jdkCandidates | Where-Object { Test-Path (Join-Path $_ 'bin\java.exe') } | Select-Object -First 1
 
@@ -100,6 +102,8 @@ try {
     }
     else {
         $env:DB_URL = 'jdbc:postgresql://localhost:5432/farmely'
+        $env:DB_USERNAME = if ($env:DB_USERNAME) { $env:DB_USERNAME } else { 'postgres' }
+        $env:DB_PASSWORD = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } else { '@Bin054206' }
         Write-Host 'Using local PostgreSQL on port 5432.'
     }
 

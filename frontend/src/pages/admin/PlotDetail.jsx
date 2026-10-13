@@ -22,7 +22,42 @@ import {
 
 export default function PlotDetail() {
   const { id } = useParams();
-  const plot = plotsData.find((p) => p.id === id) || plotsData[0];
+  const [plot, setPlot] = useState(() => plotsData.find((p) => p.id === id) || plotsData[0]);
+
+  useEffect(() => {
+    fetch('/api/plots')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          const matched = list.find((p) =>
+            String(p.plot_id || p.plotId) === String(id) ||
+            `PLT-${String(p.plot_id || p.plotId).padStart(3, '0')}` === id ||
+            (p.plot_code || p.plotCode) === id
+          );
+          if (matched) {
+            const numPrice = Number(matched.price_per_period || matched.pricePerPeriod || 1200000);
+            const mappedStatus = matched.status === 'AVAIL' ? 'AVAILABLE' :
+                                 matched.status === 'RENT' ? 'RENTED' :
+                                 matched.status === 'MAINT' ? 'MAINTENANCE' : matched.status;
+            setPlot((prev) => ({
+              ...prev,
+              id: `PLT-${String(matched.plot_id || matched.plotId).padStart(3, '0')}`,
+              code: matched.plot_code || matched.plotCode,
+              name: `Thửa Đất ${matched.plot_code || matched.plotCode}`,
+              area: typeof matched.area === 'number' ? `${matched.area} m²` : (matched.area ? `${matched.area} m²` : '50 m²'),
+              rentalPrice: numPrice,
+              formattedPrice: `${numPrice.toLocaleString('vi-VN')} đ/tháng`,
+              status: mappedStatus,
+              landName: matched.land_name || matched.landName || prev.landName,
+              imageUrl: matched.image_url || matched.imageUrl || prev.imageUrl
+            }));
+          }
+        }
+      })
+      .catch((e) => console.error(e));
+  }, [id]);
+
   const station = iotStationsData.find((s) => s.id === plot.iotStationId);
 
   return (

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { processTemplatesData as initialTemplates } from '../../data/processTemplates';
 import { varietiesData } from '../../data/varieties';
@@ -13,6 +13,32 @@ import { FileSpreadsheet, Plus, Eye, Edit, Calendar, CheckCircle2, Clock } from 
 export default function ProcessTemplates() {
   const [templates, setTemplates] = useState(initialTemplates);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/templates')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          const mapped = list.map((t) => ({
+            id: `TMPL-${String(t.templateId || t.template_id).padStart(3, '0')}`,
+            dbId: t.templateId || t.template_id,
+            name: `Quy trình canh tác chuẩn: ${t.varietyName || t.variety_name || 'Rau VietGAP'}`,
+            varietyId: `VAR-${String(t.varietyId || t.variety_id || 1).padStart(3, '0')}`,
+            varietyName: t.varietyName || t.variety_name || 'Rau muống lá tre F1',
+            cropName: t.cropName || t.crop_name || 'Rau ăn lá',
+            version: t.version || 'v1.5 (VietGAP)',
+            status: 'ACTIVE',
+            totalSteps: t.totalSteps || 5,
+            estimatedDurationDays: t.estimatedDurationDays || 35,
+            authorName: 'ThS. Nguyễn Văn Expert (CGNN)',
+            description: t.description || 'Quy trình chuẩn hóa do Chuyên gia Nông nghiệp biên soạn theo tiêu chuẩn VietGAP.'
+          }));
+          setTemplates(mapped);
+        }
+      })
+      .catch((err) => console.error('Error fetching process templates from DB:', err));
+  }, []);
 
   // Form State
   const [name, setName] = useState('');

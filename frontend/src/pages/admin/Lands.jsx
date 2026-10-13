@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { landsData as initialLands } from '../../data/lands';
 import DataTable from '../../components/common/DataTable';
@@ -10,6 +10,33 @@ import { Building2, Plus, Eye, Edit, Trash2, MapPin, Grid3X3 } from 'lucide-reac
 export default function Lands() {
   const [lands, setLands] = useState(initialLands);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/lands')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          const mapped = list.map((l) => ({
+            id: `LND-${String(l.land_id || l.landId).padStart(3, '0')}`,
+            dbId: l.land_id || l.landId,
+            name: l.land_name || l.landName,
+            location: l.address || l.location,
+            description: l.description || 'Trang trại chuẩn VietGAP với hệ thống tưới và trạm quan trắc IoT vi khí hậu.',
+            totalArea: l.total_area ? `${l.total_area} m²` : '25,000 m² (2.5 ha)',
+            totalPlots: l.total_plots || l.totalPlots || 6,
+            activePlots: l.active_plots || 5,
+            status: 'ACTIVE',
+            createdDate: l.created_at ? l.created_at.substring(0, 10) : '2026-01-15',
+            imageUrl: l.image_url || l.imageUrl || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
+            soilType: l.soil_type || 'Đất phù sa bồi lắng giàu mùn hữu cơ',
+            waterSource: l.water_source || 'Hệ thống lắng lọc vi sinh kết hợp nước ngầm'
+          }));
+          setLands(mapped);
+        }
+      })
+      .catch((err) => console.error('Error fetching lands from DB:', err));
+  }, []);
 
   const handleDelete = () => {
     if (confirmDeleteId) {

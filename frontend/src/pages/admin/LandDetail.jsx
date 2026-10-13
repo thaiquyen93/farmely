@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { landsData } from '../../data/lands';
 import { plotsData } from '../../data/plots';
@@ -8,7 +8,33 @@ import { ArrowLeft, MapPin, Grid3X3, Layers, Edit, Plus, Eye } from 'lucide-reac
 
 export default function LandDetail() {
   const { id } = useParams();
-  const land = landsData.find((l) => l.id === id) || landsData[0];
+  const [land, setLand] = useState(() => landsData.find((l) => l.id === id) || landsData[0]);
+
+  useEffect(() => {
+    fetch('/api/lands')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          const matched = list.find((l) =>
+            String(l.land_id || l.landId) === String(id) ||
+            `LND-${String(l.land_id || l.landId).padStart(3, '0')}` === id
+          );
+          if (matched) {
+            setLand((prev) => ({
+              ...prev,
+              id: `LND-${String(matched.land_id || matched.landId).padStart(3, '0')}`,
+              name: matched.land_name || matched.landName,
+              location: matched.address || matched.location,
+              totalPlots: matched.total_plots || matched.totalPlots || 6,
+              imageUrl: matched.image_url || matched.imageUrl || prev.imageUrl
+            }));
+          }
+        }
+      })
+      .catch((e) => console.error(e));
+  }, [id]);
+
   const landPlots = plotsData.filter((p) => p.landId === land.id);
 
   return (

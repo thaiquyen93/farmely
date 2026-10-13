@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Building2,
@@ -25,24 +25,64 @@ import { processTemplatesData } from '../../data/processTemplates';
 import { knowledgeDocumentsData } from '../../data/knowledgeDocuments';
 
 export default function MasterDataDashboard() {
-  const totalLands = landsData.length;
-  const totalPlots = plotsData.length;
-  const availablePlots = plotsData.filter((p) => p.status === 'AVAILABLE').length;
-  const totalCrops = cropsData.length;
-  const totalVarieties = varietiesData.length;
-  const totalIoT = iotStationsData.length;
-  const activeTemplates = processTemplatesData.filter((t) => t.status === 'ACTIVE').length;
-  const totalDocs = knowledgeDocumentsData.length;
+  const [counts, setCounts] = useState({
+    totalLands: landsData.length,
+    totalPlots: plotsData.length,
+    availablePlots: plotsData.filter((p) => p.status === 'AVAILABLE').length,
+    totalCrops: cropsData.length,
+    totalVarieties: varietiesData.length,
+    totalIoT: iotStationsData.length,
+    activeTemplates: processTemplatesData.filter((t) => t.status === 'ACTIVE').length,
+    totalDocs: knowledgeDocumentsData.length
+  });
+
+  useEffect(() => {
+    Promise.allSettled([
+      fetch('/api/lands').then((r) => r.json()),
+      fetch('/api/plots').then((r) => r.json()),
+      fetch('/api/crops').then((r) => r.json()),
+      fetch('/api/varieties').then((r) => r.json()),
+      fetch('/api/templates').then((r) => r.json())
+    ]).then(([resLands, resPlots, resCrops, resVars, resTmpls]) => {
+      setCounts((prev) => {
+        const next = { ...prev };
+        if (resLands.status === 'fulfilled') {
+          const d = Array.isArray(resLands.value) ? resLands.value : resLands.value?.data;
+          if (Array.isArray(d) && d.length > 0) next.totalLands = d.length;
+        }
+        if (resPlots.status === 'fulfilled') {
+          const d = Array.isArray(resPlots.value) ? resPlots.value : resPlots.value?.data;
+          if (Array.isArray(d) && d.length > 0) {
+            next.totalPlots = d.length;
+            next.availablePlots = d.filter((p) => p.status === 'AVAIL' || p.status === 'AVAILABLE').length;
+          }
+        }
+        if (resCrops.status === 'fulfilled') {
+          const d = Array.isArray(resCrops.value) ? resCrops.value : resCrops.value?.data;
+          if (Array.isArray(d) && d.length > 0) next.totalCrops = d.length;
+        }
+        if (resVars.status === 'fulfilled') {
+          const d = Array.isArray(resVars.value) ? resVars.value : resVars.value?.data;
+          if (Array.isArray(d) && d.length > 0) next.totalVarieties = d.length;
+        }
+        if (resTmpls.status === 'fulfilled') {
+          const d = Array.isArray(resTmpls.value) ? resTmpls.value : resTmpls.value?.data;
+          if (Array.isArray(d) && d.length > 0) next.activeTemplates = d.length;
+        }
+        return next;
+      });
+    });
+  }, []);
 
   const stats = [
-    { label: 'Tổng số Nông Trại (Lands)', value: totalLands, icon: Building2, link: '/admin/master-data/lands', color: 'text-brand-green' },
-    { label: 'Tổng số Thửa Đất', value: totalPlots, icon: Grid3X3, link: '/admin/master-data/plots', color: 'text-emerald-700' },
-    { label: 'Thửa Đất Khả Dụng', value: availablePlots, icon: CheckCircle2, link: '/admin/master-data/plots', color: 'text-brand-yellow' },
-    { label: 'Danh Mục Cây (Crops)', value: totalCrops, icon: Sprout, link: '/admin/master-data/crops', color: 'text-brand-green' },
-    { label: 'Giống Cây (Varieties)', value: totalVarieties, icon: Wheat, link: '/admin/master-data/varieties', color: 'text-amber-700' },
-    { label: 'Trạm Cảm Biến IoT', value: totalIoT, icon: Radio, link: '/admin/master-data/iot-stations', color: 'text-sky-700' },
-    { label: 'Quy Trình Chuẩn VietGAP', value: activeTemplates, icon: FileSpreadsheet, link: '/admin/master-data/process-templates', color: 'text-emerald-700' },
-    { label: 'Tài Liệu Kỹ Thuật (RAG)', value: totalDocs, icon: BookOpen, link: '/admin/master-data/knowledge-documents', color: 'text-indigo-700' },
+    { label: 'Tổng số Nông Trại (Lands)', value: counts.totalLands, icon: Building2, link: '/admin/master-data/lands', color: 'text-brand-green' },
+    { label: 'Tổng số Thửa Đất', value: counts.totalPlots, icon: Grid3X3, link: '/admin/master-data/plots', color: 'text-emerald-700' },
+    { label: 'Thửa Đất Khả Dụng', value: counts.availablePlots, icon: CheckCircle2, link: '/admin/master-data/plots', color: 'text-brand-yellow' },
+    { label: 'Danh Mục Cây (Crops)', value: counts.totalCrops, icon: Sprout, link: '/admin/master-data/crops', color: 'text-brand-green' },
+    { label: 'Giống Cây (Varieties)', value: counts.totalVarieties, icon: Wheat, link: '/admin/master-data/varieties', color: 'text-amber-700' },
+    { label: 'Trạm Cảm Biến IoT', value: counts.totalIoT, icon: Radio, link: '/admin/master-data/iot-stations', color: 'text-sky-700' },
+    { label: 'Quy Trình Chuẩn VietGAP', value: counts.activeTemplates, icon: FileSpreadsheet, link: '/admin/master-data/process-templates', color: 'text-emerald-700' },
+    { label: 'Tài Liệu Kỹ Thuật (RAG)', value: counts.totalDocs, icon: BookOpen, link: '/admin/master-data/knowledge-documents', color: 'text-indigo-700' },
   ];
 
   const recentUpdates = [

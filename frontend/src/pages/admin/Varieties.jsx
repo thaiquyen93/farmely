@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { varietiesData as initialVarieties } from '../../data/varieties';
 import { cropsData } from '../../data/crops';
@@ -15,6 +15,32 @@ export default function Varieties() {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/varieties')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          const mapped = list.map((v) => ({
+            id: `VAR-${String(v.varietyId || v.variety_id).padStart(3, '0')}`,
+            dbId: v.varietyId || v.variety_id,
+            name: v.varietyName || v.variety_name,
+            cropId: `CRP-${String(v.cropId || v.crop_id).padStart(2, '0')}`,
+            cropName: v.cropName || v.crop_name || 'Rau củ quả',
+            growthDurationDays: v.expectedDurationDays || v.growth_duration_days || 35,
+            expectedYield: `${v.standardYieldPerM2 || v.standard_yield_per_m2 || '3.5'} kg/m²`,
+            optimalSeason: v.optimalSeason || 'Quanh năm',
+            description: v.description || 'Giống F1 chuẩn VietGAP năng suất cao, kháng sâu bệnh tốt.',
+            status: 'ACTIVE',
+            imageUrl: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
+            hasProcessTemplate: true
+          }));
+          setVarieties(mapped);
+        }
+      })
+      .catch((err) => console.error('Error fetching varieties from DB:', err));
+  }, []);
 
   // Form State
   const [name, setName] = useState('');

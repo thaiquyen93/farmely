@@ -35,7 +35,7 @@ export default function Marketplace() {
     localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(selectedCropByPlot));
   }, [selectedCropByPlot]);
 
-  // Tải dữ liệu thực tế 16 thửa đất từ Supabase PostgreSQL API
+  // Tải dữ liệu thực tế 16 thửa đất từ API
   const [dbPlots, setDbPlots] = useState([]);
   const [dbSource, setDbSource] = useState(null);
 
@@ -43,30 +43,33 @@ export default function Marketplace() {
     let active = true;
     async function loadPlotsFromDb() {
       try {
-        const res = await fetch('/api/v1/plots');
-        if (res.ok) {
+        let res = await fetch('/api/v1/plots').catch(() => null);
+        if (!res || !res.ok) {
+          res = await fetch('/api/plots').catch(() => null);
+        }
+        if (res && res.ok) {
           const json = await res.json();
           const list = Array.isArray(json) ? json : (json.data || []);
           if (list && list.length > 0 && active) {
             setDbPlots(list);
-            setDbSource('Supabase PostgreSQL');
+            setDbSource('PostgreSQL DB');
           }
         }
       } catch (err) {
-        console.warn('[Marketplace] Fetch /api/v1/plots fallback to GIS data:', err);
+        console.warn('[Marketplace] Fetch plots fallback to GIS data:', err);
       }
     }
     loadPlotsFromDb();
     return () => { active = false; };
   }, []);
 
-  // Hợp nhất GeoJSON với dữ liệu Live DB từ Supabase
+  // Hợp nhất GeoJSON với dữ liệu Live DB
   const livePlotsGeoJson = useMemo(() => {
     if (!dbPlots || dbPlots.length === 0) return FARMS_GEOJSON_DATA;
 
     const dbMap = new Map();
     dbPlots.forEach((dp) => {
-      const codeKey = (dp.plot_code || dp.code || '').toUpperCase().replace('PLOT ', '').trim();
+      const codeKey = (dp.plot_code || dp.plotCode || dp.code || '').toUpperCase().replace('PLOT ', '').trim();
       dbMap.set(codeKey, dp);
     });
 
@@ -76,23 +79,24 @@ export default function Marketplace() {
       const match = dbMap.get(featKey);
       if (!match) return feat;
 
-      const liveStatus = match.status === 'AVAIL'
-        ? 'Đang trống'
-        : (match.status === 'RENT'
-            ? 'Đã thuê'
-            : (match.status === 'MAINT' ? 'Bảo trì' : match.status_text || p.status));
+      const numPrice = Number(match.price_per_period || match.pricePerPeriod || p.rentalPrice);
+      const mappedStatus = match.status === 'AVAIL' ? 'Đang trống' :
+                           (match.status === 'RENT' ? 'Đã thuê' :
+                           (match.status === 'MAINT' ? 'Bảo trì' : match.status_text || p.status));
 
       return {
         ...feat,
         properties: {
           ...p,
-          plot_id: match.plot_id || p.plot_id,
-          status: liveStatus,
+          plot_id: match.plot_id || match.plotId || p.plot_id,
+          dbPlotId: match.plot_id || match.plotId,
+          status: mappedStatus,
           statusCode: match.status,
-          price: match.price_text || p.price,
-          rentalPrice: match.price_per_period ? Number(match.price_per_period) : p.rentalPrice,
-          area: match.area_text || p.area,
-          sizeNumber: match.area ? Number(match.area) : p.sizeNumber,
+          price: match.price_text || `${numPrice.toLocaleString('vi-VN')} đ/tháng`,
+          rentalPrice: numPrice,
+          area: typeof match.area === 'number' ? `${match.area} m²` : (match.area_text || match.area || p.area),
+          imageUrl: match.image_url || match.imageUrl || p.imageUrl,
+          landName: match.land_name || match.landName || p.farmName,
           compatibleCrops: (match.compatible_crops && match.compatible_crops.length > 0) ? match.compatible_crops : p.compatibleCrops,
           dbSynced: true
         }
@@ -109,7 +113,6 @@ export default function Marketplace() {
   const allPlots = useMemo(() => {
     return livePlotsGeoJson.features.map((f) => f.properties);
   }, [livePlotsGeoJson]);
-
   // Danh sách chọn nhiều thửa đất trực tiếp trên Marketplace (bảo toàn qua localStorage & URL)
   const [contractSelectedPlots, setContractSelectedPlots] = useState(() => {
     try {

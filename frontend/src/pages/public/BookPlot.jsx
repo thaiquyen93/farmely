@@ -110,6 +110,32 @@ export default function BookPlot() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    fetch('/api/plots')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          setSelectedPlots((prev) =>
+            prev.map((sp) => {
+              const matched = list.find(
+                (p) => (p.plot_code || p.plotCode || '').toLowerCase() === (sp.code || sp.id || '').toLowerCase()
+              );
+              if (!matched) return sp;
+              const numPrice = Number(matched.price_per_period || matched.pricePerPeriod || sp.rentalPrice);
+              return {
+                ...sp,
+                rentalPrice: numPrice,
+                formattedPrice: `${numPrice.toLocaleString('vi-VN')} đ/tháng`,
+                dbPlotId: matched.plot_id || matched.plotId
+              };
+            })
+          );
+        }
+      })
+      .catch((e) => console.error(e));
+  }, []);
+
   // If URL changes or plots query param exists, sync plots
   useEffect(() => {
     const plotsQuery = searchParams.get('plots');

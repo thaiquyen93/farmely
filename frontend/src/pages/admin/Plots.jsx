@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { plotsData as initialPlots } from '../../data/plots';
 import DataTable from '../../components/common/DataTable';
@@ -10,6 +10,51 @@ import { Grid3X3, Plus, Eye, Edit, Trash2, Radio, Sprout } from 'lucide-react';
 export default function Plots() {
   const [plots, setPlots] = useState(initialPlots);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/plots')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          const mapped = list.map((p) => {
+            const numPrice = Number(p.price_per_period || p.pricePerPeriod || 1200000);
+            const mappedStatus = p.status === 'AVAIL' ? 'AVAILABLE' :
+                                 p.status === 'RENT' ? 'RENTED' :
+                                 p.status === 'MAINT' ? 'MAINTENANCE' : p.status;
+            return {
+              id: `PLT-${String(p.plot_id || p.plotId).padStart(3, '0')}`,
+              dbId: p.plot_id || p.plotId,
+              code: p.plot_code || p.plotCode,
+              name: `Thửa Đất ${p.plot_code || p.plotCode}`,
+              landId: `LND-${String(p.land_id || p.landId || 1).padStart(3, '0')}`,
+              landName: p.land_name || p.landName || 'Trang trại Happy Valley Củ Chi',
+              area: typeof p.area === 'number' ? `${p.area} m²` : (p.area ? `${p.area} m²` : '50 m²'),
+              soilType: 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.5)',
+              status: mappedStatus,
+              rentalPrice: numPrice,
+              formattedPrice: `${numPrice.toLocaleString('vi-VN')} đ/tháng`,
+              careServicePrice: 600000,
+              iotStationId: `IOT-${p.plot_code || p.plotCode}`,
+              iotStationName: `Trạm Cảm Biến IoT #${p.plot_code || p.plotCode}`,
+              compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Rau muống lá tre F1'],
+              description: `Thửa đất ${p.plot_code || p.plotCode} thuộc ${p.land_name || 'Happy Valley'}, trang bị trạm cảm biến IoT và hệ thống tưới tự động.`,
+              imageUrl: p.image_url || p.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
+              currentCrop: mappedStatus === 'RENTED' ? 'Rau muống lá tre F1' : null,
+              tenantName: mappedStatus === 'RENTED' ? 'Lê Thái Quyền' : null,
+              recentSensorReadings: {
+                temperature: '28.5 °C',
+                humidity: '74 %',
+                soilMoisture: '68 %',
+                lastUpdated: 'Vừa xong'
+              }
+            };
+          });
+          setPlots(mapped);
+        }
+      })
+      .catch((err) => console.error('Error fetching plots from DB:', err));
+  }, []);
 
   const handleDelete = () => {
     if (confirmDeleteId) {

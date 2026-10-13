@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cropsData as initialCrops } from '../../data/crops';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
@@ -12,6 +12,29 @@ export default function Crops() {
   const [crops, setCrops] = useState(initialCrops);
   const [selectedCrop, setSelectedCrop] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/crops')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          const mapped = list.map((c) => ({
+            id: `CRP-${String(c.cropId || c.crop_id).padStart(2, '0')}`,
+            dbId: c.cropId || c.crop_id,
+            name: c.cropName || c.crop_name,
+            code: (c.cropName || c.crop_name || '').toUpperCase().replace(/\s+/g, '_'),
+            description: `Cây trồng canh tác chuẩn VietGAP thuộc danh mục quốc gia.`,
+            totalVarieties: 2,
+            status: 'ACTIVE',
+            imageUrl: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
+            standardGrowthCycle: '30 - 45 ngày'
+          }));
+          setCrops(mapped);
+        }
+      })
+      .catch((err) => console.error('Error fetching crops from DB:', err));
+  }, []);
 
   // Form modal state
   const [showModal, setShowModal] = useState(false);
