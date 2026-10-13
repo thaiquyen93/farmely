@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Building2,
@@ -16,41 +16,32 @@ import {
   TrendingUp,
   Clock
 } from 'lucide-react';
-import { landsData } from '../../data/lands';
-import { plotsData } from '../../data/plots';
-import { cropsData } from '../../data/crops';
-import { varietiesData } from '../../data/varieties';
-import { iotStationsData } from '../../data/iotStations';
-import { processTemplatesData } from '../../data/processTemplates';
-import { knowledgeDocumentsData } from '../../data/knowledgeDocuments';
-
 export default function MasterDataDashboard() {
-  const totalLands = landsData.length;
-  const totalPlots = plotsData.length;
-  const availablePlots = plotsData.filter((p) => p.status === 'AVAILABLE').length;
-  const totalCrops = cropsData.length;
-  const totalVarieties = varietiesData.length;
-  const totalIoT = iotStationsData.length;
-  const activeTemplates = processTemplatesData.filter((t) => t.status === 'ACTIVE').length;
-  const totalDocs = knowledgeDocumentsData.length;
+  const [counts, setCounts] = useState({ lands: null, plots: null, availablePlots: null, crops: null, varieties: null, iot: null, templates: null, docs: null });
+  useEffect(() => {
+    const endpoints = [['lands', '/api/lands'], ['plots', '/api/plots'], ['crops', '/api/crops'], ['varieties', '/api/varieties'], ['iot', '/api/iot-stations'], ['templates', '/api/process-templates'], ['docs', '/api/v1/knowledge-documents']];
+    Promise.all(endpoints.map(async ([key, url]) => {
+      try { const res = await fetch(url); const data = await res.json(); return [key, Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : [])]; }
+      catch { return [key, []]; }
+    })).then((entries) => {
+      const next = Object.fromEntries(entries);
+      setCounts({ lands: next.lands.length, plots: next.plots.length, availablePlots: next.plots.filter((p) => String(p.status || '').toUpperCase() === 'AVAILABLE').length, crops: next.crops.length, varieties: next.varieties.length, iot: next.iot.length, templates: next.templates.filter((t) => String(t.status || '').toUpperCase() === 'ACTIVE').length, docs: next.docs.length });
+    });
+  }, []);
+  const value = (key) => counts[key] ?? 'Chưa có data';
 
   const stats = [
-    { label: 'Tổng số Nông Trại (Lands)', value: totalLands, icon: Building2, link: '/admin/master-data/lands', color: 'text-brand-green' },
-    { label: 'Tổng số Thửa Đất', value: totalPlots, icon: Grid3X3, link: '/admin/master-data/plots', color: 'text-emerald-700' },
-    { label: 'Thửa Đất Khả Dụng', value: availablePlots, icon: CheckCircle2, link: '/admin/master-data/plots', color: 'text-brand-yellow' },
-    { label: 'Danh Mục Cây (Crops)', value: totalCrops, icon: Sprout, link: '/admin/master-data/crops', color: 'text-brand-green' },
-    { label: 'Giống Cây (Varieties)', value: totalVarieties, icon: Wheat, link: '/admin/master-data/varieties', color: 'text-amber-700' },
-    { label: 'Trạm Cảm Biến IoT', value: totalIoT, icon: Radio, link: '/admin/master-data/iot-stations', color: 'text-sky-700' },
-    { label: 'Quy Trình Chuẩn VietGAP', value: activeTemplates, icon: FileSpreadsheet, link: '/admin/master-data/process-templates', color: 'text-emerald-700' },
-    { label: 'Tài Liệu Kỹ Thuật (RAG)', value: totalDocs, icon: BookOpen, link: '/admin/master-data/knowledge-documents', color: 'text-indigo-700' },
+    { label: 'Tổng số Nông Trại (Lands)', value: value('lands'), icon: Building2, link: '/admin/master-data/lands', color: 'text-brand-green' },
+    { label: 'Tổng số Thửa Đất', value: value('plots'), icon: Grid3X3, link: '/admin/master-data/plots', color: 'text-emerald-700' },
+    { label: 'Thửa Đất Khả Dụng', value: value('availablePlots'), icon: CheckCircle2, link: '/admin/master-data/plots', color: 'text-brand-yellow' },
+    { label: 'Danh Mục Cây (Crops)', value: value('crops'), icon: Sprout, link: '/admin/master-data/crops', color: 'text-brand-green' },
+    { label: 'Giống Cây (Varieties)', value: value('varieties'), icon: Wheat, link: '/admin/master-data/varieties', color: 'text-amber-700' },
+    { label: 'Trạm Cảm Biến IoT', value: value('iot'), icon: Radio, link: '/admin/master-data/iot-stations', color: 'text-sky-700' },
+    { label: 'Quy Trình Chuẩn VietGAP', value: value('templates'), icon: FileSpreadsheet, link: '/admin/master-data/process-templates', color: 'text-emerald-700' },
+    { label: 'Tài Liệu Kỹ Thuật (RAG)', value: value('docs'), icon: BookOpen, link: '/admin/master-data/knowledge-documents', color: 'text-indigo-700' },
   ];
 
-  const recentUpdates = [
-    { title: 'Cập nhật ngưỡng an toàn trạm IoT-CC-01', time: '15 phút trước', user: 'CGNN. Nguyễn Hoàng Nam', type: 'IoT Config' },
-    { title: 'Phê duyệt quy trình VietGAP Cà chua bi v2.3', time: '2 giờ trước', user: 'Hội đồng Nông học', type: 'Template' },
-    { title: 'Thêm giống mới: Dâu tây Nhật Hana chịu nhiệt', time: 'Hôm qua, 16:30', user: 'CGNN. Đặng Thu Thảo', type: 'Variety' },
-    { title: 'Hoàn tất nghiệm thu nghỉ đất 4 ngày thửa P-106', time: '2 ngày trước', user: 'Admin Hệ Thống', type: 'Fallow Protocol' },
-  ];
+  const recentUpdates = [];
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -130,6 +121,11 @@ export default function MasterDataDashboard() {
           </div>
 
           <div className="space-y-3 text-xs">
+            <div className="p-4 rounded-xl bg-brand-cream/60 border border-brand-border text-brand-muted">
+              Dữ liệu tình trạng sẽ hiển thị khi hệ thống cung cấp endpoint kiểm tra master data.
+            </div>
+            {/* Health indicators are intentionally omitted until backed by the audit API. */}
+            <div className="hidden">
             <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-start gap-3">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
               <div>
@@ -142,7 +138,7 @@ export default function MasterDataDashboard() {
               <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
               <div>
                 <strong className="text-emerald-900 block font-semibold">Ma trận tương thích (Compatibility) đã kích hoạt</strong>
-                <span className="text-emerald-800 text-[11px]">Kiểm soát chặt chẽ BR03, ngăn khách hàng chọn giống cây không thích ứng với đất.</span>
+                <span className="text-emerald-800 text-[11px]">Kiểm soát chặt chẽ quy tắc tương thích, ngăn chọn giống cây không phù hợp với đất.</span>
               </div>
             </div>
 
@@ -160,6 +156,7 @@ export default function MasterDataDashboard() {
                 <strong className="text-amber-900 block font-semibold">Giống Cải bó xôi Nhật chưa gán Quy trình chuẩn</strong>
                 <span className="text-amber-800 text-[11px]">Chuyên gia cần bổ sung Process Template trước khi mở cho thuê hình thức Assisted-growing.</span>
               </div>
+            </div>
             </div>
           </div>
         </div>

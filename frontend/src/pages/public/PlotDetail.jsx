@@ -429,7 +429,7 @@ export default function PlotDetail() {
       >
         <div className="space-y-4">
           <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
-            <p className="font-bold">⏱ Thời gian giữ chỗ: 15 Phút (BR08)</p>
+            <p className="font-bold">⏱ Thời gian giữ chỗ: 15 Phút</p>
             <p>Sau khi nhấn Tiếp Tục, thửa đất sẽ được khóa giữ chỗ tạm thời và chuyển sang trạng thái PAYMENT_PENDING (+10 phút Grace Period khi nhập mã thanh toán).</p>
           </div>
 

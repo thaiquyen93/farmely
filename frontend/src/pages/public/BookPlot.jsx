@@ -30,8 +30,6 @@ import {
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
-import { chatService } from '../../api/communication/chatService';
-import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 
 const marketplaceBookingPlots = MARKETPLACE_PLOTS_GIS.map((plot) => ({
   ...plot,
@@ -107,7 +105,7 @@ export default function BookPlot() {
     });
   };
 
-  // Initial plot from route param or fallback to first
+  // Initial plot from route param or available catalog entry
   const initialPlot = findPlotByAnyCode(id) || marketplaceBookingPlots[0] || plotsData[0];
   const initialPlotsFromQuery = dedupeSelectedPlots(
     (searchParams.get('plots') || '')
@@ -254,21 +252,6 @@ export default function BookPlot() {
   const selectedCropFor = (plot) => getSafeCropById(selectedCropByPlot[plot.id]);
   const primaryCrop = selectedCropFor(primaryPlot);
 
-  const syncRentalToChat = () => {
-    if (!user) return;
-    const demoProfile = DEMO_CUSTOMERS.find(
-      (customer) => customer.email?.toLowerCase() === user.email?.toLowerCase()
-    );
-    const safeKey = user.email?.replace(/[^a-zA-Z0-9]/g, '_') || user.id || 'customer';
-    chatService.updateRentalContext({
-      threadId: demoProfile?.threadId || `CONS-${safeKey}`,
-      customerName: user.fullName,
-      customerAvatar: user.avatar,
-      plotCode: plotCodesList,
-      plotName: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`,
-      crop: primaryCrop?.variety || primaryPlot.compatibleCrops?.[0] || 'Cây trồng VietGAP'
-    });
-  };
 
   const persistBookingToDatabase = async (method = paymentMethod) => {
     try {
@@ -328,7 +311,6 @@ export default function BookPlot() {
     const savedCode = await persistBookingToDatabase(paymentMethod);
     setIsProcessing(false);
     setContractCode(savedCode);
-    syncRentalToChat();
     try {
       localStorage.removeItem('farmely_master_lease_selected_plots');
     } catch (e) {
@@ -343,7 +325,6 @@ export default function BookPlot() {
     setIsProcessing(true);
     const savedCode = await persistBookingToDatabase(paymentMethod);
     setContractCode(savedCode);
-    syncRentalToChat();
     try {
       localStorage.removeItem('farmely_master_lease_selected_plots');
     } catch (e) {

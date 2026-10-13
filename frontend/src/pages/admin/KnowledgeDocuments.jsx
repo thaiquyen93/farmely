@@ -119,7 +119,8 @@ export default function KnowledgeDocuments() {
           fileSizeStr = uploadRes.data.size;
         }
       } catch (err) {
-        console.warn('Re-upload fallback:', err.message);
+        setIsUpdating(false);
+        return;
       }
     }
 
@@ -188,7 +189,8 @@ export default function KnowledgeDocuments() {
           fileSizeStr = uploadRes.data.size;
         }
       } catch (err) {
-        console.warn('File upload fallback:', err.message);
+        setIsSubmitting(false);
+        return;
       }
     }
 
@@ -237,7 +239,8 @@ export default function KnowledgeDocuments() {
         return;
       }
     } catch (err) {
-      console.info('Using local state addition:', err.message);
+      setIsSubmitting(false);
+      return;
     }
 
     const newDoc = {

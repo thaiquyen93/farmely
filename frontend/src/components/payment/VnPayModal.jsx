@@ -4,6 +4,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import Button from '../common/Button';
+import { apiFetch } from '../../api/apiClient';
 
 export default function VnPayModal({
   isOpen,
@@ -42,17 +43,10 @@ export default function VnPayModal({
         ...additionalPayload
       };
 
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/payments/vnpay/create`, {
+      const data = await apiFetch('/api/v1/payments/vnpay/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-
-      if (!res.ok) {
-        throw new Error('Không thể kết nối đến cổng thanh toán VNPAY');
-      }
-
-      const data = await res.json();
       if (data?.data?.paymentUrl) {
         // Chuyển hướng trực tiếp sang cổng thanh toán VNPay
         window.location.href = data.data.paymentUrl;

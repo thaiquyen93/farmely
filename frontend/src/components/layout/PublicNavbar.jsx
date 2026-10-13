@@ -36,6 +36,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   });
   const [settingsSuccessMsg, setSettingsSuccessMsg] = useState('');
   const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+  const [showPasswords, setShowPasswords] = useState({ old: false, next: false, confirm: false });
   const [settingsErrorMsg, setSettingsErrorMsg] = useState('');
 
   const { user, isAuthenticated, logout, updateUser, refreshUser } = useAuthStore();
@@ -900,7 +901,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
             <div className="space-y-2.5 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
               <p className="rounded-lg bg-amber-50 p-2 text-[10px] font-semibold text-amber-800">Các tùy chọn dưới đây là thiết lập cục bộ trên trình duyệt; backend chưa có API đồng bộ.</p>
               <label className="flex items-center justify-between cursor-pointer">
-                <div>
+                <div className="relative">
                   <span className="font-bold text-brand-dark block">Thông báo qua Email</span>
                   <span className="text-stone-500 text-[11px]">Nhận báo cáo tiến độ mùa vụ và nhật ký canh tác thực địa</span>
                 </div>
@@ -950,30 +951,32 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                 <div>
                   <label className="block font-medium text-stone-700 mb-1">Mật khẩu hiện tại:</label>
                   <input
-                    type="password"
+                    type={showPasswords.old ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={passwordForm.oldPassword}
                     onChange={(event) => setPasswordForm({ ...passwordForm, oldPassword: event.target.value })}
-                    className="w-full p-2 rounded-lg border border-brand-border bg-white text-xs"
+                    className="w-full p-2 pr-12 rounded-lg border border-brand-border bg-white text-xs"
                   />
+                  <button type="button" onClick={() => setShowPasswords((s) => ({ ...s, old: !s.old }))} className="absolute right-2 top-8 p-1 text-stone-500">{showPasswords.old ? 'Ẩn' : 'Hiện'}</button>
                 </div>
-                <div>
+                <div className="relative">
                   <label className="block font-medium text-stone-700 mb-1">Mật khẩu mới:</label>
-                  <input type="password" placeholder="••••••••" value={passwordForm.newPassword} onChange={(event) => setPasswordForm({ ...passwordForm, newPassword: event.target.value })} className="w-full p-2 rounded-lg border border-brand-border bg-white text-xs" />
+                  <div className="relative"><input type={showPasswords.next ? 'text' : 'password'} placeholder="••••••••" value={passwordForm.newPassword} onChange={(event) => setPasswordForm({ ...passwordForm, newPassword: event.target.value })} className="w-full p-2 pr-12 rounded-lg border border-brand-border bg-white text-xs" /><button type="button" onClick={() => setShowPasswords((s) => ({ ...s, next: !s.next }))} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-stone-500">{showPasswords.next ? 'Ẩn' : 'Hiện'}</button></div>
                 </div>
                 <div>
                   <label className="block font-medium text-stone-700 mb-1">Xác nhận mật khẩu:</label>
                   <input
-                    type="password"
+                    type={showPasswords.confirm ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={passwordForm.confirmPassword}
                     onChange={(event) => setPasswordForm({ ...passwordForm, confirmPassword: event.target.value })}
-                    className="w-full p-2 rounded-lg border border-brand-border bg-white text-xs"
+                    className="w-full p-2 pr-12 rounded-lg border border-brand-border bg-white text-xs"
                   />
+                  <button type="button" onClick={() => setShowPasswords((s) => ({ ...s, confirm: !s.confirm }))} className="absolute right-2 top-8 p-1 text-stone-500">{showPasswords.confirm ? 'Ẩn' : 'Hiện'}</button>
                 </div>
               </div>
               <label className="flex cursor-not-allowed items-center justify-between border-t border-stone-200/60 pt-1.5 opacity-60">
-                <span className="text-stone-700 font-medium">Xác thực hai yếu tố (backend chưa hỗ trợ)</span>
+                <span className="text-stone-700 font-medium">Xác thực hai yếu tố</span>
                 <input
                   type="checkbox"
                   checked={false}
