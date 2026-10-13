@@ -11,10 +11,11 @@ const metricMeta = [
   { key: 'light', label: 'Ánh sáng', icon: Sun, tone: 'bg-amber-50 text-amber-600', trend: 'Tốt' }
 ];
 
-export default function CustomerPlotWorkspace({ plot, plots, operations, services = [], onSelectPlot, onNavigate, onOpenAiChat, onOpenIotDetail, onOpenTask, onSelectService }) {
+export default function CustomerPlotWorkspace({ plot, plots, operations, services = [], harvestPlan = null, onSelectPlot, onNavigate, onOpenAiChat, onOpenIotDetail, onOpenTask, onSelectService, onOpenHarvest }) {
   const [plotPickerOpen, setPlotPickerOpen] = useState(false);
   const isSelfGrowing = plot.mode === 'Self-Growing';
   const daysLeft = Math.max(plot.totalDays - plot.currentDay, 0);
+  const harvestPlanDate = harvestPlan?.date ? harvestPlan.date.split('-').reverse().join('/') : '';
   const metrics = useMemo(() => metricMeta.map((item) => ({ ...item, value: plot[item.key] })), [plot]);
 
   return (
@@ -71,7 +72,7 @@ export default function CustomerPlotWorkspace({ plot, plots, operations, service
               <div className="mt-4 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[10px] font-semibold text-amber-800"><CloudSun className="h-4 w-4 shrink-0" />Thời tiết thuận lợi cho công việc tiếp theo</div>
             </div>
 
-            <div className="relative overflow-hidden rounded-[24px] bg-[#dff36a] p-5 text-[#18352b] shadow-sm sm:p-6"><div className="absolute -right-8 -top-8 h-28 w-28 rounded-full border-[18px] border-white/25" /><Sprout className="h-8 w-8" /><p className="mt-5 text-[10px] font-black uppercase tracking-[0.16em]">Vụ mùa hiện tại</p><p className="mt-1 font-heading text-2xl font-black">{daysLeft} ngày nữa</p><p className="mt-1 max-w-[260px] text-xs leading-relaxed text-[#315044]">Dự kiến thu hoạch {plot.expectedYield}. Farmely sẽ nhắc bạn trước 3 ngày.</p><button type="button" onClick={() => onNavigate?.('services')} className="mt-5 flex items-center gap-2 rounded-xl bg-[#18352b] px-4 py-2.5 text-xs font-black text-white">Chuẩn bị thu hoạch <ChevronRight className="h-4 w-4" /></button></div>
+            <div className="relative overflow-hidden rounded-[24px] bg-[#dff36a] p-5 text-[#18352b] shadow-sm sm:p-6"><div className="absolute -right-8 -top-8 h-28 w-28 rounded-full border-[18px] border-white/25" /><Sprout className="h-8 w-8" /><p className="mt-5 text-[10px] font-black uppercase tracking-[0.16em]">Vụ mùa hiện tại</p><p className="mt-1 font-heading text-2xl font-black">{daysLeft > 0 ? `${daysLeft} ngày nữa` : 'Đã đến vụ'}</p><p className="mt-1 max-w-[260px] text-xs leading-relaxed text-[#315044]">Dự kiến {plot.expectedHarvestDate} · sản lượng {plot.expectedYield}.</p>{harvestPlan ? (<div className="relative mt-4 rounded-xl bg-white/60 p-3 text-xs"><p className="flex items-center gap-1.5 font-bold text-[#18352b]"><Check className="h-4 w-4 text-emerald-700" />Đã đăng ký thu hoạch {harvestPlanDate}</p><p className="mt-1 text-[#315044]">{harvestPlan.methodLabel} · <span className="font-semibold">Chờ kỹ sư xác nhận</span></p></div>) : (<p className="mt-1 max-w-[260px] text-xs text-[#315044]">Farmely sẽ nhắc bạn trước 3 ngày.</p>)}<button type="button" onClick={() => onOpenHarvest?.(plot)} className="relative mt-4 flex items-center gap-2 rounded-xl bg-[#18352b] px-4 py-2.5 text-xs font-black text-white transition hover:bg-[#0f2a20]">{harvestPlan ? 'Xem / sửa kế hoạch' : 'Chuẩn bị thu hoạch'} <ChevronRight className="h-4 w-4" /></button></div>
 
             <div className="rounded-[24px] border border-stone-200/80 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><ShoppingBag className="h-4 w-4" /></span><div><p className="font-heading text-sm font-black text-[#18352b]">Thuê dịch vụ</p><p className="text-[10px] text-stone-500">Đặt hỗ trợ riêng cho thửa này</p></div></div><button type="button" onClick={() => onNavigate?.('services')} className="text-[10px] font-black text-emerald-700">Xem tất cả</button></div>
