@@ -776,7 +776,7 @@ export default function CustomerDashboard() {
   };
 
   const currentSelectedPlot = customerPlots.find((p) => p.id === selectedPlotId);
-  const diaryFocusPlot = customerPlots.find((p) => p.id === diaryFocusPlotId) || customerPlots[0];
+  const diaryFocusPlot = customerPlots.find((p) => p.id === diaryFocusPlotId) || customerPlots[0] || { id: '', name: 'Chưa có dữ liệu', image: '', crop: '—', stationId: '—', temp: '—', soilMoisture: '—', airHumidity: '—', light: '—', mode: 'Self-Growing' };
   const scopedPlot = customerPlots.find((p) => p.id === plotScopeId) || null;
   const scopedPlots = scopedPlot ? [scopedPlot] : customerPlots;
   const scopedServiceOrders = scopedPlot
@@ -861,7 +861,7 @@ export default function CustomerDashboard() {
       diary: [{ time: '10:15 • Hôm nay', title: 'Kiểm tra sinh trưởng dây leo', note: 'Cây cao trung bình 82cm, chưa ghi nhận sâu bệnh.', author: 'Nguyễn Văn Đạt' }]
     }
   };
-  const cultivationProcesses = {
+  const fallbackCultivationProcesses = {
     'PLOT-CC-01': [
       { stage: 'Gieo trồng & bén rễ', date: '12/08/2026', guide: 'Giữ ẩm đất 60–70%, kiểm tra cây con mỗi sáng.', status: 'COMPLETED' },
       { stage: 'Sinh trưởng thân lá', date: '25/08/2026', guide: 'Bổ sung dinh dưỡng hữu cơ và tỉa lá già định kỳ.', status: 'COMPLETED' },
@@ -879,6 +879,7 @@ export default function CustomerDashboard() {
       { stage: 'Thu hoạch lứa đầu', date: '28/10/2026', guide: 'Thu hái quả đạt kích thước, tránh làm trầy thân dây.', status: 'PENDING' }
     ]
   };
+  const cultivationProcesses = {};
   const iotAlerts = {
     'PLOT-CC-01': [
       { level: 'HIGH', title: 'Mưa có thể đến sau 45 phút', metric: 'Dự báo mưa 8.2 mm', time: '5 phút trước' },
@@ -1770,14 +1771,17 @@ export default function CustomerDashboard() {
                   {harvestAcceptance.status === 'CONFIRMED' ? <span className="rounded-full bg-emerald-100 px-3 py-2 text-xs font-black text-emerald-800">✓ Đã xác nhận nghiệm thu</span> : <Button variant="primary" size="sm" onClick={() => setShowHarvestAcceptModal(true)}>Xác nhận nghiệm thu vụ mùa</Button>}
                 </div>
 
-                <div className="grid gap-4 rounded-2xl border border-brand-border bg-brand-cream p-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:p-5">
+                <div className="rounded-2xl border border-brand-border bg-brand-cream p-5">
+                  <p className="text-sm font-semibold text-brand-muted">Chưa có dữ liệu thu hoạch từ hệ thống.</p>
+                </div>
+                {false && <div className="grid gap-4 rounded-2xl border border-brand-border bg-brand-cream p-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:p-5">
                   <img src="/images/Mucangchai3.jpg" alt="Ảnh cân đối chứng" className="h-32 w-full rounded-xl object-cover sm:h-full" />
                   <div className="space-y-3 text-xs">
                     <div className="flex flex-wrap justify-between gap-2"><span className="font-bold text-brand-dark text-sm">Đợt thu hoạch gần nhất: Cà chua bi Cherry</span><span className="text-emerald-700 font-black text-base">12.5 kg</span></div>
                     <p className="text-stone-600">Thu hoạch ngày 02/10. Ảnh cân đối chứng và thông tin đóng thùng QR đã được lưu trong hồ sơ nghiệm thu.</p>
                     <div className="flex flex-wrap gap-2"><span className="rounded-full bg-white px-3 py-1 font-bold text-stone-600">Ảnh minh chứng đã lưu</span><span className={`rounded-full px-3 py-1 font-bold ${harvestAcceptance.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{harvestAcceptance.status === 'CONFIRMED' ? `Đã xác nhận · ${harvestAcceptance.deliveryMethod === 'FARM' ? 'Nhận tại nông trại' : 'Giao tận nhà'}` : 'Chờ khách xác nhận'}</span></div>
                   </div>
-                </div>
+                </div>}
               </div>
             )}
 

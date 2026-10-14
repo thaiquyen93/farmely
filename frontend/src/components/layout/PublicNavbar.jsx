@@ -156,7 +156,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                   <span>Đặt lịch tham quan</span>
                 </Link>
 
-                {isAuthenticated && (
+                {isAuthenticated && !location.pathname.startsWith('/marketplace') && (
                   <Link
                     to="/customer/dashboard"
                     className={`flex items-center gap-1.5 whitespace-nowrap text-xs 2xl:text-sm font-semibold transition-colors hover:text-brand-yellow ${
