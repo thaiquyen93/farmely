@@ -112,6 +112,19 @@ export default function Marketplace() {
     return livePlotsGeoJson.features.map((f) => f.properties);
   }, [livePlotsGeoJson]);
 
+  const getPlotKeys = (plot) => {
+    if (!plot) return [];
+    return [plot.code, plot.id, plot.plot_id, plot.label]
+      .filter(Boolean)
+      .map((value) => String(value).trim().toLowerCase().replace(/^plot\s+/i, ''));
+  };
+
+  const isSamePlot = (left, right) => {
+    const leftKeys = getPlotKeys(left);
+    const rightKeys = new Set(getPlotKeys(right));
+    return leftKeys.some((key) => rightKeys.has(key));
+  };
+
   // Danh sách chọn nhiều thửa đất trực tiếp trên Marketplace (bảo toàn qua localStorage & URL)
   const [contractSelectedPlots, setContractSelectedPlots] = useState(() => {
     try {
@@ -161,7 +174,7 @@ export default function Marketplace() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const matched = parsed
-            .map((sp) => allPlots.find((p) => (p.id || p.code) === (sp.id || sp.code)) || sp)
+            .map((sp) => allPlots.find((p) => isSamePlot(p, sp)) || sp)
             .filter(Boolean);
           if (matched.length > 0) {
             setContractSelectedPlots(matched);
@@ -248,9 +261,9 @@ export default function Marketplace() {
     if (!isVacant) return;
 
     setContractSelectedPlots((prev) => {
-      const exists = prev.some((p) => (p.id || p.code) === (plot.id || plot.code));
+      const exists = prev.some((p) => isSamePlot(p, plot));
       if (exists) {
-        return prev.filter((p) => (p.id || p.code) !== (plot.id || plot.code));
+        return prev.filter((p) => !isSamePlot(p, plot));
       } else {
         return [...prev, plot];
       }
@@ -259,7 +272,7 @@ export default function Marketplace() {
 
   const isPlotSelectedForContract = (plot) => {
     if (!plot) return false;
-    return contractSelectedPlots.some((p) => (p.id || p.code) === (plot.id || plot.code));
+    return contractSelectedPlots.some((p) => isSamePlot(p, plot));
   };
 
   // Tổng diện tích các thửa đất đã chọn
