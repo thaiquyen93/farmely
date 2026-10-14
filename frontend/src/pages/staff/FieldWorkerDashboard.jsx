@@ -6,7 +6,6 @@ import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
-import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import {
   UserCheck,
   CheckCircle2,
@@ -14,12 +13,10 @@ import {
   Camera,
   AlertTriangle,
   Apple,
-  MessageSquare,
   Droplets,
   Flame,
   ShieldCheck,
   Layers,
-  Send,
   Calendar,
   Sparkles,
   QrCode,
@@ -46,7 +43,7 @@ import {
 
 export default function FieldWorkerDashboard() {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'issues' | 'harvest' | 'chat'
+  const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'issues' | 'harvest'
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Assigned care tasks loaded from the cultivation service.
@@ -150,29 +147,6 @@ export default function FieldWorkerDashboard() {
     const port = serialPortRef.current;
     if (port?.readable || port?.writable) port.close().catch(() => {});
   }, []);
-
-  // 4. Realtime Chat with Expert State & Worker Identity
-  const [selectedWorkerThreadId] = useState(() => `WORK-${user?.id || 'CURRENT'}`);
-  const activeWorkerSenderName = user?.fullName || 'Nhân viên hiện trường';
-
-  const {
-    currentThread: workerChatThread,
-    sendMessage: sendWorkerMessage,
-    markAsRead: markWorkerChatAsRead
-  } = useRealtimeChat({
-    role: 'worker',
-    initialThreadId: selectedWorkerThreadId,
-    senderName: activeWorkerSenderName
-  });
-
-  const [chatInput, setChatInput] = useState('');
-  const workerChatScrollRef = useRef(null);
-
-  useEffect(() => {
-    if (activeTab === 'chat' && workerChatScrollRef.current) {
-      workerChatScrollRef.current.scrollTop = workerChatScrollRef.current.scrollHeight;
-    }
-  }, [activeTab, workerChatThread?.messages]);
 
   // Handle Complete Task
   const handleConfirmCompleteTask = async (e) => {
@@ -365,15 +339,6 @@ export default function FieldWorkerDashboard() {
     alert('Đã lưu tổng sản lượng cân và gửi hồ sơ đóng thùng cho khách hàng nghiệm thu.');
   };
 
-  // Send message to expert
-  const handleSendMessageToExpert = (e) => {
-    if (e) e.preventDefault();
-    if (!chatInput.trim()) return;
-
-    sendWorkerMessage(chatInput.trim(), activeWorkerSenderName);
-    setChatInput('');
-  };
-
   const completedCount = tasks.filter((t) => t.status === 'COMPLETED').length;
   const pendingCount = tasks.length - completedCount;
   const nextTask = tasks.find((task) => task.status === 'IN_PROGRESS') || tasks.find((task) => task.status === 'PENDING');
@@ -431,8 +396,8 @@ export default function FieldWorkerDashboard() {
         <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />Ca trực hiện trường</div>
-            <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">{activeTab === 'tasks' ? 'Việc hôm nay' : activeTab === 'harvest' ? 'Thu hoạch & đóng gói' : activeTab === 'issues' ? 'Báo cáo sự cố' : 'Trao đổi chuyên gia'}</h1>
-            <p className="mt-1 text-xs text-brand-muted">{activeTab === 'tasks' ? `${tasks.length} nhiệm vụ tại ${Object.keys(tasksByPlot).length} thửa đất` : activeTab === 'harvest' ? `${harvestWorkItems.length} hồ sơ cân và nghiệm thu từ hệ thống` : activeTab === 'issues' ? `${myIssues.length} báo cáo hiện trường đã gửi` : 'Kênh hỗ trợ kỹ thuật trong ca trực'}</p>
+            <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">{activeTab === 'tasks' ? 'Việc hôm nay' : activeTab === 'harvest' ? 'Thu hoạch & đóng gói' : 'Báo cáo sự cố'}</h1>
+            <p className="mt-1 text-xs text-brand-muted">{activeTab === 'tasks' ? `${tasks.length} nhiệm vụ tại ${Object.keys(tasksByPlot).length} thửa đất` : activeTab === 'harvest' ? `${harvestWorkItems.length} hồ sơ cân và nghiệm thu từ hệ thống` : `${myIssues.length} báo cáo hiện trường đã gửi`}</p>
           </div>
           {activeTab === 'tasks' && <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs shadow-sm"><span className="font-bold text-stone-500">{currentSession === 'MORNING' ? 'Ca sáng' : 'Ca chiều'} · </span><strong className="text-emerald-800">{completedCount}/{tasks.length} nhiệm vụ hoàn thành</strong></div>}
         </section>
@@ -456,8 +421,7 @@ export default function FieldWorkerDashboard() {
             {[
               { id: 'tasks', label: 'Việc hôm nay', icon: CheckCircle2, count: pendingCount },
               { id: 'harvest', label: 'Thu hoạch & đóng gói', icon: PackageCheck, count: harvestWorkItems.filter(h => h.status !== 'COMPLETED').length },
-              { id: 'issues', label: 'Báo cáo sự cố', icon: AlertTriangle, count: myIssues.length },
-              { id: 'chat', label: 'Trao đổi chuyên gia', icon: MessageSquare, count: null }
+              { id: 'issues', label: 'Báo cáo sự cố', icon: AlertTriangle, count: myIssues.length }
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -823,93 +787,6 @@ export default function FieldWorkerDashboard() {
               </div>
             )}
 
-            {/* TAB 4: CHAT WITH EXPERT (Kênh trao đổi với ThS. Nam) */}
-            {activeTab === 'chat' && (
-              <div className="bg-white rounded-3xl border border-brand-border shadow-sm overflow-hidden flex flex-col h-[680px]">
-                {/* Header */}
-                <div className="p-4 bg-brand-cream border-b border-brand-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-brand-green text-white flex items-center justify-center font-bold">
-                      N
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-brand-dark text-sm">
-                        {workerChatThread?.expertName || 'ThS. Nguyễn Hoàng Nam'} (Chuyên gia nông nghiệp)
-                      </h4>
-                      <p className="text-[11px] text-emerald-700 flex items-center gap-1 font-semibold">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        Đang trực tuyến • Sẵn sàng chỉ đạo kỹ thuật
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Current authenticated worker */}
-                  <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-xl border border-brand-border text-xs">
-                    <span className="text-stone-500 font-bold text-[11px]">Nhân viên:</span>
-                    <strong className="text-brand-dark">{activeWorkerSenderName}</strong>
-                  </div>
-                </div>
-
-                {/* Messages Body */}
-                <div
-                  ref={workerChatScrollRef}
-                  className="flex-1 p-5 overflow-y-auto space-y-3.5 text-xs bg-stone-50/30"
-                >
-                  {(!workerChatThread?.messages || workerChatThread.messages.length === 0) ? (
-                    <div className="text-center py-12 text-stone-400">
-                      Chưa có tin nhắn nào trong kênh này. Hãy gửi báo cáo hiện trường cho ThS. Nam!
-                    </div>
-                  ) : (
-                    workerChatThread.messages.map((msg) => {
-                      const isMe = msg.sender === 'worker';
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                        >
-                          <div className="text-[10px] text-stone-400 mb-1 px-1">
-                            {isMe ? (msg.senderName || activeWorkerSenderName) : (msg.senderName || 'ThS. Nguyễn Hoàng Nam')} • {msg.time}
-                          </div>
-                          <div
-                            className={`max-w-[75%] p-3.5 rounded-2xl leading-relaxed ${
-                              isMe
-                                ? 'bg-[#294C38] text-white rounded-br-none shadow-sm'
-                                : 'bg-white text-stone-800 rounded-bl-none border border-brand-border shadow-xs'
-                            }`}
-                          >
-                            {msg.prescriptionTag && (
-                              <div className="mb-1.5 inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
-                                {msg.prescriptionTag}
-                              </div>
-                            )}
-                            <p className="whitespace-pre-wrap">{msg.text}</p>
-                          </div>
-
-
-                        </div>
-                      );
-                    })
-                  )}
-
-
-                </div>
-
-                <form onSubmit={handleSendMessageToExpert} className="p-3.5 bg-white border-t border-brand-border flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder={`Nhập câu hỏi hoặc tình hình hiện trường gửi ThS. Nam (với tên ${activeWorkerSenderName})...`}
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    className="flex-1 px-4 py-2.5 text-xs rounded-xl bg-stone-50 border border-brand-border focus:outline-none focus:ring-2 focus:ring-brand-green/20"
-                  />
-                  <Button type="submit" variant="primary" size="sm" className="font-bold">
-                    <Send className="w-3.5 h-3.5 mr-1" />
-                    <span>Gửi</span>
-                  </Button>
-                </form>
-              </div>
-            )}
-
           </section>
         </div>
 
@@ -1051,12 +928,11 @@ export default function FieldWorkerDashboard() {
         </form>
       </Modal>
 
-      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-2xl border border-brand-border bg-white/95 p-2 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
+      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-3 rounded-2xl border border-brand-border bg-white/95 p-2 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
         {[
           { id: 'tasks', label: 'Công việc', icon: ListTodo },
           { id: 'harvest', label: 'Đóng gói', icon: PackageCheck },
-          { id: 'issues', label: 'Sự cố', icon: AlertTriangle },
-          { id: 'chat', label: 'Chuyên gia', icon: MessageSquare }
+          { id: 'issues', label: 'Sự cố', icon: AlertTriangle }
         ].map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;

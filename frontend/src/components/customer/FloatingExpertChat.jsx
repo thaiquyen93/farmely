@@ -9,6 +9,8 @@ export default function FloatingExpertChat({
   onClose,
   thread,
   senderName,
+  ownSenderRole = 'customer',
+  bottomOffset = 24,
   input,
   setInput,
   onSubmit,
@@ -67,14 +69,14 @@ export default function FloatingExpertChat({
         left: launcherPosition.x >= 390 ? launcherPosition.x - 382 : launcherPosition.x + 68,
         top: clamp(launcherPosition.y - 450, 84, Math.max(84, window.innerHeight - 532))
       }
-    : { right: 92, bottom: 24 };
+    : { right: 92, bottom: bottomOffset };
 
   if (!isOpen) {
     return (
       <div
         data-draggable
-        className="fixed z-40 block"
-        style={launcherPosition ? { left: launcherPosition.x, top: launcherPosition.y } : { right: 24, bottom: 24 }}
+        className="fixed z-[60] block"
+        style={launcherPosition ? { left: launcherPosition.x, top: launcherPosition.y } : { right: 24, bottom: bottomOffset }}
       >
         <button
           type="button"
@@ -99,7 +101,7 @@ export default function FloatingExpertChat({
   return (
     <section
       ref={panelRef}
-      className="fixed inset-x-3 bottom-3 z-50 flex h-[min(520px,calc(100vh-110px))] flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated sm:left-auto sm:right-6 sm:w-[370px]"
+      className="fixed inset-x-3 bottom-3 z-[60] flex h-[min(520px,calc(100vh-110px))] flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated sm:left-auto sm:right-6 sm:w-[370px]"
       style={panelStyle}
       aria-label="Cửa sổ chat với chuyên gia"
     >
@@ -122,7 +124,7 @@ export default function FloatingExpertChat({
             <p className="mt-1 text-xs text-brand-muted">Hỏi về cây trồng, độ ẩm hoặc dịch vụ chăm sóc.</p>
           </div>
         ) : (chatMode === 'ai' ? aiMessages : thread.messages).map((message) => {
-          const isMe = message.sender === 'customer' || message.sender === 'user';
+          const isMe = message.sender === ownSenderRole || message.sender === 'user';
           return (
             <div key={message.id} className={`max-w-[86%] ${isMe ? 'ml-auto' : ''}`}>
               <p className={`mb-1 text-[10px] font-bold text-stone-500 ${isMe ? 'text-right' : ''}`}>{isMe ? (message.senderName || senderName) : (message.senderName || (chatMode === 'ai' ? 'Farmely AI' : thread?.expertName) || 'Chuyên gia')}</p>
