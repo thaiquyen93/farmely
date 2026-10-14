@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { varietiesData } from '../../data/varieties';
 import { processTemplatesData } from '../../data/processTemplates';
@@ -23,12 +23,42 @@ import {
 
 export default function VarietyDetail() {
   const { id } = useParams();
-  const variety = varietiesData.find((v) => v.id === id) || varietiesData[0];
+  const [variety, setVariety] = useState(() => {
+    return varietiesData.find((v) => String(v.id) === String(id) || v.code === id) || varietiesData[0];
+  });
 
-  const template = processTemplatesData.find((t) => t.varietyId === variety.id);
-  const docs = knowledgeDocumentsData.filter((d) => d.varietyId === variety.id);
+  useEffect(() => {
+    let active = true;
+    fetch('/api/varieties')
+      .then((res) => res.json())
+      .then((res) => {
+        if (!active) return;
+        if (res && res.success && Array.isArray(res.data)) {
+          const found = res.data.find((v) => String(v.id) === String(id) || v.code === id);
+          if (found) {
+            setVariety((prev) => ({
+              ...prev,
+              ...found,
+              growingCharacteristics: prev.growingCharacteristics || {
+                lightRequirement: 'Nắng trực tiếp',
+                soilMoistureTarget: '65% - 75%',
+                temperatureRange: '22°C - 30°C',
+                fertilizerNeeds: 'Hữu cơ vi sinh'
+              }
+            }));
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Cannot fetch variety detail:', err);
+      });
+    return () => { active = false; };
+  }, [id]);
+
+  const template = processTemplatesData.find((t) => String(t.varietyId) === String(variety.id));
+  const docs = knowledgeDocumentsData.filter((d) => String(d.varietyId) === String(variety.id));
   const compatiblePlots = plotsData.filter((p) =>
-    p.compatibleCrops.some((c) => variety.name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(variety.name.toLowerCase()))
+    (p.compatibleCrops || []).some((c) => (variety.name || '').toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes((variety.name || '').toLowerCase()))
   );
 
   return (

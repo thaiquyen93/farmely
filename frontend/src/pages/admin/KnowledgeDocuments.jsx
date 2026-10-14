@@ -28,6 +28,7 @@ export default function KnowledgeDocuments() {
   const [editDescription, setEditDescription] = useState('');
   const [editFile, setEditFile] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isLiveDb, setIsLiveDb] = useState(false);
 
   // Upload Form State
   const [title, setTitle] = useState('');
@@ -66,6 +67,7 @@ export default function KnowledgeDocuments() {
             };
           });
           setDocs(normalized);
+          setIsLiveDb(true);
         }
       })
       .catch((err) => {
@@ -390,9 +392,17 @@ export default function KnowledgeDocuments() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: KnowledgeDocument (Cơ sở dữ liệu RAG AI)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
+              Thực thể: KnowledgeDocument (Cơ sở dữ liệu RAG AI)
+            </span>
+            {isLiveDb && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live DB: {docs.length} Tài liệu RAG</span>
+              </span>
+            )}
+          </div>
           <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
             Kho Tài Liệu Kỹ Thuật Nông Học
           </h2>

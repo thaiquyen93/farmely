@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { cropsData as initialCrops } from '../../data/crops';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
@@ -6,12 +6,15 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
-import { Sprout, Plus, Edit, Eye, Power } from 'lucide-react';
+import { Sprout, Plus, Edit, Eye, Power, Trash2, Loader2 } from 'lucide-react';
 
 export default function Crops() {
   const [crops, setCrops] = useState(initialCrops);
+  const [loading, setLoading] = useState(true);
+  const [isLiveDb, setIsLiveDb] = useState(false);
   const [selectedCrop, setSelectedCrop] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form modal state
   const [showModal, setShowModal] = useState(false);
@@ -19,6 +22,26 @@ export default function Crops() {
   const [cropCode, setCropCode] = useState('');
   const [cropDesc, setCropDesc] = useState('');
   const [cropCycle, setCropCycle] = useState('30 - 45 ngày');
+
+  const loadCrops = () => {
+    setLoading(true);
+    fetch('/api/crops')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setCrops(res.data);
+          setIsLiveDb(true);
+        }
+      })
+      .catch((err) => {
+        console.warn('Cannot fetch live crops, fallback to mock:', err);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadCrops();
+  }, []);
 
   const openCreateModal = () => {
     setIsEditing(false);
@@ -39,32 +62,42 @@ export default function Crops() {
     setShowModal(true);
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!cropName.trim()) return;
+    setIsSaving(true);
 
-    if (isEditing && selectedCrop) {
-      setCrops((prev) =>
-        prev.map((item) =>
-          item.id === selectedCrop.id
-            ? { ...item, name: cropName, code: cropCode, description: cropDesc, standardGrowthCycle: cropCycle }
-            : item
-        )
-      );
-    } else {
-      const newCrop = {
-        id: `CRP-0${crops.length + 1}`,
-        name: cropName,
-        code: cropCode || 'NEW_CROP',
-        description: cropDesc,
-        totalVarieties: 0,
-        status: 'ACTIVE',
-        imageUrl: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
-        standardGrowthCycle: cropCycle
-      };
-      setCrops((prev) => [...prev, newCrop]);
+    try {
+      if (isEditing && selectedCrop) {
+        await fetch(`/api/crops/${selectedCrop.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: cropName.trim(), description: cropDesc, cycle: cropCycle })
+        });
+      } else {
+        await fetch('/api/crops', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: cropName.trim(), description: cropDesc, cycle: cropCycle })
+        });
+      }
+      loadCrops();
+      setShowModal(false);
+    } catch (err) {
+      console.error('Error saving crop:', err);
+    } finally {
+      setIsSaving(false);
     }
-    setShowModal(false);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa danh mục cây #${id}?`)) return;
+    try {
+      await fetch(`/api/crops/${id}`, { method: 'DELETE' });
+      loadCrops();
+    } catch (err) {
+      console.error('Error deleting crop:', err);
+    }
   };
 
   const toggleStatus = (id) => {
@@ -152,9 +185,17 @@ export default function Crops() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: Crop (Phân loại thực vật học)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
+              Thực thể: Crop (Phân loại thực vật học)
+            </span>
+            {isLiveDb && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live DB: {crops.length} Loại cây</span>
+              </span>
+            )}
+          </div>
           <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
             Danh Mục Cây Trồng
           </h2>
