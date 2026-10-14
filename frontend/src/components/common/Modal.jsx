@@ -63,7 +63,7 @@ export default function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-brand-dark/70 backdrop-blur-sm transition-opacity animate-fadeIn"
@@ -73,13 +73,13 @@ export default function Modal({
       {/* Modal Dialog */}
       <div
         ref={dialogRef}
-        className={`relative z-10 flex max-h-[calc(100dvh-2rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated animate-scaleUp`}
+        className={`relative z-10 my-auto flex max-h-[calc(100dvh-1.5rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated animate-scaleUp sm:max-h-[calc(100dvh-2rem)]`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-6 py-5 border-b border-brand-border/60 bg-brand-cream/40">
+        <div className="flex shrink-0 items-start justify-between border-b border-brand-border/60 bg-brand-cream/40 px-4 py-3 sm:px-6 sm:py-5">
           <div>
             <h3 id={titleId} className="font-heading text-xl font-bold text-brand-dark">
               {title}
@@ -102,7 +102,7 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
           {children}
         </div>
       </div>

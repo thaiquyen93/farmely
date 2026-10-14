@@ -7,7 +7,6 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
-import { DEMO_WORKERS } from '../../api/communication/chatStorage';
 import {
   UserCheck,
   CheckCircle2,
@@ -36,114 +35,85 @@ export default function FieldWorkerDashboard() {
   const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'issues' | 'harvest' | 'chat'
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // 1. Assigned Care Tasks for Today (UC11 / Screen 52)
-  const [tasks, setTasks] = useState([
-    {
-      id: 'TSK-101',
-      session: 'MORNING', // 'MORNING' | 'AFTERNOON'
-      title: 'Tưới nước vi sinh & Đo độ ẩm đất',
-      plotCode: 'P-01',
-      plotName: 'Thửa Sen Vàng A1',
-      crop: 'Cà chua bi Cherry F1',
-      customerName: 'Lô Thái Quyền',
-      deadline: '08:30 AM',
-      instructions: 'Kiểm tra độ ẩm trạm IoT trước khi tưới. Nếu độ ẩm < 65%, tưới 15 lít nước vi sinh rãnh luống. Chụp 01 ảnh tán lá.',
-      status: 'COMPLETED',
-      completedAt: '08:25 AM',
-      proofPhoto: '/images/Mucangchai3.jpg'
-    },
-    {
-      id: 'TSK-102',
-      session: 'MORNING',
-      title: 'Nhổ cỏ dại rãnh luống & Xới tơi đất',
-      plotCode: 'P-02',
-      plotName: 'Thửa Mộc Châu B2',
-      crop: 'Xà lách Romaine VietGAP',
-      customerName: 'Nguyễn Văn Hùng',
-      deadline: '10:00 AM',
-      instructions: 'Làm sạch 100% cỏ dại rãnh luống. Xới tơi bề mặt đất cách gốc 15cm tránh làm đứt rễ.',
-      status: 'COMPLETED',
-      completedAt: '09:45 AM',
-      proofPhoto: '/images/moc-chau-2811.jpg'
-    },
-    {
-      id: 'TSK-103',
-      session: 'AFTERNOON',
-      title: 'Bón bổ sung 5kg phân trùn quế vi sinh',
-      plotCode: 'P-01',
-      plotName: 'Thửa Sen Vàng A1',
-      crop: 'Cà chua bi Cherry F1',
-      customerName: 'Lô Thái Quyền',
-      deadline: '15:00 PM',
-      instructions: 'Rải đều phân trùn quế đã ủ hoai quanh bầu gốc. Tưới ẩm nhẹ để phân ngấm vào đất. Chụp ảnh bao bì và hiện trường sau khi bón.',
-      status: 'IN_PROGRESS',
-      completedAt: null,
-      proofPhoto: null
-    },
-    {
-      id: 'TSK-104',
-      session: 'AFTERNOON',
-      title: 'Phun sương thảo mộc trừ bọ trĩ (Theo chỉ đạo ThS. Nam)',
-      plotCode: 'P-03',
-      plotName: 'Thửa Rừng Sác C3',
-      crop: 'Dưa leo Baby VietGAP',
-      customerName: 'Phạm Thu Hương',
-      deadline: '16:30 PM',
-      instructions: 'Pha dung dịch gừng - tỏi - ớt tỉ lệ 1:200. Phun sương đều 2 mặt lá sau khi trời tắt nắng.',
-      status: 'PENDING',
-      completedAt: null,
-      proofPhoto: null
-    }
-  ]);
+  // Assigned care tasks loaded from the cultivation service.
+  const [tasks, setTasks] = useState([]);
 
   // Modal State for Task Execution / Completing with Photo Proof
   const [selectedTaskToExecute, setSelectedTaskToExecute] = useState(null);
   const [taskProofNote, setTaskProofNote] = useState('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  // 2. Worker Field Issue Reports (UC12 / Screen 53)
-  const [myIssues, setMyIssues] = useState([
-    {
-      id: 'ISS-901',
-      plotCode: 'P-03',
-      plotName: 'Thửa Rừng Sác C3',
-      issueType: 'Phát hiện bọ trĩ mặt dưới lá non',
-      urgency: 'HIGH',
-      sentTime: 'Sáng nay • 08:45',
-      status: 'SOLVED_BY_EXPERT',
-      expertAdvice: 'ThS. Nam đã chỉ đạo: Pha chế phẩm thảo mộc tỉ lệ 1:200, phun sương đều 2 mặt lá lúc 16:30 chiều.'
-    }
-  ]);
+  // Worker field issue reports loaded from the cultivation service.
+  const [myIssues, setMyIssues] = useState([]);
   const [showNewIssueModal, setShowNewIssueModal] = useState(false);
   const [newIssuePlot, setNewIssuePlot] = useState('P-01');
   const [newIssueType, setNewIssueType] = useState('Sâu bệnh mặt lá');
   const [newIssueDesc, setNewIssueDesc] = useState('');
   const [newIssueUrgency, setNewIssueUrgency] = useState('NORMAL');
 
-  // 3. Harvest Recording Scale Tasks (UC15 / Screen 54)
-  const [harvestTasks, setHarvestTasks] = useState([
-    {
-      id: 'HV-701',
-      plotCode: 'P-02',
-      plotName: 'Thửa Mộc Châu B2',
-      crop: 'Xà lách Romaine VietGAP',
-      customerName: 'Nguyễn Văn Hùng',
-      expectedYield: '20 - 25 kg',
-      status: 'READY_TO_HARVEST',
-      actualWeight: '',
-      photoUrl: ''
-    }
-  ]);
+  // Harvest records loaded from the cultivation service.
+  const [harvestTasks, setHarvestTasks] = useState([]);
   const [selectedHarvestTask, setSelectedHarvestTask] = useState(null);
   const [scaleWeightInput, setScaleWeightInput] = useState('');
 
-  // 4. Realtime Chat with Expert State & Worker Identity
-  const [selectedWorkerThreadId, setSelectedWorkerThreadId] = useState('WORK-101');
-  const currentWorkerProfile = useMemo(() => {
-    return DEMO_WORKERS.find((w) => w.threadId === selectedWorkerThreadId) || DEMO_WORKERS[0];
-  }, [selectedWorkerThreadId]);
+  useEffect(() => {
+    let cancelled = false;
+    const unwrap = (body) => Array.isArray(body) ? body : (body?.data || []);
+    const readJson = (url) => fetch(url).then((response) => response.ok ? response.json() : ({ data: [] }));
 
-  const activeWorkerSenderName = currentWorkerProfile.name;
+    Promise.all([readJson('/api/tasks'), readJson('/api/issues'), readJson('/api/harvest')])
+      .then(([taskBody, issueBody, harvestBody]) => {
+        if (cancelled) return;
+        setTasks(unwrap(taskBody).map((task) => ({
+          id: task.taskCode || `TASK-${task.taskId}`,
+          apiId: task.taskId,
+          rentalId: task.rentalId,
+          session: task.session || 'MORNING',
+          title: task.title || 'Nhiệm vụ chăm sóc',
+          plotCode: task.plotCode || 'Chưa có mã thửa',
+          plotName: task.plotName || task.plotCode || 'Chưa có tên thửa',
+          crop: task.cropName || 'Chưa có dữ liệu giống cây',
+          customerName: task.customerName || 'Chưa có dữ liệu khách hàng',
+          deadline: task.dueDate || 'Chưa có hạn thực hiện',
+          instructions: task.instructions || task.notes || 'Chưa có hướng dẫn từ hệ thống.',
+          status: task.displayStatus || task.status || 'PENDING',
+          completedAt: task.updatedAt ? new Date(task.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
+          proofPhoto: task.evidenceImageUrl || null
+        })));
+        setMyIssues(unwrap(issueBody).map((issue) => ({
+          id: issue.issueCode || `ISSUE-${issue.issueId}`,
+          apiId: issue.issueId,
+          plotCode: issue.plotCode || 'Chưa có mã thửa',
+          plotName: issue.plotName || issue.plotCode || 'Chưa có tên thửa',
+          issueType: issue.issueType || 'Sự cố hiện trường',
+          urgency: issue.urgency || 'NORMAL',
+          sentTime: issue.createdAt ? new Date(issue.createdAt).toLocaleString('vi-VN') : 'Chưa có thời gian',
+          status: issue.displayStatus || issue.status || 'OPEN',
+          expertAdvice: issue.resolutionNotes || 'Đang chờ chuyên gia phản hồi.'
+        })));
+        setHarvestTasks(unwrap(harvestBody).map((harvest) => ({
+          id: harvest.harvestCode || `HARVEST-${harvest.harvestId}`,
+          apiId: harvest.harvestId,
+          rentalId: harvest.rentalId,
+          plotCode: harvest.plotCode || 'Chưa có mã thửa',
+          plotName: harvest.plotName || harvest.plotCode || 'Chưa có tên thửa',
+          crop: harvest.cropName || 'Chưa có dữ liệu giống cây',
+          customerName: harvest.customerName || 'Chưa có dữ liệu khách hàng',
+          expectedYield: 'Theo kết quả cân thực tế',
+          status: harvest.customerConfirmed ? 'COMPLETED' : 'READY_TO_HARVEST',
+          actualWeight: harvest.yieldAmount ? `${harvest.yieldAmount} kg` : '',
+          photoUrl: harvest.evidenceImageUrl || ''
+        })));
+      })
+      .catch(() => {
+        if (!cancelled) { setTasks([]); setMyIssues([]); setHarvestTasks([]); }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  // 4. Realtime Chat with Expert State & Worker Identity
+  const [selectedWorkerThreadId] = useState(() => `WORK-${user?.id || 'CURRENT'}`);
+  const activeWorkerSenderName = user?.fullName || 'Nhân viên hiện trường';
 
   const {
     currentThread: workerChatThread,
@@ -165,10 +135,18 @@ export default function FieldWorkerDashboard() {
   }, [activeTab, workerChatThread?.messages]);
 
   // Handle Complete Task
-  const handleConfirmCompleteTask = (e) => {
+  const handleConfirmCompleteTask = async (e) => {
     e.preventDefault();
     if (!selectedTaskToExecute) return;
 
+    if (selectedTaskToExecute.apiId) {
+      const response = await fetch(`/api/tasks/${selectedTaskToExecute.apiId}/complete`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evidenceImageUrl: selectedTaskToExecute.proofPhoto || '/images/evidence-placeholder.svg', notes: taskProofNote, syncToDiary: true })
+      });
+      if (!response.ok) { alert('Không thể cập nhật nhiệm vụ lên hệ thống.'); return; }
+    }
     setTasks((prev) =>
       prev.map((t) =>
         t.id === selectedTaskToExecute.id
@@ -182,14 +160,29 @@ export default function FieldWorkerDashboard() {
     );
     setSelectedTaskToExecute(null);
     setTaskProofNote('');
-    alert('Đã hoàn thành ca trực! Ảnh và nhật ký đã tự động đồng bộ vào Farm Diary của khách hàng (UC14).');
+    alert('Đã hoàn thành ca trực! Ảnh và nhật ký đã được đồng bộ vào nhật ký nông trại của khách hàng.');
   };
 
   // Handle Submit New Issue
-  const handleCreateIssue = (e) => {
+  const handleCreateIssue = async (e) => {
     e.preventDefault();
+    const sourceTask = tasks.find((task) => task.plotCode === newIssuePlot);
+    const reporterId = Number(String(user?.userId || user?.id || '').replace(/\D/g, ''));
+    if (!sourceTask?.rentalId || !Number.isFinite(reporterId)) {
+      alert('Hệ thống chưa có mã lượt thuê hoặc mã nhân viên cho thửa đã chọn.');
+      return;
+    }
+    const response = await fetch('/api/issues', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rentalId: sourceTask.rentalId, reportedBy: reporterId, issueType: newIssueType, description: newIssueDesc, imageUrl: '' })
+    });
+    if (!response.ok) { alert('Không thể gửi báo cáo lên hệ thống.'); return; }
+    const body = await response.json();
+    const saved = body?.data || {};
     const newIssue = {
-      id: `ISS-${Math.floor(900 + Math.random() * 99)}`,
+      id: saved.issueCode || `ISSUE-${saved.issueId}`,
+      apiId: saved.issueId,
       plotCode: newIssuePlot,
       plotName: `Thửa ${newIssuePlot}`,
       issueType: newIssueType,
@@ -206,10 +199,21 @@ export default function FieldWorkerDashboard() {
   };
 
   // Handle Record Harvest Scale
-  const handleConfirmHarvestScale = (e) => {
+  const handleConfirmHarvestScale = async (e) => {
     e.preventDefault();
     if (!selectedHarvestTask || !scaleWeightInput) return;
 
+    const enteredBy = Number(String(user?.userId || user?.id || '').replace(/\D/g, ''));
+    if (!selectedHarvestTask.rentalId || !Number.isFinite(enteredBy)) {
+      alert('Hệ thống chưa có mã lượt thuê hoặc mã nhân viên để ghi nhận thu hoạch.');
+      return;
+    }
+    const response = await fetch('/api/harvest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rentalId: selectedHarvestTask.rentalId, enteredBy, harvestDate: new Date().toISOString().slice(0, 10), yieldAmount: Number(scaleWeightInput), evidenceImageUrl: '', deliveryType: 'PICKUP' })
+    });
+    if (!response.ok) { alert('Không thể lưu kết quả cân lên hệ thống.'); return; }
     setHarvestTasks((prev) =>
       prev.map((h) =>
         h.id === selectedHarvestTask.id
@@ -243,6 +247,15 @@ export default function FieldWorkerDashboard() {
   const pendingCount = tasks.length - completedCount;
   const nextTask = tasks.find((task) => task.status === 'IN_PROGRESS') || tasks.find((task) => task.status === 'PENDING');
   const orderedTasks = [...tasks].sort((first, second) => Number(first.status === 'COMPLETED') - Number(second.status === 'COMPLETED'));
+  const tasksByPlot = orderedTasks.reduce((groups, task) => {
+    const key = task.plotCode || task.plotName || 'Chưa xác định';
+    if (!groups[key]) groups[key] = { plotCode: task.plotCode, plotName: task.plotName, crop: task.crop, tasks: [] };
+    groups[key].tasks.push(task);
+    return groups;
+  }, {});
+  const currentSession = new Date().getHours() < 12 ? 'MORNING' : 'AFTERNOON';
+  const currentSessionTasks = tasks.filter((task) => task.session === currentSession);
+  const harvestedWeight = harvestTasks.reduce((sum, item) => sum + (Number.parseFloat(item.actualWeight) || 0), 0);
 
   return (
     <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
@@ -275,7 +288,7 @@ export default function FieldWorkerDashboard() {
               {completedCount} / {tasks.length}
             </div>
             <span className="text-[10px] text-emerald-700 font-bold block">
-              Đã hoàn tất {Math.round((completedCount / tasks.length) * 100)}% ca trực
+              Đã hoàn tất {tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0}% ca trực
             </span>
           </div>
 
@@ -284,9 +297,9 @@ export default function FieldWorkerDashboard() {
               Ca Trực Hiện Tại
             </span>
             <div className="text-2xl font-heading font-black text-amber-600">
-              Ca Chiều
+              {currentSession === 'MORNING' ? 'Ca Sáng' : 'Ca Chiều'}
             </div>
-            <span className="text-[10px] text-amber-700 font-bold block">14:00 - 17:30 (2 nhiệm vụ)</span>
+            <span className="text-[10px] text-amber-700 font-bold block">{currentSessionTasks.length} nhiệm vụ từ hệ thống</span>
           </div>
 
           <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
@@ -296,7 +309,7 @@ export default function FieldWorkerDashboard() {
             <div className="text-2xl font-heading font-black text-rose-600">
               {myIssues.length} Báo cáo
             </div>
-            <span className="text-[10px] text-rose-700 font-bold block">ThS. Nam đã chỉ đạo</span>
+            <span className="text-[10px] text-rose-700 font-bold block">Theo dữ liệu sự cố hiện trường</span>
           </div>
 
           <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
@@ -304,7 +317,7 @@ export default function FieldWorkerDashboard() {
               Sản Lượng Cân Hôm Nay
             </span>
             <div className="text-2xl font-heading font-black text-emerald-600">
-              24.5 kg
+              {harvestedWeight.toLocaleString('vi-VN')} kg
             </div>
             <span className="text-[10px] text-emerald-700 font-bold block">Đạt chuẩn cân đối chứng</span>
           </div>
@@ -315,7 +328,7 @@ export default function FieldWorkerDashboard() {
           
           {/* Worker Menu */}
           <DashboardRail user={user} fallbackName="Trần Văn Lực" roleLabel="Nhân sự hiện trường" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
-            <div className={`px-2 pb-2 text-xs font-bold text-stone-500 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Nghiệp Vụ Hiện Trường</div>
+            <div className={`px-2 pb-2 text-xs font-bold text-emerald-100/70 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Nghiệp Vụ Hiện Trường</div>
 
             {[
               { id: 'tasks', label: 'Ca Trực & Nhiệm Vụ Hôm Nay', icon: CheckCircle2, count: pendingCount },
@@ -333,12 +346,12 @@ export default function FieldWorkerDashboard() {
                   aria-label={sidebarCollapsed ? tab.label : undefined}
                   className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                     isActive
-                      ? 'bg-[#294C38] text-white shadow-sm'
-                      : 'text-stone-700 hover:bg-stone-50 hover:text-brand-dark'
+                      ? 'bg-white text-[#064b37] shadow-sm'
+                      : 'text-emerald-50 hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-stone-400'}`} />
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-700' : 'text-emerald-100/80'}`} />
                     <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{tab.label}</span>
                   </div>
                   {tab.count !== null && tab.count > 0 && (
@@ -357,13 +370,13 @@ export default function FieldWorkerDashboard() {
           {/* Worker Main Section */}
           <section className="flex-1 min-w-0 w-full space-y-6">
 
-            {/* TAB 1: ASSIGNED CARE TASKS (Nhiệm vụ ca trực hôm nay - UC11) */}
+            {/* Assigned care tasks */}
             {activeTab === 'tasks' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Danh Sách Nhiệm Vụ Ca Trực Hôm Nay (UC11)
+                      Danh Sách Nhiệm Vụ Ca Trực Hôm Nay
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Hoàn thành nhiệm vụ kèm ảnh chụp thực địa để tự động cập nhật nhật ký Farm Diary của khách hàng.
@@ -374,8 +387,17 @@ export default function FieldWorkerDashboard() {
                   </span>
                 </div>
 
-                <div className="space-y-4">
-                  {orderedTasks.map((task) => {
+                <div className="space-y-6">
+                  {Object.values(tasksByPlot).length === 0 && (
+                    <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center text-sm text-brand-muted">Chưa có nhiệm vụ được phân công từ hệ thống.</div>
+                  )}
+                  {Object.values(tasksByPlot).map((plotGroup) => (
+                    <section key={plotGroup.plotCode || plotGroup.plotName} className="space-y-3">
+                      <div className="rounded-xl bg-[#064b37] px-4 py-3 text-white">
+                        <h4 className="font-heading text-base font-black">{plotGroup.plotName}</h4>
+                        <p className="mt-0.5 text-xs text-emerald-100">{plotGroup.plotCode} • {plotGroup.crop} • {plotGroup.tasks.length} nhiệm vụ</p>
+                      </div>
+                  {plotGroup.tasks.map((task) => {
                     const isDone = task.status === 'COMPLETED';
                     return (
                       <div
@@ -445,17 +467,19 @@ export default function FieldWorkerDashboard() {
                       </div>
                     );
                   })}
+                    </section>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* TAB 2: FIELD ISSUES (Báo cáo sự cố hiện trường - UC12) */}
+            {/* Field issues */}
             {activeTab === 'issues' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div className="flex items-center justify-between border-b border-brand-border/60 pb-4">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Báo Cáo Sự Cố Phát Sinh Tại Vườn (UC12)
+                      Báo Cáo Sự Cố Phát Sinh Tại Vườn
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Báo cáo trực tiếp sâu bệnh, hư hỏng hệ thống tưới kèm ảnh chụp tới Chuyên gia ThS. Nam.
@@ -467,6 +491,7 @@ export default function FieldWorkerDashboard() {
                 </div>
 
                 <div className="space-y-4">
+                  {myIssues.length === 0 && <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center text-sm text-brand-muted">Chưa có báo cáo sự cố từ hệ thống.</div>}
                   {myIssues.map((iss) => (
                     <div
                       key={iss.id}
@@ -499,12 +524,12 @@ export default function FieldWorkerDashboard() {
               </div>
             )}
 
-            {/* TAB 3: HARVEST SCALING (Nghiệm thu cân điện tử & QR - UC15) */}
+            {/* Harvest scaling */}
             {activeTab === 'harvest' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div>
                   <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Nghiệm Thu Cân Điện Tử & Đóng Thùng QR (UC15)
+                    Nghiệm Thu Cân Điện Tử & Đóng Thùng QR
                   </h3>
                   <p className="text-xs text-brand-muted mt-0.5">
                     Hái nông sản đạt độ chín, đặt lên cân điện tử, nhập số kg và chụp ảnh mặt cân đối chứng minh bạch.
@@ -512,6 +537,7 @@ export default function FieldWorkerDashboard() {
                 </div>
 
                 <div className="space-y-4">
+                  {harvestTasks.length === 0 && <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center text-sm text-brand-muted">Chưa có đợt thu hoạch cần ghi nhận.</div>}
                   {harvestTasks.map((task) => {
                     const isDone = task.status === 'COMPLETED';
                     return (
@@ -584,20 +610,10 @@ export default function FieldWorkerDashboard() {
                     </div>
                   </div>
 
-                  {/* Worker Switcher */}
+                  {/* Current authenticated worker */}
                   <div className="flex items-center gap-2 bg-white px-2.5 py-1.5 rounded-xl border border-brand-border text-xs">
-                    <span className="text-stone-500 font-bold text-[11px]">Đang đóng vai:</span>
-                    <select
-                      value={selectedWorkerThreadId}
-                      onChange={(e) => setSelectedWorkerThreadId(e.target.value)}
-                      className="px-2 py-1 rounded-lg bg-brand-cream/60 border border-brand-border text-xs font-bold text-brand-dark focus:outline-none"
-                    >
-                      {DEMO_WORKERS.map((w) => (
-                        <option key={w.threadId} value={w.threadId}>
-                          {w.name}
-                        </option>
-                      ))}
-                    </select>
+                    <span className="text-stone-500 font-bold text-[11px]">Nhân viên:</span>
+                    <strong className="text-brand-dark">{activeWorkerSenderName}</strong>
                   </div>
                 </div>
 
@@ -730,9 +746,9 @@ export default function FieldWorkerDashboard() {
               onChange={(e) => setNewIssuePlot(e.target.value)}
               className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs font-bold"
             >
-              <option value="P-01">Thửa Sen Vàng A1 (P-01)</option>
-              <option value="P-02">Thửa Mộc Châu B2 (P-02)</option>
-              <option value="P-03">Thửa Rừng Sác C3 (P-03)</option>
+              {[...new Map(tasks.map((task) => [task.plotCode, task])).values()].map((task) => (
+                <option key={task.plotCode} value={task.plotCode}>{task.plotName} ({task.plotCode})</option>
+              ))}
             </select>
           </div>
 

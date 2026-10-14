@@ -121,6 +121,14 @@ export const useAuthStore = create((set, get) => ({
     set({ user: null, isAuthenticated: false });
   },
 
+  updateUser: (changes) => {
+    const current = get().user;
+    if (!current) return;
+    const updated = { ...current, ...changes };
+    localStorage.setItem('farmely_user', JSON.stringify(updated));
+    set({ user: updated, isAuthenticated: true });
+  },
+
   switchRole: (role) => {
     const target = DEMO_ACCOUNTS.find(acc => acc.role === role);
     if (target) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, LogOut, ChevronDown, Menu, X, Shield, Sprout, ClipboardCheck, ShieldCheck, Settings, LayoutDashboard, Check, Bell, Lock, Calendar, Clock, ExternalLink, Home, Info } from 'lucide-react';
-import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
+import { Search, ShoppingCart, User, LogOut, ChevronDown, Menu, X, Shield, Sprout, ClipboardCheck, ShieldCheck, Settings, LayoutDashboard, Check, Bell, Lock, Calendar, Clock, ExternalLink, Home, Info, Eye, EyeOff } from 'lucide-react';
+import { useAuthStore } from '../../stores/authStore';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 
@@ -9,7 +9,6 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false);
   const [aboutDropdownOpen, setAboutDropdownOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
 
@@ -19,9 +18,9 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   
   const [profileForm, setProfileForm] = useState({
     fullName: '',
-    phone: '0912 345 678',
-    address: 'Số 86 Đường Số 7, Phường An Phú, TP. Thủ Đức, TP. Hồ Chí Minh',
-    bio: 'Khách hàng canh tác nông nghiệp công nghệ cao và tự trồng rau sạch.'
+    phone: '',
+    address: '',
+    bio: ''
   });
   const [profileSuccessMsg, setProfileSuccessMsg] = useState('');
 
@@ -32,8 +31,9 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
     twoFactor: false
   });
   const [settingsSuccessMsg, setSettingsSuccessMsg] = useState('');
+  const [showSettingsPasswords, setShowSettingsPasswords] = useState(false);
 
-  const { user, isAuthenticated, logout, switchRole } = useAuthStore();
+  const { user, isAuthenticated, logout, updateUser } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -47,10 +47,15 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   // Sync profileForm with user on change
   useEffect(() => {
     if (user) {
-      setProfileForm((prev) => ({
-        ...prev,
-        fullName: user.fullName || prev.fullName
-      }));
+      const savedProfile = JSON.parse(localStorage.getItem(`farmely_profile_${user.id || user.email}`) || '{}');
+      const savedSettings = JSON.parse(localStorage.getItem(`farmely_settings_${user.id || user.email}`) || '{}');
+      setProfileForm({
+        fullName: user.fullName || '',
+        phone: savedProfile.phone ?? user.phone ?? '',
+        address: savedProfile.address ?? user.address ?? '',
+        bio: savedProfile.bio ?? user.bio ?? ''
+      });
+      setSettingsForm((current) => ({ ...current, ...savedSettings }));
     }
   }, [user]);
 
@@ -124,7 +129,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
           </div>
 
           {/* CENTER: Navigation Links (Tách biệt nghiêm ngặt theo vai trò / RBAC) */}
-          <div className="hidden xl:flex min-w-0 items-center gap-2 whitespace-nowrap px-2 2xl:gap-5 2xl:px-4">
+          <div className="hidden min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden whitespace-nowrap px-2 xl:flex 2xl:gap-5 2xl:px-4">
             {/* 1. KHÁCH HÀNG & KHÁCH VÃNG LAI (CUSTOMER / GUEST) */}
             {isCustomerOrGuest && (
               <>
@@ -279,7 +284,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                   title="Xem Cổng thông tin công khai Farmely"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Cổng công khai</span>
+                  <span className="hidden 2xl:inline">Cổng công khai</span>
                 </Link>
               </>
             )}
@@ -310,7 +315,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                   title="Xem Cổng thông tin công khai Farmely"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Cổng công khai</span>
+                  <span className="hidden 2xl:inline">Cổng công khai</span>
                 </Link>
               </>
             )}
@@ -355,7 +360,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
           </div>
 
           {/* RIGHT: Customer Dashboard shortcut (if logged in) + Search + Role Switcher + Auth */}
-          <div className="hidden md:flex items-center gap-3">
+          <div className="hidden shrink-0 items-center gap-2 md:flex 2xl:gap-3">
 
             {/* Search Icon (Chỉ hiển thị cho Customer hoặc Guest tìm kiếm đất) */}
             {isCustomerOrGuest && (
@@ -389,59 +394,12 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               </div>
             )}
 
-            {/* Quick Demo Role Switcher */}
-            <div className="relative pl-4">
-              <button
-                onClick={() => setRoleSwitcherOpen(!roleSwitcherOpen)}
-                className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white/90 border border-white/20 flex items-center gap-1.5 transition-colors"
-                title="Chuyển đổi Role Demo"
-              >
+            {isAuthenticated && (
+              <div className="hidden items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-xs font-semibold text-white/90 2xl:flex" aria-label={`Vai trò ${user?.role}`}>
                 <Shield className="w-3.5 h-3.5 text-brand-yellow" />
-                <span className="hidden sm:inline">Role:</span>
-                <span className="text-brand-yellow font-bold">{user ? user.role : 'GUEST'}</span>
-                <ChevronDown className="w-3 h-3" />
-              </button>
-
-              {roleSwitcherOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white text-brand-dark rounded-xl shadow-elevated border border-brand-border py-2 z-50">
-                  <div className="px-3 py-1.5 border-b border-brand-border/60">
-                    <p className="text-[11px] font-bold text-brand-muted uppercase tracking-wider">
-                      Chuyển quyền thử nghiệm:
-                    </p>
-                  </div>
-                  {DEMO_ACCOUNTS.map((acc) => (
-                    <button
-                      key={acc.id}
-                      onClick={() => {
-                        switchRole(acc.role);
-                        setRoleSwitcherOpen(false);
-                        navigate(getDashboardRoute(acc.role), { replace: true });
-                      }}
-                      className="w-full text-left px-3 py-2 text-xs hover:bg-brand-cream/80 flex items-center justify-between transition-colors"
-                    >
-                      <div>
-                        <p className="font-bold text-brand-dark">{acc.fullName}</p>
-                        <p className="text-[11px] text-brand-muted">{acc.roleTitle}</p>
-                      </div>
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-brand-cream text-brand-green border border-brand-border">
-                        {acc.role}
-                      </span>
-                    </button>
-                  ))}
-                  <div className="border-t border-brand-border/60 mt-1 pt-1">
-                    <button
-                      onClick={() => {
-                        logout();
-                        setRoleSwitcherOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 font-semibold"
-                    >
-                      Đăng xuất (Khách vãng lai / Guest)
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+                <span className="font-bold text-brand-yellow">{user?.role}</span>
+              </div>
+            )}
 
             {/* Auth Button or User Menu */}
             <div className="pl-3">
@@ -763,12 +721,14 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
           setIsProfileModalOpen(false);
           setProfileSuccessMsg('');
         }}
-        title="Hồ Sơ Cá Nhân (User Profile)"
-        subtitle="Thông tin tài khoản và thông tin nhận nông sản"
+        title="Hồ Sơ Cá Nhân"
+        subtitle="Thông tin tài khoản của bạn"
       >
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            localStorage.setItem(`farmely_profile_${user.id || user.email}`, JSON.stringify(profileForm));
+            updateUser({ fullName: profileForm.fullName, phone: profileForm.phone, address: profileForm.address, bio: profileForm.bio });
             setProfileSuccessMsg('Đã cập nhật thông tin hồ sơ thành công!');
             setTimeout(() => setProfileSuccessMsg(''), 3000);
           }}
@@ -820,7 +780,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
           </div>
 
           <div>
-            <label className="block font-bold text-brand-dark mb-1">Địa chỉ giao nhận nông sản thu hoạch tận nhà:</label>
+            <label className="block font-bold text-brand-dark mb-1">{user?.role === 'CUSTOMER' ? 'Địa chỉ giao nhận nông sản:' : 'Địa chỉ liên hệ:'}</label>
             <input
               type="text"
               required
@@ -871,12 +831,13 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
           setIsSettingsModalOpen(false);
           setSettingsSuccessMsg('');
         }}
-        title="Cài Đặt Tài Khoản (Settings)"
+        title="Cài Đặt Tài Khoản"
         subtitle="Quản lý tùy chọn thông báo, ngôn ngữ và bảo mật"
       >
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            localStorage.setItem(`farmely_settings_${user.id || user.email}`, JSON.stringify(settingsForm));
             setSettingsSuccessMsg('Đã lưu cấu hình cài đặt tài khoản thành công!');
             setTimeout(() => setSettingsSuccessMsg(''), 3000);
           }}
@@ -942,11 +903,11 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               Bảo Mật & Mật Khẩu
             </h5>
             <div className="space-y-2.5 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <div>
                   <label className="block font-medium text-stone-700 mb-1">Mật khẩu mới:</label>
                   <input
-                    type="password"
+                    type={showSettingsPasswords ? 'text' : 'password'}
                     placeholder="••••••••"
                     className="w-full p-2 rounded-lg border border-brand-border bg-white text-xs"
                   />
@@ -954,12 +915,16 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                 <div>
                   <label className="block font-medium text-stone-700 mb-1">Xác nhận mật khẩu:</label>
                   <input
-                    type="password"
+                    type={showSettingsPasswords ? 'text' : 'password'}
                     placeholder="••••••••"
                     className="w-full p-2 rounded-lg border border-brand-border bg-white text-xs"
                   />
                 </div>
               </div>
+              <button type="button" onClick={() => setShowSettingsPasswords((value) => !value)} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-xs font-bold text-brand-green hover:bg-emerald-50">
+                {showSettingsPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showSettingsPasswords ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              </button>
               <label className="flex items-center justify-between cursor-pointer pt-1.5 border-t border-stone-200/60">
                 <span className="text-stone-700 font-medium">Bật xác thực hai yếu tố (2FA) qua ứng dụng</span>
                 <input

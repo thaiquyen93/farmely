@@ -350,8 +350,9 @@ export default function CustomerDashboard() {
     const unwrap = (body) => Array.isArray(body) ? body : (body?.data || []);
     Promise.all([
       fetch('/api/services?status=ACTIVE').then((r) => r.ok ? r.json() : { data: [] }),
-      fetch('/api/rentals').then((r) => r.ok ? r.json() : { data: [] })
-    ]).then(([servicesBody, rentalsBody]) => {
+      fetch('/api/rentals').then((r) => r.ok ? r.json() : { data: [] }),
+      fetch('/api/services/requests').then((r) => r.ok ? r.json() : { data: [] })
+    ]).then(([servicesBody, rentalsBody, requestsBody]) => {
       if (cancelled) return;
       const services = unwrap(servicesBody).map((s) => ({
         id: s.serviceId,
@@ -361,6 +362,7 @@ export default function CustomerDashboard() {
         description: s.description || 'Dịch vụ chăm sóc theo tiêu chuẩn Farmely.',
         active: String(s.status || 'ACTIVE') === 'ACTIVE',
         customerCategory: String(s.serviceType || '').includes('FULL') ? 'FULL' : 'SINGLE',
+        tag: String(s.serviceType || '').includes('FULL') ? 'Gói chăm sóc' : 'Dịch vụ lẻ',
         iconKey: 'sprout',
         tasks: []
       }));
@@ -385,8 +387,19 @@ export default function CustomerDashboard() {
         contractCode: r.contractId ? `CTR-${r.contractId}` : '—',
         expectedHarvestDate: r.endDate || '—', expectedYield: 'Chưa có dữ liệu'
       })));
+      setActiveServiceOrders(unwrap(requestsBody).map((request) => ({
+        id: `REQ-${request.requestId}`,
+        serviceName: request.service?.serviceName || 'Dịch vụ canh tác',
+        plotName: request.plotName || request.plotCode || 'Chưa có dữ liệu thửa',
+        price: `${Number(request.service?.price || 0).toLocaleString('vi-VN')} đ`,
+        date: request.scheduledDate || (request.createdAt ? new Date(request.createdAt).toLocaleDateString('vi-VN') : 'Chưa có ngày'),
+        status: request.status || 'PENDING',
+        statusLabel: request.status === 'DONE' ? 'Đã hoàn thành' : request.status === 'IN_PROG' ? 'Đang thực hiện' : 'Đang chờ xử lý',
+        worker: 'Farmely điều phối',
+        paymentMethod: 'Theo giao dịch hệ thống'
+      })));
     }).catch(() => {
-      if (!cancelled) { setApiServices([]); setApiCustomerPlots([]); }
+      if (!cancelled) { setApiServices([]); setApiCustomerPlots([]); setActiveServiceOrders([]); }
     });
     return () => { cancelled = true; };
   }, []);
