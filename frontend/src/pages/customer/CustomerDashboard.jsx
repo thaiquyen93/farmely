@@ -73,7 +73,7 @@ export default function CustomerDashboard() {
   const { services: localServices } = useServiceStore();
   const [apiServices, setApiServices] = useState([]);
   const [apiCustomerPlots, setApiCustomerPlots] = useState([]);
-  const masterServices = apiServices;
+  const masterServices = apiServices.length ? apiServices : localServices;
   const [activeTab, setActiveTab] = useState('yards');
   const [selectedPlotId, setSelectedPlotId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);

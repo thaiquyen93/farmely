@@ -73,7 +73,7 @@ export default function FloatingExpertChat({
     return (
       <div
         data-draggable
-        className="fixed z-40 hidden lg:block"
+        className="fixed z-40 block"
         style={launcherPosition ? { left: launcherPosition.x, top: launcherPosition.y } : { right: 24, bottom: 24 }}
       >
         <button
@@ -99,7 +99,7 @@ export default function FloatingExpertChat({
   return (
     <section
       ref={panelRef}
-      className="fixed z-50 hidden h-[min(520px,calc(100vh-110px))] w-[370px] flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated lg:flex"
+      className="fixed inset-x-3 bottom-3 z-50 flex h-[min(520px,calc(100vh-110px))] flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated sm:left-auto sm:right-6 sm:w-[370px]"
       style={panelStyle}
       aria-label="Cửa sổ chat với chuyên gia"
     >
