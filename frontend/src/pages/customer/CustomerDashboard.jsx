@@ -70,7 +70,10 @@ export default function CustomerDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { services: masterServices } = useServiceStore();
+  const { services: localServices } = useServiceStore();
+  const [apiServices, setApiServices] = useState([]);
+  const [apiCustomerPlots, setApiCustomerPlots] = useState([]);
+  const masterServices = apiServices;
   const [activeTab, setActiveTab] = useState('yards');
   const [selectedPlotId, setSelectedPlotId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -257,7 +260,7 @@ export default function CustomerDashboard() {
   const [isAiTyping, setIsAiTyping] = useState(false);
 
   // Sample Customer Rented Plots Data
-  const customerPlots = [
+  const fallbackCustomerPlots = [
     {
       id: 'PLOT-CC-01',
       mapPlotId: 'P-01',
@@ -340,7 +343,54 @@ export default function CustomerDashboard() {
       waterSource: 'Hệ thống tưới nhỏ giọt bán tự động'
     }
   ];
+  const customerPlots = apiCustomerPlots;
   const selectedCheckoutPlot = customerPlots.find((plot) => plot.id === checkoutPlotId) || customerPlots[0];
+
+  useEffect(() => {
+    let cancelled = false;
+    const unwrap = (body) => Array.isArray(body) ? body : (body?.data || []);
+    Promise.all([
+      fetch('/api/services?status=ACTIVE').then((r) => r.ok ? r.json() : { data: [] }),
+      fetch('/api/rentals').then((r) => r.ok ? r.json() : { data: [] })
+    ]).then(([servicesBody, rentalsBody]) => {
+      if (cancelled) return;
+      const services = unwrap(servicesBody).map((s) => ({
+        id: s.serviceId,
+        name: s.serviceName,
+        price: Number(s.price || 0),
+        unit: s.unit || '/ lần thực hiện',
+        description: s.description || 'Dịch vụ chăm sóc theo tiêu chuẩn Farmely.',
+        active: String(s.status || 'ACTIVE') === 'ACTIVE',
+        customerCategory: String(s.serviceType || '').includes('FULL') ? 'FULL' : 'SINGLE',
+        iconKey: 'sprout',
+        tasks: []
+      }));
+      setApiServices(services);
+      const rentals = unwrap(rentalsBody);
+      setApiCustomerPlots(rentals.map((r, index) => ({
+        id: `PLOT-${r.plotCode || r.plotId || r.rentalId}`,
+        rentalId: r.rentalId,
+        mapPlotId: r.plotCode,
+        name: r.plotCode ? `Thửa ${r.plotCode}` : `Thửa đất ${index + 1}`,
+        location: 'Khu canh tác Farmely',
+        area: `${r.plotArea || 0}m²`,
+        mode: r.cultivationMode === 'SELF_GROWING' ? 'Self-Growing' : 'Assisted-Growing',
+        crop: r.varietyName || 'Chưa có giống cây',
+        stage: r.displayStatus || 'Đang canh tác',
+        currentDay: 0,
+        totalDays: r.durationDays || 0,
+        progressPercent: 0,
+        image: r.plotImageUrl || '/images/Mucangchai3.jpg',
+        temp: '—', soilMoisture: '—', airHumidity: '—', light: '—', ph: '—',
+        stationId: '—', status: r.status || 'ACTIVE', worker: 'Farmely điều phối',
+        contractCode: r.contractId ? `CTR-${r.contractId}` : '—',
+        expectedHarvestDate: r.endDate || '—', expectedYield: 'Chưa có dữ liệu'
+      })));
+    }).catch(() => {
+      if (!cancelled) { setApiServices([]); setApiCustomerPlots([]); }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // IoT Data for Different Timeframes (Hourly, Daily, Weekly)
   const iotDatasets = {
@@ -422,7 +472,7 @@ export default function CustomerDashboard() {
   };
 
   const currentIotData = (iotDatasets[selectedIotPlotId] || iotDatasets['PLOT-CC-01'])[iotTimeframe];
-  const currentIotPlot = customerPlots.find(p => p.id === selectedIotPlotId) || customerPlots[0];
+  const currentIotPlot = customerPlots.find(p => p.id === selectedIotPlotId) || customerPlots[0] || { id: '', name: 'Chưa có dữ liệu' };
 
   // Service Catalog (Shop Dịch Vụ Nông Nghiệp)
   const serviceCatalog = [
