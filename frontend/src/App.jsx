@@ -36,6 +36,7 @@ import KnowledgeDocuments from './pages/admin/KnowledgeDocuments';
 import ProcessTemplates from './pages/admin/ProcessTemplates';
 import ProcessTemplateDetail from './pages/admin/ProcessTemplateDetail';
 import Services from './pages/admin/Services';
+import GlobalExpertChat from './components/customer/GlobalExpertChat';
 
 const dashboardByRole = {
   CUSTOMER: '/customer/dashboard',
@@ -126,6 +127,7 @@ export default function App() {
         {/* Fallback to Home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <GlobalExpertChat />
     </BrowserRouter>
   );
 }

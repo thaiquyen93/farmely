@@ -10,7 +10,6 @@ import VnPayModal from '../../components/payment/VnPayModal';
 import SelfGrowingDashboard from '../../components/customer/SelfGrowingDashboard';
 import AssistedGrowingDashboard from '../../components/customer/AssistedGrowingDashboard';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
-import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
 import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
@@ -2136,21 +2135,6 @@ export default function CustomerDashboard() {
             </Modal>
 
             
-
-            <FloatingExpertChat
-              isOpen={showExpertChatModal}
-              onOpen={() => { setChatOpenMode('expert'); setShowExpertChatModal(true); }}
-              onClose={() => setShowExpertChatModal(false)}
-              thread={customerChatThread}
-              senderName={activeCustomerSenderName}
-              input={customerChatInput}
-              setInput={setCustomerChatInput}
-              onSubmit={handleSendCustomerChat}
-              onAiSubmit={(text) => { setCustomerChatInput(''); handleSendMessage(text); }}
-              aiMessages={chatMessages}
-              openMode={chatOpenMode}
-              scrollRef={customerChatScrollRef}
-            />
 
           </main>
 
