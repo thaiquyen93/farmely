@@ -51,6 +51,7 @@ export default function FieldWorkerDashboard() {
 
   // Assigned care tasks loaded from the cultivation service.
   const [tasks, setTasks] = useState([]);
+  const [focusedTaskId, setFocusedTaskId] = useState(null);
 
   // Modal State for Task Execution / Completing with Photo Proof
   const [selectedTaskToExecute, setSelectedTaskToExecute] = useState(null);
@@ -376,6 +377,7 @@ export default function FieldWorkerDashboard() {
   const completedCount = tasks.filter((t) => t.status === 'COMPLETED').length;
   const pendingCount = tasks.length - completedCount;
   const nextTask = tasks.find((task) => task.status === 'IN_PROGRESS') || tasks.find((task) => task.status === 'PENDING');
+  const focusedTask = tasks.find((task) => task.id === focusedTaskId) || nextTask || tasks[0] || null;
   const orderedTasks = [...tasks].sort((first, second) => Number(first.status === 'COMPLETED') - Number(second.status === 'COMPLETED'));
   const tasksByPlot = orderedTasks.reduce((groups, task) => {
     const key = task.plotCode || task.plotName || 'Chưa xác định';
@@ -426,73 +428,22 @@ export default function FieldWorkerDashboard() {
 
       <main className={`box-border flex-1 pt-24 sm:pt-28 pb-28 lg:pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
         
-        {nextTask && (
-          <section className="rounded-2xl bg-brand-dark p-4 text-white shadow-md" aria-labelledby="next-task-title">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-              <div>
-                <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-bold text-brand-yellow">
-                  <Clock className="h-4 w-4" /> Việc cần làm tiếp theo • hạn {nextTask.deadline}
-                </div>
-                <h2 id="next-task-title" className="font-heading text-lg font-black text-white sm:text-xl">{nextTask.title}</h2>
-                <p className="mt-0.5 text-xs text-white/80">{nextTask.plotName} ({nextTask.plotCode}) • {nextTask.crop}</p>
-              </div>
-              <Button onClick={() => {
-                if (/thu hoạch|cân|đóng thùng/i.test(`${nextTask.title} ${nextTask.instructions}`)) {
-                  const harvest = harvestWorkItems.find((item) => item.rentalId === nextTask.rentalId) || harvestWorkItems[0];
-                  if (harvest) openHarvestWorkspace(harvest);
-                } else {
-                  setActiveTab('tasks');
-                  setSelectedTaskToExecute(nextTask);
-                }
-              }} className="w-full lg:w-auto" icon={ArrowRight}>Mở nhiệm vụ</Button>
-            </div>
-          </section>
+        <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />Ca trực hiện trường</div>
+            <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">{activeTab === 'tasks' ? 'Việc hôm nay' : activeTab === 'harvest' ? 'Thu hoạch & đóng gói' : activeTab === 'issues' ? 'Báo cáo sự cố' : 'Trao đổi chuyên gia'}</h1>
+            <p className="mt-1 text-xs text-brand-muted">{activeTab === 'tasks' ? `${tasks.length} nhiệm vụ tại ${Object.keys(tasksByPlot).length} thửa đất` : activeTab === 'harvest' ? `${harvestWorkItems.length} hồ sơ cân và nghiệm thu từ hệ thống` : activeTab === 'issues' ? `${myIssues.length} báo cáo hiện trường đã gửi` : 'Kênh hỗ trợ kỹ thuật trong ca trực'}</p>
+          </div>
+          {activeTab === 'tasks' && <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs shadow-sm"><span className="font-bold text-stone-500">{currentSession === 'MORNING' ? 'Ca sáng' : 'Ca chiều'} · </span><strong className="text-emerald-800">{completedCount}/{tasks.length} nhiệm vụ hoàn thành</strong></div>}
+        </section>
+
+        {activeTab === 'tasks' && (
+          <div className="grid grid-cols-3 gap-2 sm:max-w-2xl sm:gap-3">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-amber-700">Chờ làm</span><strong className="font-heading text-2xl text-amber-900">{tasks.filter((task) => task.status === 'PENDING').length}</strong></div>
+            <div className="rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-sky-700">Đang làm</span><strong className="font-heading text-2xl text-sky-900">{tasks.filter((task) => task.status === 'IN_PROGRESS').length}</strong></div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-emerald-700">Hoàn thành</span><strong className="font-heading text-2xl text-emerald-900">{completedCount}</strong></div>
+          </div>
         )}
-
-        {/* Daily Shift KPI Metric Gauges */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Nhiệm Vụ Hôm Nay
-            </span>
-            <div className="text-2xl font-heading font-black text-brand-dark">
-              {completedCount} / {tasks.length}
-            </div>
-            <span className="text-[10px] text-emerald-700 font-bold block">
-              Đã hoàn tất {tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0}% ca trực
-            </span>
-          </div>
-
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Ca Trực Hiện Tại
-            </span>
-            <div className="text-2xl font-heading font-black text-amber-600">
-              {currentSession === 'MORNING' ? 'Ca Sáng' : 'Ca Chiều'}
-            </div>
-            <span className="text-[10px] text-amber-700 font-bold block">{currentSessionTasks.length} nhiệm vụ từ hệ thống</span>
-          </div>
-
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Sự Cố Đã Gửi
-            </span>
-            <div className="text-2xl font-heading font-black text-rose-600">
-              {myIssues.length} Báo cáo
-            </div>
-            <span className="text-[10px] text-rose-700 font-bold block">Theo dữ liệu sự cố hiện trường</span>
-          </div>
-
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Sản Lượng Cân Hôm Nay
-            </span>
-            <div className="text-2xl font-heading font-black text-emerald-600">
-              {harvestedWeight.toLocaleString('vi-VN')} kg
-            </div>
-            <span className="text-[10px] text-emerald-700 font-bold block">Đạt chuẩn cân đối chứng</span>
-          </div>
-        </div>
 
         {/* Layout Left Sidebar + Content */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -545,22 +496,17 @@ export default function FieldWorkerDashboard() {
 
             {/* Assigned care tasks */}
             {activeTab === 'tasks' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
-                  <div>
-                    <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Danh Sách Nhiệm Vụ Ca Trực Hôm Nay
-                    </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Hoàn thành nhiệm vụ kèm ảnh chụp thực địa để tự động cập nhật nhật ký Farm Diary của khách hàng.
-                    </p>
+              <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="space-y-5 rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6">
+                  <div className="flex flex-col justify-between gap-3 border-b border-brand-border/60 pb-4 sm:flex-row sm:items-center">
+                    <div>
+                      <h3 className="font-heading text-xl font-black text-brand-dark">Nhiệm vụ theo thửa</h3>
+                      <p className="mt-0.5 text-xs text-brand-muted">Chọn một nhiệm vụ để xem hướng dẫn và thao tác tại hiện trường.</p>
+                    </div>
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-brand-green">{pendingCount} việc cần làm</span>
                   </div>
-                  <span className="text-xs font-bold text-brand-green bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                    {pendingCount} Ca cần làm
-                  </span>
-                </div>
 
-                <div className="space-y-6">
+                  <div className="space-y-4">
                   {Object.values(tasksByPlot).length === 0 && (
                     <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center text-sm text-brand-muted">Chưa có nhiệm vụ được phân công từ hệ thống.</div>
                   )}
@@ -600,8 +546,16 @@ export default function FieldWorkerDashboard() {
                               const isDone = task.status === 'COMPLETED';
                               const isInProgress = task.status === 'IN_PROGRESS';
                               const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(task.title);
+                              const isFocused = focusedTask?.id === task.id;
                               return (
-                                <div key={task.id} className={`grid gap-3 p-4 text-xs sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center ${isInProgress ? 'bg-sky-50/70' : isDone ? 'bg-emerald-50/40' : 'bg-white'}`}>
+                                <div
+                                  key={task.id}
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() => setFocusedTaskId(task.id)}
+                                  onKeyDown={(event) => event.key === 'Enter' && setFocusedTaskId(task.id)}
+                                  className={`grid cursor-pointer gap-3 border-l-4 p-4 text-xs transition sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center ${isFocused ? 'border-l-emerald-600 bg-emerald-50/80' : isInProgress ? 'border-l-sky-400 bg-sky-50/70' : isDone ? 'border-l-emerald-200 bg-emerald-50/30' : 'border-l-transparent bg-white hover:bg-stone-50'}`}
+                                >
                                   <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 font-bold ${isDone ? 'bg-emerald-100 text-emerald-800' : isInProgress ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-800'}`}>
                                     <span className={`h-2 w-2 rounded-full ${isDone ? 'bg-emerald-500' : isInProgress ? 'bg-sky-500' : 'bg-amber-400'}`} />
                                     {isDone ? 'Hoàn thành' : isInProgress ? 'Đang làm' : 'Chờ làm'}
@@ -614,7 +568,8 @@ export default function FieldWorkerDashboard() {
                                     <Button
                                       variant={isHarvestTask ? 'secondary' : 'outline'}
                                       size="sm"
-                                      onClick={() => {
+                                      onClick={(event) => {
+                                        event.stopPropagation();
                                         if (isHarvestTask) {
                                           const harvest = harvestTasks.find((item) => item.plotCode === task.plotCode) || harvestTasks.find((item) => item.status !== 'COMPLETED');
                                           if (harvest) openHarvestWorkspace(harvest);
@@ -638,6 +593,76 @@ export default function FieldWorkerDashboard() {
                     );
                   })}
                 </div>
+                </div>
+
+                <aside className="overflow-hidden rounded-3xl border border-brand-border bg-white shadow-sm xl:sticky xl:top-24">
+                  {focusedTask ? (
+                    <>
+                      <div className="bg-gradient-to-br from-[#07533d] to-[#16785a] p-5 text-white">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <span className="inline-flex rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-black tracking-wide">{focusedTask.plotCode}</span>
+                            <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">Chi tiết công việc</p>
+                            <h3 className="mt-1 font-heading text-xl font-black leading-tight">{focusedTask.title}</h3>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${focusedTask.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : focusedTask.status === 'IN_PROGRESS' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {focusedTask.status === 'COMPLETED' ? 'Hoàn thành' : focusedTask.status === 'IN_PROGRESS' ? 'Đang làm' : 'Chờ làm'}
+                          </span>
+                        </div>
+                        <div className="mt-4 flex items-center gap-2 text-xs text-emerald-50"><MapPin className="h-4 w-4" />{focusedTask.plotName}</div>
+                      </div>
+
+                      <div className="space-y-5 p-5">
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div className="rounded-xl bg-stone-50 p-3"><p className="text-stone-400">Cây trồng</p><p className="mt-1 font-bold text-brand-dark">{focusedTask.crop || 'Theo thửa'}</p></div>
+                          <div className="rounded-xl bg-stone-50 p-3"><p className="text-stone-400">Hạn thực hiện</p><p className="mt-1 font-bold text-brand-dark">{focusedTask.deadline || 'Trong ca'}</p></div>
+                        </div>
+
+                        <div>
+                          <h4 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-brand-dark"><BookOpen className="h-4 w-4 text-emerald-700" />Hướng dẫn kỹ thuật</h4>
+                          <p className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 text-xs leading-5 text-stone-600">{focusedTask.instructions}</p>
+                        </div>
+
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wide text-brand-dark">Các bước thực hiện</h4>
+                          <div className="mt-2 space-y-2 text-xs text-stone-600">
+                            {['Đọc hướng dẫn kỹ thuật', `Thực hiện tại ${focusedTask.plotName}`, 'Chụp ảnh minh chứng trước khi hoàn tất'].map((label, index) => (
+                              <div key={label} className="flex items-center gap-2 rounded-xl border border-brand-border px-3 py-2.5"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-black text-emerald-800">{index + 1}</span>{label}</div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-4 text-center">
+                          {focusedTask.proofPhoto ? <img src={focusedTask.proofPhoto} alt="Ảnh minh chứng" className="mx-auto h-28 w-full rounded-xl object-cover" /> : <><Camera className="mx-auto h-6 w-6 text-stone-400" /><p className="mt-2 text-xs font-bold text-stone-600">Ảnh minh chứng hiện trường</p><p className="mt-1 text-[10px] text-stone-400">Ảnh được tải lên khi hoàn thành công việc</p></>}
+                        </div>
+
+                        {focusedTask.status !== 'COMPLETED' ? (
+                          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                            <Button
+                              variant="primary"
+                              onClick={() => {
+                                if (/thu hoạch|cân|đóng thùng/i.test(focusedTask.title)) {
+                                  const harvest = harvestTasks.find((item) => item.plotCode === focusedTask.plotCode) || harvestTasks.find((item) => item.status !== 'COMPLETED');
+                                  if (harvest) openHarvestWorkspace(harvest);
+                                  else setSelectedTaskToExecute(focusedTask);
+                                } else setSelectedTaskToExecute(focusedTask);
+                              }}
+                              className="w-full gap-2 font-bold"
+                            >
+                              {/thu hoạch|cân|đóng thùng/i.test(focusedTask.title) ? <Scale className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                              {/thu hoạch|cân|đóng thùng/i.test(focusedTask.title) ? 'Mở cân & đóng gói' : 'Bắt đầu công việc'}
+                            </Button>
+                            <Button variant="outline" onClick={() => setShowNewIssueModal(true)} className="w-full gap-2 font-bold"><AlertTriangle className="h-4 w-4" />Báo sự cố</Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-800"><CheckCircle2 className="h-4 w-4" />Đã hoàn thành {focusedTask.completedAt ? `lúc ${focusedTask.completedAt}` : ''}</div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-8 text-center text-sm text-brand-muted">Chọn một nhiệm vụ để xem chi tiết.</div>
+                  )}
+                </aside>
               </div>
             )}
 
