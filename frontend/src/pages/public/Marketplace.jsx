@@ -408,14 +408,6 @@ export default function Marketplace() {
           >
             Đặt lịch tham quan
           </Link>
-          {isAuthenticated && user?.role === 'CUSTOMER' && (
-            <Link
-              to="/customer/dashboard"
-              className="hidden whitespace-nowrap rounded-full px-2.5 py-1.5 font-semibold text-emerald-700 transition-all hover:bg-emerald-50 lg:block"
-            >
-              Vườn của tôi
-            </Link>
-          )}
           <Link
             to="/about"
             className="hidden whitespace-nowrap rounded-full px-2.5 py-1.5 transition-all hover:bg-slate-100/70 hover:text-slate-900 lg:block"
