@@ -247,16 +247,16 @@ SIMILARITY_THRESHOLD=0.10
     # 6. KHỞI CHẠY 10 MICROSERVICES VÀ FRONTEND
     # ==============================================================================
     $services = @(
-        @{ Name = 'api-gateway'; Port = if ($env:PORT_API_GATEWAY) { [int]$env:PORT_API_GATEWAY } else { 8080 }; Jar = 'api-gateway\target\api-gateway-1.0.0-SNAPSHOT.jar' },
-        @{ Name = 'identity-service'; Port = if ($env:PORT_IDENTITY_SERVICE) { [int]$env:PORT_IDENTITY_SERVICE } else { 8081 }; Jar = 'identity-service\target\identity-service-1.0.0-SNAPSHOT.jar' },
-        @{ Name = 'farm-service'; Port = if ($env:PORT_FARM_SERVICE) { [int]$env:PORT_FARM_SERVICE } else { 8082 }; Jar = 'farm-service\target\farm-service-1.0.0-SNAPSHOT.jar' },
-        @{ Name = 'knowledge-service'; Port = if ($env:PORT_KNOWLEDGE_SERVICE) { [int]$env:PORT_KNOWLEDGE_SERVICE } else { 8083 }; Jar = 'knowledge-service\target\knowledge-service-1.0.0-SNAPSHOT.jar' },
-        @{ Name = 'rental-service'; Port = if ($env:PORT_RENTAL_SERVICE) { [int]$env:PORT_RENTAL_SERVICE } else { 8084 }; Jar = 'rental-service\target\rental-service-1.0.0-SNAPSHOT.jar' },
-        @{ Name = 'payment-service'; Port = if ($env:PORT_PAYMENT_SERVICE) { [int]$env:PORT_PAYMENT_SERVICE } else { 8085 }; Jar = 'payment-service\target\payment-service-1.0.0-SNAPSHOT.jar' },
-        @{ Name = 'cultivation-service'; Port = if ($env:PORT_CULTIVATION_SERVICE) { [int]$env:PORT_CULTIVATION_SERVICE } else { 8086 }; Jar = 'cultivation-service\target\cultivation-service-1.0.0-SNAPSHOT.jar' },
-        @{ Name = 'communication-service'; Port = if ($env:PORT_COMMUNICATION_SERVICE) { [int]$env:PORT_COMMUNICATION_SERVICE } else { 8087 }; Jar = 'communication-service\target\communication-service-1.0.0-SNAPSHOT.jar' },
-        @{ Name = 'monitoring-service'; Port = if ($env:PORT_MONITORING_SERVICE) { [int]$env:PORT_MONITORING_SERVICE } else { 8088 }; Jar = 'monitoring-service\target\monitoring-service-1.0.0-SNAPSHOT.jar' },
-        @{ Name = 'ai-service'; Port = if ($env:PORT_AI_SERVICE) { [int]$env:PORT_AI_SERVICE } else { 8089 }; Jar = 'ai-service\target\ai-service-1.0.0-SNAPSHOT.jar' }
+        [pscustomobject]@{ Name = 'api-gateway'; Port = if ($env:PORT_API_GATEWAY) { [int]$env:PORT_API_GATEWAY } else { 8080 }; Jar = 'api-gateway\target\api-gateway-1.0.0-SNAPSHOT.jar' },
+        [pscustomobject]@{ Name = 'identity-service'; Port = if ($env:PORT_IDENTITY_SERVICE) { [int]$env:PORT_IDENTITY_SERVICE } else { 8081 }; Jar = 'identity-service\target\identity-service-1.0.0-SNAPSHOT.jar' },
+        [pscustomobject]@{ Name = 'farm-service'; Port = if ($env:PORT_FARM_SERVICE) { [int]$env:PORT_FARM_SERVICE } else { 8082 }; Jar = 'farm-service\target\farm-service-1.0.0-SNAPSHOT.jar' },
+        [pscustomobject]@{ Name = 'knowledge-service'; Port = if ($env:PORT_KNOWLEDGE_SERVICE) { [int]$env:PORT_KNOWLEDGE_SERVICE } else { 8083 }; Jar = 'knowledge-service\target\knowledge-service-1.0.0-SNAPSHOT.jar' },
+        [pscustomobject]@{ Name = 'rental-service'; Port = if ($env:PORT_RENTAL_SERVICE) { [int]$env:PORT_RENTAL_SERVICE } else { 8084 }; Jar = 'rental-service\target\rental-service-1.0.0-SNAPSHOT.jar' },
+        [pscustomobject]@{ Name = 'payment-service'; Port = if ($env:PORT_PAYMENT_SERVICE) { [int]$env:PORT_PAYMENT_SERVICE } else { 8085 }; Jar = 'payment-service\target\payment-service-1.0.0-SNAPSHOT.jar' },
+        [pscustomobject]@{ Name = 'cultivation-service'; Port = if ($env:PORT_CULTIVATION_SERVICE) { [int]$env:PORT_CULTIVATION_SERVICE } else { 8086 }; Jar = 'cultivation-service\target\cultivation-service-1.0.0-SNAPSHOT.jar' },
+        [pscustomobject]@{ Name = 'communication-service'; Port = if ($env:PORT_COMMUNICATION_SERVICE) { [int]$env:PORT_COMMUNICATION_SERVICE } else { 8087 }; Jar = 'communication-service\target\communication-service-1.0.0-SNAPSHOT.jar' },
+        [pscustomobject]@{ Name = 'monitoring-service'; Port = if ($env:PORT_MONITORING_SERVICE) { [int]$env:PORT_MONITORING_SERVICE } else { 8088 }; Jar = 'monitoring-service\target\monitoring-service-1.0.0-SNAPSHOT.jar' },
+        [pscustomobject]@{ Name = 'ai-service'; Port = if ($env:PORT_AI_SERVICE) { [int]$env:PORT_AI_SERVICE } else { 8089 }; Jar = 'ai-service\target\ai-service-1.0.0-SNAPSHOT.jar' }
     )
 
     $pidData = @()
@@ -345,7 +345,18 @@ SIMILARITY_THRESHOLD=0.10
     # ==============================================================================
     # 7. KIỂM TRA TRẠNG THÁI SẴN SÀNG CỦA CÁC CỔNG
     # ==============================================================================
-    $ports = @($services.Port) + $frontendPort
+    function Get-ServiceNameByPort {
+        param([int]$targetPort)
+        if ($targetPort -eq $frontendPort) { return 'frontend' }
+        foreach ($s in $services) {
+            if ($s.Port -eq $targetPort) {
+                return $s.Name
+            }
+        }
+        return "service-$targetPort"
+    }
+
+    $ports = @($services | ForEach-Object { $_.Port }) + $frontendPort
     $deadline = (Get-Date).AddSeconds(90)
     $pendingPorts = @($ports)
     Write-Host 'Đang đợi các dịch vụ khởi động...' -ForegroundColor Cyan
@@ -354,8 +365,7 @@ SIMILARITY_THRESHOLD=0.10
             Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue
         })
         foreach ($p in $justReady) {
-            $svcName = ($services | Where-Object { $_.Port -eq $p } | Select-Object -ExpandProperty Name -First 1)
-            if (-not $svcName -and $p -eq $frontendPort) { $svcName = 'frontend' }
+            $svcName = Get-ServiceNameByPort -targetPort $p
             Write-Host "  -> Cổng $p ($svcName) đã sẵn sàng!" -ForegroundColor Green
         }
         $pendingPorts = @($pendingPorts | Where-Object {
@@ -366,7 +376,7 @@ SIMILARITY_THRESHOLD=0.10
         }
     }
     foreach ($port in $pendingPorts) {
-        $svcName = ($services | Where-Object { $_.Port -eq $port } | Select-Object -ExpandProperty Name -First 1)
+        $svcName = Get-ServiceNameByPort -targetPort $port
         Write-Warning "Cổng $port ($svcName) chưa phản hồi kịp sau 90s. Kiểm tra log tại: $runtimeDir."
     }
 
