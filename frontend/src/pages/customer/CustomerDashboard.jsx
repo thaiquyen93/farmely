@@ -189,6 +189,7 @@ export default function CustomerDashboard() {
   const [showServiceVnPayModal, setShowServiceVnPayModal] = useState(false);
   const [showServiceCardModal, setShowServiceCardModal] = useState(false);
   const [serviceQrData, setServiceQrData] = useState(null);
+  const [livePlotOperations, setLivePlotOperations] = useState({});
 
   // Tự động đóng modal thông báo thành công sau 3 giây
   useEffect(() => {
@@ -783,7 +784,7 @@ export default function CustomerDashboard() {
     }
   }, [location.search]);
 
-  const plotOperations = {
+  const fallbackPlotOperations = {
     'PLOT-CC-01': {
       tasks: [
         { id: 'TSK-103', title: 'Bón bổ sung 5kg phân trùn quế', time: '15:00 hôm nay', status: 'IN_PROGRESS', owner: 'Trần Văn Lực' },
@@ -842,8 +843,43 @@ export default function CustomerDashboard() {
       { level: 'MEDIUM', title: 'Nhiệt độ tăng', metric: '29°C · cao hơn 2°C so với hôm qua', time: '25 phút trước' }
     ]
   };
+  const plotOperations = Object.keys(livePlotOperations).length
+    ? { ...fallbackPlotOperations, ...livePlotOperations }
+    : fallbackPlotOperations;
   const currentPlotOperations = plotOperations[selectedPlotId] || { tasks: [], diary: [] };
   const plotTabFromUrl = new URLSearchParams(location.search).get('tab') || 'overview';
+
+  // Đồng bộ công việc thật từ cultivation-service; dữ liệu tĩnh chỉ là fallback khi API chưa có dữ liệu.
+  useEffect(() => {
+    let cancelled = false;
+    const loadLiveTasks = async () => {
+      try {
+        const entries = await Promise.all(customerPlots.map(async (plot, index) => {
+          const rentalId = index + 1;
+          const response = await fetch(`/api/tasks?rentalId=${rentalId}`);
+          if (!response.ok) return [plot.id, null];
+          const body = await response.json();
+          const rows = Array.isArray(body) ? body : (body?.data || []);
+          if (!rows.length) return [plot.id, null];
+          return [plot.id, {
+            tasks: rows.map((task) => ({
+              id: task.taskCode || task.id,
+              title: task.title || task.name || 'Công việc chăm sóc',
+              time: task.dueDate || task.scheduledDate || 'Theo lịch',
+              status: task.status || task.displayStatus || 'PENDING',
+              owner: task.workerName || 'Farmely điều phối'
+            })),
+            diary: []
+          }];
+        }));
+        if (!cancelled) setLivePlotOperations(Object.fromEntries(entries.filter(([, value]) => value)));
+      } catch {
+        // Giữ fallback hiện tại nếu cultivation-service chưa sẵn sàng.
+      }
+    };
+    loadLiveTasks();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSendMessage = (textToSend) => {
     const query = textToSend || chatInput;
@@ -2505,6 +2541,9 @@ export default function CustomerDashboard() {
         serviceInfo={selectedServiceToBuy}
         totalAmount={selectedServiceToBuy?.price}
         additionalPayload={{
+          rentalId: Math.max(1, customerPlots.findIndex(p => p.id === checkoutPlotId) + 1),
+          serviceId: selectedServiceToBuy?.id,
+          serviceName: selectedServiceToBuy?.name,
           plotCode: checkoutPlotId,
           scheduledDate: checkoutDate,
           notes: checkoutNotes
@@ -2522,7 +2561,8 @@ export default function CustomerDashboard() {
         chargeEndpoint="http://localhost:8085/api/v1/payments/service/card/charge"
         additionalPayload={{
           serviceName: selectedServiceToBuy?.name,
-          rentalId: 1,
+          serviceId: selectedServiceToBuy?.id,
+          rentalId: Math.max(1, customerPlots.findIndex(p => p.id === checkoutPlotId) + 1),
           plotCode: checkoutPlotId,
           scheduledDate: checkoutDate,
           notes: checkoutNotes
