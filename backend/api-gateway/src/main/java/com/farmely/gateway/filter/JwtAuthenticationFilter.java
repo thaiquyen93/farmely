@@ -43,6 +43,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/api/crops/**",            // Danh mục cây trồng
             "/api/varieties/**",        // Danh mục giống cây
             "/api/templates/**",        // Quy trình canh tác
+            "/api/services",           // Khách chưa thuê đất vẫn được xem danh mục dịch vụ
             "/api/compatibility/**",
             "/api/site-visits/**",      // Khách vãng lai có thể đăng ký tham quan
             "/actuator/**",

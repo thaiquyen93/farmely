@@ -101,6 +101,8 @@ export default function BookPlot() {
   const [showVnPayModal, setShowVnPayModal] = useState(false);
   const [showCardModal, setShowCardModal] = useState(false);
   const [qrData, setQrData] = useState(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsError, setTermsError] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -178,13 +180,24 @@ export default function BookPlot() {
   );
 
   const handleAddPlot = (plotToAdd) => {
-    setSelectedPlots((prev) => [...prev, plotToAdd]);
+    setSelectedPlots((prev) => {
+      const next = prev.some((plot) => plot.id === plotToAdd.id) ? prev : [...prev, plotToAdd];
+      const codes = next.map((plot) => plot.code || plot.id).join(',');
+      navigate(`/marketplace/plot/${next[0]?.id || id}/book?plots=${encodeURIComponent(codes)}`, { replace: true });
+      return next;
+    });
     setIsAddPlotModalOpen(false);
   };
 
   const handleRemovePlot = (plotIdToRemove) => {
     if (selectedPlots.length <= 1) return; // Keep at least 1 plot
-    setSelectedPlots((prev) => prev.filter((p) => p.id !== plotIdToRemove));
+    setSelectedPlots((prev) => {
+      const next = prev.filter((p) => p.id !== plotIdToRemove);
+      const codes = next.map((plot) => plot.code || plot.id).join(',');
+      localStorage.setItem('farmely_master_lease_selected_plots', JSON.stringify(next));
+      navigate(`/marketplace/plot/${next[0]?.id || id}/book?plots=${encodeURIComponent(codes)}`, { replace: true });
+      return next;
+    });
   };
 
   // Aggregate calculations for the multi-plot rental contract.
@@ -264,6 +277,11 @@ export default function BookPlot() {
   };
 
   const handleConfirmBooking = async () => {
+    if (!acceptedTerms) {
+      setTermsError('Bạn cần đồng ý với điều khoản thuê đất trước khi thanh toán.');
+      return;
+    }
+    setTermsError('');
     setIsProcessing(true);
 
     if (paymentMethod === 'VNPAY') {
@@ -823,6 +841,12 @@ export default function BookPlot() {
                   <p>• Hoàn 50% khi hủy trong vòng 3 ngày trước ngày bắt đầu.</p>
                 </div>
 
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-brand-border bg-white p-3 text-xs text-stone-700">
+                  <input type="checkbox" checked={acceptedTerms} onChange={(event) => { setAcceptedTerms(event.target.checked); if (event.target.checked) setTermsError(''); }} className="mt-0.5 h-4 w-4 accent-emerald-700" />
+                  <span>Tôi đã đọc và đồng ý với <Link to="/terms" target="_blank" className="font-bold text-brand-green underline underline-offset-2">điều khoản thuê đất và thanh toán của Farmely</Link>.</span>
+                </label>
+                {termsError && <p role="alert" className="text-xs font-semibold text-rose-600">{termsError}</p>}
+
                 <Button
                   variant="primary"
                   size="lg"
@@ -833,9 +857,6 @@ export default function BookPlot() {
                   XÁC NHẬN THANH TOÁN & THUÊ ĐẤT
                 </Button>
 
-                <p className="text-[11px] text-center text-brand-muted">
-                  Bằng việc bấm xác nhận, bạn đồng ý với điều khoản thuê thửa đất Farmely và quy chuẩn canh tác VietGAP.
-                </p>
               </div>
             </div>
           </div>
