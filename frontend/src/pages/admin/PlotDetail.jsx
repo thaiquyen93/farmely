@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { plotsData } from '../../data/plots';
 import { iotStationsData } from '../../data/iotStations';
@@ -17,48 +17,66 @@ import {
   Layers,
   Thermometer,
   Droplets,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 
 export default function PlotDetail() {
   const { id } = useParams();
-  const [plot, setPlot] = useState(() => plotsData.find((p) => p.id === id) || plotsData[0]);
+  const [plot, setPlot] = useState(() => {
+    return plotsData.find((p) => String(p.id) === String(id) || p.code === id) || plotsData[0];
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/plots')
+    let active = true;
+    fetch(`/api/plots/${id}`)
       .then((res) => res.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : (data?.data || []);
-        if (list.length > 0) {
-          const matched = list.find((p) =>
-            String(p.plot_id || p.plotId) === String(id) ||
-            `PLT-${String(p.plot_id || p.plotId).padStart(3, '0')}` === id ||
-            (p.plot_code || p.plotCode) === id
-          );
-          if (matched) {
-            const numPrice = Number(matched.price_per_period || matched.pricePerPeriod || 1200000);
-            const mappedStatus = matched.status === 'AVAIL' ? 'AVAILABLE' :
-                                 matched.status === 'RENT' ? 'RENTED' :
-                                 matched.status === 'MAINT' ? 'MAINTENANCE' : matched.status;
-            setPlot((prev) => ({
-              ...prev,
-              id: `PLT-${String(matched.plot_id || matched.plotId).padStart(3, '0')}`,
-              code: matched.plot_code || matched.plotCode,
-              name: `Thửa Đất ${matched.plot_code || matched.plotCode}`,
-              area: typeof matched.area === 'number' ? `${matched.area} m²` : (matched.area ? `${matched.area} m²` : '50 m²'),
-              rentalPrice: numPrice,
-              formattedPrice: `${numPrice.toLocaleString('vi-VN')} đ/tháng`,
-              status: mappedStatus,
-              landName: matched.land_name || matched.landName || prev.landName,
-              imageUrl: matched.image_url || matched.imageUrl || prev.imageUrl
-            }));
-          }
+      .then((res) => {
+        if (!active) return;
+        if (res && res.success && res.data) {
+          const d = res.data;
+          setPlot({
+            id: d.id || d.plotId,
+            code: d.code || d.plotCode,
+            name: d.name || `Thửa Đất ${d.plotCode}`,
+            status: d.status,
+            description: d.description || `Thửa đất canh tác tiêu chuẩn VietGAP thuộc ${d.landName}.`,
+            landName: d.landName,
+            landAddress: d.landAddress,
+            area: d.areaText || `${d.area} m²`,
+            formattedPrice: d.formattedPrice || `${Number(d.pricePerPeriod || 0).toLocaleString('vi-VN')} đ/tháng`,
+            soilType: d.soilType || 'Đất thịt nhẹ pha cát, tầng canh tác dày > 40cm, pH 6.0 - 6.5',
+            iotStationId: d.iotStationId || 'IOT-CC-01',
+            recentSensorReadings: d.recentSensorReadings || {
+              temperature: '28.5°C',
+              soilMoisture: '68%',
+              humidity: '74%'
+            },
+            compatibleCrops: (d.compatibleCrops && d.compatibleCrops.length > 0)
+              ? d.compatibleCrops
+              : ['Rau muống cạn', 'Cải ngọt / Cải bẹ', 'Xà lách xoăn']
+          });
         }
       })
-      .catch((e) => console.error(e));
+      .catch((err) => {
+        console.warn('Cannot fetch live plot, using fallback:', err);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
   }, [id]);
 
-  const station = iotStationsData.find((s) => s.id === plot.iotStationId);
+  const station = iotStationsData.find((s) => s.id === plot?.iotStationId);
+
+  if (!plot) {
+    return (
+      <div className="p-8 text-center text-stone-500">
+        Không tìm thấy thông tin thửa đất #{id}.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -85,7 +103,7 @@ export default function PlotDetail() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Link to={`/marketplace/plot/${plot.id}`} target="_blank">
+          <Link to={`/marketplace?plotId=${plot.id}`} target="_blank">
             <Button variant="outline" size="sm" icon={ExternalLink}>
               Xem trên Marketplace
             </Button>

@@ -21,6 +21,8 @@ public class PlotResponse {
     private String plotCode;
     private BigDecimal area;
     private String imageUrl;
+    /** Ranh giới (ring mở [lng, lat]) hoặc null */
+    private List<List<Double>> boundary;
     private BigDecimal pricePerPeriod;
     private PlotStatus status;
     private Boolean isPublished;

@@ -10,6 +10,8 @@ import com.farmely.farm.entity.PlotEntity;
 import com.farmely.farm.exception.BadRequestException;
 import com.farmely.farm.exception.ConflictException;
 import com.farmely.farm.exception.ResourceNotFoundException;
+import com.farmely.farm.geo.BoundaryCodec;
+import com.farmely.farm.geo.BoundaryRules;
 import com.farmely.farm.repository.LandRepository;
 import com.farmely.farm.repository.PlotRepository;
 import com.farmely.farm.service.LandService;
@@ -28,6 +30,7 @@ public class LandServiceImpl implements LandService {
 
     private final LandRepository landRepository;
     private final PlotRepository plotRepository;
+    private final BoundaryRules boundaryRules;
 
     @Override
     @Transactional(readOnly = true)
@@ -59,6 +62,7 @@ public class LandServiceImpl implements LandService {
                         .status(p.getStatus())
                         .isPublished(p.getIsPublished())
                         .imageUrl(p.getImageUrl())
+                        .boundary(BoundaryCodec.toApi(p.getBoundaryGeojson()))
                         .build())
                 .collect(Collectors.toList());
 
@@ -70,6 +74,9 @@ public class LandServiceImpl implements LandService {
                 .landId(land.getLandId())
                 .landName(land.getLandName())
                 .address(land.getAddress())
+                .description(land.getDescription())
+                .boundary(BoundaryCodec.toApi(land.getBoundaryGeojson()))
+                .boundaryAreaM2(BoundaryCodec.areaOf(land.getBoundaryGeojson()))
                 .totalPlots((long) plots.size())
                 .availablePlots(availableCount)
                 .rentedPlots(rentedCount)
@@ -91,6 +98,8 @@ public class LandServiceImpl implements LandService {
         LandEntity land = LandEntity.builder()
                 .landName(request.getLandName().trim())
                 .address(request.getAddress().trim())
+                .description(trimToNull(request.getDescription()))
+                .boundaryGeojson(hasBoundary(request) ? BoundaryCodec.toGeoJson(boundaryRules.parse(request.getBoundary())) : null)
                 .build();
 
         LandEntity saved = landRepository.save(land);
@@ -110,6 +119,19 @@ public class LandServiceImpl implements LandService {
 
         land.setLandName(request.getLandName().trim());
         land.setAddress(request.getAddress().trim());
+        if (request.getDescription() != null) {
+            land.setDescription(trimToNull(request.getDescription()));
+        }
+        // null = giữ nguyên; [] = xoá ranh giới; có đỉnh = vẽ lại (phải còn chứa các thửa cũ)
+        if (request.getBoundary() != null) {
+            if (request.getBoundary().isEmpty()) {
+                land.setBoundaryGeojson(null);
+            } else {
+                var ring = boundaryRules.parse(request.getBoundary());
+                boundaryRules.checkLandStillContainsPlots(landId, ring);
+                land.setBoundaryGeojson(BoundaryCodec.toGeoJson(ring));
+            }
+        }
 
         LandEntity updated = landRepository.save(land);
         return toLandResponse(updated);
@@ -145,6 +167,9 @@ public class LandServiceImpl implements LandService {
                 .landId(land.getLandId())
                 .landName(land.getLandName())
                 .address(land.getAddress())
+                .description(land.getDescription())
+                .boundary(BoundaryCodec.toApi(land.getBoundaryGeojson()))
+                .boundaryAreaM2(BoundaryCodec.areaOf(land.getBoundaryGeojson()))
                 .totalPlots(totalPlots)
                 .availablePlots(availablePlots)
                 .rentedPlots(rentedPlots)
@@ -152,5 +177,13 @@ public class LandServiceImpl implements LandService {
                 .createdAt(land.getCreatedAt())
                 .updatedAt(land.getUpdatedAt())
                 .build();
+    }
+
+    private static boolean hasBoundary(LandRequest request) {
+        return request.getBoundary() != null && !request.getBoundary().isEmpty();
+    }
+
+    private static String trimToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
     }
 }

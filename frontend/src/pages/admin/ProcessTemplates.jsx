@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { processTemplatesData as initialTemplates } from '../../data/processTemplates';
 import { varietiesData } from '../../data/varieties';
@@ -12,44 +12,40 @@ import { FileSpreadsheet, Plus, Eye, Edit, Calendar, CheckCircle2, Clock } from 
 
 export default function ProcessTemplates() {
   const [templates, setTemplates] = useState(initialTemplates);
+  const [loading, setLoading] = useState(true);
+  const [isLiveDb, setIsLiveDb] = useState(false);
   const [showModal, setShowModal] = useState(false);
-
-  useEffect(() => {
-    fetch('/api/templates')
-      .then((res) => res.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : (data?.data || []);
-        if (list.length > 0) {
-          const mapped = list.map((t) => ({
-            id: `TMPL-${String(t.templateId || t.template_id).padStart(3, '0')}`,
-            dbId: t.templateId || t.template_id,
-            name: `Quy trình canh tác chuẩn: ${t.varietyName || t.variety_name || 'Rau VietGAP'}`,
-            varietyId: `VAR-${String(t.varietyId || t.variety_id || 1).padStart(3, '0')}`,
-            varietyName: t.varietyName || t.variety_name || 'Rau muống lá tre F1',
-            cropName: t.cropName || t.crop_name || 'Rau ăn lá',
-            version: t.version || 'v1.5 (VietGAP)',
-            status: 'ACTIVE',
-            totalSteps: t.totalSteps || 5,
-            estimatedDurationDays: t.estimatedDurationDays || 35,
-            authorName: 'ThS. Nguyễn Văn Expert (CGNN)',
-            description: t.description || 'Quy trình chuẩn hóa do Chuyên gia Nông nghiệp biên soạn theo tiêu chuẩn VietGAP.'
-          }));
-          setTemplates(mapped);
-        }
-      })
-      .catch((err) => console.error('Error fetching process templates from DB:', err));
-  }, []);
 
   // Form State
   const [name, setName] = useState('');
-  const [varietyId, setVarietyId] = useState('VAR-001');
+  const [varietyId, setVarietyId] = useState('1');
   const [version, setVersion] = useState('v1.0');
   const [status, setStatus] = useState('ACTIVE');
   const [desc, setDesc] = useState('');
 
+  useEffect(() => {
+    let active = true;
+    fetch('/api/process-templates')
+      .then((res) => res.json())
+      .then((res) => {
+        if (!active) return;
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setTemplates(res.data);
+          setIsLiveDb(true);
+        }
+      })
+      .catch((err) => {
+        console.warn('Cannot fetch live process templates, fallback to mock:', err);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
   const handleCreate = (e) => {
     e.preventDefault();
-    const varObj = varietiesData.find((v) => v.id === varietyId);
+    const varObj = varietiesData.find((v) => String(v.id) === String(varietyId));
 
     const newTemplate = {
       id: `TMPL-00${templates.length + 1}`,
@@ -63,18 +59,7 @@ export default function ProcessTemplates() {
       createdDate: new Date().toISOString().split('T')[0],
       author: 'Chuyên Gia Nông Nghiệp',
       description: desc,
-      steps: [
-        {
-          stepNumber: 1,
-          dayOffset: 0,
-          taskName: 'Làm đất & Bón lót ban đầu',
-          description: 'Chuẩn bị giá thể hữu cơ theo quy chuẩn VietGAP.',
-          method: 'Thủ công',
-          durationMinutes: 60,
-          status: 'PENDING',
-          materialsRequired: 'Phân trùn quế, nấm Trichoderma'
-        }
-      ]
+      steps: []
     };
 
     setTemplates((prev) => [...prev, newTemplate]);
@@ -162,9 +147,17 @@ export default function ProcessTemplates() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: ProcessTemplate & TemplateSteps (Quy Chuẩn BR13)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
+              Thực thể: ProcessTemplate & TemplateSteps (Quy Chuẩn BR13)
+            </span>
+            {isLiveDb && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live DB: {templates.length} Quy trình</span>
+              </span>
+            )}
+          </div>
           <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
             Quy Trình Canh Tác Chuẩn VietGAP
           </h2>

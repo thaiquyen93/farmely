@@ -21,7 +21,7 @@ public class PlotUpdateRequest {
     @Size(max = 50, message = "Mã thửa đất tối đa 50 ký tự")
     private String plotCode;
 
-    @NotNull(message = "Diện tích thửa đất là bắt buộc")
+    /** Bắt buộc nếu thửa không có ranh giới; nếu có, server tự tính từ đa giác. */
     @DecimalMin(value = "0.01", message = "Diện tích thửa đất phải lớn hơn 0 m²")
     private BigDecimal area;
 
@@ -36,4 +36,9 @@ public class PlotUpdateRequest {
     private Boolean isPublished;
 
     private List<Integer> compatibleVarietyIds;
+
+    /**
+     * Ranh giới mới. {@code null} = giữ nguyên ranh giới hiện có; {@code []} = xoá ranh giới.
+     */
+    private List<List<Double>> boundary;
 }

@@ -108,3 +108,78 @@ h1, h2, h3, h4, h5, h6 {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Bản đồ khoanh vùng ranh giới (BoundaryDrawMap) ──────────────────────
+   LƯU Ý: không đặt position/transform lên các phần tử này — MapLibre định vị
+   marker bằng chính transform của phần tử. */
+.boundary-vertex {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: #facc15;
+  border: 2.5px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+.boundary-vertex--edit {
+  background: #ffffff;
+  border-color: #16a34a;
+  cursor: grab;
+}
+.boundary-vertex--edit:active { cursor: grabbing; }
+.boundary-vertex--close {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  box-shadow: 0 0 0 6px rgba(250, 204, 21, 0.45), 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+.boundary-mid {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: rgba(15, 42, 32, 0.75);
+  color: #bef264;
+  border: 1.5px solid rgba(190, 242, 100, 0.8);
+  font-size: 12px;
+  line-height: 12px;
+  font-weight: 700;
+  cursor: copy;
+  opacity: 0.75;
+}
+.boundary-mid:hover { opacity: 1; background: #16a34a; color: #fff; }
+.boundary-label {
+  pointer-events: none;
+  white-space: nowrap;
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.boundary-label--other { background: rgba(15, 23, 42, 0.8); color: #f1f5f9; }
+.boundary-label--outer { background: #f59e0b; color: #1c1917; }
+
+/* Ghim vị trí GPS của khu đất (hình giọt nước, mũi nhọn chạm đúng toạ độ).
+   .boundary-pin-anchor là phần tử marker: giữ kích thước, KHÔNG transform/margin. */
+.boundary-pin-anchor {
+  width: 32px;
+  height: 40px;
+  pointer-events: auto;
+}
+.boundary-pin {
+  position: relative;
+  left: 1px;
+  top: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 0;
+  background: #e11d48;
+  border: 3px solid #ffffff;
+  rotate: -45deg;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+}
+.boundary-pin::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 9999px;
+  background: #ffffff;
+}

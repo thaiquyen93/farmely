@@ -1,59 +1,62 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { varietiesData as initialVarieties } from '../../data/varieties';
-import { cropsData } from '../../data/crops';
+import { cropsData as initialCrops } from '../../data/crops';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
-import { Wheat, Plus, Eye, Edit, Clock, Layers, BookOpen, CheckCircle2 } from 'lucide-react';
+import { Wheat, Plus, Eye, Edit, Clock, Layers, BookOpen, CheckCircle2, Trash2 } from 'lucide-react';
 
 export default function Varieties() {
   const [varieties, setVarieties] = useState(initialVarieties);
+  const [crops, setCrops] = useState(initialCrops);
+  const [loading, setLoading] = useState(true);
+  const [isLiveDb, setIsLiveDb] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
-
-  useEffect(() => {
-    fetch('/api/varieties')
-      .then((res) => res.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : (data?.data || []);
-        if (list.length > 0) {
-          const mapped = list.map((v) => ({
-            id: `VAR-${String(v.varietyId || v.variety_id).padStart(3, '0')}`,
-            dbId: v.varietyId || v.variety_id,
-            name: v.varietyName || v.variety_name,
-            cropId: `CRP-${String(v.cropId || v.crop_id).padStart(2, '0')}`,
-            cropName: v.cropName || v.crop_name || 'Rau củ quả',
-            growthDurationDays: v.expectedDurationDays || v.growth_duration_days || 35,
-            expectedYield: `${v.standardYieldPerM2 || v.standard_yield_per_m2 || '3.5'} kg/m²`,
-            optimalSeason: v.optimalSeason || 'Quanh năm',
-            description: v.description || 'Giống F1 chuẩn VietGAP năng suất cao, kháng sâu bệnh tốt.',
-            status: 'ACTIVE',
-            imageUrl: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
-            hasProcessTemplate: true
-          }));
-          setVarieties(mapped);
-        }
-      })
-      .catch((err) => console.error('Error fetching varieties from DB:', err));
-  }, []);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form State
   const [name, setName] = useState('');
-  const [cropId, setCropId] = useState('CRP-01');
+  const [cropId, setCropId] = useState('1');
   const [duration, setDuration] = useState('45');
   const [yieldVal, setYieldVal] = useState('4.0 kg/m²');
   const [desc, setDesc] = useState('');
   const [status, setStatus] = useState('ACTIVE');
 
+  const loadData = () => {
+    setLoading(true);
+    Promise.all([
+      fetch('/api/varieties').then((r) => r.json()),
+      fetch('/api/crops').then((r) => r.json())
+    ])
+      .then(([varRes, cropRes]) => {
+        if (varRes && varRes.success && Array.isArray(varRes.data) && varRes.data.length > 0) {
+          setVarieties(varRes.data);
+          setIsLiveDb(true);
+        }
+        if (cropRes && cropRes.success && Array.isArray(cropRes.data) && cropRes.data.length > 0) {
+          setCrops(cropRes.data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Cannot fetch live varieties, fallback to mock:', err);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const openCreate = () => {
     setIsEditing(false);
     setName('');
-    setCropId('CRP-01');
+    setCropId(String(crops[0]?.id || '1'));
     setDuration('45');
     setYieldVal('4.0 kg/m²');
     setDesc('');
@@ -65,62 +68,60 @@ export default function Varieties() {
     setIsEditing(true);
     setCurrentId(v.id);
     setName(v.name);
-    setCropId(v.cropId);
-    setDuration(String(v.growthDuration));
-    setYieldVal(v.expectedYield);
-    setDesc(v.description);
-    setStatus(v.status);
+    setCropId(String(v.cropId || '1'));
+    setDuration(String(v.growthDuration || 45));
+    setYieldVal(v.expectedYield || '4.0 kg/m²');
+    setDesc(v.description || '');
+    setStatus(v.status || 'ACTIVE');
     setShowModal(true);
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
+    setIsSaving(true);
 
-    const cropObj = cropsData.find((c) => c.id === cropId);
-
-    if (isEditing && currentId) {
-      setVarieties((prev) =>
-        prev.map((v) =>
-          v.id === currentId
-            ? {
-                ...v,
-                name,
-                cropId,
-                cropName: cropObj ? cropObj.name : v.cropName,
-                growthDuration: parseInt(duration, 10) || 45,
-                expectedYield: yieldVal,
-                description: desc,
-                status
-              }
-            : v
-        )
-      );
-    } else {
-      const newVar = {
-        id: `VAR-00${varieties.length + 1}`,
-        name,
-        cropId,
-        cropName: cropObj ? cropObj.name : 'Rau màu',
-        growthDuration: parseInt(duration, 10) || 45,
-        bufferTime: 7,
-        expectedYield: yieldVal,
-        description: desc,
-        compatiblePlotsCount: 3,
-        processTemplateId: null,
-        knowledgeDocsCount: 1,
-        status,
-        imageUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
-        growingCharacteristics: {
-          lightRequirement: 'Nắng trực tiếp',
-          soilMoistureTarget: '65% - 75%',
-          temperatureRange: '22°C - 30°C',
-          fertilizerNeeds: 'Hữu cơ vi sinh'
-        }
-      };
-      setVarieties((prev) => [...prev, newVar]);
+    try {
+      if (isEditing && currentId) {
+        await fetch(`/api/varieties/${currentId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name.trim(),
+            cropId: parseInt(cropId, 10),
+            growthDuration: parseInt(duration, 10),
+            bufferTime: 4
+          })
+        });
+      } else {
+        await fetch('/api/varieties', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name.trim(),
+            cropId: parseInt(cropId, 10),
+            growthDuration: parseInt(duration, 10),
+            bufferTime: 4
+          })
+        });
+      }
+      loadData();
+      setShowModal(false);
+    } catch (err) {
+      console.error('Error saving variety:', err);
+    } finally {
+      setIsSaving(false);
     }
-    setShowModal(false);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa giống cây #${id}?`)) return;
+    try {
+      await fetch(`/api/varieties/${id}`, { method: 'DELETE' });
+      loadData();
+    } catch (err) {
+      console.error('Error deleting variety:', err);
+    }
   };
 
   const columns = [
@@ -226,9 +227,17 @@ export default function Varieties() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: Variety (Giống cây trồng được kiểm định - BR03)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
+              Thực thể: Variety (Giống cây trồng được kiểm định - BR03)
+            </span>
+            {isLiveDb && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live DB: {varieties.length} Giống cây</span>
+              </span>
+            )}
+          </div>
           <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
             Danh Mục Giống Cây Trồng
           </h2>

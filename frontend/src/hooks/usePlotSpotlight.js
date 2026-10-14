@@ -27,6 +27,7 @@ import {
 import {
   clamp01,
   easeInOutCubic,
+  getCentroid,
   getFeatureBBox,
   getRingCorners,
 } from '../utils/geoUtils';
@@ -46,17 +47,70 @@ function prefersReducedMotion() {
   }
 }
 
-/** Marker góc vuông emerald ở 1 trong 4 góc thửa */
-function createBracketElement(delayMs, color) {
+/**
+ * Sóng radar lan toả từ tâm thửa đang chọn: 3 vòng lệch pha.
+ * Animation (có transform) đặt trên các vòng CON — phần tử marker ngoài cùng
+ * để MapLibre toàn quyền định vị bằng transform.
+ */
+export function createRippleElement(color) {
   const el = document.createElement('div');
-  el.className = 'pointer-events-none select-none animate-bracketIn';
-  el.style.animationDelay = `${delayMs}ms`;
+  el.className = 'pointer-events-none select-none';
+  el.style.zIndex = '0';
+  el.setAttribute('aria-hidden', 'true');
+
+  const stage = document.createElement('div');
+  stage.style.cssText = 'position:relative;width:132px;height:132px;';
+
+  [0, 800, 1600].forEach((delay) => {
+    const ring = document.createElement('span');
+    ring.className = 'animate-ripple';
+    ring.style.cssText = [
+      'position:absolute',
+      'inset:0',
+      'border-radius:9999px',
+      `border:2px solid ${color}`,
+      `background:radial-gradient(circle, ${color}33 0%, ${color}00 70%)`,
+      `animation-delay:${delay}ms`,
+    ].join(';');
+    stage.appendChild(ring);
+  });
+
+  const core = document.createElement('span');
+  core.style.cssText = [
+    'position:absolute',
+    'left:50%',
+    'top:50%',
+    'width:12px',
+    'height:12px',
+    'margin:-6px 0 0 -6px',
+    'border-radius:9999px',
+    `background:${color}`,
+    'border:2px solid #fff',
+    `box-shadow:0 0 0 6px ${color}40, 0 0 18px ${color}`,
+  ].join(';');
+  stage.appendChild(core);
+
+  el.appendChild(stage);
+  return el;
+}
+
+/** Marker góc vuông emerald ở 1 trong 4 góc thửa */
+function createBracketElement(delayMs, color, rotationDeg = 0) {
+  const el = document.createElement('div');
+  el.className = 'pointer-events-none select-none';
+  // Phần tử marker để MapLibre toàn quyền định vị bằng transform. Animation vào
+  // sân khấu (scale) đặt trên lớp con; góc xoay đặt trên <svg> bên trong.
   el.innerHTML = `
-    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
-      <path d="M2 9V4a2 2 0 0 1 2-2h5" stroke="${color}" stroke-width="2.6"
+    <div class="animate-bracketIn" style="animation-delay:${Number(delayMs) || 0}ms">
+    <svg width="30" height="30" viewBox="0 0 22 22" fill="none" aria-hidden="true"
+         style="display:block; transform: rotate(${Number(rotationDeg) || 0}deg);">
+      <path d="M2 10V4a2 2 0 0 1 2-2h6" stroke="#ffffff" stroke-width="4.2"
+            stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.9" />
+      <path d="M2 10V4a2 2 0 0 1 2-2h6" stroke="${color}" stroke-width="2.4"
             stroke-linecap="round" stroke-linejoin="round"
-            style="filter: drop-shadow(0 0 4px ${color});" />
+            style="filter: drop-shadow(0 0 5px ${color});" />
     </svg>
+    </div>
   `;
   return el;
 }
@@ -79,6 +133,7 @@ export default function usePlotSpotlight({
   const glowRafRef = useRef(null);
   const dashIntervalRef = useRef(null);
   const bracketsRef = useRef([]);
+  const rippleRef = useRef(null);
 
   const cancelRaf = (ref) => {
     if (ref.current !== null) {
@@ -88,7 +143,7 @@ export default function usePlotSpotlight({
   };
 
   const removeBrackets = useCallback(() => {
-    bracketsRef.current.forEach((m) => {
+    [...bracketsRef.current, rippleRef.current].filter(Boolean).forEach((m) => {
       try {
         m.remove();
       } catch {
@@ -96,6 +151,7 @@ export default function usePlotSpotlight({
       }
     });
     bracketsRef.current = [];
+    rippleRef.current = null;
   }, []);
 
   const stopDash = useCallback(() => {
@@ -198,6 +254,9 @@ export default function usePlotSpotlight({
       map.setPaintProperty(LAYER_IDS.plotsSelectedGlow, 'line-width', 8);
       map.setPaintProperty(LAYER_IDS.plotsSelectedGlow, 'line-opacity', 0.4);
     }
+    if (map?.getLayer?.(LAYER_IDS.plotsSelectedFill)) {
+      map.setPaintProperty(LAYER_IDS.plotsSelectedFill, 'fill-opacity', 0.15);
+    }
     if (map?.getLayer?.(LAYER_IDS.plotsDim)) {
       map.setFilter(LAYER_IDS.plotsDim, ['!=', ['get', 'id'], '']);
     }
@@ -260,8 +319,12 @@ export default function usePlotSpotlight({
           return;
         }
         const wave = (Math.sin(((now - glowStart) / 1400) * Math.PI * 2) + 1) / 2;
-        map.setPaintProperty(LAYER_IDS.plotsSelectedGlow, 'line-width', 6 + wave * 4);
-        map.setPaintProperty(LAYER_IDS.plotsSelectedGlow, 'line-opacity', 0.35 + wave * 0.25);
+        map.setPaintProperty(LAYER_IDS.plotsSelectedGlow, 'line-width', 8 + wave * 8);
+        map.setPaintProperty(LAYER_IDS.plotsSelectedGlow, 'line-opacity', 0.45 + wave * 0.35);
+        // Mặt thửa "thở" cùng nhịp với glow
+        if (map.getLayer?.(LAYER_IDS.plotsSelectedFill)) {
+          map.setPaintProperty(LAYER_IDS.plotsSelectedFill, 'fill-opacity', 0.14 + wave * 0.2);
+        }
         glowRafRef.current = requestAnimationFrame(glowFrame);
       };
       glowRafRef.current = requestAnimationFrame(glowFrame);
@@ -273,13 +336,24 @@ export default function usePlotSpotlight({
       getRingCorners(feature)
         .slice(0, 4)
         .forEach((corner, i) => {
-          const el = createBracketElement(reduced ? 0 : BRACKET_DELAYS[i] || 0, accent);
-          el.style.transform = `rotate(${i * 90}deg)`;
+          const el = createBracketElement(reduced ? 0 : BRACKET_DELAYS[i] || 0, accent, i * 90);
           const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
             .setLngLat(corner)
             .addTo(map);
           bracketsRef.current.push(marker);
         });
+
+      // Sóng radar lan toả từ tâm thửa (tĩnh nếu người dùng tắt chuyển động)
+      const rippleEl = createRippleElement(accent);
+      if (reduced) {
+        rippleEl.querySelectorAll('.animate-ripple').forEach((r) => {
+          r.style.animation = 'none';
+          r.style.opacity = '0';
+        });
+      }
+      rippleRef.current = new maplibregl.Marker({ element: rippleEl, anchor: 'center' })
+        .setLngLat(getCentroid(feature))
+        .addTo(map);
 
       // Camera: fitBounds theo bbox thật của thửa -> mọi thửa to/nhỏ đều được đóng khung đều
       if (typeof map.fitBounds === 'function') {

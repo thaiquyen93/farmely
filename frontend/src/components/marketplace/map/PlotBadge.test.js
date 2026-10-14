@@ -68,28 +68,66 @@ describe('createPlotBadge', () => {
     badge.setSelected(true);
     expect(badge.badge.className).toContain('bg-emerald-600');
     expect(badge.badge.className).toContain('scale-110');
-    expect(badge.nodes.idLabel.hidden).toBe(false);
+    expect(badge.badge.getAttribute('aria-pressed')).toBe('true');
 
     badge.setSelected(false);
     expect(badge.badge.className).not.toContain('bg-emerald-600');
     expect(badge.badge.className).toContain('bg-white/95');
-    // vacant + unselected shows only the compact price
-    expect(badge.nodes.idLabel.hidden).toBe(true);
-    expect(badge.nodes.priceLabel.hidden).toBe(false);
+    expect(badge.badge.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('ALWAYS shows the plot number and land status, in every state', () => {
+    // Yêu cầu của người dùng: mỗi ô thửa trên bản đồ phải hiện số thửa + trạng thái đất
+    [vacantProps, rentedProps].forEach((props) => {
+      const badge = createPlotBadge({ properties: props });
+      const expectedLabel = props === vacantProps ? 'Đang trống' : 'Đã thuê';
+
+      [false, true, false].forEach((sel) => {
+        badge.setSelected(sel);
+        const { idLabel, statusChip } = badge.nodes;
+        expect(idLabel.hidden).toBe(false);
+        expect(idLabel.textContent).toBe(props.id);
+        expect(statusChip.hidden).toBe(false);
+        expect(statusChip.textContent).toBe(expectedLabel);
+        // Hai node này nằm NGOÀI khối reveal => không cần hover mới thấy
+        expect(badge.nodes.reveal.contains(idLabel)).toBe(false);
+        expect(badge.nodes.reveal.contains(statusChip)).toBe(false);
+      });
+    });
+  });
+
+  it('keeps the price inside the hover-reveal block so collapsed badges stay compact', () => {
+    const badge = createPlotBadge({ properties: vacantProps });
     expect(badge.nodes.priceLabel.textContent).toBe('1.2 tr');
+    expect(badge.nodes.reveal.contains(badge.nodes.priceLabel)).toBe(true);
   });
 
-  it('shows the plot id (not the price) for rented plots when unselected', () => {
-    const badge = createPlotBadge({ properties: rentedProps });
-    expect(badge.nodes.idLabel.hidden).toBe(false);
-    expect(badge.nodes.idLabel.textContent).toBe('P-05');
-    expect(badge.nodes.priceLabel.hidden).toBe(true);
-  });
-
-  it('applies the stagger delay as an inline animationDelay', () => {
+  it('applies the stagger delay on an INNER layer, never on the marker element', () => {
     const badge = createPlotBadge({ properties: vacantProps, enterDelayMs: 165 });
-    expect(badge.element.className).toContain('animate-fadeInUp');
-    expect(badge.element.style.animationDelay).toBe('165ms');
+    // Marker element: không animation nào (MapLibre định vị bằng transform của nó)
+    expect(badge.element.className).not.toContain('animate-');
+    expect(badge.element.style.animationDelay).toBe('');
+    // Animation vào sân khấu nằm trên lớp con `enter`
+    expect(badge.nodes.enter.parentElement).toBe(badge.element);
+    expect(badge.nodes.enter.className).toContain('animate-fadeInUp');
+    expect(badge.nodes.enter.style.animationDelay).toBe('165ms');
+    expect(badge.nodes.enter.contains(badge.badge)).toBe(true);
+  });
+
+  it('REGRESSION: the marker element never overrides MapLibre positioning', () => {
+    // `element` is the node MapLibre tags with .maplibregl-marker and positions via
+    // `position: absolute` + inline transform. A `relative` / `absolute` / `static`
+    // utility here pulls every badge into normal flow, which stacked all 16 badges
+    // into a single column at the left edge of the screen.
+    const badge = createPlotBadge({ properties: richVacantProps });
+    const classes = badge.element.className.split(/\s+/);
+    ['relative', 'absolute', 'static', 'fixed', 'sticky'].forEach((cls) => {
+      expect(classes).not.toContain(cls);
+    });
+    // No transform utility either: MapLibre owns `transform` on this node.
+    classes.forEach((cls) => {
+      expect(cls).not.toMatch(/^(-?translate-|-?rotate-|scale-|transform$)/);
+    });
   });
 
   it('forwards clicks with the plot properties and stops after destroy', () => {
@@ -111,7 +149,8 @@ describe('createPlotBadge', () => {
     // Khối reveal tồn tại và chỉ mở bằng CSS (group-hover), không listener JS
     expect(badge.element.className).toContain('group');
     expect(reveal.className).toContain('max-w-0');
-    expect(reveal.className).toContain('group-hover:max-w-[240px]');
+    expect(reveal.className).toMatch(/group-hover:max-w-\[\d+px\]/);
+    expect(reveal.className).toContain('group-hover:opacity-100');
     expect(badge.badge.contains(reveal)).toBe(true);
 
     // Thông tin thật được nạp sẵn vào DOM
@@ -136,22 +175,24 @@ describe('createPlotBadge', () => {
 
     badge.setSelected(true);
 
+    // Khi chọn: khối reveal mở sẵn (không cần hover), hiện giá + diện tích
     expect(badge.badge.className).toContain('animate-pulseGlow');
-    expect(badge.nodes.reveal.className).toContain('max-w-[320px]');
-    expect(badge.nodes.nameLabel.hidden).toBe(false);
-    expect(badge.nodes.directionLabel.textContent).toBe('Đông Nam');
-    expect(badge.nodes.directionLabel.hidden).toBe(false);
-    expect(badge.nodes.trustChip.hidden).toBe(false);
+    expect(badge.nodes.reveal.className).toContain('opacity-100');
+    expect(badge.nodes.reveal.className).not.toContain('max-w-0');
+    expect(badge.nodes.priceLabel.hidden).toBe(false);
     expect(badge.nodes.areaLabel.hidden).toBe(false);
+    // Cây trồng / tiện ích nhường cho panel chi tiết, để badge chọn không đè thửa bên cạnh
+    expect(badge.nodes.cropLabel.hidden).toBe(true);
+    expect(badge.nodes.facilityWrap.hidden).toBe(true);
 
     badge.setSelected(false);
-    expect(badge.nodes.trustChip.hidden).toBe(true);
-    expect(badge.nodes.nameLabel.hidden).toBe(true);
+    expect(badge.nodes.reveal.className).toContain('max-w-0');
+    expect(badge.nodes.cropLabel.hidden).toBe(false);
 
     // Không node nào bị dựng lại => không có innerHTML nào được gán
     Object.keys(refs).forEach((key) => {
       expect(badge.nodes[key]).toBe(refs[key]);
-      expect(badge.badge.contains(badge.nodes[key])).toBe(true);
+      expect(badge.element.contains(badge.nodes[key])).toBe(true);
     });
   });
 
@@ -161,23 +202,19 @@ describe('createPlotBadge', () => {
     expect(truncateName()).toBe('');
   });
 
-  it('keeps rented plots in the quiet treatment with a hover-only status label', () => {
+  it('keeps rented plots in a quiet dark treatment, distinct from available ones', () => {
     const badge = createPlotBadge({ properties: rentedProps });
 
-    expect(badge.badge.className).toContain('opacity-60');
-    expect(badge.badge.className).toContain('bg-slate-900/70');
+    expect(badge.badge.className).toContain('bg-slate-900/80');
     expect(badge.badge.className).not.toContain('bg-white/95');
 
-    // Nhãn trạng thái nằm trong khối reveal => chỉ thấy khi hover
-    expect(badge.nodes.statusLabel.hidden).toBe(false);
-    expect(badge.nodes.statusLabel.textContent).toBe('Đã thuê');
-    expect(badge.nodes.reveal.contains(badge.nodes.statusLabel)).toBe(true);
-    expect(badge.nodes.reveal.className).toContain('max-w-0');
+    // Giá của thửa đã thuê gạch ngang (không còn cho thuê)
+    expect(badge.nodes.priceLabel.className).toContain('line-through');
 
-    // Không khoe tiện ích / chip tin cậy cho thửa đã thuê
+    // Không khoe cây trồng / tiện ích cho thửa đã thuê
+    expect(badge.nodes.cropLabel.hidden).toBe(true);
     expect(badge.nodes.facIrrigation.hidden).toBe(true);
     expect(badge.nodes.facIot.hidden).toBe(true);
-    expect(badge.nodes.trustChip.hidden).toBe(true);
   });
 
   it('never assigns innerHTML anywhere in the factory source', () => {

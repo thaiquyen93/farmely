@@ -1,47 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { landsData as initialLands } from '../../data/lands';
+import { farmApi } from '../../api/farm/farmApi';
+import { formatArea } from '../../utils/polygonGeometry';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { Building2, Plus, Eye, Edit, Trash2, MapPin, Grid3X3 } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, MapPin, Grid3X3, Loader2 } from 'lucide-react';
 
 export default function Lands() {
-  const [lands, setLands] = useState(initialLands);
+  const [lands, setLands] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    fetch('/api/lands')
-      .then((res) => res.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : (data?.data || []);
-        if (list.length > 0) {
-          const mapped = list.map((l) => ({
-            id: `LND-${String(l.land_id || l.landId).padStart(3, '0')}`,
-            dbId: l.land_id || l.landId,
-            name: l.land_name || l.landName,
-            location: l.address || l.location,
-            description: l.description || 'Trang trại chuẩn VietGAP với hệ thống tưới và trạm quan trắc IoT vi khí hậu.',
-            totalArea: l.total_area ? `${l.total_area} m²` : '25,000 m² (2.5 ha)',
-            totalPlots: l.total_plots || l.totalPlots || 6,
-            activePlots: l.active_plots || 5,
-            status: 'ACTIVE',
-            createdDate: l.created_at ? l.created_at.substring(0, 10) : '2026-01-15',
-            imageUrl: l.image_url || l.imageUrl || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80',
-            soilType: l.soil_type || 'Đất phù sa bồi lắng giàu mùn hữu cơ',
-            waterSource: l.water_source || 'Hệ thống lắng lọc vi sinh kết hợp nước ngầm'
-          }));
-          setLands(mapped);
-        }
-      })
-      .catch((err) => console.error('Error fetching lands from DB:', err));
+  const load = useCallback(() => {
+    setLoading(true);
+    setLoadError('');
+    farmApi.listLands()
+      .then((rows) => setLands((rows || []).map((l) => ({
+        id: l.landId,
+        code: `LAND-${l.landId}`,
+        name: l.landName,
+        location: l.address,
+        areaM2: l.boundaryAreaM2 || 0,
+        totalArea: l.boundaryAreaM2 ? formatArea(l.boundaryAreaM2) : 'Chưa nhập GPS',
+        totalPlots: l.totalPlots || 0,
+        activePlots: l.availablePlots || 0,
+        status: l.boundary ? 'ACTIVE' : 'DRAFT'
+      }))))
+      .catch((e) => setLoadError(e.message))
+      .finally(() => setLoading(false));
   }, []);
+  useEffect(load, [load]);
 
-  const handleDelete = () => {
-    if (confirmDeleteId) {
-      setLands((prev) => prev.filter((l) => l.id !== confirmDeleteId));
+  const handleDelete = async () => {
+    if (!confirmDeleteId) return;
+    setDeleting(true);
+    try {
+      await farmApi.deleteLand(confirmDeleteId);
+      setLands((prev) => prev.filter((x) => x.id !== confirmDeleteId));
       setConfirmDeleteId(null);
+    } catch (e) {
+      setConfirmDeleteId(null);
+      setLoadError(e.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -52,14 +57,10 @@ export default function Lands() {
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-3">
-          <img
-            src={row.imageUrl}
-            alt={row.name}
-            className="w-12 h-12 rounded-xl object-cover border border-brand-border"
-          />
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-brand-border bg-brand-cream text-brand-green"><MapPin className="h-5 w-5" /></span>
           <div>
             <span className="text-[10px] font-mono text-brand-muted uppercase block">
-              {row.id}
+              {row.code}
             </span>
             <Link
               to={`/admin/master-data/lands/${row.id}`}
@@ -84,7 +85,7 @@ export default function Lands() {
     },
     {
       header: 'Tổng Diện Tích',
-      key: 'totalArea',
+      key: 'areaM2',
       sortable: true,
       render: (row) => (
         <span className="font-semibold text-brand-dark text-xs">
@@ -99,7 +100,7 @@ export default function Lands() {
       render: (row) => (
         <div className="flex items-center gap-1.5 text-xs font-semibold text-brand-dark">
           <Grid3X3 className="w-3.5 h-3.5 text-brand-green" />
-          <span>{row.activePlots} / {row.totalPlots} thửa</span>
+          <span>{row.activePlots} trống / {row.totalPlots} thửa</span>
         </div>
       )
     },
@@ -107,7 +108,7 @@ export default function Lands() {
       header: 'Trạng Thái',
       key: 'status',
       sortable: true,
-      render: (row) => <Badge variant={row.status} size="sm">{row.status}</Badge>
+      render: (row) => <Badge variant={row.status} size="sm">{row.status === 'ACTIVE' ? 'Đã có ranh giới' : 'Chưa nhập GPS'}</Badge>
     },
     {
       header: 'Hành Động',
@@ -131,7 +132,7 @@ export default function Lands() {
           <button
             onClick={() => setConfirmDeleteId(row.id)}
             className="p-1.5 text-stone-500 hover:text-rose-600 hover:bg-stone-100 rounded-lg transition-colors"
-            title="Ngừng hoạt động"
+            title="Xoá nông trại"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -162,19 +163,30 @@ export default function Lands() {
         </Link>
       </div>
 
+      {loadError && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <span>{loadError}</span>
+          <button type="button" onClick={load} className="shrink-0 font-semibold underline">Tải lại</button>
+        </div>
+      )}
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-16 text-sm text-stone-500"><Loader2 className="h-5 w-5 animate-spin" />Đang tải dữ liệu…</div>
+      ) : (
       <DataTable
         columns={columns}
         data={lands}
         searchPlaceholder="Tìm kiếm theo tên nông trại, vị trí..."
         searchField="name"
       />
+      )}
 
       <ConfirmDialog
         isOpen={!!confirmDeleteId}
         onClose={() => setConfirmDeleteId(null)}
         onConfirm={handleDelete}
-        title="Xác nhận ngừng kích hoạt Nông Trại"
-        message="Bạn có chắc muốn chuyển trạng thái nông trại này sang ngừng hoạt động không? Các thửa đất đang có hợp đồng hoạt động sẽ vẫn tiếp tục theo vòng đời."
+        loading={deleting}
+        title="Xoá nông trại"
+        message="Chỉ xoá được nông trại không còn thửa đất nào. Hành động này không thể hoàn tác."
       />
     </div>
   );

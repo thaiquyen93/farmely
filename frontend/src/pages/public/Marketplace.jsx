@@ -6,7 +6,9 @@ import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceInteractiveMap';
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
 import { FARMS_GEOJSON_DATA } from '../../data/marketplaceGisData';
-import { LogIn, Search, X, ChevronRight, ChevronLeft, Sparkles, ArrowRight } from 'lucide-react';
+import { getSafeCropById } from '../../data/safeCrops';
+import { getStatusConfig, isAvailableStatus } from '../../utils/mapTheme';
+import { LogIn, Search, X, ChevronRight, ChevronLeft, Sparkles, ArrowRight, Check, Plus } from 'lucide-react';
 
 export default function Marketplace() {
   const navigate = useNavigate();
@@ -35,7 +37,7 @@ export default function Marketplace() {
     localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(selectedCropByPlot));
   }, [selectedCropByPlot]);
 
-  // Tải dữ liệu thực tế 16 thửa đất từ API
+  // Tải dữ liệu thực tế 16 thửa đất từ PostgreSQL API (Docker / Local)
   const [dbPlots, setDbPlots] = useState([]);
   const [dbSource, setDbSource] = useState(null);
 
@@ -43,20 +45,17 @@ export default function Marketplace() {
     let active = true;
     async function loadPlotsFromDb() {
       try {
-        let res = await fetch('/api/v1/plots').catch(() => null);
-        if (!res || !res.ok) {
-          res = await fetch('/api/plots').catch(() => null);
-        }
-        if (res && res.ok) {
+        const res = await fetch('/api/v1/plots');
+        if (res.ok) {
           const json = await res.json();
           const list = Array.isArray(json) ? json : (json.data || []);
           if (list && list.length > 0 && active) {
             setDbPlots(list);
-            setDbSource('PostgreSQL DB');
+            setDbSource('PostgreSQL');
           }
         }
       } catch (err) {
-        console.warn('[Marketplace] Fetch plots fallback to GIS data:', err);
+        console.warn('[Marketplace] Fetch /api/v1/plots fallback to GIS data:', err);
       }
     }
     loadPlotsFromDb();
@@ -69,7 +68,7 @@ export default function Marketplace() {
 
     const dbMap = new Map();
     dbPlots.forEach((dp) => {
-      const codeKey = (dp.plot_code || dp.plotCode || dp.code || '').toUpperCase().replace('PLOT ', '').trim();
+      const codeKey = (dp.plot_code || dp.code || '').toUpperCase().replace('PLOT ', '').trim();
       dbMap.set(codeKey, dp);
     });
 
@@ -79,24 +78,23 @@ export default function Marketplace() {
       const match = dbMap.get(featKey);
       if (!match) return feat;
 
-      const numPrice = Number(match.price_per_period || match.pricePerPeriod || p.rentalPrice);
-      const mappedStatus = match.status === 'AVAIL' ? 'Đang trống' :
-                           (match.status === 'RENT' ? 'Đã thuê' :
-                           (match.status === 'MAINT' ? 'Bảo trì' : match.status_text || p.status));
+      const liveStatus = match.status === 'AVAIL'
+        ? 'Đang trống'
+        : (match.status === 'RENT'
+            ? 'Đã thuê'
+            : (match.status === 'MAINT' ? 'Bảo trì' : match.status_text || p.status));
 
       return {
         ...feat,
         properties: {
           ...p,
-          plot_id: match.plot_id || match.plotId || p.plot_id,
-          dbPlotId: match.plot_id || match.plotId,
-          status: mappedStatus,
+          plot_id: match.plot_id || p.plot_id,
+          status: liveStatus,
           statusCode: match.status,
-          price: match.price_text || `${numPrice.toLocaleString('vi-VN')} đ/tháng`,
-          rentalPrice: numPrice,
-          area: typeof match.area === 'number' ? `${match.area} m²` : (match.area_text || match.area || p.area),
-          imageUrl: match.image_url || match.imageUrl || p.imageUrl,
-          landName: match.land_name || match.landName || p.farmName,
+          price: match.price_text || p.price,
+          rentalPrice: match.price_per_period ? Number(match.price_per_period) : p.rentalPrice,
+          area: match.area_text || p.area,
+          sizeNumber: match.area ? Number(match.area) : p.sizeNumber,
           compatibleCrops: (match.compatible_crops && match.compatible_crops.length > 0) ? match.compatible_crops : p.compatibleCrops,
           dbSynced: true
         }
@@ -113,6 +111,7 @@ export default function Marketplace() {
   const allPlots = useMemo(() => {
     return livePlotsGeoJson.features.map((f) => f.properties);
   }, [livePlotsGeoJson]);
+
   // Danh sách chọn nhiều thửa đất trực tiếp trên Marketplace (bảo toàn qua localStorage & URL)
   const [contractSelectedPlots, setContractSelectedPlots] = useState(() => {
     try {
@@ -341,6 +340,7 @@ export default function Marketplace() {
           selectedPlot={selectedPlot}
           onSelectPlot={handleSelectPlot}
           onResetView={handleCloseDetail}
+          detailPanelOpen={showDetailPanel && Boolean(selectedPlot)}
         />
       </div>
 
@@ -363,7 +363,7 @@ export default function Marketplace() {
           </div>
         </Link>
 
-        {/* Badge Live DB Supabase */}
+        {/* Badge Live DB */}
         {dbSource && (
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50/90 border border-emerald-200/90 rounded-full shadow-2xs shrink-0">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -522,88 +522,171 @@ export default function Marketplace() {
             </button>
           </div>
 
-          {/* Danh sách thẻ thửa đất mượt mà */}
-          <div className="space-y-2 max-h-[calc(100vh-210px)] overflow-y-auto no-scrollbar pr-0.5">
+          {/* Danh sách thẻ thửa đất — mỗi thẻ: mã + tên + giá, rồi các chip thông tin */}
+          <div className="space-y-2 max-h-[calc(100vh-210px)] overflow-y-auto no-scrollbar -mx-1 px-1 py-0.5">
+            {filteredPlots.length === 0 && (
+              <div className="py-10 text-center">
+                <p className="text-xs font-semibold text-slate-600">Không tìm thấy thửa đất phù hợp</p>
+                <p className="mt-1 text-[11px] text-slate-400">Thử đổi từ khoá hoặc bộ lọc trạng thái</p>
+              </div>
+            )}
+
             {filteredPlots.map((p) => {
-              const isVacant = p.status === 'Đang trống' || p.status === 'AVAILABLE';
+              const statusConfig = getStatusConfig(p.status);
+              const isVacant = isAvailableStatus(p.status);
               const isSelected = selectedPlot?.id === p.id;
-              const displayPrice = p.price || (p.rentalPrice ? `${p.rentalPrice.toLocaleString('vi-VN')} đ` : '1.200.000 đ');
+              const inContract = isPlotSelectedForContract(p);
+              const displayPrice =
+                p.price || (p.rentalPrice ? `${p.rentalPrice.toLocaleString('vi-VN')} đ` : '1.200.000 đ');
+              const chosenCrop = getSafeCropById(selectedCropByPlot[p.id]);
+              const cropLabel = chosenCrop
+                ? `${chosenCrop.icon} ${chosenCrop.name}`
+                : Array.isArray(p.crops) && p.crops.length > 0
+                  ? p.crops[0]
+                  : '';
+              const facilities = p.facilities || {};
+              const facilityIcons = [
+                facilities.irrigation && ['💧', 'Tưới tự động'],
+                facilities.iot && ['📡', 'Cảm biến IoT'],
+                facilities.organicSoil && ['🌱', 'Đất hữu cơ']
+              ].filter(Boolean);
+
               return (
                 <div
                   id={`plot-card-${p.id}`}
                   key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                  aria-label={`${p.id}, ${p.name || ''}, ${p.area}, ${displayPrice} mỗi tháng, ${statusConfig.label}`}
                   onClick={() => handleSelectPlot(p)}
-                  className={`group relative rounded-2xl border p-3 transition-all duration-300 ease-out cursor-pointer active:scale-[0.98] ${
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSelectPlot(p);
+                    }
+                  }}
+                  className={`group relative overflow-hidden rounded-2xl border pl-3.5 pr-3 py-2.5 cursor-pointer outline-none transition-all duration-300 ease-out focus-visible:ring-2 focus-visible:ring-emerald-500/60 ${
                     isSelected
-                      ? 'border-emerald-500 bg-gradient-to-r from-emerald-50/90 via-emerald-50/40 to-white/95 shadow-[0_6px_20px_rgba(16,185,129,0.18)] ring-2 ring-emerald-400/30 scale-[1.01]'
-                      : 'border-slate-100/90 bg-white/90 hover:border-emerald-300/80 hover:bg-emerald-50/30 hover:shadow-md hover:-translate-y-0.5 hover:scale-[1.008]'
+                      ? 'border-emerald-400 bg-gradient-to-br from-emerald-50 via-white to-white shadow-[0_10px_28px_-10px_rgba(16,185,129,0.55)] ring-1 ring-emerald-300/60'
+                      : isVacant
+                        ? 'border-slate-200/70 bg-white hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md'
+                        : 'border-slate-200/60 bg-slate-50/80 hover:border-slate-300 hover:bg-white'
                   }`}
                 >
-                  {/* Thanh chỉ báo phát sáng góc trái khi đang chọn */}
-                  {isSelected && (
-                    <div className="absolute left-0 top-2 bottom-2 w-1.5 rounded-r-full bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-sm shadow-emerald-500/50" />
-                  )}
+                  {/* Dải màu trạng thái bên trái — đậm hơn khi đang chọn */}
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-y-0 left-0 transition-all duration-300 ${
+                      isSelected ? 'w-1.5' : 'w-1 opacity-70 group-hover:opacity-100'
+                    }`}
+                    style={{ backgroundColor: statusConfig.color }}
+                  />
 
-                  <div className="flex min-w-0 items-center justify-between gap-2 pl-1">
-                    <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
-                      <span
-                        className={`w-2 h-2 rounded-full shrink-0 transition-transform duration-300 group-hover:scale-125 ${
-                          isVacant
-                            ? 'bg-emerald-500 ring-2 ring-emerald-200'
-                            : 'bg-slate-400'
-                        }`}
-                      />
-                      <span className={`whitespace-nowrap font-black text-xs tracking-tight transition-colors ${
-                        isSelected ? 'text-emerald-950 font-extrabold' : 'text-slate-800'
-                      }`}>
-                        {p.id}
-                      </span>
-                      <span className="whitespace-nowrap text-[10px] font-semibold text-slate-500 bg-slate-100/90 px-1.5 py-0.5 rounded-md">
-                        {p.area}
-                      </span>
+                  {/* Hàng 1: mã + trạng thái + tên ......... giá */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`text-[13px] font-extrabold leading-none tracking-tight ${
+                            isSelected ? 'text-emerald-900' : isVacant ? 'text-slate-900' : 'text-slate-500'
+                          }`}
+                        >
+                          {p.id}
+                        </span>
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-none"
+                          style={{
+                            color: isVacant ? '#047857' : statusConfig.color,
+                            backgroundColor: isVacant ? 'rgba(16,185,129,0.12)' : 'rgba(148,163,184,0.18)'
+                          }}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${isVacant && !isSelected ? 'animate-pulse' : ''}`}
+                            style={{ backgroundColor: statusConfig.color }}
+                          />
+                          {statusConfig.label}
+                        </span>
+                      </div>
+                      {p.name && (
+                        <p
+                          className={`mt-1 truncate text-[11px] leading-tight ${isVacant ? 'text-slate-500' : 'text-slate-400'}`}
+                          title={p.name}
+                        >
+                          {p.name}
+                        </p>
+                      )}
                     </div>
-                    <span
-                      className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold shadow-2xs transition-all duration-300 ${
-                        isVacant
-                          ? isSelected
-                            ? 'bg-emerald-600 text-white ring-2 ring-emerald-300/60 shadow-xs'
-                            : 'bg-emerald-100/90 text-emerald-800 border border-emerald-200/80 group-hover:bg-emerald-200/80'
-                          : 'bg-slate-100 text-slate-500 border border-slate-200/70'
-                      }`}
-                    >
+
+                    <div className="shrink-0 text-right">
                       <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          isVacant
-                            ? isSelected
-                              ? 'bg-white'
-                              : 'bg-emerald-500 animate-pulse'
-                            : 'bg-slate-400'
+                        className={`block whitespace-nowrap text-[13px] font-extrabold leading-none tracking-tight ${
+                          isVacant ? 'text-emerald-700' : 'text-slate-400 line-through decoration-slate-300'
                         }`}
-                      />
-                      {isVacant ? 'Trống' : 'Đã thuê'}
-                    </span>
+                      >
+                        {displayPrice}
+                      </span>
+                      <span className="mt-1 block text-[10px] leading-none text-slate-400">/ tháng</span>
+                    </div>
                   </div>
 
-                  <div className="mt-2 flex items-center justify-between gap-2 pl-1">
-                    <span className="whitespace-nowrap text-[11px] font-black tracking-tight text-emerald-700">
-                      {displayPrice}<span className="text-[9px] font-normal text-slate-400">/tháng</span>
-                    </span>
-                    {isVacant && (
+                  {/* Hàng 2: chip diện tích, cây trồng, tiện ích ......... nút chọn */}
+                  <div className="mt-2.5 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+                      <span className="shrink-0 whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                        {p.area}
+                      </span>
+                      {cropLabel && (
+                        <span
+                          className={`min-w-0 truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
+                            chosenCrop ? 'bg-lime-50 text-lime-800 ring-1 ring-lime-200' : 'bg-slate-100 text-slate-600'
+                          }`}
+                          title={chosenCrop ? `Đã chọn: ${chosenCrop.name} — ${chosenCrop.variety}` : cropLabel}
+                        >
+                          {cropLabel}
+                        </span>
+                      )}
+                      {isVacant && facilityIcons.length > 0 && (
+                        <span
+                          className="shrink-0 rounded-md bg-sky-50 px-1.5 py-[3px] text-[10px] leading-none"
+                          title={facilityIcons.map(([, label]) => label).join(' • ')}
+                        >
+                          {facilityIcons.map(([icon]) => icon).join('')}
+                        </span>
+                      )}
+                    </div>
+
+                    {isVacant ? (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleToggleSelectPlotForContract(p);
                         }}
-                        className={`flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all ${
-                          isPlotSelectedForContract(p)
-                            ? 'bg-emerald-600 text-white shadow-xs'
-                            : 'border border-emerald-200/80 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                        onKeyDown={(e) => e.stopPropagation()}
+                        aria-pressed={inContract}
+                        aria-label={inContract ? `Bỏ chọn thửa ${p.id}` : `Chọn thửa ${p.id}`}
+                        title={inContract ? 'Đã chọn (bấm để bỏ)' : 'Chọn thửa đất này'}
+                        className={`inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-[10px] font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 ${
+                          inContract
+                            ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30 hover:bg-emerald-700'
+                            : 'border border-emerald-200 bg-white text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50'
                         }`}
-                        title={isPlotSelectedForContract(p) ? 'Đã chọn (bấm để bỏ)' : 'Chọn thửa đất này'}
                       >
-                        {isPlotSelectedForContract(p) ? 'Đã chọn' : 'Chọn'}
+                        {inContract ? (
+                          <>
+                            <Check className="h-3 w-3 stroke-[3]" />
+                            Đã chọn
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-3 w-3 stroke-[2.5]" />
+                            Chọn
+                          </>
+                        )}
                       </button>
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-colors group-hover:text-slate-500" />
                     )}
                   </div>
                 </div>

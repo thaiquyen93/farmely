@@ -20,4 +20,5 @@ public class PlotSummaryResponse {
     private PlotStatus status;
     private Boolean isPublished;
     private String imageUrl;
+    private java.util.List<java.util.List<Double>> boundary;
 }
