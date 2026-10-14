@@ -18,7 +18,7 @@ import {
 
 export default function ProcessTemplateDetail() {
   const { id } = useParams();
-  const template = processTemplatesData.find((t) => t.id === id) || processTemplatesData[0];
+  const template = processTemplatesData.find((t) => String(t.id) === String(id) || t.code === id || t.id === `TMPL-00${id}`) || processTemplatesData[0];
 
   return (
     <div className="space-y-8">
