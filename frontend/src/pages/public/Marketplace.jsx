@@ -331,11 +331,12 @@ export default function Marketplace() {
     const allSelected = isPlotSelectedForContract(plot)
       ? contractSelectedPlots
       : contractSelectedPlots.length > 0
-      ? [...contractSelectedPlots, plot]
+      ? [...contractSelectedPlots.filter((p) => String(p.id) !== String(plot.id) && String(p.code) !== String(plot.code)), plot]
       : [plot];
 
     const firstPlot = allSelected[0];
-    const plotCodes = allSelected.map((p) => p.code || p.id).join(',');
+    const uniqueCodes = [...new Set(allSelected.map((p) => p.code || p.id))];
+    const plotCodes = uniqueCodes.join(',');
 
     if (!isAuthenticated) {
       setPlotToBook(firstPlot);
@@ -350,11 +351,24 @@ export default function Marketplace() {
     const firstPlot = contractSelectedPlots[0];
     const plotCodes = contractSelectedPlots.map((p) => p.code || p.id).join(',');
 
+    if (selectedCropId) {
+      try {
+        const current = JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
+        contractSelectedPlots.forEach((p) => {
+          current[p.id] = selectedCropId;
+          if (p.code) current[p.code] = selectedCropId;
+        });
+        localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(current));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     if (!isAuthenticated) {
       setPlotToBook(firstPlot);
       setShowAuthModal(true);
     } else {
-      navigate(`/marketplace/plot/${firstPlot.id || firstPlot.code}/book?plots=${plotCodes}`);
+      navigate(`/marketplace/plot/${firstPlot.id || firstPlot.code}/book?plots=${plotCodes}${selectedCropId ? `&cropId=${selectedCropId}` : ''}`);
     }
   };
 
