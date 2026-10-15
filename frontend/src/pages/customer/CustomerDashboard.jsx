@@ -948,7 +948,8 @@ export default function CustomerDashboard() {
             ['Dịch vụ canh tác', ShoppingBag, 'services'],
             ['Nhật ký nông trại', BookOpen, 'diary'],
             ['Quy trình canh tác chuẩn', ClipboardList, 'process'],
-            ['Kết quả thu hoạch & nghiệm thu', Apple, 'harvest']
+            ['Kết quả thu hoạch & nghiệm thu', Apple, 'harvest'],
+            ['Hợp đồng thuê đất', FileText, 'contracts']
           ].map(([label, Icon, id]) => {
             const isActive = id === 'overview' ? (activeTab === 'yards' || Boolean(selectedPlotId)) : (!selectedPlotId && activeTab === id);
             return (
