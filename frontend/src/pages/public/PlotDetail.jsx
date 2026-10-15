@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import { farmApi } from '../../api/farm/farmApi';
+import { plotsData } from '../../data/plots';
 import { varietiesData } from '../../data/varieties';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
@@ -98,6 +99,7 @@ export default function PlotDetail() {
       navigate(`/marketplace/plot/${plot.code || plot.id}/book`);
     }
   };
+  const handleStartBooking = handleBookPlotClick;
 
   const compatibleVarietiesList = plot
     ? varietiesData.filter((v) =>
@@ -519,7 +521,7 @@ export default function PlotDetail() {
       >
         <div className="space-y-4">
           <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
-            <p className="font-bold">⏱ Thời gian giữ chỗ: 15 Phút (BR08)</p>
+            <p className="font-bold">⏱ Thời gian giữ chỗ: 15 Phút</p>
             <p>Sau khi nhấn Tiếp Tục, thửa đất sẽ được khóa giữ chỗ tạm thời và chuyển sang trạng thái PAYMENT_PENDING (+10 phút Grace Period khi nhập mã thanh toán).</p>
           </div>
 

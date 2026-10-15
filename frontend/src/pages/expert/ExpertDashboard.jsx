@@ -7,6 +7,7 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
+import { apiFetch, unwrapData } from '../../api/apiClient';
 import {
   Sprout,
   Wheat,
@@ -50,6 +51,7 @@ export default function ExpertDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'issues' | 'templates' | 'compatibility' | 'knowledge'
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [monitoredPlots, setMonitoredPlots] = useState([]);
 
   const isExpertUser = user?.role === 'EXPERT';
   const expertSenderName = isExpertUser && user?.fullName ? user.fullName : 'ThS. Nguyễn Hoàng Nam';
@@ -142,35 +144,8 @@ export default function ExpertDashboard() {
     }, 50);
   };
 
-  // 2. Field Issue Reports from Workers (UC12 / UC48)
-  const [fieldIssues, setFieldIssues] = useState([
-    {
-      id: 'ISS-901',
-      workerName: 'Trần Văn Lực (CVLĐ)',
-      plotCode: 'P-03',
-      plotName: 'Thửa Rừng Sác C3',
-      urgency: 'HIGH', // 'NORMAL' | 'HIGH' | 'CRITICAL'
-      issueType: 'Phát hiện bọ trĩ mặt dưới lá non',
-      description: 'Lá dưa leo baby có hiện tượng quăn mép và chấm bạc li ti. Nghi ngờ bị bọ trĩ tấn công do 2 ngày nay trời hanh khô.',
-      reportedTime: 'Sáng nay • 08:45',
-      photoUrl: '/images/moc-chau-2811.jpg',
-      diagnosis: '',
-      status: 'PENDING'
-    },
-    {
-      id: 'ISS-889',
-      workerName: 'Nguyễn Văn Đạt (CVLĐ)',
-      plotCode: 'P-01',
-      plotName: 'Thửa Sen Vàng A1',
-      urgency: 'NORMAL',
-      issueType: 'Đầu béc tưới số 3 bị nghẹt cặn',
-      description: 'Đã súc rửa màng lọc và thay béc phun sương mới. Độ ẩm đất đã cân bằng 68%.',
-      reportedTime: 'Hôm qua • 16:00',
-      photoUrl: '/images/Mucangchai3.jpg',
-      diagnosis: 'Chuyên gia Nam duyệt: Đạt yêu cầu kỹ thuật.',
-      status: 'RESOLVED'
-    }
-  ]);
+  // Field issue reports from workers.
+  const [fieldIssues, setFieldIssues] = useState([]);
 
   const [selectedIssueToDiagnose, setSelectedIssueToDiagnose] = useState(null);
   const [diagnosisAdvice, setDiagnosisAdvice] = useState('');
@@ -207,17 +182,23 @@ export default function ExpertDashboard() {
     e.preventDefault();
     if (!selectedIssueToDiagnose || !diagnosisAdvice.trim()) return;
 
-    const issueId = selectedIssueToDiagnose.issueId || parseInt(String(selectedIssueToDiagnose.id).replace(/\D/g, ''), 10) || 1;
+    const targetId = selectedIssueToDiagnose.apiId || selectedIssueToDiagnose.issueId || parseInt(String(selectedIssueToDiagnose.id).replace(/\D/g, ''), 10) || 1;
+    const expertId = Number(String(user?.userId || user?.id || '2').replace(/\D/g, '')) || 2;
     try {
-      await fetch(`/api/issue-reports/${issueId}`, {
+      await fetch(`/api/issues/${targetId}/diagnose`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ diagnosis: diagnosisAdvice })
+        body: JSON.stringify({ handledBy: expertId, resolutionNotes: diagnosisAdvice, diagnosis: diagnosisAdvice, markResolved: true })
+      }).catch(async () => {
+        await fetch(`/api/issue-reports/${targetId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ diagnosis: diagnosisAdvice })
+        });
       });
     } catch (err) {
       console.warn('Could not update diagnosis to DB:', err);
     }
-
     setFieldIssues((prev) =>
       prev.map((i) =>
         i.id === selectedIssueToDiagnose.id
@@ -229,86 +210,8 @@ export default function ExpertDashboard() {
     setDiagnosisAdvice('');
   };
 
-  // 3. VietGAP Process Templates State (UC09 / Screen 43)
-  const [processTemplates, setProcessTemplates] = useState([
-    {
-      id: 'TMPL-TOMATO-01',
-      code: 'TMPL-TOMATO-01',
-      version: 'v2.3 (Chuẩn VietGAP)',
-      name: 'Phác Đồ Canh Tác Cà Chua Bi Cherry F1',
-      variety: 'Cà chua bi Cherry F1',
-      durationDays: 65,
-      stagesCount: 5,
-      stepsCount: 6,
-      status: 'ACTIVE',
-      description: 'Quy trình chuẩn hóa kiểm soát dưỡng chất vi sinh và tỉa chồi nách, tối ưu độ ngọt brix >= 9.0.',
-      steps: [
-        { day: 1, name: 'Gieo ươm bầu & Kích rễ sinh học', type: 'Ủ GIỐNG & GIEO', details: 'Ngâm hạt nước ấm 54°C (3 sôi 2 lạnh) trong 4 giờ. Tra hạt vào khay 84 lỗ.' },
-        { day: 15, name: 'Xuống giống ra luống & Tưới đẫm Trichoderma', type: 'TRỒNG CÂY', details: 'Mật độ 2.500 cây/1000m2. Tưới đẫm dung dịch Trichoderma ngừa nấm rễ.' },
-        { day: 25, name: 'Bấm tỉa chồi nách & Lên giàn chữ A', type: 'CẮT TỈA', details: 'Cố định thân chính vào dây leo giàn, bấm sạch chồi nách dưới 20cm.' },
-        { day: 40, name: 'Bón thúc đợt 2: Dịch đạm cá & Trùn quế', type: 'BÓN PHÂN', details: 'Pha dịch cá vi sinh 1:500 tưới gốc. Rải 300g trùn quế quanh tán.' },
-        { day: 60, name: 'Cách ly an toàn VietGAP 5 ngày', type: 'CÁCH LY', details: 'Ngưng hoàn toàn phân bón, chỉ duy trì tưới ẩm nước sạch mỗi sáng.' },
-        { day: 65, name: 'Thu hoạch quả chín bói đợt 1', type: 'THU HOẠCH', details: 'Hái quả lúc sáng sớm khi vỏ đỏ đều 85%, xếp khay xốp có lót giấy mềm.' }
-      ]
-    },
-    {
-      id: 'TMPL-LETTUCE-02',
-      code: 'TMPL-LETTUCE-02',
-      version: 'v1.8 (Chuẩn VietGAP)',
-      name: 'Phác Đồ Xà Lách Romaine Hữu Cơ',
-      variety: 'Xà lách Romaine VietGAP',
-      durationDays: 35,
-      stagesCount: 3,
-      stepsCount: 5,
-      status: 'ACTIVE',
-      description: 'Quy trình rau ăn lá ngắn ngày, bổ sung đạm hữu cơ và cách ly vi sinh nghiêm ngặt 5 ngày.',
-      steps: [
-        { day: 1, name: 'Làm đất & Bón lót phân trùn quế', type: 'LÀM ĐẤT', details: 'Cày tơi xốp, bón lót 1.5kg phân trùn quế/m2, lên luống cao 25cm.' },
-        { day: 7, name: 'Trồng cây con 3 lá thật', type: 'TRỒNG CÂY', details: 'Khoảng cách cây cách cây 20cm, hàng cách hàng 25cm.' },
-        { day: 18, name: 'Bón thúc đạm đậu nành lên men', type: 'BÓN PHÂN', details: 'Tưới dung dịch đạm đậu tương ngâm ủ EM tỉ lệ 1:300.' },
-        { day: 30, name: 'Ngưng dinh dưỡng & Cách ly an toàn', type: 'CÁCH LY', details: 'Cách ly hoàn toàn trước thu hoạch, chỉ tưới nước sạch.' },
-        { day: 35, name: 'Thu hoạch nhổ tỉa sáng sớm', type: 'THU HOẠCH', details: 'Thu hoạch trước 8:00 sáng để giữ độ giòn và ngọt tự nhiên.' }
-      ]
-    },
-    {
-      id: 'TMPL-CUCUMBER-03',
-      code: 'TMPL-CUCUMBER-03',
-      version: 'v2.0 (Chuẩn VietGAP)',
-      name: 'Phác Đồ Dưa Leo Baby Đà Lạt F1',
-      variety: 'Dưa leo Baby F1',
-      durationDays: 45,
-      stagesCount: 4,
-      stepsCount: 5,
-      status: 'ACTIVE',
-      description: 'Trồng giàn lưới nhà màng sinh thái, kết hợp thả ong mật tự nhiên thụ phấn.',
-      steps: [
-        { day: 1, name: 'Gieo hạt trực tiếp vào luống', type: 'GIEO HẠT', details: 'Tra hạt sâu 1.5cm, tưới ẩm 70% kích mầm.' },
-        { day: 14, name: 'Cột dây leo giàn & Tỉa nhánh phụ', type: 'CHĂM SÓC', details: 'Tỉa bỏ hoa đực và nhánh phụ từ mắt thứ 5 trở xuống.' },
-        { day: 25, name: 'Thả đàn ong mật thụ phấn hoa', type: 'SINH THÁI', details: 'Thả thùng ong mật trong nhà lưới để thụ phấn tự nhiên.' },
-        { day: 40, name: 'Cách ly trước thu hái 5 ngày', type: 'CÁCH LY', details: 'Ngưng tưới chế phẩm sinh học.' },
-        { day: 45, name: 'Thu hoạch quả non baby 10-12cm', type: 'THU HOẠCH', details: 'Cắt cuống bằng kéo sạch, thu hái hàng ngày.' }
-      ]
-    },
-    {
-      id: 'TMPL-STRAW-04',
-      code: 'TMPL-STRAW-04',
-      version: 'v1.5 (Chuẩn VietGAP)',
-      name: 'Phác Đồ Dâu Tây Hana Chịu Nhiệt',
-      variety: 'Dâu tây Hana Nhật Bản',
-      durationDays: 90,
-      stagesCount: 5,
-      stepsCount: 5,
-      status: 'ACTIVE',
-      description: 'Trồng trên giá thể xơ dừa phối trùn quế, bổ sung vi lượng Kali hữu cơ.',
-      steps: [
-        { day: 1, name: 'Vào bầu giá thể & Kích rễ ngó', type: 'XUỐNG GIỐNG', details: 'Giá thể xơ dừa xử lý chát kết hợp trùn quế 3:1.' },
-        { day: 30, name: 'Ngắt hoa bói đợt 1 dưỡng cây', type: 'TỈA HOA', details: 'Ngắt bỏ lứa hoa đầu để bộ rễ phát triển sung mãn.' },
-        { day: 55, name: 'Bổ sung dịch chuối trứng lên men', type: 'BÓN PHÂN', details: 'Bổ sung Kali hữu cơ giúp hoa đậu sai và quả mọng đỏ.' },
-        { day: 85, name: 'Cách ly VietGAP 5 ngày', type: 'CÁCH LY', details: 'Duy trì tưới nhỏ giọt nước tinh khiết.' },
-        { day: 90, name: 'Thu hoạch quả chín bói đợt 1', type: 'THU HOẠCH', details: 'Hái quả chín 90%, lót rơm hoặc mút xốp.' }
-      ]
-    }
-  ]);
+  // VietGAP process templates loaded from the knowledge service.
+  const [processTemplates, setProcessTemplates] = useState([]);
 
   const [viewTemplateDetail, setViewTemplateDetail] = useState(null);
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
@@ -321,46 +224,7 @@ export default function ExpertDashboard() {
   });
 
   // 4. Plot-Crop Compatibility Matrix State (Screen 42)
-  const [compatibilityList, setCompatibilityList] = useState([
-    {
-      id: 'COMP-01',
-      soilType: 'Đất phù sa bồi lắng ven sông (Củ Chi)',
-      phRange: 'pH 6.0 – 6.8',
-      moistureProfile: 'Thoát nước tốt, giàu mùn hữu cơ',
-      compatibleCrops: [
-        { crop: 'Cà chua bi Cherry F1', rating: '98%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Xà lách Romaine VietGAP', rating: '100%', status: 'HOÀN HẢO' },
-        { crop: 'Dưa leo Baby Đà Lạt', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Rau mồng tơi hữu cơ', rating: '96%', status: 'RẤT THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-01 (Sen Vàng A1), P-02 (Mộc Châu B2)'
-    },
-    {
-      id: 'COMP-02',
-      soilType: 'Đất đỏ Bazan cao nguyên (Mộc Châu)',
-      phRange: 'pH 5.5 – 6.5',
-      moistureProfile: 'Giữ ẩm trung bình, giàu khoáng vi lượng',
-      compatibleCrops: [
-        { crop: 'Dâu tây Hana chịu nhiệt', rating: '96%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cải xoăn Kale xoăn', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cà rốt baby giòn ngọt', rating: '92%', status: 'THÍCH HỢP' },
-        { crop: 'Xà lách búp Mỹ', rating: '90%', status: 'THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-03 (Rừng Sác C3), P-04 (Đất Đỏ D4)'
-    },
-    {
-      id: 'COMP-03',
-      soilType: 'Đất cát pha phối giá thể hữu cơ (Đà Lạt)',
-      phRange: 'pH 6.2 – 7.0',
-      moistureProfile: 'Thoát nước cực nhanh, tơi xốp tối ưu',
-      compatibleCrops: [
-        { crop: 'Ớt chuông Sweet Pepper', rating: '97%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cần tây lá giòn', rating: '94%', status: 'THÍCH HỢP' },
-        { crop: 'Bông cải xanh Baby Broccolini', rating: '92%', status: 'THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-05 (Happy Valley E5), P-06 (An Nhiên F6)'
-    }
-  ]);
+  const [compatibilityList, setCompatibilityList] = useState([]);
 
   const [isAddCompatibilityOpen, setIsAddCompatibilityOpen] = useState(false);
   const [newCompData, setNewCompData] = useState({
@@ -371,48 +235,7 @@ export default function ExpertDashboard() {
   });
 
   // 5. Knowledge Library & AI RAG State (Screen 45)
-  const [knowledgeDocs, setKnowledgeDocs] = useState([
-    {
-      id: 'DOC-AGRI-01',
-      title: 'Cẩm Nang Phòng Trừ Bọ Trĩ & Rầy Mềm Bằng Thảo Mộc Gừng Ớt Tỏi',
-      category: 'Bảo Vệ Thực Vật Sinh Học',
-      author: 'ThS. Nguyễn Hoàng Nam',
-      updatedAt: '05/10/2026',
-      pages: 12,
-      aiRagStatus: 'ĐÃ NẠP RAG AI',
-      summary: 'Quy trình chiết xuất và tỉ lệ pha loãng 1:200 chế phẩm gừng ớt tỏi sinh học, cơ chế phá vỡ màng chitin của côn trùng chích hút mà không để lại dư lượng độc hại.'
-    },
-    {
-      id: 'DOC-AGRI-02',
-      title: 'Quy Chuẩn Cách Ly An Toàn VietGAP Trước Ngày Thu Hoạch Rau Ăn Lá',
-      category: 'Tiêu Chuẩn VietGAP',
-      author: 'ThS. Nguyễn Hoàng Nam',
-      updatedAt: '01/10/2026',
-      pages: 8,
-      aiRagStatus: 'ĐÃ NẠP RAG AI',
-      summary: 'Quy định mốc cách ly 5-7 ngày đối với phân bón hữu cơ và chế phẩm sinh học, kỹ thuật tưới rửa lá bằng nước lọc sạch để giữ độ ngọt giòn trước khi thu hái.'
-    },
-    {
-      id: 'DOC-AGRI-03',
-      title: 'Kỹ Thuật Điều Tiết Ẩm Độ Giá Thể Và Dinh Dưỡng Cho Cà Chua Bi Cherry',
-      category: 'Kỹ Thuật Trồng Nhà Màng',
-      author: 'ThS. Nguyễn Hoàng Nam',
-      updatedAt: '28/09/2026',
-      pages: 16,
-      aiRagStatus: 'ĐÃ NẠP RAG AI',
-      summary: 'Biện pháp khắc phục hiện tượng vàng lá sinh lý tầng chân, điều chỉnh chu kỳ tưới béc phun sương khi độ ẩm vượt 70% và phác đồ bổ sung đạm cá vi sinh.'
-    },
-    {
-      id: 'DOC-AGRI-04',
-      title: 'Sổ Tay Thụ Phấn Tự Nhiên Bằng Ong Mật Sinh Thái Trong Nhà Màng',
-      category: 'Hệ Sinh Thái Nông Trại',
-      author: 'ThS. Nguyễn Hoàng Nam',
-      updatedAt: '15/09/2026',
-      pages: 10,
-      aiRagStatus: 'ĐÃ NẠP RAG AI',
-      summary: 'Hướng dẫn đặt tổ ong mật Ý tại góc nhà lưới, kiểm soát nhiệt độ 22-30°C để ong hoạt động tối ưu, tăng tỉ lệ đậu quả dưa leo baby lên 95%.'
-    }
-  ]);
+  const [knowledgeDocs, setKnowledgeDocs] = useState([]);
 
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
   const [selectedDocToView, setSelectedDocToView] = useState(null);
@@ -422,69 +245,208 @@ export default function ExpertDashboard() {
     summary: '',
     pages: 10
   });
+  const [dataError, setDataError] = useState('');
+
+  const loadExpertData = async () => {
+    try {
+      const [issuePayload, templatePayload, plotPayload, documentPayload] = await Promise.all([
+        apiFetch('/api/issues'),
+        apiFetch('/api/templates'),
+        apiFetch('/api/plots'),
+        apiFetch('/api/v1/knowledge-documents')
+      ]);
+      const issues = unwrapData(issuePayload) || [];
+      const templates = unwrapData(templatePayload) || [];
+      const plots = unwrapData(plotPayload) || [];
+      const documents = unwrapData(documentPayload) || [];
+
+      setFieldIssues(issues.map((issue) => ({
+        id: issue.issueId,
+        issueCode: issue.issueCode,
+        workerName: issue.reporterName || `Người báo #${issue.reportedBy}`,
+        plotCode: issue.plotCode || '',
+        plotName: issue.plotName || 'Chưa xác định thửa',
+        urgency: String(issue.description || '').includes('[KHẨN CẤP]') ? 'HIGH' : 'NORMAL',
+        issueType: issue.issueType,
+        description: issue.description,
+        reportedTime: issue.createdAt ? new Date(issue.createdAt).toLocaleString('vi-VN') : '',
+        photoUrl: issue.imageUrl,
+        diagnosis: issue.resolutionNotes || '',
+        status: issue.status || issue.displayStatus
+      })));
+      setProcessTemplates(templates.map((template) => ({
+        id: template.templateId,
+        code: `TMPL-${String(template.templateId).padStart(3, '0')}`,
+        version: template.version || 'v1.0',
+        name: `Quy trình ${template.varietyName || 'canh tác VietGAP'}`,
+        variety: template.varietyName || `Giống #${template.varietyId}`,
+        durationDays: Math.max(0, ...(template.steps || []).map((step) => Number(step.dayOffset) || 0)),
+        stagesCount: template.steps?.length || 0,
+        stepsCount: template.steps?.length || 0,
+        status: 'ACTIVE',
+        description: `Quy trình được lưu trong cơ sở dữ liệu, phiên bản ${template.version || 'v1.0'}.`,
+        steps: (template.steps || []).map((step) => ({
+          day: step.dayOffset,
+          name: step.stepName,
+          type: `BƯỚC ${step.stepOrder}`,
+          details: step.description || step.materialsNeeded || ''
+        }))
+      })));
+      setCompatibilityList(plots.map((plot) => ({
+        id: plot.plotId,
+        soilType: plot.landName || 'Thửa đất Farmely',
+        phRange: plot.landAddress || 'Chưa cập nhật địa chỉ',
+        moistureProfile: `${plot.area || 0} m² • trạng thái ${plot.status || 'chưa cập nhật'}`,
+        compatibleCrops: (plot.compatibleVarieties || []).map((variety) => ({
+          crop: variety.varietyName || variety.name,
+          rating: 'Đã duyệt',
+          status: 'PHÙ HỢP'
+        })),
+        plotsApplied: `${plot.plotCode}${plot.landName ? ` (${plot.landName})` : ''}`
+      })));
+      setKnowledgeDocs(documents.map((document) => ({
+        id: document.documentId || document.id,
+        title: document.title,
+        category: document.documentType || 'Tài liệu canh tác',
+        author: document.author || 'Chuyên gia Farmely',
+        updatedAt: document.uploadedDate || (document.createdAt ? new Date(document.createdAt).toLocaleDateString('vi-VN') : ''),
+        pages: document.sectionsCount || 1,
+        aiRagStatus: document.isIndexedForRAG ? 'ĐÃ NẠP RAG AI' : 'CHƯA NẠP RAG AI',
+        summary: document.description || document.content || ''
+      })));
+      setDataError('');
+    } catch (error) {
+      setFieldIssues([]);
+      setProcessTemplates([]);
+      setCompatibilityList([]);
+      setKnowledgeDocs([]);
+      setDataError(error.message || 'Không thể đồng bộ dữ liệu chuyên gia.');
+    }
+  };
+
+  useEffect(() => {
+    loadExpertData();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const unwrap = (body) => Array.isArray(body) ? body : (body?.data || []);
+    const readJson = (url) => fetch(url).then((response) => response.ok ? response.json() : ({ data: [] }));
+    Promise.all([
+      readJson('/api/issues'),
+      readJson('/api/templates'),
+      readJson('/api/knowledge-documents'),
+      readJson('/api/plots/marketplace'),
+      readJson('/api/compatibility')
+    ]).then(([issueBody, templateBody, documentBody, plotBody, compatibilityBody]) => {
+      if (cancelled) return;
+      setFieldIssues(unwrap(issueBody).map((issue) => ({
+        id: issue.issueCode || `ISSUE-${issue.issueId}`,
+        apiId: issue.issueId,
+        workerName: issue.reporterName || 'Nhân viên hiện trường',
+        plotCode: issue.plotCode || 'Chưa có mã thửa',
+        plotName: issue.plotName || issue.plotCode || 'Chưa có tên thửa',
+        urgency: issue.urgency || 'NORMAL',
+        issueType: issue.issueType || 'Sự cố hiện trường',
+        description: issue.description || 'Chưa có mô tả.',
+        reportedTime: issue.createdAt ? new Date(issue.createdAt).toLocaleString('vi-VN') : 'Chưa có thời gian',
+        photoUrl: issue.imageUrl || '',
+        diagnosis: issue.resolutionNotes || '',
+        status: issue.displayStatus === 'RESOLVED' || issue.status === 'RESOLVED' ? 'RESOLVED' : 'PENDING'
+      })));
+      setProcessTemplates(unwrap(templateBody).map((template) => {
+        const steps = (template.steps || []).map((step) => ({
+          day: step.dayOffset ?? step.stepOrder ?? 0,
+          name: step.stepName || 'Bước canh tác',
+          type: 'VIETGAP',
+          details: step.description || step.materialsNeeded || 'Chưa có mô tả.'
+        }));
+        return {
+          id: template.templateId,
+          code: `QT-${template.templateId}`,
+          version: template.version || 'Chưa có phiên bản',
+          name: `Quy trình ${template.varietyName || 'canh tác VietGAP'}`,
+          variety: template.varietyName || 'Chưa có giống cây',
+          durationDays: steps.reduce((max, step) => Math.max(max, Number(step.day) || 0), 0),
+          stagesCount: steps.length,
+          stepsCount: steps.length,
+          status: 'ACTIVE',
+          description: `Quy trình được cấu hình trên hệ thống cho ${template.varietyName || 'giống cây này'}.`,
+          steps
+        };
+      }));
+      setKnowledgeDocs(unwrap(documentBody).map((doc) => ({
+        id: doc.id || doc.documentId,
+        title: doc.title,
+        category: doc.documentType || 'Tài liệu nông nghiệp',
+        author: doc.author || 'Farmely',
+        updatedAt: doc.uploadedDate || (doc.createdAt ? new Date(doc.createdAt).toLocaleDateString('vi-VN') : 'Chưa có ngày'),
+        pages: doc.sectionsCount || 0,
+        aiRagStatus: doc.isIndexedForRAG ? 'ĐÃ NẠP RAG AI' : 'CHƯA NẠP RAG AI',
+        summary: doc.description || doc.content || 'Chưa có mô tả.'
+      })));
+      setMonitoredPlots(unwrap(plotBody));
+      const compatibilityGroups = unwrap(compatibilityBody).reduce((groups, item) => {
+        const key = item.plotCode || item.plotId;
+        if (!groups[key]) {
+          groups[key] = {
+            id: `COMP-${key}`,
+            soilType: item.landName || 'Chưa có dữ liệu khu đất',
+            phRange: 'Theo hồ sơ thổ nhưỡng của thửa',
+            moistureProfile: item.notes || 'Chưa có ghi chú',
+            compatibleCrops: [],
+            plotsApplied: item.plotCode || `Thửa ${item.plotId}`
+          };
+        }
+        groups[key].compatibleCrops.push({
+          crop: item.varietyName || item.cropName,
+          rating: item.status === 'COMPATIBLE' ? 'Đạt' : item.status,
+          status: item.status === 'COMPATIBLE' ? 'TƯƠNG THÍCH' : item.status
+        });
+        return groups;
+      }, {});
+      setCompatibilityList(Object.values(compatibilityGroups));
+    }).catch(() => {
+      if (!cancelled) { setFieldIssues([]); setProcessTemplates([]); setKnowledgeDocs([]); setMonitoredPlots([]); setCompatibilityList([]); }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleCreateTemplate = (e) => {
     e.preventDefault();
-    if (!newTemplateData.name || !newTemplateData.variety) return;
-    const newTmpl = {
-      id: `TMPL-${Date.now()}`,
-      code: newTemplateData.code || `TMPL-${Math.floor(1000 + Math.random() * 9000)}`,
-      version: 'v1.0 (Chuẩn VietGAP)',
-      name: newTemplateData.name,
-      variety: newTemplateData.variety,
-      durationDays: Number(newTemplateData.durationDays) || 45,
-      stagesCount: 4,
-      stepsCount: 4,
-      status: 'ACTIVE',
-      description: newTemplateData.description || 'Quy trình canh tác chuẩn VietGAP.',
-      steps: [
-        { day: 1, name: 'Làm đất & Gieo giống', type: 'GIEO GIỐNG', details: 'Chuẩn bị giá thể và gieo ươm theo chuẩn VietGAP.' },
-        { day: 15, name: 'Xuống luống & Tưới ẩm vi sinh', type: 'TRỒNG CÂY', details: 'Bố trí mật độ chuẩn, kích rễ sinh học.' },
-        { day: 35, name: 'Cách ly an toàn VietGAP', type: 'CÁCH LY', details: 'Ngưng dinh dưỡng trước thu hoạch 5 ngày.' },
-        { day: Number(newTemplateData.durationDays) || 45, name: 'Thu hoạch thành phẩm', type: 'THU HOẠCH', details: 'Thu hái đạt độ chín tối ưu.' }
-      ]
-    };
-    setProcessTemplates(prev => [newTmpl, ...prev]);
+    setDataError('Backend hiện chỉ hỗ trợ đọc quy trình. Chưa thể tạo quy trình mới cho đến khi có API ghi dữ liệu.');
     setIsCreateTemplateOpen(false);
-    setNewTemplateData({ code: '', name: '', variety: '', durationDays: 45, description: '' });
   };
 
   const handleAddCompatibility = (e) => {
     e.preventDefault();
-    if (!newCompData.soilType) return;
-    const crops = newCompData.cropsInput
-      ? newCompData.cropsInput.split(',').map(c => ({ crop: c.trim(), rating: '95%', status: 'RẤT THÍCH HỢP' }))
-      : [{ crop: 'Rau ăn lá VietGAP', rating: '95%', status: 'RẤT THÍCH HỢP' }];
-
-    const newComp = {
-      id: `COMP-0${compatibilityList.length + 1}`,
-      soilType: newCompData.soilType,
-      phRange: newCompData.phRange || 'pH 6.0 – 6.8',
-      moistureProfile: newCompData.moistureProfile || 'Thoát nước tốt, giàu mùn hữu cơ',
-      compatibleCrops: crops,
-      plotsApplied: 'Các thửa đất đang áp dụng tại trang trại'
-    };
-    setCompatibilityList(prev => [...prev, newComp]);
+    setDataError('Hãy cập nhật giống tương thích trên đúng thửa đất; backend không hỗ trợ tạo ma trận chung không gắn thửa.');
     setIsAddCompatibilityOpen(false);
-    setNewCompData({ soilType: '', phRange: 'pH 6.0 – 6.5', moistureProfile: '', cropsInput: '' });
   };
 
-  const handleAddDoc = (e) => {
+  const handleAddDoc = async (e) => {
     e.preventDefault();
     if (!newDocData.title) return;
-    const newDoc = {
-      id: `DOC-AGRI-0${knowledgeDocs.length + 1}`,
-      title: newDocData.title,
-      category: newDocData.category,
-      author: user?.fullName || 'ThS. Nguyễn Hoàng Nam',
-      updatedAt: 'Hôm nay',
-      pages: Number(newDocData.pages) || 10,
-      aiRagStatus: 'ĐÃ NẠP RAG AI',
-      summary: newDocData.summary || 'Tài liệu hướng dẫn kỹ thuật nông nghiệp chuẩn VietGAP được chuyên gia số hóa.'
-    };
-    setKnowledgeDocs(prev => [newDoc, ...prev]);
-    setIsAddDocOpen(false);
-    setNewDocData({ title: '', category: 'Tiêu Chuẩn VietGAP', summary: '', pages: 10 });
+    try {
+      await apiFetch('/api/v1/knowledge-documents', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: newDocData.title,
+          content: newDocData.summary,
+          documentType: newDocData.category,
+          version: 'v1.0',
+          isIndexedForRAG: true,
+          sectionsCount: Number(newDocData.pages) || 1,
+          authorName: user?.fullName || 'Chuyên gia Farmely',
+          createdBy: Number(user?.userId || user?.id)
+        })
+      });
+      await loadExpertData();
+      setIsAddDocOpen(false);
+      setNewDocData({ title: '', category: 'Tiêu Chuẩn VietGAP', summary: '', pages: 10 });
+    } catch (error) {
+      setDataError(error.message || 'Không thể lưu tài liệu.');
+    }
   };
 
   return (
@@ -492,6 +454,11 @@ export default function ExpertDashboard() {
       <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
 
       <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
+        {dataError && (
+          <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+            {dataError}
+          </div>
+        )}
         
         {/* Top Agronomy Metrics */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -500,9 +467,9 @@ export default function ExpertDashboard() {
               Thửa Đất Giám Sát
             </span>
             <div className="text-2xl font-heading font-black text-brand-dark">
-              16 Thửa
+              {monitoredPlots.length} Thửa
             </div>
-            <span className="text-[10px] text-emerald-700 font-bold block">100% đạt chuẩn VietGAP</span>
+            <span className="text-[10px] text-emerald-700 font-bold block">Dữ liệu đồng bộ từ hệ thống</span>
           </div>
 
           <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
@@ -532,7 +499,7 @@ export default function ExpertDashboard() {
               Quy Trình Chuẩn
             </span>
             <div className="text-2xl font-heading font-black text-emerald-600">
-              0{processTemplates.length} Phác Đồ
+              {processTemplates.length} Phác Đồ
             </div>
             <span className="text-[10px] text-emerald-700 font-bold block">Đang áp dụng thực địa</span>
           </div>
@@ -542,7 +509,7 @@ export default function ExpertDashboard() {
               Kho Tri Thức & AI
             </span>
             <div className="text-2xl font-heading font-black text-sky-600">
-              0{knowledgeDocs.length} Tài Liệu
+              {knowledgeDocs.length} Tài Liệu
             </div>
             <span className="text-[10px] text-sky-700 font-bold block">Đã nạp RAG AI</span>
           </div>
@@ -553,7 +520,7 @@ export default function ExpertDashboard() {
           
           {/* Expert Menu (5 core functions per SRS) */}
           <DashboardRail user={user} fallbackName="ThS. Nguyễn Hoàng Nam" roleLabel="Chuyên gia nông nghiệp" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
-            <div className={`px-2 pb-2 text-xs font-bold text-stone-500 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Bàn Làm Việc Kỹ Thuật</div>
+            <div className={`px-2 pb-2 text-xs font-bold text-emerald-100/70 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Bàn Làm Việc Kỹ Thuật</div>
 
             {[
               { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
@@ -572,12 +539,12 @@ export default function ExpertDashboard() {
                   aria-label={sidebarCollapsed ? tab.label : undefined}
                   className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                     isActive
-                      ? 'bg-[#294C38] text-white shadow-sm'
-                      : 'text-stone-700 hover:bg-stone-50 hover:text-brand-dark'
+                      ? 'bg-white text-[#064b37] shadow-sm'
+                      : 'text-emerald-50 hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-stone-400'}`} />
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-700' : 'text-emerald-100/80'}`} />
                     <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} truncate`}>{tab.label}</span>
                   </div>
                   {tab.count !== null && tab.count > 0 && (
@@ -1057,12 +1024,12 @@ export default function ExpertDashboard() {
               </div>
             )}
 
-            {/* TAB 2: FIELD ISSUES (Chẩn đoán sự cố hiện trường do công nhân gửi - UC12 / UC48) */}
+            {/* Field issue diagnosis */}
             {activeTab === 'issues' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div>
                   <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Xử Lý Báo Cáo Sự Cố Hiện Trường (UC12 / UC48)
+                    Xử Lý Báo Cáo Sự Cố Hiện Trường
                   </h3>
                   <p className="text-xs text-brand-muted mt-0.5">
                     Tiếp nhận ảnh chụp và phản ánh từ Chuyên viên lao động hiện trường để chẩn đoán sâu và ban hành chỉ đạo can thiệp kỹ thuật.
@@ -1070,6 +1037,7 @@ export default function ExpertDashboard() {
                 </div>
 
                 <div className="space-y-4">
+                  {fieldIssues.length === 0 && <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center text-sm text-brand-muted">Chưa có báo cáo sự cố từ hệ thống.</div>}
                   {fieldIssues.map((issue) => (
                     <div
                       key={issue.id}
@@ -1132,13 +1100,13 @@ export default function ExpertDashboard() {
               </div>
             )}
 
-            {/* TAB 3: VIETGAP PROCESS TEMPLATES (Quản lý Phác đồ canh tác chuẩn VietGAP - UC09) */}
+            {/* VietGAP process templates */}
             {activeTab === 'templates' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Quy Trình Canh Tác Chuẩn VietGAP (UC09)
+                      Quy Trình Canh Tác Chuẩn VietGAP
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh mục phác đồ tiêu chuẩn cho từng giống cây, phân định ngày tuổi, mốc bón phân vi sinh và cách ly an toàn.
@@ -1155,6 +1123,7 @@ export default function ExpertDashboard() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+                  {processTemplates.length === 0 && <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center text-sm text-brand-muted">Chưa có quy trình canh tác trong hệ thống.</div>}
                   {processTemplates.map((tmpl) => (
                     <div
                       key={tmpl.id}
@@ -1241,6 +1210,7 @@ export default function ExpertDashboard() {
                 </div>
 
                 <div className="space-y-4">
+                  {compatibilityList.length === 0 && <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center text-sm text-brand-muted">Chưa có dữ liệu tương thích thổ nhưỡng – giống từ hệ thống.</div>}
                   {compatibilityList.map((comp) => (
                     <div
                       key={comp.id}
@@ -1331,6 +1301,7 @@ export default function ExpertDashboard() {
 
                 {/* Document List */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  {knowledgeDocs.length === 0 && <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center text-sm text-brand-muted">Chưa có tài liệu tri thức trong hệ thống.</div>}
                   {knowledgeDocs.map((doc) => (
                     <div
                       key={doc.id}

@@ -14,7 +14,7 @@ public interface RentalService {
 
     RentalResponse getRentalById(Integer rentalId);
 
-    List<RentalResponse> getAllRentals(Integer plotId, Integer contractId, RentalStatus status);
+    List<RentalResponse> getAllRentals(Integer renterId, Integer plotId, Integer contractId, RentalStatus status);
 
     RentalResponse renewRental(Integer rentalId, RenewRentalRequest request);
 }

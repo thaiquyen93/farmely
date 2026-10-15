@@ -12,6 +12,8 @@ import PlotDetail from './pages/public/PlotDetail';
 import BookPlot from './pages/public/BookPlot';
 import ForgotPassword from './pages/public/ForgotPassword';
 import About from './pages/public/About';
+import Terms from './pages/public/Terms';
+import RentalTerms from './pages/public/RentalTerms';
 import VnPayReturn from './pages/payment/VnPayReturn';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -36,6 +38,7 @@ import KnowledgeDocuments from './pages/admin/KnowledgeDocuments';
 import ProcessTemplates from './pages/admin/ProcessTemplates';
 import ProcessTemplateDetail from './pages/admin/ProcessTemplateDetail';
 import Services from './pages/admin/Services';
+import GlobalExpertChat from './components/customer/GlobalExpertChat';
 
 const dashboardByRole = {
   CUSTOMER: '/customer/dashboard',
@@ -76,9 +79,11 @@ export default function App() {
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/terms/rental" element={<RentalTerms />} />
         <Route path="/site-visit/book" element={<CustomerCommerceRoute><SiteVisitBooking /></CustomerCommerceRoute>} />
         <Route path="/marketplace" element={<CustomerCommerceRoute><Marketplace /></CustomerCommerceRoute>} />
         <Route path="/marketplace/plot/:id" element={<CustomerCommerceRoute><PlotDetail /></CustomerCommerceRoute>} />
@@ -126,6 +131,7 @@ export default function App() {
         {/* Fallback to Home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <GlobalExpertChat />
     </BrowserRouter>
   );
 }

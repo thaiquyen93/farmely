@@ -47,6 +47,14 @@ export async function getPlotSensorSummary(plotId) {
  * @returns {EventSource} Trả về đối tượng eventSource để gọi eventSource.close() khi rời trang
  */
 export function subscribePlotSensorStream(plotId, onUpdate, onError) {
+  if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+    return {
+      close: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {}
+    };
+  }
+
   const url = `${BASE_URL}/api/sensors/plots/${plotId}/stream`;
   const eventSource = new EventSource(url);
 

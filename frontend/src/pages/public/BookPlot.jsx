@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
@@ -6,6 +6,7 @@ import { farmApi } from '../../api/farm/farmApi';
 import { rentalApi } from '../../api/rental/rentalApi';
 import { getSafeCropById, safeCrops } from '../../data/safeCrops';
 import { useAuthStore } from '../../stores/authStore';
+import { useServiceStore } from '../../stores/serviceStore';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import {
@@ -21,7 +22,6 @@ import {
   QrCode,
   AlertCircle,
   FileText,
-  UserCheck,
   Plus,
   Trash2,
   Layers,
@@ -30,6 +30,7 @@ import {
   Loader2
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
+import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 
@@ -53,11 +54,35 @@ const PLOT_COMPATIBLE_VARIETIES = {
   22: [2, 3, 8, 10]        // P-16
 };
 
+export const getPlotSelectionKey = (plot) => String(plot?.code || plot?.label || plot?.id || '')
+  .replace(/^plot\s+/i, '')
+  .trim()
+  .toLowerCase();
+
+export const dedupeSelectedPlots = (plots) => {
+  const seen = new Set();
+  return plots.filter((plot) => {
+    const key = getPlotSelectionKey(plot);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+export const getBookingValidationError = ({ acceptedTerms, selectedMode, assistedService }) => {
+  if (!acceptedTerms) return 'Bạn cần đọc và chấp nhận điều khoản thuê đất trước khi thanh toán.';
+  if (selectedMode === 'ASSISTED' && !assistedService) {
+    return 'Chưa tải được gói chăm sóc toàn vụ từ hệ thống. Vui lòng tải lại trang rồi thử lại.';
+  }
+  return '';
+};
+
 export default function BookPlot() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, isAuthenticated, login } = useAuthStore();
+  const { services, loading: servicesLoading, loaded: servicesLoaded, error: servicesError, loadServices } = useServiceStore();
   const [allPlots, setAllPlots] = useState([]);
   const [loadingPlots, setLoadingPlots] = useState(true);
   const [selectedPlots, setSelectedPlots] = useState([]);
@@ -66,7 +91,6 @@ export default function BookPlot() {
   const [bookingError, setBookingError] = useState('');
   const [isExtendingGrace, setIsExtendingGrace] = useState(false);
   const [graceApplied, setGraceApplied] = useState(false);
-
   const [selectedCropByPlot] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
@@ -137,7 +161,17 @@ export default function BookPlot() {
         }));
         setAllPlots(mapped);
 
-        // Determine initial plot
+        // Determine initial plots from query or ID
+        const queryPlotsParam = searchParams.get('plots');
+        if (queryPlotsParam) {
+          const codes = queryPlotsParam.split(',').map((c) => c.trim().toLowerCase());
+          const matched = dedupeSelectedPlots(mapped.filter((p) => codes.includes(p.code?.toLowerCase()) || codes.includes(p.id?.toLowerCase())));
+          if (matched.length > 0) {
+            setSelectedPlots(matched);
+            return;
+          }
+        }
+
         const target = findPlotByAnyCode(id, mapped) || mapped[0];
         if (target) {
           setSelectedPlots([target]);
@@ -145,7 +179,7 @@ export default function BookPlot() {
       })
       .catch((err) => console.error('Lỗi nạp plots trong BookPlot:', err))
       .finally(() => setLoadingPlots(false));
-  }, [id, findPlotByAnyCode]);
+  }, [id, searchParams, findPlotByAnyCode]);
 
   // 15-minute reservation timer (BR08)
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
@@ -166,6 +200,10 @@ export default function BookPlot() {
   }, []);
   const [startDate, setStartDate] = useState(todayStr);
   const [startDateError, setStartDateError] = useState('');
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [qrData, setQrData] = useState(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsError, setTermsError] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -206,9 +244,9 @@ export default function BookPlot() {
     const plotsQuery = searchParams.get('plots');
     if (plotsQuery) {
       const codes = plotsQuery.split(',').map((c) => c.trim()).filter(Boolean);
-      const matched = codes
+      const matched = dedupeSelectedPlots(codes
         .map((code) => findPlotByAnyCode(code))
-        .filter(Boolean);
+        .filter(Boolean));
       if (matched.length > 0) {
         setSelectedPlots(matched);
         return;
@@ -221,9 +259,9 @@ export default function BookPlot() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const matched = parsed
+          const matched = dedupeSelectedPlots(parsed
             .map((p) => findPlotByAnyCode(p.code || p.id))
-            .filter(Boolean);
+            .filter(Boolean));
           if (matched.length > 0) {
             setSelectedPlots(matched);
             return;
@@ -238,21 +276,28 @@ export default function BookPlot() {
     if (target && !selectedPlots.some((p) => p.id === target.id)) {
       setSelectedPlots([target]);
     }
-  }, [id, searchParams]);
+  }, [id, searchParams.get('plots')]);
 
   // Luôn đồng bộ danh sách thửa đất trong hợp đồng vào localStorage
   useEffect(() => {
     if (selectedPlots && selectedPlots.length > 0) {
       try {
+        const uniquePlots = dedupeSelectedPlots(selectedPlots);
         localStorage.setItem(
           'farmely_master_lease_selected_plots',
-          JSON.stringify(selectedPlots)
+          JSON.stringify(uniquePlots)
         );
+        const canonicalPlots = uniquePlots.map((plot) => plot.code || plot.label || plot.id).join(',');
+        if (searchParams.get('plots') !== canonicalPlots) {
+          const nextParams = new URLSearchParams(searchParams);
+          nextParams.set('plots', canonicalPlots);
+          setSearchParams(nextParams, { replace: true });
+        }
       } catch (e) {
         console.error(e);
       }
     }
-  }, [selectedPlots]);
+  }, [selectedPlots, searchParams, setSearchParams]);
 
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;
@@ -266,13 +311,24 @@ export default function BookPlot() {
   );
 
   const handleAddPlot = (plotToAdd) => {
-    setSelectedPlots((prev) => [...prev, plotToAdd]);
+    setSelectedPlots((prev) => {
+      const next = prev.some((plot) => plot.id === plotToAdd.id) ? prev : [...prev, plotToAdd];
+      const codes = next.map((plot) => plot.code || plot.id).join(',');
+      navigate(`/marketplace/plot/${next[0]?.id || id}/book?plots=${encodeURIComponent(codes)}`, { replace: true });
+      return next;
+    });
     setIsAddPlotModalOpen(false);
   };
 
   const handleRemovePlot = (plotIdToRemove) => {
     if (selectedPlots.length <= 1) return; // Keep at least 1 plot
-    setSelectedPlots((prev) => prev.filter((p) => p.id !== plotIdToRemove));
+    setSelectedPlots((prev) => {
+      const next = prev.filter((p) => p.id !== plotIdToRemove);
+      const codes = next.map((plot) => plot.code || plot.id).join(',');
+      localStorage.setItem('farmely_master_lease_selected_plots', JSON.stringify(next));
+      navigate(`/marketplace/plot/${next[0]?.id || id}/book?plots=${encodeURIComponent(codes)}`, { replace: true });
+      return next;
+    });
   };
 
   // Aggregate calculations for the multi-plot rental contract.
@@ -286,13 +342,10 @@ export default function BookPlot() {
     0
   );
 
-  const subtotalCare =
-    selectedMode === 'ASSISTED'
-      ? selectedPlots.reduce(
-          (sum, p) => sum + (p.careServicePrice || 600000) * rentalMonths,
-          0
-        )
-      : 0;
+  const assistedService = services.find((service) => service.serviceCode === 'S15' && service.active);
+  const subtotalCare = selectedMode === 'ASSISTED' && assistedService
+    ? assistedService.price * selectedPlots.length
+    : 0;
 
   const totalAmount = subtotalPlot + subtotalCare;
 
@@ -301,21 +354,6 @@ export default function BookPlot() {
   const plotCodesSummary = selectedPlots.map((p) => p.code).join('-');
   const primaryCrop = getPlotSelectedCrop(primaryPlot);
 
-  const syncRentalToChat = () => {
-    if (!user) return;
-    const demoProfile = DEMO_CUSTOMERS.find(
-      (customer) => customer.email?.toLowerCase() === user.email?.toLowerCase()
-    );
-    const safeKey = user.email?.replace(/[^a-zA-Z0-9]/g, '_') || user.id || 'customer';
-    chatService.updateRentalContext({
-      threadId: demoProfile?.threadId || `CONS-${safeKey}`,
-      customerName: user.fullName,
-      customerAvatar: user.avatar,
-      plotCode: plotCodesList,
-      plotName: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`,
-      crop: primaryCrop?.variety || primaryPlot.compatibleCrops?.[0] || 'Cây trồng VietGAP'
-    });
-  };
 
   // Cộng thời gian ân hạn 10 phút khi vào bước thanh toán (BR08)
   const handleExtendGracePeriod = async () => {
@@ -521,7 +559,6 @@ export default function BookPlot() {
     setShowCardModal(false);
     setIsProcessing(true);
     setBookingError('');
-
     try {
       if (createdContractId) {
         await rentalApi.activateContract(createdContractId);
@@ -678,20 +715,6 @@ export default function BookPlot() {
               </Link>
             </div>
 
-            {/* 1-Click Demo Customer Login Shortcut */}
-            <div className="pt-4 border-t border-brand-border/60">
-              <p className="text-xs text-brand-muted mb-2 font-medium">
-                Dành cho người kiểm thử (Tester / Giảng viên):
-              </p>
-              <button
-                type="button"
-                onClick={handleQuickCustomerLogin}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
-              >
-                <UserCheck className="w-4 h-4 text-emerald-600" />
-                <span>1-Click Đăng nhập Demo Customer (Nguyen Van An)</span>
-              </button>
-            </div>
           </div>
         ) : isSuccess ? (
           /* SUCCESS CONFIRMATION */
@@ -728,7 +751,7 @@ export default function BookPlot() {
                 <div className="text-right space-y-1">
                   {selectedPlots.map((p) => (
                     <span
-                      key={p.id}
+                      key={getPlotSelectionKey(p)}
                       className="inline-block ml-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold text-[11px]"
                     >
                       {p.code} - {p.name} ({p.area})
@@ -857,14 +880,16 @@ export default function BookPlot() {
                             {(p.rentalPrice || 1200000).toLocaleString('vi-VN')} đ/tháng
                           </span>
                           <span className="text-[10px] text-stone-400">
-                            Chăm sóc: +{(p.careServicePrice || 600000).toLocaleString('vi-VN')} đ
+                            {assistedService
+                              ? `Chăm sóc toàn vụ: +${assistedService.price.toLocaleString('vi-VN')} đ`
+                              : 'Đang tải giá chăm sóc…'}
                           </span>
                         </div>
 
                         {selectedPlots.length > 1 && (
                           <button
                             type="button"
-                            onClick={() => handleRemovePlot(p.id)}
+                            onClick={() => handleRemovePlot(getPlotSelectionKey(p))}
                             className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
                             title="Gỡ thửa này khỏi hợp đồng"
                           >
@@ -937,7 +962,11 @@ export default function BookPlot() {
                       </p>
                     </div>
                     <p className="text-xs font-bold text-brand-green mt-3">
-                      +{selectedPlots.reduce((sum, p) => sum + (p.careServicePrice || 600000), 0).toLocaleString('vi-VN')} đ/tháng ({selectedPlots.length} thửa)
+                      {servicesLoading
+                        ? 'Đang tải giá từ database…'
+                        : assistedService
+                          ? `+${(assistedService.price * selectedPlots.length).toLocaleString('vi-VN')} đ/${assistedService.unit} (${selectedPlots.length} thửa)`
+                          : 'Không tìm thấy gói S15 đang hoạt động'}
                     </p>
                   </button>
                 </div>
@@ -1109,7 +1138,7 @@ export default function BookPlot() {
 
                   <div className="flex justify-between text-stone-600">
                     <span>
-                      Dịch vụ canh tác ({selectedMode === 'ASSISTED' ? 'Trọn gói' : 'Tự chăm sóc'} x {rentalMonths} tháng):
+                      Dịch vụ canh tác ({selectedMode === 'ASSISTED' ? assistedService?.name || 'Gói S15' : 'Tự chăm sóc'}):
                     </span>
                     <strong className="text-brand-dark">
                       {subtotalCare.toLocaleString('vi-VN')} đ
@@ -1121,7 +1150,7 @@ export default function BookPlot() {
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {selectedPlots.map((p) => (
                         <span
-                          key={p.id}
+                          key={getPlotSelectionKey(p)}
                           className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold"
                         >
                           {p.code} ({p.area}){getPlotSelectedCrop(p) ? ` • ${getPlotSelectedCrop(p).variety}` : ''}
@@ -1145,6 +1174,12 @@ export default function BookPlot() {
                   <p>• Hoàn 50% khi hủy trong vòng 3 ngày trước ngày bắt đầu.</p>
                 </div>
 
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-brand-border bg-white p-3 text-xs text-stone-700">
+                  <input type="checkbox" checked={acceptedTerms} onChange={(event) => { setAcceptedTerms(event.target.checked); if (event.target.checked) setTermsError(''); }} className="mt-0.5 h-4 w-4 accent-emerald-700" />
+                  <span>Tôi đã đọc và đồng ý với <Link to="/terms/rental" target="_blank" className="font-bold text-brand-green underline underline-offset-2">điều khoản thuê đất và thanh toán của Farmely</Link>.</span>
+                </label>
+                {termsError && <p role="alert" className="text-xs font-semibold text-rose-600">{termsError}</p>}
+
                 {/* Error Banner if any */}
                 {bookingError && (
                   <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2 animate-fadeIn">
@@ -1162,14 +1197,12 @@ export default function BookPlot() {
                   className="w-full uppercase font-black tracking-wider text-sm shadow-md py-4 flex items-center justify-center gap-2 cursor-pointer transition-all"
                   onClick={handleConfirmBooking}
                   loading={isProcessing}
+                  aria-describedby={termsError ? 'booking-terms-error' : undefined}
                 >
                   <ShieldCheck className="w-5 h-5 text-brand-yellow" />
                   <span>TIẾP TỤC THANH TOÁN VNPAY SANDBOX ({totalAmount.toLocaleString('vi-VN')} đ)</span>
                 </Button>
 
-                <p className="text-[11px] text-center text-brand-muted">
-                  Bằng việc bấm xác nhận, bạn đồng ý với điều khoản thuê thửa đất Farmely và quy chuẩn canh tác VietGAP.
-                </p>
               </div>
             </div>
           </div>

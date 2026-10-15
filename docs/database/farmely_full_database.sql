@@ -592,26 +592,26 @@ INSERT INTO roles (role_id, role_name) VALUES
 (4, 'ADMIN')
 ON CONFLICT (role_id) DO NOTHING;
 
--- 2. BẢNG USERS (Chuẩn hóa tài khoản hệ thống)
+-- 2. BẢNG USERS (Chuẩn hóa tài khoản hệ thống; mật khẩu demo chung: Password@123)
 INSERT INTO users (user_id, role_id, email, password_hash, full_name, phone_number, address, status) VALUES
 -- Khách hàng (Customers)
-(1, 1, 'customer@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'Lô Thái Quyền', '0901234567', 'Tòa nhà Landmark 81, P.22, Q.Bình Thạnh, TP.HCM', 'ACTIVE'),
-(2, 1, 'duyanh@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'Đào Duy Anh', '0912345678', 'Số 45 Lê Duẩn, P.Bến Nghé, Quận 1, TP.HCM', 'ACTIVE'),
-(3, 1, 'tanguyen@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'Tạ Nguyễn Khôi Nguyên', '0988776655', 'Biệt thự Thảo Điền, TP.Thủ Đức, TP.HCM', 'ACTIVE'),
-(4, 1, 'vhoang@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'Nguyễn Văn Hoàng', '0977123456', 'Khu Đô thị Phú Mỹ Hưng, Quận 7, TP.HCM', 'ACTIVE'),
+(1, 1, 'customer@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'Lô Thái Quyền', '0901234567', 'Tòa nhà Landmark 81, P.22, Q.Bình Thạnh, TP.HCM', 'ACTIVE'),
+(2, 1, 'duyanh@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'Đào Duy Anh', '0912345678', 'Số 45 Lê Duẩn, P.Bến Nghé, Quận 1, TP.HCM', 'ACTIVE'),
+(3, 1, 'tanguyen@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'Tạ Nguyễn Khôi Nguyên', '0988776655', 'Biệt thự Thảo Điền, TP.Thủ Đức, TP.HCM', 'ACTIVE'),
+(4, 1, 'vhoang@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'Nguyễn Văn Hoàng', '0977123456', 'Khu Đô thị Phú Mỹ Hưng, Quận 7, TP.HCM', 'ACTIVE'),
 
 -- Chuyên gia Nông nghiệp (Experts)
-(5, 2, 'expert@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'ThS. Nguyễn Hoàng Nam', '0903888999', 'Viện Khoa học Nông nghiệp Miền Nam, TP.HCM', 'ACTIVE'),
-(6, 2, 'thao.tran@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'ThS. Trần Phương Thảo', '0903777888', 'Trung tâm Công nghệ Sinh học Nông nghiệp Đà Lạt', 'ACTIVE'),
-(7, 2, 'duc.le@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'TS. Lê Hoàng Đức', '0903666555', 'Đại học Nông Lâm TP.HCM', 'ACTIVE'),
+(5, 2, 'expert@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'ThS. Nguyễn Hoàng Nam', '0903888999', 'Viện Khoa học Nông nghiệp Miền Nam, TP.HCM', 'ACTIVE'),
+(6, 2, 'thao.tran@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'ThS. Trần Phương Thảo', '0903777888', 'Trung tâm Công nghệ Sinh học Nông nghiệp Đà Lạt', 'ACTIVE'),
+(7, 2, 'duc.le@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'TS. Lê Hoàng Đức', '0903666555', 'Đại học Nông Lâm TP.HCM', 'ACTIVE'),
 
 -- Chuyên viên Lao động (Field Workers)
-(8, 3, 'worker@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'Trần Văn Lực', '0933111222', 'Ấp 3, Xã Nhuận Đức, Huyện Củ Chi, TP.HCM', 'ACTIVE'),
-(9, 3, 'dat.nguyen@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'Nguyễn Văn Đạt', '0933222333', 'Xã Thái Mỹ, Huyện Củ Chi, TP.HCM', 'ACTIVE'),
-(10, 3, 'hai.hoang@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'Hoàng Thanh Hải', '0933444555', 'Thôn 4, Xã Tà Nung, TP.Đà Lạt, Lâm Đồng', 'ACTIVE'),
+(8, 3, 'worker@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'Trần Văn Lực', '0933111222', 'Ấp 3, Xã Nhuận Đức, Huyện Củ Chi, TP.HCM', 'ACTIVE'),
+(9, 3, 'dat.nguyen@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'Nguyễn Văn Đạt', '0933222333', 'Xã Thái Mỹ, Huyện Củ Chi, TP.HCM', 'ACTIVE'),
+(10, 3, 'hai.hoang@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'Hoàng Thanh Hải', '0933444555', 'Thôn 4, Xã Tà Nung, TP.Đà Lạt, Lâm Đồng', 'ACTIVE'),
 
 -- Quản trị viên (Admin)
-(11, 4, 'admin@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'Ban Quản Trị Farmely', '0909000111', 'Trụ sở Farmely Tech Hub, Quận 1, TP.HCM', 'ACTIVE')
+(11, 4, 'admin@farmely.vn', '$2a$10$XiyFfIuYmCcN1/cR7aRCqemOiw0qkpCxfXRjOwbqQwG5GdDLI7mWG', 'Ban Quản Trị Farmely', '0909000111', 'Trụ sở Farmely Tech Hub, Quận 1, TP.HCM', 'ACTIVE')
 ON CONFLICT (user_id) DO NOTHING;
 
 -- 3. BẢNG LANDS (Trang trại Farmely)

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
@@ -15,7 +15,7 @@ export default function Marketplace() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user, isAuthenticated, login } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -24,7 +24,7 @@ export default function Marketplace() {
   const [plotToBook, setPlotToBook] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isPlotListCollapsed, setIsPlotListCollapsed] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 1365px)').matches
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1365px)').matches
   );
   const [selectedCropByPlot, setSelectedCropByPlot] = useState(() => {
     try {
@@ -143,6 +143,19 @@ export default function Marketplace() {
     return livePlotsGeoJson.features.map((f) => f.properties);
   }, [livePlotsGeoJson]);
 
+  const getPlotKeys = (plot) => {
+    if (!plot) return [];
+    return [plot.code, plot.id, plot.plot_id, plot.label]
+      .filter(Boolean)
+      .map((value) => String(value).trim().toLowerCase().replace(/^plot\s+/i, ''));
+  };
+
+  const isSamePlot = (left, right) => {
+    const leftKeys = getPlotKeys(left);
+    const rightKeys = new Set(getPlotKeys(right));
+    return leftKeys.some((key) => rightKeys.has(key));
+  };
+
   // Danh sách chọn nhiều thửa đất trực tiếp trên Marketplace (bảo toàn qua localStorage & URL)
   const [contractSelectedPlots, setContractSelectedPlots] = useState(() => {
     try {
@@ -191,7 +204,7 @@ export default function Marketplace() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const matched = parsed
-            .map((sp) => allPlots.find((p) => (p.id || p.code) === (sp.id || sp.code)) || sp)
+            .map((sp) => allPlots.find((p) => isSamePlot(p, sp)) || sp)
             .filter(Boolean);
           if (matched.length > 0) {
             setContractSelectedPlots(matched);
@@ -268,9 +281,9 @@ export default function Marketplace() {
     if (!isVacant) return;
 
     setContractSelectedPlots((prev) => {
-      const exists = prev.some((p) => (p.id || p.code) === (plot.id || plot.code));
+      const exists = prev.some((p) => isSamePlot(p, plot));
       if (exists) {
-        return prev.filter((p) => (p.id || p.code) !== (plot.id || plot.code));
+        return prev.filter((p) => !isSamePlot(p, plot));
       } else {
         return [...prev, plot];
       }
@@ -279,7 +292,7 @@ export default function Marketplace() {
 
   const isPlotSelectedForContract = (plot) => {
     if (!plot) return false;
-    return contractSelectedPlots.some((p) => (p.id || p.code) === (plot.id || plot.code));
+    return contractSelectedPlots.some((p) => isSamePlot(p, plot));
   };
 
   // Tổng diện tích đã chọn
@@ -334,14 +347,8 @@ export default function Marketplace() {
   };
 
   const handleQuickDemoLogin = () => {
-    login('customer@farmely.vn', '123456');
     setShowAuthModal(false);
-    if (plotToBook) {
-      const plotCodes = contractSelectedPlots.length > 0
-        ? contractSelectedPlots.map((p) => p.code || p.id).join(',')
-        : (plotToBook.code || plotToBook.id);
-      navigate(`/marketplace/plot/${plotToBook.id || plotToBook.code}/book?plots=${plotCodes}`);
-    }
+    navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`);
   };
 
   return (
@@ -429,6 +436,12 @@ export default function Marketplace() {
               Quản lý Đất & Thửa
             </Link>
           )}
+          <Link
+            to="/about"
+            className="hidden whitespace-nowrap rounded-full px-2.5 py-1.5 transition-all hover:bg-slate-100/70 hover:text-slate-900 lg:block"
+          >
+            Về Farmely
+          </Link>
         </nav>
 
         {/* Phân cách mờ */}
