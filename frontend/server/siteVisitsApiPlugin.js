@@ -53,13 +53,16 @@ const PSQL_PATH = PSQL_CANDIDATES.find(p => {
   try { return fs.existsSync(p); } catch { return false; }
 }) || 'psql';
 
+let activePgConfig = null;
+
 function getPgConfig() {
+  if (activePgConfig) return activePgConfig;
   return {
     host: process.env.PGHOST || process.env.DB_HOST || rootEnv.DB_HOST || 'localhost',
-    port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5433',
+    port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5432',
     database: process.env.PGDATABASE || process.env.DB_NAME || rootEnv.DB_NAME || 'farmely',
     user: process.env.PGUSER || process.env.DB_USER || rootEnv.DB_USER || 'postgres',
-    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '12345'
+    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || 'postgres'
   };
 }
 
@@ -72,19 +75,19 @@ function invalidatePlotsCache() {
   cachedPlotsTime = 0;
 }
 
-function runPostgreSql(sqlQuery) {
+function runPostgreSqlAttempt(cfg, sqlQuery) {
   return new Promise((resolve, reject) => {
-    const cfg = getPgConfig();
     const env = { ...process.env, PGPASSWORD: cfg.password, PGCLIENTENCODING: 'UTF8' };
     const child = spawn(
       PSQL_PATH,
-      ['-U', cfg.user, '-h', cfg.host, '-p', cfg.port, '-d', cfg.database, '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
-      { env, windowsHide: true }
+      ['-U', cfg.user, '-h', cfg.host, '-p', String(cfg.port), '-d', cfg.database, '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
+      { env, windowsHide: true, timeout: 8000 }
     );
     let stdout = '';
     let stderr = '';
     child.stdout.on('data', d => stdout += d.toString('utf8'));
     child.stderr.on('data', d => stderr += d.toString('utf8'));
+    child.on('error', err => reject(err));
     child.on('close', code => {
       if (code !== 0) reject(new Error(stderr || 'Exit ' + code));
       else resolve(stdout.trim());
@@ -92,6 +95,35 @@ function runPostgreSql(sqlQuery) {
     child.stdin.write(sqlQuery, 'utf8');
     child.stdin.end();
   });
+}
+
+async function runPostgreSql(sqlQuery) {
+  if (activePgConfig) {
+    try {
+      return await runPostgreSqlAttempt(activePgConfig, sqlQuery);
+    } catch {
+      activePgConfig = null; // reset cache on failure and re-probe
+    }
+  }
+
+  const base = getPgConfig();
+  const candidatePorts = Array.from(new Set([base.port, '5432', '5433'].filter(Boolean)));
+  const candidatePasses = Array.from(new Set([base.password, 'postgres', '12345', ''].filter(p => p !== undefined)));
+
+  let lastErr = null;
+  for (const port of candidatePorts) {
+    for (const pass of candidatePasses) {
+      const trialCfg = { ...base, port, password: pass };
+      try {
+        const res = await runPostgreSqlAttempt(trialCfg, sqlQuery);
+        activePgConfig = trialCfg;
+        return res;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+  }
+  throw lastErr || new Error('Không thể kết nối đến PostgreSQL cục bộ');
 }
 
 function runPowershell(script) {
@@ -114,16 +146,6 @@ export function siteVisitsApiPlugin() {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
-
-        // Ưu tiên chuyển tiếp /api/lands và /api/plots sang Backend API Gateway (8080) -> farm-service (8082)
-        if (
-          url.startsWith('/api/lands') ||
-          url.startsWith('/api/v1/lands') ||
-          url.startsWith('/api/plots') ||
-          url.startsWith('/api/v1/plots')
-        ) {
-          return next();
-        }
 
         // 0. GET /api/db/status (Health check & statistics)
         if (req.method === 'GET' && url === '/api/db/status') {
@@ -1103,7 +1125,7 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
       WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
       THEN (
         CASE 
-          WHEN p.boundary_geojson::json ? 'coordinates' 
+          WHEN p.boundary_geojson::jsonb ? 'coordinates' 
           THEN p.boundary_geojson::json->'coordinates'->0 
           ELSE p.boundary_geojson::json 
         END
@@ -1174,7 +1196,7 @@ SELECT row_to_json(p) FROM (
       WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
       THEN (
         CASE 
-          WHEN p.boundary_geojson::json ? 'coordinates' 
+          WHEN p.boundary_geojson::jsonb ? 'coordinates' 
           THEN p.boundary_geojson::json->'coordinates'->0 
           ELSE p.boundary_geojson::json 
         END
