@@ -72,6 +72,7 @@ export default function CustomerDashboard() {
   const { services: localServices, loadServices: loadMasterServices } = useServiceStore();
   const [apiServices, setApiServices] = useState([]);
   const [apiCustomerPlots, setApiCustomerPlots] = useState([]);
+  const [dashboardDataError] = useState('');
   const masterServices = apiServices;
 
   const loadServices = useCallback(async (force = false) => {

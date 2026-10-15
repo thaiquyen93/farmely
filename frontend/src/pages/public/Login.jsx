@@ -19,19 +19,18 @@ export default function Login() {
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const performLogin = async (loginEmail, loginPassword) => {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!email.trim() || !password.trim()) {
+    if (!loginEmail.trim() || !loginPassword.trim()) {
       setErrorMessage('Vui lòng nhập đầy đủ Email và Mật khẩu.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await login(email, password);
+      const res = await login(loginEmail, loginPassword);
       setIsLoading(false);
       if (res.success) {
         setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
@@ -48,6 +47,11 @@ export default function Login() {
       setIsLoading(false);
       setErrorMessage('Không thể kết nối máy chủ xác thực.');
     }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    await performLogin(email, password);
   };
 
   const quickAccounts = [
@@ -192,7 +196,11 @@ export default function Login() {
                   <button
                     key={account.email}
                     type="button"
-                    onClick={() => { setEmail(account.email); setPassword('Farmely@2026'); setErrorMessage(''); }}
+                    onClick={() => {
+                      setEmail(account.email);
+                      setPassword('Password@123');
+                      performLogin(account.email, 'Password@123');
+                    }}
                     className="rounded-lg border border-emerald-200 px-2 py-2 text-[11px] font-bold text-brand-green transition hover:bg-emerald-50"
                   >
                     {account.label}
