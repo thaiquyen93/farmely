@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   CalendarDays,
-  CheckCircle2,
   ChevronRight,
   Download,
   FileText,
@@ -10,7 +9,6 @@ import {
   MapPin,
   Printer,
   RefreshCw,
-  ShieldCheck
 } from 'lucide-react';
 import { getContractById, getCustomerContracts } from '../../api/contracts/contractsApi';
 import { RENTAL_TERMS, RENTAL_TERMS_VERSION } from '../../data/rentalTerms';
@@ -40,94 +38,91 @@ const getStatus = (contract) => statusMeta[contract?.status] || {
 function ContractDocument({ contract }) {
   const rentals = contract?.rentals || [];
   const createdDate = formatDate(contract?.createdAt);
+  const contractNumber = contract?.contractNumber || `HD-${contract?.contractId}`;
 
   return (
-    <article className="contract-print-document mx-auto min-h-[1120px] w-full max-w-[794px] bg-[#fffef8] px-8 py-10 text-[#20332a] shadow-[0_22px_70px_rgba(31,53,43,0.18)] sm:px-14 sm:py-14">
-      <header className="border-b border-[#9fa9a2] pb-7 text-[#18241f]">
-        <div className="grid gap-6 text-center sm:grid-cols-2">
+    <article className="contract-print-document mx-auto min-h-[1123px] w-[794px] max-w-none bg-white px-[72px] py-[64px] font-['Times_New_Roman',serif] text-[15px] leading-[1.55] text-black shadow-[0_22px_70px_rgba(31,53,43,0.18)]">
+      <header>
+        <div className="grid grid-cols-2 gap-8 text-center text-[13px] leading-snug">
           <div>
-            <p className="text-xs font-bold uppercase">CÔNG TY TNHH FARMELY</p>
-            <p className="mt-1 text-[11px]">Số: {contract?.contractNumber || `HD-${contract?.contractId}`}</p>
+            <p className="font-bold uppercase">CÔNG TY TNHH FARMELY</p>
+            <p className="mx-auto mt-1 w-32 border-t border-black pt-1">Số: {contractNumber}</p>
           </div>
           <div>
-            <p className="text-xs font-black uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-            <p className="mt-1 text-xs font-bold">Độc lập - Tự do - Hạnh phúc</p>
-            <div className="mx-auto mt-1 h-px w-36 bg-[#18241f]" />
+            <p className="font-bold uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+            <p className="mt-1 font-bold">Độc lập - Tự do - Hạnh phúc</p>
+            <div className="mx-auto mt-1.5 h-px w-40 bg-black" />
           </div>
         </div>
-        <div className="mt-9 text-center">
-          <h1 className="font-heading text-2xl font-black sm:text-3xl">HỢP ĐỒNG THUÊ THỬA ĐẤT VÀ DỊCH VỤ CANH TÁC</h1>
-          <p className="mt-2 text-xs font-bold">Mã hợp đồng: {contract?.contractNumber || `HD-${contract?.contractId}`}</p>
+        <div className="mt-12 text-center">
+          <h1 className="text-[22px] font-bold uppercase leading-tight">HỢP ĐỒNG THUÊ THỬA ĐẤT<br />VÀ DỊCH VỤ CANH TÁC</h1>
+          <p className="mt-2 italic">Số: {contractNumber}</p>
         </div>
-        <div className="mt-7 space-y-1 text-xs leading-6 text-[#44544c]">
-          <p>Căn cứ Bộ luật Dân sự và các quy định pháp luật Việt Nam hiện hành;</p>
-          <p>Căn cứ nhu cầu thuê thửa đất canh tác của Bên B và khả năng cung cấp dịch vụ của Bên A;</p>
-          <p>Hôm nay, ngày {createdDate}, các bên thống nhất giao kết hợp đồng với nội dung sau:</p>
+        <div className="mt-8 space-y-1 text-justify italic">
+          <p>- Căn cứ Bộ luật Dân sự và các quy định pháp luật Việt Nam hiện hành;</p>
+          <p>- Căn cứ nhu cầu thuê thửa đất canh tác của Bên B và khả năng cung cấp dịch vụ của Bên A;</p>
+          <p>- Căn cứ sự tự nguyện và thỏa thuận của các bên.</p>
         </div>
+        <p className="mt-5 text-justify">Hôm nay, ngày {createdDate}, chúng tôi gồm có:</p>
       </header>
 
-      <section className="mt-7 grid gap-5 border-b border-[#cfD8cf] pb-7 text-sm sm:grid-cols-2">
-        <div>
-          <p className="mb-2 font-bold">Bên cung cấp dịch vụ (Bên A)</p>
-          <p className="font-semibold">CÔNG TY TNHH FARMELY</p>
-          <p className="mt-1 text-[#52655d]">Địa chỉ: ............................................................</p>
-          <p className="mt-1 text-[#52655d]">Đại diện: .................................... Chức vụ: ................</p>
-          <p className="mt-1 text-[#52655d]">Mã số thuế: .........................................................</p>
-        </div>
-        <div>
-          <p className="mb-2 font-bold">Khách hàng thuê đất (Bên B)</p>
-          <p className="font-semibold">{contract?.renterName || 'Khách hàng Farmely'}</p>
-          <p className="mt-1 text-[#52655d]">Email: {contract?.renterEmail || '—'}</p>
-          <p className="mt-1 text-[#52655d]">Điện thoại: {contract?.renterPhone || '—'}</p>
-          <p className="mt-1 text-[#52655d]">CCCD/Hộ chiếu: .....................................................</p>
-        </div>
+      <section className="mt-4 space-y-1 text-justify">
+        <p className="font-bold uppercase">BÊN CHO THUÊ VÀ CUNG CẤP DỊCH VỤ (BÊN A): CÔNG TY TNHH FARMELY</p>
+        <p>Địa chỉ trụ sở: ....................................................................................................................</p>
+        <p>Mã số thuế: ............................................. Điện thoại: ...........................................................</p>
+        <p>Đại diện: ................................................ Chức vụ: .............................................................</p>
+        <p className="pt-3 font-bold uppercase">BÊN THUÊ (BÊN B): {contract?.renterName || 'KHÁCH HÀNG FARMELY'}</p>
+        <p>CCCD/Hộ chiếu số: .................................... Ngày cấp: .................... Nơi cấp: ....................</p>
+        <p>Địa chỉ thường trú: ..............................................................................................................</p>
+        <p>Điện thoại: {contract?.renterPhone || '................................'} &nbsp;&nbsp;&nbsp; Email: {contract?.renterEmail || '................................'}</p>
+        <p className="pt-4">Sau khi bàn bạc trên tinh thần tự nguyện, bình đẳng, hai bên thống nhất ký kết Hợp đồng với các điều khoản sau:</p>
       </section>
 
-      <section className="mt-7">
-        <h2 className="font-heading text-base font-black">Điều 1. Nội dung thuê và canh tác</h2>
-        <p className="mt-2 text-sm leading-7 text-[#3f5149]">
-          Bên A bàn giao quyền sử dụng các thửa đất dưới đây cho Bên B trong thời hạn đã đăng ký. Mỗi thửa được canh tác theo giống cây và hình thức chăm sóc đã xác nhận trên Farmely.
-        </p>
-        <div className="mt-4 overflow-hidden border border-[#b9c7be]">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead className="bg-[#e8eee8] text-[#294c3b]">
-              <tr><th className="p-3">Thửa đất</th><th className="p-3">Giống cây</th><th className="p-3">Hình thức</th><th className="p-3">Thời hạn</th><th className="p-3 text-right">Thành tiền</th></tr>
+      <section className="mt-7 break-inside-avoid">
+        <h2 className="text-center font-bold uppercase">ĐIỀU 1. ĐỐI TƯỢNG VÀ NỘI DUNG HỢP ĐỒNG</h2>
+        <p className="mt-2 text-justify indent-8">1.1. Bên A đồng ý cho Bên B thuê quyền sử dụng các thửa đất và cung cấp dịch vụ canh tác theo thông tin đã xác nhận trên hệ thống Farmely:</p>
+        <div className="mt-3 overflow-hidden border border-black">
+          <table className="w-full border-collapse text-[12px] leading-snug">
+            <thead>
+              <tr><th className="border-r border-black p-2">Thửa đất</th><th className="border-r border-black p-2">Diện tích/<br />Giống cây</th><th className="border-r border-black p-2">Hình thức</th><th className="border-r border-black p-2">Thời hạn canh tác</th><th className="p-2 text-right">Thành tiền</th></tr>
             </thead>
             <tbody>
               {rentals.map((rental) => (
-                <tr key={rental.rentalId || rental.plotId} className="border-t border-[#d7ded8] align-top">
-                  <td className="p-3 font-bold">{rental.plotCode || `Plot ${rental.plotId}`}<span className="mt-1 block font-normal text-[#687870]">{rental.plotArea ? `${rental.plotArea} m²` : ''}</span></td>
-                  <td className="p-3">{rental.varietyName || '—'}</td>
-                  <td className="p-3">{rental.cultivationMode === 'SELF_GROWING' ? 'Tự canh tác' : 'Farmely hỗ trợ'}</td>
-                  <td className="p-3">{formatDate(rental.startDate)}<span className="block text-[#687870]">đến {formatDate(rental.endDate)}</span></td>
-                  <td className="p-3 text-right font-bold">{currency.format(Number(rental.totalPrice || 0))}</td>
+                <tr key={rental.rentalId || rental.plotId} className="border-t border-black align-top">
+                  <td className="border-r border-black p-2 font-bold">{rental.plotCode || `Plot ${rental.plotId}`}</td>
+                  <td className="border-r border-black p-2">{rental.plotArea ? `${rental.plotArea} m²` : '—'}<br />{rental.varietyName || '—'}</td>
+                  <td className="border-r border-black p-2">{rental.cultivationMode === 'SELF_GROWING' ? 'Tự canh tác' : 'Farmely hỗ trợ'}</td>
+                  <td className="border-r border-black p-2">Từ {formatDate(rental.startDate)}<br />đến {formatDate(rental.endDate)}</td>
+                  <td className="p-2 text-right">{currency.format(Number(rental.totalPrice || 0))}</td>
                 </tr>
               ))}
-              {!rentals.length && <tr><td colSpan="5" className="p-6 text-center text-[#687870]">Chưa có dữ liệu thửa đất trong hợp đồng.</td></tr>}
+              {!rentals.length && <tr><td colSpan="5" className="border-t border-black p-4 text-center">Chưa có dữ liệu thửa đất trong hợp đồng.</td></tr>}
             </tbody>
           </table>
         </div>
+        <p className="mt-3 text-justify indent-8">1.2. Bên B chỉ sử dụng thửa đất đúng mục đích, giống cây và phương thức canh tác đã đăng ký; không được chuyển giao cho bên thứ ba khi chưa có chấp thuận bằng văn bản của Bên A.</p>
       </section>
 
-      <section className="mt-7 grid gap-6 text-sm sm:grid-cols-[1fr_230px]">
-        <div className="space-y-5">
-          {RENTAL_TERMS.slice(1).map(({ title, content }) => <div key={title}><h2 className="font-heading font-black">{title}</h2><p className="mt-2 leading-7 text-[#3f5149]">{content}</p></div>)}
-        </div>
-        <aside className="h-fit border border-[#9eb3a6] bg-[#f1f5ef] p-5">
-          <p className="text-xs font-bold text-[#52655d]">TỔNG GIÁ TRỊ HỢP ĐỒNG</p>
-          <p className="mt-2 text-2xl font-black text-[#1f6b4f]">{currency.format(Number(contract?.totalAmount || 0))}</p>
-          <div className="mt-5 border-t border-[#bdcabf] pt-4 text-xs leading-6 text-[#52655d]">
-            <p>Ngày lập: <strong className="text-[#20332a]">{createdDate}</strong></p>
-            <p>Trạng thái: <strong className="text-[#20332a]">{getStatus(contract).label}</strong></p>
+      <section className="mt-6 space-y-5 text-justify">
+        {RENTAL_TERMS.slice(1).map(({ title, content }, index) => (
+          <div key={title} className="break-inside-avoid">
+            <h2 className="text-center font-bold uppercase">{title}</h2>
+            <p className="mt-1 indent-8">{index + 2}.1. {content}</p>
           </div>
-        </aside>
+        ))}
+        <div className="break-inside-avoid">
+          <h2 className="text-center font-bold uppercase">ĐIỀU 10. GIÁ TRỊ VÀ HIỆU LỰC HỢP ĐỒNG</h2>
+          <p className="mt-1 indent-8">10.1. Tổng giá trị Hợp đồng: <strong>{currency.format(Number(contract?.totalAmount || 0))}</strong> (đã bao gồm các khoản thể hiện trên đơn đặt thuê).</p>
+          <p className="indent-8">10.2. Hợp đồng có hiệu lực kể từ khi giao dịch được xác nhận thành công trên Farmely và chấm dứt khi các bên hoàn thành toàn bộ nghĩa vụ.</p>
+          <p className="indent-8">10.3. Hợp đồng được lập thành 02 (hai) bản có giá trị pháp lý như nhau; mỗi bên giữ 01 (một) bản. Bản điện tử được lưu tại tài khoản khách hàng.</p>
+        </div>
       </section>
 
-      <footer className="mt-10 grid gap-8 border-t border-[#9eb3a6] pt-7 text-center text-sm sm:grid-cols-2">
-        <div><p className="font-bold">ĐẠI DIỆN BÊN A</p><p className="mt-1 text-xs text-[#687870]">Farmely xác nhận điện tử</p><div className="mx-auto mt-5 flex w-36 -rotate-3 items-center justify-center gap-2 rounded-full border-2 border-[#1f6b4f] px-3 py-2 text-xs font-black text-[#1f6b4f]"><ShieldCheck className="h-4 w-4" /> ĐÃ XÁC NHẬN</div></div>
-        <div><p className="font-bold">BÊN B</p><p className="mt-1 text-xs text-[#687870]">{contract?.renterName || 'Khách hàng Farmely'}</p><p className="mt-8 font-semibold text-[#1f6b4f]"><CheckCircle2 className="mr-1 inline h-4 w-4" />Đã đồng ý điều khoản điện tử</p></div>
+      <footer className="mt-10 grid grid-cols-2 gap-14 break-inside-avoid text-center">
+        <div><p className="font-bold uppercase">ĐẠI DIỆN BÊN A</p><p className="italic">(Ký, ghi rõ họ tên và đóng dấu)</p><div className="h-28" /><p className="font-bold">ĐẠI DIỆN FARMELY</p></div>
+        <div><p className="font-bold uppercase">BÊN B</p><p className="italic">(Ký và ghi rõ họ tên)</p><div className="h-28" /><p className="font-bold">{contract?.renterName || 'KHÁCH HÀNG FARMELY'}</p></div>
       </footer>
-      <p className="mt-12 text-center text-[10px] text-[#7b8981]">Tài liệu được tạo từ dữ liệu hợp đồng trên hệ thống Farmely · Mã hồ sơ {contract?.contractId || '—'} · Điều khoản {RENTAL_TERMS_VERSION}</p>
+      <p className="mt-12 border-t border-black pt-2 text-center text-[10px] italic">Hợp đồng điện tử được tạo từ dữ liệu trên hệ thống Farmely · Mã hồ sơ {contract?.contractId || '—'} · Phiên bản {RENTAL_TERMS_VERSION} · Trạng thái: {getStatus(contract).label}</p>
     </article>
   );
 }
