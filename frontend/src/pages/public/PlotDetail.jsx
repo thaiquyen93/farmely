@@ -44,6 +44,7 @@ export default function PlotDetail() {
       navigate(`/marketplace/plot/${plot.id}/book`);
     }
   };
+  const handleStartBooking = handleBookPlotClick;
 
   const compatibleVarietiesList = varietiesData.filter((v) =>
     plot.compatibleCrops.some((c) => v.name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(v.name.toLowerCase()))

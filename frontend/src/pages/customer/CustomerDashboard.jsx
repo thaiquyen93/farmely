@@ -69,7 +69,12 @@ export default function CustomerDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { services: localServices, loadServices: loadMasterServices } = useServiceStore();
+  const {
+    services: localServices,
+    loading: servicesLoading,
+    error: servicesError,
+    loadServices: loadMasterServices
+  } = useServiceStore();
   const [apiServices, setApiServices] = useState([]);
   const [apiCustomerPlots, setApiCustomerPlots] = useState([]);
   const [dashboardDataError] = useState('');
