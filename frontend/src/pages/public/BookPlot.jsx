@@ -18,6 +18,7 @@ import {
   Maximize2,
   Radio,
   MapPin,
+  Calendar,
   CreditCard,
   QrCode,
   AlertCircle,
@@ -30,6 +31,42 @@ import {
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
+import { apiFetch, unwrapData } from '../../api/apiClient';
+
+export const BOOKING_START_LEAD_DAYS = 10;
+
+export const toLocalIsoDate = (date) => {
+  const local = new Date(date);
+  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+  return local.toISOString().slice(0, 10);
+};
+
+export const addDays = (date, days) => {
+  const next = new Date(date);
+  next.setHours(12, 0, 0, 0);
+  next.setDate(next.getDate() + days);
+  return toLocalIsoDate(next);
+};
+
+export const addMonths = (isoDate, months) => {
+  const source = new Date(`${isoDate}T12:00:00`);
+  const originalDay = source.getDate();
+  source.setDate(1);
+  source.setMonth(source.getMonth() + months);
+  const lastDay = new Date(source.getFullYear(), source.getMonth() + 1, 0).getDate();
+  source.setDate(Math.min(originalDay, lastDay));
+  return toLocalIsoDate(source);
+};
+
+export const getEarliestCultivationDate = (now = new Date()) => addDays(now, BOOKING_START_LEAD_DAYS);
+
+export const getRentalEndDate = (startDate, months, crop) => {
+  const monthEnd = addMonths(startDate, months);
+  const durationValues = String(crop?.duration || '').match(/\d+/g)?.map(Number) || [];
+  const cropMinimumDays = (durationValues.length ? Math.max(...durationValues) : 30) + 10;
+  const cropEnd = addDays(`${startDate}T12:00:00`, cropMinimumDays);
+  return cropEnd > monthEnd ? cropEnd : monthEnd;
+};
 
 const marketplaceBookingPlots = MARKETPLACE_PLOTS_GIS.map((plot) => ({
   ...plot,
@@ -131,6 +168,9 @@ export default function BookPlot() {
   const [qrData, setQrData] = useState(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [termsError, setTermsError] = useState('');
+  const [bookingError, setBookingError] = useState('');
+  const [reservation, setReservation] = useState(null);
+  const [startDateByPlot, setStartDateByPlot] = useState({});
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -200,6 +240,19 @@ export default function BookPlot() {
     }
   }, [selectedPlots, searchParams, setSearchParams]);
 
+  // Mỗi plot có lịch bắt đầu độc lập. Nếu khách chưa chọn, dùng ngày hợp lệ đầu tiên.
+  useEffect(() => {
+    const earliest = getEarliestCultivationDate();
+    setStartDateByPlot((current) => {
+      const next = {};
+      selectedPlots.forEach((plot) => {
+        const key = getPlotSelectionKey(plot);
+        next[key] = current[key] && current[key] >= earliest ? current[key] : earliest;
+      });
+      return next;
+    });
+  }, [selectedPlots]);
+
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;
   const formattedTimer = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
@@ -221,6 +274,7 @@ export default function BookPlot() {
       navigate(`/marketplace/plot/${next[0]?.id || id}/book?plots=${encodeURIComponent(codes)}`, { replace: true });
       return next;
     });
+    setReservation(null);
     setIsAddPlotModalOpen(false);
   };
 
@@ -233,6 +287,7 @@ export default function BookPlot() {
       navigate(`/marketplace/plot/${next[0]?.id || id}/book?plots=${encodeURIComponent(codes)}`, { replace: true });
       return next;
     });
+    setReservation(null);
   };
 
   // Aggregate calculations for the multi-plot rental contract.
@@ -260,46 +315,64 @@ export default function BookPlot() {
   const primaryCrop = selectedCropFor(primaryPlot);
 
 
-  const persistBookingToDatabase = async (method = paymentMethod) => {
-    try {
-      const response = await fetch('/api/bookings/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: user?.id || 4,
-          customerEmail: user?.email || 'customer.khoi@gmail.com',
-          customerName: user?.fullName || 'Tạ Nguyễn Khôi Nguyên',
-          totalAmount: totalAmount,
-          paymentMethod: method || 'VIETQR',
-          cultivationMode: selectedMode === 'ASSISTED' ? 'ASSISTED_GROWING' : 'SELF_GROWING',
-          rentalMonths: rentalMonths,
-          plots: selectedPlots.map((p) => ({
-            id: p.id,
-            code: p.code,
-            price: p.rentalPrice || 1200000,
-            cropId: selectedCropFor(p)?.id || null,
-            cropName: selectedCropFor(p)?.name || null,
-            varietyName: selectedCropFor(p)?.variety || null
-          }))
-        })
-      });
-      const data = await response.json();
-      if (data?.success && data?.contract_code) {
-        return data.contract_code;
-      }
-    } catch (err) {
-      console.error('Lỗi lưu CSDL SQL Server:', err);
-    }
-    return `MLA-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+  const getNumericId = (value, fallback) => {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+    const trailing = String(value || '').match(/(\d+)$/)?.[1];
+    return trailing ? Number(trailing) : fallback;
+  };
+
+  const createContractReservation = async () => {
+    const earliestAtPayment = getEarliestCultivationDate();
+    const items = selectedPlots.map((plot, index) => {
+      const key = getPlotSelectionKey(plot);
+      const selectedStart = startDateByPlot[key];
+      const startDate = selectedStart && selectedStart >= earliestAtPayment ? selectedStart : earliestAtPayment;
+      const crop = selectedCropFor(plot);
+      return {
+        plotId: getNumericId(plot.plot_id ?? plot.plotId ?? plot.id, index + 1),
+        varietyId: getNumericId(crop?.varietyId ?? crop?.id, 1),
+        serviceId: selectedMode === 'ASSISTED'
+          ? getNumericId(assistedService?.serviceId ?? assistedService?.id, null)
+          : null,
+        startDate,
+        endDate: getRentalEndDate(startDate, rentalMonths, crop)
+      };
+    });
+
+    setStartDateByPlot(Object.fromEntries(selectedPlots.map((plot, index) => [
+      getPlotSelectionKey(plot),
+      items[index].startDate
+    ])));
+
+    const result = unwrapData(await apiFetch('/api/contracts/reservations', {
+      method: 'POST',
+      body: JSON.stringify({ renterId: getNumericId(user?.id ?? user?.userId, null), items })
+    }));
+    setReservation(result);
+    setContractCode(result.contractNumber || `HD-${result.contractId}`);
+    return result;
   };
 
   const handleConfirmBooking = async () => {
-    if (!acceptedTerms) {
-      setTermsError('Bạn cần đồng ý với điều khoản thuê đất trước khi thanh toán.');
+    const validationError = getBookingValidationError({ acceptedTerms, selectedMode, assistedService });
+    if (validationError) {
+      if (!acceptedTerms) setTermsError(validationError);
+      else setBookingError(validationError);
       return;
     }
     setTermsError('');
+    setBookingError('');
     setIsProcessing(true);
+
+    let activeReservation = reservation;
+    try {
+      if (!activeReservation) activeReservation = await createContractReservation();
+    } catch (error) {
+      setBookingError(error.message || 'Không thể giữ lịch canh tác. Vui lòng kiểm tra ngày bắt đầu rồi thử lại.');
+      setIsProcessing(false);
+      return;
+    }
 
     if (paymentMethod === 'VNPAY') {
       setIsProcessing(false);
@@ -313,24 +386,23 @@ export default function BookPlot() {
       return;
     }
 
-    // Default flow: save directly to database
-    const savedCode = await persistBookingToDatabase(paymentMethod);
     setIsProcessing(false);
-    setContractCode(savedCode);
-    try {
-      localStorage.removeItem('farmely_master_lease_selected_plots');
-    } catch (e) {
-      console.error(e);
-    }
-    setIsSuccess(true);
   };
 
   const handlePaymentSuccess = async () => {
     setShowVnPayModal(false);
     setShowCardModal(false);
     setIsProcessing(true);
-    const savedCode = await persistBookingToDatabase(paymentMethod);
-    setContractCode(savedCode);
+    try {
+      if (reservation?.contractId) {
+        const activated = unwrapData(await apiFetch(`/api/contracts/${reservation.contractId}/activate`, { method: 'POST' }));
+        setContractCode(activated.contractNumber || contractCode);
+      }
+    } catch (error) {
+      setBookingError(error.message || 'Thanh toán thành công nhưng chưa thể kích hoạt hợp đồng.');
+      setIsProcessing(false);
+      return;
+    }
     try {
       localStorage.removeItem('farmely_master_lease_selected_plots');
     } catch (e) {
@@ -666,7 +738,7 @@ export default function BookPlot() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button
                     type="button"
-                    onClick={() => setSelectedMode('SELF')}
+                    onClick={() => { setSelectedMode('SELF'); setReservation(null); }}
                     className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
                       selectedMode === 'SELF'
                         ? 'border-brand-green bg-emerald-50/70 ring-2 ring-brand-green/20'
@@ -688,7 +760,7 @@ export default function BookPlot() {
 
                   <button
                     type="button"
-                    onClick={() => setSelectedMode('ASSISTED')}
+                    onClick={() => { setSelectedMode('ASSISTED'); setReservation(null); }}
                     className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
                       selectedMode === 'ASSISTED'
                         ? 'border-brand-yellow bg-amber-50/70 ring-2 ring-brand-yellow/30'
@@ -728,7 +800,7 @@ export default function BookPlot() {
                     <button
                       key={m}
                       type="button"
-                      onClick={() => setRentalMonths(m)}
+                      onClick={() => { setRentalMonths(m); setReservation(null); }}
                       className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
                         rentalMonths === m
                           ? 'border-brand-green bg-brand-green text-white font-black'
@@ -742,10 +814,57 @@ export default function BookPlot() {
                 </div>
               </div>
 
+              {/* Per-plot cultivation start dates */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="font-heading font-bold text-lg text-brand-dark">3. Chọn Ngày Bắt Đầu Canh Tác</h3>
+                    <p className="mt-1 text-xs leading-5 text-stone-500">
+                      Mỗi thửa có lịch riêng. Ngày sớm nhất là {BOOKING_START_LEAD_DAYS} ngày sau khi thanh toán; nếu không đổi, Farmely dùng ngày hợp lệ đầu tiên.
+                    </p>
+                  </div>
+                  <Calendar className="h-5 w-5 shrink-0 text-brand-green" />
+                </div>
+                <div className="space-y-3">
+                  {selectedPlots.map((plot) => {
+                    const key = getPlotSelectionKey(plot);
+                    const crop = selectedCropFor(plot);
+                    const startDate = startDateByPlot[key] || getEarliestCultivationDate();
+                    const endDate = getRentalEndDate(startDate, rentalMonths, crop);
+                    return (
+                      <div key={key} className="grid gap-3 rounded-2xl border border-brand-border bg-[#fbfcf8] p-4 sm:grid-cols-[minmax(0,1fr)_180px_180px] sm:items-end">
+                        <div>
+                          <div className="flex items-center gap-2"><span className="rounded-md bg-brand-green px-2 py-1 text-[10px] font-black text-white">{plot.code}</span><strong className="text-sm text-brand-dark">{plot.name}</strong></div>
+                          <p className="mt-1 text-[11px] text-stone-500">{crop?.name || 'Giống cây đã chọn'} · {plot.area}</p>
+                        </div>
+                        <label className="text-xs font-bold text-stone-600">
+                          Ngày bắt đầu
+                          <input
+                            type="date"
+                            min={getEarliestCultivationDate()}
+                            value={startDate}
+                            onChange={(event) => {
+                              setStartDateByPlot((current) => ({ ...current, [key]: event.target.value }));
+                              setReservation(null);
+                              setBookingError('');
+                            }}
+                            className="mt-1.5 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-semibold text-brand-dark outline-none focus:border-brand-green focus:ring-2 focus:ring-emerald-100"
+                          />
+                        </label>
+                        <div className="rounded-xl bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
+                          <span className="block text-[10px] font-bold text-emerald-700">Kết thúc dự kiến</span>
+                          <strong>{new Date(`${endDate}T12:00:00`).toLocaleDateString('vi-VN')}</strong>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Payment Method */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-4">
                 <h3 className="font-heading font-bold text-lg text-brand-dark">
-                  3. Phương Thức Thanh Toán
+                  4. Phương Thức Thanh Toán
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
@@ -848,6 +967,7 @@ export default function BookPlot() {
                   <span>Tôi đã đọc và đồng ý với <Link to="/terms" target="_blank" className="font-bold text-brand-green underline underline-offset-2">điều khoản thuê đất và thanh toán của Farmely</Link>.</span>
                 </label>
                 {termsError && <p role="alert" className="text-xs font-semibold text-rose-600">{termsError}</p>}
+                {bookingError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">{bookingError}</p>}
 
                 <Button
                   variant="primary"
@@ -962,6 +1082,8 @@ export default function BookPlot() {
           name: `Hợp đồng thuê ${selectedPlots.length} thửa đất`
         }}
         totalAmount={totalAmount}
+        contractId={reservation?.contractId}
+        additionalPayload={{ contractNumber: reservation?.contractNumber }}
       />
 
       {/* Card Payment Pop-up Modal */}
@@ -969,6 +1091,7 @@ export default function BookPlot() {
         isOpen={showCardModal}
         onClose={() => setShowCardModal(false)}
         totalAmount={totalAmount}
+        additionalPayload={{ contractId: reservation?.contractId, contractNumber: reservation?.contractNumber }}
         plotInfo={{
           code: plotCodesSummary,
           name: `Hợp đồng thuê ${selectedPlots.length} thửa đất`
