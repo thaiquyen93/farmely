@@ -88,16 +88,26 @@ export default function Marketplace() {
 
           const savedLandId = localStorage.getItem('farmely_selected_land_id');
 
+          // Ưu tiên đất có plots trong database để người dùng luôn thấy ngay thửa đất
+          const landWithPlots = landList.find((l) => plotList.some((p) => String(p.landId) === String(l.landId)));
+
           let targetLandId = null;
           if (urlLandId && landList.some((l) => String(l.landId) === String(urlLandId))) {
             targetLandId = String(urlLandId);
           } else if (matchedPlotLandId && landList.some((l) => String(l.landId) === matchedPlotLandId)) {
             targetLandId = matchedPlotLandId;
+          } else if (
+            savedLandId &&
+            landList.some((l) => String(l.landId) === String(savedLandId)) &&
+            plotList.some((p) => String(p.landId) === String(savedLandId))
+          ) {
+            targetLandId = String(savedLandId);
+          } else if (landWithPlots) {
+            targetLandId = String(landWithPlots.landId);
           } else if (savedLandId && landList.some((l) => String(l.landId) === String(savedLandId))) {
             targetLandId = String(savedLandId);
           } else {
-            const latestLand = [...landList].sort((a, b) => Number(b.landId || 0) - Number(a.landId || 0))[0];
-            targetLandId = String(latestLand.landId);
+            targetLandId = String(landList[0]?.landId || '1');
           }
 
           if (targetLandId) {
@@ -390,7 +400,9 @@ export default function Marketplace() {
         {/* Badge Live DB Indicator */}
         <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50/90 border border-emerald-200/90 rounded-full shadow-2xs shrink-0">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>PostgreSQL: {allPlots.length} Thửa {lands.length > 0 ? `· ${lands.length} Khu đất` : ''}</span>
+          <span>
+            PostgreSQL: {allPlots.length === dbPlots.length ? `${dbPlots.length} Thửa` : `${allPlots.length}/${dbPlots.length} Thửa`} {lands.length > 0 ? `· ${lands.length} Khu đất` : ''}
+          </span>
         </div>
 
         {/* Phân cách mờ */}
@@ -527,12 +539,15 @@ export default function Marketplace() {
                 }}
                 className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
               >
-                {lands.map((l) => (
-                  <option key={l.landId} value={String(l.landId)}>
-                    {l.landName}
-                  </option>
-                ))}
-                <option value="ALL">Tất cả nông trại ({lands.length})</option>
+                {lands.map((l) => {
+                  const plotCount = dbPlots.filter((p) => String(p.landId) === String(l.landId)).length;
+                  return (
+                    <option key={l.landId} value={String(l.landId)}>
+                      {l.landName} ({plotCount} thửa)
+                    </option>
+                  );
+                })}
+                <option value="ALL">Tất cả nông trại ({dbPlots.length} thửa / {lands.length} khu)</option>
               </select>
             </div>
           )}
@@ -586,12 +601,41 @@ export default function Marketplace() {
                 <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-2xl mb-3 text-emerald-600 shadow-xs">
                   🌱
                 </div>
-                <h3 className="text-xs font-black text-slate-800 mb-1">
-                  Bản đồ trống (Clean State)
-                </h3>
-                <p className="text-[11px] text-slate-500 mb-4 max-w-[240px] leading-relaxed">
-                  Chưa có thửa đất nào được lưu trong Database. Quản trị viên có thể vẽ ranh giới nông trại và chia plot mới ngay.
-                </p>
+                {dbPlots.length > 0 ? (
+                  <>
+                    <h3 className="text-xs font-black text-slate-800 mb-1">
+                      Khu đất chưa phân chia thửa
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mb-3 max-w-[240px] leading-relaxed">
+                      Khu vực này hiện chưa có thửa đất. Database hiện có <strong>{dbPlots.length} thửa đất</strong> tại nông trại khác.
+                    </p>
+                    {(() => {
+                      const landWithPlots = lands.find((l) => dbPlots.some((p) => String(p.landId) === String(l.landId)));
+                      return landWithPlots ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const target = String(landWithPlots.landId);
+                            setSelectedLandId(target);
+                            localStorage.setItem('farmely_selected_land_id', target);
+                          }}
+                          className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl shadow-xs transition cursor-pointer"
+                        >
+                          🌿 Chuyển đến {landWithPlots.landName} ({dbPlots.filter(p => String(p.landId) === String(landWithPlots.landId)).length} thửa)
+                        </button>
+                      ) : null;
+                    })()}
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-xs font-black text-slate-800 mb-1">
+                      Bản đồ trống (Clean State)
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mb-4 max-w-[240px] leading-relaxed">
+                      Chưa có thửa đất nào được lưu trong Database. Quản trị viên có thể vẽ ranh giới nông trại và chia plot mới ngay.
+                    </p>
+                  </>
+                )}
                 <div className="flex flex-col gap-2 w-full">
                   <Link
                     to="/admin/master-data/lands/create"
