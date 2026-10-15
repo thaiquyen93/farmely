@@ -67,8 +67,8 @@ function getBoundsAndCenter(plotsData, farmBoundary) {
   if (count === 0) {
     return {
       bounds: null,
-      center: [106.6602, 10.7626], // TP. Hồ Chí Minh mặc định nếu chưa có dữ liệu GPS
-      zoom: 12
+      center: [106.345, 10.689], // Tọa độ đất nông trại Farmely
+      zoom: 15.5
     };
   }
 
@@ -320,7 +320,9 @@ export default function MarketplaceInteractiveMap({
     workingData,
     enabled: mapReady,
     skipRise: compact,
-    targetPitch: settledPitch
+    targetPitch: settledPitch,
+    bounds: boundsInfo.bounds,
+    center: boundsInfo.center
   });
 
   useEffect(() => {
