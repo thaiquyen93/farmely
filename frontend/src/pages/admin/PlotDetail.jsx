@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { plotsData } from '../../data/plots';
+import { farmApi, plotStatusBadge } from '../../api/farm/farmApi';
+import { formatArea } from '../../utils/polygonGeometry';
 import { iotStationsData } from '../../data/iotStations';
-import { varietiesData } from '../../data/varieties';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import {
@@ -13,70 +13,123 @@ import {
   Activity,
   Edit,
   ExternalLink,
-  Calendar,
-  Layers,
   Thermometer,
   Droplets,
   CheckCircle2,
-  Loader2
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 export default function PlotDetail() {
   const { id } = useParams();
-  const [plot, setPlot] = useState(() => {
-    return plotsData.find((p) => String(p.id) === String(id) || p.code === id) || plotsData[0];
-  });
+  const [plot, setPlot] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
-    fetch(`/api/plots/${id}`)
-      .then((res) => res.json())
-      .then((res) => {
+    setLoading(true);
+    setError('');
+
+    // Ưu tiên getPlot(id), fallback sang listPlots tìm theo id hoặc plotCode
+    farmApi.getPlot(id)
+      .then((d) => {
         if (!active) return;
-        if (res && res.success && res.data) {
-          const d = res.data;
+        if (d) {
           setPlot({
             id: d.id || d.plotId,
             code: d.code || d.plotCode,
-            name: d.name || `Thửa Đất ${d.plotCode}`,
-            status: d.status,
-            description: d.description || `Thửa đất canh tác tiêu chuẩn VietGAP thuộc ${d.landName}.`,
-            landName: d.landName,
-            landAddress: d.landAddress,
-            area: d.areaText || `${d.area} m²`,
-            formattedPrice: d.formattedPrice || `${Number(d.pricePerPeriod || 0).toLocaleString('vi-VN')} đ/tháng`,
-            soilType: d.soilType || 'Đất thịt nhẹ pha cát, tầng canh tác dày > 40cm, pH 6.0 - 6.5',
-            iotStationId: d.iotStationId || 'IOT-CC-01',
+            name: d.name || `Thửa Đất ${d.plotCode || d.code}`,
+            landId: d.landId,
+            landName: d.landName || 'Trang trại Happy Valley Củ Chi',
+            landAddress: d.landAddress || d.address || 'Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh',
+            area: typeof d.area === 'number' ? formatArea(d.area) : (d.area || '150 m²'),
+            status: plotStatusBadge(d.status),
+            price: Number(d.pricePerPeriod || d.price_per_period || 0),
+            formattedPrice: `${Number(d.pricePerPeriod || d.price_per_period || 0).toLocaleString('vi-VN')} đ/tháng`,
+            soilType: d.soilType || 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
+            description: d.description || `Thửa đất canh tác tiêu chuẩn VietGAP thuộc ${d.landName || 'Happy Valley Củ Chi'}.`,
+            iotStationId: d.iotStationId || `IOT-${d.plotCode || 'CC-01'}`,
             recentSensorReadings: d.recentSensorReadings || {
-              temperature: '28.5°C',
-              soilMoisture: '68%',
-              humidity: '74%'
+              temperature: '28.5 °C',
+              humidity: '74 %',
+              soilMoisture: '68 %'
             },
-            compatibleCrops: (d.compatibleCrops && d.compatibleCrops.length > 0)
+            compatibleCrops: Array.isArray(d.compatibleCrops) && d.compatibleCrops.length > 0
               ? d.compatibleCrops
-              : ['Rau muống cạn', 'Cải ngọt / Cải bẹ', 'Xà lách xoăn']
+              : ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby']
           });
         }
       })
+      .catch(() => {
+        // Fallback sang listPlots
+        return farmApi.listPlots().then((rows) => {
+          if (!active) return;
+          const found = (rows || []).find((p) =>
+            String(p.plotId) === String(id) ||
+            (p.plotCode && p.plotCode.toLowerCase() === String(id).toLowerCase())
+          );
+          if (found) {
+            setPlot({
+              id: found.plotId,
+              code: found.plotCode,
+              name: `Thửa Đất ${found.plotCode}`,
+              landId: found.landId,
+              landName: found.landName || 'Trang trại Happy Valley Củ Chi',
+              area: formatArea(Number(found.area)),
+              status: plotStatusBadge(found.status),
+              price: Number(found.pricePerPeriod),
+              formattedPrice: `${Number(found.pricePerPeriod || 0).toLocaleString('vi-VN')} đ/tháng`,
+              soilType: 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
+              description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát IoT 24/7.',
+              iotStationId: `IOT-${found.plotCode}`,
+              compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby'],
+              recentSensorReadings: {
+                temperature: '28.5 °C',
+                humidity: '74 %',
+                soilMoisture: '68 %'
+              }
+            });
+          } else {
+            setError('Không tìm thấy thửa đất trong Database.');
+          }
+        });
+      })
       .catch((err) => {
-        console.warn('Cannot fetch live plot, using fallback:', err);
+        if (!active) return;
+        setError(err.message || 'Lỗi nạp dữ liệu từ Database.');
       })
       .finally(() => {
         if (active) setLoading(false);
       });
+
     return () => { active = false; };
   }, [id]);
 
-  const station = iotStationsData.find((s) => s.id === plot?.iotStationId);
-
-  if (!plot) {
+  if (loading) {
     return (
-      <div className="p-8 text-center text-stone-500">
-        Không tìm thấy thông tin thửa đất #{id}.
+      <div className="py-20 flex flex-col items-center justify-center space-y-3">
+        <Loader2 className="w-8 h-8 text-brand-green animate-spin" />
+        <p className="text-sm text-stone-600 font-semibold">Đang tải thông tin thửa đất...</p>
       </div>
     );
   }
+
+  if (error || !plot) {
+    return (
+      <div className="py-20 flex flex-col items-center justify-center space-y-4 text-center">
+        <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <p className="text-base font-bold text-brand-dark">{error || 'Không tìm thấy thửa đất.'}</p>
+        <Link to="/admin/master-data/plots">
+          <Button variant="outline" size="sm">Quay lại danh sách thửa đất</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  const station = iotStationsData.find((s) => s.id === plot?.iotStationId);
 
   return (
     <div className="space-y-6">
@@ -103,7 +156,7 @@ export default function PlotDetail() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Link to={`/marketplace?plotId=${plot.id}`} target="_blank">
+          <Link to={`/marketplace/plot/${plot.code || plot.id}`} target="_blank">
             <Button variant="outline" size="sm" icon={ExternalLink}>
               Xem trên Marketplace
             </Button>
@@ -195,7 +248,7 @@ export default function PlotDetail() {
 
       </div>
 
-      {/* Compatible Crops and Operational Notes */}
+      {/* Compatible Crops */}
       <div className="bg-white rounded-2xl p-6 border border-brand-border shadow-sm space-y-4">
         <h3 className="font-heading text-base font-bold text-brand-dark flex items-center gap-2">
           <Sprout className="w-5 h-5 text-brand-green" />
@@ -203,7 +256,7 @@ export default function PlotDetail() {
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {plot.compatibleCrops.map((c, idx) => (
+          {(plot.compatibleCrops || []).map((c, idx) => (
             <div
               key={idx}
               className="p-3.5 rounded-xl bg-brand-cream/50 border border-brand-border flex items-center gap-3 text-xs"

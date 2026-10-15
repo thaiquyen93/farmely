@@ -104,11 +104,17 @@ export default function useMapIntroAnimation({
   enabled = true,
   skipRise = false,
   targetPitch = CAMERA.settled.pitch,
+  bounds = null,
+  center = null,
 }) {
   const [phase, setPhase] = useState('waiting');
   const rafRef = useRef(null);
   const cancelledRef = useRef(false);
   const lastPushRef = useRef(0);
+  const boundsRef = useRef(bounds);
+  boundsRef.current = bounds;
+  const centerRef = useRef(center);
+  centerRef.current = center;
 
   const phaseRef = useRef('waiting');
   const setPhaseSafe = useCallback((next) => {
@@ -152,7 +158,8 @@ export default function useMapIntroAnimation({
 
     if (typeof map.stop === 'function') map.stop();
     if (typeof map.fitBounds === 'function') {
-      map.fitBounds(CAMERA.bounds, {
+      const activeBounds = boundsRef.current || CAMERA.bounds;
+      map.fitBounds(activeBounds, {
         padding: CAMERA.padding,
         bearing: CAMERA.settled.bearing,
         pitch: targetPitch,
@@ -169,7 +176,11 @@ export default function useMapIntroAnimation({
   }, [skip]);
 
   useEffect(() => {
-    if (!enabled || !map || !workingData || workingData.features.length === 0) return undefined;
+    if (!enabled || !map || !workingData) return undefined;
+    if (workingData.features.length === 0) {
+      setPhaseSafe('done');
+      return undefined;
+    }
 
     cancelledRef.current = false;
     const features = workingData.features;
@@ -182,7 +193,8 @@ export default function useMapIntroAnimation({
         if (cancelledRef.current) return;
         pushHeights(features.map(() => RISE_SETTLE_HEIGHT), true);
         if (typeof map.fitBounds === 'function') {
-          map.fitBounds(CAMERA.bounds, {
+          const activeBounds = boundsRef.current || CAMERA.bounds;
+          map.fitBounds(activeBounds, {
             padding: CAMERA.padding,
             bearing: CAMERA.settled.bearing,
             pitch: targetPitch,
@@ -274,14 +286,18 @@ export default function useMapIntroAnimation({
 
       // Camera nghiêng dần từ gần-top-down về góc tổng quan
       if (typeof map.easeTo === 'function') {
-        map.easeTo({
+        const easeOpts = {
           zoom: CAMERA.overview.zoom,
           pitch: CAMERA.overview.pitch,
           bearing: CAMERA.overview.bearing,
           duration: CAMERA_INTRO_MS,
           easing: easeInOutCubic,
           essential: true,
-        });
+        };
+        if (centerRef.current) {
+          easeOpts.center = centerRef.current;
+        }
+        map.easeTo(easeOpts);
       }
 
       startTime = performance.now();
@@ -309,11 +325,15 @@ export default function useMapIntroAnimation({
 
     // Đặt camera ở vị trí mở màn (cao, gần top-down) rồi chờ tile tải xong
     if (typeof map.jumpTo === 'function') {
-      map.jumpTo({
+      const jumpOpts = {
         zoom: CAMERA.intro.zoom,
         pitch: CAMERA.intro.pitch,
         bearing: CAMERA.intro.bearing,
-      });
+      };
+      if (centerRef.current) {
+        jumpOpts.center = centerRef.current;
+      }
+      map.jumpTo(jumpOpts);
     }
     pushHeights(features.map(() => 0), true);
 

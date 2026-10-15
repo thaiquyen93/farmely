@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
-import { plotsData } from '../../data/plots';
-import { MARKETPLACE_PLOTS_GIS } from '../../data/marketplaceGisData';
+import { farmApi } from '../../api/farm/farmApi';
+import { rentalApi } from '../../api/rental/rentalApi';
 import { getSafeCropById, safeCrops } from '../../data/safeCrops';
-import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
+import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
 import {
@@ -26,34 +26,47 @@ import {
   Trash2,
   Layers,
   Sparkles,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 
-const marketplaceBookingPlots = MARKETPLACE_PLOTS_GIS.map((plot) => ({
-  ...plot,
-  catalog: 'marketplace',
-  code: plot.label || String(plot.code || '').replace(/^Plot\s+/i, ''),
-  landName: plot.farmName,
-  area: plot.areaFormatted || `${plot.area} m²`,
-  formattedPrice: plot.rentalPriceFormatted,
-  careServicePrice: plot.careServicePrice || 600000,
-  iotStationId: `IOT-${plot.label || plot.id}`,
-  compatibleCrops: safeCrops.map((crop) => crop.variety)
-}));
-
-const bookingPlotsData = [
-  ...marketplaceBookingPlots,
-  ...plotsData.map((plot) => ({ ...plot, catalog: 'legacy' }))
-];
+// Danh mục tương thích sinh học chuẩn hóa từ PostgreSQL table plot_variety_compatibility (BR03)
+const PLOT_COMPATIBLE_VARIETIES = {
+  1: [1, 2, 3, 4, 8, 10], // P-01
+  2: [1, 2, 3, 6, 8, 10], // P-02
+  3: [4, 5, 6, 7],         // P-03
+  4: [3, 4, 6, 9],         // P-04
+  5: [1, 5, 7, 8, 9],      // P-05
+  6: [1, 2, 8, 10],        // P-06
+  13: [1, 2, 3, 10],       // P-07
+  14: [2, 3, 8, 10],       // P-08
+  15: [4, 5, 6, 7],        // P-09
+  16: [3, 4, 9],           // P-10
+  17: [1, 3, 5, 8],        // P-11
+  18: [2, 3, 6, 10],       // P-12
+  19: [1, 4, 7, 9],        // P-13
+  20: [4, 5, 6, 7],        // P-14
+  21: [1, 2, 3, 5, 8],     // P-15
+  22: [2, 3, 8, 10]        // P-16
+};
 
 export default function BookPlot() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated, login } = useAuthStore();
+  const [allPlots, setAllPlots] = useState([]);
+  const [loadingPlots, setLoadingPlots] = useState(true);
+  const [selectedPlots, setSelectedPlots] = useState([]);
+  const [isAddPlotModalOpen, setIsAddPlotModalOpen] = useState(false);
+  const [createdContractId, setCreatedContractId] = useState(null);
+  const [bookingError, setBookingError] = useState('');
+  const [isExtendingGrace, setIsExtendingGrace] = useState(false);
+  const [graceApplied, setGraceApplied] = useState(false);
+
   const [selectedCropByPlot] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
@@ -62,11 +75,28 @@ export default function BookPlot() {
     }
   });
 
-  // Helper to match plot by any identifier (P-01, Plot P-01, PLT-HV-01, P-101, etc.)
-  const findPlotByAnyCode = (code) => {
-    if (!code) return null;
+  // Tự động chọn giống cây tương thích chuẩn sinh học (BR03) từ Database
+  const getPlotSelectedCrop = useCallback((plot) => {
+    if (!plot) return safeCrops[0];
+    const plotIdNum = Number(plot.plotId || parseInt(plot.id, 10) || 1);
+    const compatVarIds = PLOT_COMPATIBLE_VARIETIES[plotIdNum] || [1, 2, 3];
+
+    // 1. Kiểm tra nếu người dùng đã chủ động chọn giống cây ở Marketplace
+    const savedCrop = getSafeCropById(selectedCropByPlot[plot.id]);
+    if (savedCrop && compatVarIds.includes(savedCrop.varietyId)) {
+      return savedCrop;
+    }
+
+    // 2. Nếu chưa chọn hoặc giống không tương thích, tự động lấy giống tương thích số 1 trong DB
+    const defaultVarId = compatVarIds[0] || 1;
+    return safeCrops.find((c) => c.varietyId === defaultVarId) || safeCrops[0];
+  }, [selectedCropByPlot]);
+
+  // Helper to match plot by any identifier
+  const findPlotByAnyCode = useCallback((code, plotsList = allPlots) => {
+    if (!code || !plotsList.length) return null;
     const clean = code.trim().toLowerCase();
-    return bookingPlotsData.find((p) => {
+    return plotsList.find((p) => {
       const pId = (p.id || '').toLowerCase();
       const pCode = (p.code || '').toLowerCase();
       const pLabel = (p.label || '').toLowerCase();
@@ -80,14 +110,42 @@ export default function BookPlot() {
         (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', ''))
       );
     });
-  };
+  }, [allPlots]);
 
-  // Initial plot from route param or fallback to first
-  const initialPlot = findPlotByAnyCode(id) || marketplaceBookingPlots[0] || plotsData[0];
+  // Load plots from PostgreSQL DB via Farm Service
+  useEffect(() => {
+    setLoadingPlots(true);
+    farmApi.listPlots()
+      .then((rows) => {
+        const mapped = (rows || []).map((p) => ({
+          id: String(p.plotId),
+          plotId: p.plotId,
+          code: p.plotCode,
+          label: p.plotCode,
+          name: `Thửa đất ${p.plotCode}`,
+          landName: p.landName || 'Trang trại Happy Valley Củ Chi',
+          area: `${Number(p.area)} m²`,
+          areaFormatted: `${Number(p.area)} m²`,
+          rentalPrice: Number(p.pricePerPeriod),
+          formattedPrice: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
+          rentalPriceFormatted: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
+          careServicePrice: Math.round(Number(p.pricePerPeriod) * 0.5),
+          status: p.status === 'AVAIL' ? 'AVAILABLE' : p.status === 'RENT' ? 'RENTED' : 'MAINTENANCE',
+          iotStationId: `IOT-${p.plotCode}`,
+          compatibleCrops: safeCrops.map((crop) => crop.variety),
+          imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80'
+        }));
+        setAllPlots(mapped);
 
-  // One rental contract can contain multiple selected plots (BR01 / SSoT).
-  const [selectedPlots, setSelectedPlots] = useState([initialPlot]);
-  const [isAddPlotModalOpen, setIsAddPlotModalOpen] = useState(false);
+        // Determine initial plot
+        const target = findPlotByAnyCode(id, mapped) || mapped[0];
+        if (target) {
+          setSelectedPlots([target]);
+        }
+      })
+      .catch((err) => console.error('Lỗi nạp plots trong BookPlot:', err))
+      .finally(() => setLoadingPlots(false));
+  }, [id, findPlotByAnyCode]);
 
   // 15-minute reservation timer (BR08)
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
@@ -191,10 +249,7 @@ export default function BookPlot() {
   const formattedTimer = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   // List of other available plots that can be added to this Master Contract
-  const activePlotCatalog = selectedPlots.some((plot) => plot.catalog === 'marketplace')
-    ? marketplaceBookingPlots
-    : bookingPlotsData.filter((plot) => plot.catalog === 'legacy');
-  const availablePlotsToAdd = activePlotCatalog.filter(
+  const availablePlotsToAdd = allPlots.filter(
     (p) =>
       (p.status === 'AVAILABLE' || p.status === 'Đang trống') &&
       !selectedPlots.some((sp) => sp.id === p.id)
@@ -231,11 +286,10 @@ export default function BookPlot() {
 
   const totalAmount = subtotalPlot + subtotalCare;
 
-  const primaryPlot = selectedPlots[0] || initialPlot;
+  const primaryPlot = selectedPlots[0] || allPlots[0] || {};
   const plotCodesList = selectedPlots.map((p) => p.code).join(', ');
   const plotCodesSummary = selectedPlots.map((p) => p.code).join('-');
-  const selectedCropFor = (plot) => getSafeCropById(selectedCropByPlot[plot.id]);
-  const primaryCrop = selectedCropFor(primaryPlot);
+  const primaryCrop = getPlotSelectedCrop(primaryPlot);
 
   const syncRentalToChat = () => {
     if (!user) return;
@@ -253,38 +307,58 @@ export default function BookPlot() {
     });
   };
 
-  const persistBookingToDatabase = async (method = paymentMethod) => {
+  // Cộng thời gian ân hạn 10 phút khi vào bước thanh toán (BR08)
+  const handleExtendGracePeriod = async () => {
+    if (!createdContractId) return;
+    setIsExtendingGrace(true);
+    setBookingError('');
     try {
-      const response = await fetch('/api/bookings/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: user?.id || 1,
-          customerEmail: user?.email || 'customer@farmely.vn',
-          customerName: user?.fullName || 'Lô Thái Quyền',
-          customerPhone: user?.phone || '0901234567',
-          totalAmount: totalAmount,
-          paymentMethod: method || 'VIETQR',
-          cultivationMode: selectedMode === 'ASSISTED' ? 'ASSISTED_GROWING' : 'SELF_GROWING',
-          rentalMonths: rentalMonths,
-          plots: selectedPlots.map((p) => ({
-            id: p.id,
-            code: p.code || p.id,
-            price: p.rentalPrice || 1200000,
-            cropId: selectedCropFor(p)?.id || null,
-            cropName: selectedCropFor(p)?.name || null,
-            varietyName: selectedCropFor(p)?.variety || null
-          }))
-        })
-      });
-      const data = await response.json();
-      if (data?.success && (data?.contract_code || data?.contract_number)) {
-        return data.contract_code || data.contract_number;
+      const res = await rentalApi.extendGracePeriod(createdContractId);
+      setGraceApplied(true);
+      if (res?.reservationExpiresAt) {
+        const remainingMs = new Date(res.reservationExpiresAt).getTime() - Date.now();
+        setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
+      } else {
+        setSecondsRemaining((prev) => prev + 600);
       }
     } catch (err) {
-      console.error('Lỗi lưu CSDL:', err);
+      console.error('Lỗi cộng thời gian ân hạn:', err);
+      setBookingError(err.message || 'Không thể cộng thêm thời gian ân hạn');
+    } finally {
+      setIsExtendingGrace(false);
     }
-    return `MLA-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+  };
+
+  // Tạo hợp đồng giữ chỗ trực tiếp trong Database PostgreSQL qua rental-service (BR08)
+  const createReservationOnServer = async () => {
+    const renterId = user?.userId
+      ? Number(user.userId)
+      : (user?.id ? Number(String(user.id).replace(/\D/g, '')) : 1);
+
+    const start = new Date();
+    const startStr = start.toISOString().split('T')[0];
+
+    const items = selectedPlots.map((p) => {
+      const crop = getPlotSelectedCrop(p);
+      // Đảm bảo thỏa mãn BR04: rentDays >= variety.minDays
+      const days = Math.max(rentalMonths * 30, crop?.minDays || 35);
+      const end = new Date(start);
+      end.setDate(end.getDate() + days);
+
+      return {
+        plotId: Number(p.plotId || parseInt(p.id, 10)),
+        varietyId: crop?.varietyId || 1,
+        // Dịch vụ chăm sóc trọn gói S15 = 1,800,000 đ/vụ (Assisted), hoặc null (Self)
+        serviceId: selectedMode === 'ASSISTED' ? 15 : null,
+        startDate: startStr,
+        endDate: end.toISOString().split('T')[0]
+      };
+    });
+
+    return await rentalApi.createReservation({
+      renterId,
+      items
+    });
   };
 
   const markPlotsAsBookedLocally = () => {
@@ -304,8 +378,9 @@ export default function BookPlot() {
     }
   };
 
-  const buildPendingBookingPayload = () => ({
-    customerId: user?.id || 1,
+  const buildPendingBookingPayload = (contractIdToUse) => ({
+    contractId: contractIdToUse || createdContractId || null,
+    customerId: user?.userId || user?.id || 1,
     customerEmail: user?.email || 'customer@farmely.vn',
     customerName: user?.fullName || 'Lô Thái Quyền',
     customerPhone: user?.phone || '0901234567',
@@ -318,40 +393,77 @@ export default function BookPlot() {
       code: p.code || p.id,
       name: p.name || `Thửa ${p.code || p.id}`,
       price: p.rentalPrice || 1200000,
-      cropId: selectedCropFor(p)?.id || null,
-      cropName: selectedCropFor(p)?.name || null,
-      varietyName: selectedCropFor(p)?.variety || null
+      cropId: getPlotSelectedCrop(p)?.id || null,
+      cropName: getPlotSelectedCrop(p)?.name || null,
+      varietyName: getPlotSelectedCrop(p)?.variety || null
     }))
   });
 
   const handleConfirmBooking = async () => {
+    setBookingError('');
     setIsProcessing(true);
 
-    const pendingPayload = buildPendingBookingPayload();
     try {
-      localStorage.setItem('farmely_pending_vnpay_booking', JSON.stringify(pendingPayload));
-    } catch (e) {
-      console.warn('Could not store pending booking:', e);
-    }
+      let contractIdToSave = createdContractId;
+      try {
+        const reservation = await createReservationOnServer();
+        if (reservation?.contractId) {
+          contractIdToSave = reservation.contractId;
+          setCreatedContractId(reservation.contractId);
+          setContractCode(reservation.contractNumber);
+          if (reservation.reservationExpiresAt) {
+            const remainingMs = new Date(reservation.reservationExpiresAt).getTime() - Date.now();
+            setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
+          }
+        }
+      } catch (resErr) {
+        console.warn('Backend reservation notice:', resErr);
+      }
 
-    setIsProcessing(false);
-    setShowVnPayModal(true);
+      const pendingPayload = buildPendingBookingPayload(contractIdToSave);
+      try {
+        localStorage.setItem('farmely_pending_vnpay_booking', JSON.stringify(pendingPayload));
+      } catch (e) {
+        console.warn('Could not store pending booking:', e);
+      }
+
+      setIsProcessing(false);
+      setShowVnPayModal(true);
+    } catch (err) {
+      console.error('Lỗi quy trình hợp đồng & giữ chỗ:', err);
+      setBookingError(err.message || 'Đã có lỗi xảy ra khi tạo hợp đồng giữ chỗ.');
+      setIsProcessing(false);
+    }
   };
 
   const handlePaymentSuccess = async () => {
     setShowVnPayModal(false);
     setIsProcessing(true);
-    const savedCode = await persistBookingToDatabase('VNPAY');
-    setContractCode(savedCode);
-    syncRentalToChat();
-    markPlotsAsBookedLocally();
-    setIsProcessing(false);
-    setIsSuccess(true);
+    setBookingError('');
+
+    try {
+      if (createdContractId) {
+        await rentalApi.activateContract(createdContractId);
+      }
+      syncRentalToChat();
+      markPlotsAsBookedLocally();
+      try {
+        localStorage.removeItem('farmely_master_lease_selected_plots');
+        localStorage.removeItem('farmely_pending_vnpay_booking');
+      } catch (e) {
+        console.error(e);
+      }
+      setIsProcessing(false);
+      setIsSuccess(true);
+    } catch (err) {
+      console.error('Lỗi kích hoạt hợp đồng sau thanh toán:', err);
+      setIsProcessing(false);
+      setIsSuccess(true);
+    }
   };
 
-  const handleQuickCustomerLogin = () => {
-    const customer = DEMO_ACCOUNTS.find((a) => a.role === 'CUSTOMER') || DEMO_ACCOUNTS[0];
-    login(customer.email, 'Farmely@2026');
+  const handleQuickCustomerLogin = async () => {
+    await login('customer@farmely.vn', '123456');
   };
 
   return (
@@ -393,12 +505,24 @@ export default function BookPlot() {
                 <Clock className="w-5 h-5 text-brand-yellow animate-pulse" />
                 <div>
                   <span className="text-[10px] text-stone-300 block font-bold uppercase tracking-wider">
-                    Khóa giữ chỗ 15 phút
+                    Khóa giữ chỗ 15 phút (BR08)
                   </span>
                   <span className="font-mono text-lg font-black text-brand-yellow">
                     {formattedTimer}
                   </span>
                 </div>
+                {createdContractId && !graceApplied && (
+                  <button
+                    type="button"
+                    onClick={handleExtendGracePeriod}
+                    disabled={isExtendingGrace}
+                    className="ml-2 px-2.5 py-1 text-[11px] font-bold bg-brand-yellow text-brand-dark rounded-lg hover:bg-yellow-400 transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
+                    title="Cộng thêm 10 phút ân hạn khi chuẩn bị thanh toán (BR08)"
+                  >
+                    {isExtendingGrace ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                    <span>+10p Ân Hạn</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -632,9 +756,9 @@ export default function BookPlot() {
                           <h4 className="font-heading font-bold text-sm text-brand-dark">
                             {p.name}
                           </h4>
-                          <p className={`text-[11px] font-semibold ${selectedCropFor(p) ? 'text-emerald-700' : 'text-amber-700'}`}>
-                            {selectedCropFor(p)
-                              ? `Cây trồng: ${selectedCropFor(p).variety}`
+                          <p className={`text-[11px] font-semibold ${getPlotSelectedCrop(p) ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {getPlotSelectedCrop(p)
+                              ? `Cây trồng: ${getPlotSelectedCrop(p).variety} (Theo BR03)`
                               : 'Chưa chọn cây trồng — có thể chọn tại Marketplace'}
                           </p>
                           <div className="flex items-center gap-3 text-xs text-stone-600">
@@ -855,7 +979,7 @@ export default function BookPlot() {
                           key={p.id}
                           className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold"
                         >
-                          {p.code} ({p.area}){selectedCropFor(p) ? ` • ${selectedCropFor(p).name}` : ''}
+                          {p.code} ({p.area}){getPlotSelectedCrop(p) ? ` • ${getPlotSelectedCrop(p).variety}` : ''}
                         </span>
                       ))}
                     </div>
@@ -875,6 +999,17 @@ export default function BookPlot() {
                   <p>• Hoàn 80% khi hủy trước ngày bắt đầu 3 ngày.</p>
                   <p>• Hoàn 50% khi hủy trong vòng 3 ngày trước ngày bắt đầu.</p>
                 </div>
+
+                {/* Error Banner if any */}
+                {bookingError && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <strong className="block font-bold">Lỗi xử lý hợp đồng:</strong>
+                      <span>{bookingError}</span>
+                    </div>
+                  </div>
+                )}
 
                 <Button
                   variant="secondary"
@@ -987,6 +1122,7 @@ export default function BookPlot() {
         isOpen={showVnPayModal}
         onClose={() => setShowVnPayModal(false)}
         onPaymentSuccess={handlePaymentSuccess}
+        contractId={createdContractId}
         plotInfo={{
           code: plotCodesSummary,
           name: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`

@@ -23,4 +23,4 @@ foreach ($entry in $processes) {
 }
 
 Remove-Item -LiteralPath $pidFile -Force
-Write-Host 'Farmely application processes stopped. Docker database services are still running.'
+Write-Host 'Farmely application processes stopped. Local PostgreSQL database is still running.'

@@ -13,8 +13,10 @@ import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
 import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
+import ContractCancellationModal from '../../components/customer/ContractCancellationModal';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
+import { useSensorStream } from '../../api/monitoring/useSensorStream';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -232,7 +234,26 @@ export default function CustomerDashboard() {
     }
   }, [harvestPlans, harvestStorageKey]);
   const [showRenewContractModal, setShowRenewContractModal] = useState(false);
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
+  const [selectedContractForCancel, setSelectedContractForCancel] = useState(null);
+  const [cancelledContracts, setCancelledContracts] = useState({});
   const [emergencyRequests, setEmergencyRequests] = useState({});
+
+  const handleOpenCancelModal = (item) => {
+    const isNew = item.isPendingHandover || item.contractCode === 'CTR-2026-FARM-NEW';
+    const contractData = {
+      contractId: item.contractId || (item.id === 'PLOT-CC-01' ? 1 : item.id === 'PLOT-MC-02' ? 2 : 3),
+      contractCode: item.contractCode || item.contractNumber || 'CTR-2026-FARM-9912',
+      plotName: item.plotName || item.name || 'Thửa Sen Vàng A1',
+      plotCode: item.mapPlotId || item.plotCode || 'P-01',
+      totalAmount: item.totalAmount || (item.area === '160m²' ? 3900000 : 3600000),
+      startDate: item.startDate || (isNew ? '20/10/2026' : '12/08/2026'),
+      endDate: item.endDate || '18/11/2026',
+      status: cancelledContracts[item.contractCode] ? 'CANCELLED' : (isNew ? 'CONFIRMED' : 'ACTIVE')
+    };
+    setSelectedContractForCancel(contractData);
+    setShowCancellationModal(true);
+  };
 
   // Form states
   const [diaryNote, setDiaryNote] = useState('');
@@ -248,12 +269,13 @@ export default function CustomerDashboard() {
     {
       id: 2,
       sender: 'ai',
-      text: 'Chào bạn! Vào thời điểm này tại vùng phụ cận Củ Chi, khí hậu rất mát mẻ (28°C). Các loại rau ăn lá như Xà lách Romaine, Rau dền đỏ hoặc Cà chua bi F1 sẽ phát triển cực nhanh, chỉ sau 25-35 ngày là bạn có thể nghiệm thu giỏ rau sạch đầu tiên!',
+      text: 'Chào bạn! Tôi là Farmely AI Assistant — trợ lý thông minh của nền tảng Farmely. Tôi có thể hỗ trợ bạn tìm hiểu quy trình thuê vườn, chọn giống cây phù hợp, hướng dẫn kỹ thuật canh tác VietGAP hoặc giải đáp thắc mắc về các dịch vụ chăm sóc nông trại. Bạn cần tôi hỗ trợ thông tin gì hôm nay?',
       time: '08:16 AM'
     }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
+  const [aiConversationId, setAiConversationId] = useState(null);
 
   // Default Fallback Customer Rented Plots Data
   const defaultCustomerPlots = [
@@ -421,8 +443,68 @@ export default function CustomerDashboard() {
     }
   };
 
-  const currentIotData = (iotDatasets[selectedIotPlotId] || iotDatasets['PLOT-CC-01'])[iotTimeframe];
-  const currentIotPlot = customerPlots.find(p => p.id === selectedIotPlotId) || customerPlots[0];
+  const numericIotPlotId = useMemo(() => {
+    const match = String(selectedIotPlotId || '').match(/\d+/);
+    return match ? Number(match[0]) : 1;
+  }, [selectedIotPlotId]);
+
+  const { latest: iotLatest, history: iotHistory, isConnected: isIotConnected } = useSensorStream(numericIotPlotId, 24);
+
+  const baseIotPlot = customerPlots.find(p => p.id === selectedIotPlotId) || customerPlots[0];
+  const currentIotPlot = useMemo(() => {
+    if (!iotLatest) return baseIotPlot;
+    const tempNum = typeof iotLatest.temperature === 'number' ? iotLatest.temperature.toFixed(1) : null;
+    const soilNum = typeof iotLatest.soilHumidity === 'number' ? Math.round(iotLatest.soilHumidity) : null;
+    const airNum = typeof iotLatest.airHumidity === 'number' ? Math.round(iotLatest.airHumidity) : null;
+
+    const recDate = iotLatest.recordedAt ? new Date(iotLatest.recordedAt) : new Date();
+    const hour = !isNaN(recDate.getTime()) ? recDate.getHours() + recDate.getMinutes() / 60 : 12;
+    const diff = Math.abs(hour - 12);
+    const lightVal = hour >= 6 && hour <= 18 ? Math.round(Math.max(0, 1 - (diff / 6) ** 2) * 50) : 0;
+    const lastUpdated = !isNaN(recDate.getTime())
+      ? recDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : null;
+
+    return {
+      ...baseIotPlot,
+      temp: tempNum !== null ? `${tempNum}°C` : baseIotPlot.temp,
+      soilMoisture: soilNum !== null ? `${soilNum}%` : baseIotPlot.soilMoisture,
+      airHumidity: airNum !== null ? `${airNum}%` : baseIotPlot.airHumidity,
+      light: lightVal > 0 ? `${lightVal}.000 Lux` : '0 Lux',
+      lastUpdated
+    };
+  }, [baseIotPlot, iotLatest]);
+
+  const currentIotData = useMemo(() => {
+    const fallbackDataset = (iotDatasets[selectedIotPlotId] || iotDatasets['PLOT-CC-01'])[iotTimeframe];
+    if (iotTimeframe !== 'hourly' || !Array.isArray(iotHistory) || iotHistory.length === 0) {
+      return fallbackDataset;
+    }
+
+    const targetPoints = 16;
+    let sampled = [];
+    if (iotHistory.length <= targetPoints) {
+      sampled = iotHistory;
+    } else {
+      const step = (iotHistory.length - 1) / (targetPoints - 1);
+      for (let i = 0; i < targetPoints; i++) {
+        sampled.push(iotHistory[Math.round(i * step)]);
+      }
+    }
+
+    return sampled.map((item) => {
+      const d = new Date(item.recordedAt);
+      const timeStr = !isNaN(d.getTime())
+        ? d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        : '';
+      return {
+        time: timeStr,
+        temp: Number(Number(item.temperature).toFixed(1)),
+        moisture: Math.round(Number(item.soilHumidity)),
+        airHumidity: Math.round(Number(item.airHumidity)),
+      };
+    });
+  }, [selectedIotPlotId, iotTimeframe, iotHistory]);
 
   // Service Catalog (Shop Dịch Vụ Nông Nghiệp)
   const serviceCatalog = [
@@ -955,7 +1037,7 @@ export default function CustomerDashboard() {
   const currentPlotOperations = plotOperations[selectedPlotId] || { tasks: [], diary: [] };
   const plotTabFromUrl = new URLSearchParams(location.search).get('tab') || 'overview';
 
-  const handleSendMessage = (textToSend) => {
+  const handleSendMessage = async (textToSend) => {
     const query = textToSend || chatInput;
     if (!query.trim()) return;
 
@@ -970,31 +1052,85 @@ export default function CustomerDashboard() {
     if (!textToSend) setChatInput('');
     setIsAiTyping(true);
 
-    setTimeout(() => {
-      let reply = 'Farmely AI đã ghi nhận câu hỏi của bạn. ';
-      const lower = query.toLowerCase();
+    try {
+      // 1. Thử gọi qua API Gateway / Vite Proxy: /api/ai/chat
+      let response;
+      const requestBody = JSON.stringify({
+        userId: 1,
+        conversationId: aiConversationId,
+        plotId: 1,
+        message: query
+      });
 
-      if (lower.includes('độ ẩm') || lower.includes('tưới')) {
-        reply = 'Hiện tại trạm IoT ghi nhận độ ẩm đất tại các thửa đất của bạn đang ở ngưỡng tối ưu (60-75%). Theo thuật toán quan trắc vi khí hậu, thửa đất hiện tại đủ ẩm và hệ thống đã tự động hoãn lịch tưới sáng nay để tránh ngập úng rễ!';
-      } else if (lower.includes('thu hoạch') || lower.includes('khi nào')) {
-        reply = 'Thửa Xà lách Romaine tại Mộc Châu B2 hiện đã đạt 24 ngày tuổi, dự kiến vào ngày 12 tới đây sẽ đạt chuẩn thu hoạch 300g/cây. Bạn có thể chọn tự đến hái vào cuối tuần hoặc yêu cầu Farmely cắt đóng thùng giao tươi tận nhà!';
-      } else if (lower.includes('dịch vụ') || lower.includes('thuê') || lower.includes('bón phân')) {
-        reply = 'Bạn có thể vào tab "Dịch vụ canh tác" để đặt các gói chăm sóc trọn vụ, gói theo tuần hoặc các dịch vụ lẻ như bón phân, nhổ cỏ. Hệ thống hỗ trợ thanh toán trực tiếp cực kỳ nhanh chóng!';
-      } else {
-        reply = `Hệ thống ghi nhận thửa đất của bạn đang ở trạng thái sinh trưởng rất tốt. Trợ lý AI và Chuyên gia Nông nghiệp Farmely luôn đồng hành 24/7 để hỗ trợ bạn tối đa!`;
+      try {
+        response = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody
+        });
+      } catch (err) {
+        // Fallback gọi trực tiếp port 8089 nếu chưa bật Gateway
+        response = await fetch('http://localhost:8089/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: requestBody
+        });
       }
 
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          sender: 'ai',
-          text: reply,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      if (response && response.ok) {
+        const data = await response.json();
+        if (data.conversationId) {
+          setAiConversationId(data.conversationId);
         }
-      ]);
-      setIsAiTyping(false);
-    }, 700);
+
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            sender: 'ai',
+            text: data.reply,
+            sources: data.referencedDocuments || [],
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
+        setIsAiTyping(false);
+        return;
+      }
+      throw new Error('API response not ok');
+    } catch (err) {
+      console.warn('AI Service chưa khởi chạy hoặc lỗi mạng, sử dụng fallback thông minh:', err);
+      // Fallback mô phỏng khi chưa bật backend
+      setTimeout(() => {
+        let reply = 'Bác Ba Nông Dân đã ghi nhận câu hỏi của cháu. ';
+        const lower = query.toLowerCase();
+
+        if (lower.includes('độ ẩm') || lower.includes('tưới')) {
+          reply = 'Bác Ba coi qua rồi nghen! Độ ẩm đất chuẩn VietGAP là 65-75%. Nếu độ ẩm vượt 80% thì tạm ngưng cữ tưới chiều nay để tránh úng rễ, xới nhẹ luống đất cho thoáng khí nghen cháu!';
+        } else if (lower.includes('sâu') || lower.includes('bệnh') || lower.includes('rệp') || lower.includes('vietgap')) {
+          reply = 'Tuyệt đối hổng dùng thuốc hóa học nhen cháu! Lấy nước tỏi ớt gừng ngâm rượu hoặc dầu khoáng SK Enspray pha loãng xịt ướt hai mặt lá vào chiều mát là rệp sâu tiêu biến ngay!';
+        } else if (lower.includes('thu hoạch') || lower.includes('khi nào')) {
+          reply = 'Rau cải ngọt, cải thìa thì 25-30 ngày là thu hoạch được rồi; còn xà lách Romaine thì cỡ 35-45 ngày nhen. Thu hoạch sáng sớm hoặc chiều mát dùng dao sạch cắt cách gốc 2cm là chuẩn nghen!';
+        } else if (lower.includes('dịch vụ') || lower.includes('thuê') || lower.includes('bón phân')) {
+          reply = 'Bạn có thể vào tab "Dịch vụ canh tác" để đặt các gói chăm sóc trọn vụ, gói theo tuần hoặc các dịch vụ lẻ như bón phân, nhổ cỏ. Hệ thống hỗ trợ thanh toán trực tiếp cực kỳ nhanh chóng!';
+        } else {
+          reply = `Chào cháu! Bác Ba luôn túc trực hỗ trợ bà con canh tác rau sạch chuẩn VietGAP. Cứ hỏi bác cách bón phân trùn quế, bắt sâu sinh học là bác chỉ tận tình nghen!`;
+        }
+
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now() + 1,
+            sender: 'ai',
+            text: reply,
+            sources: [
+              { docTitle: 'Quy trình VietGAP', sectionTitle: 'Hướng dẫn tham khảo' }
+            ],
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
+        setIsAiTyping(false);
+      }, 700);
+    }
   };
 
   const navMenuItems = [
@@ -1308,6 +1444,15 @@ export default function CustomerDashboard() {
                                   {tab === 'tasks' && openCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">{openCount}</span>}
                                 </button>
                               ))}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenCancelModal(plot)}
+                                aria-label={`Hợp đồng & hủy ${plot.name}`}
+                                title="Quản lý Hợp đồng & Hủy theo BR10"
+                                className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
+                              >
+                                <FileText className="h-4 w-4" />
+                              </button>
                             </div>
                           </div>
                         </article>
@@ -1551,6 +1696,17 @@ export default function CustomerDashboard() {
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-cream text-brand-green border border-brand-border mb-2">
                       <Radio className="w-3.5 h-3.5 text-brand-green" />
                       <span>Trạm Quan Trắc IoT Không Dây</span>
+                      {isIotConnected ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full ml-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
+                          Trực tiếp (SSE) {currentIotPlot.lastUpdated ? `· ${currentIotPlot.lastUpdated}` : ''}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-stone-600 bg-stone-200/60 px-2 py-0.5 rounded-full ml-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-stone-400"></span>
+                          Đồng bộ tự động {currentIotPlot.lastUpdated ? `· ${currentIotPlot.lastUpdated}` : ''}
+                        </span>
+                      )}
                     </div>
                     <h2 className="font-heading font-black text-2xl text-brand-dark">
                       Dữ Liệu Vi Khí Hậu IoT
@@ -1824,43 +1980,213 @@ export default function CustomerDashboard() {
               </div>
             )}
 
-            {/* TAB 6: HỢP ĐỒNG THUÊ ĐẤT */}
+            {/* TAB 6: HỢP ĐỒNG THUÊ ĐẤT & QUY TRÌNH HỦY (BR10) */}
             {activeTab === 'contracts' && !selectedPlotId && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Lịch Sử Hợp Đồng Thuê Thửa Đất
-                  </h3>
-                  <p className="text-xs text-brand-muted mt-0.5">
-                    Quản lý thời hạn thuê, gia hạn hợp đồng hoặc gửi yêu cầu hoàn hủy theo quy định.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 border border-emerald-200">
+                        SSoT: Master Lease Agreement
+                      </span>
+                      <span className="text-xs text-stone-500">Mã màn hình: SCR-KH-08 / SCR-AD-10</span>
+                    </div>
+                    <h3 className="font-heading font-black text-xl text-brand-dark mt-1 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-brand-green" />
+                      Danh Sách Hợp Đồng Thuê & Chính Sách Hoàn Hủy (BR10)
+                    </h3>
+                    <p className="text-xs text-brand-muted mt-0.5">
+                      Quản lý các kỳ thuê đất, theo dõi ngày bàn giao thực tế và gửi yêu cầu hủy hợp đồng theo đúng tỷ lệ khấu trừ.
+                    </p>
+                  </div>
+                  <Link to="/marketplace">
+                    <Button variant="primary" size="sm" className="whitespace-nowrap">
+                      + Thuê thêm thửa đất
+                    </Button>
+                  </Link>
                 </div>
 
-                <div className="p-6 rounded-2xl border border-brand-border space-y-3 text-xs bg-white">
-                  <div className="flex justify-between items-center pb-3 border-b border-brand-border/60">
-                    <span className="font-mono font-bold text-brand-green text-sm">CTR-2026-FARM-9912</span>
-                    <span className="px-2.5 py-1 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                      Đang hiệu lực
-                    </span>
+                {/* Banner giải thích quy chuẩn BR10 & BR23 */}
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5 text-blue-950">
+                    <ShieldAlert className="w-4 h-4 text-blue-700" />
+                    Chính Sách Hoàn Tiền Khi Hủy Hợp Đồng (Quy định SSoT BR10):
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-stone-600">
-                    <p>Thửa đất: <strong className="text-brand-dark">Sen Vàng A1 (PLOT-CC-01)</strong></p>
-                    <p>Thời hạn: <strong className="text-brand-dark">03 Tháng (Còn 42 ngày)</strong></p>
-                    <p>Chế độ: <strong className="text-brand-dark">Assisted-growing</strong></p>
-                    <p>Tổng phí: <strong className="text-brand-dark">3.600.000 đ</strong></p>
-                    <p>Chuyên gia phụ trách: <strong className="text-emerald-800">ThS. Nguyễn Hoàng Nam</strong></p>
-                    <p>Công nhân trực tiếp: <strong className="text-amber-800">Trần Văn Lực (Tổ trưởng CVLĐ)</strong></p>
+                  <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-blue-900/90 leading-relaxed">
+                    <li><strong>Trước ngày bắt đầu ≥ 3 ngày:</strong> Khấu trừ 20% phí quản trị & giữ chỗ, <strong>hoàn trả 80%</strong> số tiền đã đóng.</li>
+                    <li><strong>Trước ngày bắt đầu &lt; 3 ngày:</strong> Khấu trừ 50% chi phí giống & chuẩn bị đất, <strong>hoàn trả 50%</strong> số tiền đã đóng.</li>
+                    <li><strong>Khi đã đến hoặc sau ngày bắt đầu canh tác:</strong> Khấu trừ 100%, <strong>không hoàn tiền</strong> vì cây giống đã trồng và công nhân đã triển khai.</li>
+                    <li><strong>Bảo trì thửa đất (BR23):</strong> Mọi thửa đất sau khi hủy đều chuyển sang trạng thái <strong>Bảo dưỡng phơi ải 4 ngày (MAINT)</strong> trước khi mở lại trên sàn.</li>
+                  </ul>
+                </div>
+
+                {/* DANH SÁCH CÁC HỢP ĐỒNG */}
+                <div className="space-y-4">
+                  {/* Hợp đồng 1: HỢP ĐỒNG MỚI THUÊ (GIAI ĐOẠN 1: CHỜ BÀN GIAO ĐẤT - CÒN 5 NGÀY) */}
+                  <div className="p-5 sm:p-6 rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50/40 via-white to-amber-50/20 shadow-sm space-y-3.5 text-xs">
+                    <div className="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-amber-200">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-brand-dark text-sm">CTR-2026-FARM-NEW</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          CHỜ BÀN GIAO (Bắt đầu sau 5 ngày)
+                        </span>
+                      </div>
+                      <span className="rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 border border-emerald-200">
+                        Đủ điều kiện hoàn 80% nếu hủy hôm nay
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-stone-600">
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">THỬA ĐẤT THUÊ</span>
+                        <strong className="text-brand-dark text-xs">Thửa Bậc Thang P-04 (160m²)</strong>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">NGÀY BẮT ĐẦU CANH TÁC</span>
+                        <strong className="text-brand-dark text-xs">20/10/2026 (Còn 5 ngày)</strong>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">GÓI CANH TÁC & GIỐNG</span>
+                        <strong className="text-brand-dark text-xs">Assisted · Cà chua bi F1</strong>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">TỔNG PHÍ ĐÃ THANH TOÁN</span>
+                        <strong className="text-brand-green font-mono text-xs font-bold">3.900.000 đ (100% Lump-sum)</strong>
+                      </div>
+                    </div>
+
+                    {cancelledContracts['CTR-2026-FARM-NEW'] ? (
+                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
+                        <span>✓ Đã gửi yêu cầu hủy hợp đồng (Đang xử lý hoàn tiền 80%: 3.120.000 đ)</span>
+                        <span className="text-[11px] bg-rose-200/80 px-2 py-0.5 rounded">Trạng thái: PENDING</span>
+                      </div>
+                    ) : (
+                      <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-amber-100">
+                        <span className="text-[11px] text-stone-500">
+                          Thửa đất đang được công nhân hiện trường dọn cỏ và chuẩn bị giá thể VietGAP trước ngày bàn giao.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCancelModal({
+                            contractCode: 'CTR-2026-FARM-NEW',
+                            name: 'Thửa Bậc Thang P-04',
+                            area: '160m²',
+                            crop: 'Cà chua bi F1',
+                            totalAmount: 3900000,
+                            startDate: '20/10/2026',
+                            isPendingHandover: true
+                          })}
+                          className="px-3.5 py-1.5 rounded-xl border border-rose-300 text-rose-700 bg-rose-50/70 hover:bg-rose-100 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                          Yêu cầu hủy hợp đồng & Hoàn tiền (Hoàn 80%)
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="pt-3 flex gap-3">
-                    <Button variant="outline" size="sm" onClick={() => setShowRenewContractModal(true)}>
-                      Gia hạn hợp đồng (Renew)
-                    </Button>
-                    <button
-                      onClick={() => alert('Yêu cầu hủy hợp đồng và hoàn tiền đã được gửi đến ban quản trị Farmely.')}
-                      className="text-xs text-rose-600 hover:underline font-bold self-center cursor-pointer"
-                    >
-                      Yêu cầu hủy & hoàn tiền
-                    </button>
+
+                  {/* Hợp đồng 2: HỢP ĐỒNG ĐANG CANH TÁC (GIAI ĐOẠN 2: ACTIVE VỤ MÙA) */}
+                  <div className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3.5 text-xs">
+                    <div className="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-brand-border/60">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-brand-green text-sm">CTR-2026-FARM-9912</span>
+                        <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          Đang canh tác (Active)
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-stone-500">
+                        Ngày bắt đầu: 12/08/2026 · Hết hạn: 18/11/2026 (Còn 37 ngày)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-stone-600">
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">THỬA ĐẤT THUÊ</span>
+                        <p><strong className="text-brand-dark">Sen Vàng A1 (PLOT-CC-01)</strong></p>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">TIẾN ĐỘ SINH TRƯỞNG</span>
+                        <p><strong className="text-brand-dark">Ra hoa & đậu trái non (Ngày 28/65)</strong></p>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">CHUYÊN GIA PHỤ TRÁCH</span>
+                        <p><strong className="text-emerald-800">ThS. Nguyễn Hoàng Nam</strong></p>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">CÔNG NHÂN TRỰC TIẾP</span>
+                        <p><strong className="text-amber-800">Trần Văn Lực (Tổ trưởng CVLĐ)</strong></p>
+                      </div>
+                    </div>
+
+                    {cancelledContracts['CTR-2026-FARM-9912'] ? (
+                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
+                        <span>✓ Đã gửi yêu cầu chấm dứt hợp đồng sớm (Thửa đất chuyển bảo dưỡng 4 ngày BR23)</span>
+                        <span className="text-[11px] bg-rose-200 px-2 py-0.5 rounded">ĐÃ HỦY NGANG</span>
+                      </div>
+                    ) : (
+                      <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-brand-border/40">
+                        <span className="text-[11px] text-stone-400">
+                          Gia hạn trước tối thiểu 3 ngày theo quy định BR11b.
+                        </span>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setShowRenewContractModal(true)}>
+                            Gia hạn hợp đồng (Renew)
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCancelModal({
+                              contractCode: 'CTR-2026-FARM-9912',
+                              name: 'Thửa Sen Vàng A1',
+                              area: '100m²',
+                              crop: 'Cà chua bi Cherry F1',
+                              totalAmount: 3600000,
+                              startDate: '12/08/2026',
+                              stage: 'Ra hoa đậu trái'
+                            })}
+                            className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-bold self-center cursor-pointer px-2"
+                          >
+                            Chấm dứt hợp đồng sớm (BR10)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hợp đồng 3: HỢP ĐỒNG TỰ CANH TÁC */}
+                  <div className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3.5 text-xs">
+                    <div className="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-brand-border/60">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-brand-green text-sm">CTR-2026-FARM-8831</span>
+                        <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          Đang hiệu lực (Tự canh tác)
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-stone-500">
+                        Thửa Mộc Châu B2 (80m²) · Hết hạn: 12/10/2026 (Còn 11 ngày)
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                      <p className="text-stone-600">
+                        Khách hàng tự chăm sóc. Có thể mua gói ủy thác chăm sóc linh hoạt theo ngày (BR11) hoặc yêu cầu kết thúc sớm.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCancelModal({
+                          contractCode: 'CTR-2026-FARM-8831',
+                          name: 'Thửa Mộc Châu B2',
+                          area: '80m²',
+                          crop: 'Xà lách Romaine VietGAP',
+                          totalAmount: 2850000,
+                          startDate: '20/09/2026',
+                          stage: 'Cuộn bắp tròn'
+                        })}
+                        className="text-xs text-stone-500 hover:text-rose-600 font-semibold cursor-pointer"
+                      >
+                        Hủy ngang hợp đồng (BR10)
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1909,7 +2235,19 @@ export default function CustomerDashboard() {
                             : 'bg-brand-cream text-brand-dark rounded-bl-none border border-brand-border'
                         }`}
                       >
-                        {msg.text}
+                        <div className="whitespace-pre-line">{msg.text}</div>
+                        {msg.sources && msg.sources.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-brand-border/60 text-[10px] text-stone-600">
+                            <span className="font-bold text-brand-green">📖 Trích xuất từ tài liệu (RAG):</span>
+                            <div className="mt-0.5 space-y-0.5">
+                              {msg.sources.map((s, sIdx) => (
+                                <div key={sIdx} className="italic text-stone-500">
+                                  • {s.docTitle || s.source} {s.sectionTitle ? `- ${s.sectionTitle}` : ''}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <span className="text-[10px] text-stone-400 mt-1 px-1">{msg.time}</span>
                     </div>
@@ -2673,6 +3011,21 @@ export default function CustomerDashboard() {
           notes: checkoutNotes
         }}
         onPaymentSuccess={handleServicePaymentSuccess}
+      />
+
+      {/* SSoT BR10: Modal Yêu cầu Hủy Hợp Đồng & Quy trình Hoàn Tiền */}
+      <ContractCancellationModal
+        isOpen={showCancellationModal}
+        contract={selectedContractForCancel}
+        onClose={() => setShowCancellationModal(false)}
+        onSuccess={(result) => {
+          if (selectedContractForCancel?.contractCode) {
+            setCancelledContracts((prev) => ({
+              ...prev,
+              [selectedContractForCancel.contractCode]: result
+            }));
+          }
+        }}
       />
 
     </div>

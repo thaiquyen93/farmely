@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, PhoneCall, CheckCircle2, MapPin, Clock, Users, Database } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
-import { plotsData } from '../../data/plots';
-import { landsData } from '../../data/lands';
+import { farmApi } from '../../api/farm/farmApi';
 import { siteVisitsService } from '../../api/siteVisitsService';
 import Button from '../common/Button';
 import Input from '../common/Input';
@@ -11,6 +10,8 @@ import Modal from '../common/Modal';
 
 export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
   const { user, isAuthenticated } = useAuthStore();
+  const [dbLands, setDbLands] = useState([]);
+  const [dbPlots, setDbPlots] = useState([]);
 
   // Form State (Khớp chuẩn 1:1 SCR-PUB-05 & Bảng site_visits)
   const [visitorName, setVisitorName] = useState('');
@@ -29,6 +30,11 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdBooking, setCreatedBooking] = useState(null);
 
+  useEffect(() => {
+    farmApi.listLands().then((r) => setDbLands(r || [])).catch(() => {});
+    farmApi.listPlots().then((r) => setDbPlots(r || [])).catch(() => {});
+  }, []);
+
   // Prepopulate if authenticated
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -37,9 +43,6 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
       if (user.email) setEmailAddress(user.email);
     }
   }, [isAuthenticated, user]);
-
-  const [dbLands, setDbLands] = useState(landsData);
-  const [dbPlots, setDbPlots] = useState(plotsData);
 
   useEffect(() => {
     fetch('/api/lands')
@@ -76,7 +79,7 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
   // Find preselected plot if provided
   const activePlotId = preselectedPlotId || selectedPlot;
   const selectedPlotObj = activePlotId
-    ? dbPlots.find((p) => p.id === activePlotId || p.code === activePlotId) || plotsData.find((p) => p.id === activePlotId)
+    ? dbPlots.find((p) => p.id === activePlotId || p.code === activePlotId || String(p.plotId) === String(activePlotId) || p.plotCode === activePlotId) || null
     : null;
 
   // Set default min date (tomorrow - quy chuẩn tối thiểu trước 24 giờ theo SCR-PUB-05)
@@ -203,8 +206,8 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
               options={[
                 { value: '', label: '-- Chọn khu vực nông trại --' },
                 ...dbLands.map((l) => ({
-                  value: l.name,
-                  label: `${l.name} (${l.location})`
+                  value: l.name || l.landName,
+                  label: `${l.name || l.landName} (${l.location || l.address || ''})`
                 }))
               ]}
             />
@@ -215,8 +218,8 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
               options={[
                 { value: '', label: '-- Chọn thửa đất (hoặc để trống) --' },
                 ...dbPlots.map((p) => ({
-                  value: p.id,
-                  label: `${p.code} - ${p.name} (${p.area})`
+                  value: p.id || p.plotCode,
+                  label: `${p.code || p.plotCode} - ${p.name || `Thửa đất ${p.plotCode}`} (${p.area})`
                 }))
               ]}
             />

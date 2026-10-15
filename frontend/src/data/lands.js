@@ -1,3 +1,7 @@
+/**
+ * Danh sách nông trại (Lands) fallback khi chưa có kết nối API.
+ * Mọi dữ liệu nông trại ưu tiên nạp động từ PostgreSQL Database qua Farm Service API (/api/lands).
+ */
 export const landsData = [
   {
     id: "LND-001",
@@ -16,3 +20,4 @@ export const landsData = [
     waterSource: "Hệ thống lọc nước ngầm tầng sâu kết hợp lắng lọc vi sinh",
   }
 ];
+

@@ -3,10 +3,9 @@ import { Link, useLocation } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import Hero from '../../components/public/Hero';
-import PlotCard from '../../components/public/PlotCard';
 import FarmCard from '../../components/public/FarmCard';
-import { plotsData } from '../../data/plots';
-import { landsData } from '../../data/lands';
+import PlotCard from '../../components/public/PlotCard';
+import { farmApi } from '../../api/farm/farmApi';
 import {
   Sprout,
   Radio,
@@ -28,8 +27,34 @@ import {
 import Button from '../../components/common/Button';
 
 export default function Home() {
-  const featuredPlots = plotsData.slice(0, 3);
   const location = useLocation();
+  const [lands, setLands] = useState([]);
+  const [featuredPlots, setFeaturedPlots] = useState([]);
+
+  useEffect(() => {
+    farmApi.listLands()
+      .then((rows) => setLands(rows || []))
+      .catch((err) => console.warn('Không thể nạp danh sách nông trại:', err));
+
+    farmApi.listPlots()
+      .then((rows) => {
+        const mapped = (rows || []).slice(0, 6).map((p) => ({
+          id: String(p.plotId),
+          plotId: p.plotId,
+          code: p.plotCode,
+          name: `Thửa đất ${p.plotCode}`,
+          landName: p.landName || 'Trang trại Happy Valley Củ Chi',
+          soilType: p.soilType || 'Đất phù sa bồi lắng giàu mùn',
+          area: `${Number(p.area)} m²`,
+          status: p.status === 'AVAIL' ? 'AVAILABLE' : p.status === 'RENT' ? 'RENTED' : 'MAINTENANCE',
+          rentalPriceFormatted: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
+          imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
+          compatibleCrops: ['Rau muống lá tre', 'Cải ngọt bông', 'Xà lách Romaine']
+        }));
+        setFeaturedPlots(mapped);
+      })
+      .catch((err) => console.warn('Không thể nạp danh sách thửa đất nổi bật:', err));
+  }, []);
 
   // Interactive IoT Simulator State
   const [simWeather, setSimWeather] = useState('ideal');
@@ -150,8 +175,20 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {landsData.map((land) => (
-            <FarmCard key={land.id} land={land} />
+          {lands.map((land) => (
+            <FarmCard
+              key={land.landId}
+              land={{
+                id: String(land.landId),
+                name: land.landName,
+                location: land.address,
+                description: land.description || 'Khu nông trại sinh thái chuẩn VietGAP với hệ thống quan trắc IoT 24/7.',
+                totalArea: land.boundaryAreaM2 ? `${Math.round(land.boundaryAreaM2).toLocaleString('vi-VN')} m²` : '25.000 m²',
+                totalPlots: land.totalPlots || 16,
+                activePlots: land.availablePlots || 10,
+                imageUrl: land.imageUrl || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80'
+              }}
+            />
           ))}
         </div>
       </section>
@@ -245,7 +282,13 @@ export default function Home() {
           </Link>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {featuredPlots.map((plot) => <PlotCard key={plot.id} plot={plot} />)}
+          {featuredPlots.length > 0 ? (
+            featuredPlots.map((plot) => <PlotCard key={plot.id} plot={plot} />)
+          ) : (
+            <div className="col-span-full py-12 text-center text-brand-muted text-sm bg-white rounded-2xl border border-brand-border">
+              Đang kết nối cơ sở dữ liệu và tải danh sách thửa đất nổi bật...
+            </div>
+          )}
         </div>
       </section>
 

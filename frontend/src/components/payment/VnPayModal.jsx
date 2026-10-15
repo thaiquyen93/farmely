@@ -47,15 +47,23 @@ export default function VnPayModal({
         ...additionalPayload
       };
 
+      const endpoint = window.location.port === '3000' 
+        ? '/api/v1/payments/vnpay/create' 
+        : 'http://localhost:8085/api/v1/payments/vnpay/create';
+
       let res;
       try {
-        res = await fetch('http://localhost:8085/api/v1/payments/vnpay/create', {
+        res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-      } catch (e) {
-        res = await fetch('/api/v1/payments/vnpay/create', {
+      } catch (fetchErr) {
+        // Fallback to direct port 8085 if proxy or direct fails
+        const fallbackUrl = endpoint.startsWith('http') 
+          ? '/api/v1/payments/vnpay/create' 
+          : 'http://localhost:8085/api/v1/payments/vnpay/create';
+        res = await fetch(fallbackUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -63,7 +71,12 @@ export default function VnPayModal({
       }
 
       if (!res.ok) {
-        throw new Error('Không thể kết nối đến cổng thanh toán VNPAY');
+        let errorDetail = 'Không thể kết nối đến cổng thanh toán VNPAY';
+        try {
+          const errBody = await res.json();
+          if (errBody?.message) errorDetail = errBody.message;
+        } catch (_) {}
+        throw new Error(errorDetail);
       }
 
       const data = await res.json();

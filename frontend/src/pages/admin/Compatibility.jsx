@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { compatibilityData as initialRules } from '../../data/compatibility';
-import { plotsData } from '../../data/plots';
+import { farmApi } from '../../api/farm/farmApi';
 import { varietiesData } from '../../data/varieties';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
@@ -16,6 +16,7 @@ export default function Compatibility() {
   const [isLiveDb, setIsLiveDb] = useState(false);
   const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
   const [showModal, setShowModal] = useState(false);
+  const [dbPlots, setDbPlots] = useState([]);
 
   // Form State
   const [plotId, setPlotId] = useState('1');
@@ -25,6 +26,16 @@ export default function Compatibility() {
 
   useEffect(() => {
     let active = true;
+    farmApi.listPlots()
+      .then((rows) => {
+        if (!active) return;
+        setDbPlots(rows || []);
+        if (rows && rows.length > 0) {
+          setPlotId(String(rows[0].plotId));
+        }
+      })
+      .catch((err) => console.warn('Không thể nạp danh sách thửa đất:', err));
+
     fetch('/api/compatibility')
       .then((res) => res.json())
       .then((res) => {
@@ -54,20 +65,21 @@ export default function Compatibility() {
       .finally(() => {
         if (active) setLoading(false);
       });
+
     return () => { active = false; };
   }, []);
 
   const handleCreateRule = (e) => {
     e.preventDefault();
-    const plotObj = plotsData.find((p) => String(p.id) === String(plotId));
+    const plotObj = dbPlots.find((p) => String(p.plotId) === String(plotId));
     const varObj = varietiesData.find((v) => String(v.id) === String(varietyId));
 
     const newRule = {
       id: `COMP-00${rules.length + 1}`,
       plotId,
-      plotCode: plotObj ? plotObj.code : 'P-01',
-      plotName: plotObj ? plotObj.name : 'Thửa đất',
-      soilType: plotObj ? plotObj.soilType : 'Đất phù sa',
+      plotCode: plotObj ? (plotObj.plotCode || plotObj.code) : 'P-01',
+      plotName: plotObj ? (plotObj.name || `Thửa đất ${plotObj.plotCode || plotObj.code}`) : 'Thửa đất',
+      soilType: 'Đất phù sa bồi lắng giàu mùn',
       varietyId,
       varietyName: varObj ? varObj.name : 'Giống cây',
       cropName: varObj ? varObj.cropName : 'Rau ăn lá',
@@ -143,9 +155,19 @@ export default function Compatibility() {
   ];
 
   // Group rules by plot for the visual Cards View
-  const plotsWithRules = plotsData.map((plot) => {
-    const plotRules = rules.filter((r) => r.plotId === plot.id);
-    return { plot, rules: plotRules };
+  const plotsWithRules = dbPlots.map((plot) => {
+    const plotRules = rules.filter((r) => r.plotId === String(plot.plotId) || r.plotCode === plot.plotCode);
+    return {
+      plot: {
+        id: String(plot.plotId),
+        code: plot.plotCode,
+        name: `Thửa đất ${plot.plotCode}`,
+        soilType: 'Đất phù sa bồi lắng giàu mùn',
+        landName: plot.landName || 'Happy Valley',
+        status: plot.status
+      },
+      rules: plotRules
+    };
   });
 
   return (
@@ -295,9 +317,9 @@ export default function Compatibility() {
             required
             value={plotId}
             onChange={(e) => setPlotId(e.target.value)}
-            options={plotsData.map((p) => ({
-              value: p.id,
-              label: `${p.code} - ${p.name} (${p.soilType.split('(')[0]})`
+            options={dbPlots.map((p) => ({
+              value: String(p.plotId),
+              label: `${p.plotCode} - Thửa đất ${p.plotCode} (${p.landName || 'Happy Valley'})`
             }))}
           />
 

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, Maximize2, Tag, Sprout } from 'lucide-react';
 import Button from '../common/Button';
-import { landsData } from '../../data/lands';
+import { farmApi } from '../../api/farm/farmApi';
 import { cropsData } from '../../data/crops';
 
 export default function FarmSearch() {
@@ -10,7 +10,14 @@ export default function FarmSearch() {
   const [selectedCrop, setSelectedCrop] = useState('');
   const [selectedArea, setSelectedArea] = useState('');
   const [selectedPrice, setSelectedPrice] = useState('');
+  const [lands, setLands] = useState([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    farmApi.listLands()
+      .then((rows) => setLands(rows || []))
+      .catch((err) => console.warn('Không thể nạp danh sách nông trại:', err));
+  }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -40,9 +47,9 @@ export default function FarmSearch() {
             className="w-full bg-brand-cream/40 rounded-xl px-3 py-2 text-xs sm:text-sm text-brand-dark border border-brand-border/60 focus:outline-none focus:ring-2 focus:ring-brand-green/20"
           >
             <option value="">Tất cả nông trại</option>
-            {landsData.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
+            {lands.map((l) => (
+              <option key={l.landId} value={l.landId}>
+                {l.landName}
               </option>
             ))}
           </select>
