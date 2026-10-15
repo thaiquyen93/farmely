@@ -29,7 +29,6 @@ import {
   X
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
-import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 
@@ -94,13 +93,11 @@ export default function BookPlot() {
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
   const [selectedMode, setSelectedMode] = useState('ASSISTED');
   const [rentalMonths, setRentalMonths] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState('VNPAY');
+  const [paymentMethod] = useState('VNPAY');
   const [isSuccess, setIsSuccess] = useState(false);
   const [contractCode, setContractCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVnPayModal, setShowVnPayModal] = useState(false);
-  const [showCardModal, setShowCardModal] = useState(false);
-  const [qrData, setQrData] = useState(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -262,16 +259,17 @@ export default function BookPlot() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerId: user?.id || 4,
-          customerEmail: user?.email || 'customer.khoi@gmail.com',
-          customerName: user?.fullName || 'Tạ Nguyễn Khôi Nguyên',
+          customerId: user?.id || 1,
+          customerEmail: user?.email || 'customer@farmely.vn',
+          customerName: user?.fullName || 'Lô Thái Quyền',
+          customerPhone: user?.phone || '0901234567',
           totalAmount: totalAmount,
           paymentMethod: method || 'VIETQR',
           cultivationMode: selectedMode === 'ASSISTED' ? 'ASSISTED_GROWING' : 'SELF_GROWING',
           rentalMonths: rentalMonths,
           plots: selectedPlots.map((p) => ({
             id: p.id,
-            code: p.code,
+            code: p.code || p.id,
             price: p.rentalPrice || 1200000,
             cropId: selectedCropFor(p)?.id || null,
             cropName: selectedCropFor(p)?.name || null,
@@ -280,55 +278,73 @@ export default function BookPlot() {
         })
       });
       const data = await response.json();
-      if (data?.success && data?.contract_code) {
-        return data.contract_code;
+      if (data?.success && (data?.contract_code || data?.contract_number)) {
+        return data.contract_code || data.contract_number;
       }
     } catch (err) {
-      console.error('Lỗi lưu CSDL SQL Server:', err);
+      console.error('Lỗi lưu CSDL:', err);
     }
     return `MLA-2026-${Math.floor(100000 + Math.random() * 900000)}`;
   };
 
-  const handleConfirmBooking = async () => {
-    setIsProcessing(true);
-
-    if (paymentMethod === 'VNPAY') {
-      setIsProcessing(false);
-      setShowVnPayModal(true);
-      return;
-    }
-
-    if (paymentMethod === 'CARD') {
-      setIsProcessing(false);
-      setShowCardModal(true);
-      return;
-    }
-
-    // Default flow: save directly to database
-    const savedCode = await persistBookingToDatabase(paymentMethod);
-    setIsProcessing(false);
-    setContractCode(savedCode);
-    syncRentalToChat();
+  const markPlotsAsBookedLocally = () => {
     try {
       localStorage.removeItem('farmely_master_lease_selected_plots');
+      const recent = JSON.parse(localStorage.getItem('farmely_recently_booked_plots') || '[]');
+      selectedPlots.forEach((sp) => {
+        const c1 = sp.code || sp.id;
+        const c2 = sp.id;
+        if (c1 && !recent.includes(c1)) recent.push(c1);
+        if (c2 && !recent.includes(c2)) recent.push(c2);
+      });
+      localStorage.setItem('farmely_recently_booked_plots', JSON.stringify(recent));
+      window.dispatchEvent(new CustomEvent('farmely_plot_booked', { detail: selectedPlots }));
     } catch (e) {
       console.error(e);
     }
-    setIsSuccess(true);
+  };
+
+  const buildPendingBookingPayload = () => ({
+    customerId: user?.id || 1,
+    customerEmail: user?.email || 'customer@farmely.vn',
+    customerName: user?.fullName || 'Lô Thái Quyền',
+    customerPhone: user?.phone || '0901234567',
+    totalAmount: totalAmount,
+    paymentMethod: 'VNPAY',
+    cultivationMode: selectedMode === 'ASSISTED' ? 'ASSISTED_GROWING' : 'SELF_GROWING',
+    rentalMonths: rentalMonths,
+    plots: selectedPlots.map((p) => ({
+      id: p.id,
+      code: p.code || p.id,
+      name: p.name || `Thửa ${p.code || p.id}`,
+      price: p.rentalPrice || 1200000,
+      cropId: selectedCropFor(p)?.id || null,
+      cropName: selectedCropFor(p)?.name || null,
+      varietyName: selectedCropFor(p)?.variety || null
+    }))
+  });
+
+  const handleConfirmBooking = async () => {
+    setIsProcessing(true);
+
+    const pendingPayload = buildPendingBookingPayload();
+    try {
+      localStorage.setItem('farmely_pending_vnpay_booking', JSON.stringify(pendingPayload));
+    } catch (e) {
+      console.warn('Could not store pending booking:', e);
+    }
+
+    setIsProcessing(false);
+    setShowVnPayModal(true);
   };
 
   const handlePaymentSuccess = async () => {
     setShowVnPayModal(false);
-    setShowCardModal(false);
     setIsProcessing(true);
-    const savedCode = await persistBookingToDatabase(paymentMethod);
+    const savedCode = await persistBookingToDatabase('VNPAY');
     setContractCode(savedCode);
     syncRentalToChat();
-    try {
-      localStorage.removeItem('farmely_master_lease_selected_plots');
-    } catch (e) {
-      console.error(e);
-    }
+    markPlotsAsBookedLocally();
     setIsProcessing(false);
     setIsSuccess(true);
   };
@@ -748,43 +764,54 @@ export default function BookPlot() {
                 </div>
               </div>
 
-              {/* Payment Method */}
+              {/* Payment Method - Only VNPay Sandbox */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-4">
-                <h3 className="font-heading font-bold text-lg text-brand-dark">
-                  3. Phương Thức Thanh Toán
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('VNPAY')}
-                    className={`p-4 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
-                      paymentMethod === 'VNPAY'
-                        ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
-                        : 'border-brand-border bg-white hover:bg-brand-cream/50'
-                    }`}
-                  >
-                    <ShieldCheck className="w-5 h-5 text-blue-600" />
-                    <div className="text-left">
-                      <p className="text-xs font-bold text-brand-dark">Cổng VNPAY Sandbox</p>
-                      <p className="text-[10px] text-blue-700 font-medium">VNPAY-QR, Thẻ ATM NCB</p>
-                    </div>
-                  </button>
+                <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-brand-green" />
+                    <h3 className="text-base sm:text-lg font-normal text-brand-dark">
+                      3. Phương Thức Thanh Toán Duy Nhất
+                    </h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Cổng VNPay Sandbox
+                  </span>
+                </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('CARD')}
-                    className={`p-4 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
-                      paymentMethod === 'CARD'
-                        ? 'border-brand-green bg-emerald-50/60 ring-2 ring-brand-green/20'
-                        : 'border-brand-border bg-white hover:bg-brand-cream/50'
-                    }`}
-                  >
-                    <CreditCard className="w-5 h-5 text-brand-green" />
-                    <div className="text-left">
-                      <p className="text-xs font-bold text-brand-dark">Thẻ Quốc Tế / Nội Địa</p>
-                      <p className="text-[10px] text-stone-500">Visa, Mastercard, ATM</p>
+                <div className="relative p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-[#294C3B] bg-gradient-to-r from-emerald-50/40 via-white to-emerald-50/20 shadow-xs ring-2 ring-[#294C3B]/10 transition-all">
+                  <div className="flex items-center justify-between gap-3 sm:gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border border-emerald-200/90 flex items-center justify-center p-2.5 shadow-2xs shrink-0">
+                        <img
+                          src="https://sandbox.vnpayment.vn/paymentv2/Images/brands/logo.svg"
+                          alt="VNPAY"
+                          className="w-full h-auto max-h-7 sm:max-h-8 object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'block';
+                          }}
+                        />
+                        <span style={{ display: 'none' }} className="font-black text-[#294C3B] text-xs">VNPAY</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                          <h4 className="text-sm sm:text-[15px] lg:text-base font-medium text-[#1b3b2b] tracking-tight whitespace-nowrap">
+                            Cổng Thanh Toán Trực Tuyến VNPAY (Sandbox)
+                          </h4>
+                          <span className="shrink-0 px-2 py-0.5 rounded text-[11px] font-medium bg-[#d1fae5] text-[#065f46] border border-[#a7f3d0] whitespace-nowrap">
+                            Chính thức
+                          </span>
+                        </div>
+                        <p className="text-xs sm:text-[13px] text-stone-500 mt-1 leading-normal">
+                          Thanh toán an toàn, bảo mật tiêu chuẩn quốc tế PCI-DSS & mã hóa SHA-512
+                        </p>
+                      </div>
                     </div>
-                  </button>
+
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#294C3B] text-white flex items-center justify-center shrink-0 shadow-xs ring-4 ring-emerald-50">
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -850,13 +877,14 @@ export default function BookPlot() {
                 </div>
 
                 <Button
-                  variant="primary"
+                  variant="secondary"
                   size="lg"
-                  className="w-full uppercase font-black tracking-wider text-sm shadow-yellow-glow"
+                  className="w-full uppercase font-black tracking-wider text-sm shadow-md py-4 flex items-center justify-center gap-2 cursor-pointer transition-all"
                   onClick={handleConfirmBooking}
                   loading={isProcessing}
                 >
-                  XÁC NHẬN THANH TOÁN & THUÊ ĐẤT
+                  <ShieldCheck className="w-5 h-5 text-brand-yellow" />
+                  <span>TIẾP TỤC THANH TOÁN VNPAY SANDBOX ({totalAmount.toLocaleString('vi-VN')} đ)</span>
                 </Button>
 
                 <p className="text-[11px] text-center text-brand-muted">
@@ -961,21 +989,10 @@ export default function BookPlot() {
         onPaymentSuccess={handlePaymentSuccess}
         plotInfo={{
           code: plotCodesSummary,
-          name: `Hợp đồng thuê ${selectedPlots.length} thửa đất`
+          name: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`
         }}
         totalAmount={totalAmount}
-      />
-
-      {/* Card Payment Pop-up Modal */}
-      <CardPaymentModal
-        isOpen={showCardModal}
-        onClose={() => setShowCardModal(false)}
-        totalAmount={totalAmount}
-        plotInfo={{
-          code: plotCodesSummary,
-          name: `Hợp đồng thuê ${selectedPlots.length} thửa đất`
-        }}
-        onPaymentSuccess={handlePaymentSuccess}
+        pendingBooking={buildPendingBookingPayload()}
       />
 
       <Footer />

@@ -41,62 +41,101 @@ export default function Marketplace() {
   const [dbPlots, setDbPlots] = useState([]);
   const [dbSource, setDbSource] = useState(null);
 
-  useEffect(() => {
-    let active = true;
-    async function loadPlotsFromDb() {
-      try {
-        const res = await fetch('/api/v1/plots');
-        if (res.ok) {
-          const json = await res.json();
-          const list = Array.isArray(json) ? json : (json.data || []);
-          if (list && list.length > 0 && active) {
-            setDbPlots(list);
-            setDbSource('PostgreSQL');
-          }
+  const loadPlotsFromDb = async () => {
+    try {
+      const res = await fetch('/api/v1/plots?t=' + Date.now());
+      if (res.ok) {
+        const json = await res.json();
+        const list = Array.isArray(json) ? json : (json.data || []);
+        if (list && list.length > 0) {
+          setDbPlots(list);
+          setDbSource('PostgreSQL');
         }
-      } catch (err) {
-        console.warn('[Marketplace] Fetch /api/v1/plots fallback to GIS data:', err);
       }
+    } catch (err) {
+      console.warn('[Marketplace] Fetch /api/v1/plots fallback to GIS data:', err);
     }
+  };
+
+  useEffect(() => {
     loadPlotsFromDb();
-    return () => { active = false; };
-  }, []);
+    const handleFocus = () => loadPlotsFromDb();
+    const handlePlotBooked = () => loadPlotsFromDb();
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('farmely_plot_booked', handlePlotBooked);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('farmely_plot_booked', handlePlotBooked);
+    };
+  }, [location.key]);
 
   // Hợp nhất GeoJSON với dữ liệu Live DB
   const livePlotsGeoJson = useMemo(() => {
-    if (!dbPlots || dbPlots.length === 0) return FARMS_GEOJSON_DATA;
+    let recentBooked = [];
+    try {
+      recentBooked = JSON.parse(localStorage.getItem('farmely_recently_booked_plots') || '[]');
+    } catch {
+      recentBooked = [];
+    }
 
     const dbMap = new Map();
     dbPlots.forEach((dp) => {
-      const codeKey = (dp.plot_code || dp.code || '').toUpperCase().replace('PLOT ', '').trim();
-      dbMap.set(codeKey, dp);
+      const code = dp.plotCode || dp.plot_code || dp.code || '';
+      const clean = code.toUpperCase().replace(/^PLOT\s+/i, '').replace(/^PLT-HV-/i, 'P-').trim();
+      if (clean) {
+        dbMap.set(clean, dp);
+        const digits = clean.match(/\d+/);
+        if (digits) dbMap.set('P-' + digits[0].padStart(2, '0'), dp);
+      }
+      if (dp.plotId || dp.plot_id) {
+        dbMap.set(String(dp.plotId || dp.plot_id), dp);
+      }
     });
 
     const updatedFeatures = FARMS_GEOJSON_DATA.features.map((feat) => {
       const p = feat.properties;
-      const featKey = (p.id || p.code || '').toUpperCase().replace('PLOT ', '').trim();
-      const match = dbMap.get(featKey);
-      if (!match) return feat;
+      const featKey = (p.id || p.code || p.label || '').toUpperCase().replace(/^PLOT\s+/i, '').replace(/^PLT-HV-/i, 'P-').trim();
+      const featDigits = featKey.match(/\d+/);
+      const paddedKey = featDigits ? 'P-' + featDigits[0].padStart(2, '0') : featKey;
+      const match = dbMap.get(featKey) || dbMap.get(paddedKey) || dbMap.get(String(p.plot_id || ''));
 
-      const liveStatus = match.status === 'AVAIL'
-        ? 'Đang trống'
-        : (match.status === 'RENT'
-            ? 'Đã thuê'
-            : (match.status === 'MAINT' ? 'Bảo trì' : match.status_text || p.status));
+      const isRecentlyBooked = recentBooked.some((code) => {
+        const clean = String(code).toUpperCase().replace(/^PLOT\s+/i, '').replace(/^PLT-HV-/i, 'P-').trim();
+        return clean === featKey || clean === paddedKey || clean === (p.id || '').toUpperCase();
+      });
+
+      const isRented = match
+        ? (match.status === 'RENT' || match.status === 'RENTED')
+        : isRecentlyBooked;
+      const isMaintenance = match && (match.status === 'MAINT' || match.status === 'MAINTENANCE');
+
+      let liveStatus = p.status;
+      let liveStatusCode = p.statusCode || p.status;
+
+      if (isRented) {
+        liveStatus = 'Đã thuê';
+        liveStatusCode = 'RENTED';
+      } else if (isMaintenance) {
+        liveStatus = 'Bảo trì';
+        liveStatusCode = 'MAINTENANCE';
+      } else if (match && (match.status === 'AVAIL' || match.status === 'AVAILABLE')) {
+        liveStatus = 'Đang trống';
+        liveStatusCode = 'AVAILABLE';
+      }
 
       return {
         ...feat,
         properties: {
           ...p,
-          plot_id: match.plot_id || p.plot_id,
+          plot_id: match?.plot_id || match?.plotId || p.plot_id,
           status: liveStatus,
-          statusCode: match.status,
-          price: match.price_text || p.price,
-          rentalPrice: match.price_per_period ? Number(match.price_per_period) : p.rentalPrice,
-          area: match.area_text || p.area,
-          sizeNumber: match.area ? Number(match.area) : p.sizeNumber,
-          compatibleCrops: (match.compatible_crops && match.compatible_crops.length > 0) ? match.compatible_crops : p.compatibleCrops,
-          dbSynced: true
+          statusCode: liveStatusCode,
+          price: match?.price_text || (match?.price_per_period ? `${Number(match.price_per_period).toLocaleString('vi-VN')} đ` : p.price),
+          rentalPrice: match?.price_per_period ? Number(match.price_per_period) : (match?.pricePerPeriod ? Number(match.pricePerPeriod) : p.rentalPrice),
+          area: match?.area_text || (match?.area ? `${match.area} m²` : p.area),
+          sizeNumber: match?.area ? Number(match.area) : p.sizeNumber,
+          compatibleCrops: (match?.compatible_crops && match.compatible_crops.length > 0) ? match.compatible_crops : p.compatibleCrops,
+          dbSynced: Boolean(match) || isRecentlyBooked
         }
       };
     });

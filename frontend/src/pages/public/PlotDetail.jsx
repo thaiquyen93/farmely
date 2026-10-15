@@ -30,12 +30,52 @@ export default function PlotDetail() {
   const navigate = useNavigate();
 
   const { isAuthenticated } = useAuthStore();
-  const plot = plotsData.find((p) => p.id === id) || plotsData[0];
+  const [plot, setPlot] = useState(() => plotsData.find((p) => p.id === id) || plotsData[0]);
   const [activeImage, setActiveImage] = useState(plot.gallery ? plot.gallery[0] : plot.imageUrl);
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [showRentModal, setShowRentModal] = useState(false);
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [selectedCultivationMode, setSelectedCultivationMode] = useState('ASSISTED');
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/plots/${id}`)
+      .then((res) => res.json())
+      .then((res) => {
+        if (!active) return;
+        if (res && res.success && res.data) {
+          const d = res.data;
+          const mapped = {
+            id: d.id || d.plotId,
+            code: d.code || d.plotCode,
+            name: d.name || `Thửa Đất ${d.plotCode}`,
+            landName: d.landName || 'Trang trại Happy Valley Củ Chi',
+            area: d.areaText || `${d.area} m²`,
+            formattedPrice: d.formattedPrice || `${Number(d.pricePerPeriod || 0).toLocaleString('vi-VN')} đ/tháng`,
+            rentalPrice: Number(d.pricePerPeriod || 1200000),
+            status: d.status,
+            description: d.description || `Thửa đất canh tác tiêu chuẩn VietGAP thuộc ${d.landName}.`,
+            imageUrl: d.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
+            gallery: [d.imageUrl, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=1000&q=80'].filter(Boolean),
+            soilType: d.soilType || 'Đất thịt nhẹ phù sa cổ, pH 6.0 - 6.5',
+            waterSource: 'Hệ thống lắng lọc vi sinh kết hợp nước giếng khoan',
+            careServicePrice: 600000,
+            recentSensorReadings: d.recentSensorReadings || {
+              temperature: '28.5°C',
+              soilMoisture: '68%',
+              humidity: '74%'
+            },
+            compatibleCrops: (d.compatibleCrops && d.compatibleCrops.length > 0)
+              ? d.compatibleCrops
+              : ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Rau muống lá tre F1']
+          };
+          setPlot(mapped);
+          setActiveImage(mapped.imageUrl);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch live plot:', err));
+    return () => { active = false; };
+  }, [id]);
 
   const handleBookPlotClick = () => {
     if (!isAuthenticated) {

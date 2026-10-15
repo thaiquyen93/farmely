@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { iotStationsData as initialStations } from '../../data/iotStations';
 import DataTable from '../../components/common/DataTable';
@@ -11,6 +11,22 @@ export default function IoTStations() {
   const [stations, setStations] = useState(initialStations);
   const [selectedStation, setSelectedStation] = useState(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [isLiveDb, setIsLiveDb] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/iot-stations')
+      .then((res) => res.json())
+      .then((res) => {
+        if (!active) return;
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setStations(res.data);
+          setIsLiveDb(true);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch live IoT stations:', err));
+    return () => { active = false; };
+  }, []);
 
   const columns = [
     {
@@ -113,9 +129,17 @@ export default function IoTStations() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: IoT Station (Telemetry Master Configuration)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
+              Thực thể: IoT Station (Telemetry Master Configuration)
+            </span>
+            {isLiveDb && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live DB: {stations.length} Trạm cảm biến</span>
+              </span>
+            )}
+          </div>
           <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
             Trạm Cảm Biến Môi Trường IoT
           </h2>
