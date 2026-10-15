@@ -841,6 +841,23 @@ Write-Output $json
                 return;
               }
 
+              // Gọi identity-service trước nếu đang chạy để nhận JWT thật
+              try {
+                const idRes = await fetch('http://localhost:8081/api/auth/login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email, password })
+                });
+                if (idRes.ok) {
+                  const idData = await idRes.json();
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.end(JSON.stringify(idData));
+                  return;
+                }
+              } catch (idErr) {
+                // Identity service offline, tiếp tục fallback nội bộ
+              }
+
               // Query user from PostgreSQL
               const userSql = `
 SELECT json_build_object(
@@ -940,6 +957,88 @@ SELECT COALESCE(json_agg(row_to_json(u)), '[]'::json) FROM (
             res.end(data || '[]');
           } catch (err) {
             res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 8. GET /api/customer/rented-plots (Load actual rented plots of a customer from PostgreSQL)
+        if (req.method === 'GET' && (url.startsWith('/api/customer/rented-plots') || url.startsWith('/api/v1/customer/rented-plots'))) {
+          try {
+            const urlObj = new URL(req.url, 'http://localhost:3000');
+            const userId = urlObj.searchParams.get('userId') || '';
+            const email = urlObj.searchParams.get('email') || '';
+
+            let userClause = '';
+            if (userId) {
+              const num = parseInt(String(userId).replace(/\D/g, ''), 10);
+              if (num) userClause = `c.renter_id = ${num}`;
+            }
+            if (!userClause && email) {
+              userClause = `LOWER(u.email) = LOWER('${email.trim().replace(/'/g, "''")}')`;
+            }
+
+            if (!userClause) {
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end('[]');
+              return;
+            }
+
+            const sql = `
+SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
+  SELECT 
+    'PLOT-' || p.plot_code AS id,
+    p.plot_code AS "mapPlotId",
+    'Thửa ' || p.plot_code || ' - ' || l.land_name AS name,
+    l.land_name AS location,
+    p.area || 'm²' AS area,
+    CASE WHEN s.service_type = 'SELF' THEN 'Self-Growing' ELSE 'Assisted-Growing' END AS mode,
+    COALESCE(v.variety_name, 'Rau củ VietGAP') AS crop,
+    'Ra hoa & đậu trái non' AS stage,
+    28 AS "currentDay",
+    65 AS "totalDays",
+    43 AS "progressPercent",
+    COALESCE(p.image_url, '/images/Mucangchai3.jpg') AS image,
+    '28.5°C' AS temp,
+    '68%' AS "soilMoisture",
+    '74%' AS "airHumidity",
+    '45.000 Lux' AS light,
+    '6.5' AS ph,
+    'IOT-' || p.plot_code AS "stationId",
+    'HEALTHY' AS status,
+    'Trần Văn Lực (CVLĐ)' AS worker,
+    c.contract_number AS "contractCode",
+    TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "expectedHarvestDate",
+    '35 - 45 kg' AS "expectedYield",
+    'Đất phù sa bồi lắng giàu mùn (pH 6.5)' AS "soilType",
+    'Hệ thống nước tưới ngầm lọc cát + UV' AS "waterSource",
+    c.contract_id, c.contract_number, c.renter_id, c.status AS contract_status,
+    r.rental_id, r.service_id, 
+    TO_CHAR(r.start_date, 'YYYY-MM-DD') AS start_date, 
+    TO_CHAR(r.end_date, 'YYYY-MM-DD') AS end_date, 
+    r.total_price, r.status AS rental_status,
+    p.plot_id, p.plot_code, p.area AS raw_area, p.status AS plot_status, p.image_url,
+    l.land_id, l.land_name, l.address,
+    v.variety_id, v.variety_name,
+    s.service_name, s.service_type
+  FROM contracts c
+  JOIN users u ON c.renter_id = u.user_id
+  JOIN rentals r ON c.contract_id = r.contract_id
+  JOIN plots p ON r.plot_id = p.plot_id
+  JOIN lands l ON p.land_id = l.land_id
+  LEFT JOIN varieties v ON r.variety_id = v.variety_id
+  LEFT JOIN services s ON r.service_id = s.service_id
+  WHERE ${userClause}
+  ORDER BY r.rental_id ASC
+) p_row;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '[]');
+          } catch (err) {
+            console.error('Error on /api/customer/rented-plots:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ error: String(err) }));
           }
           return;
