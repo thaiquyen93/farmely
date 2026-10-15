@@ -50,6 +50,13 @@ export default function Login() {
     }
   };
 
+  const quickAccounts = [
+    { label: 'Khách hàng', email: 'customer@farmely.vn' },
+    { label: 'Chuyên gia', email: 'expert@farmely.vn' },
+    { label: 'Nhân viên', email: 'worker@farmely.vn' },
+    { label: 'Quản trị', email: 'admin@farmely.vn' }
+  ];
+
   return (
     <div className="min-h-screen bg-brand-cream flex">
       {/* LEFT: Cinematic Agriculture Photography */}
@@ -177,6 +184,22 @@ export default function Login() {
             >
               ĐĂNG NHẬP
             </Button>
+
+            <div className="rounded-xl border border-brand-border bg-white/70 p-3">
+              <p className="mb-2 text-center text-[11px] font-bold text-stone-500">Đăng nhập nhanh để kiểm thử</p>
+              <div className="grid grid-cols-2 gap-2">
+                {quickAccounts.map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    onClick={() => { setEmail(account.email); setPassword('Farmely@2026'); setErrorMessage(''); }}
+                    className="rounded-lg border border-emerald-200 px-2 py-2 text-[11px] font-bold text-brand-green transition hover:bg-emerald-50"
+                  >
+                    {account.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="text-center pt-2 text-xs text-stone-600">
               Chưa có tài khoản?{' '}
