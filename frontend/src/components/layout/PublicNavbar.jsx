@@ -178,7 +178,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-[left] duration-200 ${hasDashboardRail ? (dashboardRailCollapsed ? 'lg:left-16' : 'lg:left-72') : ''} ${navBackgroundClass}`}>
-      <div className="w-full max-w-[1720px] mx-auto px-4 sm:px-8">
+      <div className="w-full px-4 sm:px-8">
         <div className="flex items-center justify-between h-20">
           
           {/* LEFT: Brand Logo + Vertical Divider matching reference image */}
