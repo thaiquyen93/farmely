@@ -91,12 +91,23 @@ export function buildGeoJsonFromDbPlots(plots = []) {
   plots.forEach((p) => {
     let ring = [];
     if (Array.isArray(p.boundary) && p.boundary.length >= 3) {
-      ring = p.boundary.map((pt) => [Number(pt[0]), Number(pt[1])]);
+      ring = p.boundary
+        .map((pt) => {
+          if (Array.isArray(pt)) return [Number(pt[0]), Number(pt[1])];
+          if (typeof pt === 'string') {
+            const parts = pt.trim().split(/[\s,]+/);
+            return parts.length >= 2 ? [Number(parts[0]), Number(parts[1])] : null;
+          }
+          return null;
+        })
+        .filter((pt) => pt && !isNaN(pt[0]) && !isNaN(pt[1]));
     } else if (p.boundaryGeojson) {
       try {
         const parsed = typeof p.boundaryGeojson === 'string' ? JSON.parse(p.boundaryGeojson) : p.boundaryGeojson;
         if (parsed && Array.isArray(parsed.coordinates) && parsed.coordinates[0]) {
-          ring = parsed.coordinates[0].map((pt) => [Number(pt[0]), Number(pt[1])]);
+          ring = parsed.coordinates[0]
+            .map((pt) => [Number(pt[0]), Number(pt[1])])
+            .filter((pt) => !isNaN(pt[0]) && !isNaN(pt[1]));
         }
       } catch {
         // bỏ qua nếu parse lỗi
