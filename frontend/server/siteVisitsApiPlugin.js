@@ -115,6 +115,16 @@ export function siteVisitsApiPlugin() {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
 
+        // Ưu tiên chuyển tiếp /api/lands và /api/plots sang Backend API Gateway (8080) -> farm-service (8082)
+        if (
+          url.startsWith('/api/lands') ||
+          url.startsWith('/api/v1/lands') ||
+          url.startsWith('/api/plots') ||
+          url.startsWith('/api/v1/plots')
+        ) {
+          return next();
+        }
+
         // 0. GET /api/db/status (Health check & statistics)
         if (req.method === 'GET' && url === '/api/db/status') {
           try {
@@ -163,80 +173,6 @@ Write-Output $result
 
         if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && (url.startsWith('/api/plots') || url.startsWith('/api/v1/plots') || url.startsWith('/api/lands'))) {
           invalidatePlotsCache();
-        }
-
-        // 0.1 GET /api/v1/plots or GET /api/plots (Live 16 Plots from Local / Docker PostgreSQL)
-        if (req.method === 'GET' && (url === '/api/v1/plots' || url === '/api/plots' || url.startsWith('/api/v1/plots?') || url.startsWith('/api/plots?'))) {
-          if (cachedPlotsData && (Date.now() - cachedPlotsTime < CACHE_TTL_MS)) {
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(cachedPlotsData);
-            return;
-          }
-          try {
-            const sql = `
-SELECT json_build_object(
-  'success', true,
-  'message', 'Lấy danh sách thửa đất thành công từ PostgreSQL (Local / Docker)',
-  'data', COALESCE(
-    (
-      SELECT json_agg(row_to_json(t))
-      FROM (
-        SELECT 
-          p.plot_id,
-          p.plot_code,
-          'Plot ' || p.plot_code AS code,
-          p.area,
-          p.area || ' m²' AS area_text,
-          p.price_per_period,
-          TO_CHAR(p.price_per_period, 'FM999,999,999') || ' đ' AS price_text,
-          p.status,
-          CASE 
-            WHEN p.status = 'AVAIL' THEN 'Đang trống'
-            WHEN p.status = 'RENT' THEN 'Đã thuê'
-            WHEN p.status = 'MAINT' THEN 'Bảo trì'
-            ELSE 'Đang trống'
-          END AS status_text,
-          p.image_url,
-          p.is_published,
-          l.land_id,
-          l.land_name,
-          COALESCE(
-            (
-              SELECT json_agg(DISTINCT c.crop_name)
-              FROM plot_variety_compatibility pvc
-              JOIN varieties v ON pvc.variety_id = v.variety_id
-              JOIN crops c ON v.crop_id = c.crop_id
-              WHERE pvc.plot_id = p.plot_id
-            ),
-            '[]'::json
-          ) AS compatible_crops
-        FROM plots p
-        LEFT JOIN lands l ON p.land_id = l.land_id
-        ORDER BY p.plot_id
-      ) t
-    ),
-    '[]'::json
-  )
-);
-`;
-            const pgResult = await runPostgreSql(sql);
-            if (pgResult && pgResult.trim().startsWith('{')) {
-              cachedPlotsData = pgResult;
-              cachedPlotsTime = Date.now();
-            }
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(pgResult || '{}');
-          } catch (err) {
-            console.error('PostgreSQL error on GET /api/v1/plots:', err);
-            if (cachedPlotsData) {
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(cachedPlotsData);
-            } else {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ success: false, error: String(err) }));
-            }
-          }
-          return;
         }
 
         // 0.2 GET /api/v1/master-data/summary or GET /api/master-data/summary
@@ -1165,9 +1101,25 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
     p.is_published AS "isPublished",
     CASE 
       WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
-      THEN p.boundary_geojson::json 
+      THEN (
+        CASE 
+          WHEN p.boundary_geojson::json ? 'coordinates' 
+          THEN p.boundary_geojson::json->'coordinates'->0 
+          ELSE p.boundary_geojson::json 
+        END
+      )
       ELSE NULL 
     END AS "boundary",
+    COALESCE(
+      (
+        SELECT json_agg(DISTINCT c.crop_name)
+        FROM plot_variety_compatibility pvc
+        JOIN varieties v ON pvc.variety_id = v.variety_id
+        JOIN crops c ON v.crop_id = c.crop_id
+        WHERE pvc.plot_id = p.plot_id
+      ),
+      '[]'::json
+    ) AS "crops",
     TO_CHAR(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
     TO_CHAR(p.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt"
   FROM plots p
@@ -1211,7 +1163,13 @@ SELECT row_to_json(p) FROM (
     p.is_published AS "isPublished",
     CASE 
       WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
-      THEN p.boundary_geojson::json 
+      THEN (
+        CASE 
+          WHEN p.boundary_geojson::json ? 'coordinates' 
+          THEN p.boundary_geojson::json->'coordinates'->0 
+          ELSE p.boundary_geojson::json 
+        END
+      )
       ELSE NULL 
     END AS "boundary",
     TO_CHAR(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",

@@ -90,27 +90,78 @@ export function buildGeoJsonFromDbPlots(plots = []) {
 
   plots.forEach((p) => {
     let ring = [];
-    if (Array.isArray(p.boundary) && p.boundary.length >= 3) {
-      ring = p.boundary
-        .map((pt) => {
-          if (Array.isArray(pt)) return [Number(pt[0]), Number(pt[1])];
-          if (typeof pt === 'string') {
-            const parts = pt.trim().split(/[\s,]+/);
-            return parts.length >= 2 ? [Number(parts[0]), Number(parts[1])] : null;
+
+    // 1. Array of points: [[lng, lat], ...] or nested [[[lng, lat], ...]]
+    if (Array.isArray(p.boundary) && p.boundary.length > 0) {
+      if (Array.isArray(p.boundary[0]) && Array.isArray(p.boundary[0][0])) {
+        ring = p.boundary[0]
+          .map((pt) => [Number(pt[0]), Number(pt[1])])
+          .filter((pt) => !isNaN(pt[0]) && !isNaN(pt[1]));
+      } else if (p.boundary.length >= 3) {
+        ring = p.boundary
+          .map((pt) => {
+            if (Array.isArray(pt)) return [Number(pt[0]), Number(pt[1])];
+            if (typeof pt === 'string') {
+              const parts = pt.trim().split(/[\s,]+/);
+              return parts.length >= 2 ? [Number(parts[0]), Number(parts[1])] : null;
+            }
+            return null;
+          })
+          .filter((pt) => pt && !isNaN(pt[0]) && !isNaN(pt[1]));
+      }
+    }
+
+    // 2. GeoJSON object or string (from boundary, boundaryGeojson, or boundary_geojson)
+    if (ring.length < 3) {
+      const geoRaw = p.boundary || p.boundaryGeojson || p.boundary_geojson;
+      if (geoRaw) {
+        try {
+          const parsed = typeof geoRaw === 'string' ? JSON.parse(geoRaw) : geoRaw;
+          if (parsed && Array.isArray(parsed.coordinates) && parsed.coordinates[0]) {
+            const rawRing = Array.isArray(parsed.coordinates[0][0]) ? parsed.coordinates[0] : parsed.coordinates;
+            ring = rawRing
+              .map((pt) => [Number(pt[0]), Number(pt[1])])
+              .filter((pt) => !isNaN(pt[0]) && !isNaN(pt[1]));
           }
-          return null;
-        })
-        .filter((pt) => pt && !isNaN(pt[0]) && !isNaN(pt[1]));
-    } else if (p.boundaryGeojson) {
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    // 3. Fallback: polygon_coords / polygonCoords
+    if (ring.length < 3 && (p.polygon_coords || p.polygonCoords)) {
       try {
-        const parsed = typeof p.boundaryGeojson === 'string' ? JSON.parse(p.boundaryGeojson) : p.boundaryGeojson;
-        if (parsed && Array.isArray(parsed.coordinates) && parsed.coordinates[0]) {
-          ring = parsed.coordinates[0]
-            .map((pt) => [Number(pt[0]), Number(pt[1])])
-            .filter((pt) => !isNaN(pt[0]) && !isNaN(pt[1]));
+        const polyRaw = p.polygon_coords || p.polygonCoords;
+        const parsed = typeof polyRaw === 'string' ? JSON.parse(polyRaw) : polyRaw;
+        const rawCoords = Array.isArray(parsed[0]) && Array.isArray(parsed[0][0]) ? parsed[0] : parsed;
+        ring = rawCoords
+          .map((pt) => [Number(pt[0]), Number(pt[1])])
+          .filter((pt) => !isNaN(pt[0]) && !isNaN(pt[1]));
+      } catch {
+        // ignore
+      }
+    }
+
+    // 4. Fallback: center_point / centerPoint
+    if (ring.length < 3 && (p.center_point || p.centerPoint)) {
+      try {
+        const centerRaw = p.center_point || p.centerPoint;
+        const parsed = typeof centerRaw === 'string' ? JSON.parse(centerRaw) : centerRaw;
+        if (Array.isArray(parsed) && parsed.length >= 2 && !isNaN(parsed[0]) && !isNaN(parsed[1])) {
+          const cLng = Number(parsed[0]);
+          const cLat = Number(parsed[1]);
+          const d = 0.00015;
+          ring = [
+            [cLng - d, cLat - d],
+            [cLng + d, cLat - d],
+            [cLng + d, cLat + d],
+            [cLng - d, cLat + d],
+            [cLng - d, cLat - d]
+          ];
         }
       } catch {
-        // bỏ qua nếu parse lỗi
+        // ignore
       }
     }
 
@@ -129,14 +180,14 @@ export function buildGeoJsonFromDbPlots(plots = []) {
           ? 'Đã thuê'
           : (rawStatus === 'MAINT' || rawStatus === 'MAINTENANCE' ? 'Bảo trì' : (p.status || 'Đang trống')));
 
-    const plotCode = p.plotCode || p.code || `P-${p.plotId || p.id}`;
+    const plotCode = p.plotCode || p.plot_code || p.code || `P-${p.plotId || p.plot_id || p.id}`;
     const plotId = String(plotCode).replace(/^Plot\s+/i, '');
     const areaNum = Number(p.area) || 0;
-    const priceNum = Number(p.pricePerPeriod) || 0;
+    const priceNum = Number(p.pricePerPeriod ?? p.price_per_period) || 0;
 
     const cropList = Array.isArray(p.compatibleVarieties) && p.compatibleVarieties.length > 0
       ? p.compatibleVarieties.map((v) => v.varietyName || v.name)
-      : (Array.isArray(p.crops) ? p.crops : []);
+      : (Array.isArray(p.compatible_crops) ? p.compatible_crops : (Array.isArray(p.crops) ? p.crops : []));
 
     features.push({
       type: 'Feature',

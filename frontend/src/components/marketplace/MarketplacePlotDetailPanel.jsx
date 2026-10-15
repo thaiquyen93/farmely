@@ -52,10 +52,11 @@ export default function MarketplacePlotDetailPanel({
     plot.areaFormatted ||
     (typeof plot.area === 'number' ? `${plot.area} m²` : plot.area) ||
     '150 m²';
-  const plotPrice =
-    plot.rentalPriceFormatted ||
+  const rawPriceStr =
     plot.price ||
+    plot.rentalPriceFormatted ||
     (plot.rentalPrice ? `${plot.rentalPrice.toLocaleString('vi-VN')} đ` : '1.200.000 đ');
+  const plotPrice = String(rawPriceStr).replace(/\/tháng/gi, '').trim();
 
   const baseImg =
     plot.img ||

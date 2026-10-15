@@ -45,7 +45,7 @@ export function getRingCorners(feature) {
  */
 export function getCentroid(feature) {
   const corners = getRingCorners(feature);
-  if (corners.length === 0) return [0, 0];
+  if (corners.length === 0) return [106.345, 10.69];
   if (corners.length < 3) {
     return [
       corners.reduce((s, p) => s + p[0], 0) / corners.length,
@@ -82,8 +82,8 @@ export function getFeatureBBox(feature) {
   const corners = getRingCorners(feature);
   if (corners.length === 0) {
     return [
-      [0, 0],
-      [0, 0],
+      [106.342, 10.686],
+      [106.352, 10.696],
     ];
   }
 
