@@ -116,25 +116,28 @@ export const useAuthStore = create((set, get) => ({
       });
       const resData = await response.json();
       if (response.ok && resData && resData.success && resData.data) {
-        const { token, user: dbUser } = resData.data;
+        const dbUser = resData.data.user || resData.data;
+        const token = resData.data.token || ('farmely_token_' + (dbUser.userId || dbUser.id || Date.now()));
+        const resolvedUserId = dbUser.userId || dbUser.id || Date.now();
         const mappedUser = {
-          id: `USR-${dbUser.userId}`,
-          userId: dbUser.userId,
-          fullName: dbUser.fullName,
-          email: dbUser.email,
-          role: dbUser.role,
-          phone: dbUser.phoneNumber || userData.phone,
+          id: `USR-${resolvedUserId}`,
+          userId: resolvedUserId,
+          fullName: dbUser.fullName || userData.fullName,
+          email: dbUser.email || userData.email,
+          role: dbUser.role || 'CUSTOMER',
+          phone: dbUser.phoneNumber || dbUser.phone || userData.phone || '',
           address: dbUser.address || '',
           roleTitle: 'Khách hàng thuê đất',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+          avatar: dbUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
         };
         localStorage.setItem('farmely_token', token);
         localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
         set({ user: mappedUser, token, isAuthenticated: true });
-        return { success: true, user: mappedUser, message: resData.message };
+        return { success: true, user: mappedUser, message: resData.message || 'Đăng ký tài khoản thành công.' };
       }
-      return { success: false, message: resData?.message || 'Đăng ký thất bại' };
+      return { success: false, message: resData?.message || 'Đăng ký thất bại. Vui lòng thử lại.' };
     } catch (err) {
+      console.error('Lỗi gọi API đăng ký:', err);
       return { success: false, message: 'Lỗi kết nối máy chủ khi đăng ký.' };
     }
   },

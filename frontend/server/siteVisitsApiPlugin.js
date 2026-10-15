@@ -650,6 +650,7 @@ Write-Output $json
           return;
         }
 
+<<<<<<< HEAD
         // 5.5 POST /api/auth/login & /api/v1/auth/login (Local/Docker PostgreSQL authentication)
         if (req.method === 'POST' && (url === '/api/auth/login' || url === '/api/v1/auth/login' || url.startsWith('/api/auth/login?') || url.startsWith('/api/v1/auth/login?'))) {
           const chunks = [];
@@ -750,98 +751,6 @@ LIMIT 1;
           return;
         }
 
-        // 6. POST /api/auth/register (Persist new user directly to PostgreSQL and SQL Server)
-        if (req.method === 'POST' && (url === '/api/auth/register' || url === '/api/v1/auth/register')) {
-          const chunks = [];
-          req.on('data', chunk => chunks.push(chunk));
-          req.on('end', async () => {
-            try {
-              const body = Buffer.concat(chunks).toString('utf8');
-              const payload = JSON.parse(body || '{}');
-              const email = (payload.email || '').trim().toLowerCase().replace(/'/g, "''");
-              const fullName = (payload.fullName || payload.full_name || email.split('@')[0] || 'Khách hàng').trim().replace(/'/g, "''");
-              const phone = (payload.phoneNumber || payload.phone || '0901234567').trim().replace(/'/g, "''");
-              const password = payload.password || 'Farmely@2026';
-              const pwdHash = '$2a$10$' + Buffer.from(password).toString('base64').padEnd(53, 'A').slice(0, 53);
-
-              if (!email) {
-                res.statusCode = 400;
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.end(JSON.stringify({ success: false, message: 'Email không được để trống' }));
-                return;
-              }
-
-              // Check if user already exists
-              const checkSql = `SELECT user_id, email FROM users WHERE LOWER(email) = LOWER('${email}') LIMIT 1;`;
-              const checkRes = await runPostgreSql(checkSql);
-              if (checkRes && checkRes.trim()) {
-                res.statusCode = 400;
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.end(JSON.stringify({ success: false, message: 'Email này đã tồn tại trong hệ thống' }));
-                return;
-              }
-
-              // Insert into PostgreSQL
-              const insertPg = `
-INSERT INTO users (role_id, email, password_hash, full_name, phone_number, status, created_at, updated_at)
-VALUES (1, '${email}', '${pwdHash}', '${fullName}', '${phone}', 'ACTIVE', NOW(), NOW())
-RETURNING json_build_object(
-  'user_id', user_id,
-  'role_id', role_id,
-  'email', email,
-  'full_name', full_name,
-  'phone_number', phone_number,
-  'status', status,
-  'created_at', TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS')
-);
-`;
-              const pgOut = await runPostgreSql(insertPg);
-              const cleanJsonStr = (pgOut || '').trim().split('\n')[0];
-              const createdUser = JSON.parse(cleanJsonStr || '{}');
-
-              // Sync to SQL Server via Base64 for perfect Unicode support
-              try {
-                const b64 = Buffer.from(JSON.stringify({ email, pwdHash, fullName, phone }), 'utf8').toString('base64');
-                const msScript = `
-$bytes = [System.Convert]::FromBase64String("${b64}")
-$obj = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
-$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True")
-$conn.Open()
-$cmd = $conn.CreateCommand()
-$cmd.CommandText = "INSERT INTO users (role_id, email, password_hash, full_name, phone_number, status, created_at, updated_at) VALUES (1, @email, @pwd, @name, @phone, 'ACTIVE', GETDATE(), GETDATE())"
-[void]$cmd.Parameters.AddWithValue("@email", [string]$obj.email)
-[void]$cmd.Parameters.AddWithValue("@pwd", [string]$obj.pwdHash)
-[void]$cmd.Parameters.AddWithValue("@name", [string]$obj.fullName)
-[void]$cmd.Parameters.AddWithValue("@phone", [string]$obj.phone)
-[void]$cmd.ExecuteNonQuery()
-$conn.Close()
-`;
-                runPowershell(msScript).catch(() => {});
-              } catch (e) {}
-
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({
-                success: true,
-                message: 'Đăng ký tài khoản thành công vào CSDL Farmely',
-                data: {
-                  id: createdUser.user_id,
-                  userId: createdUser.user_id,
-                  email: createdUser.email,
-                  fullName: createdUser.full_name,
-                  phone: createdUser.phone_number,
-                  role: 'CUSTOMER',
-                  roleTitle: 'Khách hàng thuê đất'
-                }
-              }));
-            } catch (err) {
-              console.error('Error on /api/auth/register:', err);
-              res.statusCode = 500;
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: false, error: String(err) }));
-            }
-          });
-          return;
-        }
 
         // 7. GET /api/users (List all registered users from PostgreSQL)
         if (req.method === 'GET' && url === '/api/users') {
