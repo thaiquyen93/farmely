@@ -12,6 +12,7 @@ import AssistedGrowingDashboard from '../../components/customer/AssistedGrowingD
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
 import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
+import CustomerContractCenter from '../../components/customer/CustomerContractCenter';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import {
@@ -1743,44 +1744,10 @@ export default function CustomerDashboard() {
 
             {/* TAB 6: HỢP ĐỒNG THUÊ ĐẤT */}
             {activeTab === 'contracts' && !selectedPlotId && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Lịch Sử Hợp Đồng Thuê Thửa Đất
-                  </h3>
-                  <p className="text-xs text-brand-muted mt-0.5">
-                    Quản lý thời hạn thuê, gia hạn hợp đồng hoặc gửi yêu cầu hoàn hủy theo quy định.
-                  </p>
-                </div>
-
-                <div className="p-6 rounded-2xl border border-brand-border space-y-3 text-xs bg-white">
-                  <div className="flex justify-between items-center pb-3 border-b border-brand-border/60">
-                    <span className="font-mono font-bold text-brand-green text-sm">CTR-2026-FARM-9912</span>
-                    <span className="px-2.5 py-1 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                      Đang hiệu lực
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-stone-600">
-                    <p>Thửa đất: <strong className="text-brand-dark">Sen Vàng A1 (PLOT-CC-01)</strong></p>
-                    <p>Thời hạn: <strong className="text-brand-dark">03 Tháng (Còn 42 ngày)</strong></p>
-                    <p>Chế độ: <strong className="text-brand-dark">Assisted-growing</strong></p>
-                    <p>Tổng phí: <strong className="text-brand-dark">3.600.000 đ</strong></p>
-                    <p>Chuyên gia phụ trách: <strong className="text-emerald-800">ThS. Nguyễn Hoàng Nam</strong></p>
-                    <p>Công nhân trực tiếp: <strong className="text-amber-800">Trần Văn Lực (Tổ trưởng CVLĐ)</strong></p>
-                  </div>
-                  <div className="pt-3 flex gap-3">
-                    <Button variant="outline" size="sm" onClick={() => setShowRenewContractModal(true)}>
-                      Gia hạn hợp đồng (Renew)
-                    </Button>
-                    <button
-                      onClick={() => alert('Yêu cầu hủy hợp đồng và hoàn tiền đã được gửi đến ban quản trị Farmely.')}
-                      className="text-xs text-rose-600 hover:underline font-bold self-center cursor-pointer"
-                    >
-                      Yêu cầu hủy & hoàn tiền
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <CustomerContractCenter
+                renterId={user?.id || user?.userId}
+                onRenew={() => setShowRenewContractModal(true)}
+              />
             )}
 
             {/* TAB 7: TRỢ LÝ AI NÔNG NGHIỆP */}
