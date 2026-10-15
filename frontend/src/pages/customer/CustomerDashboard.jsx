@@ -293,10 +293,12 @@ export default function CustomerDashboard() {
   useEffect(() => {
     let cancelled = false;
     const unwrap = (body) => Array.isArray(body) ? body : (body?.data || []);
+    const renterId = user?.userId || user?.id;
+    if (!renterId) return undefined;
     Promise.all([
-      fetch('/api/services?status=ACTIVE').then((r) => r.ok ? r.json() : { data: [] }),
-      fetch('/api/rentals').then((r) => r.ok ? r.json() : { data: [] }),
-      fetch('/api/services/requests').then((r) => r.ok ? r.json() : { data: [] })
+      apiFetch('/api/services?status=ACTIVE').catch(() => ({ data: [] })),
+      apiFetch(`/api/rentals?renterId=${encodeURIComponent(renterId)}`).catch(() => ({ data: [] })),
+      apiFetch('/api/services/requests').catch(() => ({ data: [] }))
     ]).then(([servicesBody, rentalsBody, requestsBody]) => {
       if (cancelled) return;
       const services = unwrap(servicesBody).map((s) => ({
@@ -347,7 +349,7 @@ export default function CustomerDashboard() {
       if (!cancelled) { setApiServices([]); setApiCustomerPlots([]); setActiveServiceOrders([]); }
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.userId, user?.id]);
 
   // IoT Data for Different Timeframes (Hourly, Daily, Weekly)
   const [iotDatasets, setIotDatasets] = useState(false ? {
