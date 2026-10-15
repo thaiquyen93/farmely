@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import ReactDOM from 'react-dom/client';
 import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
@@ -19,6 +19,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import ExpertDashboard from './pages/expert/ExpertDashboard';
 import FieldWorkerDashboard from './pages/staff/FieldWorkerDashboard';
 import { useAuthStore } from './stores/authStore';
+import { useServiceStore } from './stores/serviceStore';
 
 const customer = { id: '1', userId: '1', role: 'CUSTOMER', fullName: 'Test customer', email: 'customer@farmely.vn' };
 const expert = { id: '5', userId: '5', role: 'EXPERT', fullName: 'Test expert', email: 'expert@farmely.vn' };
@@ -39,6 +40,12 @@ const cases = [
 describe('all application routes mount', () => {
   it.each(cases)('%s', async (_name, entry, user, Page) => {
     useAuthStore.setState({ user, isAuthenticated: Boolean(user) });
+    useServiceStore.setState(entry.includes('view=services') ? {
+      services: [{ id: 'S01', serviceId: 1, serviceCode: 'S01', name: 'Tưới và chăm sóc', serviceType: 'SINGLE', customerCategory: 'SINGLE', category: 'Dịch vụ một lần', price: 80000, unit: 'lần', tag: 'Dịch vụ lẻ', iconKey: 'droplets', active: true, status: 'ACTIVE', description: 'Dịch vụ kiểm thử', tasks: [] }],
+      loading: false,
+      loaded: true,
+      error: ''
+    } : { services: [], loading: false, loaded: false, error: '' });
     const host = document.createElement('div');
     document.body.appendChild(host);
     const root = ReactDOM.createRoot(host);
@@ -46,5 +53,27 @@ describe('all application routes mount', () => {
     expect(host.textContent).toBeTruthy();
     await act(async () => root.unmount());
     host.remove();
+  });
+
+  it('customer services survives successful backend responses', async () => {
+    const service = { serviceId: 1, serviceCode: 'S01', serviceName: 'Tưới nước bổ sung', serviceType: 'A_LA_CARTE', price: 25000, unit: 'lần/luống', description: 'Tưới nước', status: 'ACTIVE' };
+    vi.stubGlobal('fetch', vi.fn(async (input) => {
+      const url = String(input);
+      const data = url.includes('/api/services/requests') ? [] : url.includes('/api/rentals') ? [] : url.includes('/api/services') ? [service] : [];
+      return new Response(JSON.stringify({ success: true, data }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }));
+    useAuthStore.setState({ user: customer, isAuthenticated: true });
+    useServiceStore.setState({ services: [], loading: false, loaded: false, error: '' });
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = ReactDOM.createRoot(host);
+    await act(async () => {
+      root.render(<MemoryRouter initialEntries={['/customer/dashboard?view=services']}><CustomerDashboard /></MemoryRouter>);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(host.textContent).toContain('Tưới nước bổ sung');
+    await act(async () => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
   });
 });

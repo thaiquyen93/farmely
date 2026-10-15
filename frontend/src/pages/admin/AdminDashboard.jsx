@@ -394,7 +394,7 @@ export default function AdminDashboard() {
           
           {/* Admin Left Menu */}
           <DashboardRail user={user} fallbackName="Ban Quản Trị" roleLabel="Quản trị hệ thống" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
-            <div className={`px-2 pb-2 text-xs font-bold text-stone-500 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Phân Hệ Vận Hành</div>
+            <div className={`px-2 pb-2 text-xs font-bold text-white/60 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Phân Hệ Vận Hành</div>
 
             {[
               { id: 'overview', label: 'Tổng Quan Hoạt Động', icon: Activity, count: null },
@@ -415,11 +415,11 @@ export default function AdminDashboard() {
                   className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                     isActive
                       ? 'bg-[#294C38] text-white shadow-sm'
-                      : 'text-stone-700 hover:bg-stone-50 hover:text-brand-dark'
+                      : 'text-white/80 hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-stone-400'}`} />
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-white/65'}`} />
                     <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{tab.label}</span>
                   </div>
                   {tab.count !== null && tab.count > 0 && (
@@ -435,8 +435,8 @@ export default function AdminDashboard() {
             })}
 
             <div className="pt-3 border-t border-brand-border/60">
-              <Link to="/admin/master-data" title={sidebarCollapsed ? 'Quản lý Master Data' : undefined} aria-label={sidebarCollapsed ? 'Quản lý Master Data' : undefined} className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
-                <Layers className="w-4 h-4 text-brand-green" />
+              <Link to="/admin/master-data" title={sidebarCollapsed ? 'Quản lý Master Data' : undefined} aria-label={sidebarCollapsed ? 'Quản lý Master Data' : undefined} className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold text-white/80 hover:bg-white/10 hover:text-white transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+                <Layers className="w-4 h-4 text-white/65" />
                 <span className={sidebarCollapsed ? 'lg:hidden' : ''}>Quản Lý Master Data →</span>
                 {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">Quản lý Master Data</span>}
               </Link>
