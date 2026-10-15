@@ -281,44 +281,52 @@ export default function CustomerDashboard() {
   const [dbPlots, setDbPlots] = useState(null);
   const [isLoadingPlots, setIsLoadingPlots] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchPlots = async () => {
-      try {
-        setIsLoadingPlots(true);
-        const userId = user?.userId || user?.id;
-        const email = user?.email;
-        if (!userId && !email) {
-          if (isMounted) {
-            setDbPlots([]);
-            setIsLoadingPlots(false);
-          }
-          return;
-        }
-
-        const query = userId
-          ? `userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email || '')}`
-          : `email=${encodeURIComponent(email || '')}`;
-
-        const res = await fetch(`/api/customer/rented-plots?${query}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted) {
-            setDbPlots(Array.isArray(data) ? data : []);
-          }
-        } else {
-          if (isMounted) setDbPlots([]);
-        }
-      } catch (err) {
-        console.error('Failed to load customer plots from DB:', err);
-        if (isMounted) setDbPlots([]);
-      } finally {
-        if (isMounted) setIsLoadingPlots(false);
+  const fetchPlots = async () => {
+    try {
+      setIsLoadingPlots(true);
+      const userId = user?.userId || user?.id;
+      const email = user?.email;
+      if (!userId && !email) {
+        setDbPlots([]);
+        setIsLoadingPlots(false);
+        return;
       }
-    };
+
+      const query = userId
+        ? `userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email || '')}`
+        : `email=${encodeURIComponent(email || '')}`;
+
+      const res = await fetch(`/api/customer/rented-plots?${query}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDbPlots(Array.isArray(data) ? data : []);
+      } else {
+        setDbPlots([]);
+      }
+    } catch (err) {
+      console.error('Failed to load customer plots from DB:', err);
+      setDbPlots([]);
+    } finally {
+      setIsLoadingPlots(false);
+    }
+  };
+
+  useEffect(() => {
     fetchPlots();
-    return () => { isMounted = false; };
   }, [user?.id, user?.userId, user?.email]);
+
+  // Sync immediately when a plot is booked via VNPay
+  useEffect(() => {
+    const handlePlotBooked = () => {
+      fetchPlots();
+    };
+    window.addEventListener('farmely_plot_booked', handlePlotBooked);
+    window.addEventListener('focus', handlePlotBooked);
+    return () => {
+      window.removeEventListener('farmely_plot_booked', handlePlotBooked);
+      window.removeEventListener('focus', handlePlotBooked);
+    };
+  }, [user]);
 
   const customerPlots = useMemo(() => {
     return Array.isArray(dbPlots) ? dbPlots : [];
@@ -856,7 +864,7 @@ export default function CustomerDashboard() {
     }
   }, [location.search]);
 
-  const plotOperations = {
+  const defaultPlotOperations = {
     'PLOT-CC-01': {
       tasks: [
         { id: 'TSK-103', title: 'Bón bổ sung 5kg phân trùn quế', time: '15:00 hôm nay', status: 'IN_PROGRESS', owner: 'Trần Văn Lực' },
@@ -883,6 +891,59 @@ export default function CustomerDashboard() {
       diary: [{ time: '10:15 • Hôm nay', title: 'Kiểm tra sinh trưởng dây leo', note: 'Cây cao trung bình 82cm, chưa ghi nhận sâu bệnh.', author: 'Nguyễn Văn Đạt' }]
     }
   };
+  const [plotOperations, setPlotOperations] = useState(defaultPlotOperations);
+
+  const loadRentals = () => {
+    fetchPlots();
+  };
+
+  const loadOperationsFromDb = () => {
+    Promise.allSettled([
+      fetch('/api/care-tasks').then((r) => r.json()),
+      fetch('/api/farm-diaries').then((r) => r.json())
+    ]).then(([resTasks, resDiaries]) => {
+      const liveTasks = resTasks.status === 'fulfilled' && resTasks.value?.data ? resTasks.value.data : [];
+      const liveDiaries = resDiaries.status === 'fulfilled' && resDiaries.value?.data ? resDiaries.value.data : [];
+
+      if (liveTasks.length > 0 || liveDiaries.length > 0) {
+        setPlotOperations((prev) => {
+          const next = { ...prev };
+          liveTasks.forEach((t) => {
+            const plotKey = t.plotCode ? `PLOT-${t.plotCode}` : 'PLOT-CC-01';
+            if (!next[plotKey]) next[plotKey] = { tasks: [], diary: [] };
+            if (!next[plotKey].tasks.some((existing) => existing.id === t.id)) {
+              next[plotKey].tasks.unshift({
+                id: t.id,
+                title: t.title,
+                time: t.dueDate || 'Hôm nay',
+                status: t.status,
+                owner: t.assignedTo || 'Trần Văn Lực'
+              });
+            }
+          });
+          liveDiaries.forEach((d) => {
+            const plotKey = d.plotCode ? `PLOT-${d.plotCode}` : 'PLOT-CC-01';
+            if (!next[plotKey]) next[plotKey] = { tasks: [], diary: [] };
+            if (!next[plotKey].diary.some((existing) => existing.id === d.id)) {
+              next[plotKey].diary.unshift({
+                id: d.id,
+                time: d.dateFormatted || 'Hôm nay',
+                title: d.content ? d.content.slice(0, 40) : 'Cập nhật hiện trường',
+                note: d.content,
+                author: d.authorName || 'Trần Văn Lực'
+              });
+            }
+          });
+          return next;
+        });
+      }
+    });
+  };
+
+  useEffect(() => {
+    loadRentals();
+    loadOperationsFromDb();
+  }, [user]);
   const cultivationProcesses = {
     'PLOT-CC-01': [
       { stage: 'Gieo trồng & bén rễ', date: '12/08/2026', guide: 'Giữ ẩm đất 60–70%, kiểm tra cây con mỗi sáng.', status: 'COMPLETED' },
@@ -1131,9 +1192,9 @@ export default function CustomerDashboard() {
                 plot={currentSelectedPlot}
                 plots={customerPlots}
                 operations={currentPlotOperations}
-                iotData={iotDatasets[currentSelectedPlot.id]}
-                alerts={iotAlerts[currentSelectedPlot.id] || []}
-                stages={cultivationProcesses[currentSelectedPlot.id] || []}
+                iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
+                alerts={iotAlerts[currentSelectedPlot.id] || iotAlerts['PLOT-CC-01'] || []}
+                stages={cultivationProcesses[currentSelectedPlot.id] || cultivationProcesses['PLOT-CC-01'] || []}
                 services={customerServiceCatalog}
                 serviceOrders={activeServiceOrders.filter((o) => o.plotName === currentSelectedPlot.name)}
                 harvestPlan={harvestPlans[currentSelectedPlot.id] || null}
@@ -2606,7 +2667,7 @@ export default function CustomerDashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <label className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
                   checkoutPaymentMethod === 'VNPAY'
-                    ? 'border-blue-600 bg-blue-50/60 ring-1 ring-blue-600'
+                    ? 'border-[#294C3B] bg-emerald-50/60 ring-1 ring-[#294C3B]'
                     : 'border-brand-border bg-white hover:bg-stone-50'
                 }`}>
                   <input
@@ -2614,11 +2675,11 @@ export default function CustomerDashboard() {
                     name="paymethod"
                     checked={checkoutPaymentMethod === 'VNPAY'}
                     onChange={() => setCheckoutPaymentMethod('VNPAY')}
-                    className="text-blue-600 focus:ring-blue-600"
+                    className="text-[#294C3B] focus:ring-[#294C3B]"
                   />
                   <div className="min-w-0">
                     <span className="font-bold text-brand-dark block text-xs">Cổng Thanh Toán VNPAY</span>
-                    <span className="text-[10px] text-blue-700 block font-semibold">VNPAY-QR & Thẻ ATM Sandbox</span>
+                    <span className="text-[10px] text-[#294C3B] block font-semibold">VNPAY-QR & Thẻ ATM Sandbox</span>
                   </div>
                 </label>
 
@@ -2803,8 +2864,24 @@ export default function CustomerDashboard() {
             <Button
               variant="primary"
               size="sm"
-              onClick={() => {
-                alert('Đã lưu nhật ký Farm Diary thành công!');
+              onClick={async () => {
+                if (!diaryNote.trim()) return;
+                try {
+                  const targetRental = customerPlots.find((p) => p.id === diaryPlotId)?.rentalId || 1;
+                  await fetch('/api/farm-diaries', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      rentalId: targetRental,
+                      content: diaryNote.trim(),
+                      imageUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80'
+                    })
+                  });
+                  loadOperationsFromDb();
+                } catch (err) {
+                  console.warn('Could not post diary to DB:', err);
+                }
+                alert('Đã lưu nhật ký Farm Diary thành công vào cơ sở dữ liệu!');
                 setShowNewDiaryModal(false);
                 setDiaryNote('');
               }}

@@ -5,7 +5,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $runtimeDir = Join-Path $projectRoot '.run'
-
 # ==============================================================================
 # 1. NẠP CẤU HÌNH TẬP TRUNG TỪ FILE .env GỐC
 # ==============================================================================
@@ -38,6 +37,16 @@ if (Test-Path -LiteralPath $envFile) {
 $jdkHome = $null
 if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
     $jdkHome = $env:JAVA_HOME.TrimEnd('\')
+}
+
+if (-not $jdkHome) {
+    $jdkCandidates = @(
+        'C:\Users\Acer\.antigravity-ide\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
+        'C:\Users\Acer\.vscode\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
+        'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot',
+        'C:\Program Files\Java\jdk-25'
+    )
+    $jdkHome = $jdkCandidates | Where-Object { Test-Path (Join-Path $_ 'bin\java.exe') } | Select-Object -First 1
 }
 
 if (-not $jdkHome) {

@@ -62,7 +62,7 @@ function getPgConfig() {
     port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5432',
     database: process.env.PGDATABASE || process.env.DB_NAME || rootEnv.DB_NAME || 'farmely',
     user: process.env.PGUSER || process.env.DB_USER || rootEnv.DB_USER || 'postgres',
-    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || 'postgres'
+    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '@Bin054206'
   };
 }
 
@@ -77,23 +77,41 @@ function invalidatePlotsCache() {
 
 function runPostgreSqlAttempt(cfg, sqlQuery) {
   return new Promise((resolve, reject) => {
-    const env = { ...process.env, PGPASSWORD: cfg.password, PGCLIENTENCODING: 'UTF8' };
-    const child = spawn(
-      PSQL_PATH,
-      ['-U', cfg.user, '-h', cfg.host, '-p', String(cfg.port), '-d', cfg.database, '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
-      { env, windowsHide: true, timeout: 8000 }
-    );
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', d => stdout += d.toString('utf8'));
-    child.stderr.on('data', d => stderr += d.toString('utf8'));
-    child.on('error', err => reject(err));
-    child.on('close', code => {
-      if (code !== 0) reject(new Error(stderr || 'Exit ' + code));
-      else resolve(stdout.trim());
-    });
-    child.stdin.write(sqlQuery, 'utf8');
-    child.stdin.end();
+    try {
+      const env = { ...process.env, PGPASSWORD: cfg.password, PGCLIENTENCODING: 'UTF8' };
+      const child = spawn(
+        PSQL_PATH,
+        ['-U', cfg.user, '-h', cfg.host, '-p', String(cfg.port), '-d', cfg.database, '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
+        { env, windowsHide: true, timeout: 8000 }
+      );
+      let stdout = '';
+      let stderr = '';
+      let hasError = false;
+
+      child.on('error', err => {
+        hasError = true;
+        reject(err);
+      });
+
+      child.stdout.on('data', d => stdout += d.toString('utf8'));
+      child.stderr.on('data', d => stderr += d.toString('utf8'));
+
+      child.on('close', code => {
+        if (hasError) return;
+        if (code !== 0) reject(new Error(stderr || 'Exit ' + code));
+        else resolve(stdout.trim());
+      });
+
+      child.stdin.on('error', err => {
+        hasError = true;
+        reject(err);
+      });
+
+      child.stdin.write(sqlQuery, 'utf8');
+      child.stdin.end();
+    } catch (e) {
+      reject(e);
+    }
   });
 }
 
@@ -421,16 +439,19 @@ Write-Output ($dt | ConvertTo-Json -Compress)
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
+              const customerEmail = (payload.customerEmail || payload.email || 'customer@farmely.vn').trim().toLowerCase().replace(/'/g, "''");
+              const customerName = (payload.customerName || payload.fullName || 'Khách hàng').trim().replace(/'/g, "''");
+              const customerPhone = (payload.customerPhone || payload.phone || '0901234567').trim().replace(/'/g, "''");
               const rawCust = String(payload.customerId || '');
               const numCust = parseInt(rawCust.replace(/\D/g, ''), 10);
-              const customerId = (!isNaN(numCust) && numCust > 0) ? numCust : 6;
+              const customerId = (!isNaN(numCust) && numCust > 0) ? numCust : 1;
               const totalAmount = parseFloat(payload.totalAmount) || 2400000.00;
-              const paymentMethod = (payload.paymentMethod || 'VIETQR').replace(/'/g, "''");
+              const paymentMethod = (payload.paymentMethod || 'VNPAY').replace(/'/g, "''");
               const rentalMonths = parseInt(payload.rentalMonths, 10) || 6;
               const plotItems = Array.isArray(payload.plots) && payload.plots.length > 0 ? payload.plots : [{ code: 'P-01', price: totalAmount }];
               const nowStamp = Date.now().toString().slice(-6);
               const contractNumber = `MLA-2026-${nowStamp}`;
-              const gatewayRef = `TXN-FARMLY-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${nowStamp}`;
+              const gatewayRef = (payload.gatewayRef || `TXN-FARMLY-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${nowStamp}`).replace(/'/g, "''");
 
               let responseData = null;
 
@@ -439,38 +460,77 @@ Write-Output ($dt | ConvertTo-Json -Compress)
                 let pgSql = `
 DO $$
 DECLARE
+    v_user_id INT;
     v_contract_id INT;
     v_plot_id INT;
 BEGIN
-    INSERT INTO contracts (renter_id, contract_number, total_amount, status, reservation_expires_at)
-    VALUES (${customerId}, '${contractNumber}', ${totalAmount}, 'ACTIVE', NOW() + INTERVAL '10 minutes')
+    -- 1. Tìm hoặc tạo user hợp lệ theo email
+    SELECT user_id INTO v_user_id FROM users WHERE LOWER(email) = LOWER('${customerEmail}') LIMIT 1;
+    IF v_user_id IS NULL AND ${customerId > 0 ? customerId : 0} > 0 THEN
+        SELECT user_id INTO v_user_id FROM users WHERE user_id = ${customerId} LIMIT 1;
+    END IF;
+    IF v_user_id IS NULL THEN
+        INSERT INTO users (role_id, email, password_hash, full_name, phone_number, status, created_at, updated_at)
+        VALUES (1, '${customerEmail}', '$2a$10$FarmelyDefaultUserHash', '${customerName}', '${customerPhone}', 'ACTIVE', NOW(), NOW())
+        RETURNING user_id INTO v_user_id;
+    END IF;
+    IF v_user_id IS NULL THEN
+        SELECT user_id INTO v_user_id FROM users WHERE role_id = 1 ORDER BY user_id ASC LIMIT 1;
+    END IF;
+
+    -- 2. Tạo Hợp đồng thuê Master Lease
+    INSERT INTO contracts (renter_id, contract_number, total_amount, status, reservation_expires_at, created_at, updated_at)
+    VALUES (v_user_id, '${contractNumber}', ${totalAmount}, 'ACTIVE', NOW() + INTERVAL '10 minutes', NOW(), NOW())
     RETURNING contract_id INTO v_contract_id;
 
-    INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status)
-    VALUES (v_contract_id, 'PAYMENT', ${totalAmount}, '${paymentMethod}', '${gatewayRef}', 'SUCCESS');
+    -- 3. Tạo Giao dịch thanh toán
+    INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status, created_at)
+    VALUES (v_contract_id, 'PAYMENT', ${totalAmount}, '${paymentMethod}', '${gatewayRef}', 'SUCCESS', NOW());
 `;
                 for (const item of plotItems) {
-                  const rawCode = item.code || 'P-01';
-                  const cleanCode = rawCode.replace('L01-', '').replace('Plot ', '').replace(/'/g, "''");
+                  const rawCode = String(item.code || item.id || 'P-01');
+                  const cleanCode = rawCode.replace('PLT-HV-', 'P-').replace('L01-', '').replace(/^Plot\s+/i, '').replace(/'/g, "''").trim();
+                  const digitsMatch = cleanCode.match(/\d+/);
+                  const numCode = digitsMatch ? digitsMatch[0].padStart(2, '0') : '01';
                   const price = parseFloat(item.price) || (totalAmount / plotItems.length);
+                  const cleanPlotId = parseInt(cleanCode.replace(/\D/g, ''), 10) || 1;
+                  const cropId = item.cropId ? parseInt(item.cropId, 10) : 1;
+                  const varietyId = !isNaN(cropId) && cropId > 0 && cropId <= 6 ? cropId : 1;
+
                   pgSql += `
-    SELECT plot_id INTO v_plot_id FROM plots WHERE plot_code = '${cleanCode}' OR plot_code LIKE '%${cleanCode.slice(-3)}' LIMIT 1;
-    IF v_plot_id IS NULL THEN v_plot_id := 1; END IF;
+    -- Tìm plot_id chính xác
+    SELECT plot_id INTO v_plot_id FROM plots 
+    WHERE plot_code = '${cleanCode}' 
+       OR plot_code = 'P-' || '${numCode}'
+       OR plot_code ILIKE '%${cleanCode}%'
+       OR plot_id = ${cleanPlotId}
+    LIMIT 1;
 
-    INSERT INTO rentals (contract_id, plot_id, variety_id, start_date, end_date, total_price, status)
-    VALUES (v_contract_id, v_plot_id, 1, CURRENT_DATE, CURRENT_DATE + INTERVAL '${rentalMonths} months', ${price}, 'ACTIVE');
+    -- Nếu plot chưa có trong DB thì tự động tạo để lưu
+    IF v_plot_id IS NULL THEN
+        INSERT INTO plots (land_id, plot_code, area, price_per_period, status, is_published, image_url)
+        VALUES (1, 'P-' || '${numCode}', 100.00, ${price}, 'RENT', TRUE, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80')
+        RETURNING plot_id INTO v_plot_id;
+    END IF;
 
-    UPDATE plots SET status = 'RENT' WHERE plot_id = v_plot_id;
+    -- Thêm bản ghi rental
+    INSERT INTO rentals (contract_id, plot_id, variety_id, start_date, end_date, total_price, status, created_at, updated_at)
+    VALUES (v_contract_id, v_plot_id, ${varietyId}, CURRENT_DATE, CURRENT_DATE + INTERVAL '${rentalMonths} months', ${price}, 'ACTIVE', NOW(), NOW());
+
+    -- CẬP NHẬT TRẠNG THÁI THỬA ĐẤT SANG 'RENT' (ĐÃ THUÊ)
+    UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id = v_plot_id;
 `;
                 }
                 pgSql += `END $$;`;
                 await runPostgreSql(pgSql);
+                invalidatePlotsCache();
 
                 const fetchCreatedSql = `
 SELECT json_build_object(
   'success', true,
   'database', 'PostgreSQL 18 (farmely)',
   'contract_number', c.contract_number,
+  'contract_code', c.contract_number,
   'contract_id', c.contract_id,
   'total_amount', c.total_amount,
   'contract_status', c.status,
@@ -565,9 +625,12 @@ try {
                 responseData = {
                   success: true,
                   contract_number: contractNumber,
+                  contract_code: contractNumber,
                   gateway_ref: gatewayRef,
                   message: 'Giao dịch thanh toán được ghi nhận thành công'
                 };
+              } else if (!responseData.contract_code) {
+                responseData.contract_code = responseData.contract_number || contractNumber;
               }
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -1393,13 +1456,26 @@ WHERE land_id = ${landId};
 SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
   SELECT 
     p.plot_id AS "plotId", 
+    p.plot_id AS plot_id, 
     p.land_id AS "landId", 
     l.land_name AS "landName",
     p.plot_code AS "plotCode", 
+    p.plot_code AS plot_code, 
+    p.plot_code AS code, 
     p.area, 
+    p.area || ' m²' AS area_text,
     p.image_url AS "imageUrl", 
+    p.image_url AS image_url, 
     p.price_per_period AS "pricePerPeriod", 
+    p.price_per_period AS price_per_period, 
+    TO_CHAR(p.price_per_period, 'FM999,999,999') || ' đ' AS price_text,
     p.status::text AS "status", 
+    CASE 
+      WHEN p.status = 'AVAIL' THEN 'Đang trống'
+      WHEN p.status = 'RENT' THEN 'Đã thuê'
+      WHEN p.status = 'MAINT' THEN 'Bảo trì'
+      ELSE p.status::text
+    END AS status_text,
     p.is_published AS "isPublished",
     CASE 
       WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
@@ -2087,6 +2163,453 @@ SELECT json_build_object(
       LEFT JOIN users u ON kd.kd_created_by = u.user_id
       ORDER BY kd.document_id ASC
     ) d
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 17. RENTALS API (GET /api/rentals & /api/v1/rentals)
+        if (req.method === 'GET' && (url === '/api/rentals' || url === '/api/v1/rentals' || url === '/api/customer/rentals' || url.startsWith('/api/rentals?') || url.startsWith('/api/v1/rentals?') || url.startsWith('/api/customer/rentals?'))) {
+          try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const emailFilter = (urlObj.searchParams.get('email') || '').trim().toLowerCase();
+            const customerIdParam = parseInt(urlObj.searchParams.get('customerId') || urlObj.searchParams.get('renter_id') || '0', 10);
+            let whereSql = '';
+            if (emailFilter) {
+              whereSql = `WHERE LOWER(u.email) = '${emailFilter.replace(/'/g, "''")}'`;
+            } else if (customerIdParam > 0) {
+              whereSql = `WHERE c.renter_id = ${customerIdParam}`;
+            }
+
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh sách thửa đất thuê thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json) FROM (
+      SELECT 
+        rent.rental_id,
+        rent.rental_id AS "rentalId",
+        'RENT-' || rent.rental_id AS id,
+        p.plot_id AS "plotId",
+        p.plot_code AS "plotCode",
+        p.plot_code AS "mapPlotId",
+        'Thửa ' || COALESCE(p.plot_code, 'P-0' || rent.plot_id) AS name,
+        COALESCE(l.land_name, 'Trang trại Happy Valley Củ Chi') AS location,
+        p.area || 'm²' AS area,
+        'Assisted-Growing' AS mode,
+        COALESCE(v.variety_name, 'Cà chua bi Cherry F1') AS crop,
+        'Sinh trưởng & phát triển' AS stage,
+        p.image_url AS image,
+        c.contract_number AS "contractCode",
+        c.renter_id AS "renterId",
+        u.full_name AS "renterName",
+        u.email AS "renterEmail",
+        TO_CHAR(rent.start_date, 'YYYY-MM-DD') AS "startDate",
+        TO_CHAR(rent.end_date, 'YYYY-MM-DD') AS "endDate",
+        TO_CHAR(rent.end_date, 'DD/MM/YYYY') AS "expectedHarvestDate",
+        rent.total_price AS "totalPrice",
+        rent.status,
+        'IOT-' || p.plot_code AS "stationId",
+        COALESCE(sr.temperature, 28.5) || '°C' AS temp,
+        COALESCE(sr.soil_humidity, 68.0) || '%' AS "soilMoisture",
+        COALESCE(sr.air_humidity, 74.0) || '%' AS "airHumidity",
+        '45.000 Lux' AS light,
+        '6.5' AS ph,
+        'HEALTHY' AS "healthStatus",
+        'Trần Văn Lực (CVLĐ)' AS worker,
+        '35 - 45 kg' AS "expectedYield",
+        'Đất phù sa bồi lắng giàu mùn (pH 6.5)' AS "soilType",
+        'Hệ thống nước tưới ngầm lọc cát + UV' AS "waterSource",
+        28 AS "currentDay",
+        65 AS "totalDays",
+        45 AS "progressPercent"
+      FROM rentals rent
+      JOIN plots p ON rent.plot_id = p.plot_id
+      LEFT JOIN lands l ON p.land_id = l.land_id
+      JOIN contracts c ON rent.contract_id = c.contract_id
+      LEFT JOIN users u ON c.renter_id = u.user_id
+      LEFT JOIN varieties v ON rent.variety_id = v.variety_id
+      LEFT JOIN LATERAL (
+        SELECT temperature, air_humidity, soil_humidity 
+        FROM sensor_readings 
+        WHERE plot_id = p.plot_id 
+        ORDER BY recorded_at DESC 
+        LIMIT 1
+      ) sr ON true
+      ${whereSql}
+      ORDER BY rent.rental_id DESC
+    ) r
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 18. CARE TASKS API (GET, POST, PATCH /api/care-tasks)
+        if (req.method === 'GET' && (url === '/api/care-tasks' || url === '/api/v1/care-tasks' || url === '/api/tasks' || url.startsWith('/api/care-tasks?') || url.startsWith('/api/v1/care-tasks?') || url.startsWith('/api/tasks?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh sách công việc canh tác thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM (
+      SELECT 
+        ct.task_id AS "taskId",
+        'TSK-' || ct.task_id AS id,
+        ct.rental_id AS "rentalId",
+        rent.plot_id AS "plotId",
+        p.plot_code AS "plotCode",
+        'Thửa ' || p.plot_code AS "plotName",
+        COALESCE(ts.step_name, ct.notes, 'Chăm sóc vi sinh tiêu chuẩn') AS title,
+        COALESCE(v.variety_name, 'Cà chua bi Cherry F1') AS crop,
+        COALESCE(u_renter.full_name, 'Khách hàng') AS "customerName",
+        COALESCE(u_worker.full_name, 'Trần Văn Lực') AS "assignedTo",
+        COALESCE(u_worker.full_name, 'Trần Văn Lực') AS "workerName",
+        CASE 
+          WHEN ct.status = 'DONE' THEN 'COMPLETED'
+          WHEN ct.status = 'IN_PROG' THEN 'IN_PROGRESS'
+          ELSE 'PENDING'
+        END AS status,
+        TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS "dueDate",
+        '08:30 AM' AS deadline,
+        'MORNING' AS session,
+        COALESCE(ct.evidence_image_url, '/images/Mucangchai3.jpg') AS "proofPhoto",
+        COALESCE(ct.notes, 'Kiểm tra độ ẩm trạm IoT trước khi tưới. Ghi chép nhật ký đầy đủ.') AS instructions,
+        TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') AS "completedAt"
+      FROM care_tasks ct
+      JOIN rentals rent ON ct.rental_id = rent.rental_id
+      JOIN plots p ON rent.plot_id = p.plot_id
+      JOIN contracts c ON rent.contract_id = c.contract_id
+      LEFT JOIN users u_renter ON c.renter_id = u_renter.user_id
+      LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
+      LEFT JOIN varieties v ON rent.variety_id = v.variety_id
+      LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+      ORDER BY ct.due_date ASC, ct.task_id ASC
+    ) t
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        if ((req.method === 'PATCH' || req.method === 'PUT') && url.match(/^\/api\/(?:v1\/)?care-tasks\/(\d+)/)) {
+          const taskId = url.match(/^\/api\/(?:v1\/)?care-tasks\/(\d+)/)[1];
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const dbStatus = payload.status === 'COMPLETED' || payload.status === 'DONE' ? 'DONE' : payload.status === 'IN_PROGRESS' ? 'IN_PROG' : 'PENDING';
+              const proof = (payload.proofPhoto || payload.evidence_image_url || '').replace(/'/g, "''");
+              const notes = (payload.instructions || payload.notes || '').replace(/'/g, "''");
+              const sql = `
+UPDATE care_tasks
+SET status = '${dbStatus}'${proof ? `, evidence_image_url = '${proof}'` : ''}${notes ? `, notes = '${notes}'` : ''}, updated_at = NOW()
+WHERE task_id = ${taskId}
+RETURNING task_id, status;
+`;
+              await runPostgreSql(sql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: `Cập nhật nhiệm vụ #${taskId} thành công` }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 19. FARM DIARIES API (GET, POST /api/farm-diaries)
+        if (req.method === 'GET' && (url === '/api/farm-diaries' || url === '/api/v1/farm-diaries' || url === '/api/diaries' || url.startsWith('/api/farm-diaries?') || url.startsWith('/api/v1/farm-diaries?') || url.startsWith('/api/diaries?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy nhật ký canh tác thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(d)), '[]'::json) FROM (
+      SELECT 
+        fd.diary_id AS "diaryId",
+        'DIR-' || fd.diary_id AS id,
+        fd.rental_id AS "rentalId",
+        rent.plot_id AS "plotId",
+        p.plot_code AS "plotCode",
+        'Thửa ' || p.plot_code AS "plotName",
+        COALESCE(v.variety_name, 'Cà chua bi') AS crop,
+        fd.content,
+        fd.content AS note,
+        fd.image_url AS "imageUrl",
+        fd.image_url AS photo,
+        TO_CHAR(fd.created_at, 'YYYY-MM-DD') AS date,
+        TO_CHAR(fd.created_at, 'HH24:MI') AS time,
+        TO_CHAR(fd.created_at, 'DD/MM/YYYY HH24:MI') AS "dateFormatted",
+        COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS author,
+        COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS "authorName",
+        'Chăm sóc & theo dõi' AS stage
+      FROM farm_diaries fd
+      JOIN rentals rent ON fd.rental_id = rent.rental_id
+      JOIN plots p ON rent.plot_id = p.plot_id
+      LEFT JOIN varieties v ON rent.variety_id = v.variety_id
+      LEFT JOIN care_tasks ct ON fd.task_id = ct.task_id
+      LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
+      ORDER BY fd.created_at DESC
+    ) d
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        if (req.method === 'POST' && (url === '/api/farm-diaries' || url === '/api/v1/farm-diaries' || url === '/api/diaries')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const rentalId = payload.rentalId || payload.rental_id || 1;
+              const content = (payload.content || payload.note || 'Cập nhật nhật ký hiện trường').replace(/'/g, "''");
+              const imageUrl = (payload.imageUrl || payload.photo || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80').replace(/'/g, "''");
+              const sql = `
+INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
+VALUES (${rentalId}, '${content}', '${imageUrl}', NOW())
+RETURNING diary_id;
+`;
+              await runPostgreSql(sql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Thêm nhật ký canh tác thành công' }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 20. ISSUE REPORTS API (GET, POST, PUT /api/issue-reports)
+        if (req.method === 'GET' && (url === '/api/issue-reports' || url === '/api/v1/issue-reports' || url === '/api/issues' || url.startsWith('/api/issue-reports?') || url.startsWith('/api/v1/issue-reports?') || url.startsWith('/api/issues?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy báo cáo sự cố hiện trường thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(i)), '[]'::json) FROM (
+      SELECT 
+        ir.issue_id AS "issueId",
+        'ISS-' || ir.issue_id AS id,
+        ir.rental_id AS "rentalId",
+        rent.plot_id AS "plotId",
+        p.plot_code AS "plotCode",
+        'Thửa ' || p.plot_code AS "plotName",
+        COALESCE(u_rep.full_name, 'Trần Văn Lực (CVLĐ)') AS "workerName",
+        COALESCE(u_rep.full_name, 'Trần Văn Lực') AS "reportedByName",
+        COALESCE(u_hand.full_name, 'ThS. Nguyễn Hoàng Nam') AS "expertName",
+        ir.issue_type AS "issueType",
+        ir.description,
+        COALESCE(ir.image_url, '/images/moc-chau-2811.jpg') AS "photoUrl",
+        ir.status,
+        COALESCE(ir.resolution_notes, '') AS diagnosis,
+        TO_CHAR(ir.created_at, 'HH24:MI - DD/MM/YYYY') AS "reportedTime",
+        CASE 
+          WHEN ir.issue_type ILIKE '%SÂU%' OR ir.issue_type ILIKE '%BỆNH%' THEN 'HIGH'
+          ELSE 'NORMAL'
+        END AS urgency
+      FROM issue_reports ir
+      JOIN rentals rent ON ir.rental_id = rent.rental_id
+      JOIN plots p ON rent.plot_id = p.plot_id
+      LEFT JOIN users u_rep ON ir.reported_by = u_rep.user_id
+      LEFT JOIN users u_hand ON ir.handled_by = u_hand.user_id
+      ORDER BY ir.created_at DESC
+    ) i
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        if ((req.method === 'PUT' || req.method === 'PATCH') && url.match(/^\/api\/(?:v1\/)?issue-reports\/(\d+)/)) {
+          const issueId = url.match(/^\/api\/(?:v1\/)?issue-reports\/(\d+)/)[1];
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const diag = (payload.diagnosis || payload.resolution_notes || 'Chuyên gia nông nghiệp duyệt xử lý đạt yêu cầu.').replace(/'/g, "''");
+              const sql = `
+UPDATE issue_reports
+SET status = 'RESOLVED', resolution_notes = '${diag}', resolved_at = NOW()
+WHERE issue_id = ${issueId}
+RETURNING issue_id;
+`;
+              await runPostgreSql(sql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: `Đã cập nhật chẩn đoán sự cố #${issueId}` }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 21. SERVICES API (GET /api/services)
+        if (req.method === 'GET' && (url === '/api/services' || url === '/api/v1/services' || url.startsWith('/api/services?') || url.startsWith('/api/v1/services?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh mục dịch vụ canh tác thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(s)), '[]'::json) FROM (
+      SELECT 
+        service_id AS "serviceId",
+        service_id AS "dbId",
+        'SVC-' || LPAD(service_id::text, 2, '0') AS id,
+        service_code AS "serviceCode",
+        service_name AS name,
+        service_type AS "serviceType",
+        CASE 
+          WHEN service_type = 'FULL' THEN 'Trọn vụ'
+          WHEN service_type = 'CYCLE' THEN 'Chăm sóc định kỳ'
+          ELSE 'Dịch vụ một lần'
+        END AS category,
+        CASE 
+          WHEN service_type = 'FULL' THEN 'FULL'
+          WHEN service_type = 'CYCLE' THEN 'CYCLE'
+          ELSE 'SINGLE'
+        END AS "customerCategory",
+        price,
+        unit,
+        description,
+        (status = 'ACTIVE') AS active,
+        1 AS duration,
+        json_build_array(json_build_object('offset', 0, 'title', 'Thực hiện ' || service_name, 'assignee', 'STAFF', 'evidence', true)) AS tasks
+      FROM services
+      ORDER BY service_id ASC
+    ) s
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 22. IOT STATIONS API (GET /api/iot-stations)
+        if (req.method === 'GET' && (url === '/api/iot-stations' || url === '/api/v1/iot-stations' || url.startsWith('/api/iot-stations?') || url.startsWith('/api/v1/iot-stations?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy trạm cảm biến IoT và đo đạc thực tế thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(s)), '[]'::json) FROM (
+      SELECT 
+        'IOT-' || p.plot_code AS id,
+        'Trạm Quan Trắc #' || p.plot_code AS name,
+        p.plot_id AS "plotId",
+        p.plot_code AS "plotCode",
+        'Thửa ' || p.plot_code AS "plotName",
+        COALESCE(l.land_name, 'Happy Valley Củ Chi') AS "landName",
+        'ONLINE' AS status,
+        '100%' AS battery,
+        '4G / LoRa' AS connectivity,
+        json_build_object(
+          'soilMoisture', COALESCE(sr.soil_humidity, 68.0) || '%',
+          'temperature', COALESCE(sr.temperature, 28.5) || '°C',
+          'airHumidity', COALESCE(sr.air_humidity, 74.0) || '%',
+          'light', '45.000 Lux',
+          'lastUpdate', TO_CHAR(COALESCE(sr.recorded_at, NOW()), 'HH24:MI - DD/MM/YYYY')
+        ) AS readings
+      FROM plots p
+      LEFT JOIN lands l ON p.land_id = l.land_id
+      LEFT JOIN LATERAL (
+        SELECT temperature, air_humidity, soil_humidity, recorded_at 
+        FROM sensor_readings 
+        WHERE plot_id = p.plot_id 
+        ORDER BY recorded_at DESC 
+        LIMIT 1
+      ) sr ON true
+      ORDER BY p.plot_id ASC
+    ) s
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 23. SENSOR READINGS HISTORY API (GET /api/sensor-readings)
+        if (req.method === 'GET' && (url === '/api/sensor-readings' || url === '/api/v1/sensor-readings' || url.startsWith('/api/sensor-readings?') || url.startsWith('/api/v1/sensor-readings?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy chuỗi dữ liệu cảm biến thời gian thực từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(sr)), '[]'::json) FROM (
+      SELECT 
+        sr.reading_id,
+        sr.plot_id,
+        p.plot_code,
+        sr.temperature,
+        sr.air_humidity,
+        sr.soil_humidity,
+        TO_CHAR(sr.recorded_at, 'HH24:MI') AS time,
+        TO_CHAR(sr.recorded_at, 'YYYY-MM-DD HH24:MI:SS') AS recorded_at
+      FROM sensor_readings sr
+      JOIN plots p ON sr.plot_id = p.plot_id
+      ORDER BY sr.recorded_at ASC
+    ) sr
   )
 );
 `;

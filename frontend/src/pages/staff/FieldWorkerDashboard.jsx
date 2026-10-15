@@ -158,6 +158,33 @@ export default function FieldWorkerDashboard() {
   const [chatInput, setChatInput] = useState('');
   const workerChatScrollRef = useRef(null);
 
+  const loadTasks = () => {
+    fetch('/api/care-tasks')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setTasks(res.data);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch live care tasks:', err));
+  };
+
+  const loadIssues = () => {
+    fetch('/api/issue-reports')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setMyIssues(res.data);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch live issues:', err));
+  };
+
+  useEffect(() => {
+    loadTasks();
+    loadIssues();
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'chat' && workerChatScrollRef.current) {
       workerChatScrollRef.current.scrollTop = workerChatScrollRef.current.scrollHeight;
@@ -165,9 +192,34 @@ export default function FieldWorkerDashboard() {
   }, [activeTab, workerChatThread?.messages]);
 
   // Handle Complete Task
-  const handleConfirmCompleteTask = (e) => {
+  const handleConfirmCompleteTask = async (e) => {
     e.preventDefault();
     if (!selectedTaskToExecute) return;
+
+    const taskId = selectedTaskToExecute.taskId || parseInt(String(selectedTaskToExecute.id).replace(/\D/g, ''), 10) || 1;
+    try {
+      await fetch(`/api/care-tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'COMPLETED',
+          proofPhoto: '/images/moc-chau-2811.jpg',
+          instructions: taskProofNote || 'Nhiệm vụ đã được thợ hoàn tất và kiểm tra đạt tiêu chuẩn.'
+        })
+      });
+      // Tạo một nhật ký canh tác tương ứng
+      await fetch('/api/farm-diaries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rentalId: selectedTaskToExecute.rentalId || 1,
+          content: `Hoàn tất nhiệm vụ: ${selectedTaskToExecute.title}. ${taskProofNote || ''}`,
+          imageUrl: '/images/moc-chau-2811.jpg'
+        })
+      });
+    } catch (err) {
+      console.warn('Could not patch task to DB:', err);
+    }
 
     setTasks((prev) =>
       prev.map((t) =>

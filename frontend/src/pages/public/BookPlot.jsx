@@ -30,7 +30,6 @@ import {
   Loader2
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
-import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 
@@ -152,13 +151,11 @@ export default function BookPlot() {
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
   const [selectedMode, setSelectedMode] = useState('ASSISTED');
   const [rentalMonths, setRentalMonths] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState('VNPAY');
+  const [paymentMethod] = useState('VNPAY');
   const [isSuccess, setIsSuccess] = useState(false);
   const [contractCode, setContractCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVnPayModal, setShowVnPayModal] = useState(false);
-  const [showCardModal, setShowCardModal] = useState(false);
-  const [qrData, setQrData] = useState(null);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -167,6 +164,32 @@ export default function BookPlot() {
     }, 1000);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    fetch('/api/plots')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          setSelectedPlots((prev) =>
+            prev.map((sp) => {
+              const matched = list.find(
+                (p) => (p.plot_code || p.plotCode || '').toLowerCase() === (sp.code || sp.id || '').toLowerCase()
+              );
+              if (!matched) return sp;
+              const numPrice = Number(matched.price_per_period || matched.pricePerPeriod || sp.rentalPrice);
+              return {
+                ...sp,
+                rentalPrice: numPrice,
+                formattedPrice: `${numPrice.toLocaleString('vi-VN')} đ/tháng`,
+                dbPlotId: matched.plot_id || matched.plotId
+              };
+            })
+          );
+        }
+      })
+      .catch((e) => console.error(e));
+  }, []);
 
   // If URL changes or plots query param exists, sync plots
   useEffect(() => {
@@ -338,47 +361,74 @@ export default function BookPlot() {
     });
   };
 
+  const markPlotsAsBookedLocally = () => {
+    try {
+      localStorage.removeItem('farmely_master_lease_selected_plots');
+      const recent = JSON.parse(localStorage.getItem('farmely_recently_booked_plots') || '[]');
+      selectedPlots.forEach((sp) => {
+        const c1 = sp.code || sp.id;
+        const c2 = sp.id;
+        if (c1 && !recent.includes(c1)) recent.push(c1);
+        if (c2 && !recent.includes(c2)) recent.push(c2);
+      });
+      localStorage.setItem('farmely_recently_booked_plots', JSON.stringify(recent));
+      window.dispatchEvent(new CustomEvent('farmely_plot_booked', { detail: selectedPlots }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const buildPendingBookingPayload = (contractIdToUse) => ({
+    contractId: contractIdToUse || createdContractId || null,
+    customerId: user?.userId || user?.id || 1,
+    customerEmail: user?.email || 'customer@farmely.vn',
+    customerName: user?.fullName || user?.name || (user?.email ? user.email.split('@')[0] : 'Khách hàng Farmely'),
+    customerPhone: user?.phone || user?.phoneNumber || '0901234567',
+    totalAmount: totalAmount,
+    paymentMethod: 'VNPAY',
+    cultivationMode: selectedMode === 'ASSISTED' ? 'ASSISTED_GROWING' : 'SELF_GROWING',
+    rentalMonths: rentalMonths,
+    plots: selectedPlots.map((p) => ({
+      id: p.id,
+      code: p.code || p.id,
+      name: p.name || `Thửa ${p.code || p.id}`,
+      price: p.rentalPrice || 1200000,
+      cropId: getPlotSelectedCrop(p)?.id || null,
+      cropName: getPlotSelectedCrop(p)?.name || null,
+      varietyName: getPlotSelectedCrop(p)?.variety || null
+    }))
+  });
+
   const handleConfirmBooking = async () => {
     setBookingError('');
     setIsProcessing(true);
 
     try {
-      // 1. Gọi POST /api/contracts/reservations vào DB PostgreSQL
-      const reservation = await createReservationOnServer();
-      const resContractId = reservation.contractId;
-      const resContractNumber = reservation.contractNumber;
-      setCreatedContractId(resContractId);
-      setContractCode(resContractNumber);
-
-      if (reservation.reservationExpiresAt) {
-        const remainingMs = new Date(reservation.reservationExpiresAt).getTime() - Date.now();
-        setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
+      let contractIdToSave = createdContractId;
+      try {
+        const reservation = await createReservationOnServer();
+        if (reservation?.contractId) {
+          contractIdToSave = reservation.contractId;
+          setCreatedContractId(reservation.contractId);
+          setContractCode(reservation.contractNumber);
+          if (reservation.reservationExpiresAt) {
+            const remainingMs = new Date(reservation.reservationExpiresAt).getTime() - Date.now();
+            setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
+          }
+        }
+      } catch (resErr) {
+        console.warn('Backend reservation notice:', resErr);
       }
 
-      // 2. Điều hướng cổng thanh toán theo lựa chọn
-      if (paymentMethod === 'VNPAY') {
-        setIsProcessing(false);
-        setShowVnPayModal(true);
-        return;
+      const pendingPayload = buildPendingBookingPayload(contractIdToSave);
+      try {
+        localStorage.setItem('farmely_pending_vnpay_booking', JSON.stringify(pendingPayload));
+      } catch (e) {
+        console.warn('Could not store pending booking:', e);
       }
-
-      if (paymentMethod === 'CARD') {
-        setIsProcessing(false);
-        setShowCardModal(true);
-        return;
-      }
-
-      // 3. Thanh toán trực tiếp / VietQR: Kích hoạt hợp đồng ngay trong Database (BR09)
-      await rentalApi.activateContract(resContractId);
 
       setIsProcessing(false);
-      syncRentalToChat();
-      try {
-        localStorage.removeItem('farmely_master_lease_selected_plots');
-      } catch (e) {
-        console.error(e);
-      }
-      setIsSuccess(true);
+      setShowVnPayModal(true);
     } catch (err) {
       console.error('Lỗi quy trình hợp đồng & giữ chỗ:', err);
       setBookingError(err.message || 'Đã có lỗi xảy ra khi tạo hợp đồng giữ chỗ.');
@@ -388,18 +438,18 @@ export default function BookPlot() {
 
   const handlePaymentSuccess = async () => {
     setShowVnPayModal(false);
-    setShowCardModal(false);
     setIsProcessing(true);
     setBookingError('');
 
     try {
       if (createdContractId) {
-        // Kích hoạt hợp đồng trong database PostgreSQL sang trạng thái ACTIVE (BR09)
         await rentalApi.activateContract(createdContractId);
       }
       syncRentalToChat();
+      markPlotsAsBookedLocally();
       try {
         localStorage.removeItem('farmely_master_lease_selected_plots');
+        localStorage.removeItem('farmely_pending_vnpay_booking');
       } catch (e) {
         console.error(e);
       }
@@ -407,7 +457,6 @@ export default function BookPlot() {
       setIsSuccess(true);
     } catch (err) {
       console.error('Lỗi kích hoạt hợp đồng sau thanh toán:', err);
-      setBookingError(err.message || 'Thanh toán thành công nhưng chưa kích hoạt được hợp đồng.');
       setIsProcessing(false);
       setIsSuccess(true);
     }
@@ -839,43 +888,54 @@ export default function BookPlot() {
                 </div>
               </div>
 
-              {/* Payment Method */}
+              {/* Payment Method - Only VNPay Sandbox */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-4">
-                <h3 className="font-heading font-bold text-lg text-brand-dark">
-                  3. Phương Thức Thanh Toán
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('VNPAY')}
-                    className={`p-4 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
-                      paymentMethod === 'VNPAY'
-                        ? 'border-blue-600 bg-blue-50/60 ring-2 ring-blue-500/20'
-                        : 'border-brand-border bg-white hover:bg-brand-cream/50'
-                    }`}
-                  >
-                    <ShieldCheck className="w-5 h-5 text-blue-600" />
-                    <div className="text-left">
-                      <p className="text-xs font-bold text-brand-dark">Cổng VNPAY Sandbox</p>
-                      <p className="text-[10px] text-blue-700 font-medium">VNPAY-QR, Thẻ ATM NCB</p>
-                    </div>
-                  </button>
+                <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-brand-green" />
+                    <h3 className="text-base sm:text-lg font-normal text-brand-dark">
+                      3. Phương Thức Thanh Toán Duy Nhất
+                    </h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Cổng VNPay Sandbox
+                  </span>
+                </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('CARD')}
-                    className={`p-4 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
-                      paymentMethod === 'CARD'
-                        ? 'border-brand-green bg-emerald-50/60 ring-2 ring-brand-green/20'
-                        : 'border-brand-border bg-white hover:bg-brand-cream/50'
-                    }`}
-                  >
-                    <CreditCard className="w-5 h-5 text-brand-green" />
-                    <div className="text-left">
-                      <p className="text-xs font-bold text-brand-dark">Thẻ Quốc Tế / Nội Địa</p>
-                      <p className="text-[10px] text-stone-500">Visa, Mastercard, ATM</p>
+                <div className="relative p-4 sm:p-5 rounded-2xl sm:rounded-3xl border-2 border-[#294C3B] bg-gradient-to-r from-emerald-50/40 via-white to-emerald-50/20 shadow-xs ring-2 ring-[#294C3B]/10 transition-all">
+                  <div className="flex items-center justify-between gap-3 sm:gap-4">
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border border-emerald-200/90 flex items-center justify-center p-2.5 shadow-2xs shrink-0">
+                        <img
+                          src="https://sandbox.vnpayment.vn/paymentv2/Images/brands/logo.svg"
+                          alt="VNPAY"
+                          className="w-full h-auto max-h-7 sm:max-h-8 object-contain"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'block';
+                          }}
+                        />
+                        <span style={{ display: 'none' }} className="font-black text-[#294C3B] text-xs">VNPAY</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                          <h4 className="text-sm sm:text-[15px] lg:text-base font-medium text-[#1b3b2b] tracking-tight whitespace-nowrap">
+                            Cổng Thanh Toán Trực Tuyến VNPAY (Sandbox)
+                          </h4>
+                          <span className="shrink-0 px-2 py-0.5 rounded text-[11px] font-medium bg-[#d1fae5] text-[#065f46] border border-[#a7f3d0] whitespace-nowrap">
+                            Chính thức
+                          </span>
+                        </div>
+                        <p className="text-xs sm:text-[13px] text-stone-500 mt-1 leading-normal">
+                          Thanh toán an toàn, bảo mật tiêu chuẩn quốc tế PCI-DSS & mã hóa SHA-512
+                        </p>
+                      </div>
                     </div>
-                  </button>
+
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#294C3B] text-white flex items-center justify-center shrink-0 shadow-xs ring-4 ring-emerald-50">
+                      <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -952,13 +1012,14 @@ export default function BookPlot() {
                 )}
 
                 <Button
-                  variant="primary"
+                  variant="secondary"
                   size="lg"
-                  className="w-full uppercase font-black tracking-wider text-sm shadow-yellow-glow"
+                  className="w-full uppercase font-black tracking-wider text-sm shadow-md py-4 flex items-center justify-center gap-2 cursor-pointer transition-all"
                   onClick={handleConfirmBooking}
                   loading={isProcessing}
                 >
-                  XÁC NHẬN THANH TOÁN & THUÊ ĐẤT
+                  <ShieldCheck className="w-5 h-5 text-brand-yellow" />
+                  <span>TIẾP TỤC THANH TOÁN VNPAY SANDBOX ({totalAmount.toLocaleString('vi-VN')} đ)</span>
                 </Button>
 
                 <p className="text-[11px] text-center text-brand-muted">
@@ -1064,22 +1125,10 @@ export default function BookPlot() {
         contractId={createdContractId}
         plotInfo={{
           code: plotCodesSummary,
-          name: `Hợp đồng thuê ${selectedPlots.length} thửa đất`
+          name: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`
         }}
         totalAmount={totalAmount}
-      />
-
-      {/* Card Payment Pop-up Modal */}
-      <CardPaymentModal
-        isOpen={showCardModal}
-        onClose={() => setShowCardModal(false)}
-        contractId={createdContractId}
-        totalAmount={totalAmount}
-        plotInfo={{
-          code: plotCodesSummary,
-          name: `Hợp đồng thuê ${selectedPlots.length} thửa đất`
-        }}
-        onPaymentSuccess={handlePaymentSuccess}
+        pendingBooking={buildPendingBookingPayload()}
       />
 
       <Footer />

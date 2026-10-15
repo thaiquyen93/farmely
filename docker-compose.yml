@@ -7,7 +7,7 @@ services:
     container_name: farmely-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-12345}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-@Bin054206}
       POSTGRES_DB: ${DB_NAME:-farmely}
     ports:
       - "5432:5432"

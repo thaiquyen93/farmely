@@ -44,10 +44,42 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
     }
   }, [isAuthenticated, user]);
 
+  useEffect(() => {
+    fetch('/api/lands')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          setDbLands(list.map((l) => ({
+            id: `LND-${String(l.land_id || l.landId).padStart(3, '0')}`,
+            name: l.land_name || l.landName,
+            location: l.address || l.location
+          })));
+        }
+      })
+      .catch((e) => console.error(e));
+
+    fetch('/api/plots')
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        if (list.length > 0) {
+          setDbPlots(list.map((p) => ({
+            id: String(p.plot_id || p.plotId || p.plot_code),
+            code: p.plot_code || p.plotCode,
+            name: `Thửa Đất ${p.plot_code || p.plotCode}`,
+            area: typeof p.area === 'number' ? `${p.area} m²` : (p.area || '50 m²'),
+            landName: p.land_name || p.landName
+          })));
+        }
+      })
+      .catch((e) => console.error(e));
+  }, []);
+
   // Find preselected plot if provided
   const activePlotId = preselectedPlotId || selectedPlot;
   const selectedPlotObj = activePlotId
-    ? dbPlots.find((p) => String(p.plotId) === String(activePlotId) || p.plotCode === activePlotId)
+    ? dbPlots.find((p) => p.id === activePlotId || p.code === activePlotId || String(p.plotId) === String(activePlotId) || p.plotCode === activePlotId) || null
     : null;
 
   // Set default min date (tomorrow - quy chuẩn tối thiểu trước 24 giờ theo SCR-PUB-05)
@@ -174,8 +206,8 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
               options={[
                 { value: '', label: '-- Chọn khu vực nông trại --' },
                 ...dbLands.map((l) => ({
-                  value: l.landName,
-                  label: `${l.landName} (${l.address})`
+                  value: l.name || l.landName,
+                  label: `${l.name || l.landName} (${l.location || l.address || ''})`
                 }))
               ]}
             />
@@ -186,8 +218,8 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
               options={[
                 { value: '', label: '-- Chọn thửa đất (hoặc để trống) --' },
                 ...dbPlots.map((p) => ({
-                  value: p.plotCode,
-                  label: `${p.plotCode} - Thửa đất ${p.plotCode} (${p.area} m²)`
+                  value: p.id || p.plotCode,
+                  label: `${p.code || p.plotCode} - ${p.name || `Thửa đất ${p.plotCode}`} (${p.area})`
                 }))
               ]}
             />

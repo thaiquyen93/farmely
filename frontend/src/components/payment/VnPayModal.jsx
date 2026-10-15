@@ -13,6 +13,7 @@ export default function VnPayModal({
   serviceInfo,
   contractId,
   additionalPayload,
+  pendingBooking,
   onPaymentSuccess
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,6 +29,10 @@ export default function VnPayModal({
     setErrorMessage('');
 
     try {
+      if (pendingBooking) {
+        localStorage.setItem('farmely_pending_vnpay_booking', JSON.stringify(pendingBooking));
+      }
+
       const payload = {
         amount: currentAmount,
         orderInfo: serviceInfo
@@ -136,6 +141,21 @@ export default function VnPayModal({
                 )}
               </span>
             )}
+          </div>
+
+          {/* Sandbox Test Card Credentials Guide */}
+          <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-950 space-y-1.5 text-left">
+            <div className="flex items-center justify-between font-bold text-emerald-950">
+              <span>Thông tin thẻ Test VNPAY Sandbox (NCB):</span>
+              <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-mono font-bold">SANDBOX</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 text-[11px] text-stone-700 pt-1 border-t border-emerald-200/60">
+              <p>• Ngân hàng: <strong className="font-mono text-brand-green font-bold">NCB</strong></p>
+              <p>• Số thẻ: <strong className="font-mono text-brand-green font-bold">9704198526191432198</strong></p>
+              <p>• Tên chủ thẻ: <strong className="font-mono text-brand-green font-bold">NGUYEN VAN A</strong></p>
+              <p>• Ngày phát hành: <strong className="font-mono text-brand-green font-bold">07/15</strong></p>
+              <p className="col-span-2">• Mật khẩu OTP gửi về: <strong className="font-mono text-emerald-700 font-bold">123456</strong></p>
+            </div>
           </div>
 
           {/* Error Notice if any */}
