@@ -82,6 +82,16 @@ export default function BookPlot() {
     return tomorrow.toISOString().split('T')[0];
   });
 
+  // 15-minute reservation timer (BR08) & checkout settings
+  const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
+  const [selectedMode, setSelectedMode] = useState('ASSISTED');
+  const [rentalMonths, setRentalMonths] = useState(1);
+  const [paymentMethod] = useState('VNPAY');
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [contractCode, setContractCode] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showVnPayModal, setShowVnPayModal] = useState(false);
+
   // Tự động nhận diện giống cây từ URL search param nếu có
   useEffect(() => {
     const cropFromUrl = searchParams.get('cropId');
@@ -91,6 +101,7 @@ export default function BookPlot() {
       setSelectedCropByPlot((prev) => {
         if (!prev[pKey] && !prev[primary.id]) {
           const next = { ...prev, [pKey]: cropFromUrl, [primary.id]: cropFromUrl };
+          if (primary.code) next[primary.code] = cropFromUrl;
           try {
             localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(next));
           } catch (e) {
@@ -106,12 +117,13 @@ export default function BookPlot() {
   // Lấy giống cây đã chọn cho thửa đất (TRẢ VỀ NULL NẾU NGƯỜI DÙNG CHƯA CHỌN ĐỂ HIỂN THỊ CẢNH BÁO ĐỎ)
   const getPlotSelectedCrop = useCallback((plot) => {
     if (!plot) return null;
-    const plotIdNum = Number(plot.plotId || parseInt(plot.id, 10) || 1);
+    const rawCode = String(plot.plotCode || plot.code || plot.id || '').replace(/\D/g, '');
+    const plotIdNum = Number(plot.plotId || parseInt(rawCode, 10) || 1);
     const compatVarIds = PLOT_COMPATIBLE_VARIETIES[plotIdNum] || [1, 2, 3, 4, 8, 10];
 
-    const savedCropKey = selectedCropByPlot[plot.id] || selectedCropByPlot[plot.code];
+    const savedCropKey = selectedCropByPlot[plot.id] || selectedCropByPlot[plot.code] || selectedCropByPlot[plot.plotCode];
     if (savedCropKey) {
-      const savedCrop = getSafeCropById(savedCropKey) || safeCrops.find((c) => String(c.id) === String(savedCropKey) || String(c.varietyId) === String(savedCropKey));
+      const savedCrop = getSafeCropById(savedCropKey) || safeCrops.find((c) => String(c.id).toUpperCase() === String(savedCropKey).toUpperCase() || String(c.varietyId) === String(savedCropKey));
       if (savedCrop && compatVarIds.includes(savedCrop.varietyId)) {
         return savedCrop;
       }
@@ -123,7 +135,8 @@ export default function BookPlot() {
   // Danh sách các giống tương thích sinh học với thửa đất
   const getCompatibleCropsForPlot = useCallback((plot) => {
     if (!plot) return safeCrops;
-    const plotIdNum = Number(plot.plotId || parseInt(plot.id, 10) || 1);
+    const rawCode = String(plot.plotCode || plot.code || plot.id || '').replace(/\D/g, '');
+    const plotIdNum = Number(plot.plotId || parseInt(rawCode, 10) || 1);
     const compatVarIds = PLOT_COMPATIBLE_VARIETIES[plotIdNum] || [1, 2, 3, 4, 8, 10];
     return safeCrops.filter((c) => compatVarIds.includes(c.varietyId));
   }, []);
@@ -212,16 +225,6 @@ export default function BookPlot() {
       .catch((err) => console.error('Lỗi nạp plots trong BookPlot:', err))
       .finally(() => setLoadingPlots(false));
   }, [id, findPlotByAnyCode]);
-
-  // 15-minute reservation timer (BR08)
-  const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
-  const [selectedMode, setSelectedMode] = useState('ASSISTED');
-  const [rentalMonths, setRentalMonths] = useState(1);
-  const [paymentMethod] = useState('VNPAY');
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [contractCode, setContractCode] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [showVnPayModal, setShowVnPayModal] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) return;
