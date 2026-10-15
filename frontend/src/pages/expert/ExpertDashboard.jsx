@@ -175,10 +175,48 @@ export default function ExpertDashboard() {
   const [selectedIssueToDiagnose, setSelectedIssueToDiagnose] = useState(null);
   const [diagnosisAdvice, setDiagnosisAdvice] = useState('');
 
+  const loadFieldIssues = () => {
+    fetch('/api/issue-reports')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setFieldIssues(res.data);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch live issues:', err));
+  };
+
+  const loadTemplates = () => {
+    fetch('/api/process-templates')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setProcessTemplates(res.data);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch live templates:', err));
+  };
+
+  useEffect(() => {
+    loadFieldIssues();
+    loadTemplates();
+  }, []);
+
   // Submit diagnosis for worker field issue
-  const handleSendIssueDiagnosis = (e) => {
+  const handleSendIssueDiagnosis = async (e) => {
     e.preventDefault();
     if (!selectedIssueToDiagnose || !diagnosisAdvice.trim()) return;
+
+    const issueId = selectedIssueToDiagnose.issueId || parseInt(String(selectedIssueToDiagnose.id).replace(/\D/g, ''), 10) || 1;
+    try {
+      await fetch(`/api/issue-reports/${issueId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ diagnosis: diagnosisAdvice })
+      });
+    } catch (err) {
+      console.warn('Could not update diagnosis to DB:', err);
+    }
 
     setFieldIssues((prev) =>
       prev.map((i) =>

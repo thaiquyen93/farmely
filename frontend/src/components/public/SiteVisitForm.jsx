@@ -31,8 +31,8 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
   const [createdBooking, setCreatedBooking] = useState(null);
 
   useEffect(() => {
-    farmApi.listLands().then((r) => setDbLands(r || [])).catch(() => {});
-    farmApi.listPlots().then((r) => setDbPlots(r || [])).catch(() => {});
+    farmApi.listLands().then((r) => { if (r && r.length > 0) setDbLands(r); }).catch(() => {});
+    farmApi.listPlots().then((r) => { if (r && r.length > 0) setDbPlots(r); }).catch(() => {});
   }, []);
 
   // Prepopulate if authenticated
@@ -47,7 +47,7 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
   // Find preselected plot if provided
   const activePlotId = preselectedPlotId || selectedPlot;
   const selectedPlotObj = activePlotId
-    ? dbPlots.find((p) => String(p.plotId) === String(activePlotId) || p.plotCode === activePlotId)
+    ? dbPlots.find((p) => String(p.plotId) === String(activePlotId) || p.plotCode === activePlotId || p.id === activePlotId || p.code === activePlotId) || plotsData.find((p) => p.id === activePlotId)
     : null;
 
   // Set default min date (tomorrow - quy chuẩn tối thiểu trước 24 giờ theo SCR-PUB-05)
@@ -174,8 +174,8 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
               options={[
                 { value: '', label: '-- Chọn khu vực nông trại --' },
                 ...dbLands.map((l) => ({
-                  value: l.landName,
-                  label: `${l.landName} (${l.address})`
+                  value: l.landName || l.name,
+                  label: `${l.landName || l.name} (${l.address || l.location})`
                 }))
               ]}
             />
@@ -186,8 +186,8 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
               options={[
                 { value: '', label: '-- Chọn thửa đất (hoặc để trống) --' },
                 ...dbPlots.map((p) => ({
-                  value: p.plotCode,
-                  label: `${p.plotCode} - Thửa đất ${p.plotCode} (${p.area} m²)`
+                  value: p.plotCode || p.id || p.code,
+                  label: `${p.plotCode || p.code || p.id} - Thửa đất ${p.plotCode || p.name} (${p.area} m²)`
                 }))
               ]}
             />

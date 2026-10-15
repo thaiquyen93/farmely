@@ -31,66 +31,64 @@ export default function PlotDetail() {
   const navigate = useNavigate();
 
   const { isAuthenticated } = useAuthStore();
-  const [plot, setPlot] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [plot, setPlot] = useState(() => plotsData.find((p) => p.id === id) || null);
+  const [loading, setLoading] = useState(!plot);
   const [error, setError] = useState('');
-  const [activeImage, setActiveImage] = useState('');
+  const [activeImage, setActiveImage] = useState(plot?.gallery ? plot.gallery[0] : (plot?.imageUrl || ''));
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [showRentModal, setShowRentModal] = useState(false);
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [selectedCultivationMode, setSelectedCultivationMode] = useState('ASSISTED');
 
   useEffect(() => {
+    let active = true;
     setLoading(true);
-    setError('');
-    farmApi.listPlots()
-      .then((plots) => {
-        const found = (plots || []).find((p) =>
-          String(p.plotId) === String(id) ||
-          (p.plotCode && p.plotCode.toLowerCase() === String(id).toLowerCase())
-        );
-        if (found) {
-          const img = found.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80';
+    fetch(`/api/plots/${id}`)
+      .then((res) => res.json())
+      .then((res) => {
+        if (!active) return;
+        if (res && res.success && res.data) {
+          const d = res.data;
           const mapped = {
-            id: String(found.plotId),
-            plotId: found.plotId,
-            code: found.plotCode,
-            name: `Thửa đất ${found.plotCode}`,
-            landId: found.landId,
-            landName: found.landName || 'Trang trại Happy Valley Củ Chi',
-            area: `${Number(found.area)} m²`,
-            areaNum: Number(found.area),
-            soilType: 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
-            status: found.status === 'AVAIL' ? 'AVAILABLE' : found.status === 'RENT' ? 'RENTED' : 'MAINTENANCE',
-            rentalPrice: Number(found.pricePerPeriod),
-            formattedPrice: `${Number(found.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
-            careServicePrice: Math.round(Number(found.pricePerPeriod) * 0.5),
-            iotStationId: `IOT-${found.plotCode}`,
-            iotStationName: `Trạm Cảm Biến ${found.plotCode}`,
-            compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby'],
-            description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát IoT 24/7.',
-            imageUrl: img,
-            gallery: [
-              img,
-              'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=1000&q=80',
-              'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1000&q=80'
-            ],
-            boundaryCoordinates: found.boundary?.length >= 3 ? `GPS Polygon (${found.boundary.length} đỉnh)` : 'Đang đồng bộ GPS',
-            recentSensorReadings: {
-              temperature: '28.5 °C',
-              humidity: '74 %',
-              soilMoisture: '68 %',
-              lastUpdated: 'Vừa cập nhật'
-            }
+            id: String(d.id || d.plotId),
+            plotId: d.plotId || d.id,
+            code: d.code || d.plotCode,
+            name: d.name || `Thửa Đất ${d.plotCode}`,
+            landId: d.landId,
+            landName: d.landName || 'Trang trại Happy Valley Củ Chi',
+            area: d.areaText || `${d.area} m²`,
+            formattedPrice: d.formattedPrice || `${Number(d.pricePerPeriod || 0).toLocaleString('vi-VN')} đ/tháng`,
+            rentalPrice: Number(d.pricePerPeriod || 1200000),
+            status: d.status,
+            description: d.description || `Thửa đất canh tác tiêu chuẩn VietGAP thuộc ${d.landName}.`,
+            imageUrl: d.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
+            gallery: [d.imageUrl, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=1000&q=80'].filter(Boolean),
+            soilType: d.soilType || 'Đất thịt nhẹ phù sa cổ, pH 6.0 - 6.5',
+            waterSource: 'Hệ thống lắng lọc vi sinh kết hợp nước giếng khoan',
+            careServicePrice: Math.round(Number(d.pricePerPeriod || 1200000) * 0.5),
+            recentSensorReadings: d.recentSensorReadings || {
+              temperature: '28.5°C',
+              soilMoisture: '68%',
+              humidity: '74%'
+            },
+            compatibleCrops: (d.compatibleCrops && d.compatibleCrops.length > 0)
+              ? d.compatibleCrops
+              : ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Rau muống lá tre F1']
           };
           setPlot(mapped);
           setActiveImage(mapped.imageUrl);
-        } else {
-          setError('Không tìm thấy thửa đất trong cơ sở dữ liệu.');
+          setError('');
         }
       })
-      .catch((err) => setError(err.message || 'Lỗi kết nối cơ sở dữ liệu.'))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        console.warn('Could not fetch live plot:', err);
+        if (!plot) setError('Không tìm thấy thông tin thửa đất.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
   }, [id]);
 
   const handleBookPlotClick = () => {

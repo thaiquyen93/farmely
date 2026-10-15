@@ -5,7 +5,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $runtimeDir = Join-Path $projectRoot '.run'
-
 # ==============================================================================
 # 1. NẠP CẤU HÌNH TẬP TRUNG TỪ FILE .env GỐC
 # ==============================================================================
