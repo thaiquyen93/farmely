@@ -5,9 +5,12 @@ import FloatingExpertChat from './FloatingExpertChat';
 
 export default function GlobalExpertChat() {
   const { user } = useAuthStore();
-  const [isOpen, setIsOpen] = useState(false);
-  const [input, setInput] = useState('');
-  const scrollRef = useRef(null);
+  const [activeChat, setActiveChat] = useState(null);
+  const [expertInput, setExpertInput] = useState('');
+  const [aiInput, setAiInput] = useState('');
+  const [aiMessages, setAiMessages] = useState([]);
+  const expertScrollRef = useRef(null);
+  const aiScrollRef = useRef(null);
   const isStaff = user?.role === 'STAFF';
   const isSupportedRole = user?.role === 'CUSTOMER' || isStaff;
   const chatRole = isStaff ? 'worker' : 'customer';
@@ -22,21 +25,48 @@ export default function GlobalExpertChat() {
     senderName: user?.fullName || user?.name || fallbackName
   });
 
+  const submitAiMessage = (event) => {
+    event.preventDefault();
+    const question = aiInput.trim();
+    if (!question) return;
+    const time = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    setAiMessages((current) => [
+      ...current,
+      { id: `user-${Date.now()}`, sender: 'user', senderName: user?.fullName || user?.name || fallbackName, text: question, time },
+      { id: `ai-${Date.now()}`, sender: 'ai', senderName: 'Farmely AI', text: 'Trợ lý AI chưa được backend cấu hình. Bạn có thể dùng kênh chuyên gia để nhận tư vấn từ dữ liệu thật.', time }
+    ]);
+    setAiInput('');
+  };
+
   if (!user || !isSupportedRole) return null;
   return (
-    <FloatingExpertChat
-      isOpen={isOpen}
-      onOpen={() => setIsOpen(true)}
-      onClose={() => setIsOpen(false)}
-      thread={currentThread}
-      senderName={user.fullName || user.name || fallbackName}
-      ownSenderRole={chatRole}
-      bottomOffset={isStaff ? 92 : 24}
-      input={input}
-      setInput={setInput}
-      onSubmit={(event) => { event?.preventDefault(); if (input.trim()) { sendMessage(input); setInput(''); } }}
-      openMode="expert"
-      scrollRef={scrollRef}
-    />
+    <>
+      <FloatingExpertChat
+        isOpen={activeChat === 'ai'}
+        onOpen={() => setActiveChat('ai')}
+        onClose={() => setActiveChat(null)}
+        mode="ai"
+        messages={aiMessages}
+        senderName={user.fullName || user.name || fallbackName}
+        bottomOffset={isStaff ? 160 : 92}
+        input={aiInput}
+        setInput={setAiInput}
+        onSubmit={submitAiMessage}
+        scrollRef={aiScrollRef}
+      />
+      <FloatingExpertChat
+        isOpen={activeChat === 'expert'}
+        onOpen={() => setActiveChat('expert')}
+        onClose={() => setActiveChat(null)}
+        thread={currentThread}
+        senderName={user.fullName || user.name || fallbackName}
+        ownSenderRole={chatRole}
+        bottomOffset={isStaff ? 92 : 24}
+        input={expertInput}
+        setInput={setExpertInput}
+        onSubmit={(event) => { event.preventDefault(); if (expertInput.trim()) { sendMessage(expertInput); setExpertInput(''); } }}
+        scrollRef={expertScrollRef}
+      />
+    </>
   );
 }
