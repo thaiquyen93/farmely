@@ -13,6 +13,7 @@ import BookPlot from './pages/public/BookPlot';
 import ForgotPassword from './pages/public/ForgotPassword';
 import About from './pages/public/About';
 import Terms from './pages/public/Terms';
+import RentalTerms from './pages/public/RentalTerms';
 import VnPayReturn from './pages/payment/VnPayReturn';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 import AdminDashboard from './pages/admin/AdminDashboard';
