@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import { useAuthStore } from '../../stores/authStore';
@@ -69,10 +69,16 @@ export default function CustomerDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { services: localServices } = useServiceStore();
+  const { services: localServices, loadServices: loadMasterServices } = useServiceStore();
   const [apiServices, setApiServices] = useState([]);
   const [apiCustomerPlots, setApiCustomerPlots] = useState([]);
   const masterServices = apiServices;
+
+  const loadServices = useCallback(async (force = false) => {
+    const services = await loadMasterServices(force);
+    setApiServices(services || []);
+    return services;
+  }, [loadMasterServices]);
   const [activeTab, setActiveTab] = useState('yards');
   const [selectedPlotId, setSelectedPlotId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
