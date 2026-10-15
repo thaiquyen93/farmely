@@ -23,17 +23,51 @@ import {
 
 export default function VarietyDetail() {
   const { id } = useParams();
-  const variety = varietiesData.find((v) => v.id === id) || varietiesData[0];
+  const [variety, setVariety] = useState(() => {
+    return varietiesData.find((v) => String(v.id) === String(id) || v.code === id) || varietiesData[0];
+  });
   const [dbPlots, setDbPlots] = useState([]);
 
   useEffect(() => {
-    farmApi.listPlots()
-      .then((rows) => setDbPlots(rows || []))
-      .catch((err) => console.warn('Không thể nạp danh sách thửa đất:', err));
-  }, []);
+    let active = true;
 
-  const template = processTemplatesData.find((t) => t.varietyId === variety.id);
-  const docs = knowledgeDocumentsData.filter((d) => d.varietyId === variety.id);
+    // Nạp chi tiết giống cây từ API
+    fetch('/api/varieties')
+      .then((res) => res.json())
+      .then((res) => {
+        if (!active) return;
+        if (res && res.success && Array.isArray(res.data)) {
+          const found = res.data.find((v) => String(v.id) === String(id) || v.code === id);
+          if (found) {
+            setVariety((prev) => ({
+              ...prev,
+              ...found,
+              growingCharacteristics: prev.growingCharacteristics || {
+                lightRequirement: 'Nắng trực tiếp',
+                soilMoistureTarget: '65% - 75%',
+                temperatureRange: '22°C - 30°C',
+                fertilizerNeeds: 'Hữu cơ vi sinh'
+              }
+            }));
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Cannot fetch variety detail:', err);
+      });
+
+    // Nạp danh sách thửa đất thực tế từ farmApi
+    farmApi.listPlots()
+      .then((rows) => {
+        if (active) setDbPlots(rows || []);
+      })
+      .catch((err) => console.warn('Không thể nạp danh sách thửa đất:', err));
+
+    return () => { active = false; };
+  }, [id]);
+
+  const template = processTemplatesData.find((t) => String(t.varietyId) === String(variety.id));
+  const docs = knowledgeDocumentsData.filter((d) => String(d.varietyId) === String(variety.id));
   const compatiblePlots = dbPlots.map((p) => ({
     id: p.plotId,
     code: p.plotCode,

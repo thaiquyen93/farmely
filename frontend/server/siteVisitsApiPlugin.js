@@ -1153,14 +1153,23 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
 SELECT row_to_json(p) FROM (
   SELECT 
     p.plot_id AS "plotId", 
+    p.plot_id AS "id",
     p.land_id AS "landId", 
     l.land_name AS "landName",
+    l.address AS "landAddress",
     p.plot_code AS "plotCode", 
+    p.plot_code AS "code",
+    'Thửa Đất ' || p.plot_code AS "name",
     p.area, 
+    p.area || ' m²' AS "areaText",
     p.image_url AS "imageUrl", 
     p.price_per_period AS "pricePerPeriod", 
+    TO_CHAR(p.price_per_period, 'FM999,999,999') || ' đ/tháng' AS "formattedPrice",
     p.status::text AS "status", 
     p.is_published AS "isPublished",
+    'Thửa đất canh tác tiêu chuẩn VietGAP thuộc phân vùng ' || l.land_name || '. Hệ thống cấp thoát nước và trạm cảm biến IoT kết nối trực tiếp.' AS "description",
+    'Đất thịt nhẹ pha cát, tầng canh tác dày > 40cm, pH 6.0 - 6.5 thích hợp cho rau ăn lá và quả mọng' AS "soilType",
+    'IOT-' || CASE WHEN p.land_id = 2 THEN 'DD' WHEN p.land_id = 3 THEN 'BL' ELSE 'CC' END || '-' || LPAD(p.plot_id::text, 2, '0') AS "iotStationId",
     CASE 
       WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
       THEN (
@@ -1172,6 +1181,48 @@ SELECT row_to_json(p) FROM (
       )
       ELSE NULL 
     END AS "boundary",
+    COALESCE(
+      (
+        SELECT json_agg(c.crop_name)
+        FROM (
+          SELECT DISTINCT c.crop_name
+          FROM plot_variety_compatibility pvc
+          JOIN varieties v ON pvc.variety_id = v.variety_id
+          JOIN crops c ON v.crop_id = c.crop_id
+          WHERE pvc.plot_id = p.plot_id
+        ) c
+      ),
+      '[]'::json
+    ) AS "compatibleCrops",
+    COALESCE(
+      (
+        SELECT json_agg(json_build_object(
+          'varietyId', v.variety_id,
+          'varietyName', v.variety_name,
+          'cropId', v.crop_id,
+          'cropName', c.crop_name,
+          'expectedDuration', v.expected_duration
+        ))
+        FROM plot_variety_compatibility pvc
+        JOIN varieties v ON pvc.variety_id = v.variety_id
+        JOIN crops c ON v.crop_id = c.crop_id
+        WHERE pvc.plot_id = p.plot_id
+      ),
+      '[]'::json
+    ) AS "compatibleVarieties",
+    (
+      SELECT row_to_json(sr) FROM (
+        SELECT 
+          COALESCE(temperature::text || '°C', '28.5°C') AS "temperature", 
+          COALESCE(soil_humidity::text || '%', '68%') AS "soilMoisture", 
+          COALESCE(air_humidity::text || '%', '74%') AS "humidity", 
+          TO_CHAR(recorded_at, 'YYYY-MM-DD HH24:MI:SS') AS "recordedAt"
+        FROM sensor_readings
+        WHERE plot_id = p.plot_id
+        ORDER BY recorded_at DESC
+        LIMIT 1
+      ) sr
+    ) AS "recentSensorReadings",
     TO_CHAR(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
     TO_CHAR(p.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt"
   FROM plots p
@@ -1400,6 +1451,350 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
               res.end(JSON.stringify({ error: String(err) }));
             }
           });
+          return;
+        }
+
+        // 12. CROPS API (GET, POST, PUT, DELETE)
+        if (req.method === 'GET' && (url === '/api/crops' || url === '/api/v1/crops' || url.startsWith('/api/crops?') || url.startsWith('/api/v1/crops?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh mục cây trồng thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
+      SELECT 
+        c.crop_id AS id,
+        'CRP-' || LPAD(c.crop_id::text, 2, '0') AS code,
+        c.crop_name AS name,
+        'Nhóm cây trồng chuẩn VietGAP được quy hoạch canh tác tại nông trại.' AS description,
+        (SELECT count(*)::int FROM varieties v WHERE v.crop_id = c.crop_id) AS "totalVarieties",
+        'ACTIVE' AS status,
+        COALESCE(
+          (SELECT v.expected_duration || ' ngày' FROM varieties v WHERE v.crop_id = c.crop_id LIMIT 1),
+          '30 - 45 ngày'
+        ) AS "standardGrowthCycle",
+        'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80' AS "imageUrl",
+        TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "createdAt"
+      FROM crops c
+      ORDER BY c.crop_id ASC
+    ) c
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        if (req.method === 'POST' && (url === '/api/crops' || url === '/api/v1/crops')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const name = (payload.name || payload.crop_name || '').trim();
+              if (!name) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, message: 'Tên danh mục cây không được để trống' }));
+                return;
+              }
+              const sql = `INSERT INTO crops (crop_name) VALUES ('${name.replace(/'/g, "''")}') RETURNING crop_id, crop_name;`;
+              const raw = await runPostgreSql(sql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Tạo mới danh mục cây thành công', data: { name } }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        if (req.method === 'PUT' && (url.match(/^\/api\/crops\/(\d+)/) || url.match(/^\/api\/v1\/crops\/(\d+)/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/crops\/(\d+)/);
+          const cropId = parseInt(match[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const name = (payload.name || payload.crop_name || '').trim();
+              if (!name) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, message: 'Tên danh mục cây không được để trống' }));
+                return;
+              }
+              await runPostgreSql(`UPDATE crops SET crop_name = '${name.replace(/'/g, "''")}' WHERE crop_id = ${cropId};`);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Cập nhật danh mục cây thành công' }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        if (req.method === 'DELETE' && (url.match(/^\/api\/crops\/(\d+)/) || url.match(/^\/api\/v1\/crops\/(\d+)/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/crops\/(\d+)/);
+          const cropId = parseInt(match[1], 10);
+          try {
+            await runPostgreSql(`DELETE FROM crops WHERE crop_id = ${cropId};`);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, message: `Đã xóa danh mục cây #${cropId}` }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 13. VARIETIES API (GET, POST, PUT, DELETE)
+        if (req.method === 'GET' && (url === '/api/varieties' || url === '/api/v1/varieties' || url.startsWith('/api/varieties?') || url.startsWith('/api/v1/varieties?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh sách giống cây VietGAP thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json) FROM (
+      SELECT 
+        v.variety_id AS id,
+        'VAR-' || LPAD(v.variety_id::text, 3, '0') AS code,
+        v.variety_name AS name,
+        v.crop_id AS "cropId",
+        c.crop_name AS "cropName",
+        v.expected_duration AS "growthDuration",
+        v.buffer_time AS "bufferTime",
+        '4.0 kg/m²' AS "expectedYield",
+        'Giống cây thuần chủng F1 đạt chuẩn VietGAP, kháng sâu bệnh tốt.' AS description,
+        'ACTIVE' AS status,
+        COALESCE(
+          (SELECT count(*)::int FROM process_templates pt WHERE pt.variety_id = v.variety_id), 0
+        ) AS "templateCount",
+        COALESCE(
+          (SELECT count(*)::int FROM plot_variety_compatibility pvc WHERE pvc.variety_id = v.variety_id), 0
+        ) AS "compatiblePlotsCount",
+        TO_CHAR(v.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "createdAt"
+      FROM varieties v
+      JOIN crops c ON v.crop_id = c.crop_id
+      ORDER BY v.variety_id ASC
+    ) v
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        if (req.method === 'POST' && (url === '/api/varieties' || url === '/api/v1/varieties')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const name = (payload.name || payload.variety_name || '').trim();
+              const cropId = parseInt(payload.cropId || payload.crop_id || 1, 10);
+              const duration = parseInt(payload.growthDuration || payload.duration || 30, 10);
+              const buffer = parseInt(payload.bufferTime || 4, 10);
+              if (!name) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, message: 'Tên giống cây không được để trống' }));
+                return;
+              }
+              const sql = `INSERT INTO varieties (crop_id, variety_name, expected_duration, buffer_time) VALUES (${cropId}, '${name.replace(/'/g, "''")}', ${duration}, ${buffer}) RETURNING variety_id;`;
+              await runPostgreSql(sql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Tạo mới giống cây thành công' }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        if (req.method === 'PUT' && (url.match(/^\/api\/varieties\/(\d+)/) || url.match(/^\/api\/v1\/varieties\/(\d+)/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/varieties\/(\d+)/);
+          const varId = parseInt(match[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const name = (payload.name || payload.variety_name || '').trim();
+              const cropId = parseInt(payload.cropId || payload.crop_id || 1, 10);
+              const duration = parseInt(payload.growthDuration || payload.duration || 30, 10);
+              const buffer = parseInt(payload.bufferTime || 4, 10);
+              await runPostgreSql(`UPDATE varieties SET variety_name = '${name.replace(/'/g, "''")}', crop_id = ${cropId}, expected_duration = ${duration}, buffer_time = ${buffer} WHERE variety_id = ${varId};`);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Cập nhật giống cây thành công' }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        if (req.method === 'DELETE' && (url.match(/^\/api\/varieties\/(\d+)/) || url.match(/^\/api\/v1\/varieties\/(\d+)/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/varieties\/(\d+)/);
+          const varId = parseInt(match[1], 10);
+          try {
+            await runPostgreSql(`DELETE FROM varieties WHERE variety_id = ${varId};`);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, message: `Đã xóa giống cây #${varId}` }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 14. PROCESS TEMPLATES API (GET)
+        if (req.method === 'GET' && (url === '/api/process-templates' || url === '/api/v1/process-templates' || url.startsWith('/api/process-templates?') || url.startsWith('/api/v1/process-templates?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy quy trình chuẩn VietGAP thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM (
+      SELECT 
+        pt.template_id AS id,
+        'TPL-' || LPAD(pt.template_id::text, 3, '0') AS code,
+        'Quy trình chuẩn VietGAP - ' || v.variety_name AS name,
+        pt.variety_id AS "varietyId",
+        v.variety_name AS "varietyName",
+        c.crop_id AS "cropId",
+        c.crop_name AS "cropName",
+        pt.version,
+        'ACTIVE' AS status,
+        COALESCE(
+          (SELECT count(*)::int FROM template_steps ts WHERE ts.template_id = pt.template_id), 0
+        ) AS "totalSteps",
+        COALESCE(
+          (SELECT sum(ts.duration_days)::int FROM template_steps ts WHERE ts.template_id = pt.template_id),
+          v.expected_duration
+        ) AS "totalDays",
+        'Chuyên gia Nông nghiệp Farmely' AS "authorName",
+        TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt"
+      FROM process_templates pt
+      JOIN varieties v ON pt.variety_id = v.variety_id
+      JOIN crops c ON v.crop_id = c.crop_id
+      ORDER BY pt.template_id ASC
+    ) t
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 15. COMPATIBILITY MATRIX API (GET, POST, DELETE)
+        if (req.method === 'GET' && (url === '/api/compatibility' || url === '/api/v1/compatibility' || url.startsWith('/api/compatibility?') || url.startsWith('/api/v1/compatibility?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy ma trận tương thích thổ nhưỡng thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json) FROM (
+      SELECT 
+        pvc.plot_id AS "plotId",
+        p.plot_code AS "plotCode",
+        l.land_name AS "landName",
+        pvc.variety_id AS "varietyId",
+        v.variety_name AS "varietyName",
+        c.crop_id AS "cropId",
+        c.crop_name AS "cropName",
+        'COMPATIBLE' AS status,
+        'Thổ nhưỡng và điều kiện vi khí hậu đạt chuẩn chứng nhận VietGAP.' AS notes
+      FROM plot_variety_compatibility pvc
+      JOIN plots p ON pvc.plot_id = p.plot_id
+      JOIN lands l ON p.land_id = l.land_id
+      JOIN varieties v ON pvc.variety_id = v.variety_id
+      JOIN crops c ON v.crop_id = c.crop_id
+      ORDER BY pvc.plot_id, pvc.variety_id
+    ) r
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 16. KNOWLEDGE DOCUMENTS API (GET /api/v1/knowledge-documents & /api/knowledge-documents)
+        if (req.method === 'GET' && (url === '/api/v1/knowledge-documents' || url === '/api/knowledge-documents' || url.startsWith('/api/v1/knowledge-documents?') || url.startsWith('/api/knowledge-documents?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh mục tài liệu RAG tri thức thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(d)), '[]'::json) FROM (
+      SELECT 
+        kd.document_id AS "documentId",
+        kd.document_id AS "document_id",
+        'DOC-00' || kd.document_id AS id,
+        kd.title,
+        kd.content AS description,
+        kd.file_url AS "fileUrl",
+        kd.file_url AS "file_url",
+        '3.5 MB (PDF)' AS "fileSize",
+        '3.5 MB (PDF)' AS "file_size",
+        COALESCE(u.full_name, 'Chuyên gia Nông nghiệp') AS "authorName",
+        COALESCE(u.full_name, 'Chuyên gia Nông nghiệp') AS "author_name",
+        'Áp dụng chung toàn trang trại' AS "varietyName",
+        'Áp dụng chung toàn trang trại' AS "variety_name",
+        'Tiêu Chuẩn VietGAP' AS "cropName",
+        'Tiêu Chuẩn VietGAP' AS "crop_name",
+        'CULTIVATION_GUIDE' AS "documentType",
+        'CULTIVATION_GUIDE' AS "document_type",
+        'v2.0' AS version,
+        'PUBLISHED' AS status,
+        true AS "isIndexedForRAG",
+        true AS "is_indexed_for_rag",
+        TO_CHAR(kd.created_at, 'YYYY-MM-DD') AS "uploadedDate",
+        TO_CHAR(kd.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "created_at"
+      FROM knowledge_documents kd
+      LEFT JOIN users u ON kd.kd_created_by = u.user_id
+      ORDER BY kd.document_id ASC
+    ) d
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
           return;
         }
 

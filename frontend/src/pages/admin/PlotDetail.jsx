@@ -27,41 +27,83 @@ export default function PlotDetail() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let active = true;
     setLoading(true);
     setError('');
-    farmApi.listPlots()
-      .then((rows) => {
-        const found = (rows || []).find((p) =>
-          String(p.plotId) === String(id) ||
-          (p.plotCode && p.plotCode.toLowerCase() === String(id).toLowerCase())
-        );
-        if (found) {
+
+    // Ưu tiên getPlot(id), fallback sang listPlots tìm theo id hoặc plotCode
+    farmApi.getPlot(id)
+      .then((d) => {
+        if (!active) return;
+        if (d) {
           setPlot({
-            id: found.plotId,
-            code: found.plotCode,
-            name: `Thửa đất ${found.plotCode}`,
-            landId: found.landId,
-            landName: found.landName || 'Trang trại Happy Valley Củ Chi',
-            area: formatArea(Number(found.area)),
-            status: plotStatusBadge(found.status),
-            price: Number(found.pricePerPeriod),
-            formattedPrice: `${Number(found.pricePerPeriod || 0).toLocaleString('vi-VN')} đ/tháng`,
-            soilType: 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
-            description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát IoT 24/7.',
-            iotStationId: `IOT-${found.plotCode}`,
-            compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby'],
-            recentSensorReadings: {
+            id: d.id || d.plotId,
+            code: d.code || d.plotCode,
+            name: d.name || `Thửa Đất ${d.plotCode || d.code}`,
+            landId: d.landId,
+            landName: d.landName || 'Trang trại Happy Valley Củ Chi',
+            landAddress: d.landAddress || d.address || 'Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh',
+            area: typeof d.area === 'number' ? formatArea(d.area) : (d.area || '150 m²'),
+            status: plotStatusBadge(d.status),
+            price: Number(d.pricePerPeriod || d.price_per_period || 0),
+            formattedPrice: `${Number(d.pricePerPeriod || d.price_per_period || 0).toLocaleString('vi-VN')} đ/tháng`,
+            soilType: d.soilType || 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
+            description: d.description || `Thửa đất canh tác tiêu chuẩn VietGAP thuộc ${d.landName || 'Happy Valley Củ Chi'}.`,
+            iotStationId: d.iotStationId || `IOT-${d.plotCode || 'CC-01'}`,
+            recentSensorReadings: d.recentSensorReadings || {
               temperature: '28.5 °C',
               humidity: '74 %',
               soilMoisture: '68 %'
-            }
+            },
+            compatibleCrops: Array.isArray(d.compatibleCrops) && d.compatibleCrops.length > 0
+              ? d.compatibleCrops
+              : ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby']
           });
-        } else {
-          setError('Không tìm thấy thửa đất trong Database.');
         }
       })
-      .catch((err) => setError(err.message || 'Lỗi nạp dữ liệu từ Database.'))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        // Fallback sang listPlots
+        return farmApi.listPlots().then((rows) => {
+          if (!active) return;
+          const found = (rows || []).find((p) =>
+            String(p.plotId) === String(id) ||
+            (p.plotCode && p.plotCode.toLowerCase() === String(id).toLowerCase())
+          );
+          if (found) {
+            setPlot({
+              id: found.plotId,
+              code: found.plotCode,
+              name: `Thửa Đất ${found.plotCode}`,
+              landId: found.landId,
+              landName: found.landName || 'Trang trại Happy Valley Củ Chi',
+              area: formatArea(Number(found.area)),
+              status: plotStatusBadge(found.status),
+              price: Number(found.pricePerPeriod),
+              formattedPrice: `${Number(found.pricePerPeriod || 0).toLocaleString('vi-VN')} đ/tháng`,
+              soilType: 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
+              description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát IoT 24/7.',
+              iotStationId: `IOT-${found.plotCode}`,
+              compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby'],
+              recentSensorReadings: {
+                temperature: '28.5 °C',
+                humidity: '74 %',
+                soilMoisture: '68 %'
+              }
+            });
+          } else {
+            setError('Không tìm thấy thửa đất trong Database.');
+          }
+        });
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err.message || 'Lỗi nạp dữ liệu từ Database.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
   }, [id]);
 
   if (loading) {
@@ -87,7 +129,7 @@ export default function PlotDetail() {
     );
   }
 
-  const station = iotStationsData.find((s) => s.id === plot.iotStationId);
+  const station = iotStationsData.find((s) => s.id === plot?.iotStationId);
 
   return (
     <div className="space-y-6">
