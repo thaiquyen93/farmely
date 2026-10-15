@@ -212,3 +212,16 @@ h1, h2, h3, h4, h5, h6 {
     -webkit-print-color-adjust: exact;
   }
 }
+
+@media (max-width: 639px) {
+  .contract-mobile-fit {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    zoom: 0.69;
+  }
+}
+
+@media (max-width: 559px) { .contract-mobile-fit { zoom: 0.59; } }
+@media (max-width: 479px) { .contract-mobile-fit { zoom: 0.5; } }
+@media (max-width: 419px) { .contract-mobile-fit { zoom: 0.42; } }
+@media (max-width: 374px) { .contract-mobile-fit { zoom: 0.38; } }

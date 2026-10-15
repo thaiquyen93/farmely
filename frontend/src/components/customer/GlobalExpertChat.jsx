@@ -49,6 +49,7 @@ export default function GlobalExpertChat() {
         messages={aiMessages}
         senderName={user.fullName || user.name || fallbackName}
         bottomOffset={isStaff ? 160 : 92}
+        avoidMobileNav={!isStaff}
         input={aiInput}
         setInput={setAiInput}
         onSubmit={submitAiMessage}
@@ -62,6 +63,7 @@ export default function GlobalExpertChat() {
         senderName={user.fullName || user.name || fallbackName}
         ownSenderRole={chatRole}
         bottomOffset={isStaff ? 92 : 24}
+        avoidMobileNav={!isStaff}
         input={expertInput}
         setInput={setExpertInput}
         onSubmit={(event) => { event.preventDefault(); if (expertInput.trim()) { sendMessage(expertInput); setExpertInput(''); } }}

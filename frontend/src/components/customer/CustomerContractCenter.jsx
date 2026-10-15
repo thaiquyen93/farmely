@@ -41,7 +41,7 @@ function ContractDocument({ contract }) {
   const contractNumber = contract?.contractNumber || `HD-${contract?.contractId}`;
 
   return (
-    <article className="contract-print-document mx-auto min-h-[1123px] w-[794px] max-w-none bg-white px-[72px] py-[64px] font-['Times_New_Roman',serif] text-[15px] leading-[1.55] text-black grayscale shadow-[0_22px_70px_rgba(0,0,0,0.18)]">
+    <article className="contract-print-document contract-mobile-fit mx-auto min-h-[1123px] w-[794px] max-w-none bg-white px-[72px] py-[64px] font-['Times_New_Roman',serif] text-[15px] leading-[1.55] text-black grayscale shadow-[0_22px_70px_rgba(0,0,0,0.18)]">
       <header>
         <div className="grid grid-cols-2 gap-8 text-center text-[13px] leading-snug">
           <div>

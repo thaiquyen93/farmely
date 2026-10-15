@@ -13,6 +13,7 @@ import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
 import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
 import CustomerContractCenter from '../../components/customer/CustomerContractCenter';
+import CustomerMobileNav from '../../components/customer/CustomerMobileNav';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import {
@@ -972,7 +973,7 @@ export default function CustomerDashboard() {
       <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} hideBrand />
 
       {/* 2. Main Page Container luôn co giãn theo phần màn hình còn lại */}
-      <div className={`box-border min-w-0 flex-1 w-full ${sidebarCollapsed ? 'lg:ml-16 lg:w-[calc(100%-4rem)]' : 'lg:ml-72 lg:w-[calc(100%-18rem)]'} ${selectedPlotId ? 'px-3 pb-16 pt-20 sm:px-5 lg:px-8' : activeTab === 'yards' ? 'pt-20' : 'space-y-6 px-4 pb-16 pt-24 sm:px-8 sm:pt-28 lg:px-10'}`}>
+      <div className={`box-border min-w-0 flex-1 w-full ${sidebarCollapsed ? 'lg:ml-16 lg:w-[calc(100%-4rem)]' : 'lg:ml-72 lg:w-[calc(100%-18rem)]'} ${selectedPlotId ? 'px-3 pb-28 pt-20 sm:px-5 lg:px-8 lg:pb-16' : activeTab === 'yards' ? 'pb-24 pt-20 lg:pb-0' : 'space-y-6 px-4 pb-28 pt-24 sm:px-8 sm:pt-28 lg:px-10 lg:pb-16'}`}>
         
         {/* 3. Layout with Left Sidebar + Right Content */}
         <div className={`flex min-w-0 flex-col items-start ${selectedPlotId ? '' : 'gap-6'}`}>
@@ -2066,6 +2067,7 @@ export default function CustomerDashboard() {
         </div>
 
       </div>
+      <CustomerMobileNav activeView={selectedPlotId ? 'yards' : activeTab} />
 
       {/* ================= MODALS ================= */}
 

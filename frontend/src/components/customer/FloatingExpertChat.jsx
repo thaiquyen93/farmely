@@ -11,6 +11,7 @@ export default function FloatingExpertChat({
   senderName,
   ownSenderRole = 'customer',
   bottomOffset = 24,
+  avoidMobileNav = false,
   input,
   setInput,
   onSubmit,
@@ -19,12 +20,20 @@ export default function FloatingExpertChat({
   scrollRef
 }) {
   const [launcherPosition, setLauncherPosition] = useState(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1024);
   const dragRef = useRef(null);
   const panelRef = useRef(null);
   const isAi = mode === 'ai';
   const LauncherIcon = isAi ? Bot : MessageSquare;
   const title = isAi ? 'Trợ lý nông nghiệp AI' : (thread?.expertName || 'ThS. Nguyễn Hoàng Nam');
   const visibleMessages = messages ?? thread?.messages ?? [];
+  const effectiveBottomOffset = bottomOffset + (avoidMobileNav && isMobileViewport ? 72 : 0);
+
+  useEffect(() => {
+    const onResize = () => setIsMobileViewport(window.innerWidth < 1024);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -67,14 +76,14 @@ export default function FloatingExpertChat({
         left: launcherPosition.x >= 390 ? launcherPosition.x - 382 : launcherPosition.x + 68,
         top: clamp(launcherPosition.y - 450, 84, Math.max(84, window.innerHeight - 532))
       }
-    : { right: 92, bottom: bottomOffset };
+    : { right: 92, bottom: effectiveBottomOffset };
 
   if (!isOpen) {
     return (
       <div
         data-draggable
         className="fixed z-[60] block"
-        style={launcherPosition ? { left: launcherPosition.x, top: launcherPosition.y } : { right: 24, bottom: bottomOffset }}
+        style={launcherPosition ? { left: launcherPosition.x, top: launcherPosition.y } : { right: 24, bottom: effectiveBottomOffset }}
       >
         <button
           type="button"

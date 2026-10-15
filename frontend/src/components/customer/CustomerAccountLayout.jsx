@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Apple, BookOpen, Calendar, ClipboardList, FileText, LayoutDashboard, PanelLeftClose, PanelLeftOpen, ShoppingBag, Sprout } from 'lucide-react';
 import PublicNavbar from '../layout/PublicNavbar';
+import CustomerMobileNav from './CustomerMobileNav';
 
 const links = [
   ['Tổng quan', LayoutDashboard, '/customer/dashboard'],
@@ -33,9 +34,10 @@ export default function CustomerAccountLayout({ children }) {
         </nav>
       </aside>
       <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} hideBrand />
-      <main className={`box-border min-w-0 px-4 pb-20 pt-24 sm:px-7 lg:px-10 lg:pt-28 ${sidebarCollapsed ? 'lg:ml-16 lg:w-[calc(100%-4rem)]' : 'lg:ml-72 lg:w-[calc(100%-18rem)]'}`}>
+      <main className={`box-border min-w-0 px-4 pb-28 pt-24 sm:px-7 lg:px-10 lg:pb-20 lg:pt-28 ${sidebarCollapsed ? 'lg:ml-16 lg:w-[calc(100%-4rem)]' : 'lg:ml-72 lg:w-[calc(100%-18rem)]'}`}>
         <div className="mx-auto w-full max-w-[1500px]">{children}</div>
       </main>
+      <CustomerMobileNav activeView="account" />
     </div>
   );
 }
