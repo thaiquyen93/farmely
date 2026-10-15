@@ -92,6 +92,9 @@ export default function LandForm() {
     try {
       const body = { landName: name.trim(), address: address.trim(), description: description.trim(), boundary: ring };
       const saved = editId ? await farmApi.updateLand(editId, body) : await farmApi.createLand(body);
+      if (saved?.landId) {
+        localStorage.setItem('farmely_selected_land_id', String(saved.landId));
+      }
       navigate(`/admin/master-data/lands/${saved.landId}`, { state: { flash: editId ? 'Đã lưu thay đổi nông trại.' : 'Đã tạo nông trại mới.' } });
     } catch (err) {
       setServerError(err.message);

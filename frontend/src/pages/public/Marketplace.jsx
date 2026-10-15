@@ -40,7 +40,9 @@ export default function Marketplace() {
 
   // Dữ liệu Nông trại & Thửa đất thực tế lấy từ Backend PostgreSQL Database
   const [lands, setLands] = useState([]);
-  const [selectedLandId, setSelectedLandId] = useState('ALL');
+  const [selectedLandId, setSelectedLandId] = useState(() => {
+    return localStorage.getItem('farmely_selected_land_id') || 'ALL';
+  });
   const [dbPlots, setDbPlots] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -59,15 +61,51 @@ export default function Marketplace() {
         if (landsRes.status === 'fulfilled' && Array.isArray(landsRes.value)) {
           landList = landsRes.value;
           setLands(landList);
-          if (landList.length === 1) {
-            setSelectedLandId(String(landList[0].landId));
-          }
         }
 
+        let plotList = [];
         if (plotsRes.status === 'fulfilled' && Array.isArray(plotsRes.value)) {
-          setDbPlots(plotsRes.value);
+          plotList = plotsRes.value;
+          setDbPlots(plotList);
         } else {
           setDbPlots([]);
+        }
+
+        if (landList.length > 0) {
+          const urlLandId = searchParams.get('landId');
+          const urlPlotId = searchParams.get('plotId') || searchParams.get('plots');
+          let matchedPlotLandId = null;
+          if (urlPlotId && plotList.length > 0) {
+            const firstPlotCode = urlPlotId.split(',')[0].trim().toLowerCase();
+            const foundPlot = plotList.find((p) =>
+              String(p.plotId) === firstPlotCode ||
+              String(p.plotCode || '').toLowerCase() === firstPlotCode
+            );
+            if (foundPlot?.landId) {
+              matchedPlotLandId = String(foundPlot.landId);
+            }
+          }
+
+          const savedLandId = localStorage.getItem('farmely_selected_land_id');
+
+          // Xác định nông trại cần hiển thị: URL -> Thửa chọn -> Nông trại đã lưu -> Nông trại mới nhất vừa tạo
+          let targetLandId = null;
+          if (urlLandId && landList.some((l) => String(l.landId) === String(urlLandId))) {
+            targetLandId = String(urlLandId);
+          } else if (matchedPlotLandId && landList.some((l) => String(l.landId) === matchedPlotLandId)) {
+            targetLandId = matchedPlotLandId;
+          } else if (savedLandId && landList.some((l) => String(l.landId) === String(savedLandId))) {
+            targetLandId = String(savedLandId);
+          } else {
+            // Mặc định chọn nông trại mới nhất vừa tạo/thao tác
+            const latestLand = [...landList].sort((a, b) => Number(b.landId || 0) - Number(a.landId || 0))[0];
+            targetLandId = String(latestLand.landId);
+          }
+
+          if (targetLandId) {
+            setSelectedLandId(targetLandId);
+            localStorage.setItem('farmely_selected_land_id', targetLandId);
+          }
         }
       } catch (err) {
         console.warn('[Marketplace] Error loading live DB data:', err);
@@ -77,14 +115,14 @@ export default function Marketplace() {
     }
     loadDataFromDb();
     return () => { active = false; };
-  }, []);
+  }, [searchParams]);
 
   // Nông trại hiện tại đang chọn
   const currentLand = useMemo(() => {
     if (selectedLandId === 'ALL') {
       return lands.length === 1 ? lands[0] : null;
     }
-    return lands.find((l) => String(l.landId) === String(selectedLandId)) || null;
+    return lands.find((l) => String(l.landId) === String(selectedLandId)) || (lands.length > 0 ? lands[0] : null);
   }, [lands, selectedLandId]);
 
   // Lọc thửa đất theo Nông trại đã chọn
@@ -473,18 +511,22 @@ export default function Marketplace() {
               <select
                 value={selectedLandId}
                 onChange={(e) => {
-                  setSelectedLandId(e.target.value);
+                  const val = e.target.value;
+                  setSelectedLandId(val);
                   setSelectedPlotId(null);
                   setShowDetailPanel(false);
+                  if (val !== 'ALL') {
+                    localStorage.setItem('farmely_selected_land_id', val);
+                  }
                 }}
                 className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="ALL">Tất cả nông trại ({lands.length})</option>
                 {lands.map((l) => (
                   <option key={l.landId} value={String(l.landId)}>
                     {l.landName}
                   </option>
                 ))}
+                <option value="ALL">Tất cả nông trại ({lands.length})</option>
               </select>
             </div>
           )}

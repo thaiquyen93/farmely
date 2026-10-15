@@ -114,6 +114,9 @@ export default function PlotForm() {
         boundary: lockedBoundary ? undefined : ring
       };
       const saved = editId ? await farmApi.updatePlot(editId, body) : await farmApi.createPlot(body);
+      if (saved?.landId) {
+        localStorage.setItem('farmely_selected_land_id', String(saved.landId));
+      }
       navigate(`/admin/master-data/lands/${saved.landId}`, { state: { flash: `${editId ? 'Đã lưu' : 'Đã tạo'} thửa ${saved.plotCode} (${formatArea(Number(saved.area))}).`, highlightPlotId: saved.plotId } });
     } catch (err) {
       setServerError(err.message);
