@@ -318,6 +318,9 @@ export default function CustomerDashboard() {
       setApiCustomerPlots(rentals.map((r, index) => ({
         id: `PLOT-${r.plotCode || r.plotId || r.rentalId}`,
         rentalId: r.rentalId,
+        varietyId: r.varietyId,
+        startDate: r.startDate,
+        endDate: r.endDate,
         mapPlotId: r.plotCode,
         name: r.plotCode ? `Thửa ${r.plotCode}` : `Thửa đất ${index + 1}`,
         location: 'Khu canh tác Farmely',
@@ -823,7 +826,60 @@ export default function CustomerDashboard() {
       { stage: 'Thu hoạch lứa đầu', date: '28/10/2026', guide: 'Thu hái quả đạt kích thước, tránh làm trầy thân dây.', status: 'PENDING' }
     ]
   };
-  const cultivationProcesses = {};
+  const [cultivationProcesses, setCultivationProcesses] = useState({});
+  const [processLoading, setProcessLoading] = useState(false);
+
+  useEffect(() => {
+    if (!customerPlots.length) {
+      setCultivationProcesses({});
+      return undefined;
+    }
+    let cancelled = false;
+    setProcessLoading(true);
+    Promise.all(customerPlots.map(async (plot) => {
+      if (!plot.varietyId) return [plot.id, { template: null, steps: [] }];
+      const [templatePayload, taskPayload] = await Promise.all([
+        apiFetch(`/api/templates?varietyId=${encodeURIComponent(plot.varietyId)}`),
+        plot.rentalId ? apiFetch(`/api/tasks?rentalId=${encodeURIComponent(plot.rentalId)}`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
+      ]);
+      const templates = unwrapData(templatePayload);
+      const tasks = unwrapData(taskPayload);
+      const template = Array.isArray(templates) ? templates[0] : templates;
+      const taskList = Array.isArray(tasks) ? tasks : [];
+      const tasksByStep = new Map(taskList.filter((task) => task.stepId).map((task) => [Number(task.stepId), task]));
+      const startDate = plot.startDate ? new Date(`${plot.startDate}T00:00:00`) : null;
+      const steps = (template?.steps || []).map((step) => {
+        const task = tasksByStep.get(Number(step.stepId));
+        const plannedDate = startDate && !Number.isNaN(startDate.getTime())
+          ? new Date(startDate.getTime() + Number(step.dayOffset || 0) * 86400000)
+          : null;
+        const rawStatus = task?.status || task?.displayStatus || 'PENDING';
+        const status = ['DONE', 'COMPLETED'].includes(rawStatus) ? 'COMPLETED' : ['IN_PROG', 'IN_PROGRESS', 'OVERDUE'].includes(rawStatus) ? 'IN_PROGRESS' : 'PENDING';
+        return {
+          stepId: step.stepId,
+          order: step.stepOrder,
+          stage: step.stepName,
+          dayOffset: Number(step.dayOffset || 0),
+          date: plannedDate ? plannedDate.toLocaleDateString('vi-VN') : 'Theo kế hoạch',
+          guide: step.description || 'Chưa có hướng dẫn chi tiết.',
+          materials: step.materialsNeeded,
+          status,
+          taskCode: task?.taskCode,
+          workerName: task?.workerName,
+          evidenceImageUrl: task?.evidenceImageUrl,
+          notes: task?.notes
+        };
+      });
+      return [plot.id, { template, steps }];
+    })).then((entries) => {
+      if (!cancelled) setCultivationProcesses(Object.fromEntries(entries));
+    }).catch(() => {
+      if (!cancelled) setCultivationProcesses({});
+    }).finally(() => {
+      if (!cancelled) setProcessLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [customerPlots]);
   const fallbackIotAlerts = {
     'PLOT-CC-01': [
       { level: 'HIGH', title: 'Mưa có thể đến sau 45 phút', metric: 'Dự báo mưa 8.2 mm', time: '5 phút trước' },
@@ -1003,7 +1059,7 @@ export default function CustomerDashboard() {
                 operations={currentPlotOperations}
                 iotData={iotDatasets[currentSelectedPlot.id]}
                 alerts={iotAlerts[currentSelectedPlot.id] || []}
-                stages={cultivationProcesses[currentSelectedPlot.id] || []}
+                stages={cultivationProcesses[currentSelectedPlot.id]?.steps || []}
                 services={customerServiceCatalog}
                 serviceOrders={activeServiceOrders.filter((o) => o.plotName === currentSelectedPlot.name)}
                 harvestPlan={harvestPlans[currentSelectedPlot.id] || null}
@@ -1656,7 +1712,33 @@ export default function CustomerDashboard() {
                 <div><p className="text-xs font-bold uppercase tracking-widest text-brand-green">Quy trình VietGAP</p><h2 className="mt-1 font-heading text-2xl font-black text-brand-dark">Quy trình canh tác chuẩn</h2><p className="mt-1 text-sm text-brand-muted">Hướng dẫn và tiến độ được Farmely thiết lập cho từng thửa. Khách hàng chỉ có quyền xem.</p></div>
                 <div className="space-y-4">
                   {customerPlots.length === 0 && <div className="rounded-2xl border border-dashed border-brand-border bg-brand-cream/30 p-8 text-center text-sm font-semibold text-brand-muted">Chưa có dữ liệu quy trình từ hệ thống.</div>}
-                  {customerPlots.map((plot) => <section key={plot.id} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25"><div className="flex items-center gap-3 border-b border-brand-border bg-white p-4"><img src={plot.image} alt="" className="h-12 w-16 rounded-xl object-cover" /><div className="min-w-0 flex-1"><h3 className="truncate font-heading font-black text-brand-dark">{plot.name}</h3><p className="truncate text-xs text-brand-muted">{plot.crop} · {plot.mode === 'Self-Growing' ? 'Tự trồng' : 'Farmely chăm sóc'}</p></div><span className="rounded-full bg-stone-100 px-3 py-1 text-[10px] font-bold text-stone-600">Chỉ xem</span></div><div className="grid gap-3 p-4 lg:grid-cols-2">{(cultivationProcesses[plot.id] || []).map((step, index) => <article key={`${plot.id}-${step.stage}`} className="relative rounded-xl border border-brand-border bg-white p-4"><div className="flex items-start gap-3"><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${step.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'}`}>{step.status === 'COMPLETED' ? '✓' : index + 1}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold text-brand-dark">{step.stage}</h4><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${step.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>{step.status === 'COMPLETED' ? 'Đã hoàn tất' : step.status === 'IN_PROGRESS' ? 'Đang thực hiện' : 'Sắp tới'}</span></div><p className="mt-1 text-xs font-semibold text-brand-green">Ngày thực hiện: {step.date}</p><p className="mt-2 text-xs leading-relaxed text-stone-600">{step.guide}</p></div></div></article>)}</div></section>)}
+                  {processLoading && <div className="rounded-2xl border border-brand-border bg-white p-8 text-center text-sm font-semibold text-brand-muted">Đang tải toàn bộ quy trình từ hệ thống...</div>}
+                  {customerPlots.map((plot) => {
+                    const process = cultivationProcesses[plot.id];
+                    const steps = process?.steps || [];
+                    return <section key={plot.id} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25">
+                      <div className="flex flex-wrap items-center gap-3 border-b border-brand-border bg-white p-4">
+                        <img src={plot.image} alt="" className="h-12 w-16 rounded-xl object-cover" />
+                        <div className="min-w-0 flex-1"><h3 className="truncate font-heading font-black text-brand-dark">{plot.name}</h3><p className="truncate text-xs text-brand-muted">{plot.crop} · {plot.mode === 'Self-Growing' ? 'Tự trồng' : 'Farmely chăm sóc'}</p></div>
+                        {process?.template && <div className="text-right text-[10px] text-stone-500"><p className="font-bold text-emerald-800">{process.template.version || 'Quy trình tiêu chuẩn'}</p><p>{steps.length} công đoạn</p></div>}
+                        <span className="rounded-full bg-stone-100 px-3 py-1 text-[10px] font-bold text-stone-600">Chỉ xem</span>
+                      </div>
+                      {!processLoading && !steps.length ? <div className="p-6 text-center text-sm font-semibold text-brand-muted">Giống cây này chưa có quy trình trong cơ sở dữ liệu.</div> : <div className="grid gap-3 p-4 lg:grid-cols-2">
+                        {steps.map((step, index) => <article key={`${plot.id}-${step.stepId || step.stage}`} className="relative rounded-xl border border-brand-border bg-white p-4">
+                          <div className="flex items-start gap-3">
+                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${step.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'}`}>{step.status === 'COMPLETED' ? '✓' : index + 1}</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-start justify-between gap-2"><h4 className="font-bold text-brand-dark">{step.stage}</h4><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${step.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>{step.status === 'COMPLETED' ? 'Đã hoàn tất' : step.status === 'IN_PROGRESS' ? 'Đang thực hiện' : 'Sắp tới'}</span></div>
+                              <p className="mt-1 text-xs font-semibold text-brand-green">Ngày thứ {step.dayOffset} · Dự kiến {step.date}</p>
+                              <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">{step.guide}</p>
+                              {step.materials && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900"><strong>Vật tư:</strong> {step.materials}</p>}
+                              {(step.workerName || step.notes || step.evidenceImageUrl) && <div className="mt-3 border-t border-stone-100 pt-3 text-xs text-stone-500">{step.workerName && <p><strong>Người thực hiện:</strong> {step.workerName}</p>}{step.notes && <p className="mt-1"><strong>Ghi chú:</strong> {step.notes}</p>}{step.evidenceImageUrl && <img src={step.evidenceImageUrl} alt={`Minh chứng ${step.stage}`} className="mt-2 h-24 w-full rounded-lg object-cover" />}</div>}
+                            </div>
+                          </div>
+                        </article>)}
+                      </div>}
+                    </section>;
+                  })}
                 </div>
               </div>
             )}
