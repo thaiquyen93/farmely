@@ -650,7 +650,6 @@ Write-Output $json
           return;
         }
 
-<<<<<<< HEAD
         // 5.5 POST /api/auth/login & /api/v1/auth/login (Local/Docker PostgreSQL authentication)
         if (req.method === 'POST' && (url === '/api/auth/login' || url === '/api/v1/auth/login' || url.startsWith('/api/auth/login?') || url.startsWith('/api/v1/auth/login?'))) {
           const chunks = [];
