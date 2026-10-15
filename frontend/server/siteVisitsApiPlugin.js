@@ -1,9 +1,48 @@
 import fs from 'fs';
 import { spawn, execFile } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+function loadRootEnv() {
+  const envMap = {};
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    path.resolve(process.cwd(), '../.env'),
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(currentDir, '../../.env'),
+    path.resolve(currentDir, '../.env')
+  ];
+  for (const envPath of candidates) {
+    try {
+      if (fs.existsSync(envPath)) {
+        const content = fs.readFileSync(envPath, 'utf8');
+        content.split(/\r?\n/).forEach(line => {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('#')) {
+            const idx = trimmed.indexOf('=');
+            if (idx !== -1) {
+              const k = trimmed.slice(0, idx).trim();
+              const v = trimmed.slice(idx + 1).trim();
+              if (!(k in envMap)) {
+                envMap[k] = v;
+              }
+            }
+          }
+        });
+        break;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return envMap;
+}
+
+const rootEnv = loadRootEnv();
 
 const PSQL_CANDIDATES = [
   process.env.PSQL_PATH,
+  rootEnv.PSQL_PATH,
   'C:/Program Files/PostgreSQL/18/bin/psql.exe',
   'C:/Program Files/PostgreSQL/17/bin/psql.exe',
   'C:/Program Files/PostgreSQL/16/bin/psql.exe',
@@ -16,11 +55,11 @@ const PSQL_PATH = PSQL_CANDIDATES.find(p => {
 
 function getPgConfig() {
   return {
-    host: process.env.PGHOST || 'localhost',
-    port: process.env.PGPORT || '5432',
-    database: process.env.PGDATABASE || 'farmely',
-    user: process.env.PGUSER || 'postgres',
-    password: process.env.PGPASSWORD || 'postgres'
+    host: process.env.PGHOST || process.env.DB_HOST || rootEnv.DB_HOST || 'localhost',
+    port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5433',
+    database: process.env.PGDATABASE || process.env.DB_NAME || rootEnv.DB_NAME || 'farmely',
+    user: process.env.PGUSER || process.env.DB_USER || rootEnv.DB_USER || 'postgres',
+    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '12345'
   };
 }
 
@@ -79,11 +118,12 @@ export function siteVisitsApiPlugin() {
         // 0. GET /api/db/status (Health check & statistics)
         if (req.method === 'GET' && url === '/api/db/status') {
           try {
+            const cfg = getPgConfig();
             const sql = `
 SELECT json_build_object(
   'engine', 'PostgreSQL (Local / Docker)',
-  'database', 'farmely',
-  'port', 5432,
+  'database', '${cfg.database}',
+  'port', ${parseInt(cfg.port, 10) || 5433},
   'ddl_source', 'farmely_full_database.sql',
   'contracts_count', (SELECT count(*) FROM contracts),
   'rentals_count', (SELECT count(*) FROM rentals),

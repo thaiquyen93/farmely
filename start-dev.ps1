@@ -175,6 +175,11 @@ try {
     $env:DB_USERNAME = $dbUser
     $env:DB_PASS = $dbPassword
     $env:DB_PASSWORD = $dbPassword
+    $env:PGHOST = $dbHost
+    $env:PGPORT = "$($env:DB_PORT)"
+    $env:PGDATABASE = $dbName
+    $env:PGUSER = $dbUser
+    $env:PGPASSWORD = $dbPassword
 
     # ==============================================================================
     # 4. ĐỒNG BỘ CẤU HÌNH CHO AI SERVICE (.env)
