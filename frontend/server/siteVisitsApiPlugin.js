@@ -581,6 +581,179 @@ try {
           return;
         }
 
+        // 4.5. GET /api/contracts & /api/v1/contracts (Fetch contracts & cancellation records)
+        if (req.method === 'GET' && (url === '/api/contracts' || url === '/api/v1/contracts' || url.startsWith('/api/contracts?') || url.startsWith('/api/v1/contracts?'))) {
+          try {
+            const sql = `
+SELECT COALESCE(json_agg(c), '[]'::json) FROM (
+  SELECT 
+    c.contract_id AS "contractId",
+    c.contract_number AS "contractNumber",
+    c.renter_id AS "renterId",
+    u.full_name AS "renterName",
+    c.total_amount AS "totalAmount",
+    c.status::text AS "status",
+    TO_CHAR(c.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
+    COALESCE(
+      (
+        SELECT json_agg(r) FROM (
+          SELECT 
+            rt.rental_id AS "rentalId",
+            rt.plot_id AS "plotId",
+            p.plot_code AS "plotCode",
+            l.land_name AS "landName",
+            v.variety_name AS "varietyName",
+            TO_CHAR(rt.start_date, 'YYYY-MM-DD') AS "startDate",
+            TO_CHAR(rt.end_date, 'YYYY-MM-DD') AS "endDate",
+            rt.total_price AS "totalPrice",
+            rt.status::text AS "status"
+          FROM rentals rt
+          JOIN plots p ON rt.plot_id = p.plot_id
+          JOIN lands l ON p.land_id = l.land_id
+          LEFT JOIN varieties v ON rt.variety_id = v.variety_id
+          WHERE rt.contract_id = c.contract_id
+          ORDER BY rt.rental_id ASC
+        ) r
+      ),
+      '[]'::json
+    ) AS "rentals",
+    (
+      SELECT row_to_json(cc) FROM (
+        SELECT 
+          cn.cancellation_id AS "cancellationId",
+          cn.reason AS "reason",
+          cn.status::text AS "status",
+          TO_CHAR(cn.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt"
+        FROM contract_cancellations cn
+        WHERE cn.contract_id = c.contract_id
+        ORDER BY cn.cancellation_id DESC
+        LIMIT 1
+      ) cc
+    ) AS "cancellation"
+  FROM contracts c
+  JOIN users u ON c.renter_id = u.user_id
+  ORDER BY c.contract_id DESC
+) c;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, data: JSON.parse(data || '[]') }));
+          } catch (err) {
+            console.error('Error on GET /api/contracts:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: 'Lỗi tải danh sách hợp đồng: ' + err.message }));
+          }
+          return;
+        }
+
+        // 4.6. POST /api/contracts/:id/cancellation & /api/contracts/cancellation (BR10 Contract Cancellation & BR23 Maintenance)
+        if (req.method === 'POST' && (url.includes('/cancellation') || url.includes('/cancel'))) {
+          const chunks = [];
+          req.on('data', chunk => chunks.push(chunk));
+          req.on('end', async () => {
+            try {
+              const body = Buffer.concat(chunks).toString('utf8');
+              const payload = JSON.parse(body || '{}');
+              
+              // Extract contract ID from URL or body
+              let contractId = payload.contractId;
+              if (!contractId) {
+                const match = url.match(/\/api\/(?:v1\/)?contracts\/(\d+)/);
+                if (match) contractId = parseInt(match[1], 10);
+              }
+              contractId = parseInt(contractId, 10) || 1;
+
+              const reason = (payload.reason || '').trim().replace(/'/g, "''");
+              const bankName = (payload.bankName || '').trim().replace(/'/g, "''");
+              const bankAccountNumber = (payload.bankAccountNumber || '').trim().replace(/'/g, "''");
+              const bankAccountName = (payload.bankAccountName || '').trim().replace(/'/g, "''");
+              const deductionRate = parseFloat(payload.deductionRate) || 0.20;
+              const refundAmount = parseFloat(payload.refundAmount) || 0;
+              const userId = parseInt(payload.cancelledBy, 10) || 1;
+
+              if (reason.length < 10) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Lý do hủy hợp đồng phải có tối thiểu 10 ký tự (SRS V8.1)' }));
+                return;
+              }
+
+              // Build combined reason with disbursement details
+              let fullReason = reason;
+              if (refundAmount > 0 && bankAccountNumber) {
+                fullReason += ` [STK hoàn tiền: ${bankName} - ${bankAccountNumber} (${bankAccountName}) - Hoàn: ${refundAmount.toLocaleString('vi-VN')} đ]`;
+              }
+
+              const sqlCancel = `
+DO $$
+DECLARE
+    v_cancellation_id INT;
+BEGIN
+    -- 1. Ghi nhận vào bảng contract_cancellations
+    INSERT INTO contract_cancellations (contract_id, cancelled_by, reason, status, created_at)
+    VALUES (${contractId}, ${userId}, '${fullReason}', 'PENDING', NOW())
+    RETURNING cancellation_id INTO v_cancellation_id;
+
+    -- 2. Cập nhật hợp đồng sang trạng thái CANCELLED
+    UPDATE contracts 
+    SET status = 'CANCELLED', updated_at = NOW() 
+    WHERE contract_id = ${contractId};
+
+    -- 3. Cập nhật các thửa đất thuê sang trạng thái CANCELLED
+    UPDATE rentals 
+    SET status = 'CANCELLED', updated_at = NOW() 
+    WHERE contract_id = ${contractId};
+
+    -- 4. Giải phóng thửa đất và chuyển sang bảo dưỡng & phơi ải 4 ngày (BR23)
+    UPDATE plots 
+    SET status = 'MAINT', updated_at = NOW() 
+    WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
+
+    -- 5. Ghi log kiểm toán vận hành
+    INSERT INTO audit_logs (user_id, action, entity_name, entity_id, details, ip_address, created_at)
+    VALUES (${userId}, 'CANCEL_REQUEST', 'contracts', '${contractId}', '{"reason": "${reason}", "deductionRate": ${deductionRate}, "refundAmount": ${refundAmount}}'::jsonb, '127.0.0.1', NOW());
+END $$;
+`;
+              await runPostgreSql(sqlCancel);
+              invalidatePlotsCache();
+
+              // Fetch the created cancellation
+              const fetchCancelSql = `
+SELECT json_build_object(
+  'cancellationId', cancellation_id,
+  'contractId', contract_id,
+  'status', status::text,
+  'createdAt', TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+)
+FROM contract_cancellations
+WHERE contract_id = ${contractId}
+ORDER BY cancellation_id DESC
+LIMIT 1;
+`;
+              const cancelOut = await runPostgreSql(fetchCancelSql);
+              const cancelData = cancelOut && cancelOut.trim() ? JSON.parse(cancelOut.trim().split('\n')[0]) : { cancellationId: 1, contractId, status: 'PENDING' };
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Yêu cầu hủy hợp đồng và hoàn tiền đã được ghi nhận thành công theo quy định BR10. Thửa đất chuyển bảo dưỡng 4 ngày (BR23).',
+                data: {
+                  ...cancelData,
+                  deductionRate,
+                  refundAmount
+                }
+              }));
+            } catch (err) {
+              console.error('Error on POST /api/contracts/cancellation:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Lỗi ghi nhận hủy hợp đồng: ' + err.message }));
+            }
+          });
+          return;
+        }
+
         // 5. GET /api/bookings/transactions (Query latest transactions)
         if (req.method === 'GET' && url === '/api/bookings/transactions') {
           try {

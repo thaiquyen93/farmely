@@ -13,6 +13,7 @@ import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
 import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
+import ContractCancellationModal from '../../components/customer/ContractCancellationModal';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import { useSensorStream } from '../../api/monitoring/useSensorStream';
@@ -233,7 +234,26 @@ export default function CustomerDashboard() {
     }
   }, [harvestPlans, harvestStorageKey]);
   const [showRenewContractModal, setShowRenewContractModal] = useState(false);
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
+  const [selectedContractForCancel, setSelectedContractForCancel] = useState(null);
+  const [cancelledContracts, setCancelledContracts] = useState({});
   const [emergencyRequests, setEmergencyRequests] = useState({});
+
+  const handleOpenCancelModal = (item) => {
+    const isNew = item.isPendingHandover || item.contractCode === 'CTR-2026-FARM-NEW';
+    const contractData = {
+      contractId: item.contractId || (item.id === 'PLOT-CC-01' ? 1 : item.id === 'PLOT-MC-02' ? 2 : 3),
+      contractCode: item.contractCode || item.contractNumber || 'CTR-2026-FARM-9912',
+      plotName: item.plotName || item.name || 'Thửa Sen Vàng A1',
+      plotCode: item.mapPlotId || item.plotCode || 'P-01',
+      totalAmount: item.totalAmount || (item.area === '160m²' ? 3900000 : 3600000),
+      startDate: item.startDate || (isNew ? '20/10/2026' : '12/08/2026'),
+      endDate: item.endDate || '18/11/2026',
+      status: cancelledContracts[item.contractCode] ? 'CANCELLED' : (isNew ? 'CONFIRMED' : 'ACTIVE')
+    };
+    setSelectedContractForCancel(contractData);
+    setShowCancellationModal(true);
+  };
 
   // Form states
   const [diaryNote, setDiaryNote] = useState('');
@@ -1295,6 +1315,15 @@ export default function CustomerDashboard() {
                                   {tab === 'tasks' && openCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">{openCount}</span>}
                                 </button>
                               ))}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenCancelModal(plot)}
+                                aria-label={`Hợp đồng & hủy ${plot.name}`}
+                                title="Quản lý Hợp đồng & Hủy theo BR10"
+                                className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
+                              >
+                                <FileText className="h-4 w-4" />
+                              </button>
                             </div>
                           </div>
                         </article>
@@ -1822,43 +1851,213 @@ export default function CustomerDashboard() {
               </div>
             )}
 
-            {/* TAB 6: HỢP ĐỒNG THUÊ ĐẤT */}
+            {/* TAB 6: HỢP ĐỒNG THUÊ ĐẤT & QUY TRÌNH HỦY (BR10) */}
             {activeTab === 'contracts' && !selectedPlotId && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Lịch Sử Hợp Đồng Thuê Thửa Đất
-                  </h3>
-                  <p className="text-xs text-brand-muted mt-0.5">
-                    Quản lý thời hạn thuê, gia hạn hợp đồng hoặc gửi yêu cầu hoàn hủy theo quy định.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 border border-emerald-200">
+                        SSoT: Master Lease Agreement
+                      </span>
+                      <span className="text-xs text-stone-500">Mã màn hình: SCR-KH-08 / SCR-AD-10</span>
+                    </div>
+                    <h3 className="font-heading font-black text-xl text-brand-dark mt-1 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-brand-green" />
+                      Danh Sách Hợp Đồng Thuê & Chính Sách Hoàn Hủy (BR10)
+                    </h3>
+                    <p className="text-xs text-brand-muted mt-0.5">
+                      Quản lý các kỳ thuê đất, theo dõi ngày bàn giao thực tế và gửi yêu cầu hủy hợp đồng theo đúng tỷ lệ khấu trừ.
+                    </p>
+                  </div>
+                  <Link to="/marketplace">
+                    <Button variant="primary" size="sm" className="whitespace-nowrap">
+                      + Thuê thêm thửa đất
+                    </Button>
+                  </Link>
                 </div>
 
-                <div className="p-6 rounded-2xl border border-brand-border space-y-3 text-xs bg-white">
-                  <div className="flex justify-between items-center pb-3 border-b border-brand-border/60">
-                    <span className="font-mono font-bold text-brand-green text-sm">CTR-2026-FARM-9912</span>
-                    <span className="px-2.5 py-1 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                      Đang hiệu lực
-                    </span>
+                {/* Banner giải thích quy chuẩn BR10 & BR23 */}
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5 text-blue-950">
+                    <ShieldAlert className="w-4 h-4 text-blue-700" />
+                    Chính Sách Hoàn Tiền Khi Hủy Hợp Đồng (Quy định SSoT BR10):
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-stone-600">
-                    <p>Thửa đất: <strong className="text-brand-dark">Sen Vàng A1 (PLOT-CC-01)</strong></p>
-                    <p>Thời hạn: <strong className="text-brand-dark">03 Tháng (Còn 42 ngày)</strong></p>
-                    <p>Chế độ: <strong className="text-brand-dark">Assisted-growing</strong></p>
-                    <p>Tổng phí: <strong className="text-brand-dark">3.600.000 đ</strong></p>
-                    <p>Chuyên gia phụ trách: <strong className="text-emerald-800">ThS. Nguyễn Hoàng Nam</strong></p>
-                    <p>Công nhân trực tiếp: <strong className="text-amber-800">Trần Văn Lực (Tổ trưởng CVLĐ)</strong></p>
+                  <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-blue-900/90 leading-relaxed">
+                    <li><strong>Trước ngày bắt đầu ≥ 3 ngày:</strong> Khấu trừ 20% phí quản trị & giữ chỗ, <strong>hoàn trả 80%</strong> số tiền đã đóng.</li>
+                    <li><strong>Trước ngày bắt đầu &lt; 3 ngày:</strong> Khấu trừ 50% chi phí giống & chuẩn bị đất, <strong>hoàn trả 50%</strong> số tiền đã đóng.</li>
+                    <li><strong>Khi đã đến hoặc sau ngày bắt đầu canh tác:</strong> Khấu trừ 100%, <strong>không hoàn tiền</strong> vì cây giống đã trồng và công nhân đã triển khai.</li>
+                    <li><strong>Bảo trì thửa đất (BR23):</strong> Mọi thửa đất sau khi hủy đều chuyển sang trạng thái <strong>Bảo dưỡng phơi ải 4 ngày (MAINT)</strong> trước khi mở lại trên sàn.</li>
+                  </ul>
+                </div>
+
+                {/* DANH SÁCH CÁC HỢP ĐỒNG */}
+                <div className="space-y-4">
+                  {/* Hợp đồng 1: HỢP ĐỒNG MỚI THUÊ (GIAI ĐOẠN 1: CHỜ BÀN GIAO ĐẤT - CÒN 5 NGÀY) */}
+                  <div className="p-5 sm:p-6 rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50/40 via-white to-amber-50/20 shadow-sm space-y-3.5 text-xs">
+                    <div className="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-amber-200">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-brand-dark text-sm">CTR-2026-FARM-NEW</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          CHỜ BÀN GIAO (Bắt đầu sau 5 ngày)
+                        </span>
+                      </div>
+                      <span className="rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 border border-emerald-200">
+                        Đủ điều kiện hoàn 80% nếu hủy hôm nay
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-stone-600">
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">THỬA ĐẤT THUÊ</span>
+                        <strong className="text-brand-dark text-xs">Thửa Bậc Thang P-04 (160m²)</strong>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">NGÀY BẮT ĐẦU CANH TÁC</span>
+                        <strong className="text-brand-dark text-xs">20/10/2026 (Còn 5 ngày)</strong>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">GÓI CANH TÁC & GIỐNG</span>
+                        <strong className="text-brand-dark text-xs">Assisted · Cà chua bi F1</strong>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">TỔNG PHÍ ĐÃ THANH TOÁN</span>
+                        <strong className="text-brand-green font-mono text-xs font-bold">3.900.000 đ (100% Lump-sum)</strong>
+                      </div>
+                    </div>
+
+                    {cancelledContracts['CTR-2026-FARM-NEW'] ? (
+                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
+                        <span>✓ Đã gửi yêu cầu hủy hợp đồng (Đang xử lý hoàn tiền 80%: 3.120.000 đ)</span>
+                        <span className="text-[11px] bg-rose-200/80 px-2 py-0.5 rounded">Trạng thái: PENDING</span>
+                      </div>
+                    ) : (
+                      <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-amber-100">
+                        <span className="text-[11px] text-stone-500">
+                          Thửa đất đang được công nhân hiện trường dọn cỏ và chuẩn bị giá thể VietGAP trước ngày bàn giao.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCancelModal({
+                            contractCode: 'CTR-2026-FARM-NEW',
+                            name: 'Thửa Bậc Thang P-04',
+                            area: '160m²',
+                            crop: 'Cà chua bi F1',
+                            totalAmount: 3900000,
+                            startDate: '20/10/2026',
+                            isPendingHandover: true
+                          })}
+                          className="px-3.5 py-1.5 rounded-xl border border-rose-300 text-rose-700 bg-rose-50/70 hover:bg-rose-100 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                          Yêu cầu hủy hợp đồng & Hoàn tiền (Hoàn 80%)
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="pt-3 flex gap-3">
-                    <Button variant="outline" size="sm" onClick={() => setShowRenewContractModal(true)}>
-                      Gia hạn hợp đồng (Renew)
-                    </Button>
-                    <button
-                      onClick={() => alert('Yêu cầu hủy hợp đồng và hoàn tiền đã được gửi đến ban quản trị Farmely.')}
-                      className="text-xs text-rose-600 hover:underline font-bold self-center cursor-pointer"
-                    >
-                      Yêu cầu hủy & hoàn tiền
-                    </button>
+
+                  {/* Hợp đồng 2: HỢP ĐỒNG ĐANG CANH TÁC (GIAI ĐOẠN 2: ACTIVE VỤ MÙA) */}
+                  <div className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3.5 text-xs">
+                    <div className="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-brand-border/60">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-brand-green text-sm">CTR-2026-FARM-9912</span>
+                        <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          Đang canh tác (Active)
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-stone-500">
+                        Ngày bắt đầu: 12/08/2026 · Hết hạn: 18/11/2026 (Còn 37 ngày)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-stone-600">
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">THỬA ĐẤT THUÊ</span>
+                        <p><strong className="text-brand-dark">Sen Vàng A1 (PLOT-CC-01)</strong></p>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">TIẾN ĐỘ SINH TRƯỞNG</span>
+                        <p><strong className="text-brand-dark">Ra hoa & đậu trái non (Ngày 28/65)</strong></p>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">CHUYÊN GIA PHỤ TRÁCH</span>
+                        <p><strong className="text-emerald-800">ThS. Nguyễn Hoàng Nam</strong></p>
+                      </div>
+                      <div>
+                        <span className="text-stone-400 block text-[10px]">CÔNG NHÂN TRỰC TIẾP</span>
+                        <p><strong className="text-amber-800">Trần Văn Lực (Tổ trưởng CVLĐ)</strong></p>
+                      </div>
+                    </div>
+
+                    {cancelledContracts['CTR-2026-FARM-9912'] ? (
+                      <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
+                        <span>✓ Đã gửi yêu cầu chấm dứt hợp đồng sớm (Thửa đất chuyển bảo dưỡng 4 ngày BR23)</span>
+                        <span className="text-[11px] bg-rose-200 px-2 py-0.5 rounded">ĐÃ HỦY NGANG</span>
+                      </div>
+                    ) : (
+                      <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-brand-border/40">
+                        <span className="text-[11px] text-stone-400">
+                          Gia hạn trước tối thiểu 3 ngày theo quy định BR11b.
+                        </span>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setShowRenewContractModal(true)}>
+                            Gia hạn hợp đồng (Renew)
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenCancelModal({
+                              contractCode: 'CTR-2026-FARM-9912',
+                              name: 'Thửa Sen Vàng A1',
+                              area: '100m²',
+                              crop: 'Cà chua bi Cherry F1',
+                              totalAmount: 3600000,
+                              startDate: '12/08/2026',
+                              stage: 'Ra hoa đậu trái'
+                            })}
+                            className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-bold self-center cursor-pointer px-2"
+                          >
+                            Chấm dứt hợp đồng sớm (BR10)
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hợp đồng 3: HỢP ĐỒNG TỰ CANH TÁC */}
+                  <div className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3.5 text-xs">
+                    <div className="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-brand-border/60">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-brand-green text-sm">CTR-2026-FARM-8831</span>
+                        <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          Đang hiệu lực (Tự canh tác)
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-stone-500">
+                        Thửa Mộc Châu B2 (80m²) · Hết hạn: 12/10/2026 (Còn 11 ngày)
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                      <p className="text-stone-600">
+                        Khách hàng tự chăm sóc. Có thể mua gói ủy thác chăm sóc linh hoạt theo ngày (BR11) hoặc yêu cầu kết thúc sớm.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCancelModal({
+                          contractCode: 'CTR-2026-FARM-8831',
+                          name: 'Thửa Mộc Châu B2',
+                          area: '80m²',
+                          crop: 'Xà lách Romaine VietGAP',
+                          totalAmount: 2850000,
+                          startDate: '20/09/2026',
+                          stage: 'Cuộn bắp tròn'
+                        })}
+                        className="text-xs text-stone-500 hover:text-rose-600 font-semibold cursor-pointer"
+                      >
+                        Hủy ngang hợp đồng (BR10)
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2667,6 +2866,21 @@ export default function CustomerDashboard() {
           notes: checkoutNotes
         }}
         onPaymentSuccess={handleServicePaymentSuccess}
+      />
+
+      {/* SSoT BR10: Modal Yêu cầu Hủy Hợp Đồng & Quy trình Hoàn Tiền */}
+      <ContractCancellationModal
+        isOpen={showCancellationModal}
+        contract={selectedContractForCancel}
+        onClose={() => setShowCancellationModal(false)}
+        onSuccess={(result) => {
+          if (selectedContractForCancel?.contractCode) {
+            setCancelledContracts((prev) => ({
+              ...prev,
+              [selectedContractForCancel.contractCode]: result
+            }));
+          }
+        }}
       />
 
     </div>
