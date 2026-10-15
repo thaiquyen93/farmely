@@ -13,7 +13,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Leaf,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { safeCrops } from '../../data/safeCrops';
 
@@ -33,11 +34,13 @@ export default function MarketplacePlotDetailPanel({
   const [copied, setCopied] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [activeTab, setActiveTab] = useState('overview');
+  const [cropError, setCropError] = useState(false);
 
-  // Reset photo index & tab khi đổi thửa đất
+  // Reset photo index, tab & error khi đổi thửa đất
   useEffect(() => {
     setPhotoIndex(0);
     setActiveTab('overview');
+    setCropError(false);
   }, [plot?.id]);
 
   if (!plot) return null;
@@ -369,24 +372,47 @@ export default function MarketplacePlotDetailPanel({
         {activeTab === 'overview' && (
           <>
             {/* Đặt bộ chọn cây lên đầu nội dung để khách không phải cuộn mới chọn được */}
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-2.5">
+            <div className={`rounded-xl border p-2.5 transition-all ${
+              cropError && !selectedCropId
+                ? 'border-2 border-rose-500 bg-rose-50/70 shadow-sm ring-2 ring-rose-500/20'
+                : 'border-emerald-200 bg-emerald-50/40'
+            }`}>
               <div className="mb-1.5 flex items-center justify-between gap-2">
                 <h4 className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
                   <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                  Chọn cây trồng
+                  Chọn cây trồng <span className="text-rose-500">*</span>
                 </h4>
-                <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-emerald-600">10 quy trình</span>
+                {selectedCropId ? (
+                  <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-emerald-600">10 quy trình</span>
+                ) : (
+                  <span className="shrink-0 whitespace-nowrap text-[10px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">
+                    BẮT BUỘC CHỌN
+                  </span>
+                )}
               </div>
               <select
                 value={selectedCropId}
-                onChange={(event) => onSelectCrop?.(event.target.value)}
-                className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400/40"
+                onChange={(event) => {
+                  setCropError(false);
+                  onSelectCrop?.(event.target.value);
+                }}
+                className={`w-full rounded-lg px-3 py-2 text-xs font-bold outline-none transition-all cursor-pointer ${
+                  cropError && !selectedCropId
+                    ? 'border-2 border-rose-500 bg-white text-rose-900 ring-2 ring-rose-500/30'
+                    : 'border border-emerald-200 bg-white text-slate-800 focus:ring-2 focus:ring-emerald-400/40'
+                }`}
               >
-                <option value="">Chọn giống cây cho thửa đất này</option>
+                <option value="">-- Vui lòng chọn giống cây cho thửa đất này --</option>
                 {safeCrops.map((crop) => (
                   <option key={crop.id} value={crop.id}>{crop.name} — {crop.variety}</option>
                 ))}
               </select>
+              {cropError && !selectedCropId && (
+                <p className="mt-1.5 text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                  Vui lòng chọn giống cây trước khi nhấn thuê thửa!
+                </p>
+              )}
               {selectedCropId ? (() => {
                 const selectedCrop = safeCrops.find((crop) => crop.id === selectedCropId);
                 return selectedCrop ? (
@@ -395,9 +421,9 @@ export default function MarketplacePlotDetailPanel({
                     <span className="truncate whitespace-nowrap"><strong className="text-slate-800">{selectedCrop.variety}</strong> · Chu kỳ {selectedCrop.duration} · Độ ẩm {selectedCrop.soilMoisture}</span>
                   </div>
                 ) : null;
-              })() : (
+              })() : !cropError ? (
                 <p className="mt-1.5 truncate whitespace-nowrap text-[10px] text-slate-500">Chọn cây trước khi thuê để Farmely gợi ý lịch canh tác phù hợp.</p>
-              )}
+              ) : null}
             </div>
 
             {/* Bảo chứng VietGAP */}
@@ -530,7 +556,15 @@ export default function MarketplacePlotDetailPanel({
         {/* Nút chính — To, gradient nổi bật */}
         <button
           type="button"
-          onClick={() => onBookPlot(plot)}
+          onClick={() => {
+            if (!selectedCropId) {
+              setCropError(true);
+              setActiveTab('overview');
+              return;
+            }
+            setCropError(false);
+            onBookPlot(plot, selectedCropId);
+          }}
           disabled={!isVacant}
           className={`w-full py-3 rounded-2xl font-black text-sm tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
             isVacant

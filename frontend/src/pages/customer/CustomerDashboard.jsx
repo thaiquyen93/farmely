@@ -977,24 +977,112 @@ export default function CustomerDashboard() {
     ]
   };
 
-  const defaultOperationsForPlot = (plot) => ({
-    tasks: [
-      { id: `TSK-${plot?.id || '1'}-01`, title: `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`, time: '07:30 hôm nay', status: 'IN_PROGRESS', owner: plot?.mode === 'Self-Growing' ? 'Khách hàng' : (plot?.worker || 'Trần Văn Lực (CVLĐ)') },
-      { id: `TSK-${plot?.id || '1'}-02`, title: 'Kiểm tra sinh trưởng và chỉ số vi khí hậu IoT', time: '14:00 hôm nay', status: 'PENDING', owner: 'Farmely Smart Monitor' },
-      { id: `TSK-${plot?.id || '1'}-03`, title: 'Cắt tỉa lá gốc và vệ sinh luống canh tác', time: '09:00 hôm qua', status: 'COMPLETED', owner: plot?.mode === 'Self-Growing' ? 'Khách hàng' : (plot?.worker || 'Trần Văn Lực (CVLĐ)') }
-    ],
-    diary: [
-      { time: '08:15 • Hôm nay', title: 'Tưới nước vi sinh & kiểm tra đất', note: `Độ ẩm duy trì ở mức ${plot?.soilMoisture || '68%'}, vi sinh phát triển tốt.`, author: plot?.worker || 'Trần Văn Lực' },
-      { time: '16:00 • Hôm qua', title: 'Kiểm tra sinh trưởng định kỳ', note: `Cây đang trong giai đoạn ${plot?.stage || 'phát triển tốt'}, không phát hiện sâu bệnh.`, author: 'ThS. Nguyễn Hoàng Nam' }
-    ]
-  });
+  const defaultOperationsForPlot = (plot) => {
+    const isNew = (Number(plot?.progressPercent) || 0) <= 10;
+    return {
+      tasks: [
+        {
+          id: `TSK-${plot?.id || '1'}-01`,
+          title: isNew
+            ? `Bước 1: Làm đất, bón lót vi sinh & gieo giống ${plot?.crop || 'VietGAP'}`
+            : `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`,
+          time: '07:30 hôm nay',
+          status: 'IN_PROGRESS',
+          owner: plot?.mode === 'Self-Growing' ? 'Khách hàng' : (plot?.worker || 'Trần Văn Lực (CVLĐ)')
+        },
+        {
+          id: `TSK-${plot?.id || '1'}-02`,
+          title: isNew
+            ? 'Khởi tạo cảm biến trạm vi khí hậu IoT & hệ thống tưới ngầm'
+            : 'Kiểm tra sinh trưởng và chỉ số vi khí hậu IoT',
+          time: '14:00 hôm nay',
+          status: 'PENDING',
+          owner: 'Farmely Smart Monitor'
+        },
+        {
+          id: `TSK-${plot?.id || '1'}-03`,
+          title: isNew
+            ? 'Ghi nhận biên bản bàn giao thửa đất & kích hoạt quy trình canh tác'
+            : 'Cắt tỉa lá gốc và vệ sinh luống canh tác',
+          time: isNew ? 'Ngày mai' : '09:00 hôm qua',
+          status: 'PENDING',
+          owner: plot?.mode === 'Self-Growing' ? 'Khách hàng' : (plot?.worker || 'Trần Văn Lực (CVLĐ)')
+        }
+      ],
+      diary: [
+        {
+          time: '08:15 • Hôm nay',
+          title: isNew ? 'Khởi động vụ mùa & Bàn giao thửa đất' : 'Tưới nước vi sinh & kiểm tra đất',
+          note: isNew
+            ? `Bắt đầu Bước 1 quy trình VietGAP cho giống ${plot?.crop || 'VietGAP'}. Độ ẩm đất đạt chuẩn ${plot?.soilMoisture || '68%'}.`
+            : `Độ ẩm duy trì ở mức ${plot?.soilMoisture || '68%'}, vi sinh phát triển tốt.`,
+          author: plot?.worker || 'Trần Văn Lực'
+        }
+      ]
+    };
+  };
 
-  const defaultProcessForPlot = (plot) => [
-    { stage: 'Gieo giống & bén rễ', date: 'Đầu chu kỳ', guide: 'Giữ ẩm đất 60–70%, kiểm tra độ nảy mầm hằng ngày.', status: 'COMPLETED' },
-    { stage: 'Sinh trưởng thân lá', date: 'Giai đoạn giữa vụ', guide: 'Bổ sung dinh dưỡng hữu cơ VietGAP và tỉa lá già định kỳ.', status: (plot?.progressPercent || 0) >= 30 ? 'COMPLETED' : 'IN_PROGRESS' },
-    { stage: plot?.stage || 'Ra hoa & đậu quả non', date: 'Hiện tại', guide: 'Theo dõi chỉ số độ ẩm vi khí hậu và sâu bệnh qua trạm IoT.', status: (plot?.progressPercent || 0) >= 70 ? 'COMPLETED' : 'IN_PROGRESS' },
-    { stage: 'Thu hoạch & nghiệm thu', date: plot?.expectedHarvestDate || 'Dự kiến', guide: 'Cân đối chứng, kiểm tra chất lượng và đóng thùng QR xuất xưởng.', status: 'PENDING' }
-  ];
+  const defaultProcessForPlot = (plot) => {
+    if (plot?.processSteps && Array.isArray(plot.processSteps) && plot.processSteps.length > 0) {
+      const curDay = Number(plot.currentDay) || 0;
+      return plot.processSteps.map((st, idx) => {
+        const offset = Number(st.dayOffset ?? st.day_offset) || 0;
+        const duration = Number(st.durationDays ?? st.duration_days) || 1;
+        let status = 'PENDING';
+        if (curDay <= 1) {
+          status = idx === 0 ? 'IN_PROGRESS' : 'PENDING';
+        } else if (curDay > offset + duration) {
+          status = 'COMPLETED';
+        } else if (curDay >= offset) {
+          status = 'IN_PROGRESS';
+        }
+
+        const dateLabel = plot.startDate
+          ? (() => {
+              const d = new Date(plot.startDate);
+              d.setDate(d.getDate() + offset);
+              return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} (Ngày ${offset + 1})`;
+            })()
+          : `Ngày ${offset + 1}`;
+
+        return {
+          stage: st.stage,
+          date: dateLabel,
+          guide: st.guide || 'Quy trình chuẩn VietGAP Farmely',
+          status
+        };
+      });
+    }
+
+    const progress = Number(plot?.progressPercent) || 0;
+    const isNew = progress <= 10;
+    return [
+      {
+        stage: 'Làm đất & Gieo giống (Bước 1)',
+        date: plot?.startDate ? `Từ ${plot.startDate}` : 'Bắt đầu vụ',
+        guide: 'Làm sạch cỏ, bón lót hữu cơ vi sinh, lên luống và xuống giống theo tiêu chuẩn VietGAP.',
+        status: isNew ? 'IN_PROGRESS' : 'COMPLETED'
+      },
+      {
+        stage: 'Sinh trưởng thân lá & Bén rễ',
+        date: 'Giai đoạn sinh trưởng',
+        guide: 'Giữ ẩm đất 60–70%, kiểm tra độ nảy mầm và bổ sung dinh dưỡng hữu cơ VietGAP định kỳ.',
+        status: isNew ? 'PENDING' : progress >= 40 ? 'COMPLETED' : 'IN_PROGRESS'
+      },
+      {
+        stage: plot?.stage || 'Ra hoa & Đậu quả non',
+        date: 'Hiện tại',
+        guide: 'Theo dõi chỉ số độ ẩm vi khí hậu và sâu bệnh qua trạm IoT.',
+        status: isNew ? 'PENDING' : progress >= 80 ? 'COMPLETED' : 'IN_PROGRESS'
+      },
+      {
+        stage: 'Thu hoạch & Nghiệm thu chất lượng',
+        date: plot?.expectedHarvestDate || 'Dự kiến cuối vụ',
+        guide: 'Cân đối chứng, kiểm tra chất lượng và đóng thùng QR xuất xưởng.',
+        status: 'PENDING'
+      }
+    ];
+  };
 
   const defaultAlertsForPlot = (plot) => [
     { level: 'LOW', title: 'Nhiệt độ & ẩm độ tối ưu', metric: `${plot?.temp || '28°C'} · Ẩm đất ${plot?.soilMoisture || '68%'}`, time: '10 phút trước' }
@@ -1193,8 +1281,8 @@ export default function CustomerDashboard() {
                 plots={customerPlots}
                 operations={currentPlotOperations}
                 iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
-                alerts={iotAlerts[currentSelectedPlot.id] || iotAlerts['PLOT-CC-01'] || []}
-                stages={cultivationProcesses[currentSelectedPlot.id] || cultivationProcesses['PLOT-CC-01'] || []}
+                alerts={iotAlerts[currentSelectedPlot.id] || defaultAlertsForPlot(currentSelectedPlot)}
+                stages={cultivationProcesses[currentSelectedPlot.id] || defaultProcessForPlot(currentSelectedPlot)}
                 services={customerServiceCatalog}
                 serviceOrders={activeServiceOrders.filter((o) => o.plotName === currentSelectedPlot.name)}
                 harvestPlan={harvestPlans[currentSelectedPlot.id] || null}

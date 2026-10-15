@@ -312,10 +312,21 @@ export default function Marketplace() {
     }, 0);
   }, [contractSelectedPlots]);
 
-  const handleBookPlot = (plot) => {
+  const handleBookPlot = (plot, cropId = selectedCropId) => {
     if (!plot) return;
     const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE' || plot.statusCode === 'AVAIL';
     if (!isVacant) return;
+
+    if (cropId) {
+      try {
+        const current = JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
+        current[plot.id] = cropId;
+        current[plot.code] = cropId;
+        localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(current));
+      } catch (e) {
+        console.error(e);
+      }
+    }
 
     const allSelected = isPlotSelectedForContract(plot)
       ? contractSelectedPlots
@@ -330,7 +341,7 @@ export default function Marketplace() {
       setPlotToBook(firstPlot);
       setShowAuthModal(true);
     } else {
-      navigate(`/marketplace/plot/${firstPlot.id || firstPlot.code}/book?plots=${plotCodes}`);
+      navigate(`/marketplace/plot/${firstPlot.id || firstPlot.code}/book?plots=${plotCodes}${cropId ? `&cropId=${cropId}` : ''}`);
     }
   };
 

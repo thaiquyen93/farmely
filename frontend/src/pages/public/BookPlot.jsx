@@ -27,7 +27,8 @@ import {
   Layers,
   Sparkles,
   X,
-  Loader2
+  Loader2,
+  Calendar
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
 import { chatService } from '../../api/communication/chatService';
@@ -67,30 +68,95 @@ export default function BookPlot() {
   const [isExtendingGrace, setIsExtendingGrace] = useState(false);
   const [graceApplied, setGraceApplied] = useState(false);
 
-  const [selectedCropByPlot] = useState(() => {
+  const [selectedCropByPlot, setSelectedCropByPlot] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
     } catch {
       return {};
     }
   });
+  const [cropValidationError, setCropValidationError] = useState(false);
+  const [startDate, setStartDate] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  });
 
-  // Tự động chọn giống cây tương thích chuẩn sinh học (BR03) từ Database
+  // Tự động nhận diện giống cây từ URL search param nếu có
+  useEffect(() => {
+    const cropFromUrl = searchParams.get('cropId');
+    if (cropFromUrl && selectedPlots.length > 0) {
+      const primary = selectedPlots[0];
+      const pKey = primary.id || primary.code;
+      setSelectedCropByPlot((prev) => {
+        if (!prev[pKey] && !prev[primary.id]) {
+          const next = { ...prev, [pKey]: cropFromUrl, [primary.id]: cropFromUrl };
+          try {
+            localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(next));
+          } catch (e) {
+            console.error(e);
+          }
+          return next;
+        }
+        return prev;
+      });
+    }
+  }, [searchParams, selectedPlots]);
+
+  // Lấy giống cây đã chọn cho thửa đất (TRẢ VỀ NULL NẾU NGƯỜI DÙNG CHƯA CHỌN ĐỂ HIỂN THỊ CẢNH BÁO ĐỎ)
   const getPlotSelectedCrop = useCallback((plot) => {
-    if (!plot) return safeCrops[0];
+    if (!plot) return null;
     const plotIdNum = Number(plot.plotId || parseInt(plot.id, 10) || 1);
-    const compatVarIds = PLOT_COMPATIBLE_VARIETIES[plotIdNum] || [1, 2, 3];
+    const compatVarIds = PLOT_COMPATIBLE_VARIETIES[plotIdNum] || [1, 2, 3, 4, 8, 10];
 
-    // 1. Kiểm tra nếu người dùng đã chủ động chọn giống cây ở Marketplace
-    const savedCrop = getSafeCropById(selectedCropByPlot[plot.id]);
-    if (savedCrop && compatVarIds.includes(savedCrop.varietyId)) {
-      return savedCrop;
+    const savedCropKey = selectedCropByPlot[plot.id] || selectedCropByPlot[plot.code];
+    if (savedCropKey) {
+      const savedCrop = getSafeCropById(savedCropKey) || safeCrops.find((c) => String(c.id) === String(savedCropKey) || String(c.varietyId) === String(savedCropKey));
+      if (savedCrop && compatVarIds.includes(savedCrop.varietyId)) {
+        return savedCrop;
+      }
     }
 
-    // 2. Nếu chưa chọn hoặc giống không tương thích, tự động lấy giống tương thích số 1 trong DB
-    const defaultVarId = compatVarIds[0] || 1;
-    return safeCrops.find((c) => c.varietyId === defaultVarId) || safeCrops[0];
+    return null;
   }, [selectedCropByPlot]);
+
+  // Danh sách các giống tương thích sinh học với thửa đất
+  const getCompatibleCropsForPlot = useCallback((plot) => {
+    if (!plot) return safeCrops;
+    const plotIdNum = Number(plot.plotId || parseInt(plot.id, 10) || 1);
+    const compatVarIds = PLOT_COMPATIBLE_VARIETIES[plotIdNum] || [1, 2, 3, 4, 8, 10];
+    return safeCrops.filter((c) => compatVarIds.includes(c.varietyId));
+  }, []);
+
+  const handleSelectCropForPlot = (plotId, plotCode, cropId) => {
+    setSelectedCropByPlot((prev) => {
+      const next = { ...prev, [plotId]: cropId };
+      if (plotCode) next[plotCode] = cropId;
+      try {
+        localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(next));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+    setCropValidationError(false);
+  };
+
+  const calculatedEndDate = React.useMemo(() => {
+    if (!startDate) return '';
+    const d = new Date(startDate);
+    d.setMonth(d.getMonth() + rentalMonths);
+    return d.toISOString().split('T')[0];
+  }, [startDate, rentalMonths]);
+
+  const calculatedEndDateFormatted = React.useMemo(() => {
+    if (!calculatedEndDate) return '';
+    const parts = calculatedEndDate.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return calculatedEndDate;
+  }, [calculatedEndDate]);
 
   // Helper to match plot by any identifier
   const findPlotByAnyCode = useCallback((code, plotsList = allPlots) => {
@@ -335,7 +401,7 @@ export default function BookPlot() {
       ? Number(user.userId)
       : (user?.id ? Number(String(user.id).replace(/\D/g, '')) : 1);
 
-    const start = new Date();
+    const start = startDate ? new Date(startDate) : new Date();
     const startStr = start.toISOString().split('T')[0];
 
     const items = selectedPlots.map((p) => {
@@ -388,19 +454,39 @@ export default function BookPlot() {
     paymentMethod: 'VNPAY',
     cultivationMode: selectedMode === 'ASSISTED' ? 'ASSISTED_GROWING' : 'SELF_GROWING',
     rentalMonths: rentalMonths,
-    plots: selectedPlots.map((p) => ({
-      id: p.id,
-      code: p.code || p.id,
-      name: p.name || `Thửa ${p.code || p.id}`,
-      price: p.rentalPrice || 1200000,
-      cropId: getPlotSelectedCrop(p)?.id || null,
-      cropName: getPlotSelectedCrop(p)?.name || null,
-      varietyName: getPlotSelectedCrop(p)?.variety || null
-    }))
+    startDate: startDate,
+    plots: selectedPlots.map((p) => {
+      const crop = getPlotSelectedCrop(p);
+      return {
+        id: p.id,
+        code: p.code || p.id,
+        name: p.name || `Thửa ${p.code || p.id}`,
+        price: p.rentalPrice || 1200000,
+        cropId: crop?.id || null,
+        varietyId: crop?.varietyId || null,
+        cropName: crop?.name || null,
+        varietyName: crop?.variety || null
+      };
+    })
   });
 
   const handleConfirmBooking = async () => {
     setBookingError('');
+
+    if (!startDate) {
+      setBookingError('Vui lòng chọn ngày bắt đầu canh tác.');
+      return;
+    }
+
+    const missingCropPlot = selectedPlots.find((p) => !getPlotSelectedCrop(p));
+    if (missingCropPlot) {
+      setCropValidationError(true);
+      setBookingError(`Vui lòng chọn giống cây trồng tương thích cho thửa đất ${missingCropPlot.code || missingCropPlot.name} (hiển thị viền đỏ) trước khi tiếp tục thanh toán!`);
+      const el = document.getElementById(`plot-card-${missingCropPlot.id}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
@@ -732,69 +818,131 @@ export default function BookPlot() {
                 </div>
 
                 {/* List of Selected Plots in this Contract */}
-                <div className="space-y-3">
-                  {selectedPlots.map((p, index) => (
-                    <div
-                      key={p.id}
-                      className="p-4 rounded-2xl bg-brand-cream/40 border border-brand-border flex flex-col sm:flex-row gap-4 items-center justify-between transition-all hover:bg-brand-cream/70"
-                    >
-                      <div className="flex items-center gap-3.5 w-full sm:w-auto">
-                        <img
-                          src={p.imageUrl}
-                          alt={p.name}
-                          className="w-16 h-16 rounded-xl object-cover border border-brand-border shrink-0"
-                        />
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-brand-yellow text-brand-dark">
-                              {p.code}
-                            </span>
-                            <span className="text-[11px] text-stone-500 font-medium">
-                              Thửa #{index + 1}
-                            </span>
+                <div className="space-y-4">
+                  {selectedPlots.map((p, index) => {
+                    const plotCrop = getPlotSelectedCrop(p);
+                    const isCropMissing = !plotCrop;
+                    const compatCrops = getCompatibleCropsForPlot(p);
+
+                    return (
+                      <div
+                        key={p.id}
+                        id={`plot-card-${p.id}`}
+                        className={`p-5 rounded-2xl border transition-all ${
+                          isCropMissing
+                            ? 'border-2 border-rose-500 bg-rose-50/70 ring-4 ring-rose-500/20 shadow-md'
+                            : 'border-brand-border bg-brand-cream/40 hover:bg-brand-cream/70'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                          <div className="flex items-center gap-3.5 w-full sm:w-auto">
+                            <img
+                              src={p.imageUrl}
+                              alt={p.name}
+                              className="w-16 h-16 rounded-xl object-cover border border-brand-border shrink-0"
+                            />
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-brand-yellow text-brand-dark">
+                                  {p.code}
+                                </span>
+                                <span className="text-[11px] text-stone-500 font-medium">
+                                  Thửa #{index + 1}
+                                </span>
+                              </div>
+                              <h4 className="font-heading font-bold text-sm text-brand-dark">
+                                {p.name}
+                              </h4>
+                              <div className="flex items-center gap-3 text-xs text-stone-600">
+                                <span className="flex items-center gap-1">
+                                  <Maximize2 className="w-3 h-3 text-brand-green" /> {p.area}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Radio className="w-3 h-3 text-brand-green" /> {p.iotStationId}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <h4 className="font-heading font-bold text-sm text-brand-dark">
-                            {p.name}
-                          </h4>
-                          <p className={`text-[11px] font-semibold ${getPlotSelectedCrop(p) ? 'text-emerald-700' : 'text-amber-700'}`}>
-                            {getPlotSelectedCrop(p)
-                              ? `Cây trồng: ${getPlotSelectedCrop(p).variety} (Theo BR03)`
-                              : 'Chưa chọn cây trồng — có thể chọn tại Marketplace'}
-                          </p>
-                          <div className="flex items-center gap-3 text-xs text-stone-600">
-                            <span className="flex items-center gap-1">
-                              <Maximize2 className="w-3 h-3 text-brand-green" /> {p.area}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Radio className="w-3 h-3 text-brand-green" /> {p.iotStationId}
-                            </span>
+
+                          <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-brand-border/60">
+                            <div className="text-right">
+                              <span className="text-xs font-bold text-brand-green block">
+                                {(p.rentalPrice || 1200000).toLocaleString('vi-VN')} đ/tháng
+                              </span>
+                              <span className="text-[10px] text-stone-400">
+                                Chăm sóc: +{(p.careServicePrice || 600000).toLocaleString('vi-VN')} đ
+                              </span>
+                            </div>
+
+                            {selectedPlots.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePlot(p.id)}
+                                className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+                                title="Gỡ thửa này khỏi hợp đồng"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-brand-border/60">
-                        <div className="text-right">
-                          <span className="text-xs font-bold text-brand-green block">
-                            {(p.rentalPrice || 1200000).toLocaleString('vi-VN')} đ/tháng
-                          </span>
-                          <span className="text-[10px] text-stone-400">
-                            Chăm sóc: +{(p.careServicePrice || 600000).toLocaleString('vi-VN')} đ
-                          </span>
-                        </div>
+                        {/* Dropdown Chọn Giống Cây Trồng Chuẩn VietGAP (BR03) */}
+                        <div className="mt-3 pt-3 border-t border-brand-border/60">
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                              <Sprout className={`w-4 h-4 ${isCropMissing ? 'text-rose-600 animate-bounce' : 'text-emerald-600'}`} />
+                              <span>Chọn Giống Cây Trồng (Chuẩn tương thích VietGAP - BR03):</span>
+                            </label>
+                            {isCropMissing ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3" />
+                                Chưa chọn giống cây
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                Tương thích sinh học 100%
+                              </span>
+                            )}
+                          </div>
 
-                        {selectedPlots.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemovePlot(p.id)}
-                            className="p-2 rounded-xl text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
-                            title="Gỡ thửa này khỏi hợp đồng"
+                          <select
+                            value={plotCrop?.id || ''}
+                            onChange={(e) => handleSelectCropForPlot(p.id, p.code, e.target.value)}
+                            className={`w-full py-2.5 px-3 rounded-xl text-xs font-semibold transition-all outline-hidden cursor-pointer ${
+                              isCropMissing
+                                ? 'border-2 border-rose-500 text-rose-950 bg-white ring-2 ring-rose-500/30'
+                                : 'border border-emerald-300 text-brand-dark bg-white focus:border-brand-green focus:ring-2 focus:ring-brand-green/20'
+                            }`}
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                            <option value="" disabled>-- BẮT BUỘC CHỌN GIỐNG CÂY TRỒNG TƯƠNG THÍCH CHO THỬA NÀY --</option>
+                            {compatCrops.map((crop) => (
+                              <option key={crop.id} value={crop.id}>
+                                {crop.variety} ({crop.name}) - Thời gian sinh trưởng: {crop.minDays || 45} ngày - Phác đồ VietGAP
+                              </option>
+                            ))}
+                          </select>
+
+                          {isCropMissing && (
+                            <p className="text-[11px] font-bold text-rose-700 mt-1.5 flex items-center gap-1">
+                              <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                              <span>Vui lòng chọn 1 giống cây trồng trong danh sách trên để hệ thống nạp phác đồ VietGAP chuẩn từ Bước 1!</span>
+                            </p>
+                          )}
+
+                          {plotCrop && (
+                            <p className="text-[11px] text-emerald-800 font-semibold mt-1.5 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>
+                                Giống đã chọn: <strong>{plotCrop.variety}</strong> ({plotCrop.name}) • Chu kỳ: {plotCrop.minDays || 45} ngày • Tự động kích hoạt quy trình từ Bước 1
+                              </span>
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Sub-summary banner */}
@@ -808,10 +956,56 @@ export default function BookPlot() {
                 </div>
               </div>
 
+              {/* 1. Start Date Selection */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-brand-green" />
+                    <h3 className="font-heading font-bold text-lg text-brand-dark">
+                      1. Ngày Bắt Đầu Canh Tác & Bàn Giao Thửa Đất
+                    </h3>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Chuẩn VietGAP
+                  </span>
+                </div>
+
+                <p className="text-xs text-stone-500 leading-relaxed">
+                  Toàn bộ các bước công việc thực tế, quy trình chăm sóc VietGAP chuẩn và nhật ký canh tác của cây trồng sẽ được tính chính xác bắt đầu từ ngày bạn chọn (Khởi động từ <strong>Bước 1: Làm đất & gieo trồng giống</strong>).
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1.5">
+                      Chọn ngày bắt đầu canh tác:
+                    </label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full py-2.5 px-3.5 rounded-xl border border-brand-border text-sm font-semibold text-brand-dark focus:border-brand-green focus:ring-2 focus:ring-brand-green/20 outline-hidden bg-white shadow-2xs cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-brand-cream/60 border border-brand-border flex flex-col justify-center">
+                    <span className="text-[11px] text-stone-500 font-medium">
+                      Dự kiến kết thúc vụ & nghiệm thu ({rentalMonths} tháng):
+                    </span>
+                    <strong className="text-sm font-bold text-brand-green mt-0.5">
+                      {calculatedEndDateFormatted}
+                    </strong>
+                    <span className="text-[10px] text-stone-400 mt-0.5">
+                      Bàn giao thửa đất & kích hoạt quy trình từ Ngày 1
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {/* Cultivation Mode Selection */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-4">
                 <h3 className="font-heading font-bold text-lg text-brand-dark">
-                  1. Chọn Hình Thức Canh Tác Cho Toàn Bộ Hợp Đồng
+                  2. Chọn Hình Thức Canh Tác Cho Toàn Bộ Hợp Đồng
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button
@@ -867,7 +1061,7 @@ export default function BookPlot() {
               {/* Rental Duration */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-4">
                 <h3 className="font-heading font-bold text-lg text-brand-dark">
-                  2. Thời Hạn Thuê Thửa Đất
+                  3. Thời Hạn Thuê Thửa Đất
                 </h3>
                 <div className="grid grid-cols-4 gap-3">
                   {[1, 3, 6, 12].map((m) => (
@@ -894,7 +1088,7 @@ export default function BookPlot() {
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-5 h-5 text-brand-green" />
                     <h3 className="text-base sm:text-lg font-normal text-brand-dark">
-                      3. Phương Thức Thanh Toán Duy Nhất
+                      4. Phương Thức Thanh Toán Duy Nhất
                     </h3>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -974,14 +1168,21 @@ export default function BookPlot() {
                   <div className="p-3 bg-stone-50 rounded-xl space-y-1 text-[11px] text-stone-600">
                     <span className="font-semibold text-stone-700 block">Thửa đất bao gồm:</span>
                     <div className="flex flex-wrap gap-1.5 pt-1">
-                      {selectedPlots.map((p) => (
-                        <span
-                          key={p.id}
-                          className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold"
-                        >
-                          {p.code} ({p.area}){getPlotSelectedCrop(p) ? ` • ${getPlotSelectedCrop(p).variety}` : ''}
-                        </span>
-                      ))}
+                      {selectedPlots.map((p) => {
+                        const crop = getPlotSelectedCrop(p);
+                        return (
+                          <span
+                            key={p.id}
+                            className={`px-2 py-0.5 rounded font-bold border ${
+                              crop
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border-rose-300 animate-pulse'
+                            }`}
+                          >
+                            {p.code} ({p.area}) • {crop ? crop.variety : '⚠️ Chưa chọn giống'}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -999,6 +1200,13 @@ export default function BookPlot() {
                   <p>• Hoàn 80% khi hủy trước ngày bắt đầu 3 ngày.</p>
                   <p>• Hoàn 50% khi hủy trong vòng 3 ngày trước ngày bắt đầu.</p>
                 </div>
+
+                {selectedPlots.some((p) => !getPlotSelectedCrop(p)) && (
+                  <div className="p-3 rounded-2xl bg-rose-50 border border-rose-300 text-xs font-bold text-rose-800 flex items-center gap-2 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>Vui lòng chọn giống cây trồng cho tất cả thửa đất ở cột bên trái trước khi thanh toán.</span>
+                  </div>
+                )}
 
                 {/* Error Banner if any */}
                 {bookingError && (

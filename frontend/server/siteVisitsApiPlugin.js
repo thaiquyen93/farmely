@@ -448,6 +448,7 @@ Write-Output ($dt | ConvertTo-Json -Compress)
               const totalAmount = parseFloat(payload.totalAmount) || 2400000.00;
               const paymentMethod = (payload.paymentMethod || 'VNPAY').replace(/'/g, "''");
               const rentalMonths = parseInt(payload.rentalMonths, 10) || 6;
+              const startDate = (payload.startDate || new Date().toISOString().slice(0, 10)).trim().replace(/'/g, "''");
               const plotItems = Array.isArray(payload.plots) && payload.plots.length > 0 ? payload.plots : [{ code: 'P-01', price: totalAmount }];
               const nowStamp = Date.now().toString().slice(-6);
               const contractNumber = `MLA-2026-${nowStamp}`;
@@ -463,6 +464,7 @@ DECLARE
     v_user_id INT;
     v_contract_id INT;
     v_plot_id INT;
+    v_rental_id INT;
 BEGIN
     -- 1. Tìm hoặc tạo user hợp lệ theo email
     SELECT user_id INTO v_user_id FROM users WHERE LOWER(email) = LOWER('${customerEmail}') LIMIT 1;
@@ -494,8 +496,9 @@ BEGIN
                   const numCode = digitsMatch ? digitsMatch[0].padStart(2, '0') : '01';
                   const price = parseFloat(item.price) || (totalAmount / plotItems.length);
                   const cleanPlotId = parseInt(cleanCode.replace(/\D/g, ''), 10) || 1;
-                  const cropId = item.cropId ? parseInt(item.cropId, 10) : 1;
-                  const varietyId = !isNaN(cropId) && cropId > 0 && cropId <= 6 ? cropId : 1;
+                  const rawCrop = item.cropId || item.varietyId;
+                  const parsedCropId = parseInt(String(rawCrop || '').replace(/\D/g, ''), 10);
+                  const varietyId = !isNaN(parsedCropId) && parsedCropId > 0 && parsedCropId <= 10 ? parsedCropId : 1;
 
                   pgSql += `
     -- Tìm plot_id chính xác
@@ -513,12 +516,38 @@ BEGIN
         RETURNING plot_id INTO v_plot_id;
     END IF;
 
-    -- Thêm bản ghi rental
+    -- Thêm bản ghi rental với ngày bắt đầu do khách chọn
     INSERT INTO rentals (contract_id, plot_id, variety_id, start_date, end_date, total_price, status, created_at, updated_at)
-    VALUES (v_contract_id, v_plot_id, ${varietyId}, CURRENT_DATE, CURRENT_DATE + INTERVAL '${rentalMonths} months', ${price}, 'ACTIVE', NOW(), NOW());
+    VALUES (v_contract_id, v_plot_id, ${varietyId}, '${startDate}', '${startDate}'::date + INTERVAL '${rentalMonths} months', ${price}, 'ACTIVE', NOW(), NOW())
+    RETURNING rental_id INTO v_rental_id;
 
     -- CẬP NHẬT TRẠNG THÁI THỬA ĐẤT SANG 'RENT' (ĐÃ THUÊ)
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id = v_plot_id;
+
+    -- TỰ ĐỘNG KHỞI TẠO CÁC BƯỚC ĐẦU TIÊN CỦA QUY TRÌNH VIETGAP CHUẨN TỪNG CÂY
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+    SELECT 
+        v_rental_id,
+        ts.step_id,
+        COALESCE((SELECT user_id FROM users WHERE role_id = 4 LIMIT 1), 2),
+        ('${startDate}'::date + (ts.day_offset || ' days')::interval)::date,
+        CASE WHEN ts.day_offset = 0 AND '${startDate}'::date <= CURRENT_DATE THEN 'IN_PROG' ELSE 'PENDING' END,
+        ts.step_name || ': ' || ts.description,
+        NOW(),
+        NOW()
+    FROM template_steps ts
+    JOIN process_templates pt ON ts.template_id = pt.template_id
+    WHERE pt.variety_id = ${varietyId}
+    ORDER BY ts.day_offset ASC, ts.step_id ASC;
+
+    -- TẠO NHẬT KÝ ĐẦU TIÊN CHO THỬA MỚI
+    INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
+    VALUES (
+        v_rental_id,
+        'Khởi tạo chu kỳ canh tác chuẩn VietGAP cho giống ' || (SELECT COALESCE(variety_name, 'Rau sạch') FROM varieties WHERE variety_id = ${varietyId}) || '. Ngày bắt đầu: ' || TO_CHAR('${startDate}'::date, 'DD/MM/YYYY') || '.',
+        'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
+        NOW()
+    );
 `;
                 }
                 pgSql += `END $$;`;
@@ -1057,10 +1086,52 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     p.area || 'm²' AS area,
     CASE WHEN s.service_type = 'SELF' THEN 'Self-Growing' ELSE 'Assisted-Growing' END AS mode,
     COALESCE(v.variety_name, 'Rau củ VietGAP') AS crop,
-    'Ra hoa & đậu trái non' AS stage,
-    28 AS "currentDay",
-    65 AS "totalDays",
-    43 AS "progressPercent",
+    COALESCE(
+      (
+        SELECT ts.step_name 
+        FROM template_steps ts
+        JOIN process_templates pt ON ts.template_id = pt.template_id
+        WHERE pt.variety_id = r.variety_id
+          AND (CURRENT_DATE - r.start_date) >= ts.day_offset
+        ORDER BY ts.day_offset DESC, ts.step_id DESC
+        LIMIT 1
+      ),
+      (
+        SELECT ts.step_name 
+        FROM template_steps ts
+        JOIN process_templates pt ON ts.template_id = pt.template_id
+        WHERE pt.variety_id = r.variety_id
+        ORDER BY ts.day_offset ASC, ts.step_id ASC
+        LIMIT 1
+      ),
+      'Làm đất & Bón lót'
+    ) AS stage,
+    CASE 
+      WHEN CURRENT_DATE < r.start_date THEN 0
+      ELSE (CURRENT_DATE - r.start_date) + 1
+    END AS "currentDay",
+    COALESCE(v.expected_duration, 60) AS "totalDays",
+    CASE
+      WHEN CURRENT_DATE < r.start_date THEN 0
+      ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - r.start_date + 1)::numeric / NULLIF(COALESCE(v.expected_duration, 60), 0)::numeric) * 100)))
+    END AS "progressPercent",
+    COALESCE(
+      (
+        SELECT json_agg(
+          json_build_object(
+            'stepId', ts.step_id,
+            'stage', ts.step_name,
+            'dayOffset', ts.day_offset,
+            'durationDays', ts.duration_days,
+            'guide', COALESCE(ts.description, '')
+          ) ORDER BY ts.day_offset ASC, ts.step_id ASC
+        )
+        FROM template_steps ts
+        JOIN process_templates pt ON ts.template_id = pt.template_id
+        WHERE pt.variety_id = r.variety_id
+      ),
+      '[]'::json
+    ) AS "processSteps",
     COALESCE(p.image_url, '/images/Mucangchai3.jpg') AS image,
     '28.5°C' AS temp,
     '68%' AS "soilMoisture",
@@ -1078,7 +1149,9 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     c.contract_id, c.contract_number, c.renter_id, c.status AS contract_status,
     r.rental_id, r.service_id, 
     TO_CHAR(r.start_date, 'YYYY-MM-DD') AS start_date, 
+    TO_CHAR(r.start_date, 'YYYY-MM-DD') AS "startDate", 
     TO_CHAR(r.end_date, 'YYYY-MM-DD') AS end_date, 
+    TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "endDate", 
     r.total_price, r.status AS rental_status,
     p.plot_id, p.plot_code, p.area AS raw_area, p.status AS plot_status, p.image_url,
     l.land_id, l.land_name, l.address,
@@ -1092,7 +1165,7 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
   LEFT JOIN varieties v ON r.variety_id = v.variety_id
   LEFT JOIN services s ON r.service_id = s.service_id
   WHERE ${userClause}
-  ORDER BY r.rental_id ASC
+  ORDER BY r.rental_id DESC
 ) p_row;
 `;
             const data = await runPostgreSql(sql);
@@ -2207,7 +2280,26 @@ SELECT json_build_object(
         p.area || 'm²' AS area,
         'Assisted-Growing' AS mode,
         COALESCE(v.variety_name, 'Cà chua bi Cherry F1') AS crop,
-        'Sinh trưởng & phát triển' AS stage,
+        COALESCE(
+          (
+            SELECT ts.step_name 
+            FROM template_steps ts
+            JOIN process_templates pt ON ts.template_id = pt.template_id
+            WHERE pt.variety_id = rent.variety_id
+              AND (CURRENT_DATE - rent.start_date) >= ts.day_offset
+            ORDER BY ts.day_offset DESC, ts.step_id DESC
+            LIMIT 1
+          ),
+          (
+            SELECT ts.step_name 
+            FROM template_steps ts
+            JOIN process_templates pt ON ts.template_id = pt.template_id
+            WHERE pt.variety_id = rent.variety_id
+            ORDER BY ts.day_offset ASC, ts.step_id ASC
+            LIMIT 1
+          ),
+          'Làm đất & Bón lót'
+        ) AS stage,
         p.image_url AS image,
         c.contract_number AS "contractCode",
         c.renter_id AS "renterId",
@@ -2229,9 +2321,15 @@ SELECT json_build_object(
         '35 - 45 kg' AS "expectedYield",
         'Đất phù sa bồi lắng giàu mùn (pH 6.5)' AS "soilType",
         'Hệ thống nước tưới ngầm lọc cát + UV' AS "waterSource",
-        28 AS "currentDay",
-        65 AS "totalDays",
-        45 AS "progressPercent"
+        CASE 
+          WHEN CURRENT_DATE < rent.start_date THEN 0
+          ELSE (CURRENT_DATE - rent.start_date) + 1
+        END AS "currentDay",
+        COALESCE(v.growth_duration_days, 60) AS "totalDays",
+        CASE
+          WHEN CURRENT_DATE < rent.start_date THEN 0
+          ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - rent.start_date + 1)::numeric / NULLIF(COALESCE(v.growth_duration_days, 60), 0)::numeric) * 100)))
+        END AS "progressPercent"
       FROM rentals rent
       JOIN plots p ON rent.plot_id = p.plot_id
       LEFT JOIN lands l ON p.land_id = l.land_id
