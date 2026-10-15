@@ -41,7 +41,7 @@ function ContractDocument({ contract }) {
   const contractNumber = contract?.contractNumber || `HD-${contract?.contractId}`;
 
   return (
-    <article className="contract-print-document mx-auto min-h-[1123px] w-[794px] max-w-none bg-white px-[72px] py-[64px] font-['Times_New_Roman',serif] text-[15px] leading-[1.55] text-black shadow-[0_22px_70px_rgba(31,53,43,0.18)]">
+    <article className="contract-print-document mx-auto min-h-[1123px] w-[794px] max-w-none bg-white px-[72px] py-[64px] font-['Times_New_Roman',serif] text-[15px] leading-[1.55] text-black grayscale shadow-[0_22px_70px_rgba(0,0,0,0.18)]">
       <header>
         <div className="grid grid-cols-2 gap-8 text-center text-[13px] leading-snug">
           <div>
@@ -211,7 +211,7 @@ export default function CustomerContractCenter({ renterId, onRenew }) {
         <main className="relative overflow-auto bg-[#e3e7e1] p-3 sm:p-7">
           {detailLoading && <div className="absolute inset-0 z-10 flex items-start justify-center bg-[#e3e7e1]/70 pt-28 backdrop-blur-[1px]"><span className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold text-stone-600 shadow"><LoaderCircle className="h-4 w-4 animate-spin" />Đang mở tài liệu</span></div>}
           {selectedContract?.contractDocumentUrl ? (
-            <iframe title={`Hợp đồng ${selectedContract.contractNumber}`} src={selectedContract.contractDocumentUrl} className="mx-auto min-h-[1120px] w-full max-w-[794px] border-0 bg-white shadow-xl" />
+            <iframe title={`Hợp đồng ${selectedContract.contractNumber}`} src={selectedContract.contractDocumentUrl} className="mx-auto min-h-[1120px] w-full max-w-[794px] border-0 bg-white grayscale shadow-xl" />
           ) : selectedContract ? <ContractDocument contract={selectedContract} /> : null}
         </main>
       </div>
