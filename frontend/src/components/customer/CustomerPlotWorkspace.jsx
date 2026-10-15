@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea } from 'recharts';
 import { assessMetric, summarizePlot, explainAlert, describeSeries, computeHealthScore, METRIC_RULES } from '../../utils/iotInsights';
+import { useSensorStream } from '../../api/monitoring/useSensorStream';
 import {
   AlertTriangle, ArrowLeft, BookOpen, CalendarCheck, Check, ChevronDown, ChevronRight, CircleDot,
   Clock3, Droplets, LayoutDashboard, Leaf, MapPin, PenLine, Radio, ShoppingBag, Sparkles, Sprout,
@@ -437,7 +438,7 @@ function TasksTab({ operations, onOpenTask }) {
   );
 }
 
-function IotTab({ plot, iotData, alerts }) {
+function IotTab({ plot, iotData, alerts, isConnected = false }) {
   const [timeframe, setTimeframe] = useState('hourly');
   const [metricKey, setMetricKey] = useState('temp');
   const metric = METRICS.find((m) => m.key === metricKey);
@@ -462,7 +463,20 @@ function IotTab({ plot, iotData, alerts }) {
       <Card className="p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Trạm {plot.stationId}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Trạm {plot.stationId}</p>
+              {isConnected ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-ping"></span>
+                  Trực tiếp (SSE) {plot.lastUpdated ? `· ${plot.lastUpdated}` : ''}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-stone-400"></span>
+                  Đồng bộ tự động {plot.lastUpdated ? `· ${plot.lastUpdated}` : ''}
+                </span>
+              )}
+            </div>
             <h3 className="font-heading text-lg font-bold text-[#18352b]">Biểu đồ {metric.label.toLowerCase()}</h3>
           </div>
           <div className="inline-flex rounded-xl bg-stone-100 p-1" role="tablist" aria-label="Khoảng thời gian">
@@ -647,6 +661,86 @@ export default function CustomerPlotWorkspace({
   const pickerRef = useRef(null);
   const tab = PLOT_TABS.some((t) => t.id === activeTab) ? activeTab : 'overview';
   const isSelf = plot.mode === 'Self-Growing';
+
+  // Lấy ID số của thửa đất để kết nối vào telemetry stream của trạm cảm biến
+  const numericPlotId = useMemo(() => {
+    if (!plot) return 1;
+    if (plot.plotId) return Number(plot.plotId);
+    if (plot.mapPlotId) {
+      const m = String(plot.mapPlotId).match(/\d+/);
+      if (m) return Number(m[0]);
+    }
+    const m = String(plot.id || '').match(/\d+/);
+    return m ? Number(m[0]) : 1;
+  }, [plot]);
+
+  // Luồng dữ liệu cảm biến thời gian thực Server-Sent Events (SSE) liên tục từ monitoring-service
+  const { latest, history, isConnected } = useSensorStream(numericPlotId, 24);
+
+  // Ghi đè số liệu cảm biến mới nhất lên plot nếu trạm IoT phát tín hiệu
+  const activePlot = useMemo(() => {
+    if (!latest) return plot;
+    const tempNum = typeof latest.temperature === 'number' ? latest.temperature.toFixed(1) : null;
+    const soilNum = typeof latest.soilHumidity === 'number' ? Math.round(latest.soilHumidity) : null;
+    const airNum = typeof latest.airHumidity === 'number' ? Math.round(latest.airHumidity) : null;
+
+    const recDate = latest.recordedAt ? new Date(latest.recordedAt) : new Date();
+    const hour = !isNaN(recDate.getTime()) ? recDate.getHours() + recDate.getMinutes() / 60 : 12;
+    const diff = Math.abs(hour - 12);
+    const lightVal = hour >= 6 && hour <= 18 ? Math.round(Math.max(0, 1 - (diff / 6) ** 2) * 50) : 0;
+    const lastUpdated = !isNaN(recDate.getTime())
+      ? recDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : null;
+
+    return {
+      ...plot,
+      temp: tempNum !== null ? `${tempNum}°C` : plot.temp,
+      soilMoisture: soilNum !== null ? `${soilNum}%` : plot.soilMoisture,
+      airHumidity: airNum !== null ? `${airNum}%` : plot.airHumidity,
+      light: lightVal > 0 ? `${lightVal}.000 Lux` : '0 Lux',
+      lastUpdated
+    };
+  }, [plot, latest]);
+
+  // Cập nhật mảng lịch sử vẽ biểu đồ thời gian thực từ trạm cảm biến
+  const activeIotData = useMemo(() => {
+    if (!Array.isArray(history) || history.length === 0) return iotData;
+
+    // Phân bố đều ~16 điểm biểu diễn biểu đồ gọn gàng và không rối mắt
+    const targetPoints = 16;
+    let sampled = [];
+    if (history.length <= targetPoints) {
+      sampled = history;
+    } else {
+      const step = (history.length - 1) / (targetPoints - 1);
+      for (let i = 0; i < targetPoints; i++) {
+        sampled.push(history[Math.round(i * step)]);
+      }
+    }
+
+    const hourlyFromLive = sampled.map((item) => {
+      const d = new Date(item.recordedAt);
+      const timeStr = !isNaN(d.getTime())
+        ? d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        : '';
+      const hour = !isNaN(d.getTime()) ? d.getHours() + d.getMinutes() / 60 : 12;
+      const diff = Math.abs(hour - 12);
+      const lightVal = hour >= 6 && hour <= 18 ? Math.round(Math.max(0, 1 - (diff / 6) ** 2) * 50) : 0;
+      return {
+        time: timeStr,
+        temp: Number(Number(item.temperature).toFixed(1)),
+        moisture: Math.round(Number(item.soilHumidity)),
+        airHumidity: Math.round(Number(item.airHumidity)),
+        light: lightVal
+      };
+    });
+
+    return {
+      ...(iotData || {}),
+      hourly: hourlyFromLive.length > 0 ? hourlyFromLive : (iotData?.hourly || [])
+    };
+  }, [history, iotData]);
+
   const openTaskCount = operations.tasks.filter((t) => t.status !== 'COMPLETED').length;
   const badges = useMemo(() => ({ tasks: openTaskCount, iot: alerts.filter((a) => a.level === 'HIGH').length }), [openTaskCount, alerts]);
 
@@ -665,7 +759,7 @@ export default function CustomerPlotWorkspace({
   };
 
   const current = PLOT_TABS.find((t) => t.id === tab);
-  const health = computeHealthScore(plot, alerts);
+  const health = computeHealthScore(activePlot, alerts);
   const daysLeft = Math.max(plot.totalDays - plot.currentDay, 0);
   const heroStats = [
     { label: 'Sức khoẻ', value: health.score ?? '—', unit: '/100', note: health.label, icon: Leaf, tab: 'iot' },
@@ -783,12 +877,12 @@ export default function CustomerPlotWorkspace({
       {/* Nội dung tab — key theo tab để mỗi lần chuyển tab có hiệu ứng vào */}
       <div key={tab} className="mx-auto max-w-[1400px] animate-fadeIn px-4 pt-5 sm:px-6 lg:px-10 lg:pt-7">
         <h2 className="mb-4 font-heading text-lg font-bold text-[#18352b] lg:hidden">{current.label}</h2>
-        {tab === 'overview' && <OverviewTab plot={plot} operations={operations} iotData={iotData} alerts={alerts} stages={stages} harvestPlan={harvestPlan} goTab={goTab} onOpenTask={onOpenTask} onOpenHarvest={onOpenHarvest} />}
+        {tab === 'overview' && <OverviewTab plot={activePlot} operations={operations} iotData={activeIotData} alerts={alerts} stages={stages} harvestPlan={harvestPlan} goTab={goTab} onOpenTask={onOpenTask} onOpenHarvest={onOpenHarvest} />}
         {tab === 'tasks' && <TasksTab operations={operations} onOpenTask={onOpenTask} />}
-        {tab === 'iot' && <IotTab plot={plot} iotData={iotData} alerts={alerts} />}
-        {tab === 'diary' && <DiaryTab plot={plot} operations={operations} onAddDiary={onAddDiary} />}
-        {tab === 'services' && <ServicesTab plot={plot} services={services} orders={serviceOrders} onSelectService={onSelectService} />}
-        {tab === 'harvest' && <HarvestTab plot={plot} harvestPlan={harvestPlan} onOpenHarvest={onOpenHarvest} />}
+        {tab === 'iot' && <IotTab plot={activePlot} iotData={activeIotData} alerts={alerts} isConnected={isConnected} />}
+        {tab === 'diary' && <DiaryTab plot={activePlot} operations={operations} onAddDiary={onAddDiary} />}
+        {tab === 'services' && <ServicesTab plot={activePlot} services={services} orders={serviceOrders} onSelectService={onSelectService} />}
+        {tab === 'harvest' && <HarvestTab plot={activePlot} harvestPlan={harvestPlan} onOpenHarvest={onOpenHarvest} />}
       </div>
 
       {/* Tab của thửa — mobile: thanh dưới đáy */}

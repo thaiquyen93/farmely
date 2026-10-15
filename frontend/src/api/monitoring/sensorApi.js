@@ -3,7 +3,7 @@
  * Cung cấp các hàm gọi REST API và kết nối SSE (Server-Sent Events) thời gian thực.
  */
 
-const BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:8088';
+const BASE_URL = import.meta.env?.VITE_API_BASE_URL || '';
 
 /**
  * Lấy số liệu cảm biến mới nhất của 1 thửa đất (Plot)
@@ -50,15 +50,20 @@ export function subscribePlotSensorStream(plotId, onUpdate, onError) {
   const url = `${BASE_URL}/api/sensors/plots/${plotId}/stream`;
   const eventSource = new EventSource(url);
 
-  // Nhận bản ghi cập nhật cảm biến mới
-  eventSource.addEventListener('SENSOR_UPDATE', (event) => {
+  const handleData = (event) => {
     try {
       const data = JSON.parse(event.data);
-      if (onUpdate) onUpdate(data);
+      if (onUpdate && data && typeof data === 'object') {
+        onUpdate(data);
+      }
     } catch (err) {
-      console.error('[SSE] Lỗi parse dữ liệu SENSOR_UPDATE:', err);
+      console.error('[SSE] Lỗi parse dữ liệu sensor:', err);
     }
-  });
+  };
+
+  // Nhận bản ghi cập nhật cảm biến mới (cả sự kiện có tên SENSOR_UPDATE lẫn tin nhắn ngầm định)
+  eventSource.addEventListener('SENSOR_UPDATE', handleData);
+  eventSource.onmessage = handleData;
 
   // Sự kiện thông báo kết nối thành công
   eventSource.addEventListener('CONNECTED', (event) => {

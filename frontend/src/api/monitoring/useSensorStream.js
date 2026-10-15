@@ -34,8 +34,9 @@ export function useSensorStream(plotId, historyHours = 24) {
         getLatestSensorReading(plotId).catch(() => null)
       ]);
 
-      setHistory(histData || []);
-      setLatest(latestData || (histData?.length ? histData[histData.length - 1] : null));
+      const validHist = Array.isArray(histData) ? histData : [];
+      setHistory(validHist);
+      setLatest(latestData || (validHist.length ? validHist[validHist.length - 1] : null));
     } catch (err) {
       setError(err.message || 'Lỗi nạp dữ liệu cảm biến ban đầu');
     } finally {
@@ -48,26 +49,44 @@ export function useSensorStream(plotId, historyHours = 24) {
 
     fetchInitialData();
 
+    let isStreamActive = false;
+
     // Kết nối luồng Server-Sent Events (SSE)
     const eventSource = subscribePlotSensorStream(
       plotId,
       (newReading) => {
+        isStreamActive = true;
         setIsConnected(true);
         setLatest(newReading);
 
-        // Đẩy điểm đo mới vào mảng lịch sử (giữ tối đa 40 điểm để biểu đồ trượt mượt mà)
+        // Đẩy điểm đo mới vào mảng lịch sử (giữ tối đa 300 điểm)
         setHistory((prev) => {
           const updated = [...prev, newReading];
-          return updated.length > 40 ? updated.slice(updated.length - 40) : updated;
+          return updated.length > 300 ? updated.slice(updated.length - 300) : updated;
         });
       },
       () => {
+        isStreamActive = false;
         setIsConnected(false);
       }
     );
 
-    // Tự động đóng kết nối khi rời khỏi trang
+    // Fallback polling phòng ngừa nếu SSE tạm thời gián đoạn
+    const pollInterval = setInterval(() => {
+      if (!isStreamActive) {
+        getLatestSensorReading(plotId)
+          .then((reading) => {
+            if (reading) {
+              setLatest(reading);
+            }
+          })
+          .catch(() => {});
+      }
+    }, 15000);
+
+    // Tự động đóng kết nối khi rời khỏi trang hoặc đổi plot
     return () => {
+      clearInterval(pollInterval);
       eventSource.close();
     };
   }, [plotId, historyHours]);

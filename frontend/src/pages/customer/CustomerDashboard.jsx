@@ -15,6 +15,7 @@ import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspa
 import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
+import { useSensorStream } from '../../api/monitoring/useSensorStream';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -421,8 +422,68 @@ export default function CustomerDashboard() {
     }
   };
 
-  const currentIotData = (iotDatasets[selectedIotPlotId] || iotDatasets['PLOT-CC-01'])[iotTimeframe];
-  const currentIotPlot = customerPlots.find(p => p.id === selectedIotPlotId) || customerPlots[0];
+  const numericIotPlotId = useMemo(() => {
+    const match = String(selectedIotPlotId || '').match(/\d+/);
+    return match ? Number(match[0]) : 1;
+  }, [selectedIotPlotId]);
+
+  const { latest: iotLatest, history: iotHistory, isConnected: isIotConnected } = useSensorStream(numericIotPlotId, 24);
+
+  const baseIotPlot = customerPlots.find(p => p.id === selectedIotPlotId) || customerPlots[0];
+  const currentIotPlot = useMemo(() => {
+    if (!iotLatest) return baseIotPlot;
+    const tempNum = typeof iotLatest.temperature === 'number' ? iotLatest.temperature.toFixed(1) : null;
+    const soilNum = typeof iotLatest.soilHumidity === 'number' ? Math.round(iotLatest.soilHumidity) : null;
+    const airNum = typeof iotLatest.airHumidity === 'number' ? Math.round(iotLatest.airHumidity) : null;
+
+    const recDate = iotLatest.recordedAt ? new Date(iotLatest.recordedAt) : new Date();
+    const hour = !isNaN(recDate.getTime()) ? recDate.getHours() + recDate.getMinutes() / 60 : 12;
+    const diff = Math.abs(hour - 12);
+    const lightVal = hour >= 6 && hour <= 18 ? Math.round(Math.max(0, 1 - (diff / 6) ** 2) * 50) : 0;
+    const lastUpdated = !isNaN(recDate.getTime())
+      ? recDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : null;
+
+    return {
+      ...baseIotPlot,
+      temp: tempNum !== null ? `${tempNum}°C` : baseIotPlot.temp,
+      soilMoisture: soilNum !== null ? `${soilNum}%` : baseIotPlot.soilMoisture,
+      airHumidity: airNum !== null ? `${airNum}%` : baseIotPlot.airHumidity,
+      light: lightVal > 0 ? `${lightVal}.000 Lux` : '0 Lux',
+      lastUpdated
+    };
+  }, [baseIotPlot, iotLatest]);
+
+  const currentIotData = useMemo(() => {
+    const fallbackDataset = (iotDatasets[selectedIotPlotId] || iotDatasets['PLOT-CC-01'])[iotTimeframe];
+    if (iotTimeframe !== 'hourly' || !Array.isArray(iotHistory) || iotHistory.length === 0) {
+      return fallbackDataset;
+    }
+
+    const targetPoints = 16;
+    let sampled = [];
+    if (iotHistory.length <= targetPoints) {
+      sampled = iotHistory;
+    } else {
+      const step = (iotHistory.length - 1) / (targetPoints - 1);
+      for (let i = 0; i < targetPoints; i++) {
+        sampled.push(iotHistory[Math.round(i * step)]);
+      }
+    }
+
+    return sampled.map((item) => {
+      const d = new Date(item.recordedAt);
+      const timeStr = !isNaN(d.getTime())
+        ? d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+        : '';
+      return {
+        time: timeStr,
+        temp: Number(Number(item.temperature).toFixed(1)),
+        moisture: Math.round(Number(item.soilHumidity)),
+        airHumidity: Math.round(Number(item.airHumidity)),
+      };
+    });
+  }, [selectedIotPlotId, iotTimeframe, iotHistory]);
 
   // Service Catalog (Shop Dịch Vụ Nông Nghiệp)
   const serviceCatalog = [
@@ -1477,6 +1538,17 @@ export default function CustomerDashboard() {
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-cream text-brand-green border border-brand-border mb-2">
                       <Radio className="w-3.5 h-3.5 text-brand-green" />
                       <span>Trạm Quan Trắc IoT Không Dây</span>
+                      {isIotConnected ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full ml-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
+                          Trực tiếp (SSE) {currentIotPlot.lastUpdated ? `· ${currentIotPlot.lastUpdated}` : ''}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-stone-600 bg-stone-200/60 px-2 py-0.5 rounded-full ml-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-stone-400"></span>
+                          Đồng bộ tự động {currentIotPlot.lastUpdated ? `· ${currentIotPlot.lastUpdated}` : ''}
+                        </span>
+                      )}
                     </div>
                     <h2 className="font-heading font-black text-2xl text-brand-dark">
                       Dữ Liệu Vi Khí Hậu IoT

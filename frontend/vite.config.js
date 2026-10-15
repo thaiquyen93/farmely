@@ -29,6 +29,10 @@ export default defineConfig({
       ignored: ['**/public/docs/**', '**/docs/**'],
     },
     proxy: {
+      '/api/sensors': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+      },
       '/api/v1/payments': {
         target: 'http://localhost:8085',
         changeOrigin: true,
