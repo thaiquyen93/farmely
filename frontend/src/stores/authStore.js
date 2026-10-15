@@ -86,6 +86,15 @@ export const useAuthStore = create((set, get) => ({
       };
     } catch (err) {
       console.error('Lỗi kết nối API đăng nhập:', err);
+      // Fallback cho tài khoản demo khi Identity Service offline
+      const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
+      if (demoAcc) {
+        const fallbackToken = 'demo-token-' + demoAcc.id;
+        localStorage.setItem('farmely_token', fallbackToken);
+        localStorage.setItem('farmely_user', JSON.stringify(demoAcc));
+        set({ user: demoAcc, token: fallbackToken, isAuthenticated: true });
+        return { success: true, user: demoAcc };
+      }
       return {
         success: false,
         message: 'Không thể kết nối đến máy chủ xác thực (Identity Service).'
