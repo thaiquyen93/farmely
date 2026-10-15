@@ -14,6 +14,7 @@ import {
   Sprout
 } from 'lucide-react';
 import { getContractById, getCustomerContracts } from '../../api/contracts/contractsApi';
+import { RENTAL_TERMS, RENTAL_TERMS_VERSION } from '../../data/rentalTerms';
 
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -96,9 +97,7 @@ function ContractDocument({ contract }) {
 
       <section className="mt-7 grid gap-6 text-sm sm:grid-cols-[1fr_230px]">
         <div className="space-y-5">
-          <div><h2 className="font-heading font-black">Điều 2. Quyền và nghĩa vụ</h2><p className="mt-2 leading-7 text-[#3f5149]">Bên B sử dụng đúng thửa đất, giống cây và quy trình kỹ thuật đã đăng ký; theo dõi nhật ký canh tác và phản hồi kịp thời các cảnh báo trên hệ thống.</p></div>
-          <div><h2 className="font-heading font-black">Điều 3. Thanh toán và hiệu lực</h2><p className="mt-2 leading-7 text-[#3f5149]">Hợp đồng có hiệu lực sau khi Farmely xác nhận thanh toán. Việc xác nhận điện tử có giá trị đối với toàn bộ nội dung hợp đồng tại thời điểm giao kết.</p></div>
-          <div><h2 className="font-heading font-black">Điều 4. Thay đổi và chấm dứt</h2><p className="mt-2 leading-7 text-[#3f5149]">Gia hạn, hủy hợp đồng và hoàn tiền được xử lý theo trạng thái thuê cùng chính sách hiển thị trên nền tảng Farmely.</p></div>
+          {RENTAL_TERMS.slice(2).map(({ title, content }) => <div key={title}><h2 className="font-heading font-black">{title}</h2><p className="mt-2 leading-7 text-[#3f5149]">{content}</p></div>)}
         </div>
         <aside className="h-fit border border-[#9eb3a6] bg-[#f1f5ef] p-5">
           <p className="text-xs font-bold text-[#52655d]">TỔNG GIÁ TRỊ HỢP ĐỒNG</p>
@@ -114,7 +113,7 @@ function ContractDocument({ contract }) {
         <div><p className="font-bold">ĐẠI DIỆN BÊN A</p><p className="mt-1 text-xs text-[#687870]">Farmely xác nhận điện tử</p><div className="mx-auto mt-5 flex w-36 -rotate-3 items-center justify-center gap-2 rounded-full border-2 border-[#1f6b4f] px-3 py-2 text-xs font-black text-[#1f6b4f]"><ShieldCheck className="h-4 w-4" /> ĐÃ XÁC NHẬN</div></div>
         <div><p className="font-bold">BÊN B</p><p className="mt-1 text-xs text-[#687870]">{contract?.renterName || 'Khách hàng Farmely'}</p><p className="mt-8 font-semibold text-[#1f6b4f]"><CheckCircle2 className="mr-1 inline h-4 w-4" />Đã đồng ý điều khoản điện tử</p></div>
       </footer>
-      <p className="mt-12 text-center text-[10px] text-[#7b8981]">Tài liệu được tạo từ dữ liệu hợp đồng trên hệ thống Farmely · Mã hồ sơ {contract?.contractId || '—'}</p>
+      <p className="mt-12 text-center text-[10px] text-[#7b8981]">Tài liệu được tạo từ dữ liệu hợp đồng trên hệ thống Farmely · Mã hồ sơ {contract?.contractId || '—'} · Điều khoản {RENTAL_TERMS_VERSION}</p>
     </article>
   );
 }

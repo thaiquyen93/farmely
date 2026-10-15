@@ -32,6 +32,7 @@ import {
 import VnPayModal from '../../components/payment/VnPayModal';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import { apiFetch, unwrapData } from '../../api/apiClient';
+import { RENTAL_TERMS, RENTAL_TERMS_VERSION } from '../../data/rentalTerms';
 
 export const BOOKING_START_LEAD_DAYS = 10;
 
@@ -167,6 +168,7 @@ export default function BookPlot() {
   const [showCardModal, setShowCardModal] = useState(false);
   const [qrData, setQrData] = useState(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsError, setTermsError] = useState('');
   const [bookingError, setBookingError] = useState('');
   const [reservation, setReservation] = useState(null);
@@ -357,7 +359,10 @@ export default function BookPlot() {
   const handleConfirmBooking = async () => {
     const validationError = getBookingValidationError({ acceptedTerms, selectedMode, assistedService });
     if (validationError) {
-      if (!acceptedTerms) setTermsError(validationError);
+      if (!acceptedTerms) {
+        setTermsError(validationError);
+        setShowTermsModal(true);
+      }
       else setBookingError(validationError);
       return;
     }
@@ -962,10 +967,10 @@ export default function BookPlot() {
                   <p>• Hoàn 50% khi hủy trong vòng 3 ngày trước ngày bắt đầu.</p>
                 </div>
 
-                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-brand-border bg-white p-3 text-xs text-stone-700">
-                  <input type="checkbox" checked={acceptedTerms} onChange={(event) => { setAcceptedTerms(event.target.checked); if (event.target.checked) setTermsError(''); }} className="mt-0.5 h-4 w-4 accent-emerald-700" />
-                  <span>Tôi đã đọc và đồng ý với <Link to="/terms" target="_blank" className="font-bold text-brand-green underline underline-offset-2">điều khoản thuê đất và thanh toán của Farmely</Link>.</span>
-                </label>
+                <button type="button" onClick={() => setShowTermsModal(true)} className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left text-xs transition ${acceptedTerms ? 'border-emerald-300 bg-emerald-50 text-emerald-900' : 'border-brand-border bg-white text-stone-700 hover:border-emerald-300'}`}>
+                  <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${acceptedTerms ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-stone-300 bg-white'}`}>{acceptedTerms && <CheckCircle2 className="h-3 w-3" />}</span>
+                  <span>{acceptedTerms ? 'Đã đọc và chấp nhận' : 'Đọc và chấp nhận'} <strong className="text-brand-green underline underline-offset-2">điều khoản thuê đất và thanh toán của Farmely</strong>.</span>
+                </button>
                 {termsError && <p role="alert" className="text-xs font-semibold text-rose-600">{termsError}</p>}
                 {bookingError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">{bookingError}</p>}
 
@@ -1069,6 +1074,43 @@ export default function BookPlot() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showTermsModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-stone-950/70 p-3 backdrop-blur-sm sm:p-6">
+          <section role="dialog" aria-modal="true" aria-labelledby="rental-terms-title" className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl">
+            <header className="flex items-start justify-between gap-4 border-b border-brand-border bg-[#f4f7f1] px-5 py-4 sm:px-7">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Dự thảo hợp đồng Farmely</p>
+                <h2 id="rental-terms-title" className="mt-1 font-heading text-xl font-black text-brand-dark">Điều khoản thuê thửa đất và canh tác</h2>
+                <p className="mt-1 text-xs text-stone-500">Phiên bản {RENTAL_TERMS_VERSION}</p>
+              </div>
+              <button type="button" onClick={() => setShowTermsModal(false)} aria-label="Đóng điều khoản" className="rounded-xl p-2 text-stone-500 hover:bg-white hover:text-stone-800"><X className="h-5 w-5" /></button>
+            </header>
+
+            <div className="overflow-y-auto px-5 py-5 sm:px-8 sm:py-7">
+              <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-900">
+                Đây là nội dung sẽ được ghi nhận cùng hợp đồng điện tử. Vui lòng kiểm tra đặc biệt các điều về thời hạn, thanh toán, hoàn tiền, rủi ro mùa vụ và dữ liệu trước khi đồng ý.
+              </div>
+              <div className="space-y-6">
+                {RENTAL_TERMS.map(({ title, content }) => (
+                  <article key={title}>
+                    <h3 className="font-heading text-sm font-black text-brand-dark">{title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-stone-600">{content}</p>
+                  </article>
+                ))}
+              </div>
+              <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs leading-6 text-emerald-900">
+                Khi chọn “Tôi đồng ý”, hệ thống ghi nhận sự chấp thuận đối với đúng phiên bản điều khoản này. Bạn vẫn có thể đóng cửa sổ để quay lại kiểm tra đơn thuê trước khi thanh toán.
+              </div>
+            </div>
+
+            <footer className="flex flex-col-reverse gap-3 border-t border-brand-border bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
+              <button type="button" onClick={() => setShowTermsModal(false)} className="rounded-xl border border-brand-border px-5 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-50">Để tôi xem lại đơn</button>
+              <button type="button" onClick={() => { setAcceptedTerms(true); setTermsError(''); setShowTermsModal(false); }} className="rounded-xl bg-brand-green px-5 py-2.5 text-xs font-black text-white hover:bg-emerald-800">Tôi đã đọc và đồng ý</button>
+            </footer>
+          </section>
         </div>
       )}
 
