@@ -149,9 +149,11 @@ public class RentalServiceImpl implements RentalService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<RentalResponse> getAllRentals(Integer plotId, Integer contractId, RentalStatus status) {
+    public List<RentalResponse> getAllRentals(Integer renterId, Integer plotId, Integer contractId, RentalStatus status) {
         List<RentalEntity> list;
-        if (contractId != null) {
+        if (renterId != null) {
+            list = rentalRepository.findByRenterId(renterId);
+        } else if (contractId != null) {
             list = rentalRepository.findByContractId(contractId);
         } else if (plotId != null && status != null) {
             list = rentalRepository.findByPlotIdAndStatus(plotId, status);

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
-import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
+import { useAuthStore } from '../../stores/authStore';
 import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceInteractiveMap';
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
 import { FARMS_GEOJSON_DATA } from '../../data/marketplaceGisData';
@@ -14,7 +14,7 @@ export default function Marketplace() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { user, isAuthenticated, login } = useAuthStore();
+  const { user, isAuthenticated } = useAuthStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -45,7 +45,7 @@ export default function Marketplace() {
     let active = true;
     async function loadPlotsFromDb() {
       try {
-        const res = await fetch('/api/v1/plots');
+        const res = await fetch('/api/plots/marketplace');
         if (res.ok) {
           const json = await res.json();
           const list = Array.isArray(json) ? json : (json.data || []);
@@ -55,7 +55,7 @@ export default function Marketplace() {
           }
         }
       } catch (err) {
-        console.warn('[Marketplace] Fetch /api/v1/plots fallback to GIS data:', err);
+        console.warn('[Marketplace] Fetch /api/plots/marketplace fallback to GIS data:', err);
       }
     }
     loadPlotsFromDb();
@@ -68,7 +68,7 @@ export default function Marketplace() {
 
     const dbMap = new Map();
     dbPlots.forEach((dp) => {
-      const codeKey = (dp.plot_code || dp.code || '').toUpperCase().replace('PLOT ', '').trim();
+      const codeKey = (dp.plot_code || dp.plotCode || dp.code || '').toUpperCase().replace('PLOT ', '').trim();
       dbMap.set(codeKey, dp);
     });
 
@@ -88,14 +88,18 @@ export default function Marketplace() {
         ...feat,
         properties: {
           ...p,
-          plot_id: match.plot_id || p.plot_id,
+          plot_id: match.plot_id || match.plotId || p.plot_id,
           status: liveStatus,
           statusCode: match.status,
           price: match.price_text || p.price,
-          rentalPrice: match.price_per_period ? Number(match.price_per_period) : p.rentalPrice,
+          rentalPrice: (match.price_per_period || match.pricePerPeriod) ? Number(match.price_per_period || match.pricePerPeriod) : p.rentalPrice,
           area: match.area_text || p.area,
           sizeNumber: match.area ? Number(match.area) : p.sizeNumber,
-          compatibleCrops: (match.compatible_crops && match.compatible_crops.length > 0) ? match.compatible_crops : p.compatibleCrops,
+          compatibleCrops: match.compatible_crops?.length
+            ? match.compatible_crops
+            : (match.compatibleVarieties?.length
+                ? match.compatibleVarieties.map((item) => item.cropName || item.varietyName)
+                : p.compatibleCrops),
           dbSynced: true
         }
       };
@@ -330,16 +334,9 @@ export default function Marketplace() {
     }
   };
 
-  // Đăng nhập nhanh tài khoản mẫu khách hàng
   const handleQuickDemoLogin = () => {
-    login('customer@farmely.vn', '123456');
     setShowAuthModal(false);
-    if (plotToBook) {
-      const plotCodes = contractSelectedPlots.length > 0
-        ? contractSelectedPlots.map((p) => p.code || p.id).join(',')
-        : (plotToBook.code || plotToBook.id);
-      navigate(`/marketplace/plot/${plotToBook.id || plotToBook.code}/book?plots=${plotCodes}`);
-    }
+    navigate(`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`);
   };
 
   return (

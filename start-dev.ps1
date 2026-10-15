@@ -4,15 +4,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
-$runtimeDir = Join-Path $projectRoot '.run'
-$jdkCandidates = @(
-    'C:\Program Files\Java\jdk-25',
-    'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot'
-)
-$jdkHome = $jdkCandidates | Where-Object { Test-Path (Join-Path $_ 'bin\java.exe') } | Select-Object -First 1
+$dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
+if (-not $dockerCommand) { throw 'Không tìm thấy Docker CLI. Hãy cài Docker Desktop trước khi chạy Farmely.' }
 
-if (-not $jdkHome) {
-    throw "JDK not found in: $($jdkCandidates -join ', ')"
+function Test-DockerEngine {
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    & $dockerCommand.Source ps --format '{{.ID}}' 2>$null | Out-Null
+    $ready = $LASTEXITCODE -eq 0
+    $ErrorActionPreference = $previousPreference
+    return $ready
 }
 
 $env:JAVA_HOME = $jdkHome
@@ -203,3 +204,4 @@ try {
 finally {
     Pop-Location
 }
+finally { Pop-Location }

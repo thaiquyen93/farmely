@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, ShoppingCart, User, LogOut, ChevronDown, Menu, X, Shield, Sprout, ClipboardCheck, ShieldCheck, Settings, LayoutDashboard, Check, Bell, Lock, Calendar, Clock, ExternalLink, Home, Info, Eye, EyeOff } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
+import { apiFetch, unwrapData } from '../../api/apiClient';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 
@@ -11,6 +12,9 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [aboutDropdownOpen, setAboutDropdownOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationError, setNotificationError] = useState('');
+  const [notificationLoading, setNotificationLoading] = useState(false);
 
   // User Profile & Settings Modals
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -23,6 +27,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
     bio: ''
   });
   const [profileSuccessMsg, setProfileSuccessMsg] = useState('');
+  const [profileErrorMsg, setProfileErrorMsg] = useState('');
 
   const [settingsForm, setSettingsForm] = useState({
     emailNoti: true,
@@ -31,9 +36,12 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
     twoFactor: false
   });
   const [settingsSuccessMsg, setSettingsSuccessMsg] = useState('');
+  const [passwordForm, setPasswordForm] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
+  const [showPasswords, setShowPasswords] = useState({ old: false, next: false, confirm: false });
+  const [settingsErrorMsg, setSettingsErrorMsg] = useState('');
   const [showSettingsPasswords, setShowSettingsPasswords] = useState(false);
 
-  const { user, isAuthenticated, logout, updateUser } = useAuthStore();
+  const { user, isAuthenticated, logout, updateUser, refreshUser } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -58,6 +66,68 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
       setSettingsForm((current) => ({ ...current, ...savedSettings }));
     }
   }, [user]);
+
+  useEffect(() => {
+    if (isAuthenticated) refreshUser().catch(() => {});
+  }, [isAuthenticated, refreshUser]);
+
+  const toggleNotifications = async () => {
+    const nextOpen = !notificationOpen;
+    setNotificationOpen(nextOpen);
+    if (!nextOpen || !user?.userId) return;
+    setNotificationLoading(true);
+    setNotificationError('');
+    try {
+      setNotifications(unwrapData(await apiFetch(`/api/v1/notifications?userId=${user.userId}`)) || []);
+    } catch (error) {
+      setNotifications([]);
+      setNotificationError(error.message);
+    } finally {
+      setNotificationLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async (event) => {
+    event.preventDefault();
+    setProfileErrorMsg('');
+    try {
+      if (!user?.userId) throw new Error('Phiên đăng nhập không có mã người dùng.');
+      const updated = unwrapData(await apiFetch(`/api/users/${user.userId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ fullName: profileForm.fullName, phoneNumber: profileForm.phone, address: profileForm.address })
+      }));
+      updateUser(updated);
+      setProfileSuccessMsg('Đã cập nhật thông tin hồ sơ thành công!');
+      setTimeout(() => setProfileSuccessMsg(''), 3000);
+    } catch (error) {
+      setProfileErrorMsg(`Không thể cập nhật hồ sơ: ${error.message}`);
+    }
+  };
+
+  const handleSaveSettings = async (event) => {
+    event.preventDefault();
+    setSettingsErrorMsg('');
+    if (passwordForm.newPassword && passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setSettingsErrorMsg('Mật khẩu xác nhận không khớp.');
+      return;
+    }
+    try {
+      if (passwordForm.newPassword) {
+        if (passwordForm.newPassword.length < 6) throw new Error('Mật khẩu mới phải có ít nhất 6 ký tự.');
+        if (!user?.userId) throw new Error('Hãy đăng nhập bằng tài khoản hệ thống để đổi mật khẩu.');
+        await apiFetch(`/api/users/${user.userId}/password`, {
+          method: 'PUT',
+          body: JSON.stringify({ oldPassword: passwordForm.oldPassword, newPassword: passwordForm.newPassword })
+        });
+      }
+      localStorage.setItem(`farmely_settings_${user?.userId || user?.id || 'guest'}`, JSON.stringify(settingsForm));
+      setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
+      setSettingsSuccessMsg('Mật khẩu đã đồng bộ; các tùy chọn thông báo được lưu cục bộ trên thiết bị này.');
+      setTimeout(() => setSettingsSuccessMsg(''), 3000);
+    } catch (error) {
+      setSettingsErrorMsg(error.message);
+    }
+  };
 
   const handleScrollToSection = (sectionId) => {
     setAboutDropdownOpen(false);
@@ -377,17 +447,18 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
 
             {isAuthenticated && user?.role === 'CUSTOMER' && (
               <div className="relative">
-                <button type="button" onClick={() => setNotificationOpen((value) => !value)} className="relative flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10 hover:text-brand-yellow" aria-label="Thông báo IoT">
+                <button type="button" onClick={toggleNotifications} className="relative flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10 hover:text-brand-yellow" aria-label="Thông báo">
                   <Bell className="h-4 w-4" />
                   <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-[#294C3B] bg-orange-400" />
                 </button>
                 {notificationOpen && (
                   <div className="absolute right-0 z-[70] mt-3 w-80 rounded-2xl border border-brand-border bg-white p-3 text-brand-dark shadow-elevated">
-                    <div className="flex items-center justify-between border-b border-brand-border pb-2"><p className="text-xs font-black">Cảnh báo IoT gần đây</p><span className="text-[10px] font-bold text-emerald-600">3 thông báo</span></div>
+                    <div className="flex items-center justify-between border-b border-brand-border pb-2"><p className="text-xs font-black">Thông báo gần đây</p><span className="text-[10px] font-bold text-emerald-600">{notifications.length} thông báo</span></div>
                     <div className="mt-2 space-y-1">
-                      <button type="button" onClick={() => { setNotificationOpen(false); navigate(`/customer/dashboard?plot=PLOT-CC-01&notice=${Date.now()}`); }} className="w-full rounded-xl bg-sky-50 p-3 text-left transition hover:ring-2 hover:ring-sky-200"><p className="text-xs font-bold text-sky-900">Mưa có thể đến sau 45 phút</p><p className="mt-1 text-[10px] text-sky-700">Thửa Sen Vàng A1 · lịch tưới đã được tạm hoãn.</p></button>
-                      <button type="button" onClick={() => { setNotificationOpen(false); navigate(`/customer/dashboard?plot=PLOT-MC-02&notice=${Date.now()}`); }} className="w-full rounded-xl bg-amber-50 p-3 text-left transition hover:ring-2 hover:ring-amber-200"><p className="text-xs font-bold text-amber-900">Cường độ nắng cao lúc 12:00</p><p className="mt-1 text-[10px] text-amber-700">Thửa Mộc Châu B2 · nên kiểm tra độ ẩm đất.</p></button>
-                      <button type="button" onClick={() => { setNotificationOpen(false); navigate(`/customer/dashboard?plot=PLOT-CG-03&notice=${Date.now()}`); }} className="w-full rounded-xl bg-stone-50 p-3 text-left transition hover:ring-2 hover:ring-stone-200"><p className="text-xs font-bold text-stone-800">Gió tăng lên 28 km/h</p><p className="mt-1 text-[10px] text-stone-600">Thửa Rừng Sác C3 · kiểm tra dây buộc giàn.</p></button>
+                      {notificationLoading && <p className="p-3 text-xs text-brand-muted">Đang tải thông báo...</p>}
+                      {notificationError && <p className="rounded-xl bg-rose-50 p-3 text-xs text-rose-700">{notificationError}</p>}
+                      {!notificationLoading && !notificationError && notifications.length === 0 && <p className="p-3 text-xs text-brand-muted">Chưa có thông báo.</p>}
+                      {notifications.map((notice) => <div key={notice.notificationId || notice.id} className="rounded-xl bg-stone-50 p-3 text-left"><p className="text-xs font-bold text-stone-800">{notice.title}</p><p className="mt-1 text-[10px] text-stone-600">{notice.content}</p></div>)}
                     </div>
                   </div>
                 )}
@@ -422,11 +493,9 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                     className="flex items-center gap-2 pl-2 pr-3 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 transition-all text-white"
                   >
-                    <img
-                      src={user?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"}
-                      alt={user?.fullName}
-                      className="w-7 h-7 rounded-full object-cover border border-white/40"
-                    />
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/40 bg-brand-cream text-[10px] font-black text-brand-dark">
+                      {(user?.fullName || 'U').trim().charAt(0).toUpperCase()}
+                    </span>
                     <span className="text-xs font-bold truncate max-w-[100px]">
                       {user?.fullName}
                     </span>
@@ -437,8 +506,8 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                     <div className="absolute right-0 mt-2 w-64 bg-white text-brand-dark rounded-2xl shadow-elevated border border-brand-border py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-xs">
                       {/* User Header */}
                       <div className="px-4 py-2.5 border-b border-brand-border/60">
-                        <p className="font-bold text-brand-dark text-sm truncate">{user?.fullName || 'Lô Thái Quyền'}</p>
-                        <p className="text-[11px] text-brand-muted truncate">{user?.email || 'customer@farmely.vn'}</p>
+                        <p className="font-bold text-brand-dark text-sm truncate">{user?.fullName || 'Người dùng'}</p>
+                        <p className="text-[11px] text-brand-muted truncate">{user?.email}</p>
                         <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                           {user?.roleTitle || (user?.role === 'CUSTOMER' ? 'Khách hàng thuê đất' : user?.role === 'ADMIN' ? 'Quản trị viên hệ thống' : user?.role === 'EXPERT' ? 'Chuyên gia nông nghiệp' : 'Chuyên viên lao động')}
                         </span>
@@ -740,16 +809,15 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               <span>{profileSuccessMsg}</span>
             </div>
           )}
+          {profileErrorMsg && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 font-bold text-rose-700">{profileErrorMsg}</div>}
 
           <div className="flex items-center gap-4 p-3.5 bg-stone-50 rounded-2xl border border-stone-200">
-            <img
-              src={user?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80"}
-              alt={user?.fullName}
-              className="w-14 h-14 rounded-full object-cover border-2 border-brand-yellow shadow-sm"
-            />
+            <span className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-brand-yellow bg-white text-lg font-black text-brand-dark shadow-sm">
+              {(user?.fullName || 'U').trim().charAt(0).toUpperCase()}
+            </span>
             <div className="space-y-1">
-              <p className="font-bold text-brand-dark text-sm">{profileForm.fullName || user?.fullName || 'Lô Thái Quyền'}</p>
-              <p className="text-stone-500 text-[11px]">{user?.email || 'customer@farmely.vn'}</p>
+              <p className="font-bold text-brand-dark text-sm">{profileForm.fullName || user?.fullName || 'Người dùng'}</p>
+              <p className="text-stone-500 text-[11px]">{user?.email}</p>
               <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                 {user?.roleTitle || (user?.role === 'CUSTOMER' ? 'Khách hàng thuê đất' : user?.role === 'ADMIN' ? 'Quản trị viên hệ thống' : user?.role === 'EXPERT' ? 'Chuyên gia nông nghiệp' : 'Chuyên viên lao động')}
               </span>
@@ -790,22 +858,11 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
             />
           </div>
 
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Giới thiệu ngắn:</label>
-            <textarea
-              rows={2}
-              value={profileForm.bio}
-              onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
           {user?.role === 'CUSTOMER' && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <button type="button" onClick={() => { setIsProfileModalOpen(false); navigate('/customer/dashboard?view=contracts'); }} className="w-full rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-left transition hover:bg-emerald-100">
               <div className="flex items-center gap-2 font-bold text-emerald-900"><ClipboardCheck className="h-4 w-4" /> Hợp đồng thuê của tôi</div>
               <p className="mt-1 text-[11px] text-emerald-800">Quản lý thời hạn, thửa đang thuê và quyền lợi trong hồ sơ khách hàng.</p>
-              <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-bold text-emerald-900"><span className="rounded-full bg-white px-2 py-1">3 thửa đang thuê</span><span className="rounded-full bg-white px-2 py-1">Đang hiệu lực</span></div>
-            </div>
+            </button>
           )}
 
           <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
@@ -849,6 +906,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               <span>{settingsSuccessMsg}</span>
             </div>
           )}
+          {settingsErrorMsg && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 font-bold text-rose-700">{settingsErrorMsg}</div>}
 
           {/* Section 1: Notifications */}
           <div className="space-y-2">
@@ -856,8 +914,9 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               Thông Báo & Cảnh Báo Mùa Vụ
             </h5>
             <div className="space-y-2.5 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
+              <p className="rounded-lg bg-amber-50 p-2 text-[10px] font-semibold text-amber-800">Các tùy chọn dưới đây là thiết lập cục bộ trên trình duyệt; backend chưa có API đồng bộ.</p>
               <label className="flex items-center justify-between cursor-pointer">
-                <div>
+                <div className="relative">
                   <span className="font-bold text-brand-dark block">Thông báo qua Email</span>
                   <span className="text-stone-500 text-[11px]">Nhận báo cáo tiến độ mùa vụ và nhật ký canh tác thực địa</span>
                 </div>
@@ -905,20 +964,30 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
             <div className="space-y-2.5 bg-stone-50 p-3.5 rounded-2xl border border-stone-200">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <div>
-                  <label className="block font-medium text-stone-700 mb-1">Mật khẩu mới:</label>
+                  <label className="block font-medium text-stone-700 mb-1">Mật khẩu hiện tại:</label>
                   <input
                     type={showSettingsPasswords ? 'text' : 'password'}
                     placeholder="••••••••"
-                    className="w-full p-2 rounded-lg border border-brand-border bg-white text-xs"
+                    value={passwordForm.oldPassword}
+                    onChange={(event) => setPasswordForm({ ...passwordForm, oldPassword: event.target.value })}
+                    className="w-full p-2 pr-12 rounded-lg border border-brand-border bg-white text-xs"
                   />
+                  <button type="button" onClick={() => setShowPasswords((s) => ({ ...s, old: !s.old }))} className="absolute right-2 top-8 p-1 text-stone-500">{showPasswords.old ? 'Ẩn' : 'Hiện'}</button>
+                </div>
+                <div className="relative">
+                  <label className="block font-medium text-stone-700 mb-1">Mật khẩu mới:</label>
+                  <div className="relative"><input type={showPasswords.next ? 'text' : 'password'} placeholder="••••••••" value={passwordForm.newPassword} onChange={(event) => setPasswordForm({ ...passwordForm, newPassword: event.target.value })} className="w-full p-2 pr-12 rounded-lg border border-brand-border bg-white text-xs" /><button type="button" onClick={() => setShowPasswords((s) => ({ ...s, next: !s.next }))} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-stone-500">{showPasswords.next ? 'Ẩn' : 'Hiện'}</button></div>
                 </div>
                 <div>
                   <label className="block font-medium text-stone-700 mb-1">Xác nhận mật khẩu:</label>
                   <input
                     type={showSettingsPasswords ? 'text' : 'password'}
                     placeholder="••••••••"
-                    className="w-full p-2 rounded-lg border border-brand-border bg-white text-xs"
+                    value={passwordForm.confirmPassword}
+                    onChange={(event) => setPasswordForm({ ...passwordForm, confirmPassword: event.target.value })}
+                    className="w-full p-2 pr-12 rounded-lg border border-brand-border bg-white text-xs"
                   />
+                  <button type="button" onClick={() => setShowPasswords((s) => ({ ...s, confirm: !s.confirm }))} className="absolute right-2 top-8 p-1 text-stone-500">{showPasswords.confirm ? 'Ẩn' : 'Hiện'}</button>
                 </div>
               </div>
               <button type="button" onClick={() => setShowSettingsPasswords((value) => !value)} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-xs font-bold text-brand-green hover:bg-emerald-50">
@@ -929,9 +998,10 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                 <span className="text-stone-700 font-medium">Bật xác thực hai yếu tố (2FA) qua ứng dụng</span>
                 <input
                   type="checkbox"
-                  checked={settingsForm.twoFactor}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, twoFactor: e.target.checked })}
-                  className="w-4 h-4 accent-brand-green rounded cursor-pointer"
+                  checked={false}
+                  disabled
+                  readOnly
+                  className="w-4 h-4 accent-brand-green rounded"
                 />
               </label>
             </div>

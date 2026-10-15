@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 public class ServiceResponse {
 
     private Integer serviceId;
+    private String serviceCode;
     private String serviceName;
     private ServiceType serviceType;
     private BigDecimal price;

@@ -21,7 +21,7 @@ export default function VnPayReturn() {
 
     const verifyVnPayPayment = async () => {
       try {
-        const res = await fetch(`http://localhost:8085/api/v1/payments/vnpay/return${search}`);
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/payments/vnpay/return${search}`);
         if (res.ok) {
           const data = await res.json();
           setResult(data?.data);
@@ -50,7 +50,7 @@ export default function VnPayReturn() {
             amount: amount,
             gatewayRef: transactionNo || txnRef,
             paymentMethod: 'VNPAY',
-            message: 'Khách hàng hủy giao dịch hoặc thẻ không hợp lệ trên VNPay Sandbox'
+            message: 'Khách hàng hủy giao dịch hoặc thẻ không hợp lệ trên VNPay'
           });
         }
       } finally {
@@ -97,7 +97,7 @@ export default function VnPayReturn() {
             <div className="flex items-center justify-between mb-2">
               <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 text-emerald-100 flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                VNPAY SANDBOX TEST GATEWAY
+            CỔNG THANH TOÁN VNPAY
               </span>
               <span className="text-xs font-mono text-emerald-100/90">
                 Mã: {vnpTxnRef}
@@ -117,7 +117,7 @@ export default function VnPayReturn() {
               <div className="py-12 flex flex-col items-center justify-center space-y-4">
                 <div className="w-12 h-12 border-4 border-[#294C3B] border-t-transparent rounded-full animate-spin"></div>
                 <p className="text-sm font-medium text-stone-600">
-                  Đang đối soát chữ ký bảo mật từ VNPAY Sandbox...
+                  Đang đối soát chữ ký bảo mật từ VNPAY...
                 </p>
               </div>
             ) : result?.status === 'SUCCESS' || responseCode === '00' ? (
@@ -146,7 +146,7 @@ export default function VnPayReturn() {
                 <div className="w-full bg-stone-50 rounded-2xl p-4 border border-stone-200 text-xs text-left space-y-2 mt-2">
                   <div className="flex justify-between items-center pb-2 border-b border-stone-200">
                     <span className="text-stone-500">Cổng thanh toán:</span>
-                    <strong className="text-[#294C3B] font-bold">VNPAY (Sandbox 2.1.0)</strong>
+                    <strong className="text-[#294C3B] font-bold">VNPAY</strong>
                   </div>
                   <div className="flex justify-between items-center pb-2 border-b border-stone-200">
                     <span className="text-stone-500">Ngân hàng phát hành:</span>
@@ -190,7 +190,7 @@ export default function VnPayReturn() {
                     Giao Dịch Không Thành Công
                   </h3>
                   <p className="text-xs text-stone-600 max-w-sm">
-                    {result?.message || 'Giao dịch đã bị hủy hoặc bị từ chối trên cổng thanh toán VNPAY Sandbox (Mã lỗi: ' + (responseCode || 'CANCEL') + ')'}
+                    {result?.message || 'Giao dịch đã bị hủy hoặc bị từ chối trên cổng thanh toán VNPAY (Mã lỗi: ' + (responseCode || 'CANCEL') + ')'}
                   </p>
                 </div>
 

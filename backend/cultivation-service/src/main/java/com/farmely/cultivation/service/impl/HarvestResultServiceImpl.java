@@ -93,6 +93,9 @@ public class HarvestResultServiceImpl implements HarvestResultService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy kết quả thu hoạch với mã: " + harvestId));
 
         entity.setCustomerConfirmed(request.getConfirmed() != null ? request.getConfirmed() : true);
+        if (request.getDeliveryType() != null) {
+            entity.setDeliveryType(request.getDeliveryType());
+        }
         HarvestResultEntity saved = harvestResultRepository.save(entity);
 
         log.info("Customer confirmed harvest #{}", saved.getHarvestId());

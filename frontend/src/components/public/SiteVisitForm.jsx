@@ -133,7 +133,7 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess }) {
       <div className="mb-6">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-brand-cream text-brand-green border border-brand-border mb-2">
           <PhoneCall className="w-3.5 h-3.5" />
-          <span>Khảo Sát Thực Địa (SCR-PUB-05)</span>
+          <span>Khảo Sát Thực Địa</span>
         </div>
         <h2 className="font-heading text-2xl font-black text-brand-dark">
           Đăng Ký Tham Quan Nông Trại

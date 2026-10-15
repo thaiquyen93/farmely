@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
@@ -45,6 +45,8 @@ export default function FieldWorkerDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'issues' | 'harvest'
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [dataError, setDataError] = useState('');
+  const [dataSuccess, setDataSuccess] = useState('');
 
   // Assigned care tasks loaded from the cultivation service.
   const [tasks, setTasks] = useState([]);
@@ -53,15 +55,17 @@ export default function FieldWorkerDashboard() {
   // Modal State for Task Execution / Completing with Photo Proof
   const [selectedTaskToExecute, setSelectedTaskToExecute] = useState(null);
   const [taskProofNote, setTaskProofNote] = useState('');
+  const [taskProofPhoto, setTaskProofPhoto] = useState('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   // Worker field issue reports loaded from the cultivation service.
   const [myIssues, setMyIssues] = useState([]);
   const [showNewIssueModal, setShowNewIssueModal] = useState(false);
-  const [newIssuePlot, setNewIssuePlot] = useState('P-01');
+  const [newIssuePlot, setNewIssuePlot] = useState('');
   const [newIssueType, setNewIssueType] = useState('Sâu bệnh mặt lá');
   const [newIssueDesc, setNewIssueDesc] = useState('');
   const [newIssueUrgency, setNewIssueUrgency] = useState('NORMAL');
+  const [newIssuePhoto, setNewIssuePhoto] = useState('');
 
   // Harvest records loaded from the cultivation service.
   const [harvestTasks, setHarvestTasks] = useState([]);
@@ -152,6 +156,10 @@ export default function FieldWorkerDashboard() {
   const handleConfirmCompleteTask = async (e) => {
     e.preventDefault();
     if (!selectedTaskToExecute) return;
+    if (!taskProofPhoto) {
+      setDataError('Ảnh minh chứng là bắt buộc theo quy trình nghiệm thu công việc.');
+      return;
+    }
 
     if (selectedTaskToExecute.apiId) {
       const response = await fetch(`/api/tasks/${selectedTaskToExecute.apiId}/complete`, {
@@ -811,9 +819,14 @@ export default function FieldWorkerDashboard() {
               <Camera className="w-7 h-7 text-brand-green mx-auto" />
               <p className="font-bold text-stone-700">Đính kèm ảnh minh chứng thực tế</p>
               <p className="text-[10px] text-stone-400">Ảnh này sẽ tự động xuất hiện trên Farm Diary của khách hàng</p>
-              <span className="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full font-bold text-[10px]">
-                ✓ Đã chụp ảnh hiện trường (moc-chau-2811.jpg)
-              </span>
+              <input
+                type="file"
+                accept="image/*"
+                required
+                onChange={(event) => readPhoto(event.target.files?.[0], setTaskProofPhoto)}
+                className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-3 file:py-1.5 file:font-bold file:text-emerald-800"
+              />
+              {taskProofPhoto && <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold text-emerald-800">✓ Đã chọn ảnh minh chứng</span>}
             </div>
 
             <div>
@@ -834,7 +847,7 @@ export default function FieldWorkerDashboard() {
                 Hủy
               </Button>
               <Button type="submit" variant="primary" size="sm" className="font-bold">
-                XÁC NHẬN HOÀN TẤT & ĐỒNG BỘ DIARY
+                {isUploadingPhoto ? 'ĐANG ĐỒNG BỘ...' : 'XÁC NHẬN HOÀN TẤT & ĐỒNG BỘ DIARY'}
               </Button>
             </div>
           </form>
@@ -915,6 +928,13 @@ export default function FieldWorkerDashboard() {
           <div className="p-3 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-1 bg-stone-50">
             <Camera className="w-5 h-5 text-stone-400 mx-auto" />
             <p className="font-bold text-stone-600">Đính kèm ảnh chụp lá / hiện trường</p>
+            <input
+              type="file"
+              accept="image/*"
+              required
+              onChange={(event) => readPhoto(event.target.files?.[0], setNewIssuePhoto)}
+              className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:font-bold"
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

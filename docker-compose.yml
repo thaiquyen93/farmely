@@ -1,38 +1,134 @@
+x-backend-common: &backend-common
+  image: farmely-backend:local
+  build: { context: ./backend }
+  restart: unless-stopped
+  environment: &backend-environment
+    DB_HOST: postgres
+    DB_PORT: 5432
+    DB_NAME: farmely
+    DB_USER: postgres
+    DB_PASS: password
+    DB_URL: jdbc:postgresql://postgres:5432/farmely
+    DB_USERNAME: postgres
+    DB_PASSWORD: password
+    JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+  depends_on:
+    postgres: { condition: service_healthy }
+  networks: [farmely-net]
+
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: smartagrirent-postgres
+    container_name: farmely-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
       POSTGRES_DB: farmely
-    ports:
-      - "5433:5432"
+    ports: ["5433:5432"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docs/database/farmely_full_database.sql:/docker-entrypoint-initdb.d/001-farmely.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d farmely"]
       interval: 5s
       timeout: 5s
       retries: 20
-    networks:
-      - smartagrirent-net
+    networks: [farmely-net]
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: smartagrirent-rabbitmq
+    container_name: farmely-rabbitmq
+    restart: unless-stopped
+    ports: ["5672:5672", "15672:15672"]
+    networks: [farmely-net]
+
+  identity-service:
+    <<: *backend-common
+    container_name: farmely-identity-service
+    environment: { <<: *backend-environment, JAR_PATH: identity-service/target/identity-service-1.0.0-SNAPSHOT.jar }
+    ports: ["8081:8081"]
+  farm-service:
+    <<: *backend-common
+    container_name: farmely-farm-service
+    environment: { <<: *backend-environment, JAR_PATH: farm-service/target/farm-service-1.0.0-SNAPSHOT.jar }
+    ports: ["8082:8082"]
+  knowledge-service:
+    <<: *backend-common
+    container_name: farmely-knowledge-service
+    environment: { <<: *backend-environment, JAR_PATH: knowledge-service/target/knowledge-service-1.0.0-SNAPSHOT.jar }
+    ports: ["8083:8083"]
+  rental-service:
+    <<: *backend-common
+    container_name: farmely-rental-service
+    environment: { <<: *backend-environment, JAR_PATH: rental-service/target/rental-service-1.0.0-SNAPSHOT.jar }
+    ports: ["8084:8084"]
+  payment-service:
+    <<: *backend-common
+    container_name: farmely-payment-service
+    environment: { <<: *backend-environment, JAR_PATH: payment-service/target/payment-service-1.0.0-SNAPSHOT.jar }
+    ports: ["8085:8085"]
+  cultivation-service:
+    <<: *backend-common
+    container_name: farmely-cultivation-service
+    environment: { <<: *backend-environment, JAR_PATH: cultivation-service/target/cultivation-service-1.0.0-SNAPSHOT.jar }
+    ports: ["8086:8086"]
+  communication-service:
+    <<: *backend-common
+    container_name: farmely-communication-service
+    environment: { <<: *backend-environment, JAR_PATH: communication-service/target/communication-service-1.0.0-SNAPSHOT.jar }
+    ports: ["8087:8087"]
+  monitoring-service:
+    <<: *backend-common
+    container_name: farmely-monitoring-service
+    environment: { <<: *backend-environment, JAR_PATH: monitoring-service/target/monitoring-service-1.0.0-SNAPSHOT.jar }
+    ports: ["8088:8088"]
+  ai-service:
+    <<: *backend-common
+    container_name: farmely-ai-service
+    environment: { <<: *backend-environment, JAR_PATH: ai-service/target/ai-service-1.0.0-SNAPSHOT.jar }
+    ports: ["8089:8089"]
+
+  api-gateway:
+    <<: *backend-common
+    container_name: farmely-api-gateway
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    networks:
-      - smartagrirent-net
+      <<: *backend-environment
+      JAR_PATH: api-gateway/target/api-gateway-1.0.0-SNAPSHOT.jar
+      IDENTITY_SERVICE_HOST: identity-service
+      FARM_SERVICE_HOST: farm-service
+      KNOWLEDGE_SERVICE_HOST: knowledge-service
+      RENTAL_SERVICE_HOST: rental-service
+      PAYMENT_SERVICE_HOST: payment-service
+      CULTIVATION_SERVICE_HOST: cultivation-service
+      COMMUNICATION_SERVICE_HOST: communication-service
+      MONITORING_SERVICE_HOST: monitoring-service
+      AI_SERVICE_HOST: ai-service
+    ports: ["8080:8080"]
+    depends_on:
+      identity-service: { condition: service_started }
+      farm-service: { condition: service_started }
+      knowledge-service: { condition: service_started }
+      rental-service: { condition: service_started }
+      payment-service: { condition: service_started }
+      cultivation-service: { condition: service_started }
+      communication-service: { condition: service_started }
+      monitoring-service: { condition: service_started }
+      ai-service: { condition: service_started }
+
+  frontend:
+    image: farmely-frontend:local
+    build:
+      context: ./frontend
+      args: { VITE_API_BASE_URL: "" }
+    container_name: farmely-frontend
+    restart: unless-stopped
+    ports: ["3000:80"]
+    depends_on:
+      api-gateway: { condition: service_started }
+    networks: [farmely-net]
 
 networks:
-  smartagrirent-net:
-    driver: bridge
-
+  farmely-net: { driver: bridge }
 volumes:
   postgres_data:

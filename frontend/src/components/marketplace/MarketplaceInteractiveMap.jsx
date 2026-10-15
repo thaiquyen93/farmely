@@ -163,6 +163,13 @@ export default function MarketplaceInteractiveMap({
     }
 
     mapRef.current = map;
+    const canvas = map.getCanvas?.();
+    const handleContextLost = (event) => {
+      event.preventDefault?.();
+      console.error('WebGL context lost');
+      setMapFailed(true);
+    };
+    canvas?.addEventListener?.('webglcontextlost', handleContextLost);
 
     // Mất WebGL context giữa đường (driver reset, tab bị treo) cũng phải xuống
     // trạng thái "đã an vị" để chrome của trang không bị khoá sau màn che.
@@ -171,9 +178,9 @@ export default function MarketplaceInteractiveMap({
       setMapFailed(true);
     };
     const rawCanvas = typeof map.getCanvas === 'function' ? map.getCanvas() : null;
-    const canvas =
+    const contextCanvas =
       rawCanvas && typeof rawCanvas.addEventListener === 'function' ? rawCanvas : null;
-    canvas?.addEventListener('webglcontextlost', onContextLost);
+    contextCanvas?.addEventListener('webglcontextlost', onContextLost);
 
     map.on('load', () => {
       const initialSelectedId = selectedPlot?.id || 'P-01';
@@ -247,7 +254,8 @@ export default function MarketplaceInteractiveMap({
     });
 
     return () => {
-      canvas?.removeEventListener('webglcontextlost', onContextLost);
+      canvas?.removeEventListener?.('webglcontextlost', handleContextLost);
+      contextCanvas?.removeEventListener('webglcontextlost', onContextLost);
       badgesRef.current.forEach((b) => b.destroy());
       badgesRef.current.clear();
       badgeMarkersRef.current.forEach((m) => m.remove());
@@ -282,6 +290,7 @@ export default function MarketplaceInteractiveMap({
   // Bản đồ hỏng/quá hạn -> coi như đã an vị để chrome của trang vẫn dùng được
   const degraded = mapFailed || (!mapReady && loadTimedOut);
   const effectivePhase = degraded ? 'done' : phase;
+  const showLoadingStatus = !mapReady && !degraded;
 
   // Đẩy phase lên page để các panel biết khi nào được vào sân khấu
   useEffect(() => {
@@ -376,6 +385,7 @@ export default function MarketplaceInteractiveMap({
     <div className="relative w-full h-full">
       {/* 1. Canvas Bản Đồ MapLibre GL JS */}
       <div ref={mapContainerRef} className="absolute inset-0 z-0 w-full h-full" />
+      {showLoadingStatus && <div role="status" className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/70 text-sm font-bold text-white">Đang tải bản đồ...</div>}
 
       {/* 2. Màn che lúc nạp tile (tự tháo khỏi DOM khi bản đồ sẵn sàng) */}
       <MarketplaceIntroVeil phase={effectivePhase} />

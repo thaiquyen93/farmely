@@ -17,14 +17,6 @@ import {
   Clock,
   Database
 } from 'lucide-react';
-import { landsData } from '../../data/lands';
-import { plotsData } from '../../data/plots';
-import { cropsData } from '../../data/crops';
-import { varietiesData } from '../../data/varieties';
-import { iotStationsData } from '../../data/iotStations';
-import { processTemplatesData } from '../../data/processTemplates';
-import { knowledgeDocumentsData } from '../../data/knowledgeDocuments';
-
 export default function MasterDataDashboard() {
   const [summary, setSummary] = useState(null);
   const [isLiveDb, setIsLiveDb] = useState(false);
@@ -56,14 +48,14 @@ export default function MasterDataDashboard() {
   const totalDocs = summary?.totalDocs ?? knowledgeDocumentsData.length;
 
   const stats = [
-    { label: 'Tổng số Nông Trại (Lands)', value: totalLands, icon: Building2, link: '/admin/master-data/lands', color: 'text-brand-green' },
-    { label: 'Tổng số Thửa Đất', value: totalPlots, icon: Grid3X3, link: '/admin/master-data/plots', color: 'text-emerald-700' },
-    { label: 'Thửa Đất Khả Dụng', value: availablePlots, icon: CheckCircle2, link: '/admin/master-data/plots', color: 'text-brand-yellow' },
-    { label: 'Danh Mục Cây (Crops)', value: totalCrops, icon: Sprout, link: '/admin/master-data/crops', color: 'text-brand-green' },
-    { label: 'Giống Cây (Varieties)', value: totalVarieties, icon: Wheat, link: '/admin/master-data/varieties', color: 'text-amber-700' },
-    { label: 'Trạm Cảm Biến IoT', value: totalIoT, icon: Radio, link: '/admin/master-data/iot-stations', color: 'text-sky-700' },
-    { label: 'Quy Trình Chuẩn VietGAP', value: activeTemplates, icon: FileSpreadsheet, link: '/admin/master-data/process-templates', color: 'text-emerald-700' },
-    { label: 'Tài Liệu Kỹ Thuật (RAG)', value: totalDocs, icon: BookOpen, link: '/admin/master-data/knowledge-documents', color: 'text-indigo-700' },
+    { label: 'Tổng số Nông Trại (Lands)', value: value('lands'), icon: Building2, link: '/admin/master-data/lands', color: 'text-brand-green' },
+    { label: 'Tổng số Thửa Đất', value: value('plots'), icon: Grid3X3, link: '/admin/master-data/plots', color: 'text-emerald-700' },
+    { label: 'Thửa Đất Khả Dụng', value: value('availablePlots'), icon: CheckCircle2, link: '/admin/master-data/plots', color: 'text-brand-yellow' },
+    { label: 'Danh Mục Cây (Crops)', value: value('crops'), icon: Sprout, link: '/admin/master-data/crops', color: 'text-brand-green' },
+    { label: 'Giống Cây (Varieties)', value: value('varieties'), icon: Wheat, link: '/admin/master-data/varieties', color: 'text-amber-700' },
+    { label: 'Trạm Cảm Biến IoT', value: value('iot'), icon: Radio, link: '/admin/master-data/iot-stations', color: 'text-sky-700' },
+    { label: 'Quy Trình Chuẩn VietGAP', value: value('templates'), icon: FileSpreadsheet, link: '/admin/master-data/process-templates', color: 'text-emerald-700' },
+    { label: 'Tài Liệu Kỹ Thuật (RAG)', value: value('docs'), icon: BookOpen, link: '/admin/master-data/knowledge-documents', color: 'text-indigo-700' },
   ];
 
   const recentUpdates = (summary?.recentAuditLogs?.length)
@@ -186,6 +178,11 @@ export default function MasterDataDashboard() {
           </div>
 
           <div className="space-y-3 text-xs">
+            <div className="p-4 rounded-xl bg-brand-cream/60 border border-brand-border text-brand-muted">
+              Dữ liệu tình trạng sẽ hiển thị khi hệ thống cung cấp endpoint kiểm tra master data.
+            </div>
+            {/* Health indicators are intentionally omitted until backed by the audit API. */}
+            <div className="hidden">
             <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-start gap-3">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
               <div>
@@ -216,6 +213,7 @@ export default function MasterDataDashboard() {
                 <strong className="text-sky-900 block font-semibold">Trạm quan trắc IoT vi khí hậu đang vận hành</strong>
                 <span className="text-sky-800 text-[11px]">{totalIoT} trạm cảm biến đo nhiệt độ, độ ẩm không khí và độ ẩm đất tự động (BR18 hoãn tưới khi độ ẩm đất ≥ 80%).</span>
               </div>
+            </div>
             </div>
           </div>
         </div>

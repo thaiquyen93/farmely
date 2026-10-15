@@ -1,78 +1,67 @@
 import { create } from 'zustand';
+import { apiFetch, unwrapData } from '../api/apiClient';
 
-// Default mock demo users for quick role switching & testing
-export const DEMO_ACCOUNTS = [
-  {
-    id: "USR-001",
-    fullName: "Lô Thái Quyền",
-    email: "customer@farmely.vn",
-    role: "CUSTOMER",
-    phone: "0901234567",
-    roleTitle: "Khách hàng thuê đất",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80"
-  },
-  {
-    id: "USR-002",
-    fullName: "ThS. Nguyễn Hoàng Nam",
-    email: "expert@farmely.vn",
-    role: "EXPERT",
-    phone: "0912345678",
-    roleTitle: "Chuyên gia nông nghiệp (CGNN)",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80"
-  },
-  {
-    id: "USR-003",
-    fullName: "Trần Văn Lực",
-    email: "worker@farmely.vn",
-    role: "STAFF",
-    phone: "0923456789",
-    roleTitle: "Chuyên viên lao động hiện trường (CVLĐ)",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80"
-  },
-  {
-    id: "USR-004",
-    fullName: "Ban Quản Trị Farmely",
-    email: "admin@farmely.vn",
-    role: "ADMIN",
-    phone: "0934567890",
-    roleTitle: "Quản trị viên hệ thống (Admin)",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80"
+const ROLE_TITLES = {
+  CUSTOMER: 'Khách hàng thuê đất',
+  EXPERT: 'Chuyên gia nông nghiệp (CGNN)',
+  STAFF: 'Chuyên viên lao động hiện trường (CVLĐ)',
+  ADMIN: 'Quản trị viên hệ thống (Admin)'
+};
+
+const normalizeUser = (user, token) => {
+  const role = user?.role === 'FIELD_WORKER' ? 'STAFF' : user?.role;
+  return {
+    ...user,
+    id: user?.userId,
+    phone: user?.phoneNumber,
+    role,
+    roleTitle: ROLE_TITLES[role] || role,
+    token
+  };
+};
+
+const readAuth = () => {
+  try {
+    const auth = JSON.parse(localStorage.getItem('farmely_auth') || 'null');
+    return auth?.token && auth?.user ? auth : null;
+  } catch {
+    return null;
   }
-];
+};
+
+const persistAuth = (auth) => {
+  localStorage.setItem('farmely_auth', JSON.stringify(auth));
+  localStorage.setItem('farmely_user', JSON.stringify(auth.user));
+};
+
+const initialAuth = readAuth();
 
 export const useAuthStore = create((set, get) => ({
-  user: JSON.parse(localStorage.getItem('farmely_user')) || null,
-  isAuthenticated: !!localStorage.getItem('farmely_user'),
+  user: initialAuth?.user || null,
+  isAuthenticated: Boolean(initialAuth),
+  isLoading: false,
 
-  login: (email, password) => {
-    // Check against demo accounts or accept valid format
-    const found = DEMO_ACCOUNTS.find(acc => acc.email.toLowerCase() === email.toLowerCase());
-    if (found) {
-      localStorage.setItem('farmely_user', JSON.stringify(found));
-      set({ user: found, isAuthenticated: true });
-      return { success: true, user: found };
+  login: async (email, password) => {
+    set({ isLoading: true });
+    try {
+      const data = unwrapData(await apiFetch('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim(), password })
+      }));
+      const user = normalizeUser(data.user, data.token);
+      persistAuth({ token: data.token, expiresIn: data.expiresIn, user });
+      set({ user, isAuthenticated: true, isLoading: false });
+      return { success: true, user };
+    } catch (error) {
+      set({ user: null, isAuthenticated: false, isLoading: false });
+      return { success: false, message: error.message };
     }
-
-    // Default customer login fallback for custom credentials
-    const customUser = {
-      id: "USR-" + Math.floor(1000 + Math.random() * 9000),
-      fullName: email.split('@')[0],
-      email: email,
-      role: "CUSTOMER",
-      phone: "0909999888",
-      roleTitle: "Khách hàng thuê đất",
-      avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80"
-    };
-    localStorage.setItem('farmely_user', JSON.stringify(customUser));
-    set({ user: customUser, isAuthenticated: true });
-    return { success: true, user: customUser };
   },
 
   register: async (userData) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const payload = await apiFetch('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fullName: userData.fullName,
           email: userData.email,
@@ -80,44 +69,33 @@ export const useAuthStore = create((set, get) => ({
           password: userData.password || 'Farmely@2026'
         })
       });
-      const resData = await response.json();
-      if (resData && resData.success && resData.data) {
-        const dbUser = {
-          id: resData.data.id || resData.data.userId || "USR-" + Math.floor(1000 + Math.random() * 9000),
-          userId: resData.data.id || resData.data.userId,
-          fullName: resData.data.fullName || userData.fullName,
-          email: resData.data.email || userData.email,
-          phone: resData.data.phone || userData.phone,
-          role: "CUSTOMER",
-          roleTitle: "Khách hàng thuê đất",
-          avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80"
-        };
-        localStorage.setItem('farmely_user', JSON.stringify(dbUser));
-        set({ user: dbUser, isAuthenticated: true });
-        return { success: true, user: dbUser, message: resData.message };
-      } else if (resData && !resData.success) {
-        return { success: false, message: resData.message || 'Đăng ký thất bại' };
-      }
+      const data = unwrapData(payload);
+      const dbUser = normalizeUser(data.user, data.token);
+      persistAuth({ token: data.token, expiresIn: data.expiresIn, user: dbUser });
+      set({ user: dbUser, isAuthenticated: true });
+      return { success: true, user: dbUser, message: payload?.message };
     } catch (err) {
-      console.warn('Backend offline, using fallback customer registration:', err);
+      return { success: false, message: err.message };
     }
+  },
 
-    const newUser = {
-      id: "USR-" + Math.floor(1000 + Math.random() * 9000),
-      fullName: userData.fullName,
-      email: userData.email,
-      phone: userData.phone,
-      role: "CUSTOMER",
-      roleTitle: "Khách hàng thuê đất",
-      avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80"
-    };
-    localStorage.setItem('farmely_user', JSON.stringify(newUser));
-    set({ user: newUser, isAuthenticated: true });
-    return { success: true, user: newUser };
+  refreshUser: async () => {
+    const auth = readAuth();
+    if (!auth?.token) return null;
+    try {
+      const user = normalizeUser(unwrapData(await apiFetch('/api/auth/me')), auth.token);
+      persistAuth({ ...auth, user });
+      set({ user, isAuthenticated: true });
+      return user;
+    } catch (error) {
+      if (error.status === 401) get().logout();
+      throw error;
+    }
   },
 
   logout: () => {
     localStorage.removeItem('farmely_user');
+    localStorage.removeItem('farmely_auth');
     set({ user: null, isAuthenticated: false });
   },
 

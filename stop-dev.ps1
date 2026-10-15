@@ -1,26 +1,8 @@
 $ErrorActionPreference = 'Stop'
-$runtimeDir = Join-Path $PSScriptRoot '.run'
-$pidFile = Join-Path $runtimeDir 'processes.json'
-
-if (-not (Test-Path -LiteralPath $pidFile)) {
-    Write-Host 'No Farmely process file found.'
-    exit 0
+Push-Location $PSScriptRoot
+try {
+    docker compose down
+    if ($LASTEXITCODE -ne 0) { throw 'Không thể dừng Farmely Docker stack.' }
+    Write-Host 'Đã dừng các container Farmely. Volume PostgreSQL vẫn được giữ nguyên.'
 }
-
-$parsedProcesses = Get-Content -LiteralPath $pidFile -Raw | ConvertFrom-Json
-$processes = if ($parsedProcesses.PSObject.Properties.Name -contains 'value') {
-    @($parsedProcesses.value)
-}
-else {
-    @($parsedProcesses)
-}
-foreach ($entry in $processes) {
-    $process = Get-Process -Id $entry.Pid -ErrorAction SilentlyContinue
-    if ($process) {
-        & taskkill.exe /PID $entry.Pid /T /F | Out-Null
-        Write-Host "Stopped $($entry.Name) (PID $($entry.Pid))."
-    }
-}
-
-Remove-Item -LiteralPath $pidFile -Force
-Write-Host 'Farmely application processes stopped. Docker database services are still running.'
+finally { Pop-Location }
