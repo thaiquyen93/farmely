@@ -80,8 +80,8 @@ function runPostgreSqlAttempt(cfg, sqlQuery) {
     const env = { ...process.env, PGPASSWORD: cfg.password, PGCLIENTENCODING: 'UTF8' };
     const child = spawn(
       PSQL_PATH,
-      ['-U', cfg.user, '-h', cfg.host, '-p', String(cfg.port), '-d', cfg.database, '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
-      { env, windowsHide: true, timeout: 8000 }
+      ['-U', cfg.user, '-h', cfg.host, '-p', String(cfg.port), '-d', cfg.database, '-w', '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
+      { env, windowsHide: true, timeout: 5000 }
     );
     let stdout = '';
     let stderr = '';
