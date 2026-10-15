@@ -10,8 +10,7 @@ import {
   MapPin,
   Printer,
   RefreshCw,
-  ShieldCheck,
-  Sprout
+  ShieldCheck
 } from 'lucide-react';
 import { getContractById, getCustomerContracts } from '../../api/contracts/contractsApi';
 import { RENTAL_TERMS, RENTAL_TERMS_VERSION } from '../../data/rentalTerms';
@@ -44,28 +43,43 @@ function ContractDocument({ contract }) {
 
   return (
     <article className="contract-print-document mx-auto min-h-[1120px] w-full max-w-[794px] bg-[#fffef8] px-8 py-10 text-[#20332a] shadow-[0_22px_70px_rgba(31,53,43,0.18)] sm:px-14 sm:py-14">
-      <header className="border-b-2 border-[#315f4d] pb-7 text-center">
-        <div className="mb-4 flex items-center justify-center gap-2 text-[#1f6b4f]">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1f6b4f] text-white"><Sprout className="h-5 w-5" /></span>
-          <span className="font-heading text-2xl font-black tracking-[0.08em]">FARMELY</span>
+      <header className="border-b border-[#9fa9a2] pb-7 text-[#18241f]">
+        <div className="grid gap-6 text-center sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-bold uppercase">CÔNG TY TNHH FARMELY</p>
+            <p className="mt-1 text-[11px]">Số: {contract?.contractNumber || `HD-${contract?.contractId}`}</p>
+          </div>
+          <div>
+            <p className="text-xs font-black uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
+            <p className="mt-1 text-xs font-bold">Độc lập - Tự do - Hạnh phúc</p>
+            <div className="mx-auto mt-1 h-px w-36 bg-[#18241f]" />
+          </div>
         </div>
-        <p className="text-xs font-bold tracking-wide">NỀN TẢNG THUÊ THỬA ĐẤT VÀ THEO DÕI CANH TÁC</p>
-        <h1 className="mt-7 font-heading text-2xl font-black sm:text-3xl">HỢP ĐỒNG THUÊ THỬA ĐẤT</h1>
-        <p className="mt-2 font-mono text-sm font-bold text-[#1f6b4f]">Số: {contract?.contractNumber || `HD-${contract?.contractId}`}</p>
+        <div className="mt-9 text-center">
+          <h1 className="font-heading text-2xl font-black sm:text-3xl">HỢP ĐỒNG THUÊ THỬA ĐẤT VÀ DỊCH VỤ CANH TÁC</h1>
+          <p className="mt-2 text-xs font-bold">Mã hợp đồng: {contract?.contractNumber || `HD-${contract?.contractId}`}</p>
+        </div>
+        <div className="mt-7 space-y-1 text-xs leading-6 text-[#44544c]">
+          <p>Căn cứ Bộ luật Dân sự và các quy định pháp luật Việt Nam hiện hành;</p>
+          <p>Căn cứ nhu cầu thuê thửa đất canh tác của Bên B và khả năng cung cấp dịch vụ của Bên A;</p>
+          <p>Hôm nay, ngày {createdDate}, các bên thống nhất giao kết hợp đồng với nội dung sau:</p>
+        </div>
       </header>
 
       <section className="mt-7 grid gap-5 border-b border-[#cfD8cf] pb-7 text-sm sm:grid-cols-2">
         <div>
           <p className="mb-2 font-bold">Bên cung cấp dịch vụ (Bên A)</p>
-          <p className="font-semibold">Nền tảng Farmely</p>
-          <p className="mt-1 text-[#52655d]">Đơn vị quản lý và vận hành khu canh tác</p>
-          <p className="mt-1 text-[#52655d]">Đại diện: Ban quản lý Farmely</p>
+          <p className="font-semibold">CÔNG TY TNHH FARMELY</p>
+          <p className="mt-1 text-[#52655d]">Địa chỉ: ............................................................</p>
+          <p className="mt-1 text-[#52655d]">Đại diện: .................................... Chức vụ: ................</p>
+          <p className="mt-1 text-[#52655d]">Mã số thuế: .........................................................</p>
         </div>
         <div>
           <p className="mb-2 font-bold">Khách hàng thuê đất (Bên B)</p>
           <p className="font-semibold">{contract?.renterName || 'Khách hàng Farmely'}</p>
           <p className="mt-1 text-[#52655d]">Email: {contract?.renterEmail || '—'}</p>
           <p className="mt-1 text-[#52655d]">Điện thoại: {contract?.renterPhone || '—'}</p>
+          <p className="mt-1 text-[#52655d]">CCCD/Hộ chiếu: .....................................................</p>
         </div>
       </section>
 
@@ -97,7 +111,7 @@ function ContractDocument({ contract }) {
 
       <section className="mt-7 grid gap-6 text-sm sm:grid-cols-[1fr_230px]">
         <div className="space-y-5">
-          {RENTAL_TERMS.slice(2).map(({ title, content }) => <div key={title}><h2 className="font-heading font-black">{title}</h2><p className="mt-2 leading-7 text-[#3f5149]">{content}</p></div>)}
+          {RENTAL_TERMS.slice(1).map(({ title, content }) => <div key={title}><h2 className="font-heading font-black">{title}</h2><p className="mt-2 leading-7 text-[#3f5149]">{content}</p></div>)}
         </div>
         <aside className="h-fit border border-[#9eb3a6] bg-[#f1f5ef] p-5">
           <p className="text-xs font-bold text-[#52655d]">TỔNG GIÁ TRỊ HỢP ĐỒNG</p>
