@@ -52,10 +52,11 @@ export default function MarketplacePlotDetailPanel({
     plot.areaFormatted ||
     (typeof plot.area === 'number' ? `${plot.area} m²` : plot.area) ||
     '150 m²';
-  const plotPrice =
-    plot.rentalPriceFormatted ||
+  const rawPriceStr =
     plot.price ||
+    plot.rentalPriceFormatted ||
     (plot.rentalPrice ? `${plot.rentalPrice.toLocaleString('vi-VN')} đ` : '1.200.000 đ');
+  const plotPrice = String(rawPriceStr).replace(/\/tháng/gi, '').trim();
 
   const baseImg =
     plot.img ||
@@ -151,16 +152,16 @@ export default function MarketplacePlotDetailPanel({
   return (
     <aside
       id="detail-panel"
-      className={`absolute top-20 right-3 bottom-3 z-20 w-[340px] 2xl:right-4 2xl:bottom-4 2xl:w-[370px] bg-white/95 backdrop-blur-2xl rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] border border-white/80 flex flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform will-change-transform ${
+      className={`absolute inset-x-2 top-20 bottom-2 z-30 flex w-auto flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-[0_20px_60px_rgba(0,0,0,0.15)] backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform will-change-transform sm:inset-x-auto sm:right-3 sm:bottom-3 sm:w-[340px] sm:rounded-3xl 2xl:right-4 2xl:bottom-4 2xl:w-[370px] ${
         isOpen
-          ? 'translate-x-0 opacity-100 pointer-events-auto'
-          : 'translate-x-[400px] opacity-0 pointer-events-none'
+          ? 'translate-x-0 translate-y-0 opacity-100 pointer-events-auto'
+          : 'translate-y-[110%] opacity-0 pointer-events-none sm:translate-x-[400px] sm:translate-y-0'
       }`}
     >
       {/* ─────────────────────────────────────────────────────────────────────────────
           1. HERO IMAGE (200px) + DOT INDICATORS
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="relative h-[155px] 2xl:h-[190px] w-full bg-slate-950 shrink-0 overflow-hidden group select-none">
+      <div className="relative h-[145px] w-full shrink-0 select-none overflow-hidden bg-slate-950 group sm:h-[155px] 2xl:h-[190px]">
         <img
           key={currentPhoto}
           id="detail-img"

@@ -904,8 +904,9 @@ export default function CustomerDashboard() {
     let cancelled = false;
     const loadLiveTasks = async () => {
       try {
-        const entries = await Promise.all(customerPlots.map(async (plot, index) => {
-          const rentalId = index + 1;
+        const entries = await Promise.all(customerPlots.map(async (plot) => {
+          const rentalId = plot.rentalId;
+          if (!rentalId) return [plot.id, null];
           const response = await fetch(`/api/tasks?rentalId=${rentalId}`);
           if (!response.ok) return [plot.id, null];
           const body = await response.json();
@@ -913,10 +914,14 @@ export default function CustomerDashboard() {
           if (!rows.length) return [plot.id, null];
           return [plot.id, {
             tasks: rows.map((task) => ({
-              id: task.taskCode || task.id,
+              id: task.taskCode || task.taskId,
               title: task.title || task.name || 'Công việc chăm sóc',
               time: task.dueDate || task.scheduledDate || 'Theo lịch',
-              status: task.status || task.displayStatus || 'PENDING',
+              status: ['DONE', 'COMPLETED'].includes(task.status || task.displayStatus)
+                ? 'COMPLETED'
+                : ['IN_PROG', 'IN_PROGRESS', 'OVERDUE'].includes(task.status || task.displayStatus)
+                  ? 'IN_PROGRESS'
+                  : 'PENDING',
               owner: task.workerName || 'Farmely điều phối'
             })),
             diary: []
@@ -929,7 +934,7 @@ export default function CustomerDashboard() {
     };
     loadLiveTasks();
     return () => { cancelled = true; };
-  }, []);
+  }, [customerPlots]);
 
   const handleSendMessage = (textToSend) => {
     const query = textToSend || chatInput;
@@ -2151,7 +2156,7 @@ export default function CustomerDashboard() {
         </div>
 
       </div>
-      <CustomerMobileNav activeView={selectedPlotId ? 'yards' : activeTab} />
+      {!selectedPlotId && <CustomerMobileNav activeView={activeTab} />}
 
       {/* ================= MODALS ================= */}
 

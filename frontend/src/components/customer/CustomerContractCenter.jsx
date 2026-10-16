@@ -196,11 +196,16 @@ export default function CustomerContractCenter({ renterId, onRenew }) {
             {contracts.map((contract) => {
               const status = getStatus(contract);
               const selected = contract.contractId === selectedId;
-              const firstRental = contract.rentals?.[0];
+              const rentals = Array.isArray(contract.rentals) ? contract.rentals : [];
+              const plotCodes = rentals.map((rental) => rental.plotCode).filter(Boolean);
+              const startDates = rentals.map((rental) => rental.startDate).filter(Boolean).sort();
+              const endDates = rentals.map((rental) => rental.endDate).filter(Boolean).sort();
+              const contractStartDate = startDates[0];
+              const contractEndDate = endDates[endDates.length - 1];
               return <button key={contract.contractId} onClick={() => setSelectedId(contract.contractId)} className={`w-full rounded-2xl border p-4 text-left transition ${selected ? 'border-[#1f6b4f] bg-[#eef6f0] shadow-sm' : 'border-[#e0e5df] bg-white hover:border-[#9eb3a6]'}`}>
                 <div className="flex items-start justify-between gap-2"><span className="font-mono text-xs font-black text-[#1f6b4f]">{contract.contractNumber || `HD-${contract.contractId}`}</span><ChevronRight className={`h-4 w-4 ${selected ? 'text-[#1f6b4f]' : 'text-stone-300'}`} /></div>
                 <div className="mt-3 flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${status.className}`}>{status.label}</span><span className="text-[10px] text-stone-400">{formatDate(contract.createdAt)}</span></div>
-                <div className="mt-3 space-y-1.5 text-xs text-stone-600"><p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 text-[#1f6b4f]" />{firstRental?.plotCode || `${contract.rentals?.length || 0} thửa đất`}</p><p className="flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5 text-[#1f6b4f]" />{firstRental ? `${formatDate(firstRental.startDate)} – ${formatDate(firstRental.endDate)}` : 'Chưa có thời hạn'}</p></div>
+                <div className="mt-3 space-y-1.5 text-xs text-stone-600"><p className="flex items-start gap-2"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1f6b4f]" /><span className="min-w-0 font-semibold">{plotCodes.length ? plotCodes.join(', ') : `${rentals.length} thửa đất`}</span>{rentals.length > 1 && <span className="shrink-0 rounded-full bg-white/80 px-1.5 py-0.5 text-[9px] font-bold text-[#1f6b4f]">{rentals.length} thửa</span>}</p><p className="flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5 shrink-0 text-[#1f6b4f]" />{contractStartDate && contractEndDate ? `${formatDate(contractStartDate)} – ${formatDate(contractEndDate)}` : 'Chưa có thời hạn'}</p></div>
                 <p className="mt-3 border-t border-[#dce4dc] pt-3 text-sm font-black text-[#20332a]">{currency.format(Number(contract.totalAmount || 0))}</p>
               </button>;
             })}
