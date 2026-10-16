@@ -281,6 +281,31 @@ export default function CustomerDashboard() {
   const [dbPlots, setDbPlots] = useState(null);
   const [isLoadingPlots, setIsLoadingPlots] = useState(true);
 
+  // Đồng hồ & ngày theo thời gian thực (Real-time Clock & Date)
+  const [currentRealTime, setCurrentRealTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentRealTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formattedRealDate = useMemo(() => {
+    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const dayName = days[currentRealTime.getDay()];
+    const date = String(currentRealTime.getDate()).padStart(2, '0');
+    const month = String(currentRealTime.getMonth() + 1).padStart(2, '0');
+    const year = currentRealTime.getFullYear();
+    return `${dayName}, ${date}/${month}/${year}`;
+  }, [currentRealTime]);
+
+  const formattedRealTime = useMemo(() => {
+    const h = String(currentRealTime.getHours()).padStart(2, '0');
+    const m = String(currentRealTime.getMinutes()).padStart(2, '0');
+    const s = String(currentRealTime.getSeconds()).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  }, [currentRealTime]);
+
   const fetchPlots = async () => {
     try {
       setIsLoadingPlots(true);
@@ -329,7 +354,54 @@ export default function CustomerDashboard() {
   }, [user]);
 
   const customerPlots = useMemo(() => {
-    return Array.isArray(dbPlots) ? dbPlots : [];
+    const list = Array.isArray(dbPlots) ? [...dbPlots] : [];
+
+    // Fallback: Nếu vừa thanh toán thuê thửa xong, đảm bảo hiển thị ngay trên Dashboard
+    try {
+      const pendingBooking = JSON.parse(localStorage.getItem('farmely_pending_vnpay_booking') || 'null');
+      if (pendingBooking && Array.isArray(pendingBooking.plots)) {
+        pendingBooking.plots.forEach((p) => {
+          const plotCode = p.code || p.id;
+          const plotIdStr = `PLOT-${plotCode}`;
+          const alreadyExists = list.some(
+            (cp) =>
+              cp.id === plotIdStr ||
+              cp.mapPlotId === plotCode ||
+              (cp.mapPlotId && plotCode && cp.mapPlotId.toLowerCase() === plotCode.toLowerCase())
+          );
+          if (!alreadyExists) {
+            list.unshift({
+              id: plotIdStr,
+              mapPlotId: plotCode,
+              name: p.name || `Thửa ${plotCode} - Trang trại Happy Valley Củ Chi`,
+              location: 'Trang trại Happy Valley Củ Chi',
+              area: p.area || '160m²',
+              mode: pendingBooking.cultivationMode === 'SELF_GROWING' ? 'Self-Growing' : 'Assisted-Growing',
+              crop: p.varietyName || p.cropName || 'Dưa leo baby F1',
+              stage: 'Bước 1: Làm đất & gieo giống',
+              currentDay: 1,
+              totalDays: 60,
+              progressPercent: 5,
+              image: p.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
+              temp: '28.5°C',
+              soilMoisture: '68%',
+              airHumidity: '74%',
+              light: '45.000 Lux',
+              stationId: `IOT-${plotCode}`,
+              status: 'HEALTHY',
+              worker: 'Trần Văn Lực (CVLĐ)',
+              contractCode: pendingBooking.contractCode || `HD-${Date.now()}`,
+              startDate: pendingBooking.startDate || new Date().toISOString().split('T')[0],
+              expectedHarvestDate: '2026-12-16'
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Fallback sync notice:', e);
+    }
+
+    return list;
   }, [dbPlots]);
 
   // Sync selected IDs once plots are loaded
@@ -1386,14 +1458,33 @@ export default function CustomerDashboard() {
               const openPlot = (plotId, tab) => navigate(`/customer/dashboard?plot=${plotId}${tab ? `&tab=${tab}` : ''}`);
               return (
               <div className="mx-auto max-w-[1400px] space-y-6 px-4 pb-16 pt-5 sm:px-6 lg:px-10 lg:pt-8">
-                <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white/70 backdrop-blur-xs p-5 rounded-3xl border border-stone-200/80 shadow-xs">
                   <div>
-                    <p className="text-sm text-stone-500">{greeting}, {firstName}</p>
-                    <h1 className="mt-1 font-heading text-2xl font-bold text-[#18352b] sm:text-3xl">Vườn của tôi</h1>
+                    <p className="text-xs text-stone-500 font-medium">{greeting}, <strong className="text-stone-800">{firstName}</strong></p>
+                    <h1 className="mt-0.5 font-heading text-2xl font-black text-[#18352b] sm:text-3xl">Vườn của tôi</h1>
                   </div>
-                  <Link to="/marketplace" className="flex items-center justify-center gap-1.5 self-start rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 sm:self-auto">
-                    Thuê thêm thửa đất<ArrowRight className="h-4 w-4" />
-                  </Link>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Live real-time clock & real date badge */}
+                    <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-emerald-50/90 border border-emerald-200/90 text-[#18352b] shadow-2xs">
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
+                        <Calendar className="w-4 h-4 text-emerald-600" />
+                        <span>{formattedRealDate}</span>
+                      </div>
+                      <span className="text-emerald-300">•</span>
+                      <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-950 bg-white/95 px-2.5 py-1 rounded-lg border border-emerald-300/60 shadow-2xs">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span>{formattedRealTime}</span>
+                      </div>
+                    </div>
+
+                    <Link to="/marketplace" className="flex items-center justify-center gap-1.5 rounded-2xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-800">
+                      Thuê thêm thửa đất<ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </div>
                 </header>
 
                 <dl className="grid grid-cols-3 gap-3">
@@ -2010,7 +2101,7 @@ export default function CustomerDashboard() {
                           <span className="rounded-full bg-stone-100 px-3 py-1 text-[10px] font-bold text-stone-600">Chỉ xem</span>
                         </div>
                         <div className="grid gap-3 p-4 lg:grid-cols-2">
-                          {(cultivationProcesses[plot.id] || defaultProcessForPlot(plot)).map((step, index) => (
+                          {(defaultProcessForPlot(plot) || cultivationProcesses[plot.id] || []).map((step, index) => (
                             <article key={`${plot.id}-${step.stage}`} className="relative rounded-xl border border-brand-border bg-white p-4">
                               <div className="flex items-start gap-3">
                                 <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${step.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'}`}>{step.status === 'COMPLETED' ? '✓' : index + 1}</span>

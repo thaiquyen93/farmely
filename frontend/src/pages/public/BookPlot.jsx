@@ -425,6 +425,36 @@ export default function BookPlot() {
     }
   };
 
+  // Helper xác định chính xác plotId số trong PostgreSQL database
+  const resolvePlotDbId = useCallback((plot) => {
+    if (!plot) return 1;
+    if (typeof plot.plotId === 'number' && !isNaN(plot.plotId)) return plot.plotId;
+    if (typeof plot.plot_id === 'number' && !isNaN(plot.plot_id)) return plot.plot_id;
+    if (typeof plot.dbPlotId === 'number' && !isNaN(plot.dbPlotId)) return plot.dbPlotId;
+
+    const pureNum = parseInt(String(plot.id), 10);
+    if (!isNaN(pureNum) && String(pureNum) === String(plot.id).trim()) {
+      return pureNum;
+    }
+
+    const matched = findPlotByAnyCode(plot.code || plot.id);
+    if (matched) {
+      if (typeof matched.plotId === 'number' && !isNaN(matched.plotId)) return matched.plotId;
+      if (typeof matched.dbPlotId === 'number' && !isNaN(matched.dbPlotId)) return matched.dbPlotId;
+      if (typeof matched.plot_id === 'number' && !isNaN(matched.plot_id)) return matched.plot_id;
+      const mNum = parseInt(String(matched.id), 10);
+      if (!isNaN(mNum) && String(mNum) === String(matched.id).trim()) {
+        return mNum;
+      }
+    }
+
+    const cleanDigits = String(plot.code || plot.id).replace(/\D/g, '');
+    if (cleanDigits) {
+      return parseInt(cleanDigits, 10);
+    }
+    return 1;
+  }, [findPlotByAnyCode]);
+
   // Tạo hợp đồng giữ chỗ trực tiếp trong Database PostgreSQL qua rental-service (BR08)
   const createReservationOnServer = async () => {
     const renterId = user?.userId
@@ -436,14 +466,15 @@ export default function BookPlot() {
 
     const items = selectedPlots.map((p) => {
       const crop = getPlotSelectedCrop(p);
+      const plotDbId = resolvePlotDbId(p);
       // Đảm bảo thỏa mãn BR04: rentDays >= variety.minDays
       const days = Math.max(rentalMonths * 30, crop?.minDays || 35);
       const end = new Date(start);
       end.setDate(end.getDate() + days);
 
       return {
-        plotId: Number(p.plotId || parseInt(p.id, 10)),
-        varietyId: crop?.varietyId || 1,
+        plotId: Number(plotDbId),
+        varietyId: Number(crop?.varietyId || 1),
         // Dịch vụ chăm sóc trọn gói S15 = 1,800,000 đ/vụ (Assisted), hoặc null (Self)
         serviceId: selectedMode === 'ASSISTED' ? 15 : null,
         startDate: startStr,
@@ -541,7 +572,12 @@ export default function BookPlot() {
           }
         }
       } catch (resErr) {
-        console.warn('Backend reservation notice:', resErr);
+        console.error('Backend reservation notice:', resErr);
+        if (isAuthenticated) {
+          setBookingError(resErr.message || 'Không thể tạo đơn giữ chỗ trên hệ thống. Vui lòng thử lại!');
+          setIsProcessing(false);
+          return;
+        }
       }
 
       const pendingPayload = buildPendingBookingPayload(contractIdToSave);
@@ -569,8 +605,29 @@ export default function BookPlot() {
       if (createdContractId) {
         await rentalApi.activateContract(createdContractId);
       }
+
+      // Đảm bảo cập nhật trạng thái RENT trên PostgreSQL cho các thửa đất đã thuê
+      for (const p of selectedPlots) {
+        const plotDbId = resolvePlotDbId(p);
+        if (plotDbId) {
+          try {
+            await fetch(`/api/plots/${plotDbId}/status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'RENT' })
+            });
+          } catch (patchErr) {
+            console.debug('Plot status patch fallback:', patchErr);
+          }
+        }
+      }
+
       syncRentalToChat();
       markPlotsAsBookedLocally();
+
+      // Thông báo cho toàn bộ các tab và component làm mới dữ liệu
+      window.dispatchEvent(new Event('farmely_plot_booked'));
+
       try {
         localStorage.removeItem('farmely_master_lease_selected_plots');
         localStorage.removeItem('farmely_pending_vnpay_booking');

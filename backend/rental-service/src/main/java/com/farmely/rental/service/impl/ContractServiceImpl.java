@@ -199,6 +199,15 @@ public class ContractServiceImpl implements ContractService {
                 } else {
                     rental.setStatus(RentalStatus.CONFIRMED);
                 }
+
+                // Cập nhật trạng thái thửa đất sang RENT trong bảng plots
+                if (rental.getPlotId() != null) {
+                    plotRepository.findById(rental.getPlotId()).ifPresent(p -> {
+                        p.setStatus("RENT");
+                        plotRepository.save(p);
+                        log.info("Cập nhật trạng thái thửa đất ID {} sang RENT", p.getPlotId());
+                    });
+                }
             }
         }
         rentalRepository.saveAll(rentals);
