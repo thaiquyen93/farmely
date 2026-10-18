@@ -34,11 +34,12 @@ export default function Login() {
       setIsLoading(false);
       if (res.success) {
         setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
+        const userRole = String(res.user.role || '').toUpperCase();
         if (redirectParam) navigate(redirectParam);
-        else if (res.user.role === 'CUSTOMER') navigate('/customer/dashboard');
-        else if (res.user.role === 'ADMIN') navigate('/admin/dashboard');
-        else if (res.user.role === 'EXPERT') navigate('/expert/dashboard');
-        else if (res.user.role === 'STAFF') navigate('/staff/dashboard');
+        else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
+        else if (userRole === 'ADMIN') navigate('/admin/dashboard');
+        else if (userRole === 'EXPERT') navigate('/expert/dashboard');
+        else if (userRole === 'STAFF') navigate('/staff/dashboard');
         else navigate('/');
       } else {
         setErrorMessage(res.message || 'Email hoặc mật khẩu không chính xác.');
@@ -61,11 +62,12 @@ export default function Login() {
       setIsLoading(false);
       if (res.success) {
         setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
+        const userRole = String(res.user.role || '').toUpperCase();
         if (redirectParam) navigate(redirectParam);
-        else if (res.user.role === 'CUSTOMER') navigate('/customer/dashboard');
-        else if (res.user.role === 'ADMIN') navigate('/admin/dashboard');
-        else if (res.user.role === 'EXPERT') navigate('/expert/dashboard');
-        else if (res.user.role === 'STAFF') navigate('/staff/dashboard');
+        else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
+        else if (userRole === 'ADMIN') navigate('/admin/dashboard');
+        else if (userRole === 'EXPERT') navigate('/expert/dashboard');
+        else if (userRole === 'STAFF') navigate('/staff/dashboard');
         else navigate('/');
         return;
       }
@@ -85,11 +87,12 @@ export default function Login() {
       useAuthStore.setState({ user: mappedUser, token: fallbackToken, isAuthenticated: true, isLoading: false });
 
       setSuccessMessage(`Chào mừng ${mappedUser.fullName}.`);
+      const userRole = String(demoAcc.role || '').toUpperCase();
       if (redirectParam) navigate(redirectParam);
-      else if (demoAcc.role === 'CUSTOMER') navigate('/customer/dashboard');
-      else if (demoAcc.role === 'ADMIN') navigate('/admin/dashboard');
-      else if (demoAcc.role === 'EXPERT') navigate('/expert/dashboard');
-      else if (demoAcc.role === 'STAFF') navigate('/staff/dashboard');
+      else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
+      else if (userRole === 'ADMIN') navigate('/admin/dashboard');
+      else if (userRole === 'EXPERT') navigate('/expert/dashboard');
+      else if (userRole === 'STAFF') navigate('/staff/dashboard');
       else navigate('/');
     } else {
       setIsLoading(false);

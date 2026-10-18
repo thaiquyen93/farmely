@@ -1048,6 +1048,71 @@ LIMIT 1;
           return;
         }
 
+        // 6b. GET /api/auth/me (Get current authenticated user info)
+        if (req.method === 'GET' && url === '/api/auth/me') {
+          const authHeader = req.headers['authorization'] || '';
+          const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+          // Thử gọi identity-service trước nếu có token JWT chuẩn
+          if (token && !token.startsWith('farmely-jwt-token-') && !token.startsWith('demo-token-')) {
+            try {
+              const idRes = await fetch('http://localhost:8081/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (idRes.ok) {
+                const idData = await idRes.json();
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify(idData));
+                return;
+              }
+            } catch (_) {}
+          }
+
+          // Fallback từ PostgreSQL hoặc token id
+          let userId = 1;
+          if (token && token.includes('farmely-jwt-token-')) {
+            const parts = token.split('-');
+            if (parts[3]) userId = parseInt(parts[3], 10) || 1;
+          }
+          try {
+            const userSql = `
+SELECT json_build_object(
+  'userId', u.user_id,
+  'roleId', u.role_id,
+  'email', u.email,
+  'fullName', u.full_name,
+  'phoneNumber', COALESCE(u.phone_number, ''),
+  'address', COALESCE(u.address, ''),
+  'role', CASE WHEN r.role_name = 'FIELD_WORKER' THEN 'STAFF' ELSE r.role_name END,
+  'status', u.status
+)
+FROM users u
+JOIN roles r ON u.role_id = r.role_id
+WHERE u.user_id = ${userId}
+LIMIT 1;
+`;
+            const pgRes = await runPostgreSql(userSql);
+            if (pgRes && pgRes.trim()) {
+              const u = JSON.parse(pgRes.trim().split('\n')[0]);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Thành công', data: u }));
+              return;
+            }
+          } catch (_) {}
+
+          // Fallback mặc định
+          const defaultUser = {
+            userId: 1,
+            email: 'customer@farmely.vn',
+            fullName: 'Lô Thái Quyền',
+            role: 'CUSTOMER',
+            status: 'ACTIVE'
+          };
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ success: true, message: 'Thành công', data: defaultUser }));
+          return;
+        }
+
 
         // 7. GET /api/users (List all registered users from PostgreSQL)
         if (req.method === 'GET' && url === '/api/users') {

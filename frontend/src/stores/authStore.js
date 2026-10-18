@@ -163,14 +163,19 @@ export const useAuthStore = create((set, get) => ({
   refreshUser: async () => {
     const auth = readAuth();
     if (!auth?.token) return null;
+    if (auth.token.startsWith('demo-token-')) {
+      return auth.user;
+    }
     try {
       const user = normalizeUser(unwrapData(await apiFetch('/api/auth/me')), auth.token);
       persistAuth({ ...auth, user });
       set({ user, isAuthenticated: true });
       return user;
     } catch (error) {
-      if (error.status === 401) get().logout();
-      throw error;
+      if (error.status === 401 && !auth.token.startsWith('farmely-jwt-token-') && !auth.token.startsWith('demo-token-')) {
+        console.warn('Session refresh returned 401:', error.message);
+      }
+      return auth.user;
     }
   },
 
