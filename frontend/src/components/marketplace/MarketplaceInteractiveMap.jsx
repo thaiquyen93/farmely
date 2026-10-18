@@ -232,15 +232,22 @@ export default function MarketplaceInteractiveMap({
     }
 
     mapRef.current = map;
+    const canvas = map.getCanvas?.();
+    const handleContextLost = (event) => {
+      event.preventDefault?.();
+      console.error('WebGL context lost');
+      setMapFailed(true);
+    };
+    canvas?.addEventListener?.('webglcontextlost', handleContextLost);
 
     const onContextLost = () => {
       console.error('WebGL context của bản đồ bị mất — chuyển trang về trạng thái tối giản.');
       setMapFailed(true);
     };
     const rawCanvas = typeof map.getCanvas === 'function' ? map.getCanvas() : null;
-    const canvas =
+    const contextCanvas =
       rawCanvas && typeof rawCanvas.addEventListener === 'function' ? rawCanvas : null;
-    canvas?.addEventListener('webglcontextlost', onContextLost);
+    contextCanvas?.addEventListener('webglcontextlost', onContextLost);
 
     map.on('load', () => {
       const initialSelectedId = selectedPlot?.id || plotsDataRef.current?.features?.[0]?.properties?.id || '';
@@ -301,7 +308,8 @@ export default function MarketplaceInteractiveMap({
     });
 
     return () => {
-      canvas?.removeEventListener('webglcontextlost', onContextLost);
+      canvas?.removeEventListener?.('webglcontextlost', handleContextLost);
+      contextCanvas?.removeEventListener('webglcontextlost', onContextLost);
       badgesRef.current.forEach((b) => b.destroy());
       badgesRef.current.clear();
       badgeMarkersRef.current.forEach((m) => m.remove());
@@ -333,6 +341,7 @@ export default function MarketplaceInteractiveMap({
 
   const degraded = mapFailed || (!mapReady && loadTimedOut);
   const effectivePhase = degraded ? 'done' : phase;
+  const showLoadingStatus = !mapReady && !degraded;
 
   useEffect(() => {
     onPhaseChange?.(effectivePhase);
@@ -432,6 +441,7 @@ export default function MarketplaceInteractiveMap({
     <div className="relative w-full h-full">
       {/* 1. Canvas Bản Đồ MapLibre GL JS */}
       <div ref={mapContainerRef} className="absolute inset-0 z-0 w-full h-full" />
+      {showLoadingStatus && <div role="status" className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/70 text-sm font-bold text-white">Đang tải bản đồ...</div>}
 
       {/* 2. Màn che lúc nạp tile */}
       <MarketplaceIntroVeil phase={effectivePhase} />

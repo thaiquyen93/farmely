@@ -3,7 +3,7 @@
  * Cung cấp các hàm gọi REST API và kết nối SSE (Server-Sent Events) thời gian thực.
  */
 
-const BASE_URL = import.meta.env?.VITE_API_BASE_URL || '';
+const BASE_URL = import.meta.env?.VITE_API_BASE_URL ?? '';
 
 /**
  * Lấy số liệu cảm biến mới nhất của 1 thửa đất (Plot)

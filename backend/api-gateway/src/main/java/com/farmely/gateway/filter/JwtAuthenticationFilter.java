@@ -39,12 +39,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/api/auth/**",
             "/api/plots/marketplace/**",
             "/api/plots/**",            // Khách có thể xem chi tiết thửa đất
+            "/api/v1/plots/**",
             "/api/lands/**",            // Khách có thể xem danh sách nông trại
+            "/api/v1/lands/**",
             "/api/crops/**",            // Danh mục cây trồng
             "/api/varieties/**",        // Danh mục giống cây
             "/api/templates/**",        // Quy trình canh tác
+            "/api/services",           // Khách chưa thuê đất vẫn được xem danh mục dịch vụ
             "/api/compatibility/**",
             "/api/site-visits/**",      // Khách vãng lai có thể đăng ký tham quan
+            "/api/v1/site-visits/**",
+            "/api/v1/payments/vnpay/return",
             "/api/sensors/**",          // IoT Sensor Telemetry & SSE Stream
             "/actuator/**",
             "/fallback/**",
