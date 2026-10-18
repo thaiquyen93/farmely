@@ -52,9 +52,15 @@ public class ContractServiceImpl implements ContractService {
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<RentalEntity> pendingRentals = new ArrayList<>();
+        LocalDate earliestCultivationDate = LocalDate.now().plusDays(10);
 
         // 2. Kiểm tra từng thửa đất theo quy tắc nghiệp vụ BR03, BR04, BR05, BR07
         for (PlotRentalItemRequest item : request.getItems()) {
+            if (item.getStartDate().isBefore(earliestCultivationDate)) {
+                throw new BadRequestException("Ngày bắt đầu canh tác phải từ " + earliestCultivationDate
+                        + " trở đi (tối thiểu 10 ngày sau ngày đặt thuê)");
+            }
+
             PlotReference plot = plotRepository.findById(item.getPlotId())
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thửa đất với ID: " + item.getPlotId()));
 

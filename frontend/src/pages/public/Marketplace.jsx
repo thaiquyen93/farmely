@@ -24,7 +24,9 @@ export default function Marketplace() {
   const [plotToBook, setPlotToBook] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isPlotListCollapsed, setIsPlotListCollapsed] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 1365px)').matches
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(min-width: 640px) and (max-width: 1365px)').matches
   );
   const [selectedCropByPlot, setSelectedCropByPlot] = useState(() => {
     try {
@@ -509,7 +511,7 @@ export default function Marketplace() {
         <button
           type="button"
           onClick={() => setIsPlotListCollapsed(false)}
-          className="absolute left-3 top-24 z-30 flex h-12 items-center gap-2 rounded-2xl border border-white/80 bg-white/95 px-3 text-xs font-black text-emerald-800 shadow-xl backdrop-blur-xl"
+          className="absolute bottom-3 left-3 z-30 flex h-12 items-center gap-2 rounded-2xl border border-white/80 bg-white/95 px-3 text-xs font-black text-emerald-800 shadow-xl backdrop-blur-xl sm:bottom-auto sm:top-24"
           title="Mở danh sách thửa đất"
         >
           <ChevronRight className="h-4 w-4" />
@@ -517,7 +519,7 @@ export default function Marketplace() {
         </button>
       )}
 
-      <aside className={`absolute top-20 left-2 sm:left-3 2xl:left-6 z-20 w-[min(92vw,340px)] 2xl:w-[360px] flex flex-col gap-3 pointer-events-auto transition-transform duration-300 ${isPlotListCollapsed ? '-translate-x-[120%]' : 'translate-x-0'}`}>
+      <aside className={`absolute inset-x-2 bottom-2 z-20 flex w-auto max-h-[68dvh] flex-col gap-3 pointer-events-auto transition-transform duration-300 sm:inset-x-auto sm:bottom-auto sm:top-20 sm:left-3 sm:w-[340px] sm:max-h-none 2xl:left-6 2xl:w-[360px] ${showDetailPanel ? 'max-sm:hidden' : ''} ${isPlotListCollapsed ? '-translate-x-[120%]' : 'translate-x-0'}`}>
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.08)] border border-white/80 transition-all duration-300">
           {/* Header với icon & số lượng */}
           <div className="flex items-center justify-between px-1 mb-2.5">
@@ -616,7 +618,7 @@ export default function Marketplace() {
           </div>
 
           {/* Danh sách thẻ thửa đất / Clean Empty State */}
-          <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto no-scrollbar -mx-1 px-1 py-0.5">
+          <div className="-mx-1 max-h-[48dvh] space-y-2 overflow-y-auto px-1 py-0.5 no-scrollbar sm:max-h-[calc(100vh-250px)]">
             {isLoading ? (
               <div className="py-12 text-center text-slate-500 text-xs">
                 <span className="inline-block animate-spin mr-2">⏳</span> Đang tải bản đồ vệ tinh...
@@ -911,8 +913,8 @@ export default function Marketplace() {
           6. THANH ĐIỀU HƯỚNG GỘP HỢP ĐỒNG MASTER LEASE (KHI ĐÃ CHỌN >= 1 THỬA ĐẤT)
       ───────────────────────────────────────────────────────────────────────────── */}
       {contractSelectedPlots.length > 0 && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3 bg-slate-900/95 backdrop-blur-2xl rounded-2xl border border-emerald-500/40 shadow-[0_16px_50px_rgba(0,0,0,0.35)] text-white animate-fadeIn max-w-[95vw] sm:max-w-fit">
-          <div className="flex items-center gap-3">
+        <div className="absolute bottom-2 left-1/2 z-40 flex w-[calc(100%-1rem)] -translate-x-1/2 flex-col items-stretch gap-2 rounded-2xl border border-emerald-500/40 bg-slate-900/95 px-3 py-3 text-white shadow-[0_16px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl animate-fadeIn sm:bottom-6 sm:w-auto sm:max-w-[95vw] sm:flex-row sm:items-center sm:gap-4 sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/25 shrink-0">
               <span className="text-sm font-black">{contractSelectedPlots.length}</span>
             </div>
@@ -932,9 +934,9 @@ export default function Marketplace() {
             </div>
           </div>
 
-          <div className="h-7 w-[1px] bg-slate-700/80 shrink-0" />
+          <div className="hidden h-7 w-px shrink-0 bg-slate-700/80 sm:block" />
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => {

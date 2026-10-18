@@ -33,6 +33,65 @@ import {
 import VnPayModal from '../../components/payment/VnPayModal';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
+import { RENTAL_TERMS, RENTAL_TERMS_VERSION } from '../../data/rentalTerms';
+
+export const BOOKING_START_LEAD_DAYS = 10;
+
+export const toLocalIsoDate = (date) => {
+  const local = new Date(date);
+  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+  return local.toISOString().slice(0, 10);
+};
+
+export const addDays = (date, days) => {
+  const next = new Date(date);
+  next.setHours(12, 0, 0, 0);
+  next.setDate(next.getDate() + days);
+  return toLocalIsoDate(next);
+};
+
+export const addMonths = (isoDate, months) => {
+  const source = new Date(`${isoDate}T12:00:00`);
+  const originalDay = source.getDate();
+  source.setDate(1);
+  source.setMonth(source.getMonth() + months);
+  const lastDay = new Date(source.getFullYear(), source.getMonth() + 1, 0).getDate();
+  source.setDate(Math.min(originalDay, lastDay));
+  return toLocalIsoDate(source);
+};
+
+export const getEarliestCultivationDate = (now = new Date()) => addDays(now, BOOKING_START_LEAD_DAYS);
+
+export const getRentalEndDate = (startDate, months, crop) => {
+  const monthEnd = addMonths(startDate, months);
+  const durationValues = String(crop?.duration || '').match(/\d+/g)?.map(Number) || [];
+  const cropMinimumDays = (durationValues.length ? Math.max(...durationValues) : 30) + 10;
+  const cropEnd = addDays(`${startDate}T12:00:00`, cropMinimumDays);
+  return cropEnd > monthEnd ? cropEnd : monthEnd;
+};
+
+export const getPlotSelectionKey = (plot) => String(plot?.code || plot?.label || plot?.id || '')
+  .replace(/^plot\s+/i, '')
+  .trim()
+  .toLowerCase();
+
+export const dedupeSelectedPlots = (plots) => {
+  const seen = new Set();
+  return (plots || []).filter((plot) => {
+    const key = getPlotSelectionKey(plot);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+export const getBookingValidationError = ({ acceptedTerms, selectedMode, assistedService }) => {
+  if (!acceptedTerms) return 'Bạn cần đọc và chấp nhận điều khoản thuê đất trước khi thanh toán.';
+  if (selectedMode === 'ASSISTED' && !assistedService) {
+    return 'Chưa tải được gói chăm sóc toàn vụ từ hệ thống. Vui lòng tải lại trang rồi thử lại.';
+  }
+  return '';
+};
 
 // Danh mục tương thích sinh học chuẩn hóa từ PostgreSQL table plot_variety_compatibility (BR03)
 const PLOT_COMPATIBLE_VARIETIES = {
@@ -103,6 +162,9 @@ export default function BookPlot() {
   const [contractCode, setContractCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVnPayModal, setShowVnPayModal] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [termsError, setTermsError] = useState('');
 
   // Tự động nhận diện giống cây từ URL search param nếu có
   useEffect(() => {
@@ -555,6 +617,13 @@ export default function BookPlot() {
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
+
+    if (!acceptedTerms) {
+      setTermsError('Bạn cần đọc và chấp nhận điều khoản thuê đất trước khi thanh toán.');
+      setShowTermsModal(true);
+      return;
+    }
+    setTermsError('');
 
     setIsProcessing(true);
 
@@ -1375,6 +1444,38 @@ export default function BookPlot() {
                   </div>
                 )}
 
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(true)}
+                  className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left text-xs transition cursor-pointer ${
+                    acceptedTerms
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                      : 'border-brand-border bg-white text-stone-700 hover:border-emerald-300'
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                      acceptedTerms
+                        ? 'border-emerald-700 bg-emerald-700 text-white'
+                        : 'border-stone-300 bg-white'
+                    }`}
+                  >
+                    {acceptedTerms && <CheckCircle2 className="h-3 w-3" />}
+                  </span>
+                  <span>
+                    {acceptedTerms ? 'Đã đọc và chấp nhận' : 'Đọc và chấp nhận'}{' '}
+                    <strong className="text-brand-green underline underline-offset-2">
+                      điều khoản thuê đất và thanh toán của Farmely
+                    </strong>
+                    .
+                  </span>
+                </button>
+                {termsError && (
+                  <p role="alert" className="text-xs font-semibold text-rose-600">
+                    {termsError}
+                  </p>
+                )}
+
                 <Button
                   variant="secondary"
                   size="lg"
@@ -1478,6 +1579,43 @@ export default function BookPlot() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showTermsModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-stone-950/70 p-3 backdrop-blur-xs sm:p-6">
+          <section role="dialog" aria-modal="true" aria-labelledby="rental-terms-title" className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl">
+            <header className="flex items-start justify-between gap-4 border-b border-brand-border bg-[#f4f7f1] px-5 py-4 sm:px-7">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Dự thảo hợp đồng Farmely</p>
+                <h2 id="rental-terms-title" className="mt-1 font-heading text-xl font-black text-brand-dark">Điều khoản thuê thửa đất và canh tác</h2>
+                <p className="mt-1 text-xs text-stone-500">Phiên bản {RENTAL_TERMS_VERSION}</p>
+              </div>
+              <button type="button" onClick={() => setShowTermsModal(false)} aria-label="Đóng điều khoản" className="rounded-xl p-2 text-stone-500 hover:bg-white hover:text-stone-800 cursor-pointer"><X className="h-5 w-5" /></button>
+            </header>
+
+            <div className="overflow-y-auto px-5 py-5 sm:px-8 sm:py-7">
+              <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-900">
+                Đây là nội dung sẽ được ghi nhận cùng hợp đồng điện tử. Vui lòng kiểm tra đặc biệt các điều về thời hạn, thanh toán, hoàn tiền, rủi ro mùa vụ và dữ liệu trước khi đồng ý.
+              </div>
+              <div className="space-y-6">
+                {RENTAL_TERMS.map(({ title, content }) => (
+                  <article key={title}>
+                    <h3 className="font-heading text-sm font-black text-brand-dark">{title}</h3>
+                    <p className="mt-2 text-sm leading-7 text-stone-600">{content}</p>
+                  </article>
+                ))}
+              </div>
+              <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs leading-6 text-emerald-900">
+                Khi chọn “Tôi đồng ý”, hệ thống ghi nhận sự chấp thuận đối với đúng phiên bản điều khoản này. Bạn vẫn có thể đóng cửa sổ để quay lại kiểm tra đơn thuê trước khi thanh toán.
+              </div>
+            </div>
+
+            <footer className="flex flex-col-reverse gap-3 border-t border-brand-border bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
+              <button type="button" onClick={() => setShowTermsModal(false)} className="rounded-xl border border-brand-border px-5 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-50 cursor-pointer">Để tôi xem lại đơn</button>
+              <button type="button" onClick={() => { setAcceptedTerms(true); setTermsError(''); setShowTermsModal(false); }} className="rounded-xl bg-brand-green px-5 py-2.5 text-xs font-black text-white hover:bg-emerald-800 cursor-pointer">Tôi đã đọc và đồng ý</button>
+            </footer>
+          </section>
         </div>
       )}
 

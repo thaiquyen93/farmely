@@ -33,6 +33,13 @@ export default defineConfig({
         target: 'http://localhost:8088',
         changeOrigin: true,
       },
+      '/api/services': { target: 'http://localhost:8086', changeOrigin: true },
+      '/api/tasks': { target: 'http://localhost:8086', changeOrigin: true },
+      '/api/issues': { target: 'http://localhost:8086', changeOrigin: true },
+      '/api/harvest': { target: 'http://localhost:8086', changeOrigin: true },
+      '/api/templates': { target: 'http://localhost:8083', changeOrigin: true },
+      '/api/knowledge-documents': { target: 'http://localhost:8083', changeOrigin: true },
+      '/api/rentals': { target: 'http://localhost:8084', changeOrigin: true },
       '/api/v1/payments': {
         target: 'http://localhost:8085',
         changeOrigin: true,

@@ -1,63 +1,83 @@
 import { create } from 'zustand';
-import { defaultServices } from '../data/services';
+import { apiFetch, unwrapData } from '../api/apiClient';
 
-const STORAGE_KEY = 'farmely_service_catalog_v1';
+const iconForCode = (code) => {
+  if (code === 'S01') return 'droplets';
+  if (['S04', 'S05'].includes(code)) return 'layers';
+  if (code === 'S14') return 'calendar';
+  return 'sprout';
+};
 
-const loadServices = () => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : defaultServices;
-  } catch {
-    return defaultServices;
+export const normalizeService = (service) => {
+  const serviceId = Number(service.serviceId);
+  const serviceCode = service.serviceCode || `S${String(serviceId).padStart(2, '0')}`;
+  const isTemporaryPackage = serviceCode === 'S14';
+  const isFullCycle = serviceCode === 'S15';
+
+  return {
+    id: serviceCode,
+    serviceId,
+    serviceCode,
+    name: service.serviceName,
+    serviceType: service.serviceType,
+    category: service.serviceType === 'FULL' ? 'Trọn gói' : 'Dịch vụ một lần',
+    customerCategory: isTemporaryPackage ? 'CYCLE' : isFullCycle ? 'FULL' : 'SINGLE',
+    price: Number(service.price || 0),
+    unit: service.unit || '',
+    tag: isTemporaryPackage ? 'Chăm sóc theo tuần' : isFullCycle ? 'Chăm sóc toàn vụ' : 'Dịch vụ lẻ',
+    iconKey: iconForCode(serviceCode),
+    active: service.status === 'ACTIVE',
+    status: service.status,
+    description: service.description || '',
+    tasks: []
+  };
+};
+
+export const useServiceStore = create((set, get) => ({
+  services: [],
+  loading: false,
+  loaded: false,
+  error: '',
+
+  loadServices: async (force = false) => {
+    if (!force && (get().loading || get().loaded)) return get().services;
+    set({ loading: true, error: '' });
+    try {
+      const payload = await apiFetch('/api/services');
+      const services = (unwrapData(payload) || []).map(normalizeService);
+      set({ services, loading: false, loaded: true });
+      return services;
+    } catch (error) {
+      set({ services: [], loading: false, loaded: false, error: error.message });
+      throw error;
+    }
+  },
+
+  addService: async (service) => {
+    const payload = await apiFetch('/api/services', {
+      method: 'POST',
+      body: JSON.stringify(service)
+    });
+    const created = normalizeService(unwrapData(payload));
+    set((state) => ({ services: [...state.services, created] }));
+    return created;
+  },
+
+  toggleService: async (serviceId) => {
+    const current = get().services.find((service) => service.serviceId === serviceId);
+    if (!current) return null;
+    const payload = await apiFetch(`/api/services/${serviceId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: current.active ? 'INACTIVE' : 'ACTIVE' })
+    });
+    const updated = normalizeService(unwrapData(payload));
+    set((state) => ({
+      services: state.services.map((service) => service.serviceId === serviceId ? updated : service)
+    }));
+    return updated;
   }
-};
-
-const persist = (services) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(services));
-  return services;
-};
-
-export const useServiceStore = create((set) => ({
-  services: loadServices(),
-  addService: (service) => set((state) => ({ services: persist([...state.services, service]) })),
-  toggleService: (serviceId) => set((state) => ({
-    services: persist(state.services.map((service) => service.id === serviceId ? { ...service, active: !service.active } : service))
-  })),
-  setServices: (services) => set({ services: persist(services) })
 }));
 
 export const fetchServicesFromDb = async () => {
-  try {
-    const res = await fetch('/api/services');
-    const json = await res.json();
-    const list = Array.isArray(json) ? json : (json?.data || []);
-    if (list.length > 0) {
-      const mapped = list.map((s) => ({
-        id: `SVC-${String(s.serviceId || s.service_id).padStart(2, '0')}`,
-        dbId: s.serviceId || s.service_id,
-        name: s.serviceName || s.service_name,
-        category: (s.serviceType || s.service_type) === 'COMBO' ? 'Gói combo chu kỳ' : 'Dịch vụ phát sinh',
-        price: Number(s.price || 0),
-        duration: s.durationDays || 1,
-        active: s.isActive !== false,
-        tasks: [{ offset: 0, title: `Thực hiện ${s.serviceName || s.service_name}`, assignee: 'STAFF', evidence: true }]
-      }));
-      useServiceStore.setState({ services: mapped });
-      persist(mapped);
-    }
-  } catch (err) {
-    console.error('Failed to load services from DB:', err);
-  }
+  return await useServiceStore.getState().loadServices(true);
 };
-
-if (typeof window !== 'undefined') {
-  fetchServicesFromDb();
-  window.addEventListener('storage', (event) => {
-    if (event.key !== STORAGE_KEY || !event.newValue) return;
-    try {
-      useServiceStore.setState({ services: JSON.parse(event.newValue) });
-    } catch {
-      // Ignore malformed catalog data and keep the current in-memory state.
-    }
-  });
-}

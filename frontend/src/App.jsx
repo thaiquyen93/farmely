@@ -12,8 +12,12 @@ import PlotDetail from './pages/public/PlotDetail';
 import BookPlot from './pages/public/BookPlot';
 import ForgotPassword from './pages/public/ForgotPassword';
 import About from './pages/public/About';
+import Terms from './pages/public/Terms';
+import RentalTerms from './pages/public/RentalTerms';
 import VnPayReturn from './pages/payment/VnPayReturn';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
+import CustomerProfile from './pages/customer/CustomerProfile';
+import CustomerSettings from './pages/customer/CustomerSettings';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ExpertDashboard from './pages/expert/ExpertDashboard';
 import FieldWorkerDashboard from './pages/staff/FieldWorkerDashboard';
@@ -36,6 +40,7 @@ import KnowledgeDocuments from './pages/admin/KnowledgeDocuments';
 import ProcessTemplates from './pages/admin/ProcessTemplates';
 import ProcessTemplateDetail from './pages/admin/ProcessTemplateDetail';
 import Services from './pages/admin/Services';
+import GlobalExpertChat from './components/customer/GlobalExpertChat';
 
 const dashboardByRole = {
   CUSTOMER: '/customer/dashboard',
@@ -76,9 +81,11 @@ export default function App() {
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/terms/rental" element={<RentalTerms />} />
         <Route path="/site-visit/book" element={<CustomerCommerceRoute><SiteVisitBooking /></CustomerCommerceRoute>} />
         <Route path="/marketplace" element={<CustomerCommerceRoute><Marketplace /></CustomerCommerceRoute>} />
         <Route path="/marketplace/plot/:id" element={<CustomerCommerceRoute><PlotDetail /></CustomerCommerceRoute>} />
@@ -87,6 +94,8 @@ export default function App() {
 
         {/* Role-Specific Dashboards */}
         <Route path="/customer/dashboard" element={<RoleRoute role="CUSTOMER"><CustomerDashboard /></RoleRoute>} />
+        <Route path="/customer/profile" element={<RoleRoute role="CUSTOMER"><CustomerProfile /></RoleRoute>} />
+        <Route path="/customer/settings" element={<RoleRoute role="CUSTOMER"><CustomerSettings /></RoleRoute>} />
         <Route path="/admin/dashboard" element={<RoleRoute role="ADMIN"><AdminDashboard /></RoleRoute>} />
         <Route path="/expert/dashboard" element={<RoleRoute role="EXPERT"><ExpertDashboard /></RoleRoute>} />
         <Route path="/staff/dashboard" element={<RoleRoute role="STAFF"><FieldWorkerDashboard /></RoleRoute>} />
@@ -126,6 +135,7 @@ export default function App() {
         {/* Fallback to Home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <GlobalExpertChat />
     </BrowserRouter>
   );
 }

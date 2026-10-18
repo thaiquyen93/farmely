@@ -1,6 +1,6 @@
 import { create } from 'zustand';
+import { apiFetch, unwrapData } from '../api/apiClient';
 
-// Default mock demo users for quick role switching & testing
 export const DEMO_ACCOUNTS = [
   {
     id: "USR-001",
@@ -40,73 +40,96 @@ export const DEMO_ACCOUNTS = [
   }
 ];
 
+const ROLE_TITLES = {
+  CUSTOMER: 'Khách hàng thuê đất',
+  EXPERT: 'Chuyên gia nông nghiệp (CGNN)',
+  STAFF: 'Chuyên viên lao động hiện trường (CVLĐ)',
+  ADMIN: 'Quản trị viên hệ thống (Admin)'
+};
+
+const normalizeUser = (user, token) => {
+  const role = user?.role === 'FIELD_WORKER' ? 'STAFF' : user?.role;
+  return {
+    ...user,
+    id: user?.id || (user?.userId ? `USR-${user.userId}` : undefined),
+    userId: user?.userId || (typeof user?.id === 'number' ? user.id : undefined),
+    phone: user?.phone || user?.phoneNumber,
+    role,
+    roleTitle: ROLE_TITLES[role] || role,
+    avatar: user?.avatar || (
+      role === 'ADMIN' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80'
+      : role === 'EXPERT' ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
+      : role === 'STAFF' ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80'
+      : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
+    ),
+    token: token || user?.token
+  };
+};
+
+const readAuth = () => {
+  try {
+    const auth = JSON.parse(localStorage.getItem('farmely_auth') || 'null');
+    if (auth?.token && auth?.user) return auth;
+    const user = JSON.parse(localStorage.getItem('farmely_user') || 'null');
+    const token = localStorage.getItem('farmely_token') || null;
+    if (user) return { token, user: normalizeUser(user, token) };
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const persistAuth = (auth) => {
+  localStorage.setItem('farmely_auth', JSON.stringify(auth));
+  localStorage.setItem('farmely_user', JSON.stringify(auth.user));
+  if (auth.token) localStorage.setItem('farmely_token', auth.token);
+};
+
+const initialAuth = readAuth();
+
 export const useAuthStore = create((set, get) => ({
-  user: JSON.parse(localStorage.getItem('farmely_user')) || null,
-  token: localStorage.getItem('farmely_token') || null,
-  isAuthenticated: !!localStorage.getItem('farmely_user'),
+  user: initialAuth?.user || null,
+  token: initialAuth?.token || null,
+  isAuthenticated: Boolean(initialAuth?.user),
+  isLoading: false,
 
   login: async (email, password) => {
+    set({ isLoading: true });
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() })
+        body: JSON.stringify({ email: email.trim(), password })
       });
       const resData = await response.json();
-
       if (response.ok && resData && resData.success && resData.data) {
-        const { token, user: dbUser } = resData.data;
-        const mappedUser = {
-          id: `USR-${dbUser.userId}`,
-          userId: dbUser.userId,
-          fullName: dbUser.fullName,
-          email: dbUser.email,
-          role: dbUser.role,
-          phone: dbUser.phoneNumber || '',
-          address: dbUser.address || '',
-          roleTitle: dbUser.role === 'ADMIN' ? 'Quản trị viên hệ thống (Admin)'
-            : dbUser.role === 'EXPERT' ? 'Chuyên gia nông nghiệp (CGNN)'
-            : dbUser.role === 'STAFF' ? 'Chuyên viên lao động hiện trường (CVLĐ)'
-            : 'Khách hàng thuê đất',
-          avatar: dbUser.role === 'ADMIN' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80'
-            : dbUser.role === 'EXPERT' ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
-            : dbUser.role === 'STAFF' ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80'
-            : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
-        };
-
-        localStorage.setItem('farmely_token', token);
-        localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
-        set({ user: mappedUser, token, isAuthenticated: true });
-        return { success: true, user: mappedUser };
+        const data = resData.data;
+        const user = normalizeUser(data.user, data.token);
+        persistAuth({ token: data.token, expiresIn: data.expiresIn, user });
+        set({ user, token: data.token, isAuthenticated: true, isLoading: false });
+        return { success: true, user };
       }
-
-      return {
-        success: false,
-        message: resData?.message || 'Email hoặc mật khẩu không chính xác.'
-      };
-    } catch (err) {
-      console.error('Lỗi kết nối API đăng nhập:', err);
+      set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      return { success: false, message: resData?.message || 'Email hoặc mật khẩu không chính xác.' };
+    } catch (error) {
       // Fallback cho tài khoản demo khi Identity Service offline
       const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
       if (demoAcc) {
         const fallbackToken = 'demo-token-' + demoAcc.id;
-        localStorage.setItem('farmely_token', fallbackToken);
-        localStorage.setItem('farmely_user', JSON.stringify(demoAcc));
-        set({ user: demoAcc, token: fallbackToken, isAuthenticated: true });
-        return { success: true, user: demoAcc };
+        const normalized = normalizeUser(demoAcc, fallbackToken);
+        persistAuth({ token: fallbackToken, user: normalized });
+        set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
+        return { success: true, user: normalized };
       }
-      return {
-        success: false,
-        message: 'Không thể kết nối đến máy chủ xác thực (Identity Service).'
-      };
+      set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      return { success: false, message: error.message || 'Không thể kết nối đến máy chủ xác thực.' };
     }
   },
 
   register: async (userData) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const payload = await apiFetch('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fullName: userData.fullName,
           email: userData.email,
@@ -114,41 +137,54 @@ export const useAuthStore = create((set, get) => ({
           password: userData.password || '123456'
         })
       });
-      const resData = await response.json();
-      if (response.ok && resData && resData.success && resData.data) {
-        const dbUser = resData.data.user || resData.data;
-        const token = resData.data.token || ('farmely_token_' + (dbUser.userId || dbUser.id || Date.now()));
-        const resolvedUserId = dbUser.userId || dbUser.id || Date.now();
-        const mappedUser = {
-          id: `USR-${resolvedUserId}`,
-          userId: resolvedUserId,
-          fullName: dbUser.fullName || userData.fullName,
-          email: dbUser.email || userData.email,
-          role: dbUser.role || 'CUSTOMER',
-          phone: dbUser.phoneNumber || dbUser.phone || userData.phone || '',
-          address: dbUser.address || '',
-          roleTitle: 'Khách hàng thuê đất',
-          avatar: dbUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
-        };
-        localStorage.setItem('farmely_token', token);
-        localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
-        set({ user: mappedUser, token, isAuthenticated: true });
-        return { success: true, user: mappedUser, message: resData.message || 'Đăng ký tài khoản thành công.' };
-      }
-      return { success: false, message: resData?.message || 'Đăng ký thất bại. Vui lòng thử lại.' };
+      const data = unwrapData(payload);
+      const dbUser = normalizeUser(data.user || data, data.token);
+      persistAuth({ token: data.token, expiresIn: data.expiresIn, user: dbUser });
+      set({ user: dbUser, token: data.token, isAuthenticated: true });
+      return { success: true, user: dbUser, message: payload?.message || 'Đăng ký thành công.' };
     } catch (err) {
-      console.error('Lỗi gọi API đăng ký:', err);
-      return { success: false, message: 'Lỗi kết nối máy chủ khi đăng ký.' };
+      return { success: false, message: err.message || 'Lỗi kết nối máy chủ khi đăng ký.' };
+    }
+  },
+
+  refreshUser: async () => {
+    const auth = readAuth();
+    if (!auth?.token) return null;
+    try {
+      const user = normalizeUser(unwrapData(await apiFetch('/api/auth/me')), auth.token);
+      persistAuth({ ...auth, user });
+      set({ user, isAuthenticated: true });
+      return user;
+    } catch (error) {
+      if (error.status === 401) get().logout();
+      throw error;
     }
   },
 
   logout: () => {
     localStorage.removeItem('farmely_token');
     localStorage.removeItem('farmely_user');
-    set({ user: null, token: null, isAuthenticated: false });
+    localStorage.removeItem('farmely_auth');
+    set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+  },
+
+  updateUser: (changes) => {
+    const current = get().user;
+    if (!current) return;
+    const updated = { ...current, ...changes };
+    localStorage.setItem('farmely_user', JSON.stringify(updated));
+    const auth = readAuth();
+    if (auth) persistAuth({ ...auth, user: updated });
+    set({ user: updated, isAuthenticated: true });
   },
 
   switchRole: async (role) => {
+    const target = DEMO_ACCOUNTS.find(acc => acc.role === role);
+    if (target) {
+      const normalized = normalizeUser(target, 'demo-token-' + target.id);
+      persistAuth({ token: 'demo-token-' + target.id, user: normalized });
+      set({ user: normalized, isAuthenticated: true });
+    }
     const roleEmailMap = {
       CUSTOMER: 'customer@farmely.vn',
       EXPERT: 'expert@farmely.vn',
@@ -156,6 +192,6 @@ export const useAuthStore = create((set, get) => ({
       ADMIN: 'admin@farmely.vn'
     };
     const email = roleEmailMap[role] || 'customer@farmely.vn';
-    return await get().login(email, '123456');
+    return await get().login(email, 'Password@123').catch(() => ({ success: true, user: target }));
   }
 }));

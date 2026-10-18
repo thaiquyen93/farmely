@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, Shield, Sprout, AlertCircle, CheckCircle2, Info } from 'lucide-react';
-import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
+import { Mail, Lock, Sprout, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
@@ -19,79 +19,47 @@ export default function Login() {
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const performLogin = async (loginEmail, loginPassword) => {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!email.trim() || !password.trim()) {
+    if (!loginEmail.trim() || !loginPassword.trim()) {
       setErrorMessage('Vui lòng nhập đầy đủ Email và Mật khẩu.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await login(email, password);
+      const res = await login(loginEmail, loginPassword);
       setIsLoading(false);
       if (res.success) {
-        setSuccessMessage(`Đăng nhập thành công! Chào mừng ${res.user.fullName}.`);
-        setTimeout(() => {
-          if (res.user.role === 'CUSTOMER') {
-            navigate('/customer/dashboard');
-          } else if (redirectParam) {
-            navigate(redirectParam);
-          } else if (res.user.role === 'ADMIN') {
-            navigate('/admin/dashboard');
-          } else if (res.user.role === 'EXPERT') {
-            navigate('/expert/dashboard');
-          } else if (res.user.role === 'STAFF') {
-            navigate('/staff/dashboard');
-          } else {
-            navigate('/');
-          }
-        }, 500);
+        setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
+        if (redirectParam) navigate(redirectParam);
+        else if (res.user.role === 'CUSTOMER') navigate('/customer/dashboard');
+        else if (res.user.role === 'ADMIN') navigate('/admin/dashboard');
+        else if (res.user.role === 'EXPERT') navigate('/expert/dashboard');
+        else if (res.user.role === 'STAFF') navigate('/staff/dashboard');
+        else navigate('/');
       } else {
         setErrorMessage(res.message || 'Email hoặc mật khẩu không chính xác.');
       }
-    } catch (err) {
+    } catch {
       setIsLoading(false);
-      setErrorMessage('Không thể kết nối đến máy chủ xác thực.');
+      setErrorMessage('Không thể kết nối máy chủ xác thực.');
     }
   };
 
-  const handleQuickDemoLogin = async (acc) => {
-    setEmail(acc.email);
-    setPassword('123456');
-    setErrorMessage('');
-    setIsLoading(true);
-    try {
-      const res = await login(acc.email, '123456');
-      setIsLoading(false);
-      if (res.success) {
-        setSuccessMessage(`Đăng nhập thành công (${acc.role})! Chào mừng ${res.user.fullName}.`);
-        setTimeout(() => {
-          if (res.user.role === 'CUSTOMER') {
-            navigate('/customer/dashboard');
-          } else if (redirectParam) {
-            navigate(redirectParam);
-          } else if (res.user.role === 'ADMIN') {
-            navigate('/admin/dashboard');
-          } else if (res.user.role === 'EXPERT') {
-            navigate('/expert/dashboard');
-          } else if (res.user.role === 'STAFF') {
-            navigate('/staff/dashboard');
-          } else {
-            navigate('/');
-          }
-        }, 500);
-      } else {
-        setErrorMessage(res.message || 'Đăng nhập không thành công.');
-      }
-    } catch (err) {
-      setIsLoading(false);
-      setErrorMessage('Không thể kết nối đến máy chủ xác thực.');
-    }
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    await performLogin(email, password);
   };
+
+  const quickAccounts = [
+    { label: 'Khách hàng', email: 'customer@farmely.vn' },
+    { label: 'Chuyên gia', email: 'expert@farmely.vn' },
+    { label: 'Nhân viên', email: 'worker@farmely.vn' },
+    { label: 'Quản trị', email: 'admin@farmely.vn' }
+  ];
 
   return (
     <div className="min-h-screen bg-brand-cream flex">
@@ -133,7 +101,6 @@ export default function Login() {
           <div>
             <div className="flex items-center justify-between">
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-brand-cream text-brand-green border border-brand-border">
-                Mã: SCR-PUB-03
               </span>
               <Link to="/" className="text-xs font-bold text-brand-green hover:underline">
                 ← Về trang chủ
@@ -157,27 +124,6 @@ export default function Login() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* Quick Demo Switcher Banner */}
-          <div className="p-3.5 rounded-2xl bg-white border border-brand-border shadow-sm space-y-2">
-            <p className="text-[11px] font-bold text-brand-muted uppercase tracking-wider flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-brand-yellow" />
-              Đăng nhập nhanh các Role Demo (1-Click):
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => handleQuickDemoLogin(acc)}
-                  className="px-2.5 py-1.5 rounded-xl bg-brand-cream hover:bg-brand-yellow/20 border border-brand-border text-left transition-colors flex items-center justify-between"
-                >
-                  <span className="font-bold text-brand-dark truncate">{acc.role}</span>
-                  <span className="text-[10px] text-brand-green">Vào ngay →</span>
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Alerts */}
@@ -242,6 +188,26 @@ export default function Login() {
             >
               ĐĂNG NHẬP
             </Button>
+
+            <div className="rounded-xl border border-brand-border bg-white/70 p-3">
+              <p className="mb-2 text-center text-[11px] font-bold text-stone-500">Đăng nhập nhanh để kiểm thử</p>
+              <div className="grid grid-cols-2 gap-2">
+                {quickAccounts.map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    onClick={() => {
+                      setEmail(account.email);
+                      setPassword('Password@123');
+                      performLogin(account.email, 'Password@123');
+                    }}
+                    className="rounded-lg border border-emerald-200 px-2 py-2 text-[11px] font-bold text-brand-green transition hover:bg-emerald-50"
+                  >
+                    {account.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="text-center pt-2 text-xs text-stone-600">
               Chưa có tài khoản?{' '}

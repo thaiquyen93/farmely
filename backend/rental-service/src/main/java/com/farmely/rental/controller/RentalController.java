@@ -41,12 +41,13 @@ public class RentalController {
     }
 
     @GetMapping
-    @Operation(summary = "Lấy danh sách các lượt thuê đất (lọc theo plotId, contractId, status)")
+    @Operation(summary = "Lấy danh sách các lượt thuê đất (lọc theo customer/renter, plot, contract, status)")
     public ResponseEntity<ApiResponse<List<RentalResponse>>> getAllRentals(
+            @RequestParam(required = false) Integer renterId,
             @RequestParam(required = false) Integer plotId,
             @RequestParam(required = false) Integer contractId,
             @RequestParam(required = false) RentalStatus status) {
-        List<RentalResponse> list = rentalService.getAllRentals(plotId, contractId, status);
+        List<RentalResponse> list = rentalService.getAllRentals(renterId, plotId, contractId, status);
         return ResponseEntity.ok(ApiResponse.success(list));
     }
 

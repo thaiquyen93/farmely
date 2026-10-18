@@ -4,6 +4,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import Button from '../common/Button';
+import { apiFetch } from '../../api/apiClient';
 
 export default function VnPayModal({
   isOpen,
@@ -39,7 +40,7 @@ export default function VnPayModal({
           ? `Thanh toan dich vu ${serviceInfo.name}`
           : `Thanh toan thue dat ${plotInfo?.code || ''}`,
         contractId: contractId || null,
-        serviceId: serviceInfo?.id || null,
+        serviceId: serviceInfo?.serviceId || serviceInfo?.id || null,
         serviceName: serviceInfo?.name || null,
         plotCode: plotInfo?.code || null,
         bankCode: '', // Để trống để VNPay hiển thị đầy đủ các lựa chọn trên cổng
@@ -47,39 +48,28 @@ export default function VnPayModal({
         ...additionalPayload
       };
 
-      const endpoint = window.location.port === '3000' 
-        ? '/api/v1/payments/vnpay/create' 
-        : 'http://localhost:8085/api/v1/payments/vnpay/create';
-
-      let res;
+      let data;
       try {
-        res = await fetch(endpoint, {
+        data = await apiFetch('/api/v1/payments/vnpay/create', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
       } catch (fetchErr) {
-        // Fallback to direct port 8085 if proxy or direct fails
-        const fallbackUrl = endpoint.startsWith('http') 
-          ? '/api/v1/payments/vnpay/create' 
-          : 'http://localhost:8085/api/v1/payments/vnpay/create';
-        res = await fetch(fallbackUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      }
-
-      if (!res.ok) {
-        let errorDetail = 'Không thể kết nối đến cổng thanh toán VNPAY';
         try {
-          const errBody = await res.json();
-          if (errBody?.message) errorDetail = errBody.message;
-        } catch (_) {}
-        throw new Error(errorDetail);
+          const fallbackRes = await fetch('http://localhost:8085/api/v1/payments/vnpay/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (fallbackRes.ok) {
+            data = await fallbackRes.json();
+          } else {
+            throw fetchErr;
+          }
+        } catch (_) {
+          throw fetchErr;
+        }
       }
-
-      const data = await res.json();
       if (data?.data?.paymentUrl) {
         // Chuyển hướng trực tiếp sang cổng thanh toán VNPay
         window.location.href = data.data.paymentUrl;

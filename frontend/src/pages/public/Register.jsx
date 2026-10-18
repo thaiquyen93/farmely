@@ -82,10 +82,8 @@ export default function Register() {
       });
       setIsLoading(false);
       if (res && res.success) {
-        setSuccessMsg(res.message || 'Đăng ký tài khoản thành công vào CSDL. Đang chuyển hướng...');
-        setTimeout(() => {
-          navigate(redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login');
-        }, 1200);
+        setSuccessMsg(res.message || 'Đăng ký tài khoản thành công.');
+        navigate(redirectParam || '/customer/dashboard');
       } else {
         setErrors((prev) => ({
           ...prev,
@@ -141,7 +139,6 @@ export default function Register() {
           <div>
             <div className="flex items-center justify-between">
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-brand-cream text-brand-green border border-brand-border">
-                Mã: SCR-PUB-02
               </span>
               <Link to="/" className="text-xs font-bold text-brand-green hover:underline">
                 ← Về trang chủ
