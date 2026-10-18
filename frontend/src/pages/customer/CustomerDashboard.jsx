@@ -64,10 +64,13 @@ import {
   QrCode,
   Flame,
   Tag,
+  Zap,
+  Wallet,
   LayoutDashboard,
   MessageCircle,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  ShieldAlert
 } from 'lucide-react';
 
 export default function CustomerDashboard() {
@@ -90,7 +93,8 @@ export default function CustomerDashboard() {
     setApiServices(services || []);
     return services;
   }, [loadMasterServices]);
-  const [activeTab, setActiveTab] = useState('yards');
+const [activeTab, setActiveTab] = useState('yards');
+  const [contractSubTab, setContractSubTab] = useState('list'); // 'list' | 'document'
   const [selectedPlotId, setSelectedPlotId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
@@ -147,23 +151,21 @@ export default function CustomerDashboard() {
   });
   const [checkoutNotes, setCheckoutNotes] = useState('');
   const [checkoutPaymentMethod, setCheckoutPaymentMethod] = useState('VNPAY');
+  const [lastPaymentResult, setLastPaymentResult] = useState(null);
   const [showCheckoutSuccessModal, setShowCheckoutSuccessModal] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [showServiceVnPayModal, setShowServiceVnPayModal] = useState(false);
   const [showServiceCardModal, setShowServiceCardModal] = useState(false);
+  const [showServiceQrModal, setShowServiceQrModal] = useState(false);
   const [serviceQrData, setServiceQrData] = useState(null);
   const [livePlotOperations, setLivePlotOperations] = useState({});
-
-  // Tự động đóng modal thông báo thành công sau 3 giây
-  useEffect(() => {
-    if (showCheckoutSuccessModal) {
-      const timer = setTimeout(() => {
-        setShowCheckoutSuccessModal(false);
-        setSelectedServiceToBuy(null);
-      }, 3000);
-      return () => clearTimeout(timer);
+  const [tasksPlotFilter, setTasksPlotFilter] = useState(() => {
+    try {
+      return localStorage.getItem('farmely_selected_task_plot') || 'ALL';
+    } catch {
+      return 'ALL';
     }
-  }, [showCheckoutSuccessModal]);
+  });
 
   // Modals for Other Screen Flows
   const [showNewDiaryModal, setShowNewDiaryModal] = useState(false);
@@ -243,127 +245,47 @@ export default function CustomerDashboard() {
   const [dbPlots, setDbPlots] = useState(null);
   const [isLoadingPlots, setIsLoadingPlots] = useState(true);
 
-  // Đồng hồ & ngày theo thời gian thực (Real-time Clock & Date)
-  const [currentRealTime, setCurrentRealTime] = useState(new Date());
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentRealTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    let isMounted = true;
+    const fetchPlots = async () => {
+      try {
+        setIsLoadingPlots(true);
+        const userId = user?.userId || user?.id;
+        const email = user?.email;
+        if (!userId && !email) {
+          if (isMounted) {
+            setDbPlots([]);
+            setIsLoadingPlots(false);
+          }
+          return;
+        }
 
-  const formattedRealDate = useMemo(() => {
-    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
-    const dayName = days[currentRealTime.getDay()];
-    const date = String(currentRealTime.getDate()).padStart(2, '0');
-    const month = String(currentRealTime.getMonth() + 1).padStart(2, '0');
-    const year = currentRealTime.getFullYear();
-    return `${dayName}, ${date}/${month}/${year}`;
-  }, [currentRealTime]);
+        const query = userId
+          ? `userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email || '')}`
+          : `email=${encodeURIComponent(email || '')}`;
 
-  const formattedRealTime = useMemo(() => {
-    const h = String(currentRealTime.getHours()).padStart(2, '0');
-    const m = String(currentRealTime.getMinutes()).padStart(2, '0');
-    const s = String(currentRealTime.getSeconds()).padStart(2, '0');
-    return `${h}:${m}:${s}`;
-  }, [currentRealTime]);
-
-  const fetchPlots = async () => {
-    try {
-      setIsLoadingPlots(true);
-      const userId = user?.userId || user?.id;
-      const email = user?.email;
-      if (!userId && !email) {
-        setDbPlots([]);
-        setIsLoadingPlots(false);
-        return;
+        const res = await fetch(`/api/customer/rented-plots?${query}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            setDbPlots(Array.isArray(data) ? data : []);
+          }
+        } else {
+          if (isMounted) setDbPlots([]);
+        }
+      } catch (err) {
+        console.error('Failed to load customer plots from DB:', err);
+        if (isMounted) setDbPlots([]);
+      } finally {
+        if (isMounted) setIsLoadingPlots(false);
       }
-
-      const query = userId
-        ? `userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email || '')}`
-        : `email=${encodeURIComponent(email || '')}`;
-
-      const res = await fetch(`/api/customer/rented-plots?${query}`);
-      if (res.ok) {
-        const data = await res.json();
-        setDbPlots(Array.isArray(data) ? data : []);
-      } else {
-        setDbPlots([]);
-      }
-    } catch (err) {
-      console.error('Failed to load customer plots from DB:', err);
-      setDbPlots([]);
-    } finally {
-      setIsLoadingPlots(false);
-    }
-  };
-
-  useEffect(() => {
+    };
     fetchPlots();
+    return () => { isMounted = false; };
   }, [user?.id, user?.userId, user?.email]);
 
-  // Sync immediately when a plot is booked via VNPay
-  useEffect(() => {
-    const handlePlotBooked = () => {
-      fetchPlots();
-    };
-    window.addEventListener('farmely_plot_booked', handlePlotBooked);
-    window.addEventListener('focus', handlePlotBooked);
-    return () => {
-      window.removeEventListener('farmely_plot_booked', handlePlotBooked);
-      window.removeEventListener('focus', handlePlotBooked);
-    };
-  }, [user]);
-
   const customerPlots = useMemo(() => {
-    const list = Array.isArray(dbPlots) ? [...dbPlots] : [];
-
-    // Fallback: Nếu vừa thanh toán thuê thửa xong, đảm bảo hiển thị ngay trên Dashboard
-    try {
-      const pendingBooking = JSON.parse(localStorage.getItem('farmely_pending_vnpay_booking') || 'null');
-      if (pendingBooking && Array.isArray(pendingBooking.plots)) {
-        pendingBooking.plots.forEach((p) => {
-          const plotCode = p.code || p.id;
-          const plotIdStr = `PLOT-${plotCode}`;
-          const alreadyExists = list.some(
-            (cp) =>
-              cp.id === plotIdStr ||
-              cp.mapPlotId === plotCode ||
-              (cp.mapPlotId && plotCode && cp.mapPlotId.toLowerCase() === plotCode.toLowerCase())
-          );
-          if (!alreadyExists) {
-            list.unshift({
-              id: plotIdStr,
-              mapPlotId: plotCode,
-              name: p.name || `Thửa ${plotCode} - Trang trại Happy Valley Củ Chi`,
-              location: 'Trang trại Happy Valley Củ Chi',
-              area: p.area || '160m²',
-              mode: pendingBooking.cultivationMode === 'SELF_GROWING' ? 'Self-Growing' : 'Assisted-Growing',
-              crop: p.varietyName || p.cropName || 'Dưa leo baby F1',
-              stage: 'Bước 1: Làm đất & gieo giống',
-              currentDay: 1,
-              totalDays: 60,
-              progressPercent: 5,
-              image: p.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
-              temp: '28.5°C',
-              soilMoisture: '68%',
-              airHumidity: '74%',
-              light: '45.000 Lux',
-              stationId: `IOT-${plotCode}`,
-              status: 'HEALTHY',
-              worker: 'Trần Văn Lực (CVLĐ)',
-              contractCode: pendingBooking.contractCode || `HD-${Date.now()}`,
-              startDate: pendingBooking.startDate || new Date().toISOString().split('T')[0],
-              expectedHarvestDate: '2026-12-16'
-            });
-          }
-        });
-      }
-    } catch (e) {
-      console.warn('Fallback sync notice:', e);
-    }
-
-    return list;
+    return Array.isArray(dbPlots) ? dbPlots : [];
   }, [dbPlots]);
 
   // Sync selected IDs once plots are loaded
@@ -384,22 +306,26 @@ export default function CustomerDashboard() {
     }
   }, [customerPlots]);
 
-  const selectedCheckoutPlot = customerPlots.find((plot) => plot.id === checkoutPlotId) || customerPlots[0] || null;
+  const selectedCheckoutPlot = customerPlots.find((plot) =>
+    plot.id === checkoutPlotId ||
+    String(plot.rentalId) === String(checkoutPlotId) ||
+    `RENTAL-${plot.rentalId}` === checkoutPlotId ||
+    plot.plotCode === checkoutPlotId ||
+    plot.mapPlotId === checkoutPlotId
+  ) || customerPlots[0] || null;
 
   useEffect(() => {
     let cancelled = false;
     const unwrap = (body) => Array.isArray(body) ? body : (body?.data || []);
-    const renterId = user?.userId || user?.id;
-    if (!renterId) return undefined;
     Promise.all([
-      apiFetch('/api/services?status=ACTIVE').catch(() => ({ data: [] })),
-      apiFetch(`/api/rentals?renterId=${encodeURIComponent(renterId)}`).catch(() => ({ data: [] })),
-      apiFetch('/api/services/requests').catch(() => ({ data: [] }))
+      fetch('/api/services?status=ACTIVE').then((r) => r.ok ? r.json() : { data: [] }),
+      fetch('/api/rentals').then((r) => r.ok ? r.json() : { data: [] }),
+      fetch('/api/services/requests').then((r) => r.ok ? r.json() : { data: [] })
     ]).then(([servicesBody, rentalsBody, requestsBody]) => {
       if (cancelled) return;
       const services = unwrap(servicesBody).map((s) => ({
-        id: s.serviceId,
-        name: s.serviceName,
+        id: s.serviceId || s.id,
+        name: s.serviceName || s.name || 'Dịch vụ nông nghiệp',
         price: Number(s.price || 0),
         unit: s.unit || '/ lần thực hiện',
         description: s.description || 'Dịch vụ chăm sóc theo tiêu chuẩn Farmely.',
@@ -407,16 +333,13 @@ export default function CustomerDashboard() {
         customerCategory: String(s.serviceType || '').includes('FULL') ? 'FULL' : 'SINGLE',
         tag: String(s.serviceType || '').includes('FULL') ? 'Gói chăm sóc' : 'Dịch vụ lẻ',
         iconKey: 'sprout',
-        tasks: []
+        tasks: Array.isArray(s.tasks) ? s.tasks : []
       }));
       setApiServices(services);
       const rentals = unwrap(rentalsBody);
       setApiCustomerPlots(rentals.map((r, index) => ({
         id: `PLOT-${r.plotCode || r.plotId || r.rentalId}`,
         rentalId: r.rentalId,
-        varietyId: r.varietyId,
-        startDate: r.startDate,
-        endDate: r.endDate,
         mapPlotId: r.plotCode,
         name: r.plotCode ? `Thửa ${r.plotCode}` : `Thửa đất ${index + 1}`,
         location: 'Khu canh tác Farmely',
@@ -440,18 +363,18 @@ export default function CustomerDashboard() {
         price: `${Number(request.service?.price || 0).toLocaleString('vi-VN')} đ`,
         date: request.scheduledDate || (request.createdAt ? new Date(request.createdAt).toLocaleDateString('vi-VN') : 'Chưa có ngày'),
         status: request.status || 'PENDING',
-        statusLabel: request.status === 'DONE' ? 'Đã hoàn thành' : request.status === 'IN_PROG' ? 'Đang thực hiện' : 'Đang chờ xử lý',
-        worker: 'Farmely điều phối',
+        statusLabel: request.status === 'DONE' ? 'Đã hoàn thành' : request.status === 'ASSIGNED' ? 'Đã tiếp nhận & phân công' : request.status === 'IN_PROG' ? 'Đang thực hiện' : 'Đang chờ xử lý',
+        worker: request.status === 'ASSIGNED' || request.status === 'DONE' ? 'Farmely điều phối' : 'Chưa phân công',
         paymentMethod: 'Theo giao dịch hệ thống'
       })));
     }).catch(() => {
       if (!cancelled) { setApiServices([]); setApiCustomerPlots([]); setActiveServiceOrders([]); }
     });
     return () => { cancelled = true; };
-  }, [user?.userId, user?.id]);
+  }, []);
 
   // IoT Data for Different Timeframes (Hourly, Daily, Weekly)
-  const [iotDatasets, setIotDatasets] = useState(false ? {
+  const [iotDatasets, setIotDatasets] = useState({
     'PLOT-CC-01': {
       hourly: [
         { time: '00:00', temp: 24.2, moisture: 65, airHumidity: 82, light: 0 },
@@ -527,7 +450,7 @@ export default function CustomerDashboard() {
         { time: 'Tuần 4', temp: 29.4, moisture: 70, airHumidity: 71, light: 53 }
       ]
     }
-  } : {});
+  });
 
   const numericIotPlotId = useMemo(() => {
     const match = String(selectedIotPlotId || '').match(/\d+/);
@@ -572,7 +495,7 @@ export default function CustomerDashboard() {
   }, [baseIotPlot, iotLatest]);
 
   const currentIotData = useMemo(() => {
-    const fallbackDataset = (iotDatasets[selectedIotPlotId] || iotDatasets['PLOT-CC-01'])?.[iotTimeframe] || [];
+    const fallbackDataset = (iotDatasets[selectedIotPlotId] || iotDatasets['PLOT-CC-01'] || {})[iotTimeframe] || [];
     if (iotTimeframe !== 'hourly' || !Array.isArray(iotHistory) || iotHistory.length === 0) {
       return fallbackDataset;
     }
@@ -730,27 +653,49 @@ export default function CustomerDashboard() {
   const [activeServiceOrders, setActiveServiceOrders] = useState([]);
 
   const serviceIconMap = { calendar: Calendar, layers: Layers, droplets: Droplets, sprout: Sprout };
-  const customerServiceCatalog = masterServices.map((service) => ({
+  const effectiveServices = (masterServices && masterServices.length > 0) ? masterServices : serviceCatalog;
+  const customerServiceCatalog = effectiveServices.map((service, index) => {
+    const rawId = service.serviceId || service.id;
+    const numId = typeof rawId === 'number' ? rawId : (Number(String(rawId).replace(/\D/g, '')) || (index + 1));
+    return {
       ...service,
-      category: service.customerCategory,
-      formattedPrice: `${service.price.toLocaleString('vi-VN')} đ`,
-      icon: serviceIconMap[service.iconKey] || Sprout,
-      color: service.customerCategory === 'SINGLE'
+      serviceId: numId,
+      id: service.id || `SVC-${numId}`,
+      name: service.name || service.serviceName || 'Dịch vụ nông nghiệp',
+      category: service.customerCategory || service.category || 'SINGLE',
+      formattedPrice: service.formattedPrice || `${Number(service.price || 0).toLocaleString('vi-VN')} đ`,
+      icon: service.icon || serviceIconMap[service.iconKey] || Sprout,
+      color: service.color || (service.customerCategory === 'SINGLE'
         ? 'bg-purple-50 text-purple-800 border-purple-200'
-        : 'bg-emerald-50 text-emerald-800 border-emerald-200',
-      features: service.tasks.map((task) => task.title)
-    }));
+        : 'bg-emerald-50 text-emerald-800 border-emerald-200'),
+      active: service.active !== false && service.status !== 'INACTIVE',
+      features: Array.isArray(service.features)
+        ? service.features
+        : Array.isArray(service.tasks)
+          ? service.tasks.map((task) => (typeof task === 'string' ? task : task?.title || ''))
+          : []
+    };
+  });
   const filteredServices = (serviceCategoryFilter === 'ALL'
     ? customerServiceCatalog
-    : customerServiceCatalog.filter(s => s.category === serviceCategoryFilter)).sort((a, b) => serviceSort === 'price' ? a.price - b.price : a.name.localeCompare(b.name, 'vi'));
+    : customerServiceCatalog.filter(s => s.category === serviceCategoryFilter)).sort((a, b) => {
+      if (serviceSort === 'price') return (Number(a.price) || 0) - (Number(b.price) || 0);
+      return String(a.name || '').localeCompare(String(b.name || ''), 'vi');
+    });
 
   // Handle buy service
   const handleOpenBuyServiceModal = (svc) => {
-    if (!svc || !svc.serviceId) return;
+    if (!svc) return;
+    const rawId = svc.serviceId || svc.id;
+    const numId = typeof rawId === 'number' ? rawId : (Number(String(rawId).replace(/\D/g, '')) || 1);
+    const resolvedSvc = {
+      ...svc,
+      serviceId: numId
+    };
     const targetPlot = customerPlots.find((plot) => plot.id === selectedPlotId) || selectedCheckoutPlot || customerPlots[0];
     if (targetPlot) setCheckoutPlotId(targetPlot.id);
     if (!checkoutDate) setCheckoutDate(new Date(Date.now() + 86400000).toISOString().slice(0, 10));
-    setSelectedServiceToBuy(svc);
+    setSelectedServiceToBuy(resolvedSvc);
   };
 
   const handleEmergencyCareRequest = async (plot) => {
@@ -787,21 +732,26 @@ export default function CustomerDashboard() {
   };
 
   // Fetch existing cultivation service requests from backend to populate active orders
-  useEffect(() => {
+  const fetchServiceOrders = useCallback(() => {
     apiFetch('/api/services/requests')
       .then(unwrapData)
       .then(requests => {
         if (Array.isArray(requests)) {
           const backendOrders = requests.map(req => ({
             id: `REQ-${req.requestId}`,
+            requestId: req.requestId,
+            rentalId: req.rentalId,
+            plotCode: req.plotCode,
             serviceName: req.service?.serviceName || 'Dịch vụ canh tác',
-            plotName: req.plotName || (req.rentalId === 1 ? 'Thửa Sen Vàng A1' : req.rentalId === 2 ? 'Thửa Mộc Châu B2' : `Rental #${req.rentalId}`),
-            price: `${(Number(req.service?.price) || 0).toLocaleString('vi-VN')} đ`,
+            plotName: req.plotName || (req.rentalId === 1 ? 'Thửa P-01' : `Rental #${req.rentalId}`),
+            price: `${(Number(req.amount || req.service?.price) || 0).toLocaleString('vi-VN')} đ`,
             date: req.scheduledDate || 'Hôm nay',
             status: req.status === 'DONE' ? 'COMPLETED' : 'IN_PROGRESS',
-            statusLabel: req.status === 'DONE' ? 'Đã hoàn tất' : (req.status === 'ASSIGNED' ? 'Đang thực hiện' : 'Chờ phân công'),
-            worker: req.status === 'ASSIGNED' || req.status === 'DONE' ? 'Đã được điều phối' : 'Chưa phân công',
-            paymentMethod: 'Đã ghi nhận trên hệ thống'
+            statusLabel: req.status === 'DONE' ? 'Đã hoàn tất' : (req.status === 'ASSIGNED' ? 'Đã tiếp nhận & phân công' : 'Chờ xử lý'),
+            worker: req.worker || (req.status === 'ASSIGNED' || req.status === 'DONE' ? 'Trần Văn Lực (CVLĐ)' : 'Chưa phân công'),
+            transactionId: req.transactionId,
+            paymentMethod: req.paymentMethod ? `${req.paymentMethod} (Đã ghi CSDL)` : 'Đã lưu CSDL',
+            gatewayRef: req.gatewayRef
           }));
           setActiveServiceOrders(backendOrders);
         }
@@ -809,81 +759,117 @@ export default function CustomerDashboard() {
       .catch(() => setActiveServiceOrders([]));
   }, []);
 
+  useEffect(() => {
+    fetchServiceOrders();
+    const handleServicePaid = () => {
+      fetchServiceOrders();
+      if (typeof loadOperationsFromDb === 'function') {
+        loadOperationsFromDb();
+      }
+    };
+    window.addEventListener('farmely_service_paid', handleServicePaid);
+    return () => window.removeEventListener('farmely_service_paid', handleServicePaid);
+  }, [fetchServiceOrders]);
+
+  const handleDirectServicePayment = async () => {
+    if (!selectedServiceToBuy) return;
+    setIsProcessingPayment(true);
+    try {
+      const targetPlot = customerPlots.find((p) => p.id === checkoutPlotId) || selectedCheckoutPlot || customerPlots[0];
+      const targetRentalId = targetPlot?.rentalId || targetPlot?.rental_id || 1;
+      const targetPlotCode = targetPlot?.mapPlotId || targetPlot?.plotCode || (targetPlot?.id ? targetPlot.id.replace(/^PLOT-/i, '') : 'P-01');
+      const targetServiceId = typeof selectedServiceToBuy.serviceId === 'number'
+        ? selectedServiceToBuy.serviceId
+        : (parseInt(String(selectedServiceToBuy.serviceId || selectedServiceToBuy.id || 1).replace(/\D/g, ''), 10) || 1);
+
+      const scheduledDate = checkoutDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+      const gatewayRef = `TXN_SVC_${Date.now().toString().slice(-8)}`;
+
+      const payload = {
+        rentalId: targetRentalId,
+        serviceId: targetServiceId,
+        serviceName: selectedServiceToBuy.name,
+        plotCode: targetPlotCode,
+        scheduledDate: scheduledDate,
+        amount: Number(selectedServiceToBuy.price) || 0,
+        notes: checkoutNotes || '',
+        paymentMethod: checkoutPaymentMethod || 'DIRECT',
+        gatewayRef: gatewayRef
+      };
+
+      const res = await fetch('/api/v1/payments/service/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const resData = await res.json();
+      const detail = resData?.data || resData;
+
+      const resultInfo = {
+        transactionId: detail.transactionId || `TXN-${Date.now().toString().slice(-6)}`,
+        requestId: detail.requestId || `REQ-${Date.now().toString().slice(-4)}`,
+        taskId: detail.taskId || `TSK-${Date.now().toString().slice(-4)}`,
+        serviceName: selectedServiceToBuy.name,
+        plotName: targetPlot?.name || `Thửa ${targetPlotCode}`,
+        plotCode: targetPlotCode,
+        plotId: targetPlot?.id,
+        amount: selectedServiceToBuy.price,
+        formattedAmount: selectedServiceToBuy.formattedPrice,
+        scheduledDate: scheduledDate,
+        paymentMethod: checkoutPaymentMethod === 'DIRECT'
+          ? 'Thanh toán trực tiếp'
+          : checkoutPaymentMethod === 'WALLET'
+            ? 'Ví Farmely Pay'
+            : checkoutPaymentMethod === 'VIETQR'
+              ? 'Chuyển khoản VietQR'
+              : 'Cổng VNPAY',
+        gatewayRef: detail.gatewayRef || gatewayRef
+      };
+
+      setLastPaymentResult(resultInfo);
+
+      // Đồng bộ ngay đơn hàng dịch vụ và lịch canh tác từ cơ sở dữ liệu
+      fetchServiceOrders();
+      if (typeof loadOperationsFromDb === 'function') {
+        loadOperationsFromDb();
+      }
+
+      window.dispatchEvent(new CustomEvent('farmely_service_paid', { detail: resultInfo }));
+      setSelectedServiceToBuy(null);
+      setShowCheckoutSuccessModal(true);
+    } catch (err) {
+      console.error('Lỗi thanh toán dịch vụ:', err);
+      alert('Không thể hoàn tất thanh toán dịch vụ: ' + (err.message || 'Lỗi kết nối'));
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
   const handleConfirmPayment = async (e) => {
     e.preventDefault();
     if (!selectedServiceToBuy) return;
 
-    // Flow 1: VNPay Payment
     if (checkoutPaymentMethod === 'VNPAY') {
       setShowServiceVnPayModal(true);
-      return;
-    }
-
-    // Flow 2: Card Payment (Visa, Mastercard, Napas)
-    if (checkoutPaymentMethod === 'CARD') {
-      setShowServiceCardModal(true);
-      return;
-    }
-
-    // Flow 3: Farmely Wallet Payment
-    if (checkoutPaymentMethod === 'WALLET') {
-      setIsProcessingPayment(true);
-      try {
-        await apiFetch('/api/v1/payments/service/wallet/charge', {
-          method: 'POST',
-          body: JSON.stringify({
-            serviceName: selectedServiceToBuy.name,
-            amount: selectedServiceToBuy.price,
-            rentalId: selectedCheckoutPlot?.rentalId,
-            plotCode: checkoutPlotId,
-            scheduledDate: checkoutDate,
-            notes: checkoutNotes
-          })
-        });
-      } catch (err) {
-        console.warn('Wallet charge backend error:', err);
-      } finally {
-        setIsProcessingPayment(false);
-      }
-
-      handleServicePaymentSuccess({ paymentMethod: 'Ví Farmely', amount: selectedServiceToBuy.price });
+    } else {
+      await handleDirectServicePayment();
     }
   };
 
   const handleServicePaymentSuccess = async (paidResult) => {
     setShowServiceQrModal(false);
     setShowServiceCardModal(false);
-    const selectedPlotObj = customerPlots.find(p => p.id === checkoutPlotId);
-    const rentalId = selectedPlotObj?.rentalId;
-    if (!rentalId) {
-      alert('Không tìm thấy lượt thuê tương ứng trong database.');
-      return;
+    setShowServiceVnPayModal(false);
+    fetchServiceOrders();
+    if (typeof loadOperationsFromDb === 'function') {
+      loadOperationsFromDb();
     }
-    try {
-      const request = unwrapData(await apiFetch('/api/services/requests', {
-        method: 'POST',
-        body: JSON.stringify({
-          rentalId,
-          serviceId: selectedServiceToBuy.serviceId,
-          scheduledDate: checkoutDate,
-          notes: checkoutNotes
-        })
-      }));
-      setActiveServiceOrders((orders) => [{
-        id: `REQ-${request.requestId}`,
-        serviceName: request.service?.serviceName || selectedServiceToBuy.name,
-        plotName: request.plotName || selectedPlotObj?.name || 'Thửa đất đã chọn',
-        price: `${Number(request.service?.price || selectedServiceToBuy.price).toLocaleString('vi-VN')} đ`,
-        date: request.scheduledDate || checkoutDate,
-        status: 'IN_PROGRESS',
-        statusLabel: 'Chờ phân công',
-        worker: 'Chưa phân công',
-        paymentMethod: paidResult?.paymentMethod || checkoutPaymentMethod
-      }, ...orders]);
-      setSelectedServiceToBuy(null);
-    } catch (requestError) {
-      alert(`Thanh toán đã hoàn tất nhưng không thể tạo yêu cầu dịch vụ: ${requestError.message}`);
+    if (paidResult) {
+      setLastPaymentResult(paidResult);
     }
+    setSelectedServiceToBuy(null);
+    setShowCheckoutSuccessModal(true);
   };
 
   const currentSelectedPlot = customerPlots.find((p) => p.id === selectedPlotId);
@@ -891,7 +877,14 @@ export default function CustomerDashboard() {
   const scopedPlot = customerPlots.find((p) => p.id === plotScopeId) || null;
   const scopedPlots = scopedPlot ? [scopedPlot] : customerPlots;
   const scopedServiceOrders = scopedPlot
-    ? activeServiceOrders.filter((ord) => ord.plotName === scopedPlot.name)
+    ? activeServiceOrders.filter((ord) =>
+        ord.plotName === scopedPlot.name ||
+        (scopedPlot.name && scopedPlot.name.includes(ord.plotName)) ||
+        (ord.plotName && ord.plotName.includes(scopedPlot.name)) ||
+        ord.plotCode === scopedPlot.mapPlotId ||
+        ord.plotCode === scopedPlot.plotCode ||
+        ord.rentalId === scopedPlot.rentalId
+      )
     : activeServiceOrders;
   const harvestModalPlot = customerPlots.find((p) => p.id === harvestModalPlotId) || null;
 
@@ -929,18 +922,48 @@ export default function CustomerDashboard() {
   useEffect(() => {
     const query = new URLSearchParams(location.search);
     const requestedPlotId = query.get('plot');
-    const requestedView = query.get('view');
+    const requestedPlotCode = query.get('plotCode');
+    const requestedView = query.get('view') || query.get('tab');
     const fromPlotId = query.get('fromPlot');
-    const requestedPlot = requestedPlotId && customerPlots.find((plot) => plot.id === requestedPlotId || plot.mapPlotId === requestedPlotId || String(plot.plotId) === requestedPlotId);
-    if (requestedPlot) {
+    const requestedPlot = (requestedPlotId || requestedPlotCode) && customerPlots.find((plot) =>
+      plot.id === requestedPlotId ||
+      plot.mapPlotId === requestedPlotId ||
+      String(plot.plotId) === requestedPlotId ||
+      plot.plotCode === requestedPlotCode ||
+      plot.mapPlotId === requestedPlotCode ||
+      plot.id === `PLOT-${requestedPlotCode}` ||
+      (requestedPlotId && (plot.id === `PLOT-${requestedPlotId}` || plot.plotCode === requestedPlotId))
+    );
+
+    if (requestedView === 'tasks') {
+      setSelectedPlotId(null);
+      setActiveTab('tasks');
+      if (requestedPlot) {
+        setTasksPlotFilter(requestedPlot.id);
+        setPlotScopeId(requestedPlot.id);
+        setCheckoutPlotId(requestedPlot.id);
+        try { localStorage.setItem('farmely_selected_task_plot', requestedPlot.id); } catch {}
+      } else {
+        try {
+          const saved = localStorage.getItem('farmely_selected_task_plot');
+          if (saved && customerPlots.some(p => p.id === saved || p.plotCode === saved || String(p.rentalId) === saved)) {
+            setTasksPlotFilter(saved);
+            setPlotScopeId(saved);
+          } else if (checkoutPlotId) {
+            setTasksPlotFilter(checkoutPlotId);
+            setPlotScopeId(checkoutPlotId);
+          }
+        } catch {}
+      }
+    } else if (requestedPlot) {
       setActiveTab('yards');
       setSelectedPlotId(requestedPlot.id);
       setCheckoutPlotId(requestedPlot.id);
-    } else if (['contracts', 'harvest', 'process', 'iot', 'diary', 'tasks', 'services'].includes(requestedView)) {
+    } else if (['contracts', 'harvest', 'process', 'iot', 'diary', 'services'].includes(requestedView)) {
       setSelectedPlotId(null);
       setActiveTab(requestedView);
       if (requestedView === 'iot') setIotReturnPlotId(fromPlotId || null);
-    } else if (!requestedPlotId && !requestedView) {
+    } else if (!requestedPlotId && !requestedPlotCode && !requestedView) {
       setSelectedPlotId(null);
       setActiveTab('yards');
       setIotReturnPlotId(null);
@@ -976,10 +999,6 @@ export default function CustomerDashboard() {
   };
   const [plotOperations, setPlotOperations] = useState(defaultPlotOperations);
 
-  const loadRentals = () => {
-    fetchPlots();
-  };
-
   const loadOperationsFromDb = () => {
     Promise.allSettled([
       fetch('/api/care-tasks').then((r) => r.json()),
@@ -991,32 +1010,104 @@ export default function CustomerDashboard() {
       if (liveTasks.length > 0 || liveDiaries.length > 0) {
         setPlotOperations((prev) => {
           const next = { ...prev };
+
           liveTasks.forEach((t) => {
-            const plotKey = t.plotCode ? `PLOT-${t.plotCode}` : 'PLOT-CC-01';
-            if (!next[plotKey]) next[plotKey] = { tasks: [], diary: [] };
-            if (!next[plotKey].tasks.some((existing) => existing.id === t.id)) {
-              next[plotKey].tasks.unshift({
-                id: t.id,
-                title: t.title,
-                time: t.dueDate || 'Hôm nay',
-                status: t.status,
-                owner: t.assignedTo || 'Trần Văn Lực'
-              });
+            const rawPlotCode = t.plotCode || 'P-01';
+            const cleanCode = String(rawPlotCode).replace(/^PLOT-/i, '').trim();
+            const matchingPlot = (customerPlots || []).find((p) =>
+              (t.rentalId && (p.rentalId === t.rentalId || p.rental_id === t.rentalId)) ||
+              p.id === `PLOT-${cleanCode}` ||
+              p.id === cleanCode ||
+              p.mapPlotId === cleanCode ||
+              p.plot_code === cleanCode ||
+              p.plotCode === cleanCode
+            );
+
+            const targetKeys = new Set();
+            targetKeys.add(`PLOT-${cleanCode}`);
+            targetKeys.add(cleanCode);
+            if (t.rentalId) {
+              targetKeys.add(`RENTAL-${t.rentalId}`);
+              targetKeys.add(String(t.rentalId));
             }
+            if (matchingPlot) {
+              targetKeys.add(matchingPlot.id);
+              if (matchingPlot.mapPlotId) targetKeys.add(matchingPlot.mapPlotId);
+              if (matchingPlot.plotCode) targetKeys.add(matchingPlot.plotCode);
+              if (matchingPlot.rentalId) {
+                targetKeys.add(`RENTAL-${matchingPlot.rentalId}`);
+                targetKeys.add(String(matchingPlot.rentalId));
+              }
+            }
+
+            const formattedTask = {
+              id: t.id || `TSK-${t.taskId}`,
+              taskId: t.taskId,
+              title: t.title,
+              time: t.dueDate ? `${t.dueDate} (08:30)` : 'Hôm nay',
+              status: t.status,
+              owner: t.workerName || t.assignedTo || 'Trần Văn Lực (CVLĐ)',
+              crop: t.crop,
+              instructions: t.instructions,
+              proofPhoto: t.proofPhoto,
+              completedAt: t.completedAt
+            };
+
+            targetKeys.forEach((key) => {
+              if (!next[key]) {
+                next[key] = { tasks: [], diary: [] };
+              }
+              const existingIdx = next[key].tasks.findIndex((existing) => existing.id === t.id || (t.taskId && existing.taskId === t.taskId));
+              if (existingIdx >= 0) {
+                next[key].tasks[existingIdx] = { ...next[key].tasks[existingIdx], ...formattedTask };
+              } else {
+                next[key].tasks.push(formattedTask);
+              }
+            });
           });
+
           liveDiaries.forEach((d) => {
-            const plotKey = d.plotCode ? `PLOT-${d.plotCode}` : 'PLOT-CC-01';
-            if (!next[plotKey]) next[plotKey] = { tasks: [], diary: [] };
-            if (!next[plotKey].diary.some((existing) => existing.id === d.id)) {
-              next[plotKey].diary.unshift({
-                id: d.id,
-                time: d.dateFormatted || 'Hôm nay',
-                title: d.content ? d.content.slice(0, 40) : 'Cập nhật hiện trường',
-                note: d.content,
-                author: d.authorName || 'Trần Văn Lực'
-              });
+            const rawPlotCode = d.plotCode || 'P-01';
+            const matchingPlot = (customerPlots || []).find((p) =>
+              p.id === `PLOT-${rawPlotCode}` ||
+              p.id === rawPlotCode ||
+              p.mapPlotId === rawPlotCode ||
+              (d.rentalId && (p.rentalId === d.rentalId || p.rental_id === d.rentalId))
+            );
+
+            const targetKeys = new Set();
+            targetKeys.add(`PLOT-${rawPlotCode}`);
+            targetKeys.add(rawPlotCode);
+            if (d.rentalId) {
+              targetKeys.add(`RENTAL-${d.rentalId}`);
+              targetKeys.add(String(d.rentalId));
             }
+            if (matchingPlot) {
+              targetKeys.add(matchingPlot.id);
+              if (matchingPlot.rentalId) {
+                targetKeys.add(`RENTAL-${matchingPlot.rentalId}`);
+                targetKeys.add(String(matchingPlot.rentalId));
+              }
+            }
+
+            const formattedDiary = {
+              id: d.id,
+              time: d.dateFormatted || 'Hôm nay',
+              title: d.content ? d.content.slice(0, 40) : 'Cập nhật hiện trường',
+              note: d.content,
+              author: d.authorName || 'Trần Văn Lực (CVLĐ)'
+            };
+
+            targetKeys.forEach((key) => {
+              if (!next[key]) {
+                next[key] = { tasks: [], diary: [] };
+              }
+              if (!next[key].diary.some((existing) => existing.id === d.id)) {
+                next[key].diary.unshift(formattedDiary);
+              }
+            });
           });
+
           return next;
         });
       }
@@ -1024,64 +1115,80 @@ export default function CustomerDashboard() {
   };
 
   useEffect(() => {
-    loadRentals();
     loadOperationsFromDb();
   }, [user]);
 
-  const [cultivationProcesses, setCultivationProcesses] = useState({});
-  const [processLoading, setProcessLoading] = useState(false);
+  useEffect(() => {
+    if (customerPlots.length > 0) {
+      loadOperationsFromDb();
+    }
+  }, [customerPlots.length]);
+
+  // Load Cultivation Processes and Harvest Acceptance from PostgreSQL
+  const [dbCultivationProcesses, setDbCultivationProcesses] = useState({});
+  const [dbHarvestResults, setDbHarvestResults] = useState([]);
+  const [selectedHarvestForAccept, setSelectedHarvestForAccept] = useState(null);
+
+  const fetchCultivationProcesses = useCallback(() => {
+    const userId = user?.userId || user?.id || 1;
+    fetch(`/api/customer/cultivation-processes?userId=${userId}`)
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((res) => {
+        const items = res?.data || (Array.isArray(res) ? res : []);
+        const grouped = {};
+        items.forEach((item) => {
+          const keys = [
+            item.plotId,
+            item.plotCode,
+            `RENTAL-${item.rentalId}`,
+            String(item.rentalId)
+          ];
+          keys.forEach((k) => {
+            if (k) {
+              if (!grouped[k]) grouped[k] = [];
+              grouped[k].push({
+                stage: item.stage,
+                date: item.date,
+                guide: item.guide,
+                status: item.status,
+                stepOrder: item.stepOrder,
+                materials: item.materialsNeeded
+              });
+            }
+          });
+        });
+        setDbCultivationProcesses(grouped);
+      })
+      .catch(() => {});
+  }, [user]);
+
+  const fetchHarvestResults = useCallback(() => {
+    const userId = user?.userId || user?.id || 1;
+    fetch(`/api/customer/harvest-results?userId=${userId}`)
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((res) => {
+        const items = res?.data || (Array.isArray(res) ? res : []);
+        setDbHarvestResults(items);
+        if (items.length > 0) {
+          const confirmedOne = items.find((h) => h.customerConfirmed || h.status === 'CONFIRMED');
+          if (confirmedOne) {
+            setHarvestAcceptance({
+              status: 'CONFIRMED',
+              confirmedAt: confirmedOne.createdAt,
+              deliveryMethod: confirmedOne.deliveryType
+            });
+          }
+        }
+      })
+      .catch(() => setDbHarvestResults([]));
+  }, [user]);
 
   useEffect(() => {
-    if (!customerPlots.length) {
-      setCultivationProcesses({});
-      return undefined;
-    }
-    let cancelled = false;
-    setProcessLoading(true);
-    Promise.all(customerPlots.map(async (plot) => {
-      if (!plot.varietyId) return [plot.id, { template: null, steps: [] }];
-      const [templatePayload, taskPayload] = await Promise.all([
-        apiFetch(`/api/templates?varietyId=${encodeURIComponent(plot.varietyId)}`),
-        plot.rentalId ? apiFetch(`/api/tasks?rentalId=${encodeURIComponent(plot.rentalId)}`).catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
-      ]);
-      const templates = unwrapData(templatePayload);
-      const tasks = unwrapData(taskPayload);
-      const template = Array.isArray(templates) ? templates[0] : templates;
-      const taskList = Array.isArray(tasks) ? tasks : [];
-      const tasksByStep = new Map(taskList.filter((task) => task.stepId).map((task) => [Number(task.stepId), task]));
-      const startDate = plot.startDate ? new Date(`${plot.startDate}T00:00:00`) : null;
-      const steps = (template?.steps || []).map((step) => {
-        const task = tasksByStep.get(Number(step.stepId));
-        const plannedDate = startDate && !Number.isNaN(startDate.getTime())
-          ? new Date(startDate.getTime() + Number(step.dayOffset || 0) * 86400000)
-          : null;
-        const rawStatus = task?.status || task?.displayStatus || 'PENDING';
-        const status = ['DONE', 'COMPLETED'].includes(rawStatus) ? 'COMPLETED' : ['IN_PROG', 'IN_PROGRESS', 'OVERDUE'].includes(rawStatus) ? 'IN_PROGRESS' : 'PENDING';
-        return {
-          stepId: step.stepId,
-          order: step.stepOrder,
-          stage: step.stepName,
-          dayOffset: Number(step.dayOffset || 0),
-          date: plannedDate ? plannedDate.toLocaleDateString('vi-VN') : 'Theo kế hoạch',
-          guide: step.description || 'Chưa có hướng dẫn chi tiết.',
-          materials: step.materialsNeeded,
-          status,
-          taskCode: task?.taskCode,
-          workerName: task?.workerName,
-          evidenceImageUrl: task?.evidenceImageUrl,
-          notes: task?.notes
-        };
-      });
-      return [plot.id, { template, steps }];
-    })).then((entries) => {
-      if (!cancelled) setCultivationProcesses(Object.fromEntries(entries));
-    }).catch(() => {
-      if (!cancelled) setCultivationProcesses({});
-    }).finally(() => {
-      if (!cancelled) setProcessLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [customerPlots]);
+    fetchCultivationProcesses();
+    fetchHarvestResults();
+  }, [fetchCultivationProcesses, fetchHarvestResults, customerPlots.length]);
+
+  const cultivationProcesses = dbCultivationProcesses;
   const fallbackIotAlerts = {
     'PLOT-CC-01': [
       { level: 'HIGH', title: 'Mưa có thể đến sau 45 phút', metric: 'Dự báo mưa 8.2 mm', time: '5 phút trước' },
@@ -1096,113 +1203,28 @@ export default function CustomerDashboard() {
       { level: 'MEDIUM', title: 'Nhiệt độ tăng', metric: '29°C · cao hơn 2°C so với hôm qua', time: '25 phút trước' }
     ]
   };
+  const iotAlerts = {};
 
-  const defaultOperationsForPlot = (plot) => {
-    const isNew = (Number(plot?.progressPercent) || 0) <= 10;
+  function defaultOperationsForPlot(plot) {
     return {
       tasks: [
-        {
-          id: `TSK-${plot?.id || '1'}-01`,
-          title: isNew
-            ? `Bước 1: Làm đất, bón lót vi sinh & gieo giống ${plot?.crop || 'VietGAP'}`
-            : `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`,
-          time: '07:30 hôm nay',
-          status: 'IN_PROGRESS',
-          owner: plot?.mode === 'Self-Growing' ? 'Khách hàng' : (plot?.worker || 'Trần Văn Lực (CVLĐ)')
-        },
-        {
-          id: `TSK-${plot?.id || '1'}-02`,
-          title: isNew
-            ? 'Khởi tạo cảm biến trạm vi khí hậu IoT & hệ thống tưới ngầm'
-            : 'Kiểm tra sinh trưởng và chỉ số vi khí hậu IoT',
-          time: '14:00 hôm nay',
-          status: 'PENDING',
-          owner: 'Farmely Smart Monitor'
-        },
-        {
-          id: `TSK-${plot?.id || '1'}-03`,
-          title: isNew
-            ? 'Ghi nhận biên bản bàn giao thửa đất & kích hoạt quy trình canh tác'
-            : 'Cắt tỉa lá gốc và vệ sinh luống canh tác',
-          time: isNew ? 'Ngày mai' : '09:00 hôm qua',
-          status: 'PENDING',
-          owner: plot?.mode === 'Self-Growing' ? 'Khách hàng' : (plot?.worker || 'Trần Văn Lực (CVLĐ)')
-        }
+        { id: `TSK-${plot?.id || '1'}-01`, title: `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`, time: '07:30 hôm nay', status: 'IN_PROGRESS', owner: plot?.mode === 'Self-Growing' ? 'Khách hàng' : (plot?.worker || 'Trần Văn Lực (CVLĐ)') },
+        { id: `TSK-${plot?.id || '1'}-02`, title: 'Kiểm tra sinh trưởng và chỉ số vi khí hậu IoT', time: '14:00 hôm nay', status: 'PENDING', owner: 'Farmely Smart Monitor' },
+        { id: `TSK-${plot?.id || '1'}-03`, title: 'Cắt tỉa lá gốc và vệ sinh luống canh tác', time: '09:00 hôm qua', status: 'COMPLETED', owner: plot?.mode === 'Self-Growing' ? 'Khách hàng' : (plot?.worker || 'Trần Văn Lực (CVLĐ)') }
       ],
       diary: [
-        {
-          time: '08:15 • Hôm nay',
-          title: isNew ? 'Khởi động vụ mùa & Bàn giao thửa đất' : 'Tưới nước vi sinh & kiểm tra đất',
-          note: isNew
-            ? `Bắt đầu Bước 1 quy trình VietGAP cho giống ${plot?.crop || 'VietGAP'}. Độ ẩm đất đạt chuẩn ${plot?.soilMoisture || '68%'}.`
-            : `Độ ẩm duy trì ở mức ${plot?.soilMoisture || '68%'}, vi sinh phát triển tốt.`,
-          author: plot?.worker || 'Trần Văn Lực'
-        }
+        { time: '08:15 • Hôm nay', title: 'Tưới nước vi sinh & kiểm tra đất', note: `Độ ẩm duy trì ở mức ${plot?.soilMoisture || '68%'}, vi sinh phát triển tốt.`, author: plot?.worker || 'Trần Văn Lực' },
+        { time: '16:00 • Hôm qua', title: 'Kiểm tra sinh trưởng định kỳ', note: `Cây đang trong giai đoạn ${plot?.stage || 'phát triển tốt'}, không phát hiện sâu bệnh.`, author: 'ThS. Nguyễn Hoàng Nam' }
       ]
     };
-  };
+  }
 
-  const defaultProcessForPlot = (plot) => {
-    if (plot?.processSteps && Array.isArray(plot.processSteps) && plot.processSteps.length > 0) {
-      const curDay = Number(plot.currentDay) || 0;
-      return plot.processSteps.map((st, idx) => {
-        const offset = Number(st.dayOffset ?? st.day_offset) || 0;
-        const duration = Number(st.durationDays ?? st.duration_days) || 1;
-        let status = 'PENDING';
-        if (curDay <= 1) {
-          status = idx === 0 ? 'IN_PROGRESS' : 'PENDING';
-        } else if (curDay > offset + duration) {
-          status = 'COMPLETED';
-        } else if (curDay >= offset) {
-          status = 'IN_PROGRESS';
-        }
-
-        const dateLabel = plot.startDate
-          ? (() => {
-              const d = new Date(plot.startDate);
-              d.setDate(d.getDate() + offset);
-              return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} (Ngày ${offset + 1})`;
-            })()
-          : `Ngày ${offset + 1}`;
-
-        return {
-          stage: st.stage,
-          date: dateLabel,
-          guide: st.guide || 'Quy trình chuẩn VietGAP Farmely',
-          status
-        };
-      });
-    }
-
-    const progress = Number(plot?.progressPercent) || 0;
-    const isNew = progress <= 10;
-    return [
-      {
-        stage: 'Làm đất & Gieo giống (Bước 1)',
-        date: plot?.startDate ? `Từ ${plot.startDate}` : 'Bắt đầu vụ',
-        guide: 'Làm sạch cỏ, bón lót hữu cơ vi sinh, lên luống và xuống giống theo tiêu chuẩn VietGAP.',
-        status: isNew ? 'IN_PROGRESS' : 'COMPLETED'
-      },
-      {
-        stage: 'Sinh trưởng thân lá & Bén rễ',
-        date: 'Giai đoạn sinh trưởng',
-        guide: 'Giữ ẩm đất 60–70%, kiểm tra độ nảy mầm và bổ sung dinh dưỡng hữu cơ VietGAP định kỳ.',
-        status: isNew ? 'PENDING' : progress >= 40 ? 'COMPLETED' : 'IN_PROGRESS'
-      },
-      {
-        stage: plot?.stage || 'Ra hoa & Đậu quả non',
-        date: 'Hiện tại',
-        guide: 'Theo dõi chỉ số độ ẩm vi khí hậu và sâu bệnh qua trạm IoT.',
-        status: isNew ? 'PENDING' : progress >= 80 ? 'COMPLETED' : 'IN_PROGRESS'
-      },
-      {
-        stage: 'Thu hoạch & Nghiệm thu chất lượng',
-        date: plot?.expectedHarvestDate || 'Dự kiến cuối vụ',
-        guide: 'Cân đối chứng, kiểm tra chất lượng và đóng thùng QR xuất xưởng.',
-        status: 'PENDING'
-      }
-    ];
-  };
+  const defaultProcessForPlot = (plot) => [
+    { stage: 'Gieo giống & bén rễ', date: 'Đầu chu kỳ', guide: 'Giữ ẩm đất 60–70%, kiểm tra độ nảy mầm hằng ngày.', status: 'COMPLETED' },
+    { stage: 'Sinh trưởng thân lá', date: 'Giai đoạn giữa vụ', guide: 'Bổ sung dinh dưỡng hữu cơ VietGAP và tỉa lá già định kỳ.', status: (plot?.progressPercent || 0) >= 30 ? 'COMPLETED' : 'IN_PROGRESS' },
+    { stage: plot?.stage || 'Ra hoa & đậu quả non', date: 'Hiện tại', guide: 'Theo dõi chỉ số độ ẩm vi khí hậu và sâu bệnh qua trạm IoT.', status: (plot?.progressPercent || 0) >= 70 ? 'COMPLETED' : 'IN_PROGRESS' },
+    { stage: 'Thu hoạch & nghiệm thu', date: plot?.expectedHarvestDate || 'Dự kiến', guide: 'Cân đối chứng, kiểm tra chất lượng và đóng thùng QR xuất xưởng.', status: 'PENDING' }
+  ];
 
   const defaultAlertsForPlot = (plot) => [
     { level: 'LOW', title: 'Nhiệt độ & ẩm độ tối ưu', metric: `${plot?.temp || '28°C'} · Ẩm đất ${plot?.soilMoisture || '68%'}`, time: '10 phút trước' }
@@ -1361,12 +1383,31 @@ export default function CustomerDashboard() {
             ['Dịch vụ canh tác', ShoppingBag, 'services'],
             ['Nhật ký nông trại', BookOpen, 'diary'],
             ['Quy trình canh tác chuẩn', ClipboardList, 'process'],
-            ['Kết quả thu hoạch & nghiệm thu', Apple, 'harvest'],
-            ['Hợp đồng thuê đất', FileText, 'contracts']
+            ['Kết quả thu hoạch & nghiệm thu', Apple, 'harvest']
           ].map(([label, Icon, id]) => {
             const isActive = id === 'overview' ? (activeTab === 'yards' || Boolean(selectedPlotId)) : (!selectedPlotId && activeTab === id);
             return (
               <button key={id} type="button" onClick={() => {
+                if (id === 'tasks') {
+                  const saved = localStorage.getItem('farmely_selected_task_plot');
+                  const target = (plotScopeId && plotScopeId !== 'ALL')
+                    ? plotScopeId
+                    : (checkoutPlotId
+                      ? checkoutPlotId
+                      : (saved && customerPlots.some(p => p.id === saved || p.plotCode === saved) ? saved : 'ALL'));
+                  setSelectedPlotId(null);
+                  setActiveTab('tasks');
+                  if (target && target !== 'ALL') {
+                    setTasksPlotFilter(target);
+                    setPlotScopeId(target);
+                    navigate(`/customer/dashboard?view=tasks&plot=${target}`);
+                  } else {
+                    setTasksPlotFilter('ALL');
+                    setPlotScopeId(null);
+                    navigate('/customer/dashboard?view=tasks');
+                  }
+                  return;
+                }
                 setSelectedPlotId(null);
                 setPlotScopeId(null);
                 const nextTab = id === 'overview' ? 'yards' : id;
@@ -1385,7 +1426,7 @@ export default function CustomerDashboard() {
       <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} hideBrand />
 
       {/* 2. Main Page Container luôn co giãn theo phần màn hình còn lại */}
-      <div className={`box-border min-w-0 flex-1 w-full ${sidebarCollapsed ? 'lg:ml-16 lg:w-[calc(100%-4rem)]' : 'lg:ml-72 lg:w-[calc(100%-18rem)]'} ${selectedPlotId ? 'px-3 pb-28 pt-20 sm:px-5 lg:px-8 lg:pb-16' : activeTab === 'yards' ? 'pb-24 pt-20 lg:pb-0' : 'space-y-6 px-4 pb-28 pt-24 sm:px-8 sm:pt-28 lg:px-10 lg:pb-16'}`}>
+      <div className={`box-border min-w-0 flex-1 w-full ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'} ${selectedPlotId ? 'px-3 pb-16 pt-20 sm:px-5 lg:px-8' : activeTab === 'yards' ? 'pt-20' : 'space-y-6 px-4 pb-16 pt-24 sm:px-8 sm:pt-28 lg:px-10'}`}>
         
         {/* 3. Layout with Left Sidebar + Right Content */}
         <div className={`flex min-w-0 flex-col items-start ${selectedPlotId ? '' : 'gap-6'}`}>
@@ -1411,12 +1452,12 @@ export default function CustomerDashboard() {
                 plot={currentSelectedPlot}
                 plots={customerPlots}
                 operations={currentPlotOperations}
-iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
-                alerts={iotAlerts[currentSelectedPlot.id] || defaultAlertsForPlot(currentSelectedPlot)}
-                stages={cultivationProcesses[currentSelectedPlot.id]?.steps || cultivationProcesses[currentSelectedPlot.id] || defaultProcessForPlot(currentSelectedPlot)}
+                iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
+                alerts={iotAlerts[currentSelectedPlot.id] || iotAlerts['PLOT-CC-01'] || []}
+                stages={cultivationProcesses[currentSelectedPlot.id] || cultivationProcesses[currentSelectedPlot.mapPlotId] || cultivationProcesses[`RENTAL-${currentSelectedPlot.rentalId}`] || []}
                 services={customerServiceCatalog}
-                serviceOrders={activeServiceOrders.filter((o) => o.plotName === currentSelectedPlot.name)}
-                harvestPlan={harvestPlans[currentSelectedPlot.id] || null}
+                serviceOrders={activeServiceOrders.filter((o) => o.plotName === currentSelectedPlot.name || o.plotCode === currentSelectedPlot.plotCode || o.rentalId === currentSelectedPlot.rentalId)}
+                harvestPlan={harvestPlans[currentSelectedPlot.id] || dbHarvestResults.find(h => h.plotScopeId === currentSelectedPlot.id || h.plotCode === currentSelectedPlot.plotCode || h.rentalId === currentSelectedPlot.rentalId) || null}
                 activeTab={plotTabFromUrl}
                 onTabChange={(tab) => navigate(`/customer/dashboard?plot=${currentSelectedPlot.id}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
                 onBack={() => navigate('/customer/dashboard')}
@@ -1517,33 +1558,14 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
               const openPlot = (plotId, tab) => navigate(`/customer/dashboard?plot=${plotId}${tab ? `&tab=${tab}` : ''}`);
               return (
               <div className="mx-auto max-w-[1400px] space-y-6 px-4 pb-16 pt-5 sm:px-6 lg:px-10 lg:pt-8">
-                <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white/70 backdrop-blur-xs p-5 rounded-3xl border border-stone-200/80 shadow-xs">
+                <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <p className="text-xs text-stone-500 font-medium">{greeting}, <strong className="text-stone-800">{firstName}</strong></p>
-                    <h1 className="mt-0.5 font-heading text-2xl font-black text-[#18352b] sm:text-3xl">Vườn của tôi</h1>
+                    <p className="text-sm text-stone-500">{greeting}, {firstName}</p>
+                    <h1 className="mt-1 font-heading text-2xl font-bold text-[#18352b] sm:text-3xl">Vườn của tôi</h1>
                   </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    {/* Live real-time clock & real date badge */}
-                    <div className="flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-emerald-50/90 border border-emerald-200/90 text-[#18352b] shadow-2xs">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
-                        <Calendar className="w-4 h-4 text-emerald-600" />
-                        <span>{formattedRealDate}</span>
-                      </div>
-                      <span className="text-emerald-300">•</span>
-                      <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-emerald-950 bg-white/95 px-2.5 py-1 rounded-lg border border-emerald-300/60 shadow-2xs">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        <span>{formattedRealTime}</span>
-                      </div>
-                    </div>
-
-                    <Link to="/marketplace" className="flex items-center justify-center gap-1.5 rounded-2xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-800">
-                      Thuê thêm thửa đất<ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </div>
+                  <Link to="/marketplace" className="flex items-center justify-center gap-1.5 self-start rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 sm:self-auto">
+                    Thuê thêm thửa đất<ArrowRight className="h-4 w-4" />
+                  </Link>
                 </header>
 
                 <dl className="grid grid-cols-3 gap-3">
@@ -1679,13 +1701,97 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
               );
             })()}
 
-            {activeTab === 'tasks' && !selectedPlotId && (
+            {activeTab === 'tasks' && !selectedPlotId && (() => {
+              const activeFilter = (tasksPlotFilter && tasksPlotFilter !== 'ALL')
+                ? tasksPlotFilter
+                : (plotScopeId
+                  ? plotScopeId
+                  : (() => {
+                      try {
+                        const saved = localStorage.getItem('farmely_selected_task_plot');
+                        if (saved && customerPlots.some(p => p.id === saved || p.plotCode === saved || String(p.rentalId) === saved)) return saved;
+                      } catch {}
+                      return checkoutPlotId || customerPlots[0]?.id || 'ALL';
+                    })());
+
+              const displayedTasksPlots = activeFilter !== 'ALL'
+                ? customerPlots.filter((p) =>
+                    p.id === activeFilter ||
+                    p.mapPlotId === activeFilter ||
+                    p.plotCode === activeFilter ||
+                    String(p.rentalId) === String(activeFilter) ||
+                    `RENTAL-${p.rentalId}` === activeFilter ||
+                    (activeFilter.startsWith('PLOT-') && p.plotCode === activeFilter.replace(/^PLOT-/i, ''))
+                  )
+                : customerPlots;
+
+              return (
               <div className="mx-auto max-w-5xl space-y-5 rounded-3xl border border-brand-border bg-white p-5 shadow-sm sm:p-7">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div><p className="text-xs font-bold uppercase tracking-widest text-brand-green">Lịch canh tác</p><h2 className="mt-1 font-heading text-2xl font-black text-brand-dark">Việc cần làm hôm nay</h2><p className="mt-1 text-sm text-brand-muted">Theo dõi lịch chăm sóc và người phụ trách từng thửa.</p></div>
-                  <button type="button" onClick={() => setActiveTab('services')} className="rounded-xl bg-brand-yellow px-4 py-2 text-xs font-black text-brand-dark hover:brightness-95"><ShoppingBag className="mr-1 inline h-4 w-4" />Đặt dịch vụ</button>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-brand-green">Lịch canh tác</p>
+                    <h2 className="mt-1 font-heading text-2xl font-black text-brand-dark">Việc cần làm hôm nay</h2>
+                    <p className="mt-1 text-sm text-brand-muted">Theo dõi lịch chăm sóc và người phụ trách từng thửa.</p>
+                  </div>
+                  <button type="button" onClick={() => setActiveTab('services')} className="rounded-xl bg-brand-yellow px-4 py-2 text-xs font-black text-brand-dark hover:brightness-95">
+                    <ShoppingBag className="mr-1 inline h-4 w-4" />Đặt dịch vụ
+                  </button>
                 </div>
-                {scopedPlots.length === 0 ? (
+
+                {/* Plot Filter Selector in Lịch canh tác */}
+                {customerPlots.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-2 pt-1 pb-1 border-b border-brand-border/60">
+                    <span className="text-xs font-bold text-stone-500 mr-1">Lọc theo thửa:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTasksPlotFilter('ALL');
+                        setPlotScopeId(null);
+                        try { localStorage.removeItem('farmely_selected_task_plot'); } catch {}
+                        navigate('/customer/dashboard?view=tasks', { replace: true });
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        activeFilter === 'ALL'
+                          ? 'bg-[#294C3B] text-white shadow-xs ring-2 ring-[#294C3B]/20'
+                          : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                      }`}
+                    >
+                      Tất cả ({customerPlots.length} thửa)
+                    </button>
+                    {customerPlots.map((plot, idx) => {
+                      const isSelected = activeFilter !== 'ALL' && (
+                        activeFilter === plot.id ||
+                        activeFilter === plot.mapPlotId ||
+                        activeFilter === plot.plotCode ||
+                        String(activeFilter) === String(plot.rentalId) ||
+                        activeFilter === `RENTAL-${plot.rentalId}` ||
+                        (activeFilter.startsWith('PLOT-') && plot.plotCode === activeFilter.replace(/^PLOT-/i, ''))
+                      );
+                      return (
+                        <button
+                          key={`${plot.id}-${plot.rentalId || plot.rental_id || idx}`}
+                          type="button"
+                          onClick={() => {
+                            setTasksPlotFilter(plot.id);
+                            setPlotScopeId(plot.id);
+                            setCheckoutPlotId(plot.id);
+                            try { localStorage.setItem('farmely_selected_task_plot', plot.id); } catch {}
+                            navigate(`/customer/dashboard?view=tasks&plot=${plot.id}`, { replace: true });
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-[#294C3B] text-white shadow-xs ring-2 ring-[#294C3B]/20'
+                              : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                          }`}
+                        >
+                          {plot.name.split(' - ')[0] || plot.name} ({plot.crop})
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {displayedTasksPlots.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center">
                     <Calendar className="mx-auto h-10 w-10 text-stone-400" />
                     <p className="mt-2 font-bold text-stone-700">Chưa có lịch canh tác</p>
@@ -1693,10 +1799,14 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {scopedPlots.map((plot) => {
-                      const tasks = plotOperations[plot.id]?.tasks || defaultOperationsForPlot(plot).tasks || [];
+                    {displayedTasksPlots.map((plot, pIdx) => {
+                      const tasks = (plot.rentalId && plotOperations[`RENTAL-${plot.rentalId}`]?.tasks) ||
+                        plotOperations[plot.id]?.tasks ||
+                        plotOperations[plot.mapPlotId]?.tasks ||
+                        plotOperations[`PLOT-${plot.plotCode}`]?.tasks ||
+                        defaultOperationsForPlot(plot).tasks || [];
                       return (
-                      <section key={plot.id} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25">
+                      <section key={`${plot.id}-${plot.rentalId || pIdx}`} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25">
                         <div className="flex flex-wrap items-center gap-3 border-b border-brand-border bg-white px-4 py-3">
                           <img src={plot.image} alt="" className="h-11 w-14 rounded-xl object-cover" />
                           <div className="min-w-0 flex-1">
@@ -1722,7 +1832,8 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
                 </div>
                 )}
               </div>
-            )}
+              );
+            })()}
 
             {/* ============================================================== */}
             {/* VIEW C: DỊCH VỤ CANH TÁC & THANH TOÁN                         */}
@@ -1860,8 +1971,7 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
                         <div className="pt-3 border-t border-brand-border/60">
                           <button
                             type="button"
-                            onClick={() => svc.active && handleOpenBuyServiceModal(svc)}
-                            disabled={!svc.active}
+                            onClick={() => handleOpenBuyServiceModal(svc)}
                             className="w-full py-2.5 px-4 rounded-xl bg-brand-yellow hover:bg-[#ffc83b] text-brand-dark font-heading font-black text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                           >
                             <CreditCard className="w-4 h-4" />
@@ -1904,9 +2014,11 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-bold text-brand-green text-sm">{ord.id}</span>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              ord.status === 'COMPLETED'
+                              ord.status === 'COMPLETED' || ord.status === 'DONE'
                                 ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-amber-100 text-amber-800'
+                                : (ord.status === 'ASSIGNED' || ord.statusLabel?.includes('phân công') || ord.statusLabel?.includes('thực hiện'))
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  : 'bg-amber-100 text-amber-800'
                             }`}>
                               {ord.statusLabel}
                             </span>
@@ -2164,36 +2276,45 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
             {activeTab === 'process' && !selectedPlotId && (
               <div className="space-y-5 rounded-3xl border border-brand-border bg-white p-5 shadow-sm sm:p-7">
                 <div><p className="text-xs font-bold uppercase tracking-widest text-brand-green">Quy trình VietGAP</p><h2 className="mt-1 font-heading text-2xl font-black text-brand-dark">Quy trình canh tác chuẩn</h2><p className="mt-1 text-sm text-brand-muted">Hướng dẫn và tiến độ được Farmely thiết lập cho từng thửa. Khách hàng chỉ có quyền xem.</p></div>
-                <div className="space-y-4">
-                  {customerPlots.length === 0 && <div className="rounded-2xl border border-dashed border-brand-border bg-brand-cream/30 p-8 text-center text-sm font-semibold text-brand-muted">Chưa có dữ liệu quy trình từ hệ thống.</div>}
-                  {processLoading && <div className="rounded-2xl border border-brand-border bg-white p-8 text-center text-sm font-semibold text-brand-muted">Đang tải toàn bộ quy trình từ hệ thống...</div>}
-                  {customerPlots.map((plot) => {
-                    const process = cultivationProcesses[plot.id];
-                    const steps = process?.steps || [];
-                    return <section key={plot.id} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25">
-                      <div className="flex flex-wrap items-center gap-3 border-b border-brand-border bg-white p-4">
-                        <img src={plot.image} alt="" className="h-12 w-16 rounded-xl object-cover" />
-                        <div className="min-w-0 flex-1"><h3 className="truncate font-heading font-black text-brand-dark">{plot.name}</h3><p className="truncate text-xs text-brand-muted">{plot.crop} · {plot.mode === 'Self-Growing' ? 'Tự trồng' : 'Farmely chăm sóc'}</p></div>
-                        {process?.template && <div className="text-right text-[10px] text-stone-500"><p className="font-bold text-emerald-800">{process.template.version || 'Quy trình tiêu chuẩn'}</p><p>{steps.length} công đoạn</p></div>}
-                        <span className="rounded-full bg-stone-100 px-3 py-1 text-[10px] font-bold text-stone-600">Chỉ xem</span>
-                      </div>
-                      {!processLoading && !steps.length ? <div className="p-6 text-center text-sm font-semibold text-brand-muted">Giống cây này chưa có quy trình trong cơ sở dữ liệu.</div> : <div className="grid gap-3 p-4 lg:grid-cols-2">
-                        {steps.map((step, index) => <article key={`${plot.id}-${step.stepId || step.stage}`} className="relative rounded-xl border border-brand-border bg-white p-4">
-                          <div className="flex items-start gap-3">
-                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${step.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'}`}>{step.status === 'COMPLETED' ? '✓' : index + 1}</span>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-start justify-between gap-2"><h4 className="font-bold text-brand-dark">{step.stage}</h4><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${step.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>{step.status === 'COMPLETED' ? 'Đã hoàn tất' : step.status === 'IN_PROGRESS' ? 'Đang thực hiện' : 'Sắp tới'}</span></div>
-                              <p className="mt-1 text-xs font-semibold text-brand-green">Ngày thứ {step.dayOffset} · Dự kiến {step.date}</p>
-                              <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">{step.guide}</p>
-                              {step.materials && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900"><strong>Vật tư:</strong> {step.materials}</p>}
-                              {(step.workerName || step.notes || step.evidenceImageUrl) && <div className="mt-3 border-t border-stone-100 pt-3 text-xs text-stone-500">{step.workerName && <p><strong>Người thực hiện:</strong> {step.workerName}</p>}{step.notes && <p className="mt-1"><strong>Ghi chú:</strong> {step.notes}</p>}{step.evidenceImageUrl && <img src={step.evidenceImageUrl} alt={`Minh chứng ${step.stage}`} className="mt-2 h-24 w-full rounded-lg object-cover" />}</div>}
-                            </div>
+                {customerPlots.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center">
+                    <ClipboardList className="mx-auto h-10 w-10 text-stone-400" />
+                    <p className="mt-2 font-bold text-stone-700">Chưa có quy trình canh tác</p>
+                    <p className="mt-1 text-xs text-stone-500">Bạn chưa có thửa đất nào đang canh tác để theo dõi quy trình VietGAP.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {customerPlots.map((plot) => (
+                      <section key={plot.id} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25">
+                        <div className="flex items-center gap-3 border-b border-brand-border bg-white p-4">
+                          <img src={plot.image} alt="" className="h-12 w-16 rounded-xl object-cover" />
+                          <div className="min-w-0 flex-1">
+                            <h3 className="truncate font-heading font-black text-brand-dark">{plot.name}</h3>
+                            <p className="truncate text-xs text-brand-muted">{plot.crop} · {plot.mode === 'Self-Growing' ? 'Tự trồng' : 'Farmely chăm sóc'}</p>
                           </div>
-                        </article>)}
-                      </div>}
-                    </section>;
-                  })}
-                </div>
+                          <span className="rounded-full bg-stone-100 px-3 py-1 text-[10px] font-bold text-stone-600">Chỉ xem</span>
+                        </div>
+                        <div className="grid gap-3 p-4 lg:grid-cols-2">
+                          {(cultivationProcesses[plot.id] || defaultProcessForPlot(plot)).map((step, index) => (
+                            <article key={`${plot.id}-${step.stage}`} className="relative rounded-xl border border-brand-border bg-white p-4">
+                              <div className="flex items-start gap-3">
+                                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${step.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-500'}`}>{step.status === 'COMPLETED' ? '✓' : index + 1}</span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <h4 className="font-bold text-brand-dark">{step.stage}</h4>
+                                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${step.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : step.status === 'IN_PROGRESS' ? 'bg-amber-50 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>{step.status === 'COMPLETED' ? 'Đã hoàn tất' : step.status === 'IN_PROGRESS' ? 'Đang thực hiện' : 'Sắp tới'}</span>
+                                  </div>
+                                  <p className="mt-1 text-xs font-semibold text-brand-green">Ngày thực hiện: {step.date}</p>
+                                  <p className="mt-2 text-xs leading-relaxed text-stone-600">{step.guide}</p>
+                                </div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -2280,7 +2401,17 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
             )}
 
             {/* TAB 5: THU HOẠCH & NGHIỆM THU */}
-            {activeTab === 'harvest' && !selectedPlotId && (
+            {activeTab === 'harvest' && !selectedPlotId && (() => {
+              const displayedHarvests = scopedPlot
+                ? dbHarvestResults.filter(
+                    (h) =>
+                      h.plotScopeId === scopedPlot.id ||
+                      h.plotCode === scopedPlot.plotCode ||
+                      h.rentalId === scopedPlot.rentalId
+                  )
+                : dbHarvestResults;
+
+              return (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
@@ -2288,45 +2419,230 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
                       Kết Quả Thu Hoạch & Nghiệm Thu Nông Sản
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
-                      Minh bạch cân điện tử, đối chứng sản lượng và đặt lịch giao rau sạch tận nhà.
+                      Minh bạch cân điện tử, đối chứng sản lượng và đặt lịch giao rau sạch tận nhà trực tiếp từ CSDL PostgreSQL.
                     </p>
                   </div>
-                  {customerPlots.length > 0 && (
-                    harvestAcceptance.status === 'CONFIRMED' ? <span className="rounded-full bg-emerald-100 px-3 py-2 text-xs font-black text-emerald-800">✓ Đã xác nhận nghiệm thu</span> : <Button variant="primary" size="sm" onClick={() => setShowHarvestAcceptModal(true)}>Xác nhận nghiệm thu vụ mùa</Button>
-                  )}
+                </div>
+
+                {customerPlots.length === 0 || displayedHarvests.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center">
+                    <Apple className="mx-auto h-10 w-10 text-stone-400" />
+                    <p className="mt-2 font-bold text-stone-700">Chưa có vụ mùa thu hoạch</p>
+                    <p className="mt-1 text-xs text-stone-500">Bạn chưa có thửa đất canh tác nào hoặc mùa vụ đang trong giai đoạn phát triển ban đầu.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {displayedHarvests.map((hr) => {
+                      const isConfirmed = hr.customerConfirmed || hr.status === 'CONFIRMED';
+                      return (
+                      <div key={hr.id || hr.harvestId} className="grid gap-4 rounded-2xl border border-brand-border bg-brand-cream/40 p-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:p-5">
+                        <img src={hr.evidenceImageUrl || '/images/Mucangchai3.jpg'} alt="Ảnh cân đối chứng" className="h-32 w-full rounded-xl object-cover sm:h-full" />
+                        <div className="space-y-3 text-xs">
+                          <div className="flex flex-wrap justify-between items-center gap-2">
+                            <span className="font-bold text-brand-dark text-sm">{hr.plotName} · {hr.crop}</span>
+                            <span className="text-emerald-700 font-black text-base">{hr.formattedYield || '35.0 kg'}</span>
+                          </div>
+                          <p className="text-stone-600">Ngày thu hoạch: <strong>{hr.harvestDateFormatted || hr.harvestDate}</strong>. Chuyên viên phụ trách nghiệm thu: <strong>{hr.enteredByWorker || 'Trần Văn Lực'}</strong>.</p>
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-brand-border/60">
+                            <div className="flex flex-wrap gap-2">
+                              <span className="rounded-full bg-white px-3 py-1 font-bold text-stone-600 border border-brand-border">Mã nghiệm thu: {hr.id}</span>
+                              <span className={`rounded-full px-3 py-1 font-bold ${isConfirmed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                {isConfirmed ? `✓ Đã xác nhận · ${hr.deliveryType === 'FARM' || hr.deliveryType === 'PICKUP' ? 'Nhận tại nông trại' : 'Giao tận nhà'}` : 'Chờ khách xác nhận'}
+                              </span>
+                            </div>
+                            {!isConfirmed && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedHarvestForAccept(hr);
+                                  setShowHarvestAcceptModal(true);
+                                }}
+                              >
+                                Xác nhận nghiệm thu vụ mùa
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                )}
+              </div>
+              );
+            })()}
+
+            {/* TAB 6: HỢP ĐỒNG THUÊ ĐẤT & QUY TRÌNH HỦY (BR10) */}
+            {activeTab === 'contracts' && !selectedPlotId && (
+              <div className="space-y-6">
+                {/* Sub-tab switcher: Danh sách hợp đồng & Hoàn hủy BR10 vs Văn bản hợp đồng điện tử A4 */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl p-2.5 border border-brand-border shadow-xs">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setContractSubTab('list')}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        contractSubTab === 'list'
+                          ? 'bg-[#294C3B] text-white shadow-sm'
+                          : 'text-stone-600 hover:bg-stone-100'
+                      }`}
+                    >
+                      Danh Sách Hợp Đồng & Hoàn Hủy (BR10)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setContractSubTab('document')}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        contractSubTab === 'document'
+                          ? 'bg-[#294C3B] text-white shadow-sm'
+                          : 'text-stone-600 hover:bg-stone-100'
+                      }`}
+                    >
+                      Văn Bản Hợp Đồng Điện Tử (A4)
+                    </button>
+                  </div>
+                  <Link to="/marketplace">
+                    <Button variant="primary" size="sm" className="whitespace-nowrap">
+                      + Thuê Thêm Thửa Đất
+                    </Button>
+                  </Link>
+                </div>
+
+                {contractSubTab === 'document' ? (
+                  <CustomerContractCenter
+                    renterId={user?.id || user?.userId}
+                    onRenew={() => navigate('/marketplace')}
+                    onCancelContract={(contract) => {
+                      setCancelContractTarget(contract);
+                      setShowCancellationModal(true);
+                    }}
+                  />
+                ) : (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 border border-emerald-200">
+                        SSoT: Master Lease Agreement
+                      </span>
+                      <span className="text-xs text-stone-500">Mã màn hình: SCR-KH-08 / SCR-AD-10</span>
+                    </div>
+                    <h3 className="font-heading font-black text-xl text-brand-dark mt-1 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-brand-green" />
+                      Danh Sách Hợp Đồng Thuê & Chính Sách Hoàn Hủy (BR10)
+                    </h3>
+                    <p className="text-xs text-brand-muted mt-0.5">
+                      Quản lý các kỳ thuê đất, theo dõi ngày bàn giao thực tế và gửi yêu cầu hủy hợp đồng theo đúng tỷ lệ khấu trừ.
+                    </p>
+                  </div>
+                  <Link to="/marketplace">
+                    <Button variant="primary" size="sm" className="whitespace-nowrap">
+                      + Thuê thêm thửa đất
+                    </Button>
+                  </Link>
+                </div>
+
+                {/* Banner giải thích quy chuẩn BR10 & BR23 */}
+                <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 space-y-1.5">
+                  <div className="font-bold flex items-center gap-1.5 text-blue-950">
+                    <ShieldAlert className="w-4 h-4 text-blue-700" />
+                    Chính Sách Hoàn Tiền Khi Hủy Hợp Đồng (Quy định SSoT BR10):
+                  </div>
+                  <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-blue-900/90 leading-relaxed">
+                    <li><strong>Trước ngày bắt đầu ≥ 3 ngày:</strong> Khấu trừ 20% phí quản trị & giữ chỗ, <strong>hoàn trả 80%</strong> số tiền đã đóng.</li>
+                    <li><strong>Trước ngày bắt đầu &lt; 3 ngày:</strong> Khấu trừ 50% chi phí giống & chuẩn bị đất, <strong>hoàn trả 50%</strong> số tiền đã đóng.</li>
+                    <li><strong>Khi đã đến hoặc sau ngày bắt đầu canh tác:</strong> Khấu trừ 100%, <strong>không hoàn tiền</strong> vì cây giống đã trồng và công nhân đã triển khai.</li>
+                    <li><strong>Bảo trì thửa đất (BR23):</strong> Mọi thửa đất sau khi hủy đều chuyển sang trạng thái <strong>Bảo dưỡng phơi ải 4 ngày (MAINT)</strong> trước khi mở lại trên sàn.</li>
+                  </ul>
                 </div>
 
                 {customerPlots.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center">
-                    <Apple className="mx-auto h-10 w-10 text-stone-400" />
-                    <p className="mt-2 font-bold text-stone-700">Chưa có vụ mùa thu hoạch</p>
-                    <p className="mt-1 text-xs text-stone-500">Bạn chưa có thửa đất canh tác nào để theo dõi sản lượng và nghiệm thu nông sản.</p>
+                    <FileText className="mx-auto h-10 w-10 text-stone-400" />
+                    <p className="mt-2 font-bold text-stone-700">Chưa có hợp đồng nào</p>
+                    <p className="mt-1 text-xs text-stone-500">Bạn chưa ký kết hợp đồng thuê thửa đất nào trên hệ thống Farmely.</p>
+                    <Link
+                      to="/marketplace"
+                      className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800"
+                    >
+                      Khám phá đất thuê ngay
+                    </Link>
                   </div>
                 ) : (
-                  <div className="grid gap-4 rounded-2xl border border-brand-border bg-brand-cream p-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:p-5">
-                    <img src={customerPlots[0]?.image || '/images/Mucangchai3.jpg'} alt="Ảnh cân đối chứng" className="h-32 w-full rounded-xl object-cover sm:h-full" />
-                    <div className="space-y-3 text-xs">
-                      <div className="flex flex-wrap justify-between gap-2">
-                        <span className="font-bold text-brand-dark text-sm">Đợt thu hoạch gần nhất: {customerPlots[0]?.crop || 'Cà chua bi Cherry'}</span>
-                        <span className="text-emerald-700 font-black text-base">{customerPlots[0]?.expectedYield || '12.5 kg'}</span>
+                  <div className="space-y-4">
+                    {customerPlots.map((plot) => (
+                      <div key={plot.id} className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3.5 text-xs">
+                        <div className="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-brand-border/60">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-brand-green text-sm">{plot.contractCode || `CTR-${plot.id}`}</span>
+                            <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              Đang hiệu lực ({plot.mode === 'Assisted-Growing' ? 'Farmely chăm sóc' : 'Tự canh tác'})
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-stone-500">
+                            Thời hạn: {plot.totalDays || 90} Ngày · Còn {Math.max((plot.totalDays || 90) - (plot.currentDay || 0), 0)} ngày
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-stone-600">
+                          <div>
+                            <span className="text-stone-400 block text-[10px]">THỬA ĐẤT THUÊ</span>
+                            <p><strong className="text-brand-dark">{plot.name} ({plot.mapPlotId || plot.id})</strong></p>
+                          </div>
+                          <div>
+                            <span className="text-stone-400 block text-[10px]">GIỐNG CÂY TRỒNG</span>
+                            <p><strong className="text-brand-dark">{plot.crop}</strong></p>
+                          </div>
+                          <div>
+                            <span className="text-stone-400 block text-[10px]">CHUYÊN GIA PHỤ TRÁCH</span>
+                            <p><strong className="text-emerald-800">ThS. Nguyễn Hoàng Nam</strong></p>
+                          </div>
+                          <div>
+                            <span className="text-stone-400 block text-[10px]">CÔNG NHÂN TRỰC TIẾP</span>
+                            <p><strong className="text-amber-800">{plot.worker || 'Trần Văn Lực (Tổ trưởng CVLĐ)'}</strong></p>
+                          </div>
+                        </div>
+
+                        {cancelledContracts[plot.contractCode || `CTR-${plot.id}`] ? (
+                          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
+                            <span>✓ Đã gửi yêu cầu chấm dứt hợp đồng sớm (Thửa đất chuyển bảo dưỡng 4 ngày BR23)</span>
+                            <span className="text-[11px] bg-rose-200 px-2 py-0.5 rounded">ĐÃ HỦY NGANG</span>
+                          </div>
+                        ) : (
+                          <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-brand-border/40">
+                            <span className="text-[11px] text-stone-400">
+                              Gia hạn trước tối thiểu 3 ngày theo quy định BR11b.
+                            </span>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" onClick={() => setShowRenewContractModal(true)}>
+                                Gia hạn hợp đồng (Renew)
+                              </Button>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenCancelModal({
+                                  contractCode: plot.contractCode || `CTR-${plot.id}`,
+                                  name: plot.name,
+                                  area: plot.area,
+                                  crop: plot.crop,
+                                  totalAmount: 3600000,
+                                  startDate: '12/08/2026',
+                                  stage: plot.stage
+                                })}
+                                className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-bold self-center cursor-pointer px-2"
+                              >
+                                Chấm dứt hợp đồng sớm (BR10)
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-stone-600">Thửa {customerPlots[0]?.name}. Ảnh cân đối chứng và thông tin đóng thùng QR đã được lưu trong hồ sơ nghiệm thu.</p>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="rounded-full bg-white px-3 py-1 font-bold text-stone-600">Ảnh minh chứng đã lưu</span>
-                        <span className={`rounded-full px-3 py-1 font-bold ${harvestAcceptance.status === 'CONFIRMED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{harvestAcceptance.status === 'CONFIRMED' ? `Đã xác nhận · ${harvestAcceptance.deliveryMethod === 'FARM' ? 'Nhận tại nông trại' : 'Giao tận nhà'}` : 'Chờ khách xác nhận'}</span>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 )}
               </div>
-            )}
-
-            {/* TAB 6: HỢP ĐỒNG THUÊ ĐẤT & QUY TRÌNH HỦY (BR10) */}
-            {activeTab === 'contracts' && !selectedPlotId && (
-              <CustomerContractCenter
-                renterId={user?.id || user?.userId}
-                onRenew={() => setShowRenewContractModal(true)}
-              />
+                )}
+              </div>
             )}
 
             {/* TAB 7: TRỢ LÝ AI NÔNG NGHIỆP */}
@@ -2656,7 +2972,6 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
         </div>
 
       </div>
-      {!selectedPlotId && <CustomerMobileNav activeView={activeTab} />}
 
       {/* ================= MODALS ================= */}
 
@@ -2695,26 +3010,27 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
 
       {/* MODAL 1: CHECKOUT / BUY SERVICE (Thanh Toán Dịch Vụ Canh Tác) */}
       <Modal
-        isOpen={Boolean(selectedServiceToBuy) && !showServiceQrModal && !showServiceCardModal}
+        isOpen={Boolean(selectedServiceToBuy) && !showServiceQrModal && !showServiceCardModal && !showServiceVnPayModal}
         onClose={() => setSelectedServiceToBuy(null)}
         title="Thanh Toán Dịch Vụ Canh Tác"
         subtitle={selectedServiceToBuy?.name}
         maxWidth="max-w-xl"
+        headerVariant="green"
       >
         {selectedServiceToBuy && (
           <form onSubmit={handleConfirmPayment} className="space-y-4 text-left text-xs">
             {/* Price Banner */}
-            <div className="p-4 rounded-2xl bg-brand-cream border border-brand-border flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 flex items-center justify-between">
               <div>
-                <span className="text-[11px] text-brand-muted block font-medium">Gói dịch vụ:</span>
-                <span className="font-heading font-black text-sm sm:text-base text-brand-dark">
+                <span className="text-[11px] text-emerald-800 uppercase tracking-wider block font-bold">Gói dịch vụ:</span>
+                <span className="font-heading font-black text-sm sm:text-base text-[#1b3b2b]">
                   {selectedServiceToBuy.name}
                 </span>
                 <span className="text-[11px] text-stone-500 block mt-0.5">{selectedServiceToBuy.unit}</span>
               </div>
               <div className="text-right">
-                <span className="text-[11px] text-brand-muted block font-medium">Tổng thanh toán:</span>
-                <span className="font-heading font-black text-xl text-brand-green">
+                <span className="text-[11px] text-emerald-800 uppercase tracking-wider block font-bold">Tổng thanh toán:</span>
+                <span className="font-heading font-black text-2xl text-[#294C3B]">
                   {selectedServiceToBuy.formattedPrice}
                 </span>
               </div>
@@ -2727,27 +3043,33 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
               </label>
               <select
                 value={checkoutPlotId}
-                onChange={(e) => setCheckoutPlotId(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs font-medium focus:ring-2 focus:ring-brand-green/20"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCheckoutPlotId(val);
+                  setTasksPlotFilter(val);
+                  setPlotScopeId(val);
+                  try { localStorage.setItem('farmely_selected_task_plot', val); } catch {}
+                }}
+                className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs font-medium focus:ring-2 focus:ring-[#294C3B]/20 focus:border-[#294C3B]"
               >
                 {customerPlots.length === 0 ? (
                   <option value="">Chưa có thửa đất nào</option>
                 ) : (
-                  customerPlots.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.id}) • {p.crop}
+                  customerPlots.map((p, idx) => (
+                    <option key={`${p.id}-${p.rentalId || p.rental_id || idx}`} value={p.id}>
+                      {p.name} ({p.plotCode || p.mapPlotId || p.id}) • {p.crop}
                     </option>
                   ))
                 )}
               </select>
               {selectedCheckoutPlot && (
-                <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-brand-border bg-brand-cream/60 p-3">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-brand-green" aria-hidden="true">
+                <div className="mt-2.5 flex items-center gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-[#294C3B]" aria-hidden="true">
                     <Sprout className="h-6 w-6" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-brand-dark">{selectedCheckoutPlot.location}</p>
-                    <p className="mt-0.5 text-brand-muted">
+                    <p className="truncate font-bold text-[#1b3b2b]">{selectedCheckoutPlot.location}</p>
+                    <p className="mt-0.5 text-stone-500">
                       {selectedCheckoutPlot.area} • {selectedCheckoutPlot.mode === 'Assisted-Growing' ? 'Chăm sóc trọn gói' : 'Tự chăm sóc'}
                     </p>
                   </div>
@@ -2765,7 +3087,7 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
                 required
                 value={checkoutDate}
                 onChange={(e) => setCheckoutDate(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs font-medium focus:ring-2 focus:ring-brand-green/20"
+                className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs font-medium focus:ring-2 focus:ring-[#294C3B]/20 focus:border-[#294C3B]"
               />
             </div>
 
@@ -2779,116 +3101,75 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
                 value={checkoutNotes}
                 onChange={(e) => setCheckoutNotes(e.target.value)}
                 placeholder="Ví dụ: Tập trung tỉa nhánh phía bên trái luống, tưới kỹ sau 16:00 chiều..."
-                className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
+                className="w-full p-2.5 rounded-xl border border-stone-300 text-xs focus:ring-2 focus:ring-[#294C3B]/20 focus:border-[#294C3B]"
               />
             </div>
 
-            {/* Payment Method Selector */}
+            {/* Phương thức thanh toán duy nhất: Cổng VNPay */}
             <div className="space-y-2 pt-1">
-              <label className="block font-bold text-brand-dark">
-                Phương thức thanh toán: <span className="text-rose-500">*</span>
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                <label className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
-                  checkoutPaymentMethod === 'VNPAY'
-                    ? 'border-[#294C3B] bg-emerald-50/60 ring-1 ring-[#294C3B]'
-                    : 'border-brand-border bg-white hover:bg-stone-50'
-                }`}>
-                  <input
-                    type="radio"
-                    name="paymethod"
-                    checked={checkoutPaymentMethod === 'VNPAY'}
-                    onChange={() => setCheckoutPaymentMethod('VNPAY')}
-                    className="text-[#294C3B] focus:ring-[#294C3B]"
-                  />
-                  <div className="min-w-0">
-                    <span className="font-bold text-brand-dark block text-xs">Cổng Thanh Toán VNPAY</span>
-                    <span className="text-[10px] text-[#294C3B] block font-semibold">VNPAY-QR & Thẻ ATM Sandbox</span>
-                  </div>
+              <div className="flex items-center justify-between">
+                <label className="block font-bold text-brand-dark text-xs sm:text-sm">
+                  Phương thức thanh toán: <span className="text-rose-500">*</span>
                 </label>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  Cổng VNPay Sandbox
+                </span>
+              </div>
 
-                <label className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
-                  checkoutPaymentMethod === 'CARD'
-                    ? 'border-brand-green bg-emerald-50/60 ring-1 ring-brand-green'
-                    : 'border-brand-border bg-white hover:bg-stone-50'
-                }`}>
-                  <input
-                    type="radio"
-                    name="paymethod"
-                    checked={checkoutPaymentMethod === 'CARD'}
-                    onChange={() => setCheckoutPaymentMethod('CARD')}
-                    className="text-brand-green focus:ring-brand-green"
-                  />
-                  <div className="min-w-0">
-                    <span className="font-bold text-brand-dark block text-xs">Thẻ Quốc Tế / Nội Địa</span>
-                    <span className="text-[10px] text-stone-500 block">Visa, Mastercard, Napas</span>
+              <div className="relative p-3.5 sm:p-4 rounded-2xl border-2 border-[#294C3B] bg-gradient-to-r from-emerald-50/40 via-white to-emerald-50/20 shadow-xs ring-2 ring-[#294C3B]/10 transition-all">
+                <div className="flex items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-white border border-emerald-200/90 flex items-center justify-center p-2 shadow-2xs shrink-0">
+                      <img
+                        src="https://sandbox.vnpayment.vn/paymentv2/Images/brands/logo.svg"
+                        alt="VNPAY"
+                        className="w-full h-auto max-h-6 sm:max-h-7 object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'block';
+                        }}
+                      />
+                      <span style={{ display: 'none' }} className="font-black text-[#294C3B] text-xs">VNPAY</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                        <h4 className="text-xs sm:text-sm font-semibold text-[#1b3b2b] tracking-tight whitespace-nowrap">
+                          Cổng Thanh Toán Trực Tuyến VNPAY (Sandbox)
+                        </h4>
+                        <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium bg-[#d1fae5] text-[#065f46] border border-[#a7f3d0] whitespace-nowrap">
+                          Chính thức
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-500 mt-0.5 leading-normal">
+                        Thanh toán an toàn, bảo mật tiêu chuẩn quốc tế PCI-DSS & mã hóa SHA-512
+                      </p>
+                    </div>
                   </div>
-                </label>
 
-                <label className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
-                  checkoutPaymentMethod === 'WALLET'
-                    ? 'border-brand-green bg-emerald-50/60 ring-1 ring-brand-green'
-                    : 'border-brand-border bg-white hover:bg-stone-50'
-                }`}>
-                  <input
-                    type="radio"
-                    name="paymethod"
-                    checked={checkoutPaymentMethod === 'WALLET'}
-                    onChange={() => setCheckoutPaymentMethod('WALLET')}
-                    className="text-brand-green focus:ring-brand-green"
-                  />
-                  <div className="min-w-0">
-                    <span className="font-bold text-brand-dark block text-xs">Ví Nông Trại Farmely</span>
-                    <span className="text-[10px] text-emerald-700 block font-bold">Số dư: 2.450.000 đ</span>
+                  <div className="w-7 h-7 rounded-full bg-[#294C3B] text-white flex items-center justify-center shrink-0 shadow-xs ring-4 ring-emerald-50">
+                    <CheckCircle2 className="w-4 h-4 text-white" />
                   </div>
-                </label>
+                </div>
               </div>
             </div>
 
-            {/* Preview Prompt */}
-            {checkoutPaymentMethod === 'VNPAY' && (
-              <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 flex items-center gap-3 text-xs">
-                <div className="w-12 h-12 bg-white rounded-lg border border-blue-300 flex items-center justify-center shrink-0 text-blue-700">
-                  <ShieldCheck className="w-8 h-8" />
-                </div>
-                <div>
-                  <p className="font-bold text-brand-dark">Cổng thanh toán VNPAY</p>
-                  <p className="text-[11px] text-stone-500">Hỗ trợ quét mã VNPAY-QR, Thẻ ATM NCB test mode và thẻ quốc tế Visa/Mastercard với xác thực SHA-512.</p>
-                </div>
-              </div>
-            )}
-
-            {checkoutPaymentMethod === 'CARD' && (
-              <div className="p-3 rounded-xl bg-emerald-50/50 border border-emerald-200 flex items-center gap-3 text-xs">
-                <div className="w-12 h-12 bg-white rounded-lg border border-emerald-300 flex items-center justify-center shrink-0 text-emerald-700">
-                  <CreditCard className="w-8 h-8" />
-                </div>
-                <div>
-                  <p className="font-bold text-brand-dark">Thanh toán thẻ bảo mật PCI-DSS</p>
-                  <p className="text-[11px] text-stone-500">Pop-up giao diện thẻ ảo 3D trực quan, hỗ trợ Visa, Mastercard và ATM Napas nội địa.</p>
-                </div>
-              </div>
-            )}
-
             {/* Actions */}
             <div className="flex justify-end gap-2.5 pt-3 border-t border-brand-border/60">
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
                 onClick={() => setSelectedServiceToBuy(null)}
+                className="px-5 py-2.5 rounded-xl border border-stone-300 text-stone-600 hover:bg-stone-100 font-bold text-xs transition-colors cursor-pointer"
               >
                 HỦY
-              </Button>
-              <Button
+              </button>
+              <button
                 type="submit"
-                variant="primary"
-                size="sm"
-                loading={isProcessingPayment}
-                className="font-bold tracking-wider uppercase text-xs"
+                disabled={isProcessingPayment}
+                className="px-6 py-2.5 rounded-xl bg-[#294C3B] hover:bg-[#1f3a2d] text-white font-heading font-black text-xs tracking-wider uppercase shadow-md flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
               >
-                XÁC NHẬN THANH TOÁN ({selectedServiceToBuy.formattedPrice})
-              </Button>
+                <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                <span>TIẾP TỤC THANH TOÁN VNPAY ({selectedServiceToBuy.formattedPrice})</span>
+              </button>
             </div>
           </form>
         )}
@@ -2900,40 +3181,105 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
         onClose={() => {
           setShowCheckoutSuccessModal(false);
           setSelectedServiceToBuy(null);
+          setLastPaymentResult(null);
         }}
-        title="Đăng Ký Dịch Vụ Thành Công!"
+        title="Thanh Toán Dịch Vụ Thành Công!"
+        maxWidth="max-w-lg"
+        headerVariant="green"
       >
         <div className="text-center py-4 space-y-4">
-          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
             <CheckCircle2 className="w-10 h-10" />
           </div>
           <div>
-            <h4 className="font-heading text-lg font-bold text-brand-dark">
-              Đăng Ký Dịch Vụ Thành Công!
+            <h4 className="font-heading text-lg font-black text-brand-dark">
+              Đăng Ký & Kích Hoạt Dịch Vụ Thành Công!
             </h4>
-            <p className="text-sm font-medium text-stone-600 mt-1">
-              Dịch vụ canh tác đã được kích hoạt thành công
+            <p className="text-xs font-medium text-stone-600 mt-1 max-w-sm mx-auto">
+              Yêu cầu dịch vụ của bạn đã được tiếp nhận và đưa vào lịch chăm sóc của thửa đất.
             </p>
-            <span className="text-[11px] text-emerald-600 mt-1 block font-medium">
-              (Tự động đóng sau 3 giây...)
-            </span>
           </div>
-          <div className="p-3.5 rounded-xl bg-brand-cream text-left text-xs space-y-1 border border-brand-border">
-            <p><strong>Gói dịch vụ:</strong> {selectedServiceToBuy?.name}</p>
-            <p><strong>Thửa đất:</strong> {customerPlots.find(p => p.id === checkoutPlotId)?.name}</p>
-            <p><strong>Ngày thực hiện:</strong> {checkoutDate}</p>
-            <p><strong>Phương thức:</strong> {checkoutPaymentMethod === 'VIETQR' ? 'Chuyển khoản VietQR' : 'Ví Farmely'}</p>
+
+          <div className="p-4 rounded-2xl bg-emerald-50/60 text-left text-xs space-y-2 border border-emerald-200">
+            <div className="flex justify-between items-center pb-1.5 border-b border-emerald-200/60">
+              <span className="text-stone-500 font-medium">Mã giao dịch:</span>
+              <span className="font-mono font-bold text-brand-green">
+                #{lastPaymentResult?.transactionId || 'TXN-SUCCESS'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pb-1.5 border-b border-emerald-200/60">
+              <span className="text-stone-500 font-medium">Mã yêu cầu:</span>
+              <span className="font-mono font-bold text-brand-dark">
+                REQ-{lastPaymentResult?.requestId || '01'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pb-1.5 border-b border-emerald-200/60">
+              <span className="text-stone-500 font-medium">Gói dịch vụ:</span>
+              <span className="font-bold text-brand-dark text-right">
+                {lastPaymentResult?.serviceName || selectedServiceToBuy?.name}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pb-1.5 border-b border-emerald-200/60">
+              <span className="text-stone-500 font-medium">Thửa đất áp dụng:</span>
+              <span className="font-bold text-brand-dark">
+                {lastPaymentResult?.plotName || customerPlots.find(p => p.id === checkoutPlotId)?.name || 'Thửa đất đã chọn'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pb-1.5 border-b border-emerald-200/60">
+              <span className="text-stone-500 font-medium">Ngày thực hiện:</span>
+              <span className="font-bold text-emerald-800">
+                {lastPaymentResult?.scheduledDate || checkoutDate}
+              </span>
+            </div>
+            <div className="flex justify-between items-center pb-1.5 border-b border-emerald-200/60">
+              <span className="text-stone-500 font-medium">Số tiền thanh toán:</span>
+              <span className="font-black text-brand-green font-heading text-sm">
+                {lastPaymentResult?.formattedAmount || selectedServiceToBuy?.formattedPrice || 'Đã thanh toán'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-stone-500 font-medium">Trạng thái công việc:</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                PENDING (Đã vào Lịch canh tác)
+              </span>
+            </div>
           </div>
-          <Button
-            variant="primary"
-            className="w-full font-bold"
-            onClick={() => {
-              setShowCheckoutSuccessModal(false);
-              setSelectedServiceToBuy(null);
-            }}
-          >
-            ĐÃ HIỂU VÀ ĐÓNG
-          </Button>
+
+          <div className="grid grid-cols-2 gap-2.5 pt-2">
+            <button
+              type="button"
+              className="w-full py-2.5 rounded-xl border border-stone-300 text-stone-600 hover:bg-stone-100 font-bold text-xs transition-colors cursor-pointer"
+              onClick={() => {
+                setShowCheckoutSuccessModal(false);
+                setSelectedServiceToBuy(null);
+                setLastPaymentResult(null);
+              }}
+            >
+              Ở LẠI DỊCH VỤ
+            </button>
+            <button
+              type="button"
+              className="w-full py-2.5 rounded-xl font-heading font-black text-xs tracking-wider uppercase bg-[#294C3B] hover:bg-[#1f3a2d] text-white shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              onClick={() => {
+                const targetPlot = selectedCheckoutPlot || customerPlots.find(p => p.id === checkoutPlotId) || customerPlots[0];
+                setShowCheckoutSuccessModal(false);
+                setSelectedServiceToBuy(null);
+                setLastPaymentResult(null);
+                setSelectedPlotId(null);
+                if (targetPlot) {
+                  setPlotScopeId(targetPlot.id);
+                  setTasksPlotFilter(targetPlot.id);
+                  try { localStorage.setItem('farmely_selected_task_plot', targetPlot.id); } catch {}
+                }
+                setActiveTab('tasks');
+                navigate(`/customer/dashboard?view=tasks&plot=${targetPlot?.id || 'PLOT-P-07'}`);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            >
+              <Calendar className="w-4 h-4 text-emerald-300" />
+              <span>XEM LỊCH CANH TÁC</span>
+            </button>
+          </div>
         </div>
       </Modal>
 
@@ -2952,12 +3298,12 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
               onChange={(e) => setDiaryPlotId(e.target.value)}
               className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs"
             >
-              {customerPlots.filter((p) => p.mode === 'Self-Growing').length === 0 ? (
-                <option value="">Không có thửa tự canh tác nào</option>
+              {customerPlots.length === 0 ? (
+                <option value="">Chưa có thửa đất nào</option>
               ) : (
-                customerPlots.filter((p) => p.mode === 'Self-Growing').map(p => (
+                customerPlots.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.name} ({p.id}) • {p.mode}
+                    {p.name} ({p.id}) • {p.crop}
                   </option>
                 ))
               )}
@@ -2991,14 +3337,15 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
               onClick={async () => {
                 if (!diaryNote.trim()) return;
                 try {
-                  const targetRental = customerPlots.find((p) => p.id === diaryPlotId)?.rentalId || 1;
+                  const targetPlot = customerPlots.find((p) => p.id === diaryPlotId) || customerPlots[0];
+                  const targetRental = targetPlot?.rentalId || 1;
                   await fetch('/api/farm-diaries', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       rentalId: targetRental,
                       content: diaryNote.trim(),
-                      imageUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80'
+                      imageUrl: targetPlot?.image || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80'
                     })
                   });
                   loadOperationsFromDb();
@@ -3031,12 +3378,12 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
         isOpen={showHarvestAcceptModal}
         onClose={() => setShowHarvestAcceptModal(false)}
         title="Nghiệm Thu Sản Lượng Vụ Mùa"
-        subtitle="Đối chứng cân điện tử và xác nhận nhận rau sạch"
+        subtitle="Đối chứng cân điện tử và xác nhận nhận rau sạch từ CSDL PostgreSQL"
       >
         <div className="space-y-4 text-left text-xs">
           <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
-            <p className="font-bold">✓ Sản lượng thực tế: 12.5 kg Cà chua bi Cherry F1</p>
-            <p>Đã chụp ảnh cân đối chứng tại trạm đóng gói Củ Chi.</p>
+            <p className="font-bold">✓ Sản lượng dự kiến/thực tế: {selectedHarvestForAccept?.formattedYield || '35.0 kg'} {selectedHarvestForAccept?.crop || 'Nông sản VietGAP'}</p>
+            <p>Áp dụng cho: <strong>{selectedHarvestForAccept?.plotName || customerPlots[0]?.name || 'Thửa đất của bạn'}</strong>. Đã kiểm tra đối chứng tại hiện trường.</p>
           </div>
 
           <div>
@@ -3060,7 +3407,22 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
             <Button
               variant="primary"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
+                const targetHarvest = selectedHarvestForAccept || dbHarvestResults[0];
+                try {
+                  await fetch('/api/customer/harvest-results/confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      harvestId: targetHarvest?.harvestId,
+                      rentalId: targetHarvest?.rentalId,
+                      deliveryMethod: harvestDeliveryMethod
+                    })
+                  });
+                  fetchHarvestResults();
+                } catch (err) {
+                  console.error('Error confirming harvest in DB:', err);
+                }
                 setHarvestAcceptance({ status: 'CONFIRMED', confirmedAt: new Date().toISOString(), deliveryMethod: harvestDeliveryMethod });
                 setShowHarvestAcceptModal(false);
               }}
@@ -3119,11 +3481,13 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
         serviceInfo={selectedServiceToBuy}
         totalAmount={selectedServiceToBuy?.price}
         additionalPayload={{
-          rentalId: Math.max(1, customerPlots.findIndex(p => p.id === checkoutPlotId) + 1),
-          serviceId: selectedServiceToBuy?.id,
+          rentalId: customerPlots.find(p => p.id === checkoutPlotId)?.rentalId || customerPlots.find(p => p.id === checkoutPlotId)?.rental_id || 1,
+          serviceId: typeof selectedServiceToBuy?.serviceId === 'number'
+            ? selectedServiceToBuy.serviceId
+            : (parseInt(String(selectedServiceToBuy?.serviceId || selectedServiceToBuy?.id || 1).replace(/\D/g, ''), 10) || 1),
           serviceName: selectedServiceToBuy?.name,
-          plotCode: checkoutPlotId,
-          scheduledDate: checkoutDate,
+          plotCode: customerPlots.find(p => p.id === checkoutPlotId)?.mapPlotId || customerPlots.find(p => p.id === checkoutPlotId)?.plotCode || (checkoutPlotId ? checkoutPlotId.replace(/^PLOT-/i, '') : 'P-01'),
+          scheduledDate: checkoutDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10),
           notes: checkoutNotes
         }}
         onPaymentSuccess={handleServicePaymentSuccess}
@@ -3163,6 +3527,7 @@ iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
         }}
       />
 
+      <CustomerMobileNav activeView={activeTab} />
     </div>
   );
 }

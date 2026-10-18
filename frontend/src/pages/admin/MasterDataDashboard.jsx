@@ -71,14 +71,14 @@ export default function MasterDataDashboard() {
   const totalDocs = summary?.totalDocs ?? knowledgeDocumentsData.length;
 
   const stats = [
-    { label: 'Tổng số Nông Trại (Lands)', value: value('lands'), icon: Building2, link: '/admin/master-data/lands', color: 'text-brand-green' },
-    { label: 'Tổng số Thửa Đất', value: value('plots'), icon: Grid3X3, link: '/admin/master-data/plots', color: 'text-emerald-700' },
-    { label: 'Thửa Đất Khả Dụng', value: value('availablePlots'), icon: CheckCircle2, link: '/admin/master-data/plots', color: 'text-brand-yellow' },
-    { label: 'Danh Mục Cây (Crops)', value: value('crops'), icon: Sprout, link: '/admin/master-data/crops', color: 'text-brand-green' },
-    { label: 'Giống Cây (Varieties)', value: value('varieties'), icon: Wheat, link: '/admin/master-data/varieties', color: 'text-amber-700' },
-    { label: 'Trạm Cảm Biến IoT', value: value('iot'), icon: Radio, link: '/admin/master-data/iot-stations', color: 'text-sky-700' },
-    { label: 'Quy Trình Chuẩn VietGAP', value: value('templates'), icon: FileSpreadsheet, link: '/admin/master-data/process-templates', color: 'text-emerald-700' },
-    { label: 'Tài Liệu Kỹ Thuật (RAG)', value: value('docs'), icon: BookOpen, link: '/admin/master-data/knowledge-documents', color: 'text-indigo-700' },
+    { label: 'Tổng số Nông Trại (Lands)', value: totalLands, icon: Building2, link: '/admin/master-data/lands', color: 'text-brand-green' },
+    { label: 'Tổng số Thửa Đất', value: totalPlots, icon: Grid3X3, link: '/admin/master-data/plots', color: 'text-emerald-700' },
+    { label: 'Thửa Đất Khả Dụng', value: availablePlots, icon: CheckCircle2, link: '/admin/master-data/plots', color: 'text-brand-yellow' },
+    { label: 'Danh Mục Cây (Crops)', value: totalCrops, icon: Sprout, link: '/admin/master-data/crops', color: 'text-brand-green' },
+    { label: 'Giống Cây (Varieties)', value: totalVarieties, icon: Wheat, link: '/admin/master-data/varieties', color: 'text-amber-700' },
+    { label: 'Trạm Cảm Biến IoT', value: totalIoT, icon: Radio, link: '/admin/master-data/iot-stations', color: 'text-sky-700' },
+    { label: 'Quy Trình Chuẩn VietGAP', value: activeTemplates, icon: FileSpreadsheet, link: '/admin/master-data/process-templates', color: 'text-emerald-700' },
+    { label: 'Tài Liệu Kỹ Thuật (RAG)', value: totalDocs, icon: BookOpen, link: '/admin/master-data/knowledge-documents', color: 'text-indigo-700' },
   ];
 
   const recentUpdates = (summary?.recentAuditLogs?.length)

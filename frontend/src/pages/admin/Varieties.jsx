@@ -278,7 +278,7 @@ export default function Varieties() {
             required
             value={cropId}
             onChange={(e) => setCropId(e.target.value)}
-            options={cropsData.map((c) => ({ value: c.id, label: c.name }))}
+            options={crops.map((c) => ({ value: c.id, label: c.name }))}
           />
 
           <div className="grid grid-cols-2 gap-3">

@@ -18,7 +18,7 @@ export const normalizeService = (service) => {
     id: serviceCode,
     serviceId,
     serviceCode,
-    name: service.serviceName,
+    name: service.serviceName || service.name || 'Dịch vụ',
     serviceType: service.serviceType,
     category: service.serviceType === 'FULL' ? 'Trọn gói' : 'Dịch vụ một lần',
     customerCategory: isTemporaryPackage ? 'CYCLE' : isFullCycle ? 'FULL' : 'SINGLE',
@@ -26,10 +26,10 @@ export const normalizeService = (service) => {
     unit: service.unit || '',
     tag: isTemporaryPackage ? 'Chăm sóc theo tuần' : isFullCycle ? 'Chăm sóc toàn vụ' : 'Dịch vụ lẻ',
     iconKey: iconForCode(serviceCode),
-    active: service.status === 'ACTIVE',
+    active: service.status === 'ACTIVE' || service.active === true,
     status: service.status,
     description: service.description || '',
-    tasks: []
+    tasks: Array.isArray(service.tasks) ? service.tasks : []
   };
 };
 
@@ -77,7 +77,3 @@ export const useServiceStore = create((set, get) => ({
     return updated;
   }
 }));
-
-export const fetchServicesFromDb = async () => {
-  return await useServiceStore.getState().loadServices(true);
-};

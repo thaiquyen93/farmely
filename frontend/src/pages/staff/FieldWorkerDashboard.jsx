@@ -67,6 +67,13 @@ export default function FieldWorkerDashboard() {
   const [newIssueUrgency, setNewIssueUrgency] = useState('NORMAL');
   const [newIssuePhoto, setNewIssuePhoto] = useState('');
 
+  const readPhoto = (file, setter) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => setter(e.target?.result || '');
+    reader.readAsDataURL(file);
+  };
+
   // Harvest records loaded from the cultivation service.
   const [harvestTasks, setHarvestTasks] = useState([]);
   const [selectedHarvestTask, setSelectedHarvestTask] = useState(null);
@@ -188,7 +195,7 @@ export default function FieldWorkerDashboard() {
       return;
     }
 
-    const taskId = selectedTaskToExecute.taskId || selectedTaskToExecute.apiId || parseInt(String(selectedTaskToExecute.id).replace(/\D/g, ''), 10) || 1;
+    const taskId = selectedTaskToExecute.apiId || selectedTaskToExecute.taskId || parseInt(String(selectedTaskToExecute.id).replace(/\D/g, ''), 10) || 1;
     try {
       await fetch(`/api/care-tasks/${taskId}`, {
         method: 'PATCH',
@@ -199,7 +206,6 @@ export default function FieldWorkerDashboard() {
           instructions: taskProofNote || 'Nhiệm vụ đã được thợ hoàn tất và kiểm tra đạt tiêu chuẩn.'
         })
       });
-      // Tạo một nhật ký canh tác tương ứng
       await fetch('/api/farm-diaries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -209,13 +215,6 @@ export default function FieldWorkerDashboard() {
           imageUrl: '/images/moc-chau-2811.jpg'
         })
       });
-      if (selectedTaskToExecute.apiId) {
-        await fetch(`/api/tasks/${selectedTaskToExecute.apiId}/complete`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ evidenceImageUrl: selectedTaskToExecute.proofPhoto || '/images/evidence-placeholder.svg', notes: taskProofNote, syncToDiary: true })
-        }).catch(() => {});
-      }
     } catch (err) {
       console.warn('Could not patch task to DB:', err);
     }
