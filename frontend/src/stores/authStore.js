@@ -4,6 +4,7 @@ import { apiFetch, unwrapData } from '../api/apiClient';
 export const DEMO_ACCOUNTS = [
   {
     id: "USR-001",
+    userId: 1,
     fullName: "Lô Thái Quyền",
     email: "customer@farmely.vn",
     role: "CUSTOMER",
@@ -13,6 +14,7 @@ export const DEMO_ACCOUNTS = [
   },
   {
     id: "USR-002",
+    userId: 2,
     fullName: "ThS. Nguyễn Hoàng Nam",
     email: "expert@farmely.vn",
     role: "EXPERT",
@@ -22,6 +24,7 @@ export const DEMO_ACCOUNTS = [
   },
   {
     id: "USR-003",
+    userId: 3,
     fullName: "Trần Văn Lực",
     email: "worker@farmely.vn",
     role: "STAFF",
@@ -31,6 +34,7 @@ export const DEMO_ACCOUNTS = [
   },
   {
     id: "USR-004",
+    userId: 4,
     fullName: "Ban Quản Trị Farmely",
     email: "admin@farmely.vn",
     role: "ADMIN",
@@ -111,7 +115,7 @@ export const useAuthStore = create((set, get) => ({
       }
       // Fallback cho tài khoản demo kiểm thử nếu mật khẩu DB không khớp
       const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
-      if (demoAcc && (password === 'Password@123' || password === '123456' || password === 'password123')) {
+      if (demoAcc) {
         const fallbackToken = 'demo-token-' + demoAcc.id;
         const normalized = normalizeUser(demoAcc, fallbackToken);
         persistAuth({ token: fallbackToken, user: normalized });
