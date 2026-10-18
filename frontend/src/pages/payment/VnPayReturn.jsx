@@ -137,7 +137,6 @@ export default function VnPayReturn() {
         } catch (backendErr) {
           console.warn('Backend payment-service verify fallback:', backendErr);
         }
-        }
 
         if (responseCode === '00') {
           verifySuccess = true;
