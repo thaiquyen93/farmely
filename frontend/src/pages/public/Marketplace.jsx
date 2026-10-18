@@ -24,7 +24,7 @@ export default function Marketplace() {
   const [plotToBook, setPlotToBook] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isPlotListCollapsed, setIsPlotListCollapsed] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 1365px)').matches
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 1365px)').matches : false
   );
   const [selectedCropByPlot, setSelectedCropByPlot] = useState(() => {
     try {

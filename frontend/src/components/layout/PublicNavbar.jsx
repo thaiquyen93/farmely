@@ -68,7 +68,9 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   }, [user]);
 
   useEffect(() => {
-    if (isAuthenticated) refreshUser().catch(() => {});
+    if (isAuthenticated && typeof refreshUser === 'function') {
+      refreshUser().catch(() => {});
+    }
   }, [isAuthenticated, refreshUser]);
 
   const toggleNotifications = async () => {
@@ -536,12 +538,12 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                         <button
                           onClick={() => {
                             setUserDropdownOpen(false);
-                            navigate(user?.role === 'CUSTOMER' ? '/customer/profile' : getDashboardRoute(user?.role));
+                            setIsProfileModalOpen(true);
                           }}
                           className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
                         >
                           <User className="w-4 h-4 text-brand-green" />
-                          <span>Hồ sơ cá nhân (Profile)</span>
+                          <span>Hồ sơ cá nhân</span>
                         </button>
 
                         {user?.role === 'CUSTOMER' && (
@@ -561,12 +563,12 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                         <button
                           onClick={() => {
                             setUserDropdownOpen(false);
-                            navigate(user?.role === 'CUSTOMER' ? '/customer/settings' : getDashboardRoute(user?.role));
+                            setIsSettingsModalOpen(true);
                           }}
                           className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
                         >
                           <Settings className="w-4 h-4 text-brand-green" />
-                          <span>Cài đặt tài khoản (Settings)</span>
+                          <span>Cài đặt tài khoản</span>
                         </button>
 
                         {/* 4. CHỈ ADMIN MỚI THẤY Quản lý Master Data */}

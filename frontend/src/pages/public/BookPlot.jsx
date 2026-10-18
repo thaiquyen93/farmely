@@ -54,6 +54,64 @@ const PLOT_COMPATIBLE_VARIETIES = {
   22: [2, 3, 8, 10]        // P-16
 };
 
+export const BOOKING_START_LEAD_DAYS = 10;
+
+export const toLocalIsoDate = (date) => {
+  const local = new Date(date);
+  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+  return local.toISOString().slice(0, 10);
+};
+
+export const addDays = (date, days) => {
+  const next = new Date(date);
+  next.setHours(12, 0, 0, 0);
+  next.setDate(next.getDate() + days);
+  return toLocalIsoDate(next);
+};
+
+export const addMonths = (isoDate, months) => {
+  const source = new Date(`${isoDate}T12:00:00`);
+  const originalDay = source.getDate();
+  source.setDate(1);
+  source.setMonth(source.getMonth() + months);
+  const lastDay = new Date(source.getFullYear(), source.getMonth() + 1, 0).getDate();
+  source.setDate(Math.min(originalDay, lastDay));
+  return toLocalIsoDate(source);
+};
+
+export const getEarliestCultivationDate = (now = new Date()) => addDays(now, BOOKING_START_LEAD_DAYS);
+
+export const getRentalEndDate = (startDate, months, crop) => {
+  const monthEnd = addMonths(startDate, months);
+  const durationValues = String(crop?.duration || '').match(/\d+/g)?.map(Number) || [];
+  const cropMinimumDays = (durationValues.length ? Math.max(...durationValues) : 30) + 10;
+  const cropEnd = addDays(`${startDate}T12:00:00`, cropMinimumDays);
+  return cropEnd > monthEnd ? cropEnd : monthEnd;
+};
+
+export const getPlotSelectionKey = (plot) => String(plot?.code || plot?.label || plot?.id || '')
+  .replace(/^plot\s+/i, '')
+  .trim()
+  .toLowerCase();
+
+export const dedupeSelectedPlots = (plots) => {
+  const seen = new Set();
+  return (plots || []).filter((plot) => {
+    const key = getPlotSelectionKey(plot);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+export const getBookingValidationError = ({ acceptedTerms, selectedMode, assistedService }) => {
+  if (!acceptedTerms) return 'Bạn cần đọc và chấp nhận điều khoản thuê đất trước khi thanh toán.';
+  if (selectedMode === 'ASSISTED' && !assistedService) {
+    return 'Chưa tải được gói chăm sóc toàn vụ từ hệ thống. Vui lòng tải lại trang rồi thử lại.';
+  }
+  return '';
+};
+
 export default function BookPlot() {
   const { id } = useParams();
   const navigate = useNavigate();

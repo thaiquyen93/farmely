@@ -76,6 +76,7 @@ export const useAuthStore = create((set, get) => ({
 
         localStorage.setItem('farmely_token', token);
         localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
+        localStorage.setItem('farmely_auth', JSON.stringify({ token, user: mappedUser }));
         set({ user: mappedUser, token, isAuthenticated: true });
         return { success: true, user: mappedUser };
       }
@@ -92,6 +93,7 @@ export const useAuthStore = create((set, get) => ({
         const fallbackToken = 'demo-token-' + demoAcc.id;
         localStorage.setItem('farmely_token', fallbackToken);
         localStorage.setItem('farmely_user', JSON.stringify(demoAcc));
+        localStorage.setItem('farmely_auth', JSON.stringify({ token: fallbackToken, user: demoAcc }));
         set({ user: demoAcc, token: fallbackToken, isAuthenticated: true });
         return { success: true, user: demoAcc };
       }
@@ -132,6 +134,7 @@ export const useAuthStore = create((set, get) => ({
         };
         localStorage.setItem('farmely_token', token);
         localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
+        localStorage.setItem('farmely_auth', JSON.stringify({ token, user: mappedUser }));
         set({ user: mappedUser, token, isAuthenticated: true });
         return { success: true, user: mappedUser, message: resData.message || 'Đăng ký tài khoản thành công.' };
       }
@@ -142,9 +145,45 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  refreshUser: async () => {
+    const user = get().user;
+    if (!user) return null;
+    const token = get().token || localStorage.getItem('farmely_token');
+    try {
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+      if (response.ok) {
+        const resData = await response.json();
+        const dbUser = resData?.data?.user || resData?.data;
+        if (dbUser) {
+          const updated = {
+            ...user,
+            ...dbUser,
+            fullName: dbUser.fullName || user.fullName,
+            phoneNumber: dbUser.phoneNumber || dbUser.phone || user.phoneNumber || user.phone,
+            phone: dbUser.phoneNumber || dbUser.phone || user.phone,
+            address: dbUser.address || user.address
+          };
+          localStorage.setItem('farmely_user', JSON.stringify(updated));
+          localStorage.setItem('farmely_auth', JSON.stringify({ token, user: updated }));
+          set({ user: updated, isAuthenticated: true });
+          return updated;
+        }
+      }
+    } catch {
+      // offline / quiet fallback
+    }
+    return user;
+  },
+
   logout: () => {
     localStorage.removeItem('farmely_token');
     localStorage.removeItem('farmely_user');
+    localStorage.removeItem('farmely_auth');
     set({ user: null, token: null, isAuthenticated: false });
   },
 

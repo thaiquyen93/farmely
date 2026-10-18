@@ -72,7 +72,13 @@ export default function CustomerDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { services: masterServices } = useServiceStore();
+  const { services: masterServices, loadServices } = useServiceStore();
+
+  useEffect(() => {
+    if (typeof loadServices === 'function') {
+      loadServices().catch(() => {});
+    }
+  }, [loadServices]);
   const [activeTab, setActiveTab] = useState('yards');
   const [selectedPlotId, setSelectedPlotId] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
