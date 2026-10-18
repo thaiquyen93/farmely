@@ -79,9 +79,10 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
     }
     setLoading(true);
     try {
+      const canReadUserDirectory = user?.role === 'EXPERT' || user?.role === 'ADMIN';
       const [conversationPayload, userPayload, rentalPayload, plotPayload] = await Promise.all([
         apiFetch(`/api/v1/conversations?userId=${currentUserId}`),
-        apiFetch('/api/users'),
+        canReadUserDirectory ? apiFetch('/api/users') : Promise.resolve({ data: [user] }),
         apiFetch('/api/rentals'),
         apiFetch('/api/plots')
       ]);
@@ -108,7 +109,7 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
     } finally {
       setLoading(false);
     }
-  }, [currentUserId]);
+  }, [currentUserId, user]);
 
   useEffect(() => {
     refreshThreads();

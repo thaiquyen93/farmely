@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
+import { apiFetch, unwrapData } from '../../api/apiClient';
 import {
   UserCheck,
   CheckCircle2,
@@ -41,8 +42,26 @@ import {
   Home
 } from 'lucide-react';
 
+const readPhoto = (file, onLoad) => {
+  if (!file) {
+    onLoad('');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => onLoad(String(reader.result || ''));
+  reader.onerror = () => onLoad('');
+  reader.readAsDataURL(file);
+};
+
+const normalizeTaskStatus = (status) => {
+  if (status === 'DONE' || status === 'COMPLETED') return 'COMPLETED';
+  if (status === 'IN_PROG' || status === 'IN_PROGRESS') return 'IN_PROGRESS';
+  return status || 'PENDING';
+};
+
 export default function FieldWorkerDashboard() {
   const { user } = useAuthStore();
+  const workerId = Number(user?.userId || user?.id);
   const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'issues' | 'harvest'
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dataError, setDataError] = useState('');
@@ -83,14 +102,20 @@ export default function FieldWorkerDashboard() {
   const serialReaderRef = useRef(null);
 
   useEffect(() => {
+    if (!Number.isFinite(workerId)) return undefined;
     let cancelled = false;
-    const unwrap = (body) => Array.isArray(body) ? body : (body?.data || []);
-    const readJson = (url) => fetch(url).then((response) => response.ok ? response.json() : ({ data: [] }));
-
-    Promise.all([readJson('/api/tasks'), readJson('/api/issues'), readJson('/api/harvest')])
+    setDataError('');
+    Promise.all([
+      apiFetch(`/api/tasks?workerId=${workerId}`),
+      apiFetch(`/api/issues?reportedBy=${workerId}`),
+      apiFetch(`/api/harvest?enteredBy=${workerId}`)
+    ])
       .then(([taskBody, issueBody, harvestBody]) => {
         if (cancelled) return;
-        setTasks(unwrap(taskBody).map((task) => ({
+        const taskData = unwrapData(taskBody) || [];
+        const issueData = unwrapData(issueBody) || [];
+        const harvestData = unwrapData(harvestBody) || [];
+        setTasks(taskData.map((task) => ({
           id: task.taskCode || `TASK-${task.taskId}`,
           apiId: task.taskId,
           rentalId: task.rentalId,
@@ -102,11 +127,11 @@ export default function FieldWorkerDashboard() {
           customerName: task.customerName || 'Chưa có dữ liệu khách hàng',
           deadline: task.dueDate || 'Chưa có hạn thực hiện',
           instructions: task.instructions || task.notes || 'Chưa có hướng dẫn từ hệ thống.',
-          status: task.displayStatus || task.status || 'PENDING',
+          status: normalizeTaskStatus(task.displayStatus || task.status),
           completedAt: task.updatedAt ? new Date(task.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
           proofPhoto: task.evidenceImageUrl || null
         })));
-        setMyIssues(unwrap(issueBody).map((issue) => ({
+        setMyIssues(issueData.map((issue) => ({
           id: issue.issueCode || `ISSUE-${issue.issueId}`,
           apiId: issue.issueId,
           plotCode: issue.plotCode || 'Chưa có mã thửa',
@@ -117,7 +142,7 @@ export default function FieldWorkerDashboard() {
           status: issue.displayStatus || issue.status || 'OPEN',
           expertAdvice: issue.resolutionNotes || 'Đang chờ chuyên gia phản hồi.'
         })));
-        const mappedHarvests = unwrap(harvestBody).map((harvest) => ({
+        const mappedHarvests = harvestData.map((harvest) => ({
           id: harvest.harvestCode || `HARVEST-${harvest.harvestId}`,
           apiId: harvest.harvestId,
           rentalId: harvest.rentalId,
@@ -134,16 +159,25 @@ export default function FieldWorkerDashboard() {
         setSelectedHarvestTask((current) => current || mappedHarvests.find((item) => item.status !== 'COMPLETED') || mappedHarvests[0] || null);
 
         const plotExpansion = {};
-        unwrap(taskBody).forEach((task) => {
+        taskData.forEach((task) => {
           plotExpansion[task.plotCode || task.plotName || 'Chưa xác định'] = true;
         });
         setExpandedPlots(plotExpansion);
       })
-      .catch(() => {
-        if (!cancelled) { setTasks([]); setMyIssues([]); setHarvestTasks([]); }
+      .catch((error) => {
+        if (!cancelled) {
+          setTasks([]);
+          setMyIssues([]);
+          setHarvestTasks([]);
+          setDataError(error.message || 'Không thể tải dữ liệu ca trực từ hệ thống.');
+        }
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [workerId]);
+
+  useEffect(() => {
+    if (!newIssuePlot && tasks.length) setNewIssuePlot(tasks[0].plotCode);
+  }, [newIssuePlot, tasks]);
 
   useEffect(() => () => {
     const reader = serialReaderRef.current;
@@ -151,6 +185,23 @@ export default function FieldWorkerDashboard() {
     const port = serialPortRef.current;
     if (port?.readable || port?.writable) port.close().catch(() => {});
   }, []);
+
+  const handleTaskAction = async (task) => {
+    if (task.status !== 'PENDING' || !task.apiId) {
+      setSelectedTaskToExecute(task);
+      return;
+    }
+    try {
+      const updated = unwrapData(await apiFetch(`/api/tasks/${task.apiId}/start`, { method: 'PUT' }));
+      setTasks((current) => current.map((item) => item.id === task.id
+        ? { ...item, status: normalizeTaskStatus(updated?.displayStatus || updated?.status || 'IN_PROGRESS') }
+        : item));
+      setDataError('');
+      setDataSuccess(`Đã bắt đầu công việc: ${task.title}.`);
+    } catch (error) {
+      setDataError(error.message || 'Không thể bắt đầu công việc.');
+    }
+  };
 
   // Handle Complete Task
   const handleConfirmCompleteTask = async (e) => {
@@ -162,12 +213,18 @@ export default function FieldWorkerDashboard() {
     }
 
     if (selectedTaskToExecute.apiId) {
-      const response = await fetch(`/api/tasks/${selectedTaskToExecute.apiId}/complete`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ evidenceImageUrl: selectedTaskToExecute.proofPhoto || '/images/evidence-placeholder.svg', notes: taskProofNote, syncToDiary: true })
-      });
-      if (!response.ok) { alert('Không thể cập nhật nhiệm vụ lên hệ thống.'); return; }
+      setIsUploadingPhoto(true);
+      try {
+        await apiFetch(`/api/tasks/${selectedTaskToExecute.apiId}/complete`, {
+          method: 'PUT',
+          body: JSON.stringify({ evidenceImageUrl: taskProofPhoto, notes: taskProofNote, syncToDiary: true })
+        });
+      } catch (error) {
+        setDataError(error.message || 'Không thể cập nhật nhiệm vụ lên hệ thống.');
+        return;
+      } finally {
+        setIsUploadingPhoto(false);
+      }
     }
     setTasks((prev) =>
       prev.map((t) =>
@@ -176,13 +233,15 @@ export default function FieldWorkerDashboard() {
               ...t,
               status: 'COMPLETED',
               completedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              proofPhoto: '/images/moc-chau-2811.jpg'
+              proofPhoto: taskProofPhoto
             }
       : t)
     );
     setSelectedTaskToExecute(null);
     setTaskProofNote('');
-    alert('Đã hoàn thành ca trực! Ảnh và nhật ký đã được đồng bộ vào nhật ký nông trại của khách hàng.');
+    setTaskProofPhoto('');
+    setDataError('');
+    setDataSuccess('Đã hoàn thành nhiệm vụ và đồng bộ ảnh vào nhật ký nông trại.');
   };
 
   // Handle Submit New Issue
@@ -194,14 +253,16 @@ export default function FieldWorkerDashboard() {
       alert('Hệ thống chưa có mã lượt thuê hoặc mã nhân viên cho thửa đã chọn.');
       return;
     }
-    const response = await fetch('/api/issues', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rentalId: sourceTask.rentalId, reportedBy: reporterId, issueType: newIssueType, description: newIssueDesc, imageUrl: '' })
-    });
-    if (!response.ok) { alert('Không thể gửi báo cáo lên hệ thống.'); return; }
-    const body = await response.json();
-    const saved = body?.data || {};
+    let saved;
+    try {
+      saved = unwrapData(await apiFetch('/api/issues', {
+        method: 'POST',
+        body: JSON.stringify({ rentalId: sourceTask.rentalId, reportedBy: reporterId, issueType: newIssueType, description: newIssueDesc, imageUrl: newIssuePhoto })
+      })) || {};
+    } catch (error) {
+      setDataError(error.message || 'Không thể gửi báo cáo lên hệ thống.');
+      return;
+    }
     const newIssue = {
       id: saved.issueCode || `ISSUE-${saved.issueId}`,
       apiId: saved.issueId,
@@ -217,7 +278,9 @@ export default function FieldWorkerDashboard() {
     setMyIssues((prev) => [newIssue, ...prev]);
     setShowNewIssueModal(false);
     setNewIssueDesc('');
-    alert('Đã gửi báo cáo sự cố kèm ảnh hiện trường trực tiếp tới Chuyên gia nông nghiệp Nam!');
+    setNewIssuePhoto('');
+    setDataError('');
+    setDataSuccess('Đã gửi báo cáo sự cố và ảnh hiện trường cho chuyên gia.');
   };
 
   const connectElectronicScale = async () => {
@@ -318,14 +381,16 @@ export default function FieldWorkerDashboard() {
       alert('Hệ thống chưa có mã lượt thuê hoặc mã nhân viên để ghi nhận thu hoạch.');
       return;
     }
-    const response = await fetch('/api/harvest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rentalId: selectedHarvestTask.rentalId, enteredBy, harvestDate: new Date().toISOString().slice(0, 10), yieldAmount: Number(totalBatchWeight.toFixed(2)), evidenceImageUrl: '', deliveryType: 'PICKUP' })
-    });
-    if (!response.ok) { alert('Không thể lưu kết quả cân lên hệ thống.'); return; }
-    const responseBody = await response.json();
-    const saved = responseBody?.data || {};
+    let saved;
+    try {
+      saved = unwrapData(await apiFetch('/api/harvest', {
+        method: 'POST',
+        body: JSON.stringify({ rentalId: selectedHarvestTask.rentalId, enteredBy, harvestDate: new Date().toISOString().slice(0, 10), yieldAmount: Number(totalBatchWeight.toFixed(2)), evidenceImageUrl: '', deliveryType: 'PICKUP' })
+      })) || {};
+    } catch (error) {
+      setDataError(error.message || 'Không thể lưu kết quả cân lên hệ thống.');
+      return;
+    }
     const completedHarvest = {
       ...selectedHarvestTask,
       id: saved.harvestCode || `HARVEST-${saved.harvestId || Date.now()}`,
@@ -344,12 +409,14 @@ export default function FieldWorkerDashboard() {
     setSelectedHarvestTask(completedHarvest);
     setScaleWeightInput('');
     setQrReady(true);
-    alert('Đã lưu tổng sản lượng cân và gửi hồ sơ đóng thùng cho khách hàng nghiệm thu.');
+    setDataError('');
+    setDataSuccess('Đã lưu sản lượng cân và gửi hồ sơ cho khách hàng nghiệm thu.');
   };
 
   const completedCount = tasks.filter((t) => t.status === 'COMPLETED').length;
   const pendingCount = tasks.length - completedCount;
-  const nextTask = tasks.find((task) => task.status === 'IN_PROGRESS') || tasks.find((task) => task.status === 'PENDING');
+  const overdueCount = tasks.filter((task) => task.status === 'OVERDUE').length;
+  const nextTask = tasks.find((task) => task.status === 'IN_PROGRESS') || tasks.find((task) => task.status === 'OVERDUE') || tasks.find((task) => task.status === 'PENDING');
   const focusedTask = tasks.find((task) => task.id === focusedTaskId) || nextTask || tasks[0] || null;
   const orderedTasks = [...tasks].sort((first, second) => Number(first.status === 'COMPLETED') - Number(second.status === 'COMPLETED'));
   const tasksByPlot = orderedTasks.reduce((groups, task) => {
@@ -361,14 +428,21 @@ export default function FieldWorkerDashboard() {
   const currentSession = new Date().getHours() < 12 ? 'MORNING' : 'AFTERNOON';
   const currentSessionTasks = tasks.filter((task) => task.session === currentSession);
   const harvestedWeight = harvestTasks.reduce((sum, item) => sum + (Number.parseFloat(item.actualWeight) || 0), 0);
-  const harvestTaskCandidates = tasks
-    .filter((task) => /thu hoạch|cân|đóng thùng/i.test(`${task.title} ${task.instructions}`))
+  const harvestCandidateTasks = [...tasks.reduce((byRental, task) => {
+    if (!task.rentalId) return byRental;
+    const current = byRental.get(task.rentalId);
+    const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(`${task.title} ${task.instructions}`);
+    if (!current || isHarvestTask) byRental.set(task.rentalId, task);
+    return byRental;
+  }, new Map()).values()];
+  const harvestTaskCandidates = harvestCandidateTasks
     .map((task) => {
       const recordedHarvest = harvestTasks.find((item) => item.rentalId === task.rentalId);
+      const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(`${task.title} ${task.instructions}`);
       return {
         id: `WORK-${task.id}`,
-        sourceTaskId: task.id,
-        apiTaskId: task.apiId,
+        sourceTaskId: isHarvestTask ? task.id : null,
+        apiTaskId: isHarvestTask ? task.apiId : null,
         apiId: recordedHarvest?.apiId,
         rentalId: task.rentalId,
         plotCode: task.plotCode,
@@ -410,6 +484,19 @@ export default function FieldWorkerDashboard() {
           {activeTab === 'tasks' && <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs shadow-sm"><span className="font-bold text-stone-500">{currentSession === 'MORNING' ? 'Ca sáng' : 'Ca chiều'} · </span><strong className="text-emerald-800">{completedCount}/{tasks.length} nhiệm vụ hoàn thành</strong></div>}
         </section>
 
+        {dataError ? (
+          <div role="alert" className="flex items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">
+            <span>{dataError}</span>
+            <button type="button" onClick={() => setDataError('')} className="shrink-0 text-xs underline">Đóng</button>
+          </div>
+        ) : null}
+        {dataSuccess ? (
+          <div role="status" className="flex items-start justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+            <span>{dataSuccess}</span>
+            <button type="button" onClick={() => setDataSuccess('')} className="shrink-0 text-xs underline">Đóng</button>
+          </div>
+        ) : null}
+
         {activeTab === 'tasks' && (
           <div className="grid grid-cols-3 gap-2 sm:max-w-2xl sm:gap-3">
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-amber-700">Chờ làm</span><strong className="font-heading text-2xl text-amber-900">{tasks.filter((task) => task.status === 'PENDING').length}</strong></div>
@@ -417,6 +504,12 @@ export default function FieldWorkerDashboard() {
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-emerald-700">Hoàn thành</span><strong className="font-heading text-2xl text-emerald-900">{completedCount}</strong></div>
           </div>
         )}
+
+        {activeTab === 'tasks' && overdueCount > 0 ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-800">
+            Có {overdueCount} công việc đang thực hiện đã quá hạn. Nhân viên vẫn có thể mở và hoàn thành các công việc này.
+          </div>
+        ) : null}
 
         {/* Layout Left Sidebar + Content */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -517,6 +610,7 @@ export default function FieldWorkerDashboard() {
                             {plotGroup.tasks.map((task) => {
                               const isDone = task.status === 'COMPLETED';
                               const isInProgress = task.status === 'IN_PROGRESS';
+                              const isOverdue = task.status === 'OVERDUE';
                               const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(task.title);
                               const isFocused = focusedTask?.id === task.id;
                               return (
@@ -526,11 +620,11 @@ export default function FieldWorkerDashboard() {
                                   tabIndex={0}
                                   onClick={() => setFocusedTaskId(task.id)}
                                   onKeyDown={(event) => event.key === 'Enter' && setFocusedTaskId(task.id)}
-                                  className={`grid cursor-pointer gap-3 border-l-4 p-4 text-xs transition sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center ${isFocused ? 'border-l-emerald-600 bg-emerald-50/80' : isInProgress ? 'border-l-sky-400 bg-sky-50/70' : isDone ? 'border-l-emerald-200 bg-emerald-50/30' : 'border-l-transparent bg-white hover:bg-stone-50'}`}
+                                  className={`grid cursor-pointer gap-3 border-l-4 p-4 text-xs transition sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center ${isFocused ? 'border-l-emerald-600 bg-emerald-50/80' : isOverdue ? 'border-l-rose-400 bg-rose-50/70' : isInProgress ? 'border-l-sky-400 bg-sky-50/70' : isDone ? 'border-l-emerald-200 bg-emerald-50/30' : 'border-l-transparent bg-white hover:bg-stone-50'}`}
                                 >
-                                  <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 font-bold ${isDone ? 'bg-emerald-100 text-emerald-800' : isInProgress ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-800'}`}>
-                                    <span className={`h-2 w-2 rounded-full ${isDone ? 'bg-emerald-500' : isInProgress ? 'bg-sky-500' : 'bg-amber-400'}`} />
-                                    {isDone ? 'Hoàn thành' : isInProgress ? 'Đang làm' : 'Chờ làm'}
+                                  <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 font-bold ${isDone ? 'bg-emerald-100 text-emerald-800' : isOverdue ? 'bg-rose-100 text-rose-800' : isInProgress ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-800'}`}>
+                                    <span className={`h-2 w-2 rounded-full ${isDone ? 'bg-emerald-500' : isOverdue ? 'bg-rose-500' : isInProgress ? 'bg-sky-500' : 'bg-amber-400'}`} />
+                                    {isDone ? 'Hoàn thành' : isOverdue ? 'Quá hạn' : isInProgress ? 'Đang làm' : 'Chờ làm'}
                                   </span>
                                   <div className="min-w-0">
                                     <h5 className="font-heading text-sm font-black text-brand-dark">{task.title}</h5>
@@ -543,17 +637,17 @@ export default function FieldWorkerDashboard() {
                                       onClick={(event) => {
                                         event.stopPropagation();
                                         if (isHarvestTask) {
-                                          const harvest = harvestTasks.find((item) => item.plotCode === task.plotCode) || harvestTasks.find((item) => item.status !== 'COMPLETED');
+                                           const harvest = harvestWorkItems.find((item) => item.plotCode === task.plotCode) || harvestWorkItems.find((item) => item.status !== 'COMPLETED');
                                           if (harvest) openHarvestWorkspace(harvest);
-                                          else setSelectedTaskToExecute(task);
+                                           else handleTaskAction(task);
                                         } else {
-                                          setSelectedTaskToExecute(task);
+                                           handleTaskAction(task);
                                         }
                                       }}
                                       className="w-full gap-1.5 font-bold sm:w-auto"
                                     >
                                       {isHarvestTask ? <Scale className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                                      {isHarvestTask ? 'Mở cân & đóng gói' : 'Thực hiện'}
+                                      {isHarvestTask ? 'Mở cân & đóng gói' : isInProgress || isOverdue ? 'Hoàn thành' : 'Bắt đầu'}
                                     </Button>
                                   )}
                                 </div>
@@ -577,8 +671,8 @@ export default function FieldWorkerDashboard() {
                             <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">Chi tiết công việc</p>
                             <h3 className="mt-1 font-heading text-xl font-black leading-tight">{focusedTask.title}</h3>
                           </div>
-                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${focusedTask.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : focusedTask.status === 'IN_PROGRESS' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800'}`}>
-                            {focusedTask.status === 'COMPLETED' ? 'Hoàn thành' : focusedTask.status === 'IN_PROGRESS' ? 'Đang làm' : 'Chờ làm'}
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${focusedTask.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : focusedTask.status === 'OVERDUE' ? 'bg-rose-100 text-rose-800' : focusedTask.status === 'IN_PROGRESS' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {focusedTask.status === 'COMPLETED' ? 'Hoàn thành' : focusedTask.status === 'OVERDUE' ? 'Quá hạn' : focusedTask.status === 'IN_PROGRESS' ? 'Đang làm' : 'Chờ làm'}
                           </span>
                         </div>
                         <div className="mt-4 flex items-center gap-2 text-xs text-emerald-50"><MapPin className="h-4 w-4" />{focusedTask.plotName}</div>
@@ -614,15 +708,15 @@ export default function FieldWorkerDashboard() {
                               variant="primary"
                               onClick={() => {
                                 if (/thu hoạch|cân|đóng thùng/i.test(focusedTask.title)) {
-                                  const harvest = harvestTasks.find((item) => item.plotCode === focusedTask.plotCode) || harvestTasks.find((item) => item.status !== 'COMPLETED');
+                                   const harvest = harvestWorkItems.find((item) => item.plotCode === focusedTask.plotCode) || harvestWorkItems.find((item) => item.status !== 'COMPLETED');
                                   if (harvest) openHarvestWorkspace(harvest);
-                                  else setSelectedTaskToExecute(focusedTask);
-                                } else setSelectedTaskToExecute(focusedTask);
+                                   else handleTaskAction(focusedTask);
+                                 } else handleTaskAction(focusedTask);
                               }}
                               className="w-full gap-2 font-bold"
                             >
                               {/thu hoạch|cân|đóng thùng/i.test(focusedTask.title) ? <Scale className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                              {/thu hoạch|cân|đóng thùng/i.test(focusedTask.title) ? 'Mở cân & đóng gói' : 'Bắt đầu công việc'}
+                              {/thu hoạch|cân|đóng thùng/i.test(focusedTask.title) ? 'Mở cân & đóng gói' : ['IN_PROGRESS', 'OVERDUE'].includes(focusedTask.status) ? 'Hoàn thành công việc' : 'Bắt đầu công việc'}
                             </Button>
                             <Button variant="outline" onClick={() => setShowNewIssueModal(true)} className="w-full gap-2 font-bold"><AlertTriangle className="h-4 w-4" />Báo sự cố</Button>
                           </div>
