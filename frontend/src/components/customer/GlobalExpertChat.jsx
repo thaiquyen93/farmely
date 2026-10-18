@@ -15,10 +15,15 @@ export default function GlobalExpertChat() {
   const isSupportedRole = user?.role === 'CUSTOMER' || isStaff;
   const chatRole = isStaff ? 'worker' : 'customer';
   const fallbackName = isStaff ? 'Nhân viên hiện trường' : 'Khách hàng';
-  const threadId = useMemo(
-    () => `${isStaff ? 'WORK' : 'CONS'}-${user?.id || user?.email || (isStaff ? 'STAFF' : 'CUSTOMER')}`,
-    [isStaff, user?.id, user?.email]
-  );
+  const threadId = useMemo(() => {
+    if (user?.email === 'customer@farmely.vn' || user?.userId === 1 || user?.id === 'USR-001') {
+      return 'CONS-401';
+    }
+    if (user?.email === 'worker@farmely.vn' || user?.userId === 3 || user?.id === 'USR-003') {
+      return 'WORK-101';
+    }
+    return isStaff ? 'WORK-101' : 'CONS-401';
+  }, [user, isStaff]);
   const { currentThread, sendMessage } = useRealtimeChat({
     role: chatRole,
     initialThreadId: threadId,

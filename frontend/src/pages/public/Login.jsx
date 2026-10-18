@@ -245,6 +245,7 @@ export default function Login() {
                 {quickAccounts.map((account) => (
                   <button
                     key={account.email}
+                    id={`quick-login-${account.email.split('@')[0]}`}
                     type="button"
                     onClick={() => handleQuickLogin(account)}
                     className="rounded-lg border border-emerald-200 px-2 py-2 text-[11px] font-bold text-brand-green transition hover:bg-emerald-50 cursor-pointer active:scale-98"

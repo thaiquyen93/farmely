@@ -7,6 +7,7 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
+import { getSafeAvatar } from '../../api/communication/chatStorage';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import {
   Sprout,
@@ -103,12 +104,12 @@ export default function ExpertDashboard() {
     }
   ];
 
-  // Start every conversation from the same visual anchor.
+  // Automatically scroll to bottom to view latest messages
   useEffect(() => {
     if (activeTab === 'chat' && chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = 0;
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [selectedThreadId, activeTab]);
+  }, [selectedThreadId, activeTab, activeRealtimeThread?.messages?.length]);
 
   useEffect(() => {
     if (activeTab === 'chat' && mobileShowChat && chatInputRef.current) {
@@ -702,8 +703,12 @@ export default function ExpertDashboard() {
                               {/* Avatar with Online Status */}
                               <div className="relative shrink-0">
                                 <img
-                                  src={thread.customerAvatar}
+                                  src={getSafeAvatar(thread.customerAvatar, thread.role)}
                                   alt={thread.customerName}
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = getSafeAvatar(null, thread.role);
+                                  }}
                                   className="w-12 h-12 rounded-full object-cover border border-brand-border"
                                 />
                                 {thread.isOnline ? (
@@ -739,7 +744,11 @@ export default function ExpertDashboard() {
                                   }`}>
                                     {thread.role === 'worker' ? 'Nhân viên' : isPreRentalThread(thread) ? 'Chưa thuê' : 'Đã thuê'}
                                   </span>
-                                  {!isPreRentalThread(thread) && <span className="dashboard-compact max-w-[170px] truncate rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-brand-green">{thread.plotName} ({thread.plotCode})</span>}
+                                  {!isPreRentalThread(thread) && (
+                                    <span className="dashboard-compact max-w-[170px] truncate rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-brand-green">
+                                      {thread.plotName || `Thửa ${thread.plotCode}`} ({thread.plotCode})
+                                    </span>
+                                  )}
                                 </div>
 
                                 {/* Last message snippet */}
@@ -792,8 +801,12 @@ export default function ExpertDashboard() {
 
                             <div className="relative shrink-0">
                               <img
-                                src={activeThread.customerAvatar}
+                                src={getSafeAvatar(activeThread.customerAvatar, activeThread.role)}
                                 alt={activeThread.customerName}
+                                onError={(e) => {
+                                  e.currentTarget.onerror = null;
+                                  e.currentTarget.src = getSafeAvatar(null, activeThread.role);
+                                }}
                                 className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border border-brand-border"
                               />
                               {activeThread.isOnline && (
@@ -815,7 +828,13 @@ export default function ExpertDashboard() {
                                 </span>
                               </div>
                               <p className="text-xs text-stone-500 truncate flex items-center gap-1.5 mt-1">
-                                <span className="text-emerald-700 font-semibold">{activeThread.role === 'worker' ? `Nhân viên • ${activeThread.plotName} (${activeThread.plotCode})` : isPreRentalThread(activeThread) ? 'Chưa thuê đất' : `Đã thuê • ${activeThread.plotName} (${activeThread.plotCode})`}</span>
+                                <span className="text-emerald-700 font-semibold">
+                                  {activeThread.role === 'worker'
+                                    ? `Nhân viên hiện trường • ${activeThread.plotName || 'Thửa Củ Chi'} (${activeThread.plotCode || 'P-01'})`
+                                    : isPreRentalThread(activeThread)
+                                      ? `Khách quan tâm • ${activeThread.crop || 'Tư vấn trước khi thuê'}`
+                                      : `Khách thuê đất • ${activeThread.crop || 'VietGAP'} • ${activeThread.plotName || 'Thửa canh tác'} (${activeThread.plotCode || 'P-01'})`}
+                                </span>
                               </p>
                             </div>
                           </div>
@@ -847,7 +866,12 @@ export default function ExpertDashboard() {
 
                           {/* Message Bubbles */}
                           {activeThread.messages.map((msg) => {
-                            const isExpert = msg.sender === 'expert';
+                            const isExpert = msg.sender === 'expert' ||
+                              msg.senderRole === 'EXPERT' ||
+                              Number(msg.senderId) === 2 ||
+                              Number(msg.senderId) === 5 ||
+                              String(msg.senderName || '').includes('Nguyễn Hoàng Nam') ||
+                              String(msg.senderName || '').includes('Chuyên gia');
 
                             if (isExpert) {
                               return (
@@ -879,14 +903,20 @@ export default function ExpertDashboard() {
                             return (
                               <div key={msg.id} className="flex items-start gap-2.5 max-w-[88%] sm:max-w-[78%]">
                                 <img
-                                  src={activeThread.customerAvatar}
-                                  alt={activeThread.customerName}
+                                  src={getSafeAvatar(msg.senderAvatar || activeThread.customerAvatar, activeThread.role)}
+                                  alt={msg.senderName || activeThread.customerName}
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = getSafeAvatar(null, activeThread.role);
+                                  }}
                                   className="mt-5 h-8 w-8 shrink-0 rounded-full border border-stone-200 object-cover"
                                 />
 
                                 <div className="space-y-1.5 flex-1">
                                   <div className="text-[10px] text-stone-400 font-medium px-1">
-                                    <span className="font-bold text-stone-700">{msg.senderName}</span>
+                                    <span className="font-bold text-stone-700">
+                                      {msg.senderName && msg.senderName !== 'Người dùng Farmely' ? msg.senderName : activeThread.customerName}
+                                    </span>
                                     <span> • {msg.time}</span>
                                   </div>
 
@@ -906,6 +936,10 @@ export default function ExpertDashboard() {
                                       <img
                                         src={msg.photoUrl}
                                         alt={msg.photoCaption || 'Ảnh hiện trường'}
+                                        onError={(e) => {
+                                          e.currentTarget.onerror = null;
+                                          e.currentTarget.src = 'https://images.unsplash.com/photo-1591857177580-dc82b9ac4e1e?auto=format&fit=crop&w=800&q=80';
+                                        }}
                                         className="w-full h-44 sm:h-52 object-cover transition-transform duration-300 group-hover:scale-105"
                                       />
                                       <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5">
