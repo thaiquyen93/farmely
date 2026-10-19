@@ -1011,7 +1011,7 @@ SELECT COALESCE(json_agg(row_to_json(u)), '[]'::json) FROM (
         if (req.method === 'GET' && (url.startsWith('/api/customer/rented-plots') || url.startsWith('/api/v1/customer/rented-plots'))) {
           try {
             const urlObj = new URL(req.url, 'http://localhost:3000');
-            const userId = urlObj.searchParams.get('userId') || '';
+            const userId = urlObj.searchParams.get('userId') || urlObj.searchParams.get('renterId') || '';
             const email = urlObj.searchParams.get('email') || '';
 
             let userClause = '';
