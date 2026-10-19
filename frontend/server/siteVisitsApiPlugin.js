@@ -125,8 +125,8 @@ async function runPostgreSql(sqlQuery) {
   }
 
   const base = getPgConfig();
-  const candidatePorts = Array.from(new Set([base.port, '5432', '5433'].filter(Boolean)));
-  const candidatePasses = Array.from(new Set([base.password, 'postgres', '12345', ''].filter(p => p !== undefined)));
+  const candidatePorts = Array.from(new Set(['5432', base.port, '5433'].filter(Boolean)));
+  const candidatePasses = Array.from(new Set(['postgres', base.password, '12345', ''].filter(p => p !== undefined)));
 
   let lastErr = null;
   for (const port of candidatePorts) {
