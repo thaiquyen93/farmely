@@ -21,7 +21,10 @@ public class PlotCreateRequest {
     @Size(max = 50, message = "Mã thửa đất tối đa 50 ký tự")
     private String plotCode;
 
-    @NotNull(message = "Diện tích thửa đất là bắt buộc")
+    /**
+     * Diện tích (m²). Bắt buộc nếu KHÔNG gửi {@link #boundary}; nếu có ranh giới,
+     * server tự tính diện tích từ đa giác và bỏ qua giá trị này.
+     */
     @DecimalMin(value = "0.01", message = "Diện tích thửa đất phải lớn hơn 0 m²")
     private BigDecimal area;
 
@@ -38,4 +41,7 @@ public class PlotCreateRequest {
     private Boolean isPublished = false;
 
     private List<Integer> compatibleVarietyIds;
+
+    /** Ranh giới thửa do Admin vẽ: danh sách đỉnh {@code [lng, lat]} (WGS84). */
+    private List<List<Double>> boundary;
 }

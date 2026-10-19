@@ -21,6 +21,9 @@ public interface RentalRepository extends JpaRepository<RentalEntity, Integer> {
 
     List<RentalEntity> findByPlotIdAndStatus(Integer plotId, RentalStatus status);
 
+    @Query("SELECT r FROM RentalEntity r, ContractEntity c WHERE r.contractId = c.contractId AND c.renterId = :renterId")
+    List<RentalEntity> findByRenterId(@Param("renterId") Integer renterId);
+
     @Query("SELECT r FROM RentalEntity r WHERE r.plotId = :plotId " +
            "AND r.status NOT IN ('CANCELLED') " +
            "AND (r.startDate <= :endDate AND r.endDate >= :startDate)")

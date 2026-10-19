@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { varietiesData } from '../../data/varieties';
 import { processTemplatesData } from '../../data/processTemplates';
 import { knowledgeDocumentsData } from '../../data/knowledgeDocuments';
-import { plotsData } from '../../data/plots';
+import { farmApi, plotStatusBadge } from '../../api/farm/farmApi';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import {
@@ -23,13 +23,58 @@ import {
 
 export default function VarietyDetail() {
   const { id } = useParams();
-  const variety = varietiesData.find((v) => v.id === id) || varietiesData[0];
+  const [variety, setVariety] = useState(() => {
+    return varietiesData.find((v) => String(v.id) === String(id) || v.code === id) || varietiesData[0];
+  });
+  const [dbPlots, setDbPlots] = useState([]);
 
-  const template = processTemplatesData.find((t) => t.varietyId === variety.id);
-  const docs = knowledgeDocumentsData.filter((d) => d.varietyId === variety.id);
-  const compatiblePlots = plotsData.filter((p) =>
-    p.compatibleCrops.some((c) => variety.name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(variety.name.toLowerCase()))
-  );
+  useEffect(() => {
+    let active = true;
+
+    // Nạp chi tiết giống cây từ API
+    fetch('/api/varieties')
+      .then((res) => res.json())
+      .then((res) => {
+        if (!active) return;
+        if (res && res.success && Array.isArray(res.data)) {
+          const found = res.data.find((v) => String(v.id) === String(id) || v.code === id);
+          if (found) {
+            setVariety((prev) => ({
+              ...prev,
+              ...found,
+              growingCharacteristics: prev.growingCharacteristics || {
+                lightRequirement: 'Nắng trực tiếp',
+                soilMoistureTarget: '65% - 75%',
+                temperatureRange: '22°C - 30°C',
+                fertilizerNeeds: 'Hữu cơ vi sinh'
+              }
+            }));
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Cannot fetch variety detail:', err);
+      });
+
+    // Nạp danh sách thửa đất thực tế từ farmApi
+    farmApi.listPlots()
+      .then((rows) => {
+        if (active) setDbPlots(rows || []);
+      })
+      .catch((err) => console.warn('Không thể nạp danh sách thửa đất:', err));
+
+    return () => { active = false; };
+  }, [id]);
+
+  const template = processTemplatesData.find((t) => String(t.varietyId) === String(variety.id));
+  const docs = knowledgeDocumentsData.filter((d) => String(d.varietyId) === String(variety.id));
+  const compatiblePlots = dbPlots.map((p) => ({
+    id: p.plotId,
+    code: p.plotCode,
+    name: `Thửa đất ${p.plotCode}`,
+    landName: p.landName || 'Happy Valley Củ Chi',
+    status: plotStatusBadge(p.status)
+  })).slice(0, 6);
 
   return (
     <div className="space-y-6">

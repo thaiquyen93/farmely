@@ -68,23 +68,35 @@ export default function Register() {
     return Object.keys(errs).length === 0;
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      register({
+    try {
+      const res = await register({
         fullName: fullName.trim(),
         email: email.trim(),
-        phone: phone.trim()
+        phone: phone.trim(),
+        password: password
       });
-      setSuccessMsg('Account created successfully. Please sign in.');
-      setTimeout(() => {
-        navigate(redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login');
-      }, 1200);
-    }, 600);
+      setIsLoading(false);
+      if (res && res.success) {
+        setSuccessMsg(res.message || 'Đăng ký tài khoản thành công.');
+        navigate(redirectParam || '/customer/dashboard');
+      } else {
+        setErrors((prev) => ({
+          ...prev,
+          email: res?.message || 'Đăng ký thất bại. Vui lòng thử lại.'
+        }));
+      }
+    } catch (err) {
+      setIsLoading(false);
+      setErrors((prev) => ({
+        ...prev,
+        email: 'Lỗi kết nối máy chủ CSDL. Vui lòng thử lại.'
+      }));
+    }
   };
 
   return (
@@ -127,7 +139,6 @@ export default function Register() {
           <div>
             <div className="flex items-center justify-between">
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-brand-cream text-brand-green border border-brand-border">
-                Mã: SCR-PUB-02
               </span>
               <Link to="/" className="text-xs font-bold text-brand-green hover:underline">
                 ← Về trang chủ

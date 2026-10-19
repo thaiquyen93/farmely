@@ -1,26 +1,30 @@
 services:
+  # ==========================================================
+  # 1. HẠ TẦNG (INFRASTRUCTURE)
+  # ==========================================================
   postgres:
     image: postgres:16-alpine
-    container_name: smartagrirent-postgres
+    container_name: farmely-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: farmely
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-@Bin054206}
+      POSTGRES_DB: ${DB_NAME:-farmely}
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - farmely_postgres_data:/var/lib/postgresql/data
+      - ./context/farmely_full_database.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d farmely"]
       interval: 5s
       timeout: 5s
       retries: 20
     networks:
-      - smartagrirent-net
+      - farmely-net
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
-    container_name: smartagrirent-rabbitmq
+    container_name: farmely-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -28,11 +32,241 @@ services:
       - "5672:5672"
       - "15672:15672"
     networks:
-      - smartagrirent-net
+      - farmely-net
+
+  # ==========================================================
+  # 2. CÁC MODULE DỊCH VỤ BACKEND
+  # ==========================================================
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    container_name: farmely-api-gateway
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DB_URL=jdbc:postgresql://postgres:5432/farmely
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASS=password
+      - DB_PASSWORD=password
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - farmely-net
+
+  identity-service:
+    build:
+      context: ./backend/identity-service
+      dockerfile: Dockerfile
+    container_name: farmely-identity-service
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/farmely
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASS=password
+      - DB_PASSWORD=password
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - farmely-net
+
+  farm-service:
+    build:
+      context: ./backend/farm-service
+      dockerfile: Dockerfile
+    container_name: farmely-farm-service
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/farmely
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASS=password
+      - DB_PASSWORD=password
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - farmely-net
+
+  knowledge-service:
+    build:
+      context: ./backend/knowledge-service
+      dockerfile: Dockerfile
+    container_name: farmely-knowledge-service
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/farmely
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASS=password
+      - DB_PASSWORD=password
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - farmely-net
+
+  rental-service:
+    build:
+      context: ./backend/rental-service
+      dockerfile: Dockerfile
+    container_name: farmely-rental-service
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/farmely
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASS=password
+      - DB_PASSWORD=password
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - farmely-net
+
+  payment-service:
+    build:
+      context: ./backend/payment-service
+      dockerfile: Dockerfile
+    container_name: farmely-payment-service
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/farmely
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASS=password
+      - DB_PASSWORD=password
+    ports:
+      - "8085:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - farmely-net
+
+  cultivation-service:
+    build:
+      context: ./backend/cultivation-service
+      dockerfile: Dockerfile
+    container_name: farmely-cultivation-service
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/farmely
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASS=password
+      - DB_PASSWORD=password
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - farmely-net
+
+  communication-service:
+    build:
+      context: ./backend/communication-service
+      dockerfile: Dockerfile
+    container_name: farmely-communication-service
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/farmely
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASS=password
+      - DB_PASSWORD=password
+    ports:
+      - "8087:8087"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - farmely-net
+
+  monitoring-service:
+    build:
+      context: ./backend/monitoring-service
+      dockerfile: Dockerfile
+    container_name: farmely-monitoring-service
+    environment:
+      - DB_URL=jdbc:postgresql://postgres:5432/farmely
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASS=password
+      - DB_PASSWORD=password
+    ports:
+      - "8088:8088"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - farmely-net
+
+  ai-service:
+    build:
+      context: ./backend/ai-service
+      dockerfile: Dockerfile
+    container_name: farmely-ai-service
+    environment:
+      - PORT=8089
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/farmely
+      - FALLBACK_SQLITE=True
+      - GEMINI_API_KEY=AQ.Ab8RN6K0wb1XH3ta2C6tAxmani1IxlCHdiySo0bwZPhd63KIWw
+      - LLM_MODEL=gemini-3-flash-preview
+      - EMBEDDING_MODEL=models/gemini-embedding-001
+      - TOP_K=3
+      - SIMILARITY_THRESHOLD=0.10
+    ports:
+      - "8089:8089"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - farmely-net
+
+  # ==========================================================
+  # 3. GIAO DIỆN NGƯỜI DÙNG (FRONTEND)
+  # ==========================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: farmely-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+    networks:
+      - farmely-net
 
 networks:
-  smartagrirent-net:
+  farmely-net:
     driver: bridge
 
 volumes:
-  postgres_data:
+  farmely_postgres_data:

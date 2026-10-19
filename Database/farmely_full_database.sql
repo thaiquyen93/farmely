@@ -103,6 +103,8 @@ CREATE TABLE lands (
     land_id    SERIAL       PRIMARY KEY,
     land_name  VARCHAR(150) NOT NULL,
     address    TEXT         NOT NULL,
+    description TEXT,
+    boundary_geojson TEXT,
     created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -118,6 +120,8 @@ CREATE TABLE plots (
     price_per_period DECIMAL(15,2)    NOT NULL,
     status           plot_status_enum NOT NULL DEFAULT 'AVAIL',
     is_published     BOOLEAN          NOT NULL DEFAULT FALSE,
+    description      TEXT,
+    boundary_geojson TEXT,
     created_at       TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ      NOT NULL DEFAULT NOW()
 );
@@ -218,8 +222,10 @@ COMMENT ON TABLE process_templates IS 'Standard cultivation process template per
 CREATE TABLE template_steps (
     step_id       SERIAL        PRIMARY KEY,
     template_id   INT           NOT NULL REFERENCES process_templates(template_id) ON DELETE CASCADE,
+    step_order    INT           NOT NULL DEFAULT 1,
     step_name     VARCHAR(150)  NOT NULL,
     description   TEXT,
+    materials_needed TEXT,
     day_offset    INT           NOT NULL,
     duration_days INT           NOT NULL DEFAULT 1,
     task_type     VARCHAR(50),
@@ -609,20 +615,30 @@ INSERT INTO users (user_id, role_id, email, password_hash, full_name, phone_numb
 ON CONFLICT (user_id) DO NOTHING;
 
 -- 3. BẢNG LANDS (Trang trại Farmely)
-INSERT INTO lands (land_id, land_name, address) VALUES
-(1, 'Trang trại Happy Valley Củ Chi', 'Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh'),
-(2, 'Trang trại Cao nguyên Mộc Châu', 'Tiểu khu Mía Đường, Thị trấn Nông trường Mộc Châu, Sơn La'),
-(3, 'Trang trại Thung lũng Sinh thái Đà Lạt', 'Xã Tà Nung, TP. Đà Lạt, Tỉnh Lâm Đồng')
+INSERT INTO lands (land_id, land_name, address, description, boundary_geojson) VALUES
+(1, 'Trang trại Happy Valley Củ Chi', 'Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh', 'Khu nông nghiệp công nghệ cao kiểu mẫu tại Củ Chi, đất phù sa bồi lắng.', '{"type":"Polygon","coordinates":[[[106.342,10.686],[106.352,10.686],[106.352,10.696],[106.342,10.696],[106.342,10.686]]]}'),
+(2, 'Trang trại Cao nguyên Mộc Châu', 'Tiểu khu Mía Đường, Thị trấn Nông trường Mộc Châu, Sơn La', 'Khu vực khí hậu ôn đới cao nguyên, thích hợp rau xứ lạnh và dâu tây.', NULL),
+(3, 'Trang trại Thung lũng Sinh thái Đà Lạt', 'Xã Tà Nung, TP. Đà Lạt, Tỉnh Lâm Đồng', 'Nông trại sinh thái thung lũng sương mù, canh tác hữu cơ VietGAP.', NULL)
 ON CONFLICT (land_id) DO NOTHING;
 
--- 4. BẢNG PLOTS (Thửa đất cho thuê)
-INSERT INTO plots (plot_id, land_id, plot_code, area, image_url, price_per_period, status, is_published) VALUES
-(1, 1, 'P-01', 50.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 1200000.00, 'RENT', TRUE),
-(2, 1, 'P-02', 45.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1050000.00, 'RENT', TRUE),
-(3, 1, 'P-03', 60.00, 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80', 1400000.00, 'RENT', TRUE),
-(4, 1, 'P-04', 55.00, 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80', 1300000.00, 'AVAIL', TRUE),
-(5, 1, 'P-05', 70.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1600000.00, 'AVAIL', TRUE),
-(6, 1, 'P-06', 40.00, 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80', 950000.00, 'MAINT', FALSE)
+-- 4. BẢNG PLOTS (Thửa đất cho thuê - 16 Thửa phân lô thực tế với ranh giới GPS GeoJSON)
+INSERT INTO plots (plot_id, land_id, plot_code, area, image_url, price_per_period, status, is_published, boundary_geojson) VALUES
+(1, 1, 'P-01', 150.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 1200000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.34757,10.68962],[106.34889,10.69072],[106.350585,10.688805],[106.34925,10.687699],[106.34757,10.68962]]]}'),
+(2, 1, 'P-02', 180.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1450000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.34898,10.69078],[106.3503,10.69188],[106.35201,10.689972],[106.350675,10.688865],[106.34898,10.69078]]]}'),
+(3, 1, 'P-03', 200.00, 'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80', 1700000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.35039,10.69194],[106.35171,10.69304],[106.353435,10.691138],[106.3521,10.690032],[106.35039,10.69194]]]}'),
+(4, 1, 'P-04', 160.00, 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80', 1300000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.34616,10.68846],[106.34748,10.68956],[106.349175,10.687645],[106.34784,10.686539],[106.34616,10.68846]]]}'),
+(5, 1, 'P-05', 175.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1350000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.34757,10.68962],[106.34889,10.69072],[106.350585,10.688805],[106.34925,10.687699],[106.34757,10.68962]]]}'),
+(6, 1, 'P-06', 190.00, 'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80', 1500000.00, 'MAINT', TRUE, '{"type":"Polygon","coordinates":[[[106.34898,10.69078],[106.3503,10.69188],[106.35201,10.689972],[106.350675,10.688865],[106.34898,10.69078]]]}'),
+(13, 1, 'P-07', 155.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1250000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.34856,10.689744],[106.34988,10.690844],[106.351575,10.688929],[106.35024,10.687823],[106.34856,10.689744]]]}'),
+(14, 1, 'P-08', 165.00, 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80', 1300000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.35002,10.690961],[106.351341,10.692061],[106.353051,10.690153],[106.351716,10.689046],[106.35002,10.690961]]]}'),
+(15, 1, 'P-09', 170.00, 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80', 1400000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.347463,10.68517],[106.348799,10.686277],[106.350463,10.684348],[106.349113,10.683234],[106.347463,10.68517]]]}'),
+(16, 1, 'P-10', 175.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 1450000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.348963,10.68627],[106.350299,10.687377],[106.351963,10.685448],[106.350613,10.684334],[106.348963,10.68627]]]}'),
+(17, 1, 'P-11', 180.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1500000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.350463,10.68737],[106.351799,10.688477],[106.353463,10.686548],[106.352113,10.685434],[106.350463,10.68737]]]}'),
+(18, 1, 'P-12', 160.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1350000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.351963,10.68847],[106.353299,10.689577],[106.354963,10.687648],[106.353613,10.686534],[106.351963,10.68847]]]}'),
+(19, 1, 'P-13', 165.00, 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80', 1350000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.349288,10.683029],[106.350639,10.684143],[106.352303,10.682213],[106.350938,10.681093],[106.349288,10.683029]]]}'),
+(20, 1, 'P-14', 175.00, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80', 1550000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.350783,10.684261],[106.352134,10.685375],[106.353813,10.683453],[106.352448,10.682332],[106.350783,10.684261]]]}'),
+(21, 1, 'P-15', 180.00, 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80', 1650000.00, 'AVAIL', TRUE, '{"type":"Polygon","coordinates":[[[106.352278,10.685493],[106.353629,10.686607],[106.355323,10.684692],[106.353958,10.683572],[106.352278,10.685493]]]}'),
+(22, 1, 'P-16', 150.00, 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80', 1200000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.353773,10.686725],[106.355124,10.687839],[106.356834,10.685931],[106.355468,10.684811],[106.353773,10.686725]]]}')
 ON CONFLICT (plot_id) DO NOTHING;
 
 -- 5. BẢNG CROPS & VARIETIES (10 LOẠI RAU AN TOÀN VIETGAP CHUẨN)
@@ -666,7 +682,27 @@ INSERT INTO plot_variety_compatibility (plot_id, variety_id) VALUES
 -- Thửa P-05 (Thửa lớn 70m2, đa tầng sinh thái)
 (5, 1), (5, 5), (5, 7), (5, 8), (5, 9),
 -- Thửa P-06 (Luân canh, cải tạo đất bằng rau ngắn ngày)
-(6, 1), (6, 2), (6, 8), (6, 10)
+(6, 1), (6, 2), (6, 8), (6, 10),
+-- Thửa P-07 (Đất phù sa tơi xốp)
+(13, 1), (13, 2), (13, 3), (13, 10),
+-- Thửa P-08 (Thổ nhưỡng chuẩn rau ăn lá)
+(14, 2), (14, 3), (14, 8), (14, 10),
+-- Thửa P-09 (Khu giàn leo công nghệ cao)
+(15, 4), (15, 5), (15, 6), (15, 7),
+-- Thửa P-10 (Rau gia vị và ớt chỉ thiên)
+(16, 3), (16, 4), (16, 9),
+-- Thửa P-11 (Đất màu mỡ, nhiều nắng)
+(17, 1), (17, 3), (17, 5), (17, 8),
+-- Thửa P-12 (Nhà lưới thông minh)
+(18, 2), (18, 3), (18, 6), (18, 10),
+-- Thửa P-13 (Đất giàu mùn vi sinh)
+(19, 1), (19, 4), (19, 7), (19, 9),
+-- Thửa P-14 (Rau ăn quả và dưa leo)
+(20, 4), (20, 5), (20, 6), (20, 7),
+-- Thửa P-15 (Đa tầng VietGAP)
+(21, 1), (21, 2), (21, 3), (21, 5), (21, 8),
+-- Thửa P-16 (Khu ươm và luân canh)
+(22, 2), (22, 3), (22, 8), (22, 10)
 ON CONFLICT (plot_id, variety_id) DO NOTHING;
 
 -- 7. BẢNG SERVICES (S01 ĐẾN S15)
@@ -799,6 +835,23 @@ INSERT INTO template_steps (step_id, template_id, step_name, description, day_of
 (88, 10, 'Thu hoạch &amp; Nghiệm thu', 'Nhổ cả cây rửa sạch đất rễ (hoặc cắt ngang thân chừa 3cm để tái sinh). Cân ký và chụp ảnh minh chứng.. Minh chứng: Ảnh bó rau dền đỏ trên cân điện tử', 26, 1, 'HARVEST', 20.0, 30.0, 60.0, 70.0)
 ON CONFLICT (step_id) DO NOTHING;
 
+-- Keep the explicit display order expected by knowledge-service while preserving
+-- the richer day-based schedule from the imported cultivation dataset.
+WITH ordered_steps AS (
+    SELECT step_id,
+           ROW_NUMBER() OVER (PARTITION BY template_id ORDER BY day_offset, step_id) AS display_order
+    FROM template_steps
+)
+UPDATE template_steps target
+SET step_order = ordered_steps.display_order
+FROM ordered_steps
+WHERE target.step_id = ordered_steps.step_id;
+
+UPDATE template_steps
+SET step_name = REPLACE(step_name, '&amp;', '&'),
+    description = REPLACE(REPLACE(description, '&amp;', '&'), '.. ', '. ')
+WHERE step_name LIKE '%&amp;%' OR description LIKE '%&amp;%' OR description LIKE '%.. %';
+
 -- 9. CONTRACTS & RENTALS (Khách hàng & Hợp đồng thực tế)
 INSERT INTO contracts (contract_id, renter_id, contract_number, total_amount, status, created_at) VALUES
 (1, 1, 'HD-2026-FARM-001', 3000000.00, 'ACTIVE', NOW() - INTERVAL '30 days'),
@@ -886,10 +939,10 @@ ON CONFLICT (document_id) DO NOTHING;
 -- ============================================================
 
 -- Bảng site_visits (Đăng ký thăm quan thực địa)
-INSERT INTO site_visits (visit_id, user_id, plot_id, visit_date, slot, status, created_at) VALUES
-(1, 1, 1, CURRENT_DATE - INTERVAL '5 days', 'MORNING', 'COMPLETED', NOW() - INTERVAL '7 days'),
-(2, 2, 2, CURRENT_DATE + INTERVAL '2 days', 'MORNING', 'CONFIRMED', NOW() - INTERVAL '2 days'),
-(3, 3, 3, CURRENT_DATE + INTERVAL '3 days', 'AFTERNOON', 'PENDING', NOW() - INTERVAL '1 day')
+INSERT INTO site_visits (visit_id, plot_id, visitor_name, visitor_phone, visit_date, visit_slot, status, created_at) VALUES
+(1, 1, 'Lô Thái Quyền', '0901234567', CURRENT_DATE - INTERVAL '5 days', 'MORNING', 'COMPLETED', NOW() - INTERVAL '7 days'),
+(2, 2, 'Đào Duy Anh', '0912345678', CURRENT_DATE + INTERVAL '2 days', 'MORNING', 'CONFIRMED', NOW() - INTERVAL '2 days'),
+(3, 3, 'Tạ Nguyễn Khôi Nguyên', '0988776655', CURRENT_DATE + INTERVAL '3 days', 'AFTERNOON', 'PENDING', NOW() - INTERVAL '1 day')
 ON CONFLICT (visit_id) DO NOTHING;
 
 -- Bảng contract_cancellations (Yêu cầu hủy hợp đồng & hoàn tiền)

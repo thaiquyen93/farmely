@@ -73,6 +73,7 @@ export default function ExpertDashboard() {
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const chatContainerRef = useRef(null);
+  const chatInputRef = useRef(null);
   const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
   const preRentalCount = chatThreads.filter(isPreRentalThread).length;
 
@@ -100,12 +101,18 @@ export default function ExpertDashboard() {
     }
   ];
 
-  // Auto scroll chat to bottom strictly INSIDE chat container
+  // Start every conversation from the same visual anchor.
   useEffect(() => {
     if (activeTab === 'chat' && chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      chatContainerRef.current.scrollTop = 0;
     }
   }, [selectedThreadId, activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'chat' && mobileShowChat && chatInputRef.current) {
+      chatInputRef.current.focus({ preventScroll: true });
+    }
+  }, [selectedThreadId, mobileShowChat, activeTab]);
 
   // Handle select conversation
   const handleSelectThread = (threadId) => {
@@ -168,10 +175,48 @@ export default function ExpertDashboard() {
   const [selectedIssueToDiagnose, setSelectedIssueToDiagnose] = useState(null);
   const [diagnosisAdvice, setDiagnosisAdvice] = useState('');
 
+  const loadFieldIssues = () => {
+    fetch('/api/issue-reports')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setFieldIssues(res.data);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch live issues:', err));
+  };
+
+  const loadTemplates = () => {
+    fetch('/api/process-templates')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setProcessTemplates(res.data);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch live templates:', err));
+  };
+
+  useEffect(() => {
+    loadFieldIssues();
+    loadTemplates();
+  }, []);
+
   // Submit diagnosis for worker field issue
-  const handleSendIssueDiagnosis = (e) => {
+  const handleSendIssueDiagnosis = async (e) => {
     e.preventDefault();
     if (!selectedIssueToDiagnose || !diagnosisAdvice.trim()) return;
+
+    const issueId = selectedIssueToDiagnose.issueId || parseInt(String(selectedIssueToDiagnose.id).replace(/\D/g, ''), 10) || 1;
+    try {
+      await fetch(`/api/issue-reports/${issueId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ diagnosis: diagnosisAdvice })
+      });
+    } catch (err) {
+      console.warn('Could not update diagnosis to DB:', err);
+    }
 
     setFieldIssues((prev) =>
       prev.map((i) =>
@@ -443,10 +488,10 @@ export default function ExpertDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
-      <PublicNavbar />
+    <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
+      <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
 
-      <main className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
+      <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
         
         {/* Top Agronomy Metrics */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -508,7 +553,7 @@ export default function ExpertDashboard() {
           
           {/* Expert Menu (5 core functions per SRS) */}
           <DashboardRail user={user} fallbackName="ThS. Nguyễn Hoàng Nam" roleLabel="Chuyên gia nông nghiệp" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
-            <div className={`px-2 pb-2 text-[11px] font-bold text-stone-400 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Bàn Làm Việc Kỹ Thuật</div>
+            <div className={`px-2 pb-2 text-xs font-bold text-stone-500 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Bàn Làm Việc Kỹ Thuật</div>
 
             {[
               { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
@@ -524,7 +569,8 @@ export default function ExpertDashboard() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   title={sidebarCollapsed ? tab.label : undefined}
-                  className={`relative group w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
+                  aria-label={sidebarCollapsed ? tab.label : undefined}
+                  className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                     isActive
                       ? 'bg-[#294C38] text-white shadow-sm'
                       : 'text-stone-700 hover:bg-stone-50 hover:text-brand-dark'
@@ -535,7 +581,7 @@ export default function ExpertDashboard() {
                     <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} truncate`}>{tab.label}</span>
                   </div>
                   {tab.count !== null && tab.count > 0 && (
-                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-xs font-bold shrink-0 ${
                       isActive ? 'bg-brand-yellow text-brand-dark' : 'bg-amber-100 text-amber-800'
                     }`}>
                       {tab.count}
@@ -672,15 +718,17 @@ export default function ExpertDashboard() {
                           const hasPhoto = thread.messages.some(m => m.photoUrl);
 
                           return (
-                            <div
+                            <button
+                              type="button"
                               key={thread.id}
                               onClick={() => handleSelectThread(thread.id)}
-                              className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all duration-200 relative ${
+                              aria-pressed={isSelected}
+                              className={`relative flex h-[116px] w-full items-start gap-3 overflow-hidden border-l-4 p-3.5 text-left cursor-pointer transition-all duration-200 ${
                                 isSelected
-                                  ? 'bg-white border-l-4 border-l-[#294C38] shadow-sm'
+                                  ? 'bg-white border-l-[#294C38] shadow-sm'
                                   : thread.unread
-                                    ? 'bg-emerald-50/70 hover:bg-emerald-50 border-l-4 border-l-rose-500 shadow-2xs'
-                                    : 'hover:bg-white/80'
+                                    ? 'bg-emerald-50/70 hover:bg-emerald-50 border-l-rose-500 shadow-2xs'
+                                    : 'border-l-transparent hover:bg-white/80'
                               }`}
                             >
                               {/* Avatar with Online Status */}
@@ -714,7 +762,7 @@ export default function ExpertDashboard() {
 
                                 {/* Rental status & current plot */}
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className={`px-2 py-1 rounded-full text-xs font-bold border ${
+                                  <span className={`dashboard-compact px-2 py-1 rounded-full text-xs font-bold border ${
                                     thread.role === 'worker'
                                       ? 'bg-amber-100 text-amber-900 border-amber-300'
                                       : isPreRentalThread(thread)
@@ -723,7 +771,7 @@ export default function ExpertDashboard() {
                                   }`}>
                                     {thread.role === 'worker' ? 'Nhân viên' : isPreRentalThread(thread) ? 'Chưa thuê' : 'Đã thuê'}
                                   </span>
-                                  {!isPreRentalThread(thread) && <span className="max-w-[170px] truncate rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-brand-green">{thread.plotName} ({thread.plotCode})</span>}
+                                  {!isPreRentalThread(thread) && <span className="dashboard-compact max-w-[170px] truncate rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-brand-green">{thread.plotName} ({thread.plotCode})</span>}
                                 </div>
 
                                 {/* Last message snippet */}
@@ -744,7 +792,7 @@ export default function ExpertDashboard() {
                                   ) : null}
                                 </div>
                               </div>
-                            </div>
+                            </button>
                           );
                         })}
                     </div>
@@ -861,11 +909,11 @@ export default function ExpertDashboard() {
 
                             // Customer or Worker message
                             return (
-                              <div key={msg.id} className="flex items-end gap-2.5 max-w-[88%] sm:max-w-[78%]">
+                              <div key={msg.id} className="flex items-start gap-2.5 max-w-[88%] sm:max-w-[78%]">
                                 <img
                                   src={activeThread.customerAvatar}
                                   alt={activeThread.customerName}
-                                  className="w-8 h-8 rounded-full object-cover border border-stone-200 shrink-0 mb-1"
+                                  className="mt-5 h-8 w-8 shrink-0 rounded-full border border-stone-200 object-cover"
                                 />
 
                                 <div className="space-y-1.5 flex-1">
@@ -945,6 +993,7 @@ export default function ExpertDashboard() {
                         >
                           <div className="flex-1 bg-stone-50 rounded-2xl border border-brand-border focus-within:border-brand-green/40 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-green/10 transition-all p-2 flex flex-col gap-1.5">
                             <textarea
+                              ref={chatInputRef}
                               rows={2}
                               value={chatInputText}
                               onChange={(e) => setChatInputText(e.target.value)}

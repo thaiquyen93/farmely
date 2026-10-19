@@ -32,7 +32,7 @@ const masterDataNavItems = [
   },
   {
     path: '/admin/master-data/plots',
-    name: 'Thửa Đất Canh Tác (Plots)',
+    name: 'Thửa Đất Canh Tác',
     icon: Grid3X3
   },
   {

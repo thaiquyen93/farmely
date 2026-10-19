@@ -6,6 +6,9 @@ import com.farmely.farm.entity.*;
 import com.farmely.farm.exception.BadRequestException;
 import com.farmely.farm.exception.ConflictException;
 import com.farmely.farm.exception.ResourceNotFoundException;
+import com.farmely.farm.geo.BoundaryCodec;
+import com.farmely.farm.geo.BoundaryRules;
+import com.farmely.farm.geo.PolygonGeometry;
 import com.farmely.farm.repository.*;
 import com.farmely.farm.service.PlotService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +31,7 @@ public class PlotServiceImpl implements PlotService {
     private final LandRepository landRepository;
     private final PlotVarietyCompatibilityRepository compatibilityRepository;
     private final VarietyReferenceRepository varietyRepository;
+    private final BoundaryRules boundaryRules;
 
     @Override
     @Transactional(readOnly = true)
@@ -78,10 +82,17 @@ public class PlotServiceImpl implements PlotService {
         LandEntity land = landRepository.findById(request.getLandId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nông trại với ID: " + request.getLandId()));
 
+        // Có ranh giới -> kiểm tra nằm trong nông trại, không chồng lấn, và tự tính diện tích
+        List<double[]> ring = hasRing(request.getBoundary()) ? boundaryRules.parse(request.getBoundary()) : null;
+        if (ring != null) {
+            boundaryRules.checkPlotFits(land, null, ring);
+        }
+
         PlotEntity plot = PlotEntity.builder()
                 .landId(land.getLandId())
                 .plotCode(request.getPlotCode().trim().toUpperCase())
-                .area(request.getArea())
+                .area(resolveArea(request.getArea(), ring))
+                .boundaryGeojson(ring != null ? BoundaryCodec.toGeoJson(ring) : null)
                 .imageUrl(request.getImageUrl())
                 .pricePerPeriod(request.getPricePerPeriod())
                 .status(request.getStatus() != null ? request.getStatus() : PlotStatus.AVAIL)
@@ -111,9 +122,28 @@ public class PlotServiceImpl implements PlotService {
         LandEntity land = landRepository.findById(request.getLandId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nông trại với ID: " + request.getLandId()));
 
+        // null = giữ nguyên ranh giới; [] = xoá; có đỉnh = vẽ lại
+        boolean landChanged = !land.getLandId().equals(plot.getLandId());
+        List<double[]> ring;
+        if (request.getBoundary() == null) {
+            ring = BoundaryCodec.fromGeoJson(plot.getBoundaryGeojson());
+        } else {
+            ring = request.getBoundary().isEmpty() ? null : boundaryRules.parse(request.getBoundary());
+            boolean boundaryChanged = !java.util.Objects.equals(
+                    ring == null ? null : BoundaryCodec.toGeoJson(ring), plot.getBoundaryGeojson());
+            if (boundaryChanged && plot.getStatus() == PlotStatus.RENT) {
+                throw new BadRequestException("Không thể sửa ranh giới thửa " + plot.getPlotCode()
+                        + " khi đang có khách thuê — diện tích trong hợp đồng sẽ không còn khớp.");
+            }
+        }
+        if (ring != null && (landChanged || request.getBoundary() != null)) {
+            boundaryRules.checkPlotFits(land, plotId, ring);
+        }
+
         plot.setLandId(land.getLandId());
         plot.setPlotCode(request.getPlotCode().trim().toUpperCase());
-        plot.setArea(request.getArea());
+        plot.setBoundaryGeojson(ring != null ? BoundaryCodec.toGeoJson(ring) : null);
+        plot.setArea(resolveArea(request.getArea() != null ? request.getArea() : plot.getArea(), ring));
         plot.setImageUrl(request.getImageUrl());
         plot.setPricePerPeriod(request.getPricePerPeriod());
         if (request.getStatus() != null) {
@@ -254,6 +284,21 @@ public class PlotServiceImpl implements PlotService {
         }
     }
 
+    private static boolean hasRing(List<List<Double>> boundary) {
+        return boundary != null && !boundary.isEmpty();
+    }
+
+    /** Có ranh giới thì diện tích lấy từ đa giác; không thì bắt buộc client gửi diện tích. */
+    private static BigDecimal resolveArea(BigDecimal requested, List<double[]> ring) {
+        if (ring != null) {
+            return BigDecimal.valueOf(PolygonGeometry.areaM2(ring)).setScale(2, java.math.RoundingMode.HALF_UP);
+        }
+        if (requested == null) {
+            throw new BadRequestException("Cần nhập diện tích hoặc vẽ ranh giới thửa đất trên bản đồ.");
+        }
+        return requested;
+    }
+
     private PlotResponse toPlotResponse(PlotEntity plot) {
         LandEntity land = plot.getLand() != null ? plot.getLand() : landRepository.findById(plot.getLandId()).orElse(null);
         List<VarietySummaryResponse> compatibleVarieties = getCompatibleVarietiesSafe(plot.getPlotId());
@@ -266,6 +311,7 @@ public class PlotServiceImpl implements PlotService {
                 .plotCode(plot.getPlotCode())
                 .area(plot.getArea())
                 .imageUrl(plot.getImageUrl())
+                .boundary(BoundaryCodec.toApi(plot.getBoundaryGeojson()))
                 .pricePerPeriod(plot.getPricePerPeriod())
                 .status(plot.getStatus())
                 .isPublished(plot.getIsPublished())

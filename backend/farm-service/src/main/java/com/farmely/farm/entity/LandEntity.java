@@ -27,6 +27,13 @@ public class LandEntity {
     @Column(name = "address", nullable = false, columnDefinition = "TEXT")
     private String address;
 
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    /** Ranh giới khu đất: chuỗi GeoJSON Polygon (WGS84, ring đóng). Null = chưa khoanh vùng. */
+    @Column(name = "boundary_geojson", columnDefinition = "TEXT")
+    private String boundaryGeojson;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
-import { landsData } from '../../data/lands';
 import FarmCard from '../../components/public/FarmCard';
+import { farmApi } from '../../api/farm/farmApi';
 import Button from '../../components/common/Button';
 import {
   Sprout,
@@ -21,6 +21,13 @@ import {
 } from 'lucide-react';
 
 export default function About() {
+  const [lands, setLands] = useState([]);
+
+  useEffect(() => {
+    farmApi.listLands()
+      .then((rows) => setLands(rows || []))
+      .catch((err) => console.warn('Không thể nạp danh sách nông trại:', err));
+  }, []);
   return (
     <div className="min-h-screen bg-brand-cream flex flex-col">
       <PublicNavbar />
@@ -177,8 +184,20 @@ export default function About() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {landsData.map((land) => (
-              <FarmCard key={land.id} land={land} />
+            {lands.map((land) => (
+              <FarmCard
+                key={land.landId}
+                land={{
+                  id: String(land.landId),
+                  name: land.landName,
+                  location: land.address,
+                  description: land.description || 'Khu nông trại sinh thái chuẩn VietGAP với hệ thống quan trắc IoT 24/7.',
+                  totalArea: land.boundaryAreaM2 ? `${Math.round(land.boundaryAreaM2).toLocaleString('vi-VN')} m²` : '25.000 m²',
+                  totalPlots: land.totalPlots || 16,
+                  activePlots: land.availablePlots || 10,
+                  imageUrl: land.imageUrl || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80'
+                }}
+              />
             ))}
           </div>
         </div>

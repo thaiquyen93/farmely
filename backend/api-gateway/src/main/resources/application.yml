@@ -34,12 +34,12 @@ spring:
         - id: farm-service
           uri: http://${FARM_SERVICE_HOST:localhost}:${FARM_SERVICE_PORT:8082}
           predicates:
-            - Path=/api/lands/**, /api/plots/**, /api/site-visits/**
+            - Path=/api/lands/**, /api/plots/**, /api/site-visits/**, /api/v1/lands/**, /api/v1/plots/**, /api/v1/site-visits/**
 
         - id: knowledge-service
           uri: http://${KNOWLEDGE_SERVICE_HOST:localhost}:${KNOWLEDGE_SERVICE_PORT:8083}
           predicates:
-            - Path=/api/crops/**, /api/varieties/**, /api/templates/**, /api/compatibility/**, /api/knowledge-documents/**, /api/v1/knowledge-documents/**, /api/documents/**, /api/knowledge/**
+            - Path=/api/crops/**, /api/varieties/**, /api/templates/**, /api/compatibility/**, /api/documents/**, /api/knowledge/**, /api/knowledge-documents/**, /api/v1/knowledge-documents/**
 
         - id: rental-service
           uri: http://${RENTAL_SERVICE_HOST:localhost}:${RENTAL_SERVICE_PORT:8084}

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
-import { plotsData } from '../../data/plots';
+import { farmApi } from '../../api/farm/farmApi';
 import { varietiesData } from '../../data/varieties';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
@@ -22,7 +22,8 @@ import {
   Radio,
   ArrowLeft,
   Share2,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 export default function PlotDetail() {
@@ -30,24 +31,116 @@ export default function PlotDetail() {
   const navigate = useNavigate();
 
   const { isAuthenticated } = useAuthStore();
-  const plot = plotsData.find((p) => p.id === id) || plotsData[0];
-  const [activeImage, setActiveImage] = useState(plot.gallery ? plot.gallery[0] : plot.imageUrl);
+  const [plot, setPlot] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [activeImage, setActiveImage] = useState('');
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [showRentModal, setShowRentModal] = useState(false);
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [selectedCultivationMode, setSelectedCultivationMode] = useState('ASSISTED');
 
+  useEffect(() => {
+    setLoading(true);
+    setError('');
+    farmApi.listPlots()
+      .then((plots) => {
+        const found = (plots || []).find((p) =>
+          String(p.plotId) === String(id) ||
+          (p.plotCode && p.plotCode.toLowerCase() === String(id).toLowerCase())
+        );
+        if (found) {
+          const img = found.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80';
+          const mapped = {
+            id: String(found.plotId),
+            plotId: found.plotId,
+            code: found.plotCode,
+            name: `Thửa đất ${found.plotCode}`,
+            landId: found.landId,
+            landName: found.landName || 'Trang trại Happy Valley Củ Chi',
+            area: `${Number(found.area)} m²`,
+            areaNum: Number(found.area),
+            soilType: 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
+            status: found.status === 'AVAIL' ? 'AVAILABLE' : found.status === 'RENT' ? 'RENTED' : 'MAINTENANCE',
+            rentalPrice: Number(found.pricePerPeriod),
+            formattedPrice: `${Number(found.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
+            careServicePrice: Math.round(Number(found.pricePerPeriod) * 0.5),
+            iotStationId: `IOT-${found.plotCode}`,
+            iotStationName: `Trạm Cảm Biến ${found.plotCode}`,
+            compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby'],
+            description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát IoT 24/7.',
+            imageUrl: img,
+            gallery: [
+              img,
+              'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=1000&q=80',
+              'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1000&q=80'
+            ],
+            boundaryCoordinates: found.boundary?.length >= 3 ? `GPS Polygon (${found.boundary.length} đỉnh)` : 'Đang đồng bộ GPS',
+            recentSensorReadings: {
+              temperature: '28.5 °C',
+              humidity: '74 %',
+              soilMoisture: '68 %',
+              lastUpdated: 'Vừa cập nhật'
+            }
+          };
+          setPlot(mapped);
+          setActiveImage(mapped.imageUrl);
+        } else {
+          setError('Không tìm thấy thửa đất trong cơ sở dữ liệu.');
+        }
+      })
+      .catch((err) => setError(err.message || 'Lỗi kết nối cơ sở dữ liệu.'))
+      .finally(() => setLoading(false));
+  }, [id]);
+
   const handleBookPlotClick = () => {
     if (!isAuthenticated) {
       setShowSignInModal(true);
-    } else {
-      navigate(`/marketplace/plot/${plot.id}/book`);
+    } else if (plot) {
+      navigate(`/marketplace/plot/${plot.code || plot.id}/book`);
     }
   };
+  const handleStartBooking = handleBookPlotClick;
 
-  const compatibleVarietiesList = varietiesData.filter((v) =>
-    plot.compatibleCrops.some((c) => v.name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(v.name.toLowerCase()))
-  );
+  const compatibleVarietiesList = plot
+    ? varietiesData.filter((v) =>
+        (plot.compatibleCrops || []).some(
+          (c) => v.name.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(v.name.toLowerCase())
+        )
+      )
+    : [];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-brand-cream flex flex-col">
+        <PublicNavbar />
+        <div className="flex-1 flex flex-col items-center justify-center py-32 space-y-3">
+          <Loader2 className="w-8 h-8 text-brand-green animate-spin" />
+          <p className="text-sm font-semibold text-stone-600">Đang tải thông tin thửa đất từ Database...</p>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error || !plot) {
+    return (
+      <div className="min-h-screen bg-brand-cream flex flex-col">
+        <PublicNavbar />
+        <div className="flex-1 flex flex-col items-center justify-center py-32 space-y-4 max-w-md mx-auto text-center px-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center">
+            <AlertCircle className="w-7 h-7" />
+          </div>
+          <h2 className="text-xl font-heading font-black text-brand-dark">Không tìm thấy thửa đất</h2>
+          <p className="text-sm text-stone-600">{error || 'Thửa đất yêu cầu không tồn tại trong hệ thống.'}</p>
+          <Link to="/marketplace">
+            <Button variant="primary">Quay lại Marketplace</Button>
+          </Link>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-brand-cream flex flex-col">
@@ -210,7 +303,7 @@ export default function PlotDetail() {
               <div className="p-3.5 rounded-2xl bg-brand-cream/60 border border-brand-border text-[11px] text-stone-600 space-y-1">
                 <p className="font-bold flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  Quyền lợi khi thuê đất tại Farmely:
+                  Quyền lợi khi thuê thửa đất tại Farmely:
                 </p>
                 <p>• Khóa giữ chỗ 15 phút + 10 phút Grace Period khi nhập mã thanh toán.</p>
                 <p>• Chính sách hoàn tiền minh bạch (80% trước 3 ngày, 50% dưới 3 ngày).</p>
@@ -356,10 +449,10 @@ export default function PlotDetail() {
           <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2">
             <p className="font-bold flex items-center gap-1.5 text-amber-800">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              Quy Trình Thuê Đất: Cần Đăng Nhập Tài Khoản
+              Quy Trình Thuê Thửa Đất: Cần Đăng Nhập Tài Khoản
             </p>
             <p className="leading-relaxed">
-              Để kích hoạt thời hạn khóa giữ chỗ 15 phút cho thửa <strong>{plot.name}</strong> và hoàn tất thủ tục Book Plot, vui lòng đăng nhập hoặc đăng ký tài khoản mới.
+              Để khóa giữ chỗ 15 phút cho thửa <strong>{plot.name}</strong> và hoàn tất thủ tục thuê, vui lòng đăng nhập hoặc đăng ký tài khoản mới.
             </p>
           </div>
 
@@ -429,7 +522,7 @@ export default function PlotDetail() {
       >
         <div className="space-y-4">
           <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
-            <p className="font-bold">⏱ Thời gian giữ chỗ: 15 Phút (BR08)</p>
+            <p className="font-bold">⏱ Thời gian giữ chỗ: 15 Phút</p>
             <p>Sau khi nhấn Tiếp Tục, thửa đất sẽ được khóa giữ chỗ tạm thời và chuyển sang trạng thái PAYMENT_PENDING (+10 phút Grace Period khi nhập mã thanh toán).</p>
           </div>
 
@@ -470,7 +563,7 @@ export default function PlotDetail() {
 
           <div className="p-4 rounded-xl bg-brand-cream text-xs space-y-2 border border-brand-border">
             <div className="flex justify-between">
-              <span>Tiền thuê đất ({plot.area}):</span>
+              <span>Tiền thuê thửa đất ({plot.area}):</span>
               <strong>{plot.formattedPrice}</strong>
             </div>
             <div className="flex justify-between">

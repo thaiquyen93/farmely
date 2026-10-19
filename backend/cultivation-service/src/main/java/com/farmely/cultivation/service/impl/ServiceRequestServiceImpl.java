@@ -23,7 +23,6 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
     private final ServiceRepository serviceRepository;
     private final CareTaskRepository careTaskRepository;
     private final RentalReferenceRepository rentalReferenceRepository;
-    private final UserReferenceRepository userReferenceRepository;
 
     @Override
     @Transactional(readOnly = true)

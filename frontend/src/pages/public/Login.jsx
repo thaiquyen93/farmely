@@ -19,7 +19,7 @@ export default function Login() {
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
@@ -30,13 +30,15 @@ export default function Login() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await login(email, password);
       setIsLoading(false);
-      const res = login(email, password);
       if (res.success) {
-        setSuccessMessage(`Welcome back, ${res.user.fullName}.`);
+        setSuccessMessage(`Đăng nhập thành công! Chào mừng ${res.user.fullName}.`);
         setTimeout(() => {
-          if (redirectParam) {
+          if (res.user.role === 'CUSTOMER') {
+            navigate('/customer/dashboard');
+          } else if (redirectParam) {
             navigate(redirectParam);
           } else if (res.user.role === 'ADMIN') {
             navigate('/admin/dashboard');
@@ -47,32 +49,48 @@ export default function Login() {
           } else {
             navigate('/');
           }
-        }, 600);
+        }, 500);
       } else {
-        setErrorMessage('Incorrect email or password.');
+        setErrorMessage(res.message || 'Email hoặc mật khẩu không chính xác.');
       }
-    }, 500);
+    } catch (err) {
+      setIsLoading(false);
+      setErrorMessage('Không thể kết nối đến máy chủ xác thực.');
+    }
   };
 
-  const handleQuickDemoLogin = (acc) => {
+  const handleQuickDemoLogin = async (acc) => {
     setEmail(acc.email);
-    setPassword('Farmely@2026');
+    setPassword('123456');
     setErrorMessage('');
-    const res = login(acc.email, 'Farmely@2026');
-    setSuccessMessage(`Welcome back, ${res.user.fullName}.`);
-    setTimeout(() => {
-      if (redirectParam) {
-        navigate(redirectParam);
-      } else if (res.user.role === 'ADMIN') {
-        navigate('/admin/dashboard');
-      } else if (res.user.role === 'EXPERT') {
-        navigate('/expert/dashboard');
-      } else if (res.user.role === 'STAFF') {
-        navigate('/staff/dashboard');
+    setIsLoading(true);
+    try {
+      const res = await login(acc.email, '123456');
+      setIsLoading(false);
+      if (res.success) {
+        setSuccessMessage(`Đăng nhập thành công (${acc.role})! Chào mừng ${res.user.fullName}.`);
+        setTimeout(() => {
+          if (res.user.role === 'CUSTOMER') {
+            navigate('/customer/dashboard');
+          } else if (redirectParam) {
+            navigate(redirectParam);
+          } else if (res.user.role === 'ADMIN') {
+            navigate('/admin/dashboard');
+          } else if (res.user.role === 'EXPERT') {
+            navigate('/expert/dashboard');
+          } else if (res.user.role === 'STAFF') {
+            navigate('/staff/dashboard');
+          } else {
+            navigate('/');
+          }
+        }, 500);
       } else {
-        navigate('/');
+        setErrorMessage(res.message || 'Đăng nhập không thành công.');
       }
-    }, 500);
+    } catch (err) {
+      setIsLoading(false);
+      setErrorMessage('Không thể kết nối đến máy chủ xác thực.');
+    }
   };
 
   return (
@@ -134,7 +152,7 @@ export default function Login() {
                 <div>
                   <span className="font-bold block">Yêu cầu đăng nhập (Sign In Required)</span>
                   <span className="text-[11px] text-amber-800">
-                    Vui lòng đăng nhập để tiếp tục bước hoàn tất thủ tục thuê thửa đất (Book Plot).
+                    Vui lòng đăng nhập để tiếp tục hoàn tất thủ tục thuê thửa đất.
                   </span>
                 </div>
               </div>

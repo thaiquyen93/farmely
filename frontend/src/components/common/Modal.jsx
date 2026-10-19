@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export default function Modal({
@@ -60,10 +61,10 @@ export default function Modal({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-brand-dark/70 backdrop-blur-sm transition-opacity animate-fadeIn"
@@ -73,13 +74,13 @@ export default function Modal({
       {/* Modal Dialog */}
       <div
         ref={dialogRef}
-        className={`relative w-full ${maxWidth} bg-white rounded-2xl shadow-elevated border border-brand-border overflow-hidden z-10 animate-scaleUp`}
+        className={`relative z-10 my-auto flex max-h-[calc(100dvh-1.5rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated animate-scaleUp sm:max-h-[calc(100dvh-2rem)]`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-6 py-5 border-b border-brand-border/60 bg-brand-cream/40">
+        <div className="flex shrink-0 items-start justify-between border-b border-brand-border/60 bg-brand-cream/40 px-4 py-3 sm:px-6 sm:py-5">
           <div>
             <h3 id={titleId} className="font-heading text-xl font-bold text-brand-dark">
               {title}
@@ -102,10 +103,11 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        <div className="px-6 py-5 max-h-[80vh] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

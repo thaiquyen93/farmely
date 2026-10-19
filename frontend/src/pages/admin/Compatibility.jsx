@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { compatibilityData as initialRules } from '../../data/compatibility';
-import { plotsData } from '../../data/plots';
+import { farmApi } from '../../api/farm/farmApi';
 import { varietiesData } from '../../data/varieties';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
@@ -12,26 +12,74 @@ import { SlidersHorizontal, Plus, CheckCircle2, XCircle, AlertTriangle, Layers, 
 
 export default function Compatibility() {
   const [rules, setRules] = useState(initialRules);
+  const [loading, setLoading] = useState(true);
+  const [isLiveDb, setIsLiveDb] = useState(false);
   const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
   const [showModal, setShowModal] = useState(false);
+  const [dbPlots, setDbPlots] = useState([]);
 
   // Form State
-  const [plotId, setPlotId] = useState('PLT-101');
-  const [varietyId, setVarietyId] = useState('VAR-001');
+  const [plotId, setPlotId] = useState('1');
+  const [varietyId, setVarietyId] = useState('1');
   const [status, setStatus] = useState('COMPATIBLE');
   const [notes, setNotes] = useState('');
 
+  useEffect(() => {
+    let active = true;
+    farmApi.listPlots()
+      .then((rows) => {
+        if (!active) return;
+        setDbPlots(rows || []);
+        if (rows && rows.length > 0) {
+          setPlotId(String(rows[0].plotId));
+        }
+      })
+      .catch((err) => console.warn('Không thể nạp danh sách thửa đất:', err));
+
+    fetch('/api/compatibility')
+      .then((res) => res.json())
+      .then((res) => {
+        if (!active) return;
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          const normalized = res.data.map((r, idx) => ({
+            id: `COMP-${idx + 1}`,
+            plotId: r.plotId,
+            plotCode: r.plotCode,
+            plotName: `Thửa ${r.plotCode} (${r.landName || 'Trang trại'})`,
+            soilType: 'Đất phù sa / đất thịt nhẹ chuẩn VietGAP',
+            varietyId: r.varietyId,
+            varietyName: r.varietyName,
+            cropName: r.cropName,
+            status: r.status || 'COMPATIBLE',
+            notes: r.notes || 'Thổ nhưỡng và điều kiện vi khí hậu đạt chuẩn chứng nhận VietGAP.',
+            updatedBy: 'Hội đồng Nông học Farmely',
+            updatedDate: '2026-10-11'
+          }));
+          setRules(normalized);
+          setIsLiveDb(true);
+        }
+      })
+      .catch((err) => {
+        console.warn('Cannot fetch live compatibility, fallback to mock:', err);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
+  }, []);
+
   const handleCreateRule = (e) => {
     e.preventDefault();
-    const plotObj = plotsData.find((p) => p.id === plotId);
-    const varObj = varietiesData.find((v) => v.id === varietyId);
+    const plotObj = dbPlots.find((p) => String(p.plotId) === String(plotId));
+    const varObj = varietiesData.find((v) => String(v.id) === String(varietyId));
 
     const newRule = {
       id: `COMP-00${rules.length + 1}`,
       plotId,
-      plotCode: plotObj ? plotObj.code : 'P-101',
-      plotName: plotObj ? plotObj.name : 'Thửa đất',
-      soilType: plotObj ? plotObj.soilType : 'Đất phù sa',
+      plotCode: plotObj ? (plotObj.plotCode || plotObj.code) : 'P-01',
+      plotName: plotObj ? (plotObj.name || `Thửa đất ${plotObj.plotCode || plotObj.code}`) : 'Thửa đất',
+      soilType: 'Đất phù sa bồi lắng giàu mùn',
       varietyId,
       varietyName: varObj ? varObj.name : 'Giống cây',
       cropName: varObj ? varObj.cropName : 'Rau ăn lá',
@@ -107,9 +155,19 @@ export default function Compatibility() {
   ];
 
   // Group rules by plot for the visual Cards View
-  const plotsWithRules = plotsData.map((plot) => {
-    const plotRules = rules.filter((r) => r.plotId === plot.id);
-    return { plot, rules: plotRules };
+  const plotsWithRules = dbPlots.map((plot) => {
+    const plotRules = rules.filter((r) => r.plotId === String(plot.plotId) || r.plotCode === plot.plotCode);
+    return {
+      plot: {
+        id: String(plot.plotId),
+        code: plot.plotCode,
+        name: `Thửa đất ${plot.plotCode}`,
+        soilType: 'Đất phù sa bồi lắng giàu mùn',
+        landName: plot.landName || 'Happy Valley',
+        status: plot.status
+      },
+      rules: plotRules
+    };
   });
 
   return (
@@ -117,9 +175,17 @@ export default function Compatibility() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: PlotVarietyCompatibility (Ma Trận Sinh Học BR03)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
+              Thực thể: PlotVarietyCompatibility (Ma Trận Sinh Học BR03)
+            </span>
+            {isLiveDb && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live DB: {rules.length} Quy tắc</span>
+              </span>
+            )}
+          </div>
           <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
             Tương Thích Thổ Nhưỡng – Giống Cây
           </h2>
@@ -247,13 +313,13 @@ export default function Compatibility() {
       >
         <form onSubmit={handleCreateRule} className="space-y-4">
           <Select
-            label="Chọn Thửa Đất (Plot)"
+            label="Chọn Thửa Đất"
             required
             value={plotId}
             onChange={(e) => setPlotId(e.target.value)}
-            options={plotsData.map((p) => ({
-              value: p.id,
-              label: `${p.code} - ${p.name} (${p.soilType.split('(')[0]})`
+            options={dbPlots.map((p) => ({
+              value: String(p.plotId),
+              label: `${p.plotCode} - Thửa đất ${p.plotCode} (${p.landName || 'Happy Valley'})`
             }))}
           />
 

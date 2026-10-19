@@ -5,7 +5,6 @@ import com.farmely.cultivation.dto.request.CreateCareTaskRequest;
 import com.farmely.cultivation.dto.request.GenerateTasksFromTemplateRequest;
 import com.farmely.cultivation.dto.request.UpdateCareTaskRequest;
 import com.farmely.cultivation.dto.response.CareTaskResponse;
-import com.farmely.cultivation.entity.TaskStatus;
 
 import java.time.LocalDate;
 import java.util.List;

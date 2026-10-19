@@ -1,92 +1,204 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { FARMS_GEOJSON_DATA, FARM_GPS_BOUNDS } from '../../data/marketplaceGisData';
+import { FARMS_GEOJSON_DATA } from '../../data/marketplaceGisData';
+import { registerFarmLayers, setSelectedPlotFilters } from './map/mapLayers';
+import { createPlotBadge } from './map/PlotBadge';
+import MarketplaceIntroVeil from './MarketplaceIntroVeil';
+import useMapIntroAnimation, { STAGGER_STEP_MS } from '../../hooks/useMapIntroAnimation';
+import usePlotSpotlight from '../../hooks/usePlotSpotlight';
+import {
+  CAMERA,
+  LAYER_IDS,
+  MOBILE_PITCH,
+  RISE_SETTLE_HEIGHT,
+  getStatusConfig,
+} from '../../utils/mapTheme';
+import { getCentroid } from '../../utils/geoUtils';
 
-// Helper format giá tiền ngắn gọn phong cách Airbnb (ví dụ: 1.2 tr, 1.45 tr)
-function formatCompactPrice(props) {
-  if (props.rentalPrice) {
-    const millions = props.rentalPrice / 1000000;
-    return `${millions % 1 === 0 ? millions : millions.toFixed(2).replace(/\.?0+$/, '')} tr`;
+/** Quá hạn chờ sự kiện 'load' của bản đồ -> hạ cấp về trạng thái an vị */
+const MAP_LOAD_WATCHDOG_MS = 6000;
+
+/** Dưới breakpoint lg thì hạ pitch và bỏ pha nhô lên để đỡ GPU */
+function isCompactViewport() {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth < 1024;
+}
+
+/** Tính toán bounding box và tâm hình học động từ ranh giới nông trại & các thửa đất */
+function getBoundsAndCenter(plotsData, farmBoundary) {
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+  let count = 0;
+
+  if (Array.isArray(farmBoundary) && farmBoundary.length >= 3) {
+    farmBoundary.forEach(([lng, lat]) => {
+      const nLng = Number(lng);
+      const nLat = Number(lat);
+      if (Number.isFinite(nLng) && Number.isFinite(nLat)) {
+        minLng = Math.min(minLng, nLng);
+        maxLng = Math.max(maxLng, nLng);
+        minLat = Math.min(minLat, nLat);
+        maxLat = Math.max(maxLat, nLat);
+        count++;
+      }
+    });
   }
-  if (props.price) {
-    const num = parseInt(String(props.price).replace(/\D/g, ''));
-    if (!isNaN(num) && num > 0) {
-      const millions = num / 1000000;
-      return `${millions % 1 === 0 ? millions : millions.toFixed(2).replace(/\.?0+$/, '')} tr`;
+
+  (plotsData?.features || []).forEach((f) => {
+    const coords = f.geometry?.coordinates?.[0];
+    if (Array.isArray(coords)) {
+      coords.forEach(([lng, lat]) => {
+        const nLng = Number(lng);
+        const nLat = Number(lat);
+        if (Number.isFinite(nLng) && Number.isFinite(nLat)) {
+          minLng = Math.min(minLng, nLng);
+          maxLng = Math.max(maxLng, nLng);
+          minLat = Math.min(minLat, nLat);
+          maxLat = Math.max(maxLat, nLat);
+          count++;
+        }
+      });
     }
-  }
-  return '';
-}
+  });
 
-// Lấy class Tailwind cho Badge Marker theo chuẩn sàn Airbnb / BĐS cao cấp
-function getBadgeClassName(props, isSelected) {
-  const isVacant = props.status === 'Đang trống' || props.status === 'AVAILABLE';
-
-  if (isSelected) {
-    return 'w-max whitespace-nowrap px-2.5 py-1 rounded-full text-[11px] inline-flex items-center gap-1.5 cursor-pointer select-none transition-all duration-300 pointer-events-auto bg-emerald-600 text-white shadow-xl shadow-emerald-950/40 border-2 border-white scale-110 ring-2 ring-emerald-400 z-30 font-black';
+  if (count === 0) {
+    return {
+      bounds: null,
+      center: [106.345, 10.689], // Tọa độ đất nông trại Farmely
+      zoom: 15.5
+    };
   }
 
-  if (isVacant) {
-    // Thửa CÒN TRỐNG: Badge giá siêu gọn (width ~42px), không tràn lấn thửa bên cạnh
-    return 'w-max whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1 cursor-pointer select-none transition-all duration-200 pointer-events-auto bg-white/95 text-slate-900 border border-emerald-400/80 shadow-[0_2px_8px_rgba(0,0,0,0.15)] hover:scale-115 hover:border-emerald-500 hover:shadow-lg hover:z-20 font-extrabold';
-  }
-
-  // Thửa ĐÃ THUÊ: Tag cực kỳ khiêm tốn (width ~34px), tối mờ, chìm dưới nền
-  return 'w-max whitespace-nowrap px-1.5 py-0.5 rounded-full text-[9px] inline-flex items-center gap-1 cursor-pointer select-none transition-all duration-200 pointer-events-auto bg-slate-900/70 text-slate-400 border border-slate-700/60 shadow-xs opacity-60 hover:opacity-100 hover:scale-105 font-medium';
-}
-
-// Render HTML nội dung của Pin Marker (chỉ hiển thị giá ngắn gọn để tránh chồng lấn thông tin)
-function renderBadgeContent(props, isSelected) {
-  const isVacant = props.status === 'Đang trống' || props.status === 'AVAILABLE';
-  const priceStr = formatCompactPrice(props);
-
-  if (isSelected) {
-    return `
-      <span class="w-1.5 h-1.5 rounded-full bg-white shrink-0 animate-ping"></span>
-      <span class="tracking-tight">${props.id}</span>
-      <span class="opacity-50">•</span>
-      <span class="tracking-tight">${priceStr || 'Đã thuê'}</span>
-    `;
-  }
-
-  if (isVacant) {
-    // Chỉ hiển thị chấm xanh + Giá tiền ngắn gọn (ví dụ: 1.2 tr) -> Siêu gọn, không chạm nhau!
-    return `
-      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-      <span class="tracking-tight text-slate-900">${priceStr}</span>
-    `;
-  }
-
-  // Thửa đã thuê: Chấm xám + Mã thửa siêu gọn
-  return `
-    <span class="w-1 h-1 rounded-full bg-slate-400/80 shrink-0"></span>
-    <span class="tracking-tight">${props.id}</span>
-  `;
+  return {
+    bounds: [
+      [minLng, minLat],
+      [maxLng, maxLat]
+    ],
+    center: [(minLng + maxLng) / 2, (minLat + maxLat) / 2],
+    zoom: 15.5
+  };
 }
 
 export default function MarketplaceInteractiveMap({
   plotsData = FARMS_GEOJSON_DATA,
+  farmBoundary = null,
+  farmName = '',
   selectedPlot = null,
   onSelectPlot,
-  onResetView
+  onResetView,
+  onPhaseChange,
+  detailPanelOpen = false
 }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
-  const markersRef = useRef([]);
-  const markerNodesRef = useRef(new Map());
-  const isFirstRenderRef = useRef(true);
+  const badgesRef = useRef(new Map());
+  const badgeMarkersRef = useRef([]);
+  const workingDataRef = useRef(null);
+  const prevSelectedIdRef = useRef(null);
+  const introSkippedRef = useRef(false);
+  // Dữ liệu thửa mới nhất (live từ Database tới SAU khi map đã load)
+  const plotsDataRef = useRef(plotsData);
+  const farmBoundaryRef = useRef(farmBoundary);
+  const builtFromDataRef = useRef(null);
 
-  // Khởi tạo bản đồ vệ tinh ESRI với MapLibre GL JS tại toạ độ thực của trang trại
+  const [mapReady, setMapReady] = useState(false);
+  const [mapFailed, setMapFailed] = useState(false);
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
+  const [workingData, setWorkingData] = useState(null);
+  const [compact] = useState(() => isCompactViewport());
+  const [hasUserSelected, setHasUserSelected] = useState(false);
+  const initialSelectedIdRef = useRef(selectedPlot?.id || plotsData?.features?.[0]?.properties?.id || '');
+
+  // Giữ callback chọn thửa trong ref để handler của map luôn gọi bản mới nhất
+  const onSelectPlotRef = useRef(onSelectPlot);
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    onSelectPlotRef.current = onSelectPlot;
+  }, [onSelectPlot]);
 
-    const map = new maplibregl.Map({
+  const settledPitch = compact ? MOBILE_PITCH : CAMERA.settled.pitch;
+  const focusedPitch = compact ? MOBILE_PITCH : CAMERA.focused.pitch;
+
+  const boundsInfo = useMemo(() => getBoundsAndCenter(plotsData, farmBoundary), [plotsData, farmBoundary]);
+  const boundsInfoRef = useRef(boundsInfo);
+  useEffect(() => {
+    boundsInfoRef.current = boundsInfo;
+  }, [boundsInfo]);
+
+  /** Dựng (lại) toàn bộ badge — chỉ cắm pin cho các thửa có toạ độ hợp lệ */
+  function buildBadges(map, data, selectedId, staggerMs) {
+    badgesRef.current.forEach((b) => b.destroy());
+    badgesRef.current.clear();
+    badgeMarkersRef.current.forEach((m) => m.remove());
+    badgeMarkersRef.current = [];
+
+    (data?.features || []).forEach((f, index) => {
+      const ring = f.geometry?.coordinates?.[0];
+      if (!Array.isArray(ring) || ring.length < 3) return;
+
+      const centroid = getCentroid(f);
+      if (!centroid || (centroid[0] === 0 && centroid[1] === 0)) return;
+
+      const badge = createPlotBadge({
+        properties: f.properties,
+        isSelected: selectedId === f.properties.id,
+        enterDelayMs: index * staggerMs,
+        onClick: (props) => onSelectPlotRef.current?.(props)
+      });
+
+      const marker = new maplibregl.Marker({ element: badge.element })
+        .setLngLat(centroid)
+        .addTo(map);
+
+      badgeMarkersRef.current.push(marker);
+      badgesRef.current.set(f.properties.id, badge);
+    });
+  }
+
+  // Dữ liệu live (Database) về SAU khi map đã dựng: cập nhật màu thửa + badge + ranh giới
+  useEffect(() => {
+    plotsDataRef.current = plotsData;
+    farmBoundaryRef.current = farmBoundary;
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+
+    // Cập nhật lại các layer (bao gồm ranh giới nông trại dynamic)
+    const { workingData: wd } = registerFarmLayers(map, plotsData, {
+      farmBoundary,
+      selectedId: selectedPlot?.id || ''
+    });
+    workingDataRef.current = wd;
+    setWorkingData(wd);
+
+    buildBadges(map, plotsData, selectedPlot?.id || '', 0);
+
+    // Nếu có khung toạ độ mới và chưa có thửa nào được chọn, bay tới khung bao
+    if (boundsInfo.bounds && !selectedPlot) {
+      map.fitBounds(boundsInfo.bounds, {
+        padding: CAMERA.padding,
+        bearing: CAMERA.settled.bearing,
+        pitch: settledPitch,
+        duration: 800
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plotsData, farmBoundary, mapReady]);
+
+  // ── Khởi tạo bản đồ vệ tinh ESRI tại toạ độ động của trang trại ─────────────
+  useEffect(() => {
+    if (!mapContainerRef.current) return undefined;
+
+    const initialCenter = boundsInfo.center;
+    const initialZoom = boundsInfo.bounds ? CAMERA.intro.zoom : boundsInfo.zoom;
+
+    const mapOptions = {
       container: mapContainerRef.current,
       style: {
         version: 8,
         sources: {
-          'satellite-tiles': {
+          [LAYER_IDS.satelliteSource]: {
             type: 'raster',
             tiles: [
               'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
@@ -96,339 +208,255 @@ export default function MarketplaceInteractiveMap({
         },
         layers: [
           {
-            id: 'satellite',
+            id: LAYER_IDS.satellite,
             type: 'raster',
-            source: 'satellite-tiles',
+            source: LAYER_IDS.satelliteSource,
             minzoom: 0,
             maxzoom: 19
           }
         ]
       },
-      center: FARM_GPS_BOUNDS.center, // [106.350258, 10.687662]
-      zoom: 15.1,
-      pitch: 35,
-      bearing: -8
-    });
+      center: initialCenter,
+      zoom: initialZoom,
+      pitch: CAMERA.intro.pitch,
+      bearing: CAMERA.intro.bearing
+    };
+
+    let map;
+    try {
+      map = new maplibregl.Map(mapOptions);
+    } catch (err) {
+      console.error('Không khởi tạo được bản đồ MapLibre:', err);
+      setMapFailed(true);
+      return undefined;
+    }
 
     mapRef.current = map;
+    const canvas = map.getCanvas?.();
+    const handleContextLost = (event) => {
+      event.preventDefault?.();
+      console.error('WebGL context lost');
+      setMapFailed(true);
+    };
+    canvas?.addEventListener?.('webglcontextlost', handleContextLost);
+
+    const onContextLost = () => {
+      console.error('WebGL context của bản đồ bị mất — chuyển trang về trạng thái tối giản.');
+      setMapFailed(true);
+    };
+    const rawCanvas = typeof map.getCanvas === 'function' ? map.getCanvas() : null;
+    const contextCanvas =
+      rawCanvas && typeof rawCanvas.addEventListener === 'function' ? rawCanvas : null;
+    contextCanvas?.addEventListener('webglcontextlost', onContextLost);
 
     map.on('load', () => {
-      // 1. Thêm nguồn & Layer ranh giới toàn bộ khu đất (Từ 4 mốc GPS)
-      map.addSource('farm-boundary', {
-        type: 'geojson',
-        data: {
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [FARM_GPS_BOUNDS.polygon]
-          }
-        }
+      const initialSelectedId = selectedPlot?.id || plotsDataRef.current?.features?.[0]?.properties?.id || '';
+
+      // 1. Toàn bộ source & layer (idempotent, màu lấy từ mapTheme)
+      const { workingData: wd } = registerFarmLayers(map, plotsDataRef.current, {
+        initialHeight: 0,
+        selectedId: initialSelectedId,
+        farmBoundary: farmBoundaryRef.current
       });
+      workingDataRef.current = wd;
+      builtFromDataRef.current = plotsDataRef.current;
+      setWorkingData(wd);
 
-      // Viền ranh giới tổng khu đất (Đường viền màu vàng/cam nét đứt nổi bật)
-      map.addLayer({
-        id: 'farm-boundary-line',
-        type: 'line',
-        source: 'farm-boundary',
-        paint: {
-          'line-color': '#F59E0B',
-          'line-width': 2.5,
-          'line-dasharray': [3, 2],
-          'line-opacity': 0.95
-        }
-      });
+      // 2. Badge trên tâm mỗi thửa — dựng bằng factory
+      buildBadges(map, plotsDataRef.current, initialSelectedId, compact ? 0 : STAGGER_STEP_MS);
+      prevSelectedIdRef.current = initialSelectedId;
 
-      // 2. Thêm nguồn dữ liệu GeoJSON các thửa đất đã được chia lưới chính xác
-      map.addSource('plots', {
-        type: 'geojson',
-        data: plotsData
-      });
+      // 3. Nếu có bounding box thực tế từ DB, bay tới vùng đó
+      const currentBounds = boundsInfoRef.current?.bounds;
+      if (currentBounds) {
+        map.fitBounds(currentBounds, {
+          padding: CAMERA.padding,
+          bearing: CAMERA.settled.bearing,
+          pitch: settledPitch,
+          duration: 900
+        });
+      }
 
-      // 3. Layer fill trong suốt - Chỉ dùng làm vùng click/hover, KHÔNG hiển thị màu
-      map.addLayer({
-        id: 'plots-fill',
-        type: 'fill',
-        source: 'plots',
-        paint: {
-          'fill-color': 'rgba(0, 0, 0, 0)',
-          'fill-opacity': 0
-        }
-      });
-
-      // 3b. Layer fill hover - Chỉ hiện khi rê chuột vào 1 thửa cụ thể
-      map.addLayer({
-        id: 'plots-fill-hover',
-        type: 'fill',
-        source: 'plots',
-        paint: {
-          'fill-color': 'rgba(16, 185, 129, 0.20)',
-          'fill-opacity': 1
-        },
-        filter: ['==', 'id', '']
-      });
-
-      // 4. Layer viền polygon nét đứt mỏng giữa các thửa - Không gây sọc
-      map.addLayer({
-        id: 'plots-outline',
-        type: 'line',
-        source: 'plots',
-        paint: {
-          'line-color': 'rgba(255, 255, 255, 0.55)',
-          'line-width': 1,
-          'line-dasharray': [4, 3],
-          'line-opacity': 1
-        }
-      });
-
-      // 5a. Layer glow mờ phía ngoài thửa được chọn (tạo hiệu ứng phát sáng)
-      map.addLayer({
-        id: 'plots-selected-glow',
-        type: 'line',
-        source: 'plots',
-        paint: {
-          'line-color': '#34D399',
-          'line-width': 8,
-          'line-opacity': 0.4,
-          'line-blur': 4
-        },
-        filter: ['==', 'id', selectedPlot?.id || 'P-01']
-      });
-
-      // 5b. Layer viền sắc nét thửa được chọn
-      map.addLayer({
-        id: 'plots-selected-border',
-        type: 'line',
-        source: 'plots',
-        paint: {
-          'line-color': '#10B981',
-          'line-width': 2.5,
-          'line-opacity': 1
-        },
-        filter: ['==', 'id', selectedPlot?.id || 'P-01']
-      });
-
-      // 5c. Layer fill highlight nhẹ cho thửa đang chọn
-      map.addLayer({
-        id: 'plots-selected-fill',
-        type: 'fill',
-        source: 'plots',
-        paint: {
-          'fill-color': 'rgba(16, 185, 129, 0.15)',
-          'fill-opacity': 1
-        },
-        filter: ['==', 'id', selectedPlot?.id || 'P-01']
-      });
-
-      // 6. Thêm HTML badge nhãn mã thửa nổi trên tâm mỗi thửa đất - Phong cách sàn TMĐT (Airbnb / BĐS)
-      markerNodesRef.current.clear();
-      plotsData.features.forEach((f) => {
-        const coords = f.geometry.coordinates[0];
-        const centerLng = (coords[0][0] + coords[1][0] + coords[2][0] + coords[3][0]) / 4;
-        const centerLat = (coords[0][1] + coords[1][1] + coords[2][1] + coords[3][1]) / 4;
-
-        const isCurrentSelected = (selectedPlot?.id || 'P-01') === f.properties.id;
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'select-none pointer-events-auto';
-
-        const badge = document.createElement('div');
-        badge.className = getBadgeClassName(f.properties, isCurrentSelected);
-        badge.innerHTML = renderBadgeContent(f.properties, isCurrentSelected);
-
-        badge.onclick = (e) => {
-          e.stopPropagation();
-          onSelectPlot?.(f.properties);
-        };
-
-        wrapper.appendChild(badge);
-
-        const marker = new maplibregl.Marker({ element: wrapper })
-          .setLngLat([centerLng, centerLat])
-          .addTo(map);
-
-        markersRef.current.push(marker);
-        markerNodesRef.current.set(f.properties.id, { badge, properties: f.properties });
-      });
-
-      // 7. Thêm 4 Marker định vị 4 toạ độ GPS góc khu đất
-      const corners = [
-        FARM_GPS_BOUNDS.topLeft,
-        FARM_GPS_BOUNDS.topRight,
-        FARM_GPS_BOUNDS.bottomLeft,
-        FARM_GPS_BOUNDS.bottomRight
-      ];
-
-      corners.forEach((c) => {
-        const pinWrapper = document.createElement('div');
-        pinWrapper.className = 'select-none pointer-events-none flex items-center justify-center';
-
-        const pin = document.createElement('div');
-        pin.className =
-          'w-2 h-2 rounded-full bg-amber-400 border border-white shadow-xs';
-        pinWrapper.appendChild(pin);
-
-        const cornerMarker = new maplibregl.Marker({ element: pinWrapper, anchor: 'center' })
-          .setLngLat([c.lng, c.lat])
-          .addTo(map);
-
-        markersRef.current.push(cornerMarker);
-      });
-
-      // 8. Click vào thửa đất trên bản đồ
-      map.on('click', 'plots-fill', (e) => {
+      // 4. Click vào thửa đất trên bản đồ
+      map.on('click', LAYER_IDS.plotsFill, (e) => {
         if (e.features && e.features.length > 0) {
           const plotId = e.features[0].properties.id;
-          const feat = plotsData.features.find((item) => item.properties.id === plotId);
-          if (feat) {
-            onSelectPlot?.(feat.properties);
-          }
+          const feat = plotsDataRef.current.features.find((item) => item.properties.id === plotId);
+          if (feat) onSelectPlotRef.current?.(feat.properties);
         }
       });
 
-      // 9. Đổi icon con trỏ + hiệu ứng hover sáng khi rê chuột
-      map.on('mousemove', 'plots-fill', (e) => {
+      // 5. Con trỏ + hover sáng khi rê chuột
+      map.on('mousemove', LAYER_IDS.plotsFill, (e) => {
         map.getCanvas().style.cursor = 'pointer';
-        if (e.features && e.features.length > 0) {
-          map.setFilter('plots-fill-hover', ['==', 'id', e.features[0].properties.id]);
+        if (e.features && e.features.length > 0 && map.getLayer(LAYER_IDS.plotsFillHover)) {
+          map.setFilter(LAYER_IDS.plotsFillHover, [
+            '==',
+            ['get', 'id'],
+            e.features[0].properties.id
+          ]);
         }
       });
-      map.on('mouseleave', 'plots-fill', () => {
+      map.on('mouseleave', LAYER_IDS.plotsFill, () => {
         map.getCanvas().style.cursor = '';
-        map.setFilter('plots-fill-hover', ['==', 'id', '']);
+        if (map.getLayer(LAYER_IDS.plotsFillHover)) {
+          map.setFilter(LAYER_IDS.plotsFillHover, ['==', ['get', 'id'], '']);
+        }
       });
 
-      // 10. Tự động căn khung hình bao quát toàn bộ 16 thửa đất và 4 mốc GPS
-      map.fitBounds(
-        [
-          [106.343656, 10.680931],
-          [106.356997, 10.694331]
-        ],
-        {
-          padding: { top: 90, bottom: 60, left: 350, right: 400 },
-          bearing: -8,
-          pitch: 35,
-          duration: 0
-        }
-      );
+      setMapReady(true);
     });
 
     return () => {
-      markersRef.current.forEach((m) => m.remove());
-      markersRef.current = [];
+      canvas?.removeEventListener?.('webglcontextlost', handleContextLost);
+      contextCanvas?.removeEventListener('webglcontextlost', onContextLost);
+      badgesRef.current.forEach((b) => b.destroy());
+      badgesRef.current.clear();
+      badgeMarkersRef.current.forEach((m) => m.remove());
+      badgeMarkersRef.current = [];
+      workingDataRef.current = null;
+      mapRef.current = null;
       map.remove();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Xử lý khi selectedPlot thay đổi -> Highlight & Camera flyTo mượt mà
+  // ── Pha mở màn: vùng đất nhô lên rồi an vị ──────────────────────────────────
+  const { phase, skip } = useMapIntroAnimation({
+    map: mapReady ? mapRef.current : null,
+    plotsData,
+    workingData,
+    enabled: mapReady,
+    skipRise: compact,
+    targetPitch: settledPitch,
+    bounds: boundsInfo.bounds,
+    center: boundsInfo.center
+  });
+
+  useEffect(() => {
+    if (mapReady || mapFailed) return undefined;
+    const timer = setTimeout(() => setLoadTimedOut(true), MAP_LOAD_WATCHDOG_MS);
+    return () => clearTimeout(timer);
+  }, [mapReady, mapFailed]);
+
+  const degraded = mapFailed || (!mapReady && loadTimedOut);
+  const effectivePhase = degraded ? 'done' : phase;
+  const showLoadingStatus = !mapReady && !degraded;
+
+  useEffect(() => {
+    onPhaseChange?.(effectivePhase);
+  }, [effectivePhase, onPhaseChange]);
+
+  useEffect(() => {
+    const id = selectedPlot?.id || selectedPlot?.label || '';
+    if (id && id !== initialSelectedIdRef.current) {
+      setHasUserSelected(true);
+    }
+  }, [selectedPlot]);
+
+  useEffect(() => {
+    if (!mapReady || introSkippedRef.current) return;
+    if (phase === 'done' || phase === 'waiting') return;
+    if (!hasUserSelected) return;
+
+    introSkippedRef.current = true;
+    skip();
+  }, [hasUserSelected, phase, mapReady, skip]);
+
+  const isSettled = effectivePhase === 'done' || effectivePhase === 'settling';
+
+  // ── Spotlight khi chọn thửa ───
+  const { clear: clearSpotlight } = usePlotSpotlight({
+    map: mapReady ? mapRef.current : null,
+    plotsData,
+    workingData,
+    selectedPlot,
+    isReady: mapReady && isSettled && hasUserSelected,
+    focusPitch: focusedPitch
+  });
+
+  // ── Đồng bộ filter layer + badge ────
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady) return;
 
     const plotId = selectedPlot?.id || selectedPlot?.label || '';
-    // Cập nhật tất cả các layer liên quan đến thửa đang chọn
-    if (map.getLayer('plots-selected-border')) {
-      map.setFilter('plots-selected-border', ['==', 'id', plotId]);
+    setSelectedPlotFilters(map, plotId);
+
+    const prevId = prevSelectedIdRef.current;
+    if (prevId && prevId !== plotId) {
+      badgesRef.current.get(prevId)?.setSelected(false);
     }
-    if (map.getLayer('plots-selected-glow')) {
-      map.setFilter('plots-selected-glow', ['==', 'id', plotId]);
+    if (plotId) {
+      badgesRef.current.get(plotId)?.setSelected(true);
     }
-    if (map.getLayer('plots-selected-fill')) {
-      map.setFilter('plots-selected-fill', ['==', 'id', plotId]);
-    }
+    prevSelectedIdRef.current = plotId;
+  }, [selectedPlot, mapReady]);
 
-    // Cập nhật chuyển động mượt mà của badge marker (Airbnb style)
-    markerNodesRef.current.forEach((node, id) => {
-      const isSel = id === plotId;
-      if (node.badge && node.properties) {
-        node.badge.className = getBadgeClassName(node.properties, isSel);
-        node.badge.innerHTML = renderBadgeContent(node.properties, isSel);
-      }
-    });
-
-    if (!plotId) return;
-
-    if (isFirstRenderRef.current) {
-      isFirstRenderRef.current = false;
-      return;
-    }
-
-    // Tìm toạ độ của feature
-    const feat = plotsData.features.find(
-      (f) => f.properties.id === plotId || f.properties.code === selectedPlot?.code
-    );
-
-    if (feat) {
-      const coords = feat.geometry.coordinates[0];
-      const centerLng = (coords[0][0] + coords[1][0] + coords[2][0] + coords[3][0]) / 4;
-      const centerLat = (coords[0][1] + coords[1][1] + coords[2][1] + coords[3][1]) / 4;
-
-      map.flyTo({
-        center: [centerLng, centerLat],
-        zoom: 16.3,
-        pitch: 35, // Nghiêng 35 độ tạo góc nhìn thực địa 3D
-        bearing: -8, // Xoay nhẹ góc nhìn
-        duration: 1200, // Thời gian lướt mượt mà 1.2s không bị khựng
-        easing: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), // Cubic In-Out easing
-        padding: { right: 380, top: 40, bottom: 40, left: 40 }, // Chừa trống chỗ cho drawer chi tiết bên phải
-        essential: true
-      });
-    }
-  }, [selectedPlot, plotsData]);
-
-  // Điều khiển phóng to / thu nhỏ với hiệu ứng mượt
   const handleZoomIn = () => mapRef.current?.zoomIn({ duration: 350 });
   const handleZoomOut = () => mapRef.current?.zoomOut({ duration: 350 });
 
   // Reset về góc nhìn tổng quan trang trại
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
 
-    if (map.getLayer('plots-selected-border')) {
-      map.setFilter('plots-selected-border', ['==', 'id', '']);
-    }
-    if (map.getLayer('plots-selected-glow')) {
-      map.setFilter('plots-selected-glow', ['==', 'id', '']);
-    }
-    if (map.getLayer('plots-selected-fill')) {
-      map.setFilter('plots-selected-fill', ['==', 'id', '']);
+    setSelectedPlotFilters(map, '');
+    badgesRef.current.forEach((b) => b.setSelected(false));
+    prevSelectedIdRef.current = '';
+
+    const source = map.getSource?.(LAYER_IDS.plotsSource);
+    if (source && workingDataRef.current) {
+      workingDataRef.current.features.forEach((f) => {
+        f.properties.riseHeight = RISE_SETTLE_HEIGHT;
+      });
+      source.setData(workingDataRef.current);
     }
 
-    markerNodesRef.current.forEach((node) => {
-      if (node.badge && node.properties) {
-        node.badge.className = getBadgeClassName(node.properties, false);
-        node.badge.innerHTML = renderBadgeContent(node.properties, false);
-      }
-    });
+    clearSpotlight();
 
-    map.fitBounds(
-      [
-        [106.343656, 10.680931],
-        [106.356997, 10.694331]
-      ],
-      {
-        padding: { top: 90, bottom: 60, left: 350, right: 400 },
-        bearing: -8,
-        pitch: 35,
+    if (boundsInfo.bounds) {
+      map.fitBounds(boundsInfo.bounds, {
+        padding: CAMERA.padding,
+        bearing: CAMERA.settled.bearing,
+        pitch: settledPitch,
         duration: 1000
-      }
-    );
+      });
+    } else {
+      map.flyTo({
+        center: boundsInfo.center,
+        zoom: boundsInfo.zoom,
+        pitch: 0,
+        bearing: 0,
+        duration: 1000
+      });
+    }
 
     onResetView?.();
-  };
+  }, [clearSpotlight, onResetView, settledPitch, boundsInfo]);
+
+  const availableConfig = getStatusConfig('AVAILABLE');
 
   return (
     <div className="relative w-full h-full">
       {/* 1. Canvas Bản Đồ MapLibre GL JS */}
       <div ref={mapContainerRef} className="absolute inset-0 z-0 w-full h-full" />
+      {showLoadingStatus && <div role="status" className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/70 text-sm font-bold text-white">Đang tải bản đồ...</div>}
 
-      {/* 2. Điều khiển bản đồ góc phải dưới (Map Controls) */}
-      <div className="absolute bottom-6 right-8 z-20 flex flex-col gap-2 pointer-events-auto">
-        <div className="bg-white/95 backdrop-blur-md rounded-xl p-1 shadow-lg border border-slate-100 flex flex-col">
+      {/* 2. Màn che lúc nạp tile */}
+      <MarketplaceIntroVeil phase={effectivePhase} />
+
+      {/* 3. Điều khiển bản đồ (Map Controls) */}
+      <div
+        className={`absolute bottom-6 right-6 z-20 flex flex-col gap-2 pointer-events-auto transition-[right] duration-500 ease-out ${
+          detailPanelOpen ? 'lg:right-[402px]' : ''
+        }`}
+      >
+        <div className="bg-white/95 backdrop-blur-md rounded-xl p-1 shadow-float border border-slate-100 flex flex-col">
           <button
             type="button"
             onClick={handleZoomIn}
-            className="w-9 h-9 flex items-center justify-center text-slate-700 font-bold hover:bg-slate-100 rounded-lg text-lg cursor-pointer transition"
+            className="w-9 h-9 flex items-center justify-center text-slate-700 font-semibold hover:bg-slate-100 rounded-lg text-lg cursor-pointer transition"
             title="Phóng to"
           >
             +
@@ -437,7 +465,7 @@ export default function MarketplaceInteractiveMap({
           <button
             type="button"
             onClick={handleZoomOut}
-            className="w-9 h-9 flex items-center justify-center text-slate-700 font-bold hover:bg-slate-100 rounded-lg text-lg cursor-pointer transition"
+            className="w-9 h-9 flex items-center justify-center text-slate-700 font-semibold hover:bg-slate-100 rounded-lg text-lg cursor-pointer transition"
             title="Thu nhỏ"
           >
             -
@@ -447,18 +475,21 @@ export default function MarketplaceInteractiveMap({
           type="button"
           onClick={handleReset}
           title="Về góc nhìn tổng quan"
-          className="w-10 h-10 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-100 text-base cursor-pointer transition"
+          className="w-10 h-10 bg-white/95 backdrop-blur-md rounded-xl shadow-float border border-slate-100 flex items-center justify-center text-slate-700 hover:bg-slate-100 text-base cursor-pointer transition"
         >
           🧭
         </button>
       </div>
 
-      {/* 3. Badge hiển thị toạ độ trung tâm GPS của khu đất */}
-      <div className="absolute bottom-6 left-6 z-20 hidden lg:flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-md border border-slate-100 text-[10px] text-slate-600 font-mono font-medium pointer-events-none">
-        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span>Tọa độ khu đất: 10°41′15″N 106°21′01″E</span>
+      {/* 4. Badge toạ độ GPS & Tên nông trại động từ DB */}
+      <div className="absolute top-20 left-[23.5rem] z-10 hidden lg:flex items-center gap-2 bg-white/85 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-rail border border-white/70 text-[10px] text-slate-600 font-mono font-medium pointer-events-none">
+        <span
+          className="w-2 h-2 rounded-full animate-pulse"
+          style={{ backgroundColor: availableConfig.color }}
+        />
+        <span>{farmName || 'Nông trại thông minh Farmely'}</span>
         <span className="text-slate-300">|</span>
-        <span>16 Thửa đất VietGAP</span>
+        <span>{plotsData?.features?.length || 0} Thửa đất canh tác</span>
       </div>
     </div>
   );

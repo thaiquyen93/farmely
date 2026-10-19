@@ -3,10 +3,9 @@ import { Link, useLocation } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import Hero from '../../components/public/Hero';
-import PlotCard from '../../components/public/PlotCard';
 import FarmCard from '../../components/public/FarmCard';
-import { plotsData } from '../../data/plots';
-import { landsData } from '../../data/lands';
+import PlotCard from '../../components/public/PlotCard';
+import { farmApi } from '../../api/farm/farmApi';
 import {
   Sprout,
   Radio,
@@ -28,8 +27,34 @@ import {
 import Button from '../../components/common/Button';
 
 export default function Home() {
-  const featuredPlots = plotsData.slice(0, 3);
   const location = useLocation();
+  const [lands, setLands] = useState([]);
+  const [featuredPlots, setFeaturedPlots] = useState([]);
+
+  useEffect(() => {
+    farmApi.listLands()
+      .then((rows) => setLands(rows || []))
+      .catch((err) => console.warn('Không thể nạp danh sách nông trại:', err));
+
+    farmApi.listPlots()
+      .then((rows) => {
+        const mapped = (rows || []).slice(0, 6).map((p) => ({
+          id: String(p.plotId),
+          plotId: p.plotId,
+          code: p.plotCode,
+          name: `Thửa đất ${p.plotCode}`,
+          landName: p.landName || 'Trang trại Happy Valley Củ Chi',
+          soilType: p.soilType || 'Đất phù sa bồi lắng giàu mùn',
+          area: `${Number(p.area)} m²`,
+          status: p.status === 'AVAIL' ? 'AVAILABLE' : p.status === 'RENT' ? 'RENTED' : 'MAINTENANCE',
+          rentalPriceFormatted: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
+          imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
+          compatibleCrops: ['Rau muống lá tre', 'Cải ngọt bông', 'Xà lách Romaine']
+        }));
+        setFeaturedPlots(mapped);
+      })
+      .catch((err) => console.warn('Không thể nạp danh sách thửa đất nổi bật:', err));
+  }, []);
 
   // Interactive IoT Simulator State
   const [simWeather, setSimWeather] = useState('ideal');
@@ -135,33 +160,35 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 3. Featured Plots Section */}
-      <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-green/10 text-brand-green text-xs font-bold uppercase tracking-wider mb-2">
-              <Sprout className="w-3.5 h-3.5" />
-              <span>Thửa Đất Sẵn Sàng Canh Tác</span>
-            </div>
-            <h2 className="text-section-title font-heading font-black text-brand-dark">
-              Các Thửa Đất Nổi Bật
-            </h2>
-            <p className="text-sm sm:text-base text-brand-muted mt-2 max-w-xl">
-              Đất đã được đo đạc thổ nhưỡng, lắp sẵn nguồn nước sạch và kết nối trạm quan trắc IoT vi khí hậu theo chuẩn VietGAP.
-            </p>
-          </div>
-
-          <Link to="/marketplace">
-            <Button variant="outline" size="md" className="gap-2 shrink-0">
-              <span>Xem tất cả thửa đất</span>
-              <ArrowRight className="w-4 h-4" />
-            </Button>
-          </Link>
+      {/* 3. Farm locations appear before the plot catalogue */}
+      <section id="about" className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-3xl mx-auto mb-14">
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-brand-yellow text-brand-dark uppercase tracking-wider">
+            Địa điểm đang có thửa đất
+          </span>
+          <h2 className="text-section-title font-heading font-black text-brand-dark mt-3">
+            Hệ thống nông trại Farmely
+          </h2>
+          <p className="text-sm sm:text-base text-brand-muted mt-2">
+            Xem vị trí, điều kiện tự nhiên và số thửa đang mở tại từng khu nông trại trước khi chọn thửa phù hợp.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {featuredPlots.map((plot) => (
-            <PlotCard key={plot.id} plot={plot} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {lands.map((land) => (
+            <FarmCard
+              key={land.landId}
+              land={{
+                id: String(land.landId),
+                name: land.landName,
+                location: land.address,
+                description: land.description || 'Khu nông trại sinh thái chuẩn VietGAP với hệ thống quan trắc IoT 24/7.',
+                totalArea: land.boundaryAreaM2 ? `${Math.round(land.boundaryAreaM2).toLocaleString('vi-VN')} m²` : '25.000 m²',
+                totalPlots: land.totalPlots || 16,
+                activePlots: land.availablePlots || 10,
+                imageUrl: land.imageUrl || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80'
+              }}
+            />
           ))}
         </div>
       </section>
@@ -188,7 +215,7 @@ export default function Home() {
                 01
               </div>
               <h3 className="font-heading text-lg font-bold text-brand-dark mb-2">
-                Chọn Đất & Cây Trồng
+                Chọn thửa đất & cây trồng
               </h3>
               <p className="text-xs text-stone-600 leading-relaxed">
                 Khám phá Marketplace, tra cứu độ tương thích thổ nhưỡng với giống cây bạn thích (Cà chua bi, Xà lách, Dâu tây...).
@@ -237,24 +264,31 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 5. Master Farm Properties (Lands) */}
-      <section id="about" className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-14">
-          <span className="px-3 py-1 rounded-full text-xs font-bold bg-brand-yellow text-brand-dark uppercase tracking-wider">
-            Quỹ Đất Trực Thuộc Vận Hành
-          </span>
-          <h2 className="text-section-title font-heading font-black text-brand-dark mt-3">
-            Hệ Thống Nông Trại Farmely
-          </h2>
-          <p className="text-sm sm:text-base text-brand-muted mt-2">
-            Farmely trực tiếp sở hữu, bảo tồn và vận hành các khu nông trại sinh thái tại các vùng phụ cận TP.HCM và cao nguyên Lâm Đồng.
-          </p>
+      {/* 5. Featured plots are shown after visitors understand each location */}
+      <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-green/10 text-brand-green text-xs font-bold uppercase tracking-wider mb-2">
+              <Sprout className="w-3.5 h-3.5" />
+              <span>Thửa đất sẵn sàng canh tác</span>
+            </div>
+            <h2 className="text-section-title font-heading font-black text-brand-dark">Các thửa đất nổi bật</h2>
+            <p className="text-sm sm:text-base text-brand-muted mt-2 max-w-xl">
+              Các thửa đã được đo đạc thổ nhưỡng, lắp nguồn nước sạch và kết nối trạm quan trắc IoT theo chuẩn VietGAP.
+            </p>
+          </div>
+          <Link to="/marketplace">
+            <Button variant="outline" size="md" className="gap-2 shrink-0"><span>Xem tất cả thửa đất</span><ArrowRight className="w-4 h-4" /></Button>
+          </Link>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {landsData.map((land) => (
-            <FarmCard key={land.id} land={land} />
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {featuredPlots.length > 0 ? (
+            featuredPlots.map((plot) => <PlotCard key={plot.id} plot={plot} />)
+          ) : (
+            <div className="col-span-full py-12 text-center text-brand-muted text-sm bg-white rounded-2xl border border-brand-border">
+              Đang kết nối cơ sở dữ liệu và tải danh sách thửa đất nổi bật...
+            </div>
+          )}
         </div>
       </section>
 
@@ -279,7 +313,7 @@ export default function Home() {
               </h2>
 
               <p className="text-sm sm:text-base text-stone-300 leading-relaxed">
-                Mỗi Plot được trang bị trạm cảm biến IoT thu thập dữ liệu nhiệt độ, độ ẩm không khí và độ ẩm đất. Hệ thống kết hợp dữ liệu vi khí hậu thực tế cùng dự báo thời tiết để tự động điều phối chu trình tưới và kích hoạt cảnh báo kỹ thuật theo đúng quy chuẩn vận hành trang trại.
+                Mỗi thửa đất được trang bị trạm cảm biến IoT thu thập dữ liệu nhiệt độ, độ ẩm không khí và độ ẩm đất. Hệ thống kết hợp dữ liệu vi khí hậu thực tế cùng dự báo thời tiết để tự động điều phối chu trình tưới và kích hoạt cảnh báo kỹ thuật theo đúng quy chuẩn vận hành trang trại.
               </p>
 
               {/* Interactive Weather Simulator Controls */}

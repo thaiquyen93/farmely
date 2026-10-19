@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { knowledgeDocumentsData as initialDocs } from '../../data/knowledgeDocuments';
 import { varietiesData } from '../../data/varieties';
 import { knowledgeApi } from '../../api/knowledge/knowledgeApi';
 import DataTable from '../../components/common/DataTable';
@@ -11,7 +10,7 @@ import Select from '../../components/common/Select';
 import { BookOpen, Plus, Eye, Upload, FileText, CheckCircle2, Archive, Download, ExternalLink, Trash2, Pencil } from 'lucide-react';
 
 export default function KnowledgeDocuments() {
-  const [docs, setDocs] = useState(initialDocs);
+  const [docs, setDocs] = useState([]);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -28,6 +27,7 @@ export default function KnowledgeDocuments() {
   const [editDescription, setEditDescription] = useState('');
   const [editFile, setEditFile] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isLiveDb, setIsLiveDb] = useState(false);
 
   // Upload Form State
   const [title, setTitle] = useState('');
@@ -43,33 +43,30 @@ export default function KnowledgeDocuments() {
         if (res && res.data && res.data.length > 0) {
           const normalized = res.data.map((item, idx) => {
             const rawFileUrl = item.file_url || item.fileUrl || '';
-            const matchedMock = initialDocs.find(
-              (m) => m.documentId === item.document_id || m.title === item.title || (m.fileUrl && rawFileUrl.includes(m.fileUrl))
-            );
-
             return {
               id: item.id || `DOC-00${item.document_id || idx + 1}`,
               documentId: item.document_id || item.documentId || idx + 1,
               title: item.title,
-              author: item.author_name || item.authorName || item.author || (matchedMock ? matchedMock.author : 'ThS. Nguyễn Hoàng Nam'),
-              fileUrl: rawFileUrl || (matchedMock ? matchedMock.fileUrl : ''),
-              fileSize: item.file_size || item.fileSize || (matchedMock ? matchedMock.fileSize : '3.5 MB (PDF)'),
-              varietyName: item.variety_name || item.varietyName || (matchedMock ? matchedMock.varietyName : 'Áp dụng chung'),
-              cropName: item.crop_name || item.cropName || (matchedMock ? matchedMock.cropName : 'Nông nghiệp tổng quát'),
-              documentType: item.document_type || item.documentType || (matchedMock ? matchedMock.documentType : 'CULTIVATION_GUIDE'),
-              version: item.version || (matchedMock ? matchedMock.version : 'v1.0'),
+              author: item.author_name || item.authorName || item.author || 'Chưa có dữ liệu',
+              fileUrl: rawFileUrl,
+              fileSize: item.file_size || item.fileSize || 'Chưa có dữ liệu',
+              varietyName: item.variety_name || item.varietyName || 'Chưa có dữ liệu',
+              cropName: item.crop_name || item.cropName || 'Chưa có dữ liệu',
+              documentType: item.document_type || item.documentType || 'Chưa có dữ liệu',
+              version: item.version || 'Chưa có dữ liệu',
               status: item.status || 'PUBLISHED',
-              uploadedDate: item.uploadedDate || (item.created_at ? item.created_at.split('T')[0] : '2026-03-01'),
-              description: item.content || item.description || (matchedMock ? matchedMock.description : ''),
-              sectionsCount: item.sections_count || item.sectionsCount || (matchedMock ? matchedMock.sectionsCount : 6),
-              isIndexedForRAG: item.isIndexedForRAG ?? item.is_indexed_for_rag ?? true
+              uploadedDate: item.uploadedDate || (item.created_at ? item.created_at.split('T')[0] : 'Chưa có dữ liệu'),
+              description: item.content || item.description || 'Chưa có dữ liệu',
+              sectionsCount: item.sections_count || item.sectionsCount || 0,
+              isIndexedForRAG: item.isIndexedForRAG ?? item.is_indexed_for_rag ?? false
             };
           });
           setDocs(normalized);
+          setIsLiveDb(true);
         }
       })
       .catch((err) => {
-        console.info('Knowledge service fallback to local mock documents:', err.message);
+        setDocs([]);
       });
   };
 
@@ -124,7 +121,8 @@ export default function KnowledgeDocuments() {
           fileSizeStr = uploadRes.data.size;
         }
       } catch (err) {
-        console.warn('Re-upload fallback:', err.message);
+        setIsUpdating(false);
+        return;
       }
     }
 
@@ -193,7 +191,8 @@ export default function KnowledgeDocuments() {
           fileSizeStr = uploadRes.data.size;
         }
       } catch (err) {
-        console.warn('File upload fallback:', err.message);
+        setIsSubmitting(false);
+        return;
       }
     }
 
@@ -242,7 +241,8 @@ export default function KnowledgeDocuments() {
         return;
       }
     } catch (err) {
-      console.info('Using local state addition:', err.message);
+      setIsSubmitting(false);
+      return;
     }
 
     const newDoc = {
@@ -390,9 +390,17 @@ export default function KnowledgeDocuments() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: KnowledgeDocument (Cơ sở dữ liệu RAG AI)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
+              Thực thể: KnowledgeDocument (Cơ sở dữ liệu RAG AI)
+            </span>
+            {isLiveDb && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live DB: {docs.length} Tài liệu RAG</span>
+              </span>
+            )}
+          </div>
           <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
             Kho Tài Liệu Kỹ Thuật Nông Học
           </h2>

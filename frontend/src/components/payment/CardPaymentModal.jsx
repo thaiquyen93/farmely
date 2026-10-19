@@ -47,7 +47,7 @@ export default function CardPaymentModal({
     }
   };
 
-  // Quick fill test card
+  // Quick fill test card presets in Sandbox Mode
   const fillDemoCard = (type) => {
     setErrorMessage('');
     if (type === 'VISA') {
@@ -62,12 +62,30 @@ export default function CardPaymentModal({
       setCardHolder('TRAN THI MAI');
       setExpiryDate('09/27');
       setCvv('888');
-    } else {
+    } else if (type === 'NAPAS') {
       setCardType('NAPAS_ATM');
       setCardNumber('9704 3668 1234 5678');
       setCardHolder('NGUYEN VAN A');
-      setExpiryDate('08/25');
+      setExpiryDate('08/26');
       setCvv('999');
+    } else if (type === 'INSUFFICIENT_FUNDS') {
+      setCardType('VISA');
+      setCardNumber('4242 4242 4242 0002');
+      setCardHolder('NGUYEN VAN A');
+      setExpiryDate('12/28');
+      setCvv('123');
+    } else if (type === 'CARD_LOCKED') {
+      setCardType('VISA');
+      setCardNumber('4242 4242 4242 0003');
+      setCardHolder('TRAN THI B');
+      setExpiryDate('12/28');
+      setCvv('123');
+    } else if (type === 'EXPIRED') {
+      setCardType('VISA');
+      setCardNumber('4242 4242 4242 4242');
+      setCardHolder('LE VAN C');
+      setExpiryDate('01/20');
+      setCvv('123');
     }
   };
 
@@ -90,7 +108,7 @@ export default function CardPaymentModal({
 
     setIsProcessing(true);
     try {
-      const endpoint = chargeEndpoint || 'http://localhost:8085/api/v1/payments/card/charge';
+      const endpoint = chargeEndpoint || `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/payments/card/charge`;
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -104,7 +122,7 @@ export default function CardPaymentModal({
           paymentMethod: cardType,
           plotCode: plotInfo?.code || 'PLT',
           serviceName: serviceInfo?.name,
-          serviceId: serviceInfo?.id,
+          serviceId: serviceInfo?.serviceId || serviceInfo?.id,
           ...additionalPayload
         })
       });
@@ -250,6 +268,59 @@ export default function CardPaymentModal({
                   {expiryDate || 'MM/YY'}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Sandbox Test Presets Box */}
+          <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200/90 text-xs space-y-2">
+            <div className="flex items-center justify-between text-amber-900 font-bold">
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                Dữ Liệu Thẻ Test Sandbox
+              </span>
+              <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-mono uppercase">
+                Demo Quick-Fill
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => fillDemoCard('VISA')}
+                className="px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-[11px] transition-colors"
+              >
+                ✓ Visa Hợp Lệ
+              </button>
+              <button
+                type="button"
+                onClick={() => fillDemoCard('NAPAS')}
+                className="px-2.5 py-1 rounded-lg bg-teal-100 hover:bg-teal-200 text-teal-800 font-bold text-[11px] transition-colors"
+              >
+                ✓ Napas ATM
+              </button>
+              <button
+                type="button"
+                onClick={() => fillDemoCard('INSUFFICIENT_FUNDS')}
+                className="px-2.5 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-[11px] transition-colors"
+                title="Thẻ có số dư 0đ để kiểm tra từ chối thanh toán"
+              >
+                ✕ Test Hết Tiền (0002)
+              </button>
+              <button
+                type="button"
+                onClick={() => fillDemoCard('CARD_LOCKED')}
+                className="px-2.5 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-[11px] transition-colors"
+                title="Thẻ bị ngân hàng khóa"
+              >
+                ✕ Test Khóa Thẻ (0003)
+              </button>
+              <button
+                type="button"
+                onClick={() => fillDemoCard('EXPIRED')}
+                className="px-2.5 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-[11px] transition-colors"
+                title="Thẻ có ngày hết hạn trong quá khứ"
+              >
+                ✕ Test Hết Hạn
+              </button>
             </div>
           </div>
 

@@ -4,6 +4,7 @@ import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
 import { siteVisitsService } from '../../api/siteVisitsService';
+import { apiFetch, unwrapData } from '../../api/apiClient';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
@@ -44,7 +45,7 @@ export default function AdminDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Dispatch Service Orders State (UC37: Care Task Dispatch)
-  const [serviceDispatches, setServiceDispatches] = useState([
+  const [serviceDispatches, setServiceDispatches] = useState(false ? [
     {
       id: 'DISP-101',
       serviceName: 'Ủy thác trọn vụ (Self-grow chuyển sang Full-care)',
@@ -84,14 +85,14 @@ export default function AdminDashboard() {
       price: '50.000 đ',
       note: 'Dọn sạch cỏ rãnh thoát nước trước đợt tưới mới.'
     }
-  ]);
+  ] : []);
 
   // Selected Dispatch for Assign Worker Modal
   const [selectedDispatchToAssign, setSelectedDispatchToAssign] = useState(null);
   const [assignedWorkerName, setAssignedWorkerName] = useState('Trần Văn Lực (CVLĐ)');
 
   // Refund / Cancellation Requests State (UC08 / BR10)
-  const [refundRequests, setRefundRequests] = useState([
+  const [refundRequests, setRefundRequests] = useState(false ? [
     {
       id: 'REF-8801',
       contractCode: 'CTR-2026-FARM-7721',
@@ -106,7 +107,7 @@ export default function AdminDashboard() {
       reason: 'Bận chuyển nơi công tác xa, không kịp lên vườn.',
       status: 'PENDING'
     }
-  ]);
+  ] : []);
 
   // Selected Refund Modal
   const [selectedRefundToReview, setSelectedRefundToReview] = useState(null);
@@ -156,7 +157,7 @@ export default function AdminDashboard() {
   }, []);
 
   // System Users List (UC21: Users & RBAC)
-  const [systemUsers, setSystemUsers] = useState([
+  const [systemUsers, setSystemUsers] = useState(false ? [
     {
       id: 'USR-001',
       fullName: 'Lô Thái Quyền',
@@ -197,29 +198,113 @@ export default function AdminDashboard() {
       status: 'ACTIVE',
       lastActive: 'Đang trực tuyến'
     }
-  ]);
+  ] : []);
+  const [dataError, setDataError] = useState('');
+  const [landStats, setLandStats] = useState({ total: 0, rented: 0 });
+
+  const loadAdminData = async () => {
+    try {
+      const [requestPayload, cancellationPayload, userPayload, plotPayload, rentalPayload] = await Promise.all([
+        apiFetch('/api/services/requests'),
+        apiFetch('/api/contracts/cancellations'),
+        apiFetch('/api/users'),
+        apiFetch('/api/plots'),
+        apiFetch('/api/rentals')
+      ]);
+      const requests = unwrapData(requestPayload) || [];
+      const cancellations = unwrapData(cancellationPayload) || [];
+      const users = unwrapData(userPayload) || [];
+      const plots = unwrapData(plotPayload) || [];
+      const rentals = unwrapData(rentalPayload) || [];
+      setServiceDispatches(requests.map((request) => ({
+        id: request.requestId,
+        serviceName: request.service?.name || request.service?.serviceName || 'Dịch vụ Farmely',
+        plotCode: request.plotCode || '',
+        plotName: request.plotName || 'Chưa xác định thửa',
+        customerName: request.renterName || 'Khách hàng Farmely',
+        customerPhone: '',
+        requestedDate: request.scheduledDate || (request.createdAt ? new Date(request.createdAt).toLocaleString('vi-VN') : ''),
+        assignedWorker: request.assignedWorkerName || 'Chưa chỉ định',
+        status: request.status,
+        price: Number(request.service?.price || 0).toLocaleString('vi-VN') + ' đ',
+        note: request.notes || ''
+      })));
+      setRefundRequests(cancellations.map((request) => ({
+        id: request.cancellationId,
+        contractCode: request.contractNumber || `HĐ #${request.contractId}`,
+        customerName: request.cancellerName || `Người dùng #${request.cancelledBy}`,
+        customerPhone: '',
+        plotCode: '',
+        totalPaid: Number(request.totalPaidAmount || 0).toLocaleString('vi-VN') + ' đ',
+        refundPercent: request.refundPercentage || 0,
+        refundAmount: Number(request.refundAmount || 0).toLocaleString('vi-VN') + ' đ',
+        deductionFee: request.refundPolicyNote || '',
+        requestDate: request.createdAt ? new Date(request.createdAt).toLocaleDateString('vi-VN') : '',
+        reason: request.reason,
+        status: request.status
+      })));
+      setSystemUsers(users.map((account) => ({
+        id: account.userId || account.id,
+        fullName: account.fullName,
+        email: account.email,
+        role: account.role === 'FIELD_WORKER' ? 'STAFF' : account.role,
+        roleLabel: account.role === 'CUSTOMER' ? 'Khách Hàng' : account.role === 'EXPERT' ? 'Chuyên Gia Nông Nghiệp' : account.role === 'ADMIN' ? 'Quản Trị Viên' : 'Nhân Viên Hiện Trường',
+        plotsRented: 'Dữ liệu tài khoản',
+        status: account.status,
+        lastActive: account.updatedAt ? new Date(account.updatedAt).toLocaleString('vi-VN') : 'Chưa có dữ liệu'
+      })));
+      setLandStats({
+        total: plots.length,
+        rented: new Set(rentals.filter((rental) => !['CANCELLED', 'COMPLETED'].includes(rental.status)).map((rental) => rental.plotId)).size
+      });
+      setDataError('');
+    } catch (error) {
+      setServiceDispatches([]);
+      setRefundRequests([]);
+      setSystemUsers([]);
+      setDataError(error.message || 'Không thể đồng bộ dữ liệu quản trị.');
+    }
+  };
+
+  useEffect(() => {
+    loadAdminData();
+  }, []);
+
+  useEffect(() => {
+    const firstWorker = systemUsers.find((account) => account.role === 'STAFF' && account.status === 'ACTIVE');
+    if (firstWorker) setAssignedWorkerName(firstWorker.fullName);
+  }, [systemUsers]);
 
   // Handle Assign Worker
-  const handleConfirmAssign = (e) => {
+  const handleConfirmAssign = async (e) => {
     e.preventDefault();
     if (!selectedDispatchToAssign) return;
-
-    setServiceDispatches((prev) =>
-      prev.map((item) =>
-        item.id === selectedDispatchToAssign.id
-          ? { ...item, assignedWorker: assignedWorkerName, status: 'ASSIGNED' }
-          : item
-      )
-    );
-    setSelectedDispatchToAssign(null);
+    const worker = systemUsers.find((account) => account.fullName === assignedWorkerName && account.role === 'STAFF');
+    if (!worker) {
+      setDataError('Không tìm thấy nhân viên này trong database.');
+      return;
+    }
+    try {
+      await apiFetch(`/api/services/requests/${selectedDispatchToAssign.id}/assign`, {
+        method: 'PUT',
+        body: JSON.stringify({ workerId: Number(worker.id), scheduledDate: null, notes: selectedDispatchToAssign.note || '' })
+      });
+      await loadAdminData();
+      setSelectedDispatchToAssign(null);
+    } catch (error) {
+      setDataError(error.message || 'Không thể phân công nhân viên.');
+    }
   };
 
   // Handle Approve Refund
-  const handleApproveRefund = (reqId) => {
-    setRefundRequests((prev) =>
-      prev.map((r) => (r.id === reqId ? { ...r, status: 'APPROVED' } : r))
-    );
-    setSelectedRefundToReview(null);
+  const handleApproveRefund = async (reqId) => {
+    try {
+      await apiFetch(`/api/contracts/cancellations/${reqId}/approve`, { method: 'POST' });
+      await loadAdminData();
+      setSelectedRefundToReview(null);
+    } catch (error) {
+      setDataError(error.message || 'Không thể phê duyệt hoàn tiền.');
+    }
   };
 
   // Handle Confirm Visit -> Lưu trực tiếp vào Database SQL Server
@@ -235,10 +320,11 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
-      <PublicNavbar />
+    <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
+      <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
 
-      <main className="box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full space-y-6">
+      <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
+        {dataError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{dataError}</div>}
         
         {/* Operational KPI Metric Gauges */}
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
@@ -247,9 +333,9 @@ export default function AdminDashboard() {
               Doanh Thu Tháng
             </span>
             <div className="text-xl sm:text-2xl font-heading font-black text-brand-green">
-              148.5 tr
+              —
             </div>
-            <span className="text-[10px] text-emerald-700 font-bold block">↑ +18.4% vs tháng trước</span>
+            <span className="text-[10px] text-brand-muted font-bold block">Chưa có API báo cáo doanh thu</span>
           </div>
 
           <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
@@ -257,9 +343,9 @@ export default function AdminDashboard() {
               Tỷ Lệ Lấp Đầy Đất
             </span>
             <div className="text-xl sm:text-2xl font-heading font-black text-brand-dark">
-              78%
+              {landStats.total ? Math.round((landStats.rented / landStats.total) * 100) : 0}%
             </div>
-            <span className="text-[10px] text-brand-muted font-medium block">32 / 41 thửa đang thuê</span>
+            <span className="text-[10px] text-brand-muted font-medium block">{landStats.rented} / {landStats.total} thửa đang thuê</span>
           </div>
 
           <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
@@ -297,9 +383,9 @@ export default function AdminDashboard() {
               Trạm Cảm Biến IoT
             </span>
             <div className="text-xl sm:text-2xl font-heading font-black text-emerald-600">
-              18 / 18
+              —
             </div>
-            <span className="text-[10px] text-emerald-700 font-bold block">100% online kết nối</span>
+            <span className="text-[10px] text-brand-muted font-bold block">Chưa có API tổng hợp trạng thái trạm</span>
           </div>
         </div>
 
@@ -308,7 +394,7 @@ export default function AdminDashboard() {
           
           {/* Admin Left Menu */}
           <DashboardRail user={user} fallbackName="Ban Quản Trị" roleLabel="Quản trị hệ thống" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
-            <div className={`px-2 pb-2 text-[11px] font-bold text-stone-400 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Phân Hệ Vận Hành</div>
+            <div className={`px-2 pb-2 text-xs font-bold text-white/60 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Phân Hệ Vận Hành</div>
 
             {[
               { id: 'overview', label: 'Tổng Quan Hoạt Động', icon: Activity, count: null },
@@ -325,18 +411,19 @@ export default function AdminDashboard() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   title={sidebarCollapsed ? tab.label : undefined}
-                  className={`relative group w-full px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
+                  aria-label={sidebarCollapsed ? tab.label : undefined}
+                  className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                     isActive
                       ? 'bg-[#294C38] text-white shadow-sm'
-                      : 'text-stone-700 hover:bg-stone-50 hover:text-brand-dark'
+                      : 'text-white/80 hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-stone-400'}`} />
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-white/65'}`} />
                     <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{tab.label}</span>
                   </div>
                   {tab.count !== null && tab.count > 0 && (
-                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-xs font-bold ${
                       isActive ? 'bg-brand-yellow text-brand-dark' : 'bg-amber-100 text-amber-800'
                     }`}>
                       {tab.count}
@@ -348,12 +435,12 @@ export default function AdminDashboard() {
             })}
 
             <div className="pt-3 border-t border-brand-border/60">
-              <Link to="/admin/master-data" title={sidebarCollapsed ? 'Quản lý Master Data' : undefined} className={`relative group w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
-                <Layers className="w-4 h-4 text-brand-green" />
+              <Link to="/admin/master-data" title={sidebarCollapsed ? 'Quản lý Master Data' : undefined} aria-label={sidebarCollapsed ? 'Quản lý Master Data' : undefined} className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold text-white/80 hover:bg-white/10 hover:text-white transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+                <Layers className="w-4 h-4 text-white/65" />
                 <span className={sidebarCollapsed ? 'lg:hidden' : ''}>Quản Lý Master Data →</span>
                 {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">Quản lý Master Data</span>}
               </Link>
-              <Link to="/admin/master-data/services" title={sidebarCollapsed ? 'Dịch vụ & CareTask' : undefined} className={`relative group mt-1 w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+              <Link to="/admin/master-data/services" title={sidebarCollapsed ? 'Dịch vụ & CareTask' : undefined} aria-label={sidebarCollapsed ? 'Dịch vụ & CareTask' : undefined} className={`relative group mt-1 min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold text-brand-green hover:bg-emerald-50 transition-colors flex items-center gap-2.5 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
                 <BriefcaseBusiness className="w-4 h-4 text-brand-green" />
                 <span className={sidebarCollapsed ? 'lg:hidden' : ''}>Dịch Vụ & CareTask</span>
                 {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">Dịch vụ & CareTask</span>}
@@ -807,8 +894,11 @@ export default function AdminDashboard() {
                 onChange={(e) => setAssignedWorkerName(e.target.value)}
                 className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs font-bold"
               >
-                <option value="Trần Văn Lực (CVLĐ)">Trần Văn Lực (Tổ trưởng chăm sóc)</option>
-                <option value="Nguyễn Văn Đạt (CVLĐ)">Nguyễn Văn Đạt (Kỹ thuật viên tưới bón)</option>
+                {systemUsers
+                  .filter((account) => account.role === 'STAFF' && account.status === 'ACTIVE')
+                  .map((account) => (
+                    <option key={account.id} value={account.fullName}>{account.fullName}</option>
+                  ))}
                 <option value="Lê Văn Hưng (CVLĐ)">Lê Văn Hưng (Chuyên viên bảo vệ thực vật)</option>
               </select>
             </div>

@@ -7,7 +7,6 @@ import com.smartagrirent.communication.dto.response.MessageResponse;
 import com.smartagrirent.communication.entity.Conversation;
 import com.smartagrirent.communication.entity.Message;
 import com.smartagrirent.communication.repository.ConversationRepository;
-import com.smartagrirent.communication.repository.MessageRepository;
 import com.smartagrirent.communication.service.ConversationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,12 +19,10 @@ import java.util.stream.Collectors;
 public class ConversationServiceImpl implements ConversationService {
 
     private final ConversationRepository conversationRepository;
-    private final MessageRepository messageRepository;
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
-    public ConversationServiceImpl(ConversationRepository conversationRepository, MessageRepository messageRepository) {
+    public ConversationServiceImpl(ConversationRepository conversationRepository) {
         this.conversationRepository = conversationRepository;
-        this.messageRepository = messageRepository;
     }
 
     @Override
