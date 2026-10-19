@@ -246,6 +246,34 @@ export default function BookPlot() {
     return calculatedEndDate;
   }, [calculatedEndDate]);
 
+  // BR04: Thời hạn thuê tối thiểu phải >= thời gian sinh trưởng của giống cây + buffer time
+  // Gói Assisted-Growing (Ủy thác canh tác trọn gói) bắt buộc tối thiểu 1 vụ mùa hoàn chỉnh (3 tháng)
+  const minRequiredMonths = React.useMemo(() => {
+    if (selectedMode === 'ASSISTED') {
+      return 3;
+    }
+
+    let minMonths = 1;
+    selectedPlots.forEach((p) => {
+      const crop = getPlotSelectedCrop(p);
+      if (crop) {
+        const days = crop.minDays || 35;
+        if (days > 30) {
+          minMonths = Math.max(minMonths, 3);
+        }
+      }
+    });
+
+    return minMonths;
+  }, [selectedPlots, getPlotSelectedCrop, selectedMode]);
+
+  // Tự động nâng thời hạn thuê nếu thời hạn hiện tại nhỏ hơn mức tối thiểu BR04
+  useEffect(() => {
+    if (rentalMonths < minRequiredMonths) {
+      setRentalMonths(minRequiredMonths);
+    }
+  }, [minRequiredMonths, rentalMonths]);
+
   // Helper to match plot by any identifier
   const findPlotByAnyCode = useCallback((code, plotsList = allPlots) => {
     if (!code || !plotsList.length) return null;
@@ -1262,26 +1290,125 @@ export default function BookPlot() {
               </div>
 
               {/* Rental Duration */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-4">
-                <h3 className="font-heading font-bold text-lg text-brand-dark">
-                  3. Thời Hạn Thuê Thửa Đất
-                </h3>
-                <div className="grid grid-cols-4 gap-3">
-                  {[1, 3, 6, 12].map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setRentalMonths(m)}
-                      className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                        rentalMonths === m
-                          ? 'border-brand-green bg-brand-green text-white font-black'
-                          : 'border-brand-border bg-white text-brand-dark hover:bg-brand-cream'
-                      }`}
-                    >
-                      <span className="text-sm font-bold block">{m} Tháng</span>
-                      <span className="text-[10px] opacity-80">{m >= 6 ? 'Ưu đãi' : 'Tiêu chuẩn'}</span>
-                    </button>
-                  ))}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-brand-border/60">
+                  <div>
+                    <h3 className="font-heading font-bold text-lg text-brand-dark flex items-center gap-2">
+                      <span>3. Thời Hạn Thuê Thửa Đất Theo Vụ Mùa</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800">
+                        Quy tắc BR04
+                      </span>
+                    </h3>
+                    <p className="text-xs text-stone-500 mt-1">
+                      Thời hạn thuê đất được tính theo chu kỳ sinh trưởng thực tế của cây trồng từ gieo giống đến thu hoạch.
+                    </p>
+                  </div>
+                  {minRequiredMonths > 1 && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Yêu cầu tối thiểu: {minRequiredMonths === 3 ? '1 Vụ mùa (~3 Tháng)' : `${minRequiredMonths} Tháng`}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Explanation banner if 1-month is locked */}
+                {minRequiredMonths > 1 && (
+                  <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
+                    <Sprout className="w-4 h-4 text-brand-green shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <span className="font-bold block">
+                        {selectedMode === 'ASSISTED'
+                          ? 'Gói Hỗ trợ canh tác trọn gói (Assisted-Growing):'
+                          : 'Giống cây có chu kỳ sinh trưởng dài (BR04):'}
+                      </span>
+                      <span className="text-[11px] text-stone-600 leading-relaxed block">
+                        {selectedMode === 'ASSISTED'
+                          ? 'Chuyên viên Farmely chăm sóc toàn diện theo chu kỳ 1 vụ mùa hoàn chỉnh (từ gieo giống, tưới bón, tỉa cành, phòng ngừa sâu bệnh đến khi thu hoạch). Hợp đồng tối thiểu là 3 tháng để đảm bảo giao nông sản tận tay bạn.'
+                          : `Giống cây bạn chọn cần hơn 35 ngày sinh trưởng để ra hoa kết trái. Thời hạn thuê tối thiểu phải từ 3 tháng (1 vụ) để tránh cây bị dở dang khi hết hợp đồng.`}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  {[
+                    {
+                      months: 1,
+                      title: '1 Tháng',
+                      cycleName: 'Ngắn hạn thử nghiệm',
+                      tag: 'Chỉ rau ngắn ngày',
+                      desc: 'Chỉ áp dụng tự chăm sóc rau ngắn ngày (rau muống, rau dền ≤ 30 ngày)'
+                    },
+                    {
+                      months: 3,
+                      title: '3 Tháng',
+                      cycleName: '1 Vụ Mùa Tiêu Chuẩn',
+                      tag: 'Khuyên Dùng',
+                      desc: 'Chu kỳ trọn vẹn từ gieo giống đến thu hoạch chuẩn VietGAP'
+                    },
+                    {
+                      months: 6,
+                      title: '6 Tháng',
+                      cycleName: '2 Vụ Mùa Luân Canh',
+                      tag: 'Kỳ Hạn Dài',
+                      desc: 'Canh tác 2 vụ liên tiếp, luân phiên thay đổi giống cây'
+                    },
+                    {
+                      months: 12,
+                      title: '12 Tháng',
+                      cycleName: 'Trọn Năm (4 Vụ)',
+                      tag: 'Kỳ Hạn Dài',
+                      desc: 'Đất canh tác ổn định cả năm, thu hoạch nông sản liên tục'
+                    }
+                  ].map((opt) => {
+                    const isDisabled = opt.months < minRequiredMonths;
+                    const isSelected = rentalMonths === opt.months;
+
+                    return (
+                      <button
+                        key={opt.months}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => {
+                          if (!isDisabled) {
+                            setRentalMonths(opt.months);
+                          }
+                        }}
+                        className={`relative p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                          isDisabled
+                            ? 'opacity-40 bg-stone-100 border-stone-200 cursor-not-allowed select-none'
+                            : isSelected
+                            ? 'border-brand-green bg-emerald-50/60 ring-2 ring-brand-green shadow-md cursor-pointer'
+                            : 'border-brand-border bg-white hover:border-brand-green/60 hover:bg-brand-cream/40 cursor-pointer shadow-2xs'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className={`text-base font-black ${isSelected ? 'text-brand-green' : 'text-brand-dark'}`}>
+                              {opt.title}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                isDisabled
+                                  ? 'bg-stone-200 text-stone-500'
+                                  : isSelected
+                                  ? 'bg-brand-green text-white'
+                                  : 'bg-stone-100 text-stone-600'
+                              }`}
+                            >
+                              {isDisabled ? 'Khóa (BR04)' : opt.tag}
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-stone-700">{opt.cycleName}</p>
+                          <p className="text-[11px] text-stone-500 mt-1 leading-snug">
+                            {isDisabled
+                              ? `Không đủ chu kỳ: Cần tối thiểu ${minRequiredMonths} tháng để thu hoạch.`
+                              : opt.desc}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
