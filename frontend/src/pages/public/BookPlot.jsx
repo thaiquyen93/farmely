@@ -490,11 +490,6 @@ export default function BookPlot() {
     if (typeof plot.plot_id === 'number' && !isNaN(plot.plot_id)) return plot.plot_id;
     if (typeof plot.dbPlotId === 'number' && !isNaN(plot.dbPlotId)) return plot.dbPlotId;
 
-    const pureNum = parseInt(String(plot.id), 10);
-    if (!isNaN(pureNum) && String(pureNum) === String(plot.id).trim()) {
-      return pureNum;
-    }
-
     const matched = findPlotByAnyCode(plot.code || plot.id);
     if (matched) {
       if (typeof matched.plotId === 'number' && !isNaN(matched.plotId)) return matched.plotId;
@@ -504,6 +499,11 @@ export default function BookPlot() {
       if (!isNaN(mNum) && String(mNum) === String(matched.id).trim()) {
         return mNum;
       }
+    }
+
+    const pureNum = parseInt(String(plot.id), 10);
+    if (!isNaN(pureNum) && String(pureNum) === String(plot.id).trim()) {
+      return pureNum;
     }
 
     const cleanDigits = String(plot.code || plot.id).replace(/\D/g, '');

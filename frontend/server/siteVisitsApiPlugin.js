@@ -846,6 +846,253 @@ LIMIT 1;
           return;
         }
 
+        // 4.7. POST /api/contracts/reservations (BR08: 15-minute Plot Reservation)
+        if (req.method === 'POST' && (url === '/api/contracts/reservations' || url === '/api/v1/contracts/reservations')) {
+          const chunks = [];
+          req.on('data', chunk => chunks.push(chunk));
+          req.on('end', async () => {
+            try {
+              const body = Buffer.concat(chunks).toString('utf8');
+              const payload = JSON.parse(body || '{}');
+              const renterId = parseInt(payload.renterId, 10) || 1;
+              const items = Array.isArray(payload.items) ? payload.items : [];
+
+              if (items.length === 0) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Danh sách thửa đất giữ chỗ không được trống' }));
+                return;
+              }
+
+              const resolvedItems = [];
+              let calculatedTotal = 0;
+
+              for (const it of items) {
+                const rawPlotId = it.plotId || 1;
+                const findPlotSql = `
+SELECT plot_id, plot_code, price_per_period, status 
+FROM plots 
+WHERE plot_id = ${parseInt(rawPlotId, 10) || 0}
+   OR plot_code = 'P-' || LPAD('${rawPlotId}', 2, '0')
+   OR plot_code = 'P-' || '${rawPlotId}'
+   OR plot_code = '${rawPlotId}'
+LIMIT 1;
+`;
+                const plotOut = await runPostgreSql(findPlotSql);
+                let plotRow = null;
+                if (plotOut && plotOut.trim()) {
+                  const parts = plotOut.trim().split('\n')[0].split('|');
+                  plotRow = {
+                    plotId: parseInt(parts[0], 10),
+                    plotCode: parts[1],
+                    pricePerPeriod: parseFloat(parts[2]) || 1350000,
+                    status: parts[3]
+                  };
+                }
+                const realPlotId = plotRow?.plotId || parseInt(rawPlotId, 10) || 1;
+                const varietyId = parseInt(it.varietyId, 10) || 1;
+                const serviceId = it.serviceId ? parseInt(it.serviceId, 10) : null;
+                const startDate = it.startDate || new Date().toISOString().split('T')[0];
+                const endDate = it.endDate || new Date(Date.now() + 90 * 86400000).toISOString().split('T')[0];
+
+                const startD = new Date(startDate);
+                const endD = new Date(endDate);
+                const diffMonths = Math.max(1, Math.round((endD - startD) / (30 * 86400000)));
+                const plotMonthlyPrice = plotRow?.pricePerPeriod || 1350000;
+                const careServiceMonthly = serviceId ? Math.round(plotMonthlyPrice * 0.5) : 0;
+                const itemTotalPrice = (plotMonthlyPrice + careServiceMonthly) * diffMonths;
+                calculatedTotal += itemTotalPrice;
+
+                resolvedItems.push({
+                  plotId: realPlotId,
+                  varietyId,
+                  serviceId,
+                  startDate,
+                  endDate,
+                  totalPrice: itemTotalPrice
+                });
+              }
+
+              const contractNumber = `HD-${new Date().getFullYear()}-FARM-${String(Date.now()).slice(-4)}`;
+
+              let insertSql = `
+DO $$
+DECLARE
+    v_cid INT;
+BEGIN
+    INSERT INTO contracts (renter_id, contract_number, total_amount, status, reservation_expires_at, created_at, updated_at)
+    VALUES (${renterId}, '${contractNumber}', ${calculatedTotal}, 'PENDING_PAYMENT', NOW() + INTERVAL '15 minutes', NOW(), NOW())
+    RETURNING contract_id INTO v_cid;
+`;
+              for (const rit of resolvedItems) {
+                insertSql += `
+    INSERT INTO rentals (contract_id, plot_id, variety_id, service_id, start_date, end_date, total_price, status, created_at, updated_at)
+    VALUES (v_cid, ${rit.plotId}, ${rit.varietyId}, ${rit.serviceId ? rit.serviceId : 'NULL'}, '${rit.startDate}', '${rit.endDate}', ${rit.totalPrice}, 'PENDING', NOW(), NOW());
+`;
+              }
+              insertSql += `END $$;`;
+
+              await runPostgreSql(insertSql);
+              invalidatePlotsCache();
+
+              const fetchCreatedSql = `
+SELECT json_build_object(
+  'contractId', contract_id,
+  'contractNumber', contract_number,
+  'totalAmount', total_amount,
+  'status', status::text,
+  'reservationExpiresAt', TO_CHAR(reservation_expires_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+  'createdAt', TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+)
+FROM contracts
+WHERE contract_number = '${contractNumber}'
+LIMIT 1;
+`;
+              const createdOut = await runPostgreSql(fetchCreatedSql);
+              const createdData = createdOut && createdOut.trim() ? JSON.parse(createdOut.trim().split('\n')[0]) : null;
+
+              res.statusCode = 201;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Tạo đơn giữ chỗ thành công (Hiệu lực 15 phút theo quy định BR08)',
+                data: {
+                  contractId: createdData?.contractId || Date.now(),
+                  contractNumber: createdData?.contractNumber || contractNumber,
+                  renterId,
+                  totalAmount: createdData?.totalAmount || calculatedTotal,
+                  status: 'PENDING_PAYMENT',
+                  displayStatus: 'Chờ thanh toán',
+                  reservationExpiresAt: createdData?.reservationExpiresAt || new Date(Date.now() + 15 * 60000).toISOString(),
+                  isReservationExpired: false,
+                  createdAt: createdData?.createdAt || new Date().toISOString(),
+                  rentals: resolvedItems
+                }
+              }));
+            } catch (err) {
+              console.error('Error on POST /api/contracts/reservations:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Lỗi tạo đơn giữ chỗ: ' + err.message }));
+            }
+          });
+          return;
+        }
+
+        // 4.8. POST /api/contracts/:id/grace-period (BR08: Extend 10-minute Grace Period)
+        if (req.method === 'POST' && url.includes('/grace-period')) {
+          try {
+            const match = url.match(/\/api\/(?:v1\/)?contracts\/(\d+)\/grace-period/);
+            const contractId = match ? parseInt(match[1], 10) : 1;
+            const updateSql = `
+UPDATE contracts 
+SET reservation_expires_at = COALESCE(reservation_expires_at, NOW()) + INTERVAL '10 minutes',
+    updated_at = NOW() 
+WHERE contract_id = ${contractId};
+`;
+            await runPostgreSql(updateSql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Cộng thời gian ân hạn 10 phút thành công (BR08)',
+              data: { contractId }
+            }));
+          } catch (err) {
+            console.error('Error on POST grace-period:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: err.message }));
+          }
+          return;
+        }
+
+        // 4.9. POST /api/contracts/:id/activate (BR09: Activate contract upon 100% upfront payment)
+        if (req.method === 'POST' && url.includes('/activate')) {
+          try {
+            const match = url.match(/\/api\/(?:v1\/)?contracts\/(\d+)\/activate/);
+            const contractId = match ? parseInt(match[1], 10) : 1;
+            const activateSql = `
+DO $$
+BEGIN
+    UPDATE contracts SET status = 'ACTIVE', updated_at = NOW() WHERE contract_id = ${contractId};
+    UPDATE rentals SET status = 'ACTIVE', updated_at = NOW() WHERE contract_id = ${contractId};
+    UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
+    
+    INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status, created_at)
+    SELECT contract_id, 'PAYMENT', total_amount, 'VNPAY', 'VNP-' || TO_CHAR(NOW(), 'YYYYMMDDHH24MISS'), 'SUCCESS', NOW()
+    FROM contracts WHERE contract_id = ${contractId};
+END $$;
+`;
+            await runPostgreSql(activateSql);
+            invalidatePlotsCache();
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Kích hoạt hợp đồng và nhận bàn giao thửa đất thành công (BR09)',
+              data: { contractId, status: 'ACTIVE' }
+            }));
+          } catch (err) {
+            console.error('Error on POST activate contract:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: err.message }));
+          }
+          return;
+        }
+
+        // 4.10. GET /api/contracts/:id
+        if (req.method === 'GET' && /^\/api\/(?:v1\/)?contracts\/\d+$/.test(url)) {
+          try {
+            const match = url.match(/\/api\/(?:v1\/)?contracts\/(\d+)/);
+            const contractId = parseInt(match[1], 10);
+            const sql = `
+SELECT json_build_object(
+  'contractId', c.contract_id,
+  'contractNumber', c.contract_number,
+  'renterId', c.renter_id,
+  'totalAmount', c.total_amount,
+  'status', c.status::text,
+  'reservationExpiresAt', TO_CHAR(c.reservation_expires_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+  'createdAt', TO_CHAR(c.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+  'rentals', COALESCE((
+    SELECT json_agg(json_build_object(
+      'rentalId', r.rental_id,
+      'plotId', r.plot_id,
+      'plotCode', p.plot_code,
+      'varietyId', r.variety_id,
+      'serviceId', r.service_id,
+      'startDate', TO_CHAR(r.start_date, 'YYYY-MM-DD'),
+      'endDate', TO_CHAR(r.end_date, 'YYYY-MM-DD'),
+      'totalPrice', r.total_price,
+      'status', r.status
+    ))
+    FROM rentals r
+    JOIN plots p ON r.plot_id = p.plot_id
+    WHERE r.contract_id = c.contract_id
+  ), '[]'::json)
+)
+FROM contracts c
+WHERE c.contract_id = ${contractId}
+LIMIT 1;
+`;
+            const data = await runPostgreSql(sql);
+            if (!data || !data.trim()) {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Không tìm thấy hợp đồng' }));
+              return;
+            }
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, data: JSON.parse(data.trim().split('\n')[0]) }));
+          } catch (err) {
+            console.error('Error on GET /api/contracts/:id:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: err.message }));
+          }
+          return;
+        }
+
         // 5. GET /api/bookings/transactions (Query latest transactions)
         if (req.method === 'GET' && url === '/api/bookings/transactions') {
           try {
