@@ -27,9 +27,10 @@ public class HarvestResultController {
     @Operation(summary = "Lấy danh sách kết quả thu hoạch", description = "Lọc theo mã lượt thuê (rentalId) hoặc trạng thái nghiệm thu của khách (customerConfirmed)")
     public ResponseEntity<ApiResponse<List<HarvestResultResponse>>> getAllHarvests(
             @RequestParam(required = false) Integer rentalId,
-            @RequestParam(required = false) Boolean customerConfirmed
+            @RequestParam(required = false) Boolean customerConfirmed,
+            @RequestParam(required = false) Integer enteredBy
     ) {
-        List<HarvestResultResponse> list = harvestResultService.getAllHarvests(rentalId, customerConfirmed);
+        List<HarvestResultResponse> list = harvestResultService.getAllHarvests(rentalId, customerConfirmed, enteredBy);
         return ResponseEntity.ok(ApiResponse.ok(list));
     }
 
