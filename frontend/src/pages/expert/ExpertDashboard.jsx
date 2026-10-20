@@ -149,6 +149,9 @@ export default function ExpertDashboard() {
 
   const [selectedIssueToDiagnose, setSelectedIssueToDiagnose] = useState(null);
   const [diagnosisAdvice, setDiagnosisAdvice] = useState('');
+  const [selectedIssueToAssign, setSelectedIssueToAssign] = useState(null);
+  const [taskAssignment, setTaskAssignment] = useState({ title: '', dueDate: '', instructions: '', templateId: '' });
+  const [isAssigningTask, setIsAssigningTask] = useState(false);
 
   // Submit diagnosis for worker field issue
   const handleSendIssueDiagnosis = async (e) => {
@@ -173,6 +176,68 @@ export default function ExpertDashboard() {
     );
     setSelectedIssueToDiagnose(null);
     setDiagnosisAdvice('');
+  };
+
+  const openTaskAssignment = (issue) => {
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 1);
+    setSelectedIssueToAssign(issue);
+    setTaskAssignment({
+      title: `Xử lý ${String(issue.issueType || 'sự cố hiện trường').toLowerCase()}`,
+      dueDate: dueDate.toISOString().slice(0, 10),
+      instructions: issue.description || '',
+      templateId: ''
+    });
+  };
+
+  const handleAssignIssueTask = async (event) => {
+    event.preventDefault();
+    if (!selectedIssueToAssign || !taskAssignment.title.trim() || !taskAssignment.dueDate) return;
+    if (!selectedIssueToAssign.rentalId || !selectedIssueToAssign.reportedBy) {
+      setDataError('Báo cáo chưa có lượt thuê hoặc người báo cáo để giao nhiệm vụ.');
+      return;
+    }
+
+    const selectedTemplate = processTemplates.find((template) => String(template.id) === String(taskAssignment.templateId));
+    const notes = [
+      `[KHẨN CẤP] [${selectedIssueToAssign.issueCode || selectedIssueToAssign.id}] ${taskAssignment.title.trim()}`,
+      taskAssignment.instructions.trim(),
+      selectedTemplate ? `Quy trình tham chiếu: ${selectedTemplate.name} (${selectedTemplate.version})` : ''
+    ].filter(Boolean).join('\n');
+
+    setIsAssigningTask(true);
+    try {
+      const task = unwrapData(await apiFetch('/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          rentalId: selectedIssueToAssign.rentalId,
+          taskAssignedTo: selectedIssueToAssign.reportedBy,
+          dueDate: taskAssignment.dueDate,
+          status: 'PENDING',
+          notes
+        })
+      }));
+      const expertId = Number(String(user?.userId || user?.id || '').replace(/\D/g, ''));
+      if (selectedIssueToAssign.apiId && Number.isFinite(expertId)) {
+        await apiFetch(`/api/issues/${selectedIssueToAssign.apiId}/diagnose`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            handledBy: expertId,
+            resolutionNotes: `Đã giao nhiệm vụ ${task?.taskCode || ''} cho ${selectedIssueToAssign.workerName}.`,
+            markResolved: false
+          })
+        });
+      }
+      setFieldIssues((current) => current.map((issue) => issue.id === selectedIssueToAssign.id
+        ? { ...issue, assignedTaskCode: task?.taskCode || `TSK-${task?.taskId}`, assignedDueDate: taskAssignment.dueDate, diagnosis: `Đã giao nhiệm vụ cho ${issue.workerName}.` }
+        : issue));
+      setSelectedIssueToAssign(null);
+      setDataError('');
+    } catch (error) {
+      setDataError(error.message || 'Không thể giao nhiệm vụ cho nhân viên.');
+    } finally {
+      setIsAssigningTask(false);
+    }
   };
 
   // VietGAP process templates loaded from the knowledge service.
@@ -214,20 +279,27 @@ export default function ExpertDashboard() {
 
   const loadExpertData = async () => {
     try {
-      const [issuePayload, templatePayload, plotPayload, documentPayload] = await Promise.all([
+      const [issuePayload, templatePayload, plotPayload, documentPayload, userPayload] = await Promise.all([
         apiFetch('/api/issues'),
         apiFetch('/api/templates'),
         apiFetch('/api/plots'),
-        apiFetch('/api/v1/knowledge-documents')
+        apiFetch('/api/v1/knowledge-documents'),
+        apiFetch('/api/users')
       ]);
       const issues = unwrapData(issuePayload) || [];
       const templates = unwrapData(templatePayload) || [];
       const plots = unwrapData(plotPayload) || [];
       const documents = unwrapData(documentPayload) || [];
+      const users = unwrapData(userPayload) || [];
+      const userById = new Map(users.map((account) => [Number(account.userId || account.id), account]));
 
       setFieldIssues(issues.map((issue) => ({
         id: issue.issueId,
         issueCode: issue.issueCode,
+        apiId: issue.issueId,
+        rentalId: issue.rentalId,
+        reportedBy: issue.reportedBy,
+        isStaffReporter: ['STAFF', 'FIELD_WORKER'].includes(String(userById.get(Number(issue.reportedBy))?.role || '').toUpperCase()),
         workerName: issue.reporterName || `Người báo #${issue.reportedBy}`,
         plotCode: issue.plotCode || '',
         plotName: issue.plotName || 'Chưa xác định thửa',
@@ -238,7 +310,7 @@ export default function ExpertDashboard() {
         photoUrl: issue.imageUrl,
         diagnosis: issue.resolutionNotes || '',
         status: issue.status || issue.displayStatus
-      })));
+      })).sort((first, second) => Number(second.isStaffReporter) - Number(first.isStaffReporter)));
       setProcessTemplates(templates.map((template) => ({
         id: template.templateId,
         code: `TMPL-${String(template.templateId).padStart(3, '0')}`,
@@ -302,23 +374,37 @@ export default function ExpertDashboard() {
       readJson('/api/templates'),
       readJson('/api/knowledge-documents'),
       readJson('/api/plots/marketplace'),
-      readJson('/api/compatibility')
-    ]).then(([issueBody, templateBody, documentBody, plotBody, compatibilityBody]) => {
+      readJson('/api/compatibility'),
+      readJson('/api/tasks'),
+      readJson('/api/users')
+    ]).then(([issueBody, templateBody, documentBody, plotBody, compatibilityBody, taskBody, userBody]) => {
       if (cancelled) return;
-      setFieldIssues(unwrap(issueBody).map((issue) => ({
-        id: issue.issueCode || `ISSUE-${issue.issueId}`,
-        apiId: issue.issueId,
-        workerName: issue.reporterName || 'Nhân viên hiện trường',
-        plotCode: issue.plotCode || 'Chưa có mã thửa',
-        plotName: issue.plotName || issue.plotCode || 'Chưa có tên thửa',
-        urgency: issue.urgency || 'NORMAL',
-        issueType: issue.issueType || 'Sự cố hiện trường',
-        description: issue.description || 'Chưa có mô tả.',
-        reportedTime: issue.createdAt ? new Date(issue.createdAt).toLocaleString('vi-VN') : 'Chưa có thời gian',
-        photoUrl: issue.imageUrl || '',
-        diagnosis: issue.resolutionNotes || '',
-        status: issue.displayStatus === 'RESOLVED' || issue.status === 'RESOLVED' ? 'RESOLVED' : 'PENDING'
-      })));
+      const loadedTasks = unwrap(taskBody);
+      const userById = new Map(unwrap(userBody).map((account) => [Number(account.userId || account.id), account]));
+      setFieldIssues(unwrap(issueBody).map((issue) => {
+        const issueCode = issue.issueCode || `ISS-${issue.issueId}`;
+        const assignedTask = loadedTasks.find((task) => String(task.notes || '').includes(`[${issueCode}]`));
+        return {
+          id: issueCode,
+          issueCode,
+          apiId: issue.issueId,
+          rentalId: issue.rentalId,
+          reportedBy: issue.reportedBy,
+          isStaffReporter: ['STAFF', 'FIELD_WORKER'].includes(String(userById.get(Number(issue.reportedBy))?.role || '').toUpperCase()),
+          workerName: issue.reporterName || 'Nhân viên hiện trường',
+          plotCode: issue.plotCode || 'Chưa có mã thửa',
+          plotName: issue.plotName || issue.plotCode || 'Chưa có tên thửa',
+          urgency: issue.urgency || 'NORMAL',
+          issueType: issue.issueType || 'Sự cố hiện trường',
+          description: issue.description || 'Chưa có mô tả.',
+          reportedTime: issue.createdAt ? new Date(issue.createdAt).toLocaleString('vi-VN') : 'Chưa có thời gian',
+          photoUrl: issue.imageUrl || '',
+          diagnosis: issue.resolutionNotes || '',
+          assignedTaskCode: assignedTask?.taskCode || (assignedTask?.taskId ? `TSK-${assignedTask.taskId}` : ''),
+          assignedDueDate: assignedTask?.dueDate || '',
+          status: issue.displayStatus === 'RESOLVED' || issue.status === 'RESOLVED' ? 'RESOLVED' : 'PENDING'
+        };
+      }).sort((first, second) => Number(second.isStaffReporter) - Number(first.isStaffReporter)));
       setProcessTemplates(unwrap(templateBody).map((template) => {
         const steps = (template.steps || []).map((step) => ({
           day: step.dayOffset ?? step.stepOrder ?? 0,
@@ -1044,21 +1130,37 @@ export default function ExpertDashboard() {
                               <strong>Chỉ đạo của chuyên gia:</strong> {issue.diagnosis}
                             </div>
                           )}
+                          {issue.assignedTaskCode && (
+                            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-900">
+                              <CheckCircle2 className="h-4 w-4" />
+                              <strong>Đã giao {issue.assignedTaskCode}</strong>
+                              <span>cho {issue.workerName}</span>
+                              {issue.assignedDueDate ? <span className="ml-auto">Hạn {new Date(`${issue.assignedDueDate}T00:00:00`).toLocaleDateString('vi-VN')}</span> : null}
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      {issue.status === 'PENDING' && (
-                        <div className="flex justify-end pt-2 border-t border-brand-border/60">
-                          <Button
+                      <div className="flex flex-wrap justify-end gap-2 pt-2 border-t border-brand-border/60">
+                          {issue.isStaffReporter ? <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openTaskAssignment(issue)}
+                            disabled={Boolean(issue.assignedTaskCode)}
+                            className="font-bold"
+                          >
+                            <UserCheck className="mr-1.5 h-4 w-4" />
+                            {issue.assignedTaskCode ? 'Đã giao nhiệm vụ' : 'Giao nhiệm vụ'}
+                          </Button> : null}
+                          {issue.status === 'PENDING' ? <Button
                             variant="primary"
                             size="sm"
                             onClick={() => setSelectedIssueToDiagnose(issue)}
                             className="bg-emerald-700 font-bold"
                           >
                             Chẩn đoán & Ban hành chỉ đạo kỹ thuật
-                          </Button>
+                          </Button> : null}
                         </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -1392,6 +1494,33 @@ export default function ExpertDashboard() {
               </div>
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Assign issue task to the staff member who reported it */}
+      <Modal
+        isOpen={Boolean(selectedIssueToAssign)}
+        onClose={() => !isAssigningTask && setSelectedIssueToAssign(null)}
+        title="Giao nhiệm vụ xử lý"
+        subtitle={selectedIssueToAssign ? `${selectedIssueToAssign.issueCode || selectedIssueToAssign.id} · ${selectedIssueToAssign.plotName}` : ''}
+      >
+        {selectedIssueToAssign && (
+          <form onSubmit={handleAssignIssueTask} className="space-y-4 text-left text-xs">
+            <div className="grid gap-3 rounded-2xl border border-rose-100 bg-rose-50 p-4 sm:grid-cols-2">
+              <div><span className="text-stone-500">Người thực hiện</span><strong className="mt-1 block text-sm text-brand-dark">{selectedIssueToAssign.workerName}</strong><span className="text-[11px] text-stone-500">Người gửi báo cáo</span></div>
+              <div><span className="text-stone-500">Thửa đất</span><strong className="mt-1 block text-sm text-brand-dark">{selectedIssueToAssign.plotName} ({selectedIssueToAssign.plotCode})</strong><span className="mt-1 inline-flex rounded-full bg-rose-100 px-2 py-1 text-[10px] font-black text-rose-700">Khẩn cấp</span></div>
+            </div>
+
+            <label className="block"><span className="mb-1.5 block font-bold text-brand-dark">Tên nhiệm vụ *</span><input required value={taskAssignment.title} onChange={(event) => setTaskAssignment((current) => ({ ...current, title: event.target.value }))} className="w-full rounded-xl border border-brand-border px-3 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" /></label>
+            <label className="block"><span className="mb-1.5 block font-bold text-brand-dark">Hạn hoàn thành *</span><input type="date" required min={new Date().toISOString().slice(0, 10)} value={taskAssignment.dueDate} onChange={(event) => setTaskAssignment((current) => ({ ...current, dueDate: event.target.value }))} className="w-full rounded-xl border border-brand-border px-3 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" /></label>
+            <label className="block"><span className="mb-1.5 block font-bold text-brand-dark">Hướng dẫn thực hiện</span><textarea rows={4} value={taskAssignment.instructions} onChange={(event) => setTaskAssignment((current) => ({ ...current, instructions: event.target.value }))} placeholder="Ghi rõ cách kiểm tra, xử lý và ảnh minh chứng cần chụp..." className="w-full rounded-xl border border-brand-border px-3 py-3 leading-5 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" /></label>
+            <label className="block"><span className="mb-1.5 block font-bold text-brand-dark">Quy trình tham chiếu <span className="font-normal text-stone-400">(không bắt buộc)</span></span><select value={taskAssignment.templateId} onChange={(event) => setTaskAssignment((current) => ({ ...current, templateId: event.target.value }))} className="w-full rounded-xl border border-brand-border bg-white px-3 py-3 outline-none focus:border-emerald-600"><option value="">Không gắn quy trình</option>{processTemplates.map((template) => <option key={template.id} value={template.id}>{template.name} · {template.version}</option>)}</select></label>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-brand-border/60 pt-4 sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setSelectedIssueToAssign(null)} disabled={isAssigningTask}>Hủy</Button>
+              <Button type="submit" variant="primary" disabled={isAssigningTask || !taskAssignment.title.trim() || !taskAssignment.dueDate} className="font-bold"><UserCheck className="mr-1.5 h-4 w-4" />{isAssigningTask ? 'Đang giao...' : 'Giao nhiệm vụ'}</Button>
+            </div>
+          </form>
         )}
       </Modal>
 
