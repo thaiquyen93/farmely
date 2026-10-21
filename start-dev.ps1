@@ -1,5 +1,6 @@
 ﻿param(
-    [switch]$Rebuild
+    [switch]$Rebuild,
+    [switch]$Wait
 )
 
 $ErrorActionPreference = 'Stop'
@@ -159,7 +160,25 @@ try {
     $dbHost = if ($env:DB_HOST) { $env:DB_HOST } else { 'localhost' }
     $dbName = if ($env:DB_NAME) { $env:DB_NAME } else { 'farmely' }
     $dbUser = if ($env:DB_USER) { $env:DB_USER } else { 'postgres' }
-    $dbPassword = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } elseif ($env:DB_PASS) { $env:DB_PASS } else { '12345' }
+    $dbPassword = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } elseif ($env:DB_PASS) { $env:DB_PASS } else { 'postgres' }
+
+    # ponytail: auto-detect working local postgres password so dev environment never gets blocked
+    if ($localPostgres) {
+        $psqlBin = 'C:\Program Files\PostgreSQL\18\bin\psql.exe'
+        if (Test-Path -LiteralPath $psqlBin) {
+            $passCandidates = @($dbPassword, 'postgres', '12345', '123456', 'admin', 'root')
+            foreach ($cand in $passCandidates) {
+                $env:PGPASSWORD = $cand
+                $null = & $psqlBin -U $dbUser -p $localPostgresPort -d $dbName -c 'SELECT 1;' 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    $dbPassword = $cand
+                    $env:DB_PASSWORD = $cand
+                    $env:DB_PASS = $cand
+                    break
+                }
+            }
+        }
+    }
 
     $useDockerDb = ($env:USE_DOCKER_DB -eq 'true' -or $env:USE_DOCKER_DB -eq '1')
 
@@ -435,6 +454,13 @@ SIMILARITY_THRESHOLD=0.10
     Write-Host '  API gateway:   http://localhost:8080'
     Write-Host '  Payment API:   http://localhost:8085/swagger-ui.html'
     Write-Host '  Communication: http://localhost:8087/swagger-ui.html'
+
+    if ($Wait) {
+        Write-Host 'Đang giữ tiến trình Farmely chạy nền...' -ForegroundColor Cyan
+        while ($true) {
+            Start-Sleep -Seconds 5
+        }
+    }
 }
 finally {
     Pop-Location
