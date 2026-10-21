@@ -104,7 +104,10 @@ export const dedupeSelectedPlots = (plots) => {
   });
 };
 
-export const getBookingValidationError = ({ acceptedTerms, selectedMode, assistedService }) => {
+export const getBookingValidationError = ({ acceptedTerms, selectedMode, assistedService, selectedPlots }) => {
+  if (selectedPlots !== undefined && Array.isArray(selectedPlots) && selectedPlots.length === 0) {
+    return 'Chưa có thửa đất nào được chọn trong hợp đồng. Vui lòng quay lại Marketplace chọn thửa đất!';
+  }
   if (!acceptedTerms) return 'Bạn cần đọc và chấp nhận điều khoản thuê đất trước khi thanh toán.';
   if (selectedMode === 'ASSISTED' && !assistedService) {
     return 'Chưa tải được gói chăm sóc toàn vụ từ hệ thống. Vui lòng tải lại trang rồi thử lại.';
@@ -274,25 +277,30 @@ export default function BookPlot() {
     }
   }, [minRequiredMonths, rentalMonths]);
 
-  // Helper to match plot by any identifier
-  const findPlotByAnyCode = useCallback((code, plotsList = allPlots) => {
-    if (!code || !plotsList.length) return null;
-    const clean = code.trim().toLowerCase();
+  // Helper to match plot by any identifier (id, code, number, prefix)
+  const matchPlot = useCallback((code, plotsList = allPlots) => {
+    if (!code || !plotsList || !plotsList.length) return null;
+    const clean = String(code).trim().toLowerCase();
+    const cleanNoP = clean.replace(/^(p-|plt-hv-|plt-|plot\s*)/, '');
+    const cleanNum = parseInt(cleanNoP, 10);
+
     return plotsList.find((p) => {
-      const pId = (p.id || '').toLowerCase();
-      const pCode = (p.code || '').toLowerCase();
-      const pLabel = (p.label || '').toLowerCase();
-      return (
-        pId === clean ||
-        pCode === clean ||
-        pLabel === clean ||
-        pCode.replace('plot ', '').trim() === clean ||
-        clean.replace('plot ', '').trim() === pCode ||
-        pId.replace('plt-hv-', 'p-') === clean ||
-        (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', ''))
-      );
+      const pId = String(p.id || p.plotId || p.plot_id || '').trim().toLowerCase();
+      const pCode = String(p.code || p.plotCode || p.plot_code || '').trim().toLowerCase();
+      const pLabel = String(p.label || '').trim().toLowerCase();
+      const pNoP = pCode.replace(/^(p-|plt-hv-|plt-|plot\s*)/, '');
+      const pNum = parseInt(pNoP, 10);
+
+      if (pId === clean || pCode === clean || pLabel === clean) return true;
+      if (cleanNoP && pNoP === cleanNoP) return true;
+      if (!isNaN(cleanNum) && !isNaN(pNum) && cleanNum === pNum) return true;
+      if (String(p.plotId) === clean || String(p.plot_id) === clean || String(p.dbPlotId) === clean) return true;
+      if (pCode.replace(/\s+/g, '') === clean.replace(/\s+/g, '')) return true;
+      return false;
     });
   }, [allPlots]);
+
+  const findPlotByAnyCode = matchPlot;
 
   // Load plots from PostgreSQL DB via Farm Service
   useEffect(() => {
@@ -302,6 +310,7 @@ export default function BookPlot() {
         const mapped = (rows || []).map((p) => ({
           id: String(p.plotId),
           plotId: p.plotId,
+          dbPlotId: p.plotId,
           code: p.plotCode,
           label: p.plotCode,
           name: `Thửa đất ${p.plotCode}`,
@@ -319,15 +328,59 @@ export default function BookPlot() {
         }));
         setAllPlots(mapped);
 
-        // Determine initial plot
-        const target = findPlotByAnyCode(id, mapped) || mapped[0];
-        if (target) {
-          setSelectedPlots([target]);
+        // Immediate resolution of selected plots from URL params, localStorage, or id
+        const plotsQuery = searchParams.get('plots');
+        let initialSelected = [];
+        if (plotsQuery) {
+          const codes = [...new Set(plotsQuery.split(',').map((c) => c.trim()).filter(Boolean))];
+          const matchedMap = new Map();
+          codes.forEach((code) => {
+            const found = matchPlot(code, mapped);
+            if (found && !matchedMap.has(found.id)) {
+              matchedMap.set(found.id, found);
+            }
+          });
+          initialSelected = Array.from(matchedMap.values());
+        }
+
+        if (initialSelected.length === 0 && id) {
+          const target = matchPlot(id, mapped);
+          if (target) initialSelected = [target];
+        }
+
+        if (initialSelected.length === 0) {
+          try {
+            const saved = localStorage.getItem('farmely_master_lease_selected_plots');
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                const matchedMap = new Map();
+                parsed.forEach((p) => {
+                  const found = matchPlot(p.code || p.id, mapped);
+                  if (found && !matchedMap.has(found.id)) {
+                    matchedMap.set(found.id, found);
+                  }
+                });
+                initialSelected = Array.from(matchedMap.values());
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        if (initialSelected.length === 0 && mapped.length > 0) {
+          const firstAvail = mapped.find((p) => p.status === 'AVAILABLE') || mapped[0];
+          if (firstAvail) initialSelected = [firstAvail];
+        }
+
+        if (initialSelected.length > 0) {
+          setSelectedPlots(initialSelected);
         }
       })
       .catch((err) => console.error('Lỗi nạp plots trong BookPlot:', err))
       .finally(() => setLoadingPlots(false));
-  }, [id, findPlotByAnyCode]);
+  }, [id, searchParams]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -337,40 +390,16 @@ export default function BookPlot() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
-  useEffect(() => {
-    fetch('/api/plots')
-      .then((res) => res.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : (data?.data || []);
-        if (list.length > 0) {
-          setSelectedPlots((prev) =>
-            prev.map((sp) => {
-              const matched = list.find(
-                (p) => (p.plot_code || p.plotCode || '').toLowerCase() === (sp.code || sp.id || '').toLowerCase()
-              );
-              if (!matched) return sp;
-              const numPrice = Number(matched.price_per_period || matched.pricePerPeriod || sp.rentalPrice);
-              return {
-                ...sp,
-                rentalPrice: numPrice,
-                formattedPrice: `${numPrice.toLocaleString('vi-VN')} đ/tháng`,
-                dbPlotId: matched.plot_id || matched.plotId
-              };
-            })
-          );
-        }
-      })
-      .catch((e) => console.error(e));
-  }, []);
-
   // If URL changes or plots query param exists, sync plots
   useEffect(() => {
+    if (!allPlots || allPlots.length === 0) return;
+
     const plotsQuery = searchParams.get('plots');
     if (plotsQuery) {
       const codes = [...new Set(plotsQuery.split(',').map((c) => c.trim()).filter(Boolean))];
       const matchedMap = new Map();
       codes.forEach((code) => {
-        const found = findPlotByAnyCode(code);
+        const found = matchPlot(code, allPlots);
         if (found && !matchedMap.has(found.id)) {
           matchedMap.set(found.id, found);
         }
@@ -390,7 +419,7 @@ export default function BookPlot() {
         if (Array.isArray(parsed) && parsed.length > 0) {
           const matchedMap = new Map();
           parsed.forEach((p) => {
-            const found = findPlotByAnyCode(p.code || p.id);
+            const found = matchPlot(p.code || p.id, allPlots);
             if (found && !matchedMap.has(found.id)) {
               matchedMap.set(found.id, found);
             }
@@ -406,11 +435,14 @@ export default function BookPlot() {
       console.error(e);
     }
 
-    const target = findPlotByAnyCode(id);
-    if (target && !selectedPlots.some((p) => p.id === target.id)) {
-      setSelectedPlots([target]);
+    const target = matchPlot(id, allPlots);
+    if (target) {
+      setSelectedPlots((prev) => {
+        if (prev.length > 0 && prev.some((p) => p.id === target.id)) return prev;
+        return [target];
+      });
     }
-  }, [id, searchParams]);
+  }, [id, searchParams, allPlots, matchPlot]);
 
   // Luôn đồng bộ danh sách thửa đất trong hợp đồng vào localStorage
   useEffect(() => {
@@ -518,7 +550,7 @@ export default function BookPlot() {
     if (typeof plot.plot_id === 'number' && !isNaN(plot.plot_id)) return plot.plot_id;
     if (typeof plot.dbPlotId === 'number' && !isNaN(plot.dbPlotId)) return plot.dbPlotId;
 
-    const matched = findPlotByAnyCode(plot.code || plot.id);
+    const matched = matchPlot(plot.code || plot.id);
     if (matched) {
       if (typeof matched.plotId === 'number' && !isNaN(matched.plotId)) return matched.plotId;
       if (typeof matched.dbPlotId === 'number' && !isNaN(matched.dbPlotId)) return matched.dbPlotId;
@@ -539,10 +571,14 @@ export default function BookPlot() {
       return parseInt(cleanDigits, 10);
     }
     return 1;
-  }, [findPlotByAnyCode]);
+  }, [matchPlot]);
 
   // Tạo hợp đồng giữ chỗ trực tiếp trong Database PostgreSQL qua rental-service (BR08)
   const createReservationOnServer = async () => {
+    if (!selectedPlots || selectedPlots.length === 0) {
+      throw new Error('Chưa có thửa đất nào được chọn trong hợp đồng.');
+    }
+
     const renterId = user?.userId
       ? Number(user.userId)
       : (user?.id ? Number(String(user.id).replace(/\D/g, '')) : 1);
@@ -619,6 +655,11 @@ export default function BookPlot() {
 
   const handleConfirmBooking = async () => {
     setBookingError('');
+
+    if (!selectedPlots || selectedPlots.length === 0) {
+      setBookingError('Chưa có thửa đất nào được chọn trong hợp đồng. Vui lòng quay lại Marketplace hoặc bấm "+ Chọn nhanh" để chọn thửa đất!');
+      return;
+    }
 
     if (!startDate) {
       setBookingError('Vui lòng chọn ngày bắt đầu canh tác.');
@@ -1000,10 +1041,47 @@ export default function BookPlot() {
 
                 {/* List of Selected Plots in this Contract */}
                 <div className="space-y-4">
-                  {selectedPlots.map((p, index) => {
-                    const plotCrop = getPlotSelectedCrop(p);
-                    const isCropMissing = !plotCrop;
-                    const compatCrops = getCompatibleCropsForPlot(p);
+                  {loadingPlots ? (
+                    <div className="p-8 rounded-2xl border border-brand-border bg-white text-center space-y-3 animate-pulse">
+                      <div className="w-8 h-8 mx-auto border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-xs text-stone-500 font-medium">Đang nạp dữ liệu thửa đất từ hệ thống...</p>
+                    </div>
+                  ) : selectedPlots.length === 0 ? (
+                    <div className="p-6 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/60 text-center space-y-3 animate-fadeIn">
+                      <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+                        <AlertCircle className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="font-heading font-bold text-sm text-stone-800">
+                          Chưa có thửa đất nào được chọn trong hợp đồng
+                        </h4>
+                        <p className="text-xs text-stone-500 max-w-md mx-auto">
+                          Vui lòng chọn thửa đất bạn muốn thuê từ bản đồ vệ tinh Marketplace hoặc bấm nút bên dưới.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-2 pt-2">
+                        <Link
+                          to="/marketplace"
+                          className="px-4 py-2 rounded-xl bg-brand-green text-white text-xs font-bold hover:bg-emerald-800 transition-colors shadow-xs"
+                        >
+                          Về Marketplace chọn thửa đất
+                        </Link>
+                        {allPlots.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setIsAddPlotModalOpen(true)}
+                            className="px-4 py-2 rounded-xl bg-white border border-brand-border text-brand-dark text-xs font-bold hover:bg-stone-50 transition-colors shadow-xs"
+                          >
+                            + Chọn nhanh từ danh sách
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    selectedPlots.map((p, index) => {
+                      const plotCrop = getPlotSelectedCrop(p);
+                      const isCropMissing = !plotCrop;
+                      const compatCrops = getCompatibleCropsForPlot(p);
 
                     return (
                       <div
@@ -1123,7 +1201,7 @@ export default function BookPlot() {
                         </div>
                       </div>
                     );
-                  })}
+                  }))}
                 </div>
 
                 {/* Sub-summary banner */}
@@ -1535,7 +1613,14 @@ export default function BookPlot() {
                   <p>• Hoàn 50% khi hủy trong vòng 3 ngày trước ngày bắt đầu.</p>
                 </div>
 
-                {selectedPlots.some((p) => !getPlotSelectedCrop(p)) && (
+                {selectedPlots.length === 0 && (
+                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-xs font-bold text-amber-800 flex items-center gap-2 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Hợp đồng chưa có thửa đất nào. Vui lòng chọn ít nhất 1 thửa đất.</span>
+                  </div>
+                )}
+
+                {selectedPlots.length > 0 && selectedPlots.some((p) => !getPlotSelectedCrop(p)) && (
                   <div className="p-3 rounded-2xl bg-rose-50 border border-rose-300 text-xs font-bold text-rose-800 flex items-center gap-2 animate-fadeIn">
                     <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                     <span>Vui lòng chọn giống cây trồng cho tất cả thửa đất ở cột bên trái trước khi thanh toán.</span>
@@ -1563,12 +1648,17 @@ export default function BookPlot() {
                 <Button
                   variant="secondary"
                   size="lg"
-                  className="w-full uppercase font-black tracking-wider text-sm shadow-md py-4 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                  disabled={selectedPlots.length === 0}
+                  className="w-full uppercase font-black tracking-wider text-sm shadow-md py-4 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleConfirmBooking}
                   loading={isProcessing}
                 >
                   <ShieldCheck className="w-5 h-5 text-brand-yellow" />
-                  <span>TIẾP TỤC THANH TOÁN VNPAY SANDBOX ({totalAmount.toLocaleString('vi-VN')} đ)</span>
+                  <span>
+                    {selectedPlots.length === 0
+                      ? 'VUI LÒNG CHỌN THỬA ĐẤT ĐỂ TIẾP TỤC'
+                      : `TIẾP TỤC THANH TOÁN VNPAY SANDBOX (${totalAmount.toLocaleString('vi-VN')} đ)`}
+                  </span>
                 </Button>
 
                 <p className="text-[11px] text-center text-brand-muted">

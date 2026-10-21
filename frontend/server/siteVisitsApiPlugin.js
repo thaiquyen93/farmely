@@ -860,7 +860,7 @@ LIMIT 1;
               if (items.length === 0) {
                 res.statusCode = 400;
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.end(JSON.stringify({ success: false, message: 'Danh sách thửa đất giữ chỗ không được trống' }));
+                res.end(JSON.stringify({ success: false, message: 'Danh sách thửa đất giữ chỗ không được để trống khi tạo hợp đồng thuê' }));
                 return;
               }
 
