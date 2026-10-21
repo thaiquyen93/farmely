@@ -87,6 +87,8 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/terms/rental" element={<RentalTerms />} />
         <Route path="/site-visit/book" element={<CustomerCommerceRoute><SiteVisitBooking /></CustomerCommerceRoute>} />
+        <Route path="/site-visit" element={<Navigate to="/site-visit/book" replace />} />
+        <Route path="/visit" element={<Navigate to="/site-visit/book" replace />} />
         <Route path="/marketplace" element={<CustomerCommerceRoute><Marketplace /></CustomerCommerceRoute>} />
         <Route path="/marketplace/plot/:id" element={<CustomerCommerceRoute><PlotDetail /></CustomerCommerceRoute>} />
         <Route path="/marketplace/plot/:id/book" element={<CustomerCommerceRoute><BookPlot /></CustomerCommerceRoute>} />

@@ -29,74 +29,97 @@ export default function SiteVisitBooking() {
       {/* ========================================================= */}
       {/* HERO BANNER & BREADCRUMB                                  */}
       {/* ========================================================= */}
-      <section className="pt-24 pb-7 bg-stone-900 text-white relative overflow-hidden border-b border-stone-800">
+      <section className="pt-24 pb-8 bg-gradient-to-r from-brand-dark via-[#1e3d2d] to-brand-green text-white relative overflow-hidden border-b border-emerald-900/40 shadow-inner">
         {/* Subtle Decorative Elements */}
-        <div className="absolute top-0 right-0 -mr-20 -mt-20 w-80 h-80 rounded-full bg-emerald-600/10 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 -mb-20 w-72 h-72 rounded-full bg-emerald-700/10 blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-96 h-96 rounded-full bg-emerald-400/15 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/4 -mb-16 w-80 h-80 rounded-full bg-amber-400/10 blur-3xl pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           {/* Breadcrumb */}
-          <nav className="flex items-center gap-2 text-xs text-stone-400 mb-2.5 font-medium">
-            <Link to="/" className="hover:text-emerald-400 transition">Trang chủ</Link>
-            <ChevronRight className="w-3 h-3 text-stone-600" />
-            <Link to="/marketplace" className="hover:text-emerald-400 transition">Sàn Thửa Đất (Marketplace)</Link>
-            <ChevronRight className="w-3 h-3 text-stone-600" />
-            <span className="text-emerald-400 font-semibold">Đặt lịch khảo sát thực địa</span>
+          <nav className="flex items-center gap-2 text-xs text-emerald-200/80 mb-3 font-medium">
+            <Link to="/" className="hover:text-white transition">Trang chủ</Link>
+            <ChevronRight className="w-3 h-3 text-emerald-400/60" />
+            <Link to="/marketplace" className="hover:text-white transition">Sàn Thửa Đất (Marketplace)</Link>
+            <ChevronRight className="w-3 h-3 text-emerald-400/60" />
+            <span className="text-brand-yellow font-bold">Đặt lịch khảo sát thực địa</span>
           </nav>
 
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-2">
-                <Sparkles className="w-3 h-3" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+            {/* Left 7 cols: Title & Mission */}
+            <div className="lg:col-span-7 xl:col-span-8">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/10 text-emerald-100 border border-white/20 mb-3 backdrop-blur-xs shadow-2xs">
+                <Sparkles className="w-3.5 h-3.5 text-brand-yellow" />
                 <span>Trải Nghiệm Thực Địa Miễn Phí • SCR-PUB-05</span>
               </div>
 
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-heading font-black text-white tracking-tight leading-tight">
                 Đặt Lịch Khảo Sát Nông Trại
               </h1>
-              <p className="text-xs sm:text-sm text-stone-300 mt-1.5 max-w-2xl leading-relaxed">
+              <p className="text-xs sm:text-sm text-emerald-100/90 mt-2 max-w-2xl leading-relaxed">
                 Trực tiếp đặt chân lên cánh đồng, cảm nhận chất đất phù sa, kiểm tra nguồn nước tưới ngầm và trạm quan trắc IoT vi khí hậu trước khi đưa ra quyết định canh tác.
               </p>
             </div>
 
-            {/* Back button */}
-            <div className="shrink-0">
-              <Link
-                to="/marketplace"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 transition shadow-sm"
-              >
-                <ArrowLeft className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Quay lại Bản đồ Marketplace</span>
-              </Link>
+            {/* Right 5 cols: Farm Hub Summary Card & Action (Không để trống đen) */}
+            <div className="lg:col-span-5 xl:col-span-4">
+              <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 text-white shadow-soft space-y-3">
+                <div className="flex items-start justify-between gap-3 pb-2.5 border-b border-white/10">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-brand-yellow/20 border border-brand-yellow/30 flex items-center justify-center text-brand-yellow shrink-0 font-black text-sm">
+                      🌱
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white">Trang Trại Happy Valley</h4>
+                      <p className="text-[11px] text-emerald-200/80">Củ Chi, TP. Hồ Chí Minh</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 whitespace-nowrap">
+                    Đang mở cửa
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-emerald-100/90">
+                  <span>Khung giờ: 08:00 – 17:30</span>
+                  <span className="text-brand-yellow font-semibold">Tư vấn 1:1 miễn phí</span>
+                </div>
+
+                <Link
+                  to="/marketplace"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black bg-brand-yellow hover:bg-yellow-400 text-brand-dark transition shadow-sm hover:shadow-md cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-brand-dark" />
+                  <span>Quay lại Bản đồ Marketplace</span>
+                </Link>
+              </div>
             </div>
           </div>
 
           {/* Value Prop Highlights Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-5 pt-4 border-t border-stone-800/80 text-xs">
-            <div className="flex items-center gap-2 text-stone-300">
-              <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-3.5 h-3.5" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-white/15 text-xs">
+            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
+              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-brand-yellow" />
               </div>
               <span className="font-semibold text-[11px] sm:text-xs">Miễn phí 100% trải nghiệm</span>
             </div>
 
-            <div className="flex items-center gap-2 text-stone-300">
-              <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
-                <Clock className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
+              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4 text-brand-yellow" />
               </div>
               <span className="font-semibold text-[11px] sm:text-xs">Xác nhận trong 2 giờ</span>
             </div>
 
-            <div className="flex items-center gap-2 text-stone-300">
-              <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
+              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-brand-yellow" />
               </div>
               <span className="font-semibold text-[11px] sm:text-xs">Không ràng buộc thuê đất</span>
             </div>
 
-            <div className="flex items-center gap-2 text-stone-300">
-              <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
-                <Car className="w-3.5 h-3.5" />
+            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
+              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
+                <Car className="w-4 h-4 text-brand-yellow" />
               </div>
               <span className="font-semibold text-[11px] sm:text-xs">Xe điện nội khu đưa đón</span>
             </div>
