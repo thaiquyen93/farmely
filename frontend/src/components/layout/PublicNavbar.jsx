@@ -700,6 +700,28 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                 <Clock className="w-4 h-4" />
                 <span>Ca Trực Hiện Trường (CVLĐ)</span>
               </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setIsProfileModalOpen(true);
+                }}
+                className="flex w-full items-center gap-2 py-2 text-left text-sm font-semibold text-white hover:text-brand-yellow"
+              >
+                <User className="h-4 w-4 text-brand-yellow" />
+                <span>Hồ sơ cá nhân</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setIsSettingsModalOpen(true);
+                }}
+                className="flex w-full items-center gap-2 py-2 text-left text-sm font-semibold text-white hover:text-brand-yellow"
+              >
+                <Settings className="h-4 w-4 text-brand-yellow" />
+                <span>Cài đặt tài khoản</span>
+              </button>
               <Link
                 to="/"
                 onClick={() => setMobileMenuOpen(false)}

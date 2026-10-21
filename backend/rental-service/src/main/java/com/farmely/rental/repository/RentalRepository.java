@@ -26,7 +26,9 @@ public interface RentalRepository extends JpaRepository<RentalEntity, Integer> {
 
     @Query("SELECT r FROM RentalEntity r WHERE r.plotId = :plotId " +
            "AND r.status NOT IN ('CANCELLED') " +
-           "AND (r.startDate <= :endDate AND r.endDate >= :startDate)")
+           "AND (r.startDate <= :endDate AND r.endDate >= :startDate) " +
+           "AND NOT EXISTS (SELECT 1 FROM ContractEntity c WHERE c.contractId = r.contractId " +
+           "AND c.status = 'PENDING_PAYMENT' AND c.reservationExpiresAt < CURRENT_TIMESTAMP)")
     List<RentalEntity> findOverlappingRentals(@Param("plotId") Integer plotId,
                                              @Param("startDate") LocalDate startDate,
                                              @Param("endDate") LocalDate endDate);
