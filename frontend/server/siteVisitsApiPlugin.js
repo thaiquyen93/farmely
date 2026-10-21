@@ -931,6 +931,39 @@ Write-Output $json
           return;
         }
 
+        // 5.4b GET /api/users/staff (Fetch agricultural experts & field workers directly from PostgreSQL)
+        if (req.method === 'GET' && (url === '/api/users/staff' || url.startsWith('/api/users/staff?') || url === '/api/users' || url.startsWith('/api/users?'))) {
+          try {
+            const staffSql = `
+SELECT json_agg(json_build_object(
+  'userId', u.user_id,
+  'fullName', u.full_name,
+  'email', u.email,
+  'role', r.role_name,
+  'phoneNumber', u.phone_number
+))
+FROM users u
+JOIN roles r ON u.role_id = r.role_id
+WHERE r.role_name IN ('EXPERT', 'FIELD_WORKER');
+`;
+            const pgRes = await runPostgreSql(staffSql);
+            if (pgRes && pgRes.trim()) {
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(pgRes.trim());
+              return;
+            }
+          } catch (staffErr) {
+            console.warn('Error fetching staff from PostgreSQL:', staffErr.message);
+          }
+
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify([
+            { userId: 5, fullName: 'ThS. Nguyễn Hoàng Nam', email: 'expert@farmely.vn', role: 'EXPERT', phoneNumber: '0903888999' },
+            { userId: 8, fullName: 'Trần Văn Lực', email: 'worker@farmely.vn', role: 'FIELD_WORKER', phoneNumber: '0933111222' }
+          ]));
+          return;
+        }
+
         // 5.5 POST /api/auth/login & /api/v1/auth/login (Local/Docker PostgreSQL authentication)
         if (req.method === 'POST' && (url === '/api/auth/login' || url === '/api/v1/auth/login' || url.startsWith('/api/auth/login?') || url.startsWith('/api/v1/auth/login?'))) {
           const chunks = [];

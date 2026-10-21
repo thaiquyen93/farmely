@@ -93,26 +93,6 @@ export const getBookingValidationError = ({ acceptedTerms, selectedMode, assiste
   return '';
 };
 
-// Danh mục tương thích sinh học chuẩn hóa từ PostgreSQL table plot_variety_compatibility (BR03)
-const PLOT_COMPATIBLE_VARIETIES = {
-  1: [1, 2, 3, 4, 8, 10], // P-01
-  2: [1, 2, 3, 6, 8, 10], // P-02
-  3: [4, 5, 6, 7],         // P-03
-  4: [3, 4, 6, 9],         // P-04
-  5: [1, 5, 7, 8, 9],      // P-05
-  6: [1, 2, 8, 10],        // P-06
-  13: [1, 2, 3, 10],       // P-07
-  14: [2, 3, 8, 10],       // P-08
-  15: [4, 5, 6, 7],        // P-09
-  16: [3, 4, 9],           // P-10
-  17: [1, 3, 5, 8],        // P-11
-  18: [2, 3, 6, 10],       // P-12
-  19: [1, 4, 7, 9],        // P-13
-  20: [4, 5, 6, 7],        // P-14
-  21: [1, 2, 3, 5, 8],     // P-15
-  22: [2, 3, 8, 10]        // P-16
-};
-
 export default function BookPlot() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -123,9 +103,17 @@ export default function BookPlot() {
   const [selectedPlots, setSelectedPlots] = useState([]);
   const [isAddPlotModalOpen, setIsAddPlotModalOpen] = useState(false);
   const [createdContractId, setCreatedContractId] = useState(null);
+  const [serverContractAmount, setServerContractAmount] = useState(null);
   const [bookingError, setBookingError] = useState('');
   const [isExtendingGrace, setIsExtendingGrace] = useState(false);
   const [graceApplied, setGraceApplied] = useState(false);
+
+  // Dữ liệu lõi được nạp 100% từ Database PostgreSQL
+  const [dbVarieties, setDbVarieties] = useState([]);
+  const [dbServices, setDbServices] = useState([]);
+  const [dbExperts, setDbExperts] = useState([]);
+  const [dbWorkers, setDbWorkers] = useState([]);
+  const [compatibilityByPlotId, setCompatibilityByPlotId] = useState({});
 
   const [selectedCropByPlot, setSelectedCropByPlot] = useState(() => {
     try {
@@ -166,6 +154,81 @@ export default function BookPlot() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [termsError, setTermsError] = useState('');
 
+  // 1. Nạp danh mục giống cây trồng từ Database PostgreSQL (bảng varieties & crops)
+  useEffect(() => {
+    fetch('/api/varieties')
+      .then((res) => res.json())
+      .then((resJson) => {
+        const list = Array.isArray(resJson) ? resJson : (resJson?.data || []);
+        if (list.length > 0) {
+          const mapped = list.map((v) => ({
+            id: `CRP-${String(v.cropId || v.varietyId).padStart(2, '0')}`,
+            varietyId: v.varietyId,
+            cropId: v.cropId,
+            name: v.cropName || v.crop_name || 'Rau sạch',
+            variety: v.varietyName || v.variety_name || 'Giống VietGAP',
+            minDays: (v.expectedDuration || v.expected_duration || 30) + (v.bufferTime || v.buffer_time || 5),
+            expectedDuration: v.expectedDuration || v.expected_duration || 30,
+            bufferTime: v.bufferTime || v.buffer_time || 5,
+            icon: '🌱',
+            duration: `${v.expectedDuration || 30}–${(v.expectedDuration || 30) + 10} ngày`
+          }));
+          setDbVarieties(mapped);
+        }
+      })
+      .catch((err) => console.error('Lỗi nạp giống cây từ Database:', err));
+  }, []);
+
+  // 2. Nạp danh mục dịch vụ canh tác từ Database PostgreSQL (bảng services)
+  useEffect(() => {
+    fetch('/api/services')
+      .then((res) => res.json())
+      .then((resJson) => {
+        const list = Array.isArray(resJson) ? resJson : (resJson?.data || []);
+        if (list.length > 0) {
+          setDbServices(list);
+        }
+      })
+      .catch((err) => console.error('Lỗi nạp dịch vụ canh tác từ Database:', err));
+  }, []);
+
+  // Gói dịch vụ chăm sóc toàn vụ trọn gói (S15) lấy trực tiếp từ Database bảng services
+  const assistedService = React.useMemo(() => {
+    return (
+      dbServices.find((s) => s.serviceCode === 'S15' || s.service_code === 'S15') ||
+      dbServices.find((s) => s.serviceType === 'FULL' || s.service_type === 'FULL') || {
+        serviceId: 15,
+        serviceCode: 'S15',
+        name: 'Gói chăm sóc toàn vụ',
+        price: 1800000,
+        unit: 'vụ/luống',
+        description: 'Đội ngũ Farmely chăm sóc trọn gói hàng ngày theo quy trình VietGAP'
+      }
+    );
+  }, [dbServices]);
+
+  // 3. Nạp danh sách nhân sự thực tế từ Database PostgreSQL (bảng users)
+  useEffect(() => {
+    fetch('/api/users/staff')
+      .then((res) => res.json())
+      .then((resJson) => {
+        const list = Array.isArray(resJson) ? resJson : (resJson?.data || []);
+        if (list.length > 0) {
+          setDbExperts(list.filter((u) => u.role === 'EXPERT'));
+          setDbWorkers(list.filter((u) => u.role === 'FIELD_WORKER' || u.role === 'STAFF'));
+        }
+      })
+      .catch((err) => console.error('Lỗi nạp nhân sự từ Database:', err));
+  }, []);
+
+  const assignedExpert = React.useMemo(() => {
+    return dbExperts[0]?.fullName || dbExperts[0]?.full_name || 'ThS. Nguyễn Hoàng Nam';
+  }, [dbExperts]);
+
+  const assignedWorker = React.useMemo(() => {
+    return dbWorkers[0]?.fullName || dbWorkers[0]?.full_name || 'Trần Văn Lực';
+  }, [dbWorkers]);
+
   // Tự động nhận diện giống cây từ URL search param nếu có
   useEffect(() => {
     const cropFromUrl = searchParams.get('cropId');
@@ -189,9 +252,123 @@ export default function BookPlot() {
     }
   }, [searchParams, selectedPlots, id]);
 
+  // Helper to match plot by any identifier
+  const findPlotByAnyCode = useCallback((code, plotsList = allPlots) => {
+    if (!code || !plotsList.length) return null;
+    const clean = code.trim().toLowerCase();
+    return plotsList.find((p) => {
+      const pId = (p.id || '').toLowerCase();
+      const pCode = (p.code || '').toLowerCase();
+      const pLabel = (p.label || '').toLowerCase();
+      return (
+        pId === clean ||
+        pCode === clean ||
+        pLabel === clean ||
+        pCode.replace('plot ', '').trim() === clean ||
+        clean.replace('plot ', '').trim() === pCode ||
+        pId.replace('plt-hv-', 'p-') === clean ||
+        (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', ''))
+      );
+    });
+  }, [allPlots]);
+
+  // Helper xác định chính xác plotId số trong PostgreSQL database
+  const resolvePlotDbId = useCallback((plot) => {
+    if (!plot) return 1;
+    if (typeof plot.plotId === 'number' && !isNaN(plot.plotId)) return plot.plotId;
+    if (typeof plot.plot_id === 'number' && !isNaN(plot.plot_id)) return plot.plot_id;
+    if (typeof plot.dbPlotId === 'number' && !isNaN(plot.dbPlotId)) return plot.dbPlotId;
+
+    const pureNum = parseInt(String(plot.id), 10);
+    if (!isNaN(pureNum) && String(pureNum) === String(plot.id).trim()) {
+      return pureNum;
+    }
+
+    const matched = findPlotByAnyCode(plot.code || plot.id);
+    if (matched) {
+      if (typeof matched.plotId === 'number' && !isNaN(matched.plotId)) return matched.plotId;
+      if (typeof matched.dbPlotId === 'number' && !isNaN(matched.dbPlotId)) return matched.dbPlotId;
+      if (typeof matched.plot_id === 'number' && !isNaN(matched.plot_id)) return matched.plot_id;
+      const mNum = parseInt(String(matched.id), 10);
+      if (!isNaN(mNum) && String(mNum) === String(matched.id).trim()) {
+        return mNum;
+      }
+    }
+
+    const cleanDigits = String(plot.code || plot.id).replace(/\D/g, '');
+    if (cleanDigits) {
+      return parseInt(cleanDigits, 10);
+    }
+    return 1;
+  }, [findPlotByAnyCode]);
+
+  // Nạp độ tương thích từ Database PostgreSQL bảng plot_variety_compatibility
+  useEffect(() => {
+    if (!selectedPlots || selectedPlots.length === 0) return;
+
+    selectedPlots.forEach((plot) => {
+      const plotDbId = resolvePlotDbId(plot);
+      if (!plotDbId || compatibilityByPlotId[plotDbId]) return;
+
+      fetch(`/api/plots/${plotDbId}/compatibility`)
+        .then((res) => res.json())
+        .then((resJson) => {
+          const list = Array.isArray(resJson) ? resJson : (resJson?.data || []);
+          if (list.length > 0) {
+            const mapped = list.map((v) => ({
+              id: `CRP-${String(v.cropId || v.varietyId).padStart(2, '0')}`,
+              varietyId: v.varietyId,
+              cropId: v.cropId,
+              name: v.cropName || v.crop_name || 'Rau sạch',
+              variety: v.varietyName || v.variety_name || 'Giống VietGAP',
+              minDays: (v.expectedDuration || 30) + (v.bufferTime || 5),
+              expectedDuration: v.expectedDuration || 30,
+              bufferTime: v.bufferTime || 5,
+              icon: '🌱',
+              duration: `${v.expectedDuration || 30}–${(v.expectedDuration || 30) + 10} ngày`
+            }));
+            setCompatibilityByPlotId((prev) => ({ ...prev, [plotDbId]: mapped }));
+          }
+        })
+        .catch((err) => console.warn(`Không thể nạp độ tương thích cho thửa ${plotDbId}:`, err));
+    });
+  }, [selectedPlots, resolvePlotDbId, compatibilityByPlotId]);
+
+  // Danh sách các giống cây trồng tương thích cho thửa đất (lấy 100% từ Database PostgreSQL)
+  const getCompatibleCropsForPlot = useCallback((plot) => {
+    const pool = dbVarieties.length > 0 ? dbVarieties : safeCrops;
+    if (!plot) return pool;
+
+    const plotDbId = resolvePlotDbId(plot);
+    if (plotDbId && compatibilityByPlotId[plotDbId] && compatibilityByPlotId[plotDbId].length > 0) {
+      return compatibilityByPlotId[plotDbId];
+    }
+
+    const allowedNames = plot.crops || plot.compatibleCrops;
+    if (Array.isArray(allowedNames) && allowedNames.length > 0) {
+      const filtered = pool.filter((crop) =>
+        allowedNames.some((n) => {
+          const nClean = n.toLowerCase().trim();
+          const cropNameClean = (crop.name || '').toLowerCase().trim();
+          const cropVarClean = (crop.variety || '').toLowerCase().trim();
+          return (
+            nClean.includes(cropNameClean) ||
+            cropNameClean.includes(nClean) ||
+            nClean.includes(cropVarClean) ||
+            cropVarClean.includes(nClean)
+          );
+        })
+      );
+      if (filtered.length > 0) return filtered;
+    }
+    return pool;
+  }, [resolvePlotDbId, compatibilityByPlotId, dbVarieties]);
+
   // Lấy giống cây đã chọn cho thửa đất (ưu tiên lựa chọn từ Marketplace hoặc state)
   const getPlotSelectedCrop = useCallback((plot) => {
     if (!plot) return null;
+    const compatList = getCompatibleCropsForPlot(plot);
+    const pool = dbVarieties.length > 0 ? dbVarieties : safeCrops;
     const cropFromUrl = searchParams.get('cropId');
     const savedCropKey =
       selectedCropByPlot[plot.id] ||
@@ -201,6 +378,12 @@ export default function BookPlot() {
 
     if (savedCropKey) {
       const savedCrop =
+        pool.find(
+          (c) =>
+            String(c.id).toUpperCase() === String(savedCropKey).toUpperCase() ||
+            String(c.varietyId) === String(savedCropKey) ||
+            String(c.cropId) === String(savedCropKey)
+        ) ||
         getSafeCropById(savedCropKey) ||
         safeCrops.find(
           (c) =>
@@ -208,17 +391,19 @@ export default function BookPlot() {
             String(c.varietyId) === String(savedCropKey)
         );
       if (savedCrop) {
-        return savedCrop;
+        // Kiểm tra giống này có tương thích với thửa đất không (BR03)
+        const isCompat = compatList.some(
+          (c) => c.varietyId === savedCrop.varietyId || c.id === savedCrop.id
+        );
+        if (isCompat) {
+          return savedCrop;
+        }
       }
     }
 
-    return null;
-  }, [selectedCropByPlot, searchParams]);
-
-  // Danh sách tất cả các giống cây trồng có sẵn
-  const getCompatibleCropsForPlot = useCallback(() => {
-    return safeCrops;
-  }, []);
+    // Nếu chưa chọn hoặc giống từ URL không tương thích với thửa đất, chọn giống tương thích đầu tiên từ Database
+    return compatList.length > 0 ? compatList[0] : null;
+  }, [selectedCropByPlot, searchParams, getCompatibleCropsForPlot, dbVarieties]);
 
   const handleSelectCropForPlot = (plotId, plotCode, cropId) => {
     setSelectedCropByPlot((prev) => {
@@ -250,26 +435,6 @@ export default function BookPlot() {
     return calculatedEndDate;
   }, [calculatedEndDate]);
 
-  // Helper to match plot by any identifier
-  const findPlotByAnyCode = useCallback((code, plotsList = allPlots) => {
-    if (!code || !plotsList.length) return null;
-    const clean = code.trim().toLowerCase();
-    return plotsList.find((p) => {
-      const pId = (p.id || '').toLowerCase();
-      const pCode = (p.code || '').toLowerCase();
-      const pLabel = (p.label || '').toLowerCase();
-      return (
-        pId === clean ||
-        pCode === clean ||
-        pLabel === clean ||
-        pCode.replace('plot ', '').trim() === clean ||
-        clean.replace('plot ', '').trim() === pCode ||
-        pId.replace('plt-hv-', 'p-') === clean ||
-        (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', ''))
-      );
-    });
-  }, [allPlots]);
-
   // Load plots from PostgreSQL DB via Farm Service
   useEffect(() => {
     setLoadingPlots(true);
@@ -287,10 +452,11 @@ export default function BookPlot() {
           rentalPrice: Number(p.pricePerPeriod),
           formattedPrice: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
           rentalPriceFormatted: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
-          careServicePrice: Math.round(Number(p.pricePerPeriod) * 0.5),
+          careServicePrice: Number(assistedService?.price || 1800000),
           status: p.status === 'AVAIL' ? 'AVAILABLE' : p.status === 'RENT' ? 'RENTED' : 'MAINTENANCE',
           iotStationId: `IOT-${p.plotCode}`,
-          compatibleCrops: safeCrops.map((crop) => crop.variety),
+          crops: p.crops || [],
+          compatibleCrops: (Array.isArray(p.crops) && p.crops.length > 0) ? p.crops : safeCrops.map((crop) => crop.variety),
           imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80'
         }));
         setAllPlots(mapped);
@@ -303,7 +469,7 @@ export default function BookPlot() {
       })
       .catch((err) => console.error('Lỗi nạp plots trong BookPlot:', err))
       .finally(() => setLoadingPlots(false));
-  }, [id, findPlotByAnyCode]);
+  }, [id, findPlotByAnyCode, assistedService]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -386,7 +552,7 @@ export default function BookPlot() {
     if (target && !selectedPlots.some((p) => p.id === target.id)) {
       setSelectedPlots([target]);
     }
-  }, [id, searchParams]);
+  }, [id, searchParams, findPlotByAnyCode]);
 
   // Luôn đồng bộ danh sách thửa đất trong hợp đồng vào localStorage
   useEffect(() => {
@@ -423,23 +589,23 @@ export default function BookPlot() {
     setSelectedPlots((prev) => prev.filter((p) => p.id !== plotIdToRemove));
   };
 
-  // Aggregate calculations for the multi-plot rental contract.
+  // Aggregate calculations for the multi-plot rental contract lấy chuẩn từ Database
   const totalAreaM2 = selectedPlots.reduce((sum, p) => {
     const num = typeof p.area === 'number' ? p.area : parseInt(p.area, 10) || 50;
     return sum + num;
   }, 0);
 
   const subtotalPlot = selectedPlots.reduce(
-    (sum, p) => sum + (p.rentalPrice || 1200000) * rentalMonths,
+    (sum, p) => sum + (p.rentalPrice || 1300000) * rentalMonths,
     0
   );
 
+  // Đơn giá gói chăm sóc toàn vụ trọn gói lấy trực tiếp từ Database PostgreSQL bảng services (S15)
+  const careUnitPricePerPlot = Number(assistedService?.price || 1800000);
+
   const subtotalCare =
     selectedMode === 'ASSISTED'
-      ? selectedPlots.reduce(
-          (sum, p) => sum + (p.careServicePrice || 600000) * rentalMonths,
-          0
-        )
+      ? selectedPlots.length * careUnitPricePerPlot
       : 0;
 
   const totalAmount = subtotalPlot + subtotalCare;
@@ -487,36 +653,6 @@ export default function BookPlot() {
     }
   };
 
-  // Helper xác định chính xác plotId số trong PostgreSQL database
-  const resolvePlotDbId = useCallback((plot) => {
-    if (!plot) return 1;
-    if (typeof plot.plotId === 'number' && !isNaN(plot.plotId)) return plot.plotId;
-    if (typeof plot.plot_id === 'number' && !isNaN(plot.plot_id)) return plot.plot_id;
-    if (typeof plot.dbPlotId === 'number' && !isNaN(plot.dbPlotId)) return plot.dbPlotId;
-
-    const pureNum = parseInt(String(plot.id), 10);
-    if (!isNaN(pureNum) && String(pureNum) === String(plot.id).trim()) {
-      return pureNum;
-    }
-
-    const matched = findPlotByAnyCode(plot.code || plot.id);
-    if (matched) {
-      if (typeof matched.plotId === 'number' && !isNaN(matched.plotId)) return matched.plotId;
-      if (typeof matched.dbPlotId === 'number' && !isNaN(matched.dbPlotId)) return matched.dbPlotId;
-      if (typeof matched.plot_id === 'number' && !isNaN(matched.plot_id)) return matched.plot_id;
-      const mNum = parseInt(String(matched.id), 10);
-      if (!isNaN(mNum) && String(mNum) === String(matched.id).trim()) {
-        return mNum;
-      }
-    }
-
-    const cleanDigits = String(plot.code || plot.id).replace(/\D/g, '');
-    if (cleanDigits) {
-      return parseInt(cleanDigits, 10);
-    }
-    return 1;
-  }, [findPlotByAnyCode]);
-
   // Tạo hợp đồng giữ chỗ trực tiếp trong Database PostgreSQL qua rental-service (BR08)
   const createReservationOnServer = async () => {
     const renterId = user?.userId
@@ -538,7 +674,7 @@ export default function BookPlot() {
         plotId: Number(plotDbId),
         varietyId: Number(crop?.varietyId || 1),
         // Dịch vụ chăm sóc trọn gói S15 = 1,800,000 đ/vụ (Assisted), hoặc null (Self)
-        serviceId: selectedMode === 'ASSISTED' ? 15 : null,
+        serviceId: selectedMode === 'ASSISTED' ? Number(assistedService?.serviceId || 15) : null,
         startDate: startStr,
         endDate: end.toISOString().split('T')[0]
       };
@@ -567,13 +703,13 @@ export default function BookPlot() {
     }
   };
 
-  const buildPendingBookingPayload = (contractIdToUse) => ({
+  const buildPendingBookingPayload = (contractIdToUse, customTotalAmount) => ({
     contractId: contractIdToUse || createdContractId || null,
     customerId: user?.userId || user?.id || 1,
     customerEmail: user?.email || 'customer@farmely.vn',
     customerName: user?.fullName || user?.name || (user?.email ? user.email.split('@')[0] : 'Khách hàng Farmely'),
     customerPhone: user?.phone || user?.phoneNumber || '0901234567',
-    totalAmount: totalAmount,
+    totalAmount: customTotalAmount || serverContractAmount || totalAmount,
     paymentMethod: 'VNPAY',
     cultivationMode: selectedMode === 'ASSISTED' ? 'ASSISTED_GROWING' : 'SELF_GROWING',
     rentalMonths: rentalMonths,
@@ -629,12 +765,17 @@ export default function BookPlot() {
 
     try {
       let contractIdToSave = createdContractId;
+      let reservationAmountToUse = serverContractAmount;
       try {
         const reservation = await createReservationOnServer();
         if (reservation?.contractId) {
           contractIdToSave = reservation.contractId;
           setCreatedContractId(reservation.contractId);
           setContractCode(reservation.contractNumber);
+          if (reservation.totalAmount) {
+            reservationAmountToUse = Number(reservation.totalAmount);
+            setServerContractAmount(Number(reservation.totalAmount));
+          }
           if (reservation.reservationExpiresAt) {
             const remainingMs = new Date(reservation.reservationExpiresAt).getTime() - Date.now();
             setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
@@ -649,7 +790,7 @@ export default function BookPlot() {
         }
       }
 
-      const pendingPayload = buildPendingBookingPayload(contractIdToSave);
+      const pendingPayload = buildPendingBookingPayload(contractIdToSave, reservationAmountToUse);
       try {
         localStorage.setItem('farmely_pending_vnpay_booking', JSON.stringify(pendingPayload));
       } catch (e) {
@@ -1034,7 +1175,7 @@ export default function BookPlot() {
                                 {(p.rentalPrice || 1200000).toLocaleString('vi-VN')} đ/tháng
                               </span>
                               <span className="text-[10px] text-stone-400">
-                                Chăm sóc: +{(p.careServicePrice || 600000).toLocaleString('vi-VN')} đ
+                                Chăm sóc: +{careUnitPricePerPlot.toLocaleString('vi-VN')} đ
                               </span>
                             </div>
 
@@ -1218,7 +1359,7 @@ export default function BookPlot() {
                     <p className="text-xs text-stone-500 mt-1">Tự chăm sóc tại vườn cuối tuần</p>
                     <div className="mt-2.5 space-y-1 text-[11px] text-stone-600 border-t border-brand-border/40 pt-2">
                       <p className="flex items-center gap-1 font-medium text-emerald-800">
-                        ✓ Chuyên gia đồng hành: ThS. Nam (Tư vấn kỹ thuật online)
+                        ✓ Chuyên gia đồng hành: {assignedExpert} (Tư vấn kỹ thuật online)
                       </p>
                       <p className="text-stone-500">
                         ✓ Khách hàng tự trải nghiệm làm nông tại vườn
@@ -1248,18 +1389,18 @@ export default function BookPlot() {
                       )}
                     </div>
                     <p className="text-xs text-stone-500 mt-1">
-                      Đội ngũ Farmely chăm sóc trọn gói hàng ngày
+                      {assistedService?.name || 'Gói chăm sóc toàn vụ'} ({assistedService?.description || 'Đội ngũ Farmely chăm sóc trọn gói hàng ngày theo tiêu chuẩn VietGAP'})
                     </p>
                     <div className="mt-2.5 space-y-1 text-[11px] text-stone-600 border-t border-brand-border/40 pt-2">
                       <p className="flex items-center gap-1 font-medium text-emerald-800">
-                        ✓ Chuyên gia phụ trách: ThS. Nguyễn Hoàng Nam (Tư vấn kỹ thuật chuyên sâu)
+                        ✓ Chuyên gia phụ trách: {assignedExpert} (Tư vấn kỹ thuật chuyên sâu)
                       </p>
                       <p className="text-amber-900 font-medium">
-                        ✓ Công nhân phụ trách (CVLĐ): Phân công cố định (Tưới, nhổ cỏ 2 ca/ngày)
+                        ✓ Công nhân phụ trách (CVLĐ): {assignedWorker} (Tưới, nhổ cỏ 2 ca/ngày)
                       </p>
                     </div>
                     <p className="text-xs font-bold text-brand-green mt-3">
-                      +{selectedPlots.reduce((sum, p) => sum + (p.careServicePrice || 600000), 0).toLocaleString('vi-VN')} đ/tháng ({selectedPlots.length} thửa)
+                      +{careUnitPricePerPlot.toLocaleString('vi-VN')} đ/thửa ({selectedPlots.length} thửa = +{(careUnitPricePerPlot * selectedPlots.length).toLocaleString('vi-VN')} đ)
                     </p>
                   </button>
                 </div>
@@ -1372,7 +1513,7 @@ export default function BookPlot() {
 
                   <div className="flex justify-between text-stone-600">
                     <span>
-                      Dịch vụ canh tác ({!selectedMode ? 'Chưa chọn' : selectedMode === 'ASSISTED' ? 'Trọn gói' : 'Tự chăm sóc'} x {rentalMonths} tháng):
+                      Dịch vụ canh tác ({!selectedMode ? 'Chưa chọn' : selectedMode === 'ASSISTED' ? (assistedService?.name || 'Trọn gói') : 'Tự chăm sóc'} x {rentalMonths} tháng):
                     </span>
                     <strong className="text-brand-dark">
                       {!selectedMode ? (
@@ -1629,8 +1770,8 @@ export default function BookPlot() {
           code: plotCodesSummary,
           name: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`
         }}
-        totalAmount={totalAmount}
-        pendingBooking={buildPendingBookingPayload()}
+        totalAmount={serverContractAmount || totalAmount}
+        pendingBooking={buildPendingBookingPayload(createdContractId, serverContractAmount || totalAmount)}
       />
 
       <Footer />
