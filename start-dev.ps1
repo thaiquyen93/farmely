@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Rebuild
 )
 
@@ -34,44 +34,67 @@ if (Test-Path -LiteralPath $envFile) {
 # ==============================================================================
 # 2. TỰ ĐỘNG TÌM KIẾM JDK 21+ TRÊN MÁY
 # ==============================================================================
+function Get-JavaMajorVersion {
+    param([string]$homeDir)
+    if (-not $homeDir) { return 0 }
+    $javaExe = Join-Path $homeDir 'bin\java.exe'
+    if (-not (Test-Path -LiteralPath $javaExe)) { return 0 }
+    try {
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $versionOutput = & $javaExe -version 2>&1 | Out-String
+        $ErrorActionPreference = $prevEap
+        if ($versionOutput -match 'version "(?:1\.)?(\d+)') {
+            return [int]$matches[1]
+        }
+    } catch {
+        return 0
+    }
+    return 0
+}
+
 $jdkHome = $null
 if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
-    $jdkHome = $env:JAVA_HOME.TrimEnd('\')
+    if ((Get-JavaMajorVersion $env:JAVA_HOME) -ge 17) {
+        $jdkHome = $env:JAVA_HOME.TrimEnd('\')
+    }
 }
 
 if (-not $jdkHome) {
     $jdkCandidates = @(
-        'C:\Users\Acer\.antigravity-ide\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
-        'C:\Users\Acer\.vscode\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
+        "$env:USERPROFILE\.jdks\jdk-21.0.12.1+1",
         'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot',
-        'C:\Program Files\Java\jdk-25'
+        'C:\Program Files\Java\jdk-25',
+        'C:\Program Files\Java\jdk-21',
+        'C:\Program Files\Java\jdk-17',
+        "$env:USERPROFILE\.antigravity-ide\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64",
+        "$env:USERPROFILE\.vscode\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64",
+        'C:\Users\Acer\.antigravity-ide\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
+        'C:\Users\Acer\.vscode\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64'
     )
-    $jdkHome = $jdkCandidates | Where-Object { Test-Path (Join-Path $_ 'bin\java.exe') } | Select-Object -First 1
-}
-
-if (-not $jdkHome) {
-    $javaCmd = Get-Command java.exe -ErrorAction SilentlyContinue
-    if ($javaCmd) {
-        $candidateHome = Split-Path -Parent (Split-Path -Parent $javaCmd.Source)
-        if (Test-Path (Join-Path $candidateHome 'bin\java.exe')) {
-            $jdkHome = $candidateHome
+    foreach ($cand in $jdkCandidates) {
+        if ((Test-Path (Join-Path $cand 'bin\java.exe')) -and ((Get-JavaMajorVersion $cand) -ge 17)) {
+            $jdkHome = $cand
+            break
         }
     }
 }
 
 if (-not $jdkHome) {
     $jdkSearchRoots = @(
+        "$env:USERPROFILE\.jdks",
         'C:\Program Files\Eclipse Adoptium',
         'C:\Program Files\Java',
         'C:\Program Files\Microsoft',
         'C:\Program Files\Amazon Corretto',
         'C:\Program Files\Zulu',
-        "$env:USERPROFILE\.jdks"
+        "$env:USERPROFILE\.antigravity-ide\extensions",
+        "$env:USERPROFILE\.vscode\extensions"
     )
     foreach ($root in $jdkSearchRoots) {
         if (Test-Path $root) {
-            $found = Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
-                Where-Object { Test-Path (Join-Path $_.FullName 'bin\java.exe') } |
+            $found = Get-ChildItem -Path $root -Directory -Recurse -Depth 4 -ErrorAction SilentlyContinue |
+                Where-Object { (Test-Path (Join-Path $_.FullName 'bin\java.exe')) -and ((Get-JavaMajorVersion $_.FullName) -ge 17) } |
                 Select-Object -First 1
             if ($found) {
                 $jdkHome = $found.FullName
@@ -82,7 +105,17 @@ if (-not $jdkHome) {
 }
 
 if (-not $jdkHome) {
-    throw "Không tìm thấy JDK trên máy. Vui lòng cài đặt JDK 21+ hoặc thiết lập biến môi trường JAVA_HOME."
+    $javaCmd = Get-Command java.exe -ErrorAction SilentlyContinue
+    if ($javaCmd) {
+        $candidateHome = Split-Path -Parent (Split-Path -Parent $javaCmd.Source)
+        if ((Test-Path (Join-Path $candidateHome 'bin\java.exe')) -and ((Get-JavaMajorVersion $candidateHome) -ge 17)) {
+            $jdkHome = $candidateHome
+        }
+    }
+}
+
+if (-not $jdkHome) {
+    throw "Không tìm thấy JDK 17+ trên máy. Vui lòng cài đặt JDK 21+ hoặc thiết lập biến môi trường JAVA_HOME."
 }
 
 $env:JAVA_HOME = $jdkHome
@@ -132,18 +165,18 @@ try {
 
     if ($localPostgres -and -not $useDockerDb) {
         $env:DB_PORT = "$localPostgresPort"
-        $env:DB_URL = "jdbc:postgresql://${dbHost}:${localPostgresPort}/${dbName}"
+        $env:DB_URL = "jdbc:postgresql://${dbHost}:${localPostgresPort}/${dbName}?sslmode=disable"
         Write-Host "Sử dụng PostgreSQL LOCAL trên cổng $localPostgresPort (database: $dbName)." -ForegroundColor Green
     }
     elseif ($dockerReady) {
         & $dockerCommand.Source compose up -d postgres rabbitmq
         $env:DB_PORT = '5432'
-        $env:DB_URL = "jdbc:postgresql://${dbHost}:5432/${dbName}"
+        $env:DB_URL = "jdbc:postgresql://${dbHost}:5432/${dbName}?sslmode=disable"
         Write-Host "Sử dụng Docker PostgreSQL trên cổng 5432 (database: $dbName)." -ForegroundColor Cyan
     }
     elseif ($localPostgres) {
         $env:DB_PORT = "$localPostgresPort"
-        $env:DB_URL = "jdbc:postgresql://${dbHost}:${localPostgresPort}/${dbName}"
+        $env:DB_URL = "jdbc:postgresql://${dbHost}:${localPostgresPort}/${dbName}?sslmode=disable"
         Write-Host "Sử dụng PostgreSQL LOCAL trên cổng $localPostgresPort (database: $dbName)." -ForegroundColor Green
     }
     else {
