@@ -33,7 +33,13 @@ import {
 
 export default function FieldWorkerDashboard() {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'issues' | 'harvest' | 'chat'
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('tab');
+      if (['tasks', 'plots', 'issues', 'harvest', 'chat'].includes(p)) return p;
+    }
+    return 'tasks';
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // 1. Assigned Care Tasks for Today (UC11 / Screen 52)
@@ -180,9 +186,23 @@ export default function FieldWorkerDashboard() {
       .catch((err) => console.warn('Could not fetch live issues:', err));
   };
 
+  const [assignedPlots, setAssignedPlots] = useState([]);
+
+  const loadPlots = () => {
+    fetch('/api/rentals')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setAssignedPlots(res.data);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch live rentals:', err));
+  };
+
   useEffect(() => {
     loadTasks();
     loadIssues();
+    loadPlots();
   }, []);
 
   useEffect(() => {
@@ -371,9 +391,10 @@ export default function FieldWorkerDashboard() {
 
             {[
               { id: 'tasks', label: 'Ca Trực & Nhiệm Vụ Hôm Nay', icon: CheckCircle2, count: pendingCount },
+              { id: 'plots', label: 'Thửa Đất Phụ Trách (BR14)', icon: Layers, count: assignedPlots.length },
               { id: 'issues', label: 'Báo Cáo Sự Cố Ruộng', icon: AlertTriangle, count: myIssues.length },
               { id: 'harvest', label: 'Cân Điện Tử & Đóng Thùng', icon: Scale, count: harvestTasks.filter(h => h.status !== 'COMPLETED').length },
-              { id: 'chat', label: 'Trao Đổi Với Chuyên Gia Nam', icon: MessageSquare, count: null }
+              { id: 'chat', label: 'Trao Đổi Với Chuyên Gia', icon: MessageSquare, count: null }
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -439,14 +460,19 @@ export default function FieldWorkerDashboard() {
                         }`}
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border/60 pb-2.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono font-bold text-brand-green text-sm">{task.id}</span>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                               task.session === 'MORNING' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800'
                             }`}>
                               {task.session === 'MORNING' ? 'Ca Sáng' : 'Ca Chiều'}
                             </span>
-                            <span className="text-stone-500 font-semibold">• Hạn chót: {task.deadline}</span>
+                            <span className="text-stone-500 font-semibold">• Hạn chót: {task.dueDate || task.deadline}</span>
+                            {(task.assignedTo || task.workerName) && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                👷 Phụ trách: {task.assignedTo || task.workerName}
+                              </span>
+                            )}
                           </div>
 
                           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold self-start sm:self-auto ${
@@ -497,6 +523,102 @@ export default function FieldWorkerDashboard() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: ASSIGNED PLOTS (Thửa Đất Được Phân Công Phụ Trách - BR14) */}
+            {activeTab === 'plots' && (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
+                  <div>
+                    <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-emerald-800" />
+                      <span>Thửa Đất Được Phân Công Chăm Sóc (BR14)</span>
+                    </h3>
+                    <p className="text-xs text-brand-muted mt-0.5">
+                      Danh sách các thửa đất thực địa được Ban Quản Trị giao cho bạn phụ trách canh tác và vận hành trạm IoT.
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">
+                    {assignedPlots.length} Thửa Đất Phụ Trách
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {assignedPlots.length === 0 ? (
+                    <div className="text-center py-12 text-stone-500 space-y-2">
+                      <Layers className="w-10 h-10 mx-auto text-stone-300" />
+                      <p className="font-bold text-sm">Chưa có thửa đất nào được phân công</p>
+                    </div>
+                  ) : (
+                    assignedPlots.map((plot) => (
+                      <div
+                        key={plot.id || plot.rentalId}
+                        className="p-5 rounded-2xl border border-brand-border bg-white hover:border-emerald-300 transition-all shadow-2xs space-y-3 text-xs"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border/60 pb-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono font-bold text-emerald-800 text-sm">{plot.plotCode}</span>
+                            <span className="font-bold text-brand-dark text-sm">{plot.name}</span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-stone-100 text-stone-700">
+                              {plot.contractCode}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              👷 CVLĐ Phụ trách: {plot.staffName && !String(plot.staffName).includes('Chưa') ? `${plot.staffName} (CVLĐ)` : 'Chưa chỉ định CVLĐ'}
+                            </span>
+                            {plot.expertName && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                                🔬 CGNN Cố Vấn: {plot.expertName}
+                              </span>
+                            )}
+                          </div>
+
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            ● Đang chăm sóc
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-stone-600 bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/60">
+                          <div>
+                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Khách Hàng Thuê:</span>
+                            <span className="font-bold text-brand-dark text-xs block">{plot.renterName}</span>
+                            <span className="text-[11px] text-stone-500">{plot.renterEmail || 'Khách thuê'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Giống Canh Tác:</span>
+                            <span className="font-bold text-emerald-800 text-xs block">{plot.crop}</span>
+                            <span className="text-[11px] text-stone-500">{plot.stage}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Vị Trí & Diện Tích:</span>
+                            <span className="font-bold text-brand-dark text-xs block">{plot.location}</span>
+                            <span className="text-[11px] text-stone-500">{plot.area}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Quan Trắc IoT:</span>
+                            <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
+                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu ẩm &gt;= 80% (BR18)</span>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-1">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setNewIssuePlot(plot.plotCode || 'P-01');
+                              setShowNewIssueModal(true);
+                            }}
+                            className="font-bold text-xs gap-1.5"
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            <span>Báo Cáo Sự Cố Thửa Đất Này</span>
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -907,7 +1029,9 @@ export default function FieldWorkerDashboard() {
         )}
       </Modal>
 
-      <Footer />
+      <div className={`transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
+        <Footer />
+      </div>
     </div>
   );
 }

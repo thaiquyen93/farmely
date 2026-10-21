@@ -382,7 +382,7 @@ export default function CustomerDashboard() {
               name: p.name || `Thửa ${plotCode} - Trang trại Happy Valley Củ Chi`,
               location: 'Trang trại Happy Valley Củ Chi',
               area: p.area || '160m²',
-              mode: pendingBooking.cultivationMode === 'SELF_GROWING' ? 'Self-Growing' : 'Assisted-Growing',
+              mode: (p.cultivationMode || (pendingBooking.cultivationMode === 'SELF_GROWING' ? 'SELF' : 'ASSISTED')) === 'SELF' ? 'Self-Growing' : 'Assisted-Growing',
               crop: p.varietyName || p.cropName || 'Dưa leo baby F1',
               stage: 'Bước 1: Làm đất & gieo giống',
               currentDay: 1,

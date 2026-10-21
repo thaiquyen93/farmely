@@ -197,9 +197,23 @@ export default function ExpertDashboard() {
       .catch((err) => console.warn('Could not fetch live templates:', err));
   };
 
+  const [assignedPlots, setAssignedPlots] = useState([]);
+
+  const loadAssignedPlots = () => {
+    fetch('/api/rentals')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setAssignedPlots(res.data);
+        }
+      })
+      .catch((err) => console.warn('Could not fetch live rentals:', err));
+  };
+
   useEffect(() => {
     loadFieldIssues();
     loadTemplates();
+    loadAssignedPlots();
   }, []);
 
   // Submit diagnosis for worker field issue
@@ -557,7 +571,8 @@ export default function ExpertDashboard() {
 
             {[
               { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
-              { id: 'issues', label: 'Xử Lý Sự Cố Hiện Trường', icon: AlertTriangle, count: fieldIssues.filter(i => i.status === 'PENDING').length },
+              { id: 'plots', label: 'Thửa Đất Giám Sát (BR24)', icon: Layers, count: assignedPlots.length },
+              { id: 'issues', label: 'Xử Lý Sự Cố Hiện Trường', icon: AlertTriangle, count: fieldIssues.filter(i => i.status === 'PENDING' || i.status === 'OPEN').length },
               { id: 'templates', label: 'Quy Trình Canh Tác VietGAP', icon: FileSpreadsheet, count: null },
               { id: 'compatibility', label: 'Ma Trận Thổ Nhưỡng – Giống', icon: SlidersHorizontal, count: null },
               { id: 'knowledge', label: 'Kho Tri Thức Nông Nghiệp & AI', icon: BookOpen, count: null }
@@ -1057,6 +1072,103 @@ export default function ExpertDashboard() {
               </div>
             )}
 
+            {/* TAB: THỬA ĐẤT GIÁM SÁT KỸ THUẬT (BR24) */}
+            {activeTab === 'plots' && (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
+                  <div>
+                    <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-sky-700" />
+                      <span>Thửa Đất Giám Sát Kỹ Thuật (BR24)</span>
+                    </h3>
+                    <p className="text-xs text-brand-muted mt-0.5">
+                      Danh sách các thửa đất canh tác do Ban Quản Trị chỉ định cho Chuyên Gia Nông Nghiệp phụ trách chuyên môn.
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-sky-800 bg-sky-50 px-3 py-1 rounded-full border border-sky-200 self-start sm:self-auto">
+                    {assignedPlots.length} Thửa Được Phân Công
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {assignedPlots.length === 0 ? (
+                    <div className="text-center py-12 text-stone-500 space-y-2">
+                      <Layers className="w-10 h-10 mx-auto text-stone-300" />
+                      <p className="font-bold text-sm">Chưa có thửa đất nào được phân công</p>
+                    </div>
+                  ) : (
+                    assignedPlots.map((plot) => (
+                      <div
+                        key={plot.id || plot.rentalId}
+                        className="p-5 rounded-2xl border border-brand-border bg-white hover:border-sky-300 transition-all shadow-2xs space-y-3 text-xs"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border/60 pb-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono font-bold text-sky-800 text-sm">{plot.plotCode}</span>
+                            <span className="font-bold text-brand-dark text-sm">{plot.name}</span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-stone-100 text-stone-700">
+                              {plot.contractCode}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                              🔬 CGNN Phụ trách: {plot.expertName || 'ThS. Nguyễn Hoàng Nam'}
+                            </span>
+                            {plot.staffName && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                👷 CVLĐ Phụ trách: {plot.staffName}
+                              </span>
+                            )}
+                          </div>
+
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            ● Đang canh tác
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-stone-600 bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/60">
+                          <div>
+                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Khách Hàng Thuê:</span>
+                            <span className="font-bold text-brand-dark text-xs block">{plot.renterName}</span>
+                            <span className="text-[11px] text-stone-500">{plot.renterEmail || 'Khách thuê'}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Giống Canh Tác:</span>
+                            <span className="font-bold text-emerald-800 text-xs block">{plot.crop}</span>
+                            <span className="text-[11px] text-stone-500">{plot.stage}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Tiến Độ Mùa Vụ:</span>
+                            <span className="font-bold text-brand-dark text-xs block">Ngày {plot.currentDay} / {plot.totalDays} ({plot.progressPercent}%)</span>
+                            <div className="w-full bg-stone-200 rounded-full h-1.5 mt-1">
+                              <div className="bg-emerald-600 h-1.5 rounded-full" style={{ width: `${plot.progressPercent}%` }}></div>
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Quan Trắc IoT:</span>
+                            <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
+                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu ẩm &gt;= 80% (BR18)</span>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-1">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setActiveTab('chat');
+                            }}
+                            className="font-bold text-xs gap-1.5"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Mở Kênh Tư Vấn 1-1 Với Khách</span>
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* TAB 2: FIELD ISSUES (Chẩn đoán sự cố hiện trường do công nhân gửi - UC12 / UC48) */}
             {activeTab === 'issues' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
@@ -1075,8 +1187,8 @@ export default function ExpertDashboard() {
                       key={issue.id}
                       className="p-5 rounded-2xl border border-brand-border bg-white shadow-sm space-y-4 text-xs"
                     >
-                      <div className="flex items-center justify-between border-b border-brand-border/60 pb-2.5">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border/60 pb-2.5">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono font-bold text-brand-green text-sm">{issue.id}</span>
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                             issue.urgency === 'HIGH' ? 'bg-rose-100 text-rose-800' : 'bg-stone-100 text-stone-700'
@@ -1084,11 +1196,16 @@ export default function ExpertDashboard() {
                             {issue.urgency === 'HIGH' ? 'Khẩn cấp' : 'Bình thường'}
                           </span>
                           <span className="text-stone-400">• {issue.reportedTime}</span>
+                          {issue.expertName && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                              🔬 Phụ trách: {issue.expertName}
+                            </span>
+                          )}
                         </div>
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          issue.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                          issue.status === 'PENDING' || issue.status === 'OPEN' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
                         }`}>
-                          {issue.status === 'PENDING' ? 'Chờ chẩn đoán' : 'Đã ban hành phác đồ'}
+                          {issue.status === 'PENDING' || issue.status === 'OPEN' ? 'Chờ chẩn đoán' : 'Đã ban hành phác đồ'}
                         </span>
                       </div>
 
@@ -1811,7 +1928,9 @@ export default function ExpertDashboard() {
         </form>
       </Modal>
 
-      <Footer />
+      <div className={`transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
+        <Footer />
+      </div>
     </div>
   );
 }
