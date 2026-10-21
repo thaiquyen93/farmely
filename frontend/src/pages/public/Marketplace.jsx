@@ -22,22 +22,18 @@ import {
   normalizeLeaseConfig,
   buildCartSummary
 } from '../../utils/leaseSelection';
-import { LogIn, Search, X, ChevronRight, ChevronLeft, Sparkles, ArrowRight, Check, Plus, MapPin, Layers } from 'lucide-react';
+import { LogIn, Search, X, ChevronRight, Sparkles, ArrowRight, Check, Plus, MapPin, Layers } from 'lucide-react';
 
 export default function Marketplace() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated, login } = useAuthStore();
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedPlotId, setSelectedPlotId] = useState(null);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [plotToBook, setPlotToBook] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [isPlotListCollapsed, setIsPlotListCollapsed] = useState(() =>
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 1365px)').matches : false
-  );
   // Cấu hình thuê theo mã thửa (vd {"P-04": { cropId: "CRP-03", cultivationMode: "ASSISTED", termMonths: 6 }}), dùng chung với trang BookPlot
   const [leaseConfigByPlot, setLeaseConfigByPlot] = useState(loadLeaseConfigMap);
   // Danh sách mã thửa cần thuê khi chưa đăng nhập (dùng sau khi đăng nhập)
@@ -185,6 +181,23 @@ export default function Marketplace() {
     return livePlotsGeoJson.features.map((f) => f.properties);
   }, [livePlotsGeoJson]);
 
+  // Bộ lọc GeoJSON tương tác động theo statusFilter
+  const displayedPlotsGeoJson = useMemo(() => {
+    if (statusFilter === 'AVAILABLE') {
+      const filtered = plotsForCurrentLand.filter(
+        (p) => p.status === 'AVAIL' || p.status === 'AVAILABLE' || p.status === 'Đang trống'
+      );
+      return buildGeoJsonFromDbPlots(filtered);
+    }
+    if (statusFilter === 'RENTED') {
+      const filtered = plotsForCurrentLand.filter(
+        (p) => p.status === 'RENT' || p.status === 'RENTED' || p.status === 'Đã thuê'
+      );
+      return buildGeoJsonFromDbPlots(filtered);
+    }
+    return livePlotsGeoJson;
+  }, [statusFilter, plotsForCurrentLand, livePlotsGeoJson]);
+
   // Giỏ thuê: nguồn sự thật duy nhất là danh sách MÃ thửa (vd ["P-04","P-05"]) trong localStorage.
   // Thông tin thửa luôn suy ra từ dữ liệu DB hiện tại theo mã chính xác, không lưu object.
   const [cartCodes, setCartCodes] = useState(loadCartCodes);
@@ -204,26 +217,6 @@ export default function Marketplace() {
 
   const getPlotKey = (plot) => normalizePlotCode(plot?.code || plot?.id);
 
-  // Lọc theo search input & bộ lọc trạng thái
-  const filteredPlots = useMemo(() => {
-    let result = allPlots;
-    if (statusFilter === 'AVAILABLE') {
-      result = result.filter((p) => p.status === 'Đang trống' || p.status === 'AVAILABLE' || p.statusCode === 'AVAIL');
-    } else if (statusFilter === 'RENTED') {
-      result = result.filter((p) => p.status === 'Đã thuê' || p.status === 'RENTED' || p.statusCode === 'RENT');
-    }
-
-    if (!searchQuery.trim()) return result;
-    const q = searchQuery.toLowerCase();
-    return result.filter(
-      (p) =>
-        p.id?.toLowerCase().includes(q) ||
-        p.name?.toLowerCase().includes(q) ||
-        p.code?.toLowerCase().includes(q) ||
-        (Array.isArray(p.crops) && p.crops.some((c) => c.toLowerCase().includes(q)))
-    );
-  }, [allPlots, searchQuery, statusFilter]);
-
   // Thửa đất đang được chọn (null nếu chưa chọn thửa nào)
   const selectedPlot = useMemo(() => {
     if (!selectedPlotId) return null;
@@ -236,12 +229,6 @@ export default function Marketplace() {
     const id = plot.id || plot.code;
     setSelectedPlotId(id);
     setShowDetailPanel(true);
-    setTimeout(() => {
-      const el = document.getElementById(`plot-card-${id}`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    }, 50);
   };
 
   const handleCloseDetail = () => {
@@ -367,7 +354,7 @@ export default function Marketplace() {
       ───────────────────────────────────────────────────────────────────────────── */}
       <div id="map" className="absolute inset-0 z-0 w-full h-full">
         <MarketplaceInteractiveMap
-          plotsData={livePlotsGeoJson}
+          plotsData={displayedPlotsGeoJson}
           farmBoundary={currentLand?.boundary && currentLand.boundary.length >= 3 ? currentLand.boundary : null}
           farmName={currentLand?.landName || (lands.length > 0 ? `${lands.length} Nông trại` : '')}
           selectedPlot={selectedPlot}
@@ -480,332 +467,73 @@ export default function Marketplace() {
       </header>
 
       {/* ─────────────────────────────────────────────────────────────────────────────
-          3. BẢNG TIỆN ÍCH & DANH SÁCH BÊN TRÁI (LEFT ASIDE PANEL)
+          3. BỘ LỌC TRẠNG THÁI NỔI TRÊN BẢN ĐỒ (FLOATING QUICK FILTER PILLS)
       ───────────────────────────────────────────────────────────────────────────── */}
-      {isPlotListCollapsed && (
+      <div className="absolute top-20 left-3 sm:left-6 z-20 flex flex-wrap items-center gap-1.5 p-1 bg-white/95 backdrop-blur-xl rounded-2xl shadow-float border border-white/80 pointer-events-auto">
+        {lands.length > 1 && (
+          <div className="flex items-center gap-1 pl-1.5 pr-1">
+            <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <select
+              value={selectedLandId}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedLandId(val);
+                setSelectedPlotId(null);
+                setShowDetailPanel(false);
+                if (val !== 'ALL') {
+                  localStorage.setItem('farmely_selected_land_id', val);
+                }
+              }}
+              className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-hidden cursor-pointer py-1"
+            >
+              {lands.map((l) => (
+                <option key={l.landId} value={String(l.landId)}>
+                  {l.landName}
+                </option>
+              ))}
+              <option value="ALL">Tất cả nông trại ({lands.length})</option>
+            </select>
+            <div className="h-4 w-px bg-slate-200/80 mx-1" />
+          </div>
+        )}
+
         <button
           type="button"
-          onClick={() => setIsPlotListCollapsed(false)}
-          className="absolute left-3 top-24 z-30 flex h-12 items-center gap-2 rounded-2xl border border-white/80 bg-white/95 px-3 text-xs font-black text-emerald-800 shadow-xl backdrop-blur-xl"
-          title="Mở danh sách thửa đất"
+          onClick={() => setStatusFilter('ALL')}
+          className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            statusFilter === 'ALL'
+              ? 'bg-emerald-700 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+          }`}
         >
-          <ChevronRight className="h-4 w-4" />
-          <span className="hidden 2xl:inline">{filteredPlots.length} thửa</span>
+          Tất cả ({allPlots.length})
         </button>
-      )}
 
-      <aside className={`absolute top-20 left-2 sm:left-3 2xl:left-6 z-20 w-[min(92vw,340px)] 2xl:w-[360px] flex flex-col gap-3 pointer-events-auto transition-transform duration-300 ${isPlotListCollapsed ? '-translate-x-[120%]' : 'translate-x-0'}`}>
-        <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.08)] border border-white/80 transition-all duration-300">
-          {/* Header với icon & số lượng */}
-          <div className="flex items-center justify-between px-1 mb-2.5">
-            <div className="flex items-center gap-2">
-              <div>
-                <span className="text-xs font-black text-slate-800 tracking-tight uppercase block leading-none">
-                  Thửa đất canh tác
-                </span>
-                <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Hệ thống GIS Dynamic
-                </span>
-              </div>
-            </div>
-            <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 rounded-full shadow-2xs">
-              {filteredPlots.length} thửa
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsPlotListCollapsed(true)}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-emerald-700"
-              title="Thu gọn danh sách"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          </div>
+        <button
+          type="button"
+          onClick={() => setStatusFilter('AVAILABLE')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            statusFilter === 'AVAILABLE'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-emerald-700 hover:bg-emerald-50/70'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full ${statusFilter === 'AVAILABLE' ? 'bg-white' : 'bg-emerald-500'}`} />
+          Đang trống ({allPlots.filter((p) => p.status === 'Đang trống' || p.status === 'AVAILABLE' || p.statusCode === 'AVAIL').length})
+        </button>
 
-          {/* Chọn Nông trại nếu có nhiều nông trại trong DB */}
-          {lands.length > 1 && (
-            <div className="mb-2.5 px-0.5">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                Khu nông trại:
-              </label>
-              <select
-                value={selectedLandId}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedLandId(val);
-                  setSelectedPlotId(null);
-                  setShowDetailPanel(false);
-                  if (val !== 'ALL') {
-                    localStorage.setItem('farmely_selected_land_id', val);
-                  }
-                }}
-                className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
-              >
-                {lands.map((l) => {
-                  const plotCount = dbPlots.filter((p) => String(p.landId) === String(l.landId)).length;
-                  return (
-                    <option key={l.landId} value={String(l.landId)}>
-                      {l.landName} ({plotCount} thửa)
-                    </option>
-                  );
-                })}
-                <option value="ALL">Tất cả nông trại ({dbPlots.length} thửa / {lands.length} khu)</option>
-              </select>
-            </div>
-          )}
-
-          {/* Quick filter tabs */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl mb-2.5 border border-slate-200/50">
-            <button
-              type="button"
-              onClick={() => setStatusFilter('ALL')}
-              className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
-                statusFilter === 'ALL'
-                  ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/60'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Tất cả ({allPlots.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter('AVAILABLE')}
-              className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                statusFilter === 'AVAILABLE'
-                  ? 'bg-emerald-600 text-white shadow-xs shadow-emerald-600/30'
-                  : 'text-slate-500 hover:text-emerald-700'
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${statusFilter === 'AVAILABLE' ? 'bg-white' : 'bg-emerald-500'}`} />
-              Đang trống ({allPlots.filter(p => p.status === 'Đang trống' || p.status === 'AVAILABLE' || p.statusCode === 'AVAIL').length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter('RENTED')}
-              className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
-                statusFilter === 'RENTED'
-                  ? 'bg-slate-700 text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              Đã thuê
-            </button>
-          </div>
-
-          {/* Danh sách thẻ thửa đất / Clean Empty State */}
-          <div className="space-y-2 max-h-[calc(100vh-250px)] overflow-y-auto no-scrollbar -mx-1 px-1 py-0.5">
-            {isLoading ? (
-              <div className="py-12 text-center text-slate-500 text-xs">
-                <span className="inline-block animate-spin mr-2">⏳</span> Đang tải bản đồ vệ tinh...
-              </div>
-            ) : allPlots.length === 0 ? (
-              <div className="py-8 px-3 text-center flex flex-col items-center bg-slate-50/80 rounded-2xl border border-dashed border-slate-200">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-2xl mb-3 text-emerald-600 shadow-xs">
-                  🌱
-                </div>
-                {dbPlots.length > 0 ? (
-                  <>
-                    <h3 className="text-xs font-black text-slate-800 mb-1">
-                      Khu đất chưa phân chia thửa
-                    </h3>
-                    <p className="text-[11px] text-slate-500 mb-3 max-w-[240px] leading-relaxed">
-                      Khu vực này hiện chưa có thửa đất. Database hiện có <strong>{dbPlots.length} thửa đất</strong> tại nông trại khác.
-                    </p>
-                    {(() => {
-                      const landWithPlots = lands.find((l) => dbPlots.some((p) => String(p.landId) === String(l.landId)));
-                      return landWithPlots ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const target = String(landWithPlots.landId);
-                            setSelectedLandId(target);
-                            localStorage.setItem('farmely_selected_land_id', target);
-                          }}
-                          className="w-full mb-3 inline-flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl shadow-xs transition cursor-pointer"
-                        >
-                          🌿 Chuyển đến {landWithPlots.landName} ({dbPlots.filter(p => String(p.landId) === String(landWithPlots.landId)).length} thửa)
-                        </button>
-                      ) : null;
-                    })()}
-                  </>
-                ) : (
-                  <>
-                    <h3 className="text-xs font-black text-slate-800 mb-1">
-                      Bản đồ trống (Clean State)
-                    </h3>
-                    <p className="text-[11px] text-slate-500 mb-4 max-w-[240px] leading-relaxed">
-                      Chưa có thửa đất nào được lưu trong Database. Quản trị viên có thể vẽ ranh giới nông trại và chia plot mới ngay.
-                    </p>
-                  </>
-                )}
-                <div className="flex flex-col gap-2 w-full">
-                  <Link
-                    to="/admin/master-data/lands/create"
-                    className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Vẽ nông trại mới
-                  </Link>
-                  <Link
-                    to="/admin/master-data/plots/create"
-                    className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-200 rounded-xl transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Chia thửa đất mới
-                  </Link>
-                </div>
-              </div>
-            ) : filteredPlots.length === 0 ? (
-              <div className="py-10 text-center">
-                <p className="text-xs font-semibold text-slate-600">Không tìm thấy thửa đất phù hợp</p>
-                <p className="mt-1 text-[11px] text-slate-400">Thử đổi bộ lọc trạng thái</p>
-              </div>
-            ) : (
-              filteredPlots.map((p) => {
-                const statusConfig = getStatusConfig(p.status);
-                const isVacant = isAvailableStatus(p.status) || p.statusCode === 'AVAIL';
-                const isSelected = selectedPlot?.id === p.id;
-                const inContract = isPlotSelectedForContract(p);
-                const displayPrice =
-                  p.price || (p.rentalPrice ? `${p.rentalPrice.toLocaleString('vi-VN')} đ` : '1.200.000 đ');
-                const chosenCrop = getSafeCropById(leaseConfigByPlot[getPlotKey(p)]?.cropId);
-                const cropLabel = chosenCrop
-                  ? `${chosenCrop.icon} ${chosenCrop.name}`
-                  : Array.isArray(p.crops) && p.crops.length > 0
-                    ? p.crops[0]
-                    : '';
-                const facilities = p.facilities || {};
-                const facilityIcons = [
-                  facilities.irrigation && ['💧', 'Tưới tự động'],
-                  facilities.iot && ['📡', 'Cảm biến IoT'],
-                  facilities.organicSoil && ['🌱', 'Đất hữu cơ']
-                ].filter(Boolean);
-
-                return (
-                  <div
-                    id={`plot-card-${p.id}`}
-                    key={p.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-pressed={isSelected}
-                    onClick={() => handleSelectPlot(p)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleSelectPlot(p);
-                      }
-                    }}
-                    className={`group relative rounded-2xl p-3 cursor-pointer transition-all duration-300 border ${
-                      isSelected
-                        ? 'bg-emerald-50/90 border-emerald-500 shadow-md ring-2 ring-emerald-500/20'
-                        : inContract
-                        ? 'bg-emerald-50/40 border-emerald-300/80 shadow-2xs'
-                        : 'bg-white border-slate-200/70 hover:border-slate-300 hover:shadow-xs'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono text-xs font-black tracking-tight text-slate-800">
-                            {p.code || p.id}
-                          </span>
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold"
-                            style={{
-                              color: isVacant ? '#047857' : statusConfig.color,
-                              backgroundColor: isVacant ? 'rgba(16,185,129,0.12)' : 'rgba(148,163,184,0.18)'
-                            }}
-                          >
-                            <span
-                              className={`h-1.5 w-1.5 rounded-full ${isVacant && !isSelected ? 'animate-pulse' : ''}`}
-                              style={{ backgroundColor: statusConfig.color }}
-                            />
-                            {statusConfig.label}
-                          </span>
-                        </div>
-                        {p.name && (
-                          <p
-                            className={`mt-1 truncate text-[11px] leading-tight ${isVacant ? 'text-slate-500' : 'text-slate-400'}`}
-                            title={p.name}
-                          >
-                            {p.name}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="shrink-0 text-right">
-                        <span
-                          className={`block whitespace-nowrap text-[13px] font-extrabold leading-none tracking-tight ${
-                            isVacant ? 'text-emerald-700' : 'text-slate-400 line-through decoration-slate-300'
-                          }`}
-                        >
-                          {displayPrice}
-                        </span>
-                        <span className="mt-1 block text-[10px] leading-none text-slate-400">/ tháng</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-2.5 flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-1 overflow-hidden">
-                        <span className="shrink-0 whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                          {p.area}
-                        </span>
-                        {cropLabel && (
-                          <span
-                            className="min-w-0 truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-600"
-                            title={cropLabel}
-                          >
-                            {cropLabel}
-                          </span>
-                        )}
-                        {isVacant && facilityIcons.length > 0 && (
-                          <span
-                            className="shrink-0 rounded-md bg-sky-50 px-1.5 py-[3px] text-[10px] leading-none"
-                            title={facilityIcons.map(([, label]) => label).join(' • ')}
-                          >
-                            {facilityIcons.map(([icon]) => icon).join('')}
-                          </span>
-                        )}
-                      </div>
-
-                      {isVacant ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleSelectPlotForContract(p);
-                          }}
-                          onKeyDown={(e) => e.stopPropagation()}
-                          aria-pressed={inContract}
-                          aria-label={inContract ? `Bỏ chọn thửa ${p.id}` : `Chọn thửa ${p.id}`}
-                          title={inContract ? 'Đã chọn (bấm để bỏ)' : 'Chọn thửa đất này'}
-                          className={`inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full px-2.5 text-[10px] font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 ${
-                            inContract
-                              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-600/30 hover:bg-emerald-700'
-                              : 'border border-emerald-200 bg-white text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50'
-                          }`}
-                        >
-                          {inContract ? (
-                            <>
-                              <Check className="h-3 w-3 stroke-[3]" />
-                              Đã chọn
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="h-3 w-3 stroke-[2.5]" />
-                              Chọn
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-colors group-hover:text-slate-500" />
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </aside>
+        <button
+          type="button"
+          onClick={() => setStatusFilter('RENTED')}
+          className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+            statusFilter === 'RENTED'
+              ? 'bg-slate-800 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+          }`}
+        >
+          Đã thuê ({allPlots.filter((p) => p.status === 'Đã thuê' || p.status === 'RENTED' || p.statusCode === 'RENT').length})
+        </button>
+      </div>
 
       {/* ─────────────────────────────────────────────────────────────────────────────
           4. PANEL CHI TIẾT THỬA ĐẤT BÊN PHẢI (SLIDE-IN DRAWER)

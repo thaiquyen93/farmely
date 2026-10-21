@@ -482,7 +482,9 @@ export default function MarketplaceInteractiveMap({
       </div>
 
       {/* 4. Badge toạ độ GPS & Tên nông trại động từ DB */}
-      <div className="absolute top-20 left-[23.5rem] z-10 hidden lg:flex items-center gap-2 bg-white/85 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-rail border border-white/70 text-[10px] text-slate-600 font-mono font-medium pointer-events-none">
+      <div className={`absolute top-20 right-6 z-10 hidden xl:flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-rail border border-white/70 text-[10px] text-slate-600 font-mono font-medium pointer-events-none transition-opacity duration-300 ${
+        detailPanelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+      }`}>
         <span
           className="w-2 h-2 rounded-full animate-pulse"
           style={{ backgroundColor: availableConfig.color }}
