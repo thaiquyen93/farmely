@@ -6,7 +6,13 @@ export const CROP_STORAGE_KEY = 'farmely_selected_crop_by_plot';
 
 export const normalizePlotCode = (value) => {
   if (value === null || value === undefined) return '';
-  return String(value).trim().replace(/^plot\s+/i, '').trim().toUpperCase();
+  let str = String(value).trim().replace(/^plot\s+/i, '').trim().toUpperCase();
+  if (str.startsWith('PLT-HV-')) {
+    str = 'P-' + str.replace('PLT-HV-', '');
+  } else if (str.startsWith('PLT-')) {
+    str = 'P-' + str.replace('PLT-', '');
+  }
+  return str;
 };
 
 const dedupeCodes = (codes) => {
@@ -28,8 +34,12 @@ export const findPlotByCode = (plots, code) => {
   if (!target || !Array.isArray(plots)) return null;
   const byCode = plots.find((p) => normalizePlotCode(p?.code || p?.plotCode || p?.plot_code) === target);
   if (byCode) return byCode;
-  if (/^\d+$/.test(target)) {
-    return plots.find((p) => String(p?.plot_id ?? p?.plotId) === target) || null;
+  const targetNum = target.replace(/\D/g, '');
+  if (targetNum) {
+    return plots.find((p) => {
+      const pNum = String(p?.code || p?.plotCode || p?.plot_code || p?.plotId || p?.plot_id).replace(/\D/g, '');
+      return pNum && parseInt(pNum, 10) === parseInt(targetNum, 10);
+    }) || null;
   }
   return null;
 };

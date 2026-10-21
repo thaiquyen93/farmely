@@ -99,7 +99,10 @@ export const dedupeSelectedPlots = (plots) => {
   });
 };
 
-export const getBookingValidationError = ({ acceptedTerms, selectedMode, assistedService }) => {
+export const getBookingValidationError = ({ acceptedTerms, selectedMode, assistedService, selectedPlots }) => {
+  if (selectedPlots !== undefined && Array.isArray(selectedPlots) && selectedPlots.length === 0) {
+    return 'Chưa có thửa đất nào được chọn trong hợp đồng. Vui lòng quay lại Marketplace chọn thửa đất!';
+  }
   if (!acceptedTerms) return 'Bạn cần đọc và chấp nhận điều khoản thuê đất trước khi thanh toán.';
   if (selectedMode === 'ASSISTED' && !assistedService) {
     return 'Chưa tải được gói chăm sóc toàn vụ từ hệ thống. Vui lòng tải lại trang rồi thử lại.';
@@ -236,6 +239,7 @@ export default function BookPlot() {
         const mapped = (rows || []).map((p) => ({
           id: String(p.plotId),
           plotId: p.plotId,
+          dbPlotId: p.plotId,
           code: p.plotCode,
           label: p.plotCode,
           name: `Thửa đất ${p.plotCode}`,
@@ -265,6 +269,27 @@ export default function BookPlot() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
+  // Tự động điều hướng chọn thửa đất nếu URL chưa có hoặc rỗng
+  useEffect(() => {
+    if (!loadingPlots && allPlots.length > 0 && selectedPlots.length === 0) {
+      const cart = loadCartCodes();
+      if (cart.length > 0) {
+        navigate(buildBookingUrl(cart), { replace: true });
+      } else {
+        const firstAvail = allPlots.find((p) => p.status === 'AVAILABLE' || p.status === 'Đang trống' || p.status === 'Còn trống') || allPlots[0];
+        if (firstAvail?.code) {
+          navigate(buildBookingUrl([firstAvail.code]), { replace: true });
+        }
+      }
+    }
+  }, [loadingPlots, allPlots, selectedPlots, navigate]);
+
+  // Luôn đồng bộ danh sách thửa đất trong hợp đồng vào localStorage
+  useEffect(() => {
+    if (selectedPlots && selectedPlots.length > 0) {
+      saveCartCodes(selectedPlots.map((p) => p.code));
+    }
+  }, [selectedPlots]);
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;
   const formattedTimer = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
@@ -357,10 +382,24 @@ export default function BookPlot() {
   };
 
   // Helper xác định chính xác plotId số trong PostgreSQL database
-  const resolvePlotDbId = useCallback((plot) => plot?.plotId, []);
+  const resolvePlotDbId = useCallback((plot) => {
+    if (!plot) return 1;
+    if (typeof plot.plotId === 'number' && !isNaN(plot.plotId)) return plot.plotId;
+    if (typeof plot.plot_id === 'number' && !isNaN(plot.plot_id)) return plot.plot_id;
+    if (typeof plot.dbPlotId === 'number' && !isNaN(plot.dbPlotId)) return plot.dbPlotId;
+    const pureNum = parseInt(String(plot.id), 10);
+    if (!isNaN(pureNum)) return pureNum;
+    const cleanDigits = String(plot.code || plot.id).replace(/\D/g, '');
+    if (cleanDigits) return parseInt(cleanDigits, 10);
+    return 1;
+  }, []);
 
   // Tạo hợp đồng giữ chỗ trực tiếp trong Database PostgreSQL qua rental-service (BR08)
   const createReservationOnServer = async () => {
+    if (!selectedPlots || selectedPlots.length === 0) {
+      throw new Error('Chưa có thửa đất nào được chọn trong hợp đồng.');
+    }
+
     const renterId = user?.userId
       ? Number(user.userId)
       : (user?.id ? Number(String(user.id).replace(/\D/g, '')) : 1);
@@ -450,6 +489,11 @@ export default function BookPlot() {
 
   const handleConfirmBooking = async () => {
     setBookingError('');
+
+    if (!selectedPlots || selectedPlots.length === 0) {
+      setBookingError('Chưa có thửa đất nào được chọn trong hợp đồng. Vui lòng quay lại Marketplace hoặc bấm "+ Chọn nhanh" để chọn thửa đất!');
+      return;
+    }
 
     if (!startDate) {
       setBookingError('Vui lòng chọn ngày bắt đầu canh tác.');
@@ -836,13 +880,50 @@ export default function BookPlot() {
 
                 {/* List of Selected Plots in this Contract */}
                 <div className="space-y-4">
-                  {selectedPlots.map((p, index) => {
-                    const plotCrop = getPlotSelectedCrop(p);
-                    const plotConfig = getPlotConfig(p);
-                    const plotError = getPlotError(p);
-                    const isPlotInvalid = Boolean(showConfigErrors && plotError);
-                    const isCropMissing = !plotCrop;
-                    const compatCrops = getCompatibleCropsForPlot(p);
+                  {loadingPlots ? (
+                    <div className="p-8 rounded-2xl border border-brand-border bg-white text-center space-y-3 animate-pulse">
+                      <div className="w-8 h-8 mx-auto border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-xs text-stone-500 font-medium">Đang nạp dữ liệu thửa đất từ hệ thống...</p>
+                    </div>
+                  ) : selectedPlots.length === 0 ? (
+                    <div className="p-6 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/60 text-center space-y-3 animate-fadeIn">
+                      <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+                        <AlertCircle className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="font-heading font-bold text-sm text-stone-800">
+                          Chưa có thửa đất nào được chọn trong hợp đồng
+                        </h4>
+                        <p className="text-xs text-stone-500 max-w-md mx-auto">
+                          Vui lòng chọn thửa đất bạn muốn thuê từ bản đồ vệ tinh Marketplace hoặc bấm nút bên dưới.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-2 pt-2">
+                        <Link
+                          to="/marketplace"
+                          className="px-4 py-2 rounded-xl bg-brand-green text-white text-xs font-bold hover:bg-emerald-800 transition-colors shadow-xs"
+                        >
+                          Về Marketplace chọn thửa đất
+                        </Link>
+                        {allPlots.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setIsAddPlotModalOpen(true)}
+                            className="px-4 py-2 rounded-xl bg-white border border-brand-border text-brand-dark text-xs font-bold hover:bg-stone-50 transition-colors shadow-xs"
+                          >
+                            + Chọn nhanh từ danh sách
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    selectedPlots.map((p, index) => {
+                      const plotCrop = getPlotSelectedCrop(p);
+                      const plotConfig = getPlotConfig(p);
+                      const plotError = getPlotError(p);
+                      const isPlotInvalid = Boolean(showConfigErrors && plotError);
+                      const isCropMissing = !plotCrop;
+                      const compatCrops = getCompatibleCropsForPlot(p);
 
                     return (
                       <div
@@ -989,7 +1070,7 @@ export default function BookPlot() {
                         </div>
                       </div>
                     );
-                  })}
+                  }))}
                 </div>
 
                 {/* Sub-summary banner */}
@@ -1185,6 +1266,13 @@ export default function BookPlot() {
                   <p>• Hoàn 50% khi hủy trong vòng 3 ngày trước ngày bắt đầu.</p>
                 </div>
 
+                {selectedPlots.length === 0 && (
+                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-xs font-bold text-amber-800 flex items-center gap-2 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Hợp đồng chưa có thửa đất nào. Vui lòng chọn ít nhất 1 thửa đất.</span>
+                  </div>
+                )}
+
                 {selectedPlots.some((p) => getPlotError(p)) && (
                   <div className="p-3 rounded-2xl bg-amber-50 border border-amber-300 text-xs font-bold text-amber-800 flex items-center gap-2 animate-fadeIn" role="alert">
                     <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -1206,12 +1294,17 @@ export default function BookPlot() {
                 <Button
                   variant="secondary"
                   size="lg"
-                  className="w-full uppercase font-black tracking-wider text-sm shadow-md py-4 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                  disabled={selectedPlots.length === 0}
+                  className="w-full uppercase font-black tracking-wider text-sm shadow-md py-4 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleConfirmBooking}
                   loading={isProcessing}
                 >
                   <ShieldCheck className="w-5 h-5 text-brand-yellow" />
-                  <span>TIẾP TỤC THANH TOÁN VNPAY SANDBOX ({totalAmount.toLocaleString('vi-VN')} đ)</span>
+                  <span>
+                    {selectedPlots.length === 0
+                      ? 'VUI LÒNG CHỌN THỬA ĐẤT ĐỂ TIẾP TỤC'
+                      : `TIẾP TỤC THANH TOÁN VNPAY SANDBOX (${totalAmount.toLocaleString('vi-VN')} đ)`}
+                  </span>
                 </Button>
 
                 <p className="text-[11px] text-center text-brand-muted">

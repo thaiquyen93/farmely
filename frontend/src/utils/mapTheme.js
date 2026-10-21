@@ -17,7 +17,15 @@ const STATUS_LOOKUP = (() => {
   Object.values(GIS_STATUSES).forEach((entry) => {
     lookup.set(normalizeStatusToken(entry.key), entry);
     lookup.set(normalizeStatusToken(entry.label), entry);
+    if (Array.isArray(entry.altLabels)) {
+      entry.altLabels.forEach((alt) => lookup.set(normalizeStatusToken(alt), entry));
+    }
   });
+  lookup.set('còn trống', GIS_STATUSES.AVAILABLE);
+  lookup.set('đang trống', GIS_STATUSES.AVAILABLE);
+  lookup.set('avail', GIS_STATUSES.AVAILABLE);
+  lookup.set('rent', GIS_STATUSES.RENTED);
+  lookup.set('maint', GIS_STATUSES.MAINTENANCE);
   return lookup;
 })();
 
@@ -131,7 +139,11 @@ export function buildStatusColorExpression(property = 'color') {
   Object.values(GIS_STATUSES).forEach((entry) => {
     expression.push(entry.key, entry[property]);
     expression.push(entry.label, entry[property]);
+    if (Array.isArray(entry.altLabels)) {
+      entry.altLabels.forEach((alt) => expression.push(alt, entry[property]));
+    }
   });
+  expression.push('Còn trống', GIS_STATUSES.AVAILABLE[property]);
 
   expression.push(GIS_STATUSES[FALLBACK_STATUS_KEY][property]);
   return expression;
