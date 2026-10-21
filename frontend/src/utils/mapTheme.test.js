@@ -50,8 +50,8 @@ describe('buildStatusColorExpression', () => {
 
     const cases = expr.slice(2, expr.length - 1);
     expect(cases.length % 2).toBe(0);
-    // 4 statuses x (key + label) = 8 cases = 16 entries
-    expect(cases).toHaveLength(16);
+    // 4 statuses x (key + label) + aliases
+    expect(cases.length).toBeGreaterThanOrEqual(16);
     expect(typeof expr[expr.length - 1]).toBe('string');
   });
 

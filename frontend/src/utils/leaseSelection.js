@@ -34,6 +34,10 @@ export const findPlotByCode = (plots, code) => {
   if (!target || !Array.isArray(plots)) return null;
   const byCode = plots.find((p) => normalizePlotCode(p?.code || p?.plotCode || p?.plot_code) === target);
   if (byCode) return byCode;
+  if (/^\d+$/.test(target)) {
+    const byId = plots.find((p) => String(p?.plot_id ?? p?.plotId) === target);
+    if (byId) return byId;
+  }
   const targetNum = target.replace(/\D/g, '');
   if (targetNum) {
     return plots.find((p) => {

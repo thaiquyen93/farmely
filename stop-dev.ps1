@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $runtimeDir = Join-Path $PSScriptRoot '.run'
 $pidFile = Join-Path $runtimeDir 'processes.json'
 

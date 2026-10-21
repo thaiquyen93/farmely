@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'SilentlyContinue'
+﻿$ErrorActionPreference = 'SilentlyContinue'
 
 $services = @(
     [pscustomobject]@{ Port = 3000; Name = 'frontend'; Type = 'React Vite Dev Server'; Url = 'http://localhost:3000' },
