@@ -44,11 +44,36 @@ import {
   X
 } from 'lucide-react';
 
-const readPhoto = (file, onLoad) => {
+const readPhoto = async (file, onLoad) => {
   if (!file) {
     onLoad('');
     return;
   }
+  // Thử tải lên dịch vụ lưu trữ tệp Farmely (/api/files/upload - Non-Screen #22)
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('token');
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('/api/files/upload', {
+      method: 'POST',
+      headers,
+      body: formData
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.data && data.data.fileUrl) {
+        onLoad(data.data.fileUrl);
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('Backend file upload fallback to DataURL:', err);
+  }
+
+  // Fallback đọc DataURL trực tiếp từ file
   const reader = new FileReader();
   reader.onload = () => onLoad(String(reader.result || ''));
   reader.onerror = () => onLoad('');

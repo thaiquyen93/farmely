@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/issues")
+@RequestMapping({"/api/issues", "/api/issue-reports"})
 @RequiredArgsConstructor
 @Tag(name = "Issue Reports", description = "Quản lý Báo cáo Sự cố & Xử lý Sâu bệnh Hiện trường (Expert Diagnosis)")
 public class IssueReportController {

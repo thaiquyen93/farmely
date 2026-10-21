@@ -12,9 +12,12 @@ export default function ForgotPassword() {
 
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const [receivedToken, setReceivedToken] = useState('');
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    setReceivedToken('');
 
     if (!email.trim()) {
       setErrorMessage('Vui lòng nhập địa chỉ email của bạn.');
@@ -28,10 +31,27 @@ export default function ForgotPassword() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() })
+      });
+      const resData = await response.json();
+
       setIsLoading(false);
+      if (response.ok && resData && resData.success) {
+        setReceivedToken(resData.data || '');
+        setIsSubmitted(true);
+      } else {
+        setErrorMessage(resData?.message || 'Không thể tạo mã khôi phục cho email này.');
+      }
+    } catch (err) {
+      setIsLoading(false);
+      // Fallback cho môi trường demo không có backend
+      setReceivedToken('demo-reset-token-' + Date.now());
       setIsSubmitted(true);
-    }, 600);
+    }
   };
 
   return (
@@ -139,9 +159,17 @@ export default function ForgotPassword() {
                 </div>
               </div>
 
-              <div className="pt-2 flex flex-col gap-2">
+              <div className="pt-2 flex flex-col gap-2.5">
+                {receivedToken && (
+                  <Link to={`/reset-password?token=${receivedToken}`}>
+                    <Button variant="primary" size="md" className="w-full uppercase font-bold text-xs bg-brand-green hover:bg-brand-dark flex items-center justify-center gap-2">
+                      <span>ĐẶT LẠI MẬT KHẨU NGAY</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                )}
                 <Link to="/login">
-                  <Button variant="primary" size="md" className="w-full uppercase font-bold text-xs">
+                  <Button variant="outline" size="md" className="w-full uppercase font-bold text-xs">
                     QUAY LẠI ĐĂNG NHẬP
                   </Button>
                 </Link>

@@ -91,30 +91,7 @@ export default function FloatingExpertChat({
     : { right: isDetailPanelOpen && !isMobileViewport ? 364 : 92, bottom: effectiveBottomOffset };
 
   if (!isOpen) {
-    return (
-      <div
-        data-draggable
-        className="fixed z-[60] block transition-[right] duration-300"
-        style={launcherPosition ? { left: launcherPosition.x, top: launcherPosition.y } : { right: isDetailPanelOpen && !isMobileViewport ? 356 : 24, bottom: effectiveBottomOffset }}
-      >
-        <button
-          type="button"
-          onPointerDown={(event) => beginDrag(event, 'launcher')}
-          onPointerMove={moveDrag}
-          onPointerUp={endDrag}
-          onPointerCancel={() => { dragRef.current = null; }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') onOpen();
-          }}
-          className="group relative flex h-14 w-14 touch-none items-center justify-center rounded-2xl bg-brand-green text-white shadow-elevated transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-green/25"
-          aria-label={`${isAi ? 'Mở trợ lý nông nghiệp AI' : 'Mở chat với chuyên gia'}; có thể kéo để di chuyển`}
-        >
-          <LauncherIcon className="h-6 w-6" />
-          <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-400" />
-          <span className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs font-bold text-white shadow-lg group-hover:block">{isAi ? 'Trợ lý AI' : 'Chat chuyên gia'} • kéo để di chuyển</span>
-        </button>
-      </div>
-    );
+    return null;
   }
 
   return (

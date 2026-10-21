@@ -15,5 +15,11 @@ public class ConfirmHarvestRequest {
 
     private DeliveryType deliveryType;
 
+    private Integer rating;
+
+    private Integer freshnessRating;
+
+    private Integer packagingRating;
+
     private String customerFeedback;
 }

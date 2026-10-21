@@ -48,6 +48,21 @@ public class HarvestResultEntity {
     @Builder.Default
     private Boolean customerConfirmed = false;
 
+    @Column(name = "rating")
+    private Integer rating;
+
+    @Column(name = "freshness_rating")
+    private Integer freshnessRating;
+
+    @Column(name = "packaging_rating")
+    private Integer packagingRating;
+
+    @Column(name = "customer_feedback", columnDefinition = "TEXT")
+    private String customerFeedback;
+
+    @Column(name = "confirmed_at")
+    private OffsetDateTime confirmedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

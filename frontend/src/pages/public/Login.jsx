@@ -31,7 +31,7 @@ export default function Login() {
 
     setIsLoading(true);
     try {
-      const res = await login(email, password);
+      const res = await login(email, password, rememberMe);
       setIsLoading(false);
       if (res.success) {
         setSuccessMessage(`Đăng nhập thành công! Chào mừng ${res.user.fullName}.`);

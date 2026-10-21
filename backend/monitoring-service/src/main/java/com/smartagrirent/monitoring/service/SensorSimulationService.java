@@ -29,6 +29,7 @@ public class SensorSimulationService {
 
     private final SensorReadingRepository readingRepository;
     private final SensorSseService sseService;
+    private final AlertService alertService;
 
     @Value("${farmely.sensor.simulation.enabled:true}")
     private boolean simulationEnabled;
@@ -82,6 +83,9 @@ public class SensorSimulationService {
                 SensorReading reading = generateNextReading(plotId);
                 SensorReading saved = readingRepository.save(reading);
                 SensorReadingResponse response = SensorReadingResponse.fromEntity(saved);
+
+                // Tự động kiểm tra ngưỡng vi khí hậu & kích hoạt cảnh báo nếu vượt mức an toàn
+                alertService.evaluateThresholds(saved);
 
                 // Broadcast real-time sang tất cả client đang kết nối SSE
                 sseService.broadcastReading(response);

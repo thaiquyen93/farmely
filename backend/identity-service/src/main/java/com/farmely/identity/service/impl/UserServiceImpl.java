@@ -26,6 +26,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final com.farmely.identity.service.AuditLogService auditLogService;
 
     @Override
     @Transactional(readOnly = true)
@@ -73,6 +74,7 @@ public class UserServiceImpl implements UserService {
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+        auditLogService.log(user.getUserId(), user.getEmail(), "CHANGE_PASSWORD", "USER", String.valueOf(user.getUserId()), "Đổi mật khẩu tài khoản thành công", null, "SUCCESS");
     }
 
     @Override
@@ -89,6 +91,7 @@ public class UserServiceImpl implements UserService {
         }
 
         User updated = userRepository.save(user);
+        auditLogService.log(user.getUserId(), user.getEmail(), "CHANGE_USER_STATUS", "USER", String.valueOf(user.getUserId()), "Thay đổi trạng thái tài khoản thành " + user.getStatus(), null, "SUCCESS");
         return userMapper.toUserResponse(updated);
     }
 }

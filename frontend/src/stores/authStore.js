@@ -45,12 +45,12 @@ export const useAuthStore = create((set, get) => ({
   token: localStorage.getItem('farmely_token') || null,
   isAuthenticated: !!localStorage.getItem('farmely_user'),
 
-  login: async (email, password) => {
+  login: async (email, password, rememberMe = false) => {
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() })
+        body: JSON.stringify({ email: email.trim(), password: password.trim(), rememberMe: Boolean(rememberMe) })
       });
       const resData = await response.json();
 

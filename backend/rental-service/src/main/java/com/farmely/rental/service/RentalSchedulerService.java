@@ -23,6 +23,8 @@ public class RentalSchedulerService {
 
     private final ContractRepository contractRepository;
     private final RentalRepository rentalRepository;
+    private final com.farmely.rental.client.FarmServiceClient farmServiceClient;
+    private final com.farmely.rental.client.CultivationServiceClient cultivationServiceClient;
 
     /**
      * BR08: Tự động hủy các lượt giữ chỗ quá hạn 15 phút (hoặc +10 phút ân hạn) mà chưa thanh toán
@@ -54,6 +56,7 @@ public class RentalSchedulerService {
 
     /**
      * Tự động kích hoạt các lượt thuê đã xác nhận khi đến ngày bắt đầu canh tác (Start Date)
+     * Đồng thời tự động sinh các Care Tasks chuẩn hóa theo Quy trình mẫu (BR12 / Non-Screen #11)
      * Chạy định kỳ mỗi 10 phút
      */
     @Scheduled(fixedDelay = 600000)
@@ -68,6 +71,20 @@ public class RentalSchedulerService {
                 rentalRepository.save(rental);
                 log.info("Tự động kích hoạt lượt thuê ID {} cho thửa đất ID {} (Ngày bắt đầu: {})",
                         rental.getRentalId(), rental.getPlotId(), rental.getStartDate());
+
+                // BR12: Tự động sinh danh mục nhiệm vụ chăm sóc từ quy trình mẫu
+                try {
+                    cultivationServiceClient.generateTasksFromTemplate(
+                            com.farmely.rental.client.CultivationServiceClient.GenerateTasksRequest.builder()
+                                    .rentalId(rental.getRentalId())
+                                    .templateId(rental.getVarietyId())
+                                    .startDate(rental.getStartDate())
+                                    .build()
+                    );
+                    log.info("Đã tự động kích hoạt sinh quy trình chăm sóc từ mẫu cho rental ID: {}", rental.getRentalId());
+                } catch (Exception e) {
+                    log.warn("Không thể tự động sinh care tasks qua Feign: {}", e.getMessage());
+                }
             }
         }
     }
@@ -75,6 +92,7 @@ public class RentalSchedulerService {
     /**
      * BR22: Tự động hoàn thành các lượt thuê khi hết ngày kết thúc (End Date)
      * Khi tất cả các lượt thuê của hợp đồng đã kết thúc -> Hợp đồng chuyển sang COMPLETED
+     * Đồng thời kích hoạt chuyển thửa đất sang chế độ nghỉ đất 4 ngày (MAINTENANCE) theo BR23
      * Chạy định kỳ mỗi 10 phút
      */
     @Scheduled(fixedDelay = 600000)
@@ -88,6 +106,14 @@ public class RentalSchedulerService {
                 rental.setStatus(RentalStatus.DONE);
                 rentalRepository.save(rental);
                 log.info("Lượt thuê ID {} đã kết thúc chu kỳ canh tác", rental.getRentalId());
+
+                // BR23: Tự động kích hoạt chu kỳ nghỉ đất 4 ngày (Soil Recovery Period)
+                try {
+                    farmServiceClient.startPlotMaintenance(rental.getPlotId());
+                    log.info("Đã tự động chuyển thửa đất ID {} sang chế độ nghỉ đất (MAINTENANCE) theo BR23", rental.getPlotId());
+                } catch (Exception e) {
+                    log.warn("Không thể kích hoạt chuyển MAINTENANCE qua Feign: {}", e.getMessage());
+                }
 
                 // Kiểm tra hợp đồng xem toàn bộ lượt thuê đã kết thúc chưa
                 List<RentalEntity> allRentals = rentalRepository.findByContractId(rental.getContractId());

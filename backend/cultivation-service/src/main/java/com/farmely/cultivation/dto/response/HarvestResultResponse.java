@@ -24,6 +24,11 @@ public class HarvestResultResponse {
     private String evidenceImageUrl;
     private DeliveryType deliveryType;
     private Boolean customerConfirmed;
+    private Integer rating;
+    private Integer freshnessRating;
+    private Integer packagingRating;
+    private String customerFeedback;
+    private OffsetDateTime confirmedAt;
     private OffsetDateTime createdAt;
 
     // UI contextual details

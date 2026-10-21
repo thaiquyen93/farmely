@@ -29,7 +29,7 @@ spring:
         - id: identity-service
           uri: http://${IDENTITY_SERVICE_HOST:localhost}:${IDENTITY_SERVICE_PORT:8081}
           predicates:
-            - Path=/api/auth/**, /api/users/**
+            - Path=/api/auth/**, /api/users/**, /api/audit-logs/**
 
         - id: farm-service
           uri: http://${FARM_SERVICE_HOST:localhost}:${FARM_SERVICE_PORT:8082}
@@ -54,7 +54,7 @@ spring:
         - id: cultivation-service
           uri: http://${CULTIVATION_SERVICE_HOST:localhost}:${CULTIVATION_SERVICE_PORT:8086}
           predicates:
-            - Path=/api/tasks/**, /api/care-tasks/**, /api/diaries/**, /api/diary/**, /api/services/**, /api/issues/**, /api/harvest/**, /api/harvests/**, /api/service-requests/**, /api/cultivation/**
+            - Path=/api/tasks/**, /api/care-tasks/**, /api/diaries/**, /api/diary/**, /api/services/**, /api/issues/**, /api/issue-reports/**, /api/harvest/**, /api/harvests/**, /api/service-requests/**, /api/cultivation/**
 
         - id: communication-service
           uri: http://${COMMUNICATION_SERVICE_HOST:localhost}:${COMMUNICATION_SERVICE_PORT:8087}

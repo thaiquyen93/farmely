@@ -49,4 +49,18 @@ public class AuthController {
         UserResponse response = authService.getCurrentUser(userDetails.getUsername());
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
+
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Yêu cầu khôi phục mật khẩu", description = "Tạo mã xác thực và link khôi phục mật khẩu gửi qua email")
+    public ResponseEntity<ApiResponse<String>> forgotPassword(@Valid @RequestBody com.farmely.identity.dto.ForgotPasswordRequest request) {
+        String token = authService.forgotPassword(request);
+        return ResponseEntity.ok(ApiResponse.ok("Mã xác thực khôi phục mật khẩu đã được tạo. Vui lòng kiểm tra email của bạn.", token));
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(summary = "Đặt lại mật khẩu mới", description = "Xác thực token và cập nhật mật khẩu mới cho tài khoản")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody com.farmely.identity.dto.ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(ApiResponse.ok("Đặt lại mật khẩu thành công. Vui lòng đăng nhập với mật khẩu mới.", null));
+    }
 }
