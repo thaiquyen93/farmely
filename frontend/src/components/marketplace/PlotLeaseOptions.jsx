@@ -37,64 +37,69 @@ export default function PlotLeaseOptions({
   };
 
   return (
-    <div className={`space-y-2.5 ${compact ? 'text-xs' : 'text-sm'}`}>
+    <div className={`space-y-3 ${compact ? 'text-xs' : 'text-sm'}`}>
       {/* (A) Hình thức canh tác */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <label className={`font-bold text-stone-800 ${compact ? 'text-[11px]' : 'text-xs'}`}>
-            Hình thức canh tác <span className="text-rose-600">*</span>
+          <label className="flex items-center gap-1 text-xs font-bold text-slate-800">
+            <span>Hình thức canh tác</span>
+            <span className="text-rose-500 font-bold">*</span>
           </label>
-          <span className="text-[10px] text-stone-500">Mặc định để trống</span>
+          <span className="text-[10px] text-slate-400 font-medium">SSoT • 2 mô hình</span>
         </div>
 
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Hình thức canh tác">
-          {/* 1. Self-Growing */}
+          {/* 1. Tự canh tác (Self-Growing) */}
           <button
             type="button"
             role="radio"
             aria-checked={cultivationMode === CULTIVATION_MODES.SELF}
             onClick={() => handleModeChange(CULTIVATION_MODES.SELF)}
-            className={`p-2 rounded-xl text-left border transition-all cursor-pointer relative ${
+            className={`p-2.5 rounded-2xl text-left border transition-all cursor-pointer relative ${
               cultivationMode === CULTIVATION_MODES.SELF
                 ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20 shadow-xs'
-                : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/60'
+                : 'border-slate-200 bg-white hover:border-emerald-300 hover:bg-slate-50/60'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`font-bold text-stone-900 ${compact ? 'text-xs' : 'text-sm'}`}>Self-Growing</span>
-              {cultivationMode === CULTIVATION_MODES.SELF && (
-                <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
+              <span className="text-xs font-bold text-slate-900">Tự canh tác</span>
+              {cultivationMode === CULTIVATION_MODES.SELF ? (
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
+              ) : (
+                <span className="w-2.5 h-2.5 rounded-full border border-slate-300 shrink-0" />
               )}
             </div>
-            <p className="text-[10px] text-emerald-700 font-semibold mt-0.5">Tự canh tác (Miễn phí)</p>
+            <p className="text-[10px] text-slate-500 font-medium mt-0.5">Self-growing · Miễn phí</p>
           </button>
 
-          {/* 2. Assisted-Growing */}
+          {/* 2. Ủy thác trọn gói (Assisted-Growing) */}
           <button
             type="button"
             role="radio"
             aria-checked={cultivationMode === CULTIVATION_MODES.ASSISTED}
             onClick={() => handleModeChange(CULTIVATION_MODES.ASSISTED)}
-            className={`p-2 rounded-xl text-left border transition-all cursor-pointer relative ${
+            className={`p-2.5 rounded-2xl text-left border transition-all cursor-pointer relative ${
               cultivationMode === CULTIVATION_MODES.ASSISTED
                 ? 'border-emerald-600 bg-emerald-50/80 ring-2 ring-emerald-500/20 shadow-xs'
-                : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/60'
+                : 'border-slate-200 bg-white hover:border-emerald-300 hover:bg-slate-50/60'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`font-bold text-stone-900 ${compact ? 'text-xs' : 'text-sm'}`}>Assisted-Growing</span>
-              {cultivationMode === CULTIVATION_MODES.ASSISTED && (
-                <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
+              <span className="text-xs font-bold text-slate-900">Ủy thác trọn gói</span>
+              {cultivationMode === CULTIVATION_MODES.ASSISTED ? (
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
+              ) : (
+                <span className="w-2.5 h-2.5 rounded-full border border-slate-300 shrink-0" />
               )}
             </div>
-            <p className="text-[10px] text-stone-600 font-medium mt-0.5">
+            <p className="text-[10px] text-emerald-700 font-bold mt-0.5">
               +{careFee.toLocaleString('vi-VN')} đ/tháng
             </p>
           </button>
         </div>
 
         {showErrors && isModeMissing && (
-          <p className="text-[11px] font-bold text-rose-600 mt-1 flex items-center gap-1" role="alert">
+          <p className="text-[11px] font-bold text-rose-600 mt-1.5 flex items-center gap-1" role="alert">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" /> Vui lòng chọn hình thức canh tác
           </p>
         )}
@@ -102,18 +107,20 @@ export default function PlotLeaseOptions({
 
       {/* (B) Thời hạn thuê */}
       <div>
-        <div className="flex items-center justify-between mb-1.5">
-          <label className={`font-bold text-stone-800 ${compact ? 'text-[11px]' : 'text-xs'}`}>
-            Thời hạn thuê <span className="text-rose-600">*</span>
+        <div className="flex items-center justify-between mb-2">
+          <label className="flex items-center gap-1 text-xs font-bold text-slate-800">
+            <span>Thời hạn thuê</span>
+            <span className="text-rose-500 font-bold">*</span>
           </label>
           {growthDays > 35 && (
-            <span className="text-[10px] text-amber-700 font-semibold flex items-center gap-0.5">
-              <Shield className="w-3 h-3 text-amber-600" /> Cây &gt;35 ngày: Tối thiểu 3 tháng (BR04)
+            <span className="text-[10px] text-amber-700 font-semibold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
+              <Shield className="w-3 h-3 text-amber-600 shrink-0" />
+              Cây &gt;35 ngày: Tối thiểu 3 tháng (BR04)
             </span>
           )}
         </div>
 
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-4 gap-1.5 pt-2.5">
           {LEASE_TERM_OPTIONS.map((opt) => {
             const isSelected = termMonths === opt.months;
             const lockReason = getTermLockReason(opt.months, { growthDays, cultivationMode });
@@ -132,30 +139,32 @@ export default function PlotLeaseOptions({
                 disabled={isLocked}
                 title={lockTitle || opt.cycleName}
                 onClick={() => handleTermChange(opt.months)}
-                className={`p-1.5 ${opt.recommended && !isLocked ? 'pt-2' : ''} rounded-xl border text-center transition-all cursor-pointer relative ${
+                className={`rounded-2xl border text-center transition-all cursor-pointer relative ${
+                  opt.recommended && !isLocked ? 'pt-3 pb-2 px-1' : 'py-2 px-1'
+                } ${
                   isLocked
-                    ? 'border-stone-200 bg-stone-100/70 text-stone-400 cursor-not-allowed opacity-60'
+                    ? 'border-slate-200 bg-slate-100/70 text-slate-400 cursor-not-allowed opacity-60'
                     : isSelected
-                    ? 'border-emerald-600 bg-emerald-50/90 text-stone-900 ring-2 ring-emerald-500/20 font-bold shadow-xs'
-                    : 'border-stone-200 bg-white hover:border-emerald-300 text-stone-700'
+                    ? 'border-emerald-600 bg-emerald-50/90 text-slate-900 ring-2 ring-emerald-500/20 font-bold shadow-xs'
+                    : 'border-slate-200 bg-white hover:border-emerald-300 text-slate-700'
                 }`}
               >
                 {opt.recommended && !isLocked && (
-                  <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter whitespace-nowrap shadow-xs">
+                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shadow-2xs z-10">
                     Khuyên dùng
                   </span>
                 )}
-                <div className={`font-bold leading-tight ${compact ? 'text-[11px]' : 'text-xs'}`}>
+                <div className="font-extrabold text-xs text-slate-800 leading-tight">
                   {opt.title}
                 </div>
                 {isLocked ? (
-                  <div className="text-[9px] text-stone-400 mt-0.5 flex items-center justify-center gap-0.5">
+                  <div className="text-[9px] text-slate-400 mt-1 flex items-center justify-center gap-0.5">
                     <Lock className="w-2.5 h-2.5 shrink-0" />
                     <span>Khóa</span>
                   </div>
                 ) : (
-                  <div className="text-[9px] text-stone-500 mt-0.5 truncate">
-                    {compact ? opt.short : opt.tag}
+                  <div className="text-[9px] text-slate-500 mt-1 truncate font-medium">
+                    {opt.short}
                   </div>
                 )}
               </button>
@@ -165,17 +174,17 @@ export default function PlotLeaseOptions({
       </div>
 
       {/* (C) Dòng tính giá tạm tính trực quan */}
-      <div className="p-2 rounded-xl bg-stone-50 border border-stone-200/80 text-[11px] text-stone-700 leading-snug">
+      <div className="p-3 rounded-2xl bg-slate-50/90 border border-slate-200/80 text-[11px] text-slate-700 space-y-1">
         <div className="flex items-center justify-between">
-          <span>Tạm tính ({termMonths} tháng):</span>
-          <span className="font-extrabold text-brand-dark text-xs">
+          <span className="text-xs font-semibold text-slate-600">Tạm tính ({termMonths} tháng):</span>
+          <span className="font-black text-emerald-800 text-sm">
             {pricing.total.toLocaleString('vi-VN')} đ
           </span>
         </div>
-        <div className="text-[10px] text-stone-500 mt-0.5">
-          {Number(monthlyRent).toLocaleString('vi-VN')}đ × {termMonths}th
+        <div className="text-[10px] text-slate-400 font-medium">
+          {Number(monthlyRent).toLocaleString('vi-VN')} đ/tháng × {termMonths} tháng
           {cultivationMode === CULTIVATION_MODES.ASSISTED && (
-            <span> + chăm sóc {careFee.toLocaleString('vi-VN')}đ × {termMonths}th</span>
+            <span className="text-emerald-700 font-semibold"> + ủy thác {careFee.toLocaleString('vi-VN')} đ/tháng × {termMonths} tháng</span>
           )}
         </div>
       </div>

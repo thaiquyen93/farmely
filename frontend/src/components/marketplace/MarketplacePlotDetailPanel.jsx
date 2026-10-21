@@ -12,6 +12,7 @@ import {
   Share2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Leaf,
   CheckCircle2,
   AlertCircle
@@ -204,15 +205,19 @@ export default function MarketplacePlotDetailPanel({
       }`}
     >
       {/* ─────────────────────────────────────────────────────────────────────────────
-          1. HERO IMAGE (h-[104px] sm:h-[112px] 2xl:h-[150px])
+          1. HERO IMAGE (h-[128px] sm:h-[136px] 2xl:h-[160px])
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="relative h-[104px] sm:h-[112px] 2xl:h-[150px] w-full shrink-0 select-none overflow-hidden bg-slate-950 group">
+      <div className="relative h-[128px] sm:h-[136px] 2xl:h-[160px] w-full shrink-0 select-none overflow-hidden bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 group">
         <img
           key={currentPhoto}
           id="detail-img"
           src={currentPhoto}
-          alt={plotName}
-          className="w-full h-full object-cover transition-all duration-700 ease-out group-hover:scale-105"
+          alt=""
+          onError={(e) => {
+            // Giấu hẳn ảnh vỡ nếu network/CDN lỗi, giữ nền gradient sang trọng
+            e.currentTarget.classList.add('hidden');
+          }}
+          className="w-full h-full object-cover transition-all duration-700 ease-out group-hover:scale-105 text-transparent [font-size:0]"
         />
 
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-black/15 pointer-events-none" />
@@ -388,58 +393,62 @@ export default function MarketplacePlotDetailPanel({
       </div>
 
       {/* ─────────────────────────────────────────────────────────────────────────────
-          4. SCROLLABLE TAB CONTENT (space-y-2.5 pt-2.5)
+          4. SCROLLABLE TAB CONTENT (space-y-3 pt-2.5 pb-6)
       ───────────────────────────────────────────────────────────────────────────── */}
       <div
         key={`${plot.id}-${activeTab}`}
-        className="px-4 pt-2.5 pb-2.5 flex-1 overflow-y-auto no-scrollbar space-y-2.5"
+        className="px-4 pt-2.5 pb-6 flex-1 overflow-y-auto no-scrollbar space-y-3"
       >
         {/* ═══════════ TAB: TỔNG QUAN ═══════════ */}
         {activeTab === 'overview' && (
           <>
-            {/* Bộ chọn giống cây */}
+            {/* Bộ chọn giống cây — Thiết kế tối giản, cao cấp, không vỡ chữ */}
             <div
-              className={`rounded-xl border p-2 transition-all ${
+              className={`rounded-2xl border p-2.5 transition-all ${
                 showConfigErrors && !leaseConfig.cropId
                   ? 'border-2 border-rose-500 bg-rose-50/70 shadow-sm ring-2 ring-rose-500/20'
-                  : 'border-emerald-200 bg-emerald-50/40'
+                  : 'border-slate-200/90 bg-white shadow-2xs'
               }`}
             >
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <h4 className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[10px] font-extrabold uppercase tracking-wider text-slate-600">
-                  <TrendingUp className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
-                  Chọn cây trồng <span className="text-rose-500">*</span>
-                </h4>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <label className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-slate-800">
+                  <span className="text-emerald-600 text-sm">🌱</span>
+                  <span>Giống cây trồng canh tác</span>
+                  <span className="text-rose-500 font-bold">*</span>
+                </label>
                 {leaseConfig.cropId ? (
-                  <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-emerald-600">
-                    Đã chọn giống
+                  <span className="shrink-0 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                    ✓ Đã chọn
                   </span>
                 ) : (
-                  <span className="shrink-0 whitespace-nowrap text-[9px] font-black text-rose-600 bg-rose-100 px-1.5 py-0.2 rounded-full">
-                    BẮT BUỘC CHỌN
+                  <span className="shrink-0 text-[10px] font-semibold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full">
+                    Bắt buộc
                   </span>
                 )}
               </div>
 
-              <select
-                value={leaseConfig.cropId || ''}
-                onChange={(event) => {
-                  setShowConfigErrors(false);
-                  onChangeLeaseConfig({ cropId: event.target.value });
-                }}
-                className={`w-full rounded-lg px-2.5 py-1.5 text-xs font-bold outline-hidden transition-all cursor-pointer ${
-                  showConfigErrors && !leaseConfig.cropId
-                    ? 'border-2 border-rose-500 bg-white text-rose-900 ring-2 ring-rose-500/30'
-                    : 'border border-emerald-200 bg-white text-slate-800 focus:ring-2 focus:ring-emerald-400/40'
-                }`}
-              >
-                <option value="">-- Vui lòng chọn giống cây cho thửa đất này --</option>
-                {cropOptions.map((crop) => (
-                  <option key={crop.id} value={crop.id}>
-                    {crop.name} — {crop.variety}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={leaseConfig.cropId || ''}
+                  onChange={(event) => {
+                    setShowConfigErrors(false);
+                    onChangeLeaseConfig({ cropId: event.target.value });
+                  }}
+                  className={`w-full appearance-none rounded-xl pl-3 pr-8 py-2 text-xs font-semibold outline-hidden transition-all cursor-pointer ${
+                    showConfigErrors && !leaseConfig.cropId
+                      ? 'border-2 border-rose-500 bg-white text-rose-900 ring-2 ring-rose-500/30'
+                      : 'border border-slate-200 bg-slate-50/70 text-slate-800 hover:bg-white focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20'
+                  }`}
+                >
+                  <option value="">Chọn giống cây canh tác...</option>
+                  {cropOptions.map((crop) => (
+                    <option key={crop.id} value={crop.id}>
+                      {crop.name} — {crop.variety}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
 
               {compatibilityMissing && (
                 <p className="mt-1 text-[10px] text-amber-700">
@@ -448,22 +457,25 @@ export default function MarketplacePlotDetailPanel({
               )}
 
               {showConfigErrors && !leaseConfig.cropId && (
-                <p className="mt-1 text-[10px] font-bold text-rose-600 flex items-center gap-1">
+                <p className="mt-1.5 text-[11px] font-bold text-rose-600 flex items-center gap-1">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
                   Vui lòng chọn giống cây cho thửa đất này!
                 </p>
               )}
 
               {selectedCrop ? (
-                <div className="mt-1 flex items-center gap-1.5 rounded-lg bg-white px-2 py-1 text-[10px] text-slate-600 truncate">
-                  <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
-                  <span className="truncate">
-                    <strong className="text-slate-800">{selectedCrop.variety}</strong> · Chu kỳ {selectedCrop.duration} · {selectedCrop.soilMoisture}
+                <div className="mt-2 flex items-center justify-between rounded-xl bg-emerald-50/70 border border-emerald-100 px-2.5 py-1.5 text-[11px] text-emerald-900">
+                  <div className="flex items-center gap-1.5 font-bold truncate">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                    <span className="truncate">{selectedCrop.name} ({selectedCrop.variety})</span>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-semibold text-emerald-700">
+                    Chu kỳ: {selectedCrop.duration || `${selectedCrop.growthDays || 90} ngày`}
                   </span>
                 </div>
               ) : !showConfigErrors ? (
-                <p className="mt-1 truncate text-[10px] text-slate-500">
-                  Chọn giống để Farmely gợi ý lịch canh tác và thời hạn phù hợp.
+                <p className="mt-1.5 text-[10px] text-slate-400 font-medium">
+                  Gợi ý chu kỳ canh tác chuẩn kỹ thuật VietGAP.
                 </p>
               ) : null}
             </div>
@@ -598,9 +610,9 @@ export default function MarketplacePlotDetailPanel({
       </div>
 
       {/* ─────────────────────────────────────────────────────────────────────────────
-          5. BOTTOM CTA BUTTONS (Ghim cố định đáy, p-3, py-2.5)
+          5. BOTTOM CTA BUTTONS (Ghim cố định đáy, p-3.5 pb-4)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="p-3 border-t border-slate-100/90 bg-white/98 backdrop-blur-xl shrink-0 space-y-1.5">
+      <div className="p-3.5 pb-4 border-t border-slate-100/90 bg-white/98 backdrop-blur-xl shrink-0 space-y-2">
         {/* Dòng tạm tính live */}
         {selectedCrop && (
           <div className="flex items-center justify-between text-[11px] text-stone-600 px-1 font-semibold">
@@ -616,13 +628,13 @@ export default function MarketplacePlotDetailPanel({
           type="button"
           onClick={handleBookClick}
           disabled={!isVacant}
-          className={`w-full py-2.5 rounded-2xl font-black text-sm tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`w-full py-2.5 rounded-2xl font-bold text-xs tracking-wide shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer ${
             isVacant
-              ? 'bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30 hover:shadow-emerald-600/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]'
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-700/20 hover:shadow-emerald-700/30 active:scale-[0.99]'
               : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
           }`}
         >
-          <Zap className="w-4 h-4 fill-current" />
+          <Sparkles className="w-4 h-4" />
           <span>{isVacant ? 'Thuê ngay thửa này' : 'Thửa đất đã có người thuê'}</span>
         </button>
 
@@ -631,13 +643,13 @@ export default function MarketplacePlotDetailPanel({
           <button
             type="button"
             onClick={handleToggleSelectClick}
-            className={`w-full py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`w-full py-2.5 rounded-xl border-2 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
               isPlotSelectedForContract
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs'
-                : 'border-slate-200/90 bg-white hover:bg-slate-50 text-slate-600 hover:border-slate-300 hover:text-slate-800'
+                ? 'bg-emerald-50 border-emerald-600 text-emerald-800'
+                : 'border-slate-300 bg-slate-50/80 hover:bg-emerald-50 hover:border-emerald-600 hover:text-emerald-800 text-slate-800'
             }`}
           >
-            <span>{isPlotSelectedForContract ? 'Đã chọn — bấm để bỏ' : 'Chọn thửa đất'}</span>
+            <span>{isPlotSelectedForContract ? '✓ Đã chọn vào hợp đồng (bấm để bỏ)' : '+ Thêm vào hợp đồng thuê'}</span>
           </button>
         )}
 
