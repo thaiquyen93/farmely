@@ -33,11 +33,13 @@ public class HarvestResultServiceImpl implements HarvestResultService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<HarvestResultResponse> getAllHarvests(Integer rentalId, Boolean customerConfirmed) {
+    public List<HarvestResultResponse> getAllHarvests(Integer rentalId, Boolean customerConfirmed, Integer enteredBy) {
         List<HarvestResultEntity> list;
 
         if (rentalId != null) {
             list = harvestResultRepository.findByRentalIdOrderByHarvestDateDesc(rentalId);
+        } else if (enteredBy != null) {
+            list = harvestResultRepository.findByEnteredByOrderByHarvestDateDesc(enteredBy);
         } else if (customerConfirmed != null) {
             list = harvestResultRepository.findByCustomerConfirmedOrderByHarvestDateDesc(customerConfirmed);
         } else {

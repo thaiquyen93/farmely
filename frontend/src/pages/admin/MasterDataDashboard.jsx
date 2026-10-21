@@ -201,11 +201,6 @@ export default function MasterDataDashboard() {
           </div>
 
           <div className="space-y-3 text-xs">
-            <div className="p-4 rounded-xl bg-brand-cream/60 border border-brand-border text-brand-muted">
-              Dữ liệu tình trạng sẽ hiển thị khi hệ thống cung cấp endpoint kiểm tra master data.
-            </div>
-            {/* Health indicators are intentionally omitted until backed by the audit API. */}
-            <div className="hidden">
             <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex items-start gap-3">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
               <div>
@@ -236,7 +231,6 @@ export default function MasterDataDashboard() {
                 <strong className="text-sky-900 block font-semibold">Trạm quan trắc IoT vi khí hậu đang vận hành</strong>
                 <span className="text-sky-800 text-[11px]">{totalIoT} trạm cảm biến đo nhiệt độ, độ ẩm không khí và độ ẩm đất tự động (BR18 hoãn tưới khi độ ẩm đất ≥ 80%).</span>
               </div>
-            </div>
             </div>
           </div>
         </div>

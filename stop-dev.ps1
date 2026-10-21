@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
 
 $projectRoot = if (Test-Path (Join-Path $PSScriptRoot 'backend')) {
     $PSScriptRoot

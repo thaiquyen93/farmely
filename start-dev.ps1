@@ -1,9 +1,8 @@
-﻿param(
+param(
     [switch]$Rebuild
 )
 
 $ErrorActionPreference = 'Stop'
-
 # Tu dong xac dinh Project Root du script duoc goi tu thu muc goc hay tu thu muc Start\
 $projectRoot = if (Test-Path (Join-Path $PSScriptRoot 'backend')) {
     $PSScriptRoot

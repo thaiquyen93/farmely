@@ -4,7 +4,6 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import Button from '../common/Button';
-import { apiFetch } from '../../api/apiClient';
 
 export default function VnPayModal({
   isOpen,
@@ -73,7 +72,6 @@ export default function VnPayModal({
           notes: payload.notes
         }));
       }
-
       const endpoint = window.location.port === '3000' 
         ? '/api/v1/payments/vnpay/create' 
         : 'http://localhost:8085/api/v1/payments/vnpay/create';

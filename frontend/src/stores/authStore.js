@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { apiFetch, unwrapData } from '../api/apiClient';
 
+// Default mock demo users for quick role switching & testing
 export const DEMO_ACCOUNTS = [
   {
     id: "USR-001",
@@ -52,6 +52,7 @@ const ROLE_TITLES = {
 };
 
 const normalizeUser = (user, token) => {
+  if (!user) return null;
   const role = user?.role === 'FIELD_WORKER' ? 'STAFF' : user?.role;
   return {
     ...user,
@@ -103,7 +104,7 @@ export const useAuthStore = create((set, get) => ({
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password })
+        body: JSON.stringify({ email: email.trim(), password: password.trim() })
       });
       const resData = await response.json();
       if (response.ok && resData && resData.success && resData.data) {
@@ -141,8 +142,9 @@ export const useAuthStore = create((set, get) => ({
 
   register: async (userData) => {
     try {
-      const payload = await apiFetch('/api/auth/register', {
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fullName: userData.fullName,
           email: userData.email,
@@ -150,11 +152,15 @@ export const useAuthStore = create((set, get) => ({
           password: userData.password || '123456'
         })
       });
-      const data = unwrapData(payload);
-      const dbUser = normalizeUser(data.user || data, data.token);
-      persistAuth({ token: data.token, expiresIn: data.expiresIn, user: dbUser });
-      set({ user: dbUser, token: data.token, isAuthenticated: true });
-      return { success: true, user: dbUser, message: payload?.message || 'Đăng ký thành công.' };
+      const resData = await response.json();
+      if (response.ok && resData && resData.success && resData.data) {
+        const data = resData.data;
+        const dbUser = normalizeUser(data.user || data, data.token);
+        persistAuth({ token: data.token, expiresIn: data.expiresIn, user: dbUser });
+        set({ user: dbUser, token: data.token, isAuthenticated: true });
+        return { success: true, user: dbUser, message: resData.message || 'Đăng ký thành công.' };
+      }
+      return { success: false, message: resData?.message || 'Đăng ký thất bại. Vui lòng thử lại.' };
     } catch (err) {
       return { success: false, message: err.message || 'Lỗi kết nối máy chủ khi đăng ký.' };
     }
@@ -167,10 +173,23 @@ export const useAuthStore = create((set, get) => ({
       return auth.user;
     }
     try {
-      const user = normalizeUser(unwrapData(await apiFetch('/api/auth/me')), auth.token);
-      persistAuth({ ...auth, user });
-      set({ user, isAuthenticated: true });
-      return user;
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(auth.token ? { 'Authorization': `Bearer ${auth.token}` } : {})
+        }
+      });
+      if (response.ok) {
+        const resData = await response.json();
+        const dbUser = resData?.data?.user || resData?.data;
+        if (dbUser) {
+          const user = normalizeUser(dbUser, auth.token);
+          persistAuth({ ...auth, user });
+          set({ user, isAuthenticated: true });
+          return user;
+        }
+      }
+      return auth.user;
     } catch (error) {
       if (error.status === 401 && !auth.token.startsWith('farmely-jwt-token-') && !auth.token.startsWith('demo-token-')) {
         console.warn('Session refresh returned 401:', error.message);

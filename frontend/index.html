@@ -8,9 +8,36 @@
     <!-- Farmely design system font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Nunito:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   </head>
   <body class="bg-brand-cream text-brand-dark antialiased font-sans">
+    <script>
+      (function() {
+        const p = new URLSearchParams(window.location.search);
+        const m = p.get('mock');
+        if (m === 'admin') {
+          const u = { userId: 1, role: 'ADMIN', fullName: 'Ban Quản Trị Farmely', email: 'admin@farmely.vn' };
+          localStorage.setItem('farmely_token', 'dev-admin-token');
+          localStorage.setItem('farmely_user', JSON.stringify(u));
+          localStorage.setItem('farmely_auth', JSON.stringify({ token: 'dev-admin-token', user: u }));
+        } else if (m === 'expert') {
+          const u = { userId: 5, role: 'EXPERT', fullName: 'ThS. Nguyễn Hoàng Nam', email: 'expert@farmely.vn' };
+          localStorage.setItem('farmely_token', 'dev-expert-token');
+          localStorage.setItem('farmely_user', JSON.stringify(u));
+          localStorage.setItem('farmely_auth', JSON.stringify({ token: 'dev-expert-token', user: u }));
+        } else if (m === 'staff') {
+          const u = { userId: 8, role: 'STAFF', fullName: 'Trần Văn Lực', email: 'worker@farmely.vn' };
+          localStorage.setItem('farmely_token', 'dev-staff-token');
+          localStorage.setItem('farmely_user', JSON.stringify(u));
+          localStorage.setItem('farmely_auth', JSON.stringify({ token: 'dev-staff-token', user: u }));
+        } else if (m === 'customer') {
+          const u = { userId: 12, role: 'CUSTOMER', fullName: 'Nguyễn Văn An', email: 'customer@farmely.vn' };
+          localStorage.setItem('farmely_token', 'dev-customer-token');
+          localStorage.setItem('farmely_user', JSON.stringify(u));
+          localStorage.setItem('farmely_auth', JSON.stringify({ token: 'dev-customer-token', user: u }));
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

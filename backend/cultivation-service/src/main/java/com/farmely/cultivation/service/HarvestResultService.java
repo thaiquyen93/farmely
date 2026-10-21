@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface HarvestResultService {
 
-    List<HarvestResultResponse> getAllHarvests(Integer rentalId, Boolean customerConfirmed);
+    List<HarvestResultResponse> getAllHarvests(Integer rentalId, Boolean customerConfirmed, Integer enteredBy);
 
     HarvestResultResponse getHarvestById(Integer harvestId);
 

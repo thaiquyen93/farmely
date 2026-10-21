@@ -52,6 +52,12 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   const isAdmin = isAuthenticated && user?.role === 'ADMIN';
   const hasDashboardRail = typeof dashboardRailCollapsed === 'boolean';
 
+  useEffect(() => {
+    const openProfile = () => setIsProfileModalOpen(true);
+    window.addEventListener('farmely:open-profile', openProfile);
+    return () => window.removeEventListener('farmely:open-profile', openProfile);
+  }, []);
+
   // Sync profileForm with user on change
   useEffect(() => {
     if (user) {
@@ -68,7 +74,9 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   }, [user]);
 
   useEffect(() => {
-    if (isAuthenticated) refreshUser().catch(() => {});
+    if (isAuthenticated && typeof refreshUser === 'function') {
+      refreshUser().catch(() => {});
+    }
   }, [isAuthenticated, refreshUser]);
 
   const toggleNotifications = async () => {
@@ -496,7 +504,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                     <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/40 bg-brand-cream text-[10px] font-black text-brand-dark">
                       {(user?.fullName || 'U').trim().charAt(0).toUpperCase()}
                     </span>
-                    <span className="text-xs font-bold truncate max-w-[100px]">
+                    <span className="text-xs font-bold truncate max-w-[160px] sm:max-w-[220px]">
                       {user?.fullName}
                     </span>
                     <ChevronDown className="w-3.5 h-3.5 text-white/70" />
@@ -545,7 +553,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                           className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
                         >
                           <User className="w-4 h-4 text-brand-green" />
-                          <span>Hồ sơ cá nhân (Profile)</span>
+                          <span>Hồ sơ cá nhân</span>
                         </button>
 
                         {user?.role === 'CUSTOMER' && (
@@ -574,7 +582,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                           className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
                         >
                           <Settings className="w-4 h-4 text-brand-green" />
-                          <span>Cài đặt tài khoản (Settings)</span>
+                          <span>Cài đặt tài khoản</span>
                         </button>
 
                         {/* 4. CHỈ ADMIN MỚI THẤY Quản lý Master Data */}
@@ -706,6 +714,28 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                 <Clock className="w-4 h-4" />
                 <span>Ca Trực Hiện Trường (CVLĐ)</span>
               </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setIsProfileModalOpen(true);
+                }}
+                className="flex w-full items-center gap-2 py-2 text-left text-sm font-semibold text-white hover:text-brand-yellow"
+              >
+                <User className="h-4 w-4 text-brand-yellow" />
+                <span>Hồ sơ cá nhân</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setIsSettingsModalOpen(true);
+                }}
+                className="flex w-full items-center gap-2 py-2 text-left text-sm font-semibold text-white hover:text-brand-yellow"
+              >
+                <Settings className="h-4 w-4 text-brand-yellow" />
+                <span>Cài đặt tài khoản</span>
+              </button>
               <Link
                 to="/"
                 onClick={() => setMobileMenuOpen(false)}
