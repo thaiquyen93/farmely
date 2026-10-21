@@ -35,11 +35,13 @@ import {
   Printer,
   ChevronRight,
   ChevronDown,
-  Play,
   Box,
   Wifi,
   WifiOff,
-  Home
+  Home,
+  Search,
+  FileText,
+  X
 } from 'lucide-react';
 
 const readPhoto = (file, onLoad) => {
@@ -58,6 +60,77 @@ const normalizeTaskStatus = (status) => {
   if (status === 'IN_PROG' || status === 'IN_PROGRESS') return 'IN_PROGRESS';
   return status || 'PENDING';
 };
+
+const getTaskTimingMeta = (task) => {
+  if (task.status === 'COMPLETED') return { key: 'COMPLETED', label: 'Hoàn thành', tone: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500', row: 'border-l-emerald-200 bg-emerald-50/30' };
+  if (task.priority === 'HIGH') return { key: 'URGENT', label: 'Khẩn cấp', tone: 'bg-rose-100 text-rose-800', dot: 'bg-rose-500', row: 'border-l-rose-500 bg-rose-50/80' };
+  if (task.status === 'OVERDUE') return { key: 'OVERDUE', label: 'Quá hạn', tone: 'bg-rose-100 text-rose-800', dot: 'bg-rose-500', row: 'border-l-rose-400 bg-rose-50/70' };
+  if (task.status === 'IN_PROGRESS') return { key: 'DUE_SOON', label: 'Cần làm', tone: 'bg-sky-100 text-sky-800', dot: 'bg-sky-500', row: 'border-l-sky-400 bg-sky-50/70' };
+
+  const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(task.deadline || '') ? new Date(`${task.deadline}T00:00:00`) : null;
+  if (dueDate && !Number.isNaN(dueDate.getTime())) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
+    if (daysUntilDue <= 2) return { key: 'DUE_SOON', label: 'Cần làm', tone: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500', row: 'border-l-amber-400 bg-amber-50/50' };
+  }
+
+  return { key: 'NOT_DUE', label: 'Chưa tới hạn', tone: 'bg-stone-100 text-stone-600', dot: 'bg-stone-400', row: 'border-l-stone-200 bg-white' };
+};
+
+const issueStatusMeta = (issue) => {
+  if (issue.status === 'RESOLVED') return { key: 'CLOSED', label: 'Đã đóng', tone: 'bg-emerald-100 text-emerald-800' };
+  if (issue.expertAdvice && !issue.expertAdvice.startsWith('Đang chờ')) return { key: 'ASSIGNED', label: 'Đã giao việc', tone: 'bg-amber-100 text-amber-800' };
+  return { key: 'WAITING', label: 'Chờ chuyên gia', tone: 'bg-stone-100 text-stone-600' };
+};
+
+function IssueHistory({ issues, filter, onFilter, search, onSearch, selectedIssue, onSelect, onOpenTask }) {
+  const normalizedSearch = search.trim().toLowerCase();
+  const visibleIssues = issues.filter((issue) => {
+    const status = issueStatusMeta(issue).key;
+    const matchesFilter = filter === 'ALL' || filter === status;
+    const matchesSearch = !normalizedSearch || `${issue.id} ${issue.plotCode} ${issue.issueType} ${issue.description}`.toLowerCase().includes(normalizedSearch);
+    return matchesFilter && matchesSearch;
+  });
+  const filters = [['ALL', 'Tất cả'], ['WAITING', 'Chờ chuyên gia'], ['ASSIGNED', 'Đã giao việc'], ['CLOSED', 'Đã đóng']];
+  return (
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <section className="min-w-0 rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <label className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Tìm theo mã báo cáo, nội dung, thửa đất..." className="w-full rounded-xl border border-brand-border py-3 pl-10 pr-3 text-sm outline-none focus:border-emerald-500" /></label>
+          <div className="flex gap-2 overflow-x-auto pb-1">{filters.map(([key, label]) => <button key={key} type="button" onClick={() => onFilter(key)} className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold ${filter === key ? 'bg-[#07533d] text-white' : 'bg-stone-100 text-stone-600'}`}>{label}</button>)}</div>
+        </div>
+        <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800">Để báo sự cố mới, mở thửa đất liên quan trong Việc hôm nay.</div>
+        <div className="mt-4 space-y-3">
+          {visibleIssues.length === 0 ? <div className="rounded-2xl border border-dashed border-brand-border p-10 text-center text-sm text-brand-muted">Không có báo cáo phù hợp bộ lọc.</div> : visibleIssues.map((issue) => {
+            const meta = issueStatusMeta(issue);
+            return <button key={issue.id} type="button" onClick={() => onSelect(issue)} className={`grid w-full gap-3 rounded-2xl border p-4 text-left transition sm:grid-cols-[64px_minmax(0,1fr)_auto] sm:items-center ${selectedIssue?.id === issue.id ? 'border-emerald-600 bg-emerald-50/60' : 'border-brand-border hover:border-emerald-300'}`}>
+              <div className="flex h-14 w-16 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800"><FileText className="h-6 w-6" /></div>
+              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-brand-dark">{issue.id}</strong><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${meta.tone}`}>{meta.label}</span></div><p className="mt-1 font-bold text-brand-dark">{issue.issueType}</p><p className="mt-1 truncate text-xs text-stone-500">{issue.plotCode} · {issue.sentTime}</p></div>
+              <ChevronRight className="hidden h-5 w-5 text-stone-400 sm:block" />
+            </button>;
+          })}
+        </div>
+      </section>
+      <aside className="rounded-3xl border border-brand-border bg-white p-5 shadow-sm xl:sticky xl:top-24">
+        {selectedIssue ? <div className="space-y-5"><div className="flex items-start justify-between"><div><p className="text-xs font-black text-emerald-700">{selectedIssue.id}</p><h3 className="mt-1 font-heading text-xl font-black text-brand-dark">{selectedIssue.issueType}</h3><p className="mt-1 text-xs text-stone-500">{selectedIssue.plotCode} · {selectedIssue.sentTime}</p></div><button type="button" onClick={() => onSelect(null)} className="rounded-lg p-2 text-stone-400 hover:bg-stone-100"><X className="h-4 w-4" /></button></div>{selectedIssue.imageUrl ? <img src={selectedIssue.imageUrl} alt="Ảnh báo cáo" className="h-44 w-full rounded-2xl object-cover" /> : null}<div><h4 className="text-xs font-black text-brand-dark">Tiến trình xử lý</h4><div className="mt-3 space-y-3 text-xs">{['Đã gửi báo cáo', selectedIssue.expertName ? 'Chuyên gia đã xem' : 'Chờ chuyên gia tiếp nhận', issueStatusMeta(selectedIssue).key === 'ASSIGNED' ? 'Đã giao nhiệm vụ xử lý' : null].filter(Boolean).map((label) => <div key={label} className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-600" /><span>{label}</span></div>)}</div></div><div className="rounded-2xl bg-emerald-50 p-4 text-xs leading-5 text-emerald-900"><strong>Phản hồi chuyên gia</strong><p className="mt-1">{selectedIssue.expertAdvice}</p></div>{issueStatusMeta(selectedIssue).key === 'ASSIGNED' ? <Button onClick={() => onOpenTask(selectedIssue)} className="w-full">Mở công việc</Button> : null}</div> : <div className="flex min-h-64 flex-col items-center justify-center text-center"><FileText className="h-9 w-9 text-emerald-200" /><p className="mt-3 text-sm font-bold text-brand-dark">Chọn một báo cáo</p><p className="mt-1 text-xs text-brand-muted">Xem tiến trình và phản hồi từ chuyên gia.</p></div>}
+      </aside>
+    </div>
+  );
+}
+
+function HarvestRecorder({ workItems, selected, onSelect, photos, onPhotos, onRemovePhoto, weight, onWeight, confirmed, onConfirmed, user, onSubmit }) {
+  return (
+    <form onSubmit={onSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="space-y-5">
+        <section className="rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-sm font-black text-white">1</span><div><h3 className="font-heading text-lg font-black text-brand-dark">Thửa đất thu hoạch</h3><p className="text-xs text-brand-muted">Chọn đúng thửa trước khi ghi nhận.</p></div></div><div className="mt-4 grid gap-3 sm:grid-cols-2">{workItems.map((item) => <button key={item.id} type="button" onClick={() => onSelect(item)} className={`flex items-center gap-3 rounded-2xl border p-3 text-left ${selected?.id === item.id ? 'border-emerald-600 bg-emerald-50' : 'border-brand-border'}`}><img src={item.plotCode === 'P-04' ? '/images/moc-chau-2811.jpg' : '/images/Mucangchai3.jpg'} alt="" className="h-16 w-20 rounded-xl object-cover" /><div className="min-w-0"><strong className="block truncate text-sm text-brand-dark">{item.plotCode} · {item.crop}</strong><span className="mt-1 block text-xs text-stone-500">{item.plotName}</span></div>{selected?.id === item.id ? <CheckCircle2 className="ml-auto h-5 w-5 text-emerald-600" /> : null}</button>)}</div></section>
+        <section className="rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-sm font-black text-white">2</span><div><h3 className="font-heading text-lg font-black text-brand-dark">Ảnh thu hoạch thực tế</h3><p className="text-xs text-brand-muted">Tối thiểu một ảnh rõ toàn bộ nông sản tại thửa.</p></div></div><label className="mt-4 flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 p-5 text-center"><Camera className="h-8 w-8 text-emerald-700" /><strong className="mt-2 text-sm text-brand-dark">Chụp ảnh hoặc tải ảnh lên</strong><span className="mt-1 text-xs text-brand-muted">Tối đa 4 ảnh</span><input type="file" accept="image/*" capture="environment" multiple onChange={(event) => onPhotos(event.target.files)} className="sr-only" /></label>{photos.length ? <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{photos.map((photo, index) => <div key={`${photo.slice(-20)}-${index}`} className="group relative"><img src={photo} alt={`Ảnh thu hoạch ${index + 1}`} className="h-28 w-full rounded-xl object-cover" /><button type="button" onClick={() => onRemovePhoto(index)} aria-label={`Xóa ảnh ${index + 1}`} className="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-rose-600"><Trash2 className="h-4 w-4" /></button></div>)}</div> : null}</section>
+        <section className="rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-sm font-black text-white">3</span><div><h3 className="font-heading text-lg font-black text-brand-dark">Khối lượng và người ghi nhận</h3><p className="text-xs text-brand-muted">Nhập số cân thực tế và kiểm tra người thực hiện.</p></div></div><div className="mt-4 grid gap-4 lg:grid-cols-2"><div className="rounded-2xl bg-stone-50 p-4"><UserCheck className="h-6 w-6 text-emerald-700" /><strong className="mt-3 block text-brand-dark">{user?.fullName || user?.name || 'Nhân viên hiện trường'}</strong><span className="text-xs text-stone-500">Nhân viên ghi nhận</span><div className="mt-4 border-t pt-3 text-xs"><span className="text-stone-400">Thửa đất</span><strong className="mt-1 block text-brand-dark">{selected?.plotCode || 'Chưa chọn thửa'}</strong></div></div><label className="rounded-2xl border border-brand-border p-4"><span className="text-xs font-black text-brand-dark">Khối lượng thu hoạch</span><div className="mt-3 flex items-center rounded-xl border border-brand-border bg-white px-4 focus-within:border-emerald-500"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={weight} onChange={(event) => onWeight(event.target.value)} placeholder="0.00" className="min-w-0 flex-1 py-3 text-xl font-black text-brand-dark outline-none" /><span className="font-bold text-stone-500">kg</span></div><p className="mt-2 text-[11px] text-stone-400">Nhập tổng khối lượng đã cân tại thửa.</p></label></div><label className="mt-4 flex items-start gap-3 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-900"><input type="checkbox" checked={confirmed} onChange={(event) => onConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4" />Tôi xác nhận hình ảnh và số cân trên được ghi nhận trực tiếp tại đúng thửa đất.</label></section>
+      </div>
+      <aside className="h-fit rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm xl:sticky xl:top-24"><h3 className="font-heading text-lg font-black text-brand-dark">Tóm tắt thu hoạch</h3><div className="mt-4 space-y-4 text-xs"><div><span className="text-stone-400">Thửa đất</span><strong className="mt-1 block text-brand-dark">{selected ? `${selected.plotCode} · ${selected.crop}` : 'Chưa chọn thửa'}</strong></div><div><span className="text-stone-400">Người ghi nhận</span><strong className="mt-1 block text-brand-dark">{user?.fullName || user?.name || 'Nhân viên hiện trường'}</strong></div><div><span className="text-stone-400">Khối lượng</span><strong className="mt-1 block text-lg text-brand-dark">{Number(weight) > 0 ? `${Number(weight).toLocaleString('vi-VN')} kg` : 'Chưa nhập'}</strong></div><div><span className="text-stone-400">Ảnh đã chụp</span><strong className="mt-1 block text-brand-dark">{photos.length} ảnh</strong></div></div><Button type="submit" disabled={!selected || photos.length === 0 || !(Number(weight) > 0) || !confirmed} className="mt-5 w-full"><Scale className="mr-2 h-4 w-4" />Hoàn tất thu hoạch</Button></aside>
+    </form>
+  );
+}
 
 export default function FieldWorkerDashboard() {
   const { user } = useAuthStore();
@@ -95,6 +168,12 @@ export default function FieldWorkerDashboard() {
   // Harvest records loaded from the cultivation service.
   const [harvestTasks, setHarvestTasks] = useState([]);
   const [selectedHarvestTask, setSelectedHarvestTask] = useState(null);
+  const [harvestPhotos, setHarvestPhotos] = useState([]);
+  const [harvestWeight, setHarvestWeight] = useState('');
+  const [harvestConfirmed, setHarvestConfirmed] = useState(false);
+  const [issueFilter, setIssueFilter] = useState('ALL');
+  const [issueSearch, setIssueSearch] = useState('');
+  const [selectedIssue, setSelectedIssue] = useState(null);
   const [scaleWeightInput, setScaleWeightInput] = useState('');
   const [scaleTareInput, setScaleTareInput] = useState('0.50');
   const [weightBatches, setWeightBatches] = useState([]);
@@ -138,6 +217,7 @@ export default function FieldWorkerDashboard() {
         setTasks(taskData.map((task) => ({
           id: task.taskCode || `TASK-${task.taskId}`,
           apiId: task.taskId,
+          serviceRequestId: task.serviceRequestId,
           rentalId: task.rentalId,
           session: task.session || 'MORNING',
           title: task.title || 'Nhiệm vụ chăm sóc',
@@ -145,9 +225,11 @@ export default function FieldWorkerDashboard() {
           plotName: task.plotName || task.plotCode || 'Chưa có tên thửa',
           crop: task.cropName || 'Chưa có dữ liệu giống cây',
           customerName: task.customerName || 'Chưa có dữ liệu khách hàng',
+          plotImage: task.plotImageUrl || (task.plotCode === 'P-04' ? '/images/moc-chau-2811.jpg' : '/images/Mucangchai3.jpg'),
           deadline: task.dueDate || 'Chưa có hạn thực hiện',
           instructions: task.instructions || task.notes || 'Chưa có hướng dẫn từ hệ thống.',
           status: normalizeTaskStatus(task.displayStatus || task.status),
+          priority: task.serviceRequestId ? 'HIGH' : (task.isOverdue ? 'OVERDUE' : 'NORMAL'),
           completedAt: task.updatedAt ? new Date(task.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
           proofPhoto: task.evidenceImageUrl || null
         })));
@@ -160,7 +242,12 @@ export default function FieldWorkerDashboard() {
           urgency: issue.urgency || 'NORMAL',
           sentTime: issue.createdAt ? new Date(issue.createdAt).toLocaleString('vi-VN') : 'Chưa có thời gian',
           status: issue.displayStatus || issue.status || 'OPEN',
-          expertAdvice: issue.resolutionNotes || 'Đang chờ chuyên gia phản hồi.'
+          expertAdvice: issue.resolutionNotes || 'Đang chờ chuyên gia phản hồi.',
+          description: issue.description || '',
+          imageUrl: issue.imageUrl || '',
+          reporterName: issue.reporterName || user?.fullName || 'Nhân viên hiện trường',
+          expertName: issue.expertName || '',
+          createdAt: issue.createdAt || null
         })));
         const mappedHarvests = harvestData.map((harvest) => ({
           id: harvest.harvestCode || `HARVEST-${harvest.harvestId}`,
@@ -173,7 +260,9 @@ export default function FieldWorkerDashboard() {
           expectedYield: 'Theo kết quả cân thực tế',
           status: harvest.customerConfirmed ? 'COMPLETED' : 'READY_TO_HARVEST',
           actualWeight: harvest.yieldAmount ? `${harvest.yieldAmount} kg` : '',
-          photoUrl: harvest.evidenceImageUrl || ''
+          photoUrl: harvest.evidenceImageUrl || '',
+          staffName: harvest.workerName || 'Nhân viên hiện trường',
+          verifiedAt: harvest.createdAt ? new Date(harvest.createdAt).toLocaleString('vi-VN') : ''
         }));
         setHarvestTasks(mappedHarvests);
         setSelectedHarvestTask((current) => current || mappedHarvests.find((item) => item.status !== 'COMPLETED') || mappedHarvests[0] || null);
@@ -199,6 +288,10 @@ export default function FieldWorkerDashboard() {
     if (!newIssuePlot && tasks.length) setNewIssuePlot(tasks[0].plotCode);
   }, [newIssuePlot, tasks]);
 
+  useEffect(() => {
+    if (!selectedIssue && myIssues.length) setSelectedIssue(myIssues[0]);
+  }, [myIssues, selectedIssue]);
+
   useEffect(() => () => {
     const reader = serialReaderRef.current;
     if (reader) reader.cancel().catch(() => {});
@@ -207,20 +300,7 @@ export default function FieldWorkerDashboard() {
   }, []);
 
   const handleTaskAction = async (task) => {
-    if (task.status !== 'PENDING' || !task.apiId) {
-      setSelectedTaskToExecute(task);
-      return;
-    }
-    try {
-      const updated = unwrapData(await apiFetch(`/api/tasks/${task.apiId}/start`, { method: 'PUT' }));
-      setTasks((current) => current.map((item) => item.id === task.id
-        ? { ...item, status: normalizeTaskStatus(updated?.displayStatus || updated?.status || 'IN_PROGRESS') }
-        : item));
-      setDataError('');
-      setDataSuccess(`Đã bắt đầu công việc: ${task.title}.`);
-    } catch (error) {
-      setDataError(error.message || 'Không thể bắt đầu công việc.');
-    }
+    setSelectedTaskToExecute(task);
   };
 
   // Handle Complete Task
@@ -382,17 +462,23 @@ export default function FieldWorkerDashboard() {
   const openHarvestWorkspace = (task) => {
     setSelectedHarvestTask(task);
     setActiveTab('harvest');
-    setWeightBatches([]);
-    setScaleWeightInput('');
-    setBoxCount(0);
-    setQrReady(false);
+    setHarvestPhotos([]);
+    setHarvestWeight('');
+    setHarvestConfirmed(false);
+  };
+
+  const handleHarvestPhotos = (files) => {
+    Array.from(files || []).slice(0, Math.max(0, 4 - harvestPhotos.length)).forEach((file) => {
+      readPhoto(file, (photo) => photo && setHarvestPhotos((current) => [...current, photo].slice(0, 4)));
+    });
   };
 
   // Handle Record Harvest Scale
   const handleConfirmHarvestScale = async (e) => {
     e.preventDefault();
-    if (!selectedHarvestTask || totalBatchWeight <= 0) {
-      alert('Vui lòng lưu ít nhất một mẻ cân trước khi hoàn tất.');
+    const parsedWeight = Number(harvestWeight);
+    if (!selectedHarvestTask || harvestPhotos.length === 0 || !(parsedWeight > 0) || !harvestConfirmed) {
+      setDataError('Vui lòng chụp ít nhất một ảnh, nhập số cân và xác nhận thông tin trước khi hoàn tất.');
       return;
     }
 
@@ -405,10 +491,17 @@ export default function FieldWorkerDashboard() {
     try {
       saved = unwrapData(await apiFetch('/api/harvest', {
         method: 'POST',
-        body: JSON.stringify({ rentalId: selectedHarvestTask.rentalId, enteredBy, harvestDate: new Date().toISOString().slice(0, 10), yieldAmount: Number(totalBatchWeight.toFixed(2)), evidenceImageUrl: '', deliveryType: 'PICKUP' })
+        body: JSON.stringify({
+          rentalId: selectedHarvestTask.rentalId,
+          enteredBy,
+          harvestDate: new Date().toISOString().slice(0, 10),
+          yieldAmount: parsedWeight,
+          evidenceImageUrl: harvestPhotos[0],
+          deliveryType: 'PICKUP'
+        })
       })) || {};
     } catch (error) {
-      setDataError(error.message || 'Không thể lưu kết quả cân lên hệ thống.');
+      setDataError(error.message || 'Không thể lưu ghi nhận thu hoạch lên hệ thống.');
       return;
     }
     const completedHarvest = {
@@ -416,8 +509,8 @@ export default function FieldWorkerDashboard() {
       id: saved.harvestCode || `HARVEST-${saved.harvestId || Date.now()}`,
       apiId: saved.harvestId,
       status: 'COMPLETED',
-      actualWeight: `${totalBatchWeight.toFixed(2)} kg`,
-      photoUrl: saved.evidenceImageUrl || '',
+      actualWeight: `${parsedWeight.toFixed(2)} kg`,
+      photoUrl: saved.evidenceImageUrl || harvestPhotos[0],
       staffId: user?.id,
       staffName: user?.fullName || 'Nhân viên hiện trường',
       verifiedAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
@@ -427,21 +520,26 @@ export default function FieldWorkerDashboard() {
       setTasks((prev) => prev.map((task) => task.id === selectedHarvestTask.sourceTaskId ? { ...task, status: 'COMPLETED', completedAt: completedHarvest.verifiedAt } : task));
     }
     setSelectedHarvestTask(completedHarvest);
-    setScaleWeightInput('');
-    setQrReady(true);
+    setHarvestPhotos([]);
+    setHarvestWeight('');
+    setHarvestConfirmed(false);
     setDataError('');
-    setDataSuccess('Đã lưu sản lượng cân và gửi hồ sơ cho khách hàng nghiệm thu.');
+    setDataSuccess('Đã lưu hình ảnh, số cân và người ghi nhận thu hoạch tại thửa.');
   };
 
   const completedCount = tasks.filter((t) => t.status === 'COMPLETED').length;
   const pendingCount = tasks.length - completedCount;
   const overdueCount = tasks.filter((task) => task.status === 'OVERDUE').length;
+  const dueSoonCount = tasks.filter((task) => ['DUE_SOON', 'URGENT'].includes(getTaskTimingMeta(task).key)).length;
+  const notDueCount = tasks.filter((task) => getTaskTimingMeta(task).key === 'NOT_DUE').length;
+  const actionableCount = overdueCount + dueSoonCount;
   const nextTask = tasks.find((task) => task.status === 'IN_PROGRESS') || tasks.find((task) => task.status === 'OVERDUE') || tasks.find((task) => task.status === 'PENDING');
   const focusedTask = tasks.find((task) => task.id === focusedTaskId) || nextTask || tasks[0] || null;
-  const orderedTasks = [...tasks].sort((first, second) => Number(first.status === 'COMPLETED') - Number(second.status === 'COMPLETED'));
+  const taskRank = (task) => task.status === 'COMPLETED' ? 4 : task.priority === 'HIGH' ? 0 : task.status === 'OVERDUE' ? 1 : task.status === 'IN_PROGRESS' ? 2 : 3;
+  const orderedTasks = [...tasks].sort((first, second) => taskRank(first) - taskRank(second));
   const tasksByPlot = orderedTasks.reduce((groups, task) => {
     const key = task.plotCode || task.plotName || 'Chưa xác định';
-    if (!groups[key]) groups[key] = { plotCode: task.plotCode, plotName: task.plotName, crop: task.crop, tasks: [] };
+    if (!groups[key]) groups[key] = { plotCode: task.plotCode, plotName: task.plotName, crop: task.crop, plotImage: task.plotImage, tasks: [] };
     groups[key].tasks.push(task);
     return groups;
   }, {});
@@ -498,8 +596,8 @@ export default function FieldWorkerDashboard() {
         <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />Ca trực hiện trường</div>
-            <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">{activeTab === 'tasks' ? 'Việc hôm nay' : activeTab === 'harvest' ? 'Thu hoạch & đóng gói' : 'Báo cáo sự cố'}</h1>
-            <p className="mt-1 text-xs text-brand-muted">{activeTab === 'tasks' ? `${tasks.length} nhiệm vụ tại ${Object.keys(tasksByPlot).length} thửa đất` : activeTab === 'harvest' ? `${harvestWorkItems.length} hồ sơ cân và nghiệm thu từ hệ thống` : `${myIssues.length} báo cáo hiện trường đã gửi`}</p>
+            <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">{activeTab === 'tasks' ? 'Việc hôm nay' : activeTab === 'harvest' ? 'Thu hoạch' : 'Lịch sử báo cáo'}</h1>
+            <p className="mt-1 text-xs text-brand-muted">{activeTab === 'tasks' ? `${tasks.length} nhiệm vụ tại ${Object.keys(tasksByPlot).length} thửa đất` : activeTab === 'harvest' ? 'Chụp ảnh, nhập số cân và xác nhận kết quả thu hoạch tại thửa.' : 'Theo dõi các sự cố đã gửi và tiến độ xử lý từ chuyên gia.'}</p>
           </div>
           {activeTab === 'tasks' && <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs shadow-sm"><span className="font-bold text-stone-500">{currentSession === 'MORNING' ? 'Ca sáng' : 'Ca chiều'} · </span><strong className="text-emerald-800">{completedCount}/{tasks.length} nhiệm vụ hoàn thành</strong></div>}
         </section>
@@ -518,9 +616,10 @@ export default function FieldWorkerDashboard() {
         ) : null}
 
         {activeTab === 'tasks' && (
-          <div className="grid grid-cols-3 gap-2 sm:max-w-2xl sm:gap-3">
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-amber-700">Chờ làm</span><strong className="font-heading text-2xl text-amber-900">{tasks.filter((task) => task.status === 'PENDING').length}</strong></div>
-            <div className="rounded-2xl border border-sky-200 bg-sky-50 px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-sky-700">Đang làm</span><strong className="font-heading text-2xl text-sky-900">{tasks.filter((task) => task.status === 'IN_PROGRESS').length}</strong></div>
+          <div className="grid grid-cols-2 gap-2 sm:max-w-3xl sm:grid-cols-4 sm:gap-3">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-rose-700">Quá hạn</span><strong className="font-heading text-2xl text-rose-900">{overdueCount}</strong></div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-amber-700">Cần làm</span><strong className="font-heading text-2xl text-amber-900">{dueSoonCount}</strong></div>
+            <div className="rounded-2xl border border-stone-200 bg-white px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-stone-500">Chưa tới hạn</span><strong className="font-heading text-2xl text-stone-700">{notDueCount}</strong></div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3 sm:px-4"><span className="block text-[10px] font-bold text-emerald-700">Hoàn thành</span><strong className="font-heading text-2xl text-emerald-900">{completedCount}</strong></div>
           </div>
         )}
@@ -589,7 +688,7 @@ export default function FieldWorkerDashboard() {
                       <h3 className="font-heading text-xl font-black text-brand-dark">Nhiệm vụ theo thửa</h3>
                       <p className="mt-0.5 text-xs text-brand-muted">Chọn một nhiệm vụ để xem hướng dẫn và thao tác tại hiện trường.</p>
                     </div>
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-brand-green">{pendingCount} việc cần làm</span>
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-brand-green">{actionableCount} việc cần làm</span>
                   </div>
 
                   <div className="space-y-4">
@@ -602,15 +701,19 @@ export default function FieldWorkerDashboard() {
                     const completedForPlot = plotGroup.tasks.filter((task) => task.status === 'COMPLETED').length;
                     return (
                       <section key={plotKey} className="overflow-hidden rounded-2xl border border-brand-border bg-white shadow-sm">
+                        <div className="relative h-28 overflow-hidden bg-emerald-950 sm:h-36">
+                          <img src={plotGroup.plotImage} alt="" className="h-full w-full object-cover opacity-75" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
+                          <div className="absolute inset-x-4 bottom-3 flex items-end justify-between gap-3 text-white">
+                            <div><span className="rounded-full bg-emerald-500/90 px-2 py-1 text-[10px] font-black">Đang trực</span><h4 className="mt-2 font-heading text-xl font-black">{plotGroup.plotCode} · {plotGroup.crop}</h4></div>
+                            <Button type="button" variant="danger" size="sm" onClick={() => { setNewIssuePlot(plotGroup.plotCode); setShowNewIssueModal(true); }}><AlertTriangle className="mr-1 h-3.5 w-3.5" />Báo sự cố</Button>
+                          </div>
+                        </div>
                         <button
                           type="button"
                           onClick={() => setExpandedPlots((current) => ({ ...current, [plotKey]: !isExpanded }))}
                           className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-emerald-50/40"
                         >
-                          <div className="flex h-14 w-16 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-800 to-emerald-500 text-white shadow-sm">
-                            <MapPin className="h-5 w-5" />
-                            <span className="ml-1 text-xs font-black">{plotGroup.plotCode}</span>
-                          </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <h4 className="truncate font-heading text-base font-black text-brand-dark">{plotGroup.plotName}</h4>
@@ -630,10 +733,9 @@ export default function FieldWorkerDashboard() {
                           <div className="divide-y divide-brand-border/60 border-t border-brand-border/60">
                             {plotGroup.tasks.map((task) => {
                               const isDone = task.status === 'COMPLETED';
-                              const isInProgress = task.status === 'IN_PROGRESS';
-                              const isOverdue = task.status === 'OVERDUE';
                               const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(task.title);
                               const isFocused = focusedTask?.id === task.id;
+                              const timing = getTaskTimingMeta(task);
                               return (
                                 <div
                                   key={task.id}
@@ -641,11 +743,11 @@ export default function FieldWorkerDashboard() {
                                   tabIndex={0}
                                   onClick={() => setFocusedTaskId(task.id)}
                                   onKeyDown={(event) => event.key === 'Enter' && setFocusedTaskId(task.id)}
-                                  className={`grid cursor-pointer gap-3 border-l-4 p-4 text-xs transition sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center ${isFocused ? 'border-l-emerald-600 bg-emerald-50/80' : isOverdue ? 'border-l-rose-400 bg-rose-50/70' : isInProgress ? 'border-l-sky-400 bg-sky-50/70' : isDone ? 'border-l-emerald-200 bg-emerald-50/30' : 'border-l-transparent bg-white hover:bg-stone-50'}`}
+                                  className={`grid cursor-pointer gap-3 border-l-4 p-4 text-xs transition sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center ${isFocused ? 'ring-1 ring-inset ring-emerald-500/40' : ''} ${timing.row}`}
                                 >
-                                  <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 font-bold ${isDone ? 'bg-emerald-100 text-emerald-800' : isOverdue ? 'bg-rose-100 text-rose-800' : isInProgress ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-800'}`}>
-                                    <span className={`h-2 w-2 rounded-full ${isDone ? 'bg-emerald-500' : isOverdue ? 'bg-rose-500' : isInProgress ? 'bg-sky-500' : 'bg-amber-400'}`} />
-                                    {isDone ? 'Hoàn thành' : isOverdue ? 'Quá hạn' : isInProgress ? 'Đang làm' : 'Chờ làm'}
+                                  <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 font-bold ${timing.tone}`}>
+                                    <span className={`h-2 w-2 rounded-full ${timing.dot}`} />
+                                    {timing.label}
                                   </span>
                                   <div className="min-w-0">
                                     <h5 className="font-heading text-sm font-black text-brand-dark">{task.title}</h5>
@@ -667,8 +769,8 @@ export default function FieldWorkerDashboard() {
                                       }}
                                       className="w-full gap-1.5 font-bold sm:w-auto"
                                     >
-                                      {isHarvestTask ? <Scale className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                                      {isHarvestTask ? 'Mở cân & đóng gói' : isInProgress || isOverdue ? 'Hoàn thành' : 'Bắt đầu'}
+                                      {isHarvestTask ? <Scale className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                                      {isHarvestTask ? 'Thu hoạch' : 'Hoàn thành'}
                                     </Button>
                                   )}
                                 </div>
@@ -692,8 +794,8 @@ export default function FieldWorkerDashboard() {
                             <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">Chi tiết công việc</p>
                             <h3 className="mt-1 font-heading text-xl font-black leading-tight">{focusedTask.title}</h3>
                           </div>
-                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${focusedTask.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : focusedTask.status === 'OVERDUE' ? 'bg-rose-100 text-rose-800' : focusedTask.status === 'IN_PROGRESS' ? 'bg-sky-100 text-sky-800' : 'bg-amber-100 text-amber-800'}`}>
-                            {focusedTask.status === 'COMPLETED' ? 'Hoàn thành' : focusedTask.status === 'OVERDUE' ? 'Quá hạn' : focusedTask.status === 'IN_PROGRESS' ? 'Đang làm' : 'Chờ làm'}
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${getTaskTimingMeta(focusedTask).tone}`}>
+                            {getTaskTimingMeta(focusedTask).label}
                           </span>
                         </div>
                         <div className="mt-4 flex items-center gap-2 text-xs text-emerald-50"><MapPin className="h-4 w-4" />{focusedTask.plotName}</div>
@@ -736,8 +838,8 @@ export default function FieldWorkerDashboard() {
                               }}
                               className="w-full gap-2 font-bold"
                             >
-                              {/thu hoạch|cân|đóng thùng/i.test(focusedTask.title) ? <Scale className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                              {/thu hoạch|cân|đóng thùng/i.test(focusedTask.title) ? 'Mở cân & đóng gói' : ['IN_PROGRESS', 'OVERDUE'].includes(focusedTask.status) ? 'Hoàn thành công việc' : 'Bắt đầu công việc'}
+                              {/thu hoạch|cân|đóng thùng/i.test(focusedTask.title) ? <Scale className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                              {/thu hoạch|cân|đóng thùng/i.test(focusedTask.title) ? 'Thu hoạch' : 'Hoàn thành công việc'}
                             </Button>
                             <Button variant="outline" onClick={() => setShowNewIssueModal(true)} className="w-full gap-2 font-bold"><AlertTriangle className="h-4 w-4" />Báo sự cố</Button>
                           </div>
@@ -851,57 +953,41 @@ export default function FieldWorkerDashboard() {
 
             {/* Field issues */}
             {activeTab === 'issues' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div className="flex items-center justify-between border-b border-brand-border/60 pb-4">
-                  <div>
-                    <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Báo Cáo Sự Cố Phát Sinh Tại Vườn
-                    </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Báo cáo trực tiếp sâu bệnh, hư hỏng hệ thống tưới kèm ảnh chụp tới Chuyên gia ThS. Nam.
-                    </p>
-                  </div>
-                  <Button variant="primary" size="sm" onClick={() => setShowNewIssueModal(true)} className="font-bold">
-                    + Báo cáo sự cố mới
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  {myIssues.length === 0 && <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center text-sm text-brand-muted">Chưa có báo cáo sự cố từ hệ thống.</div>}
-                  {myIssues.map((iss) => (
-                    <div
-                      key={iss.id}
-                      className="p-5 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3 text-xs"
-                    >
-                      <div className="flex items-center justify-between border-b border-brand-border/60 pb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-brand-green text-sm">{iss.id}</span>
-                          <span className="text-stone-400">• Thửa {iss.plotCode} • {iss.sentTime}</span>
-                        </div>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          iss.urgency === 'HIGH' ? 'bg-rose-100 text-rose-800' : 'bg-stone-100 text-stone-700'
-                        }`}>
-                          {iss.urgency === 'HIGH' ? 'Khẩn cấp' : 'Bình thường'}
-                        </span>
-                      </div>
-
-                      <h4 className="font-bold text-brand-dark text-sm">{iss.issueType}</h4>
-
-                      <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
-                        <span className="font-bold flex items-center gap-1.5 text-xs text-brand-green">
-                          <ShieldCheck className="w-4 h-4" />
-                          <span>Chỉ đạo xử lý từ Chuyên gia ThS. Nam:</span>
-                        </span>
-                        <p className="leading-relaxed">{iss.expertAdvice}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <IssueHistory
+                issues={myIssues}
+                filter={issueFilter}
+                onFilter={setIssueFilter}
+                search={issueSearch}
+                onSearch={setIssueSearch}
+                selectedIssue={selectedIssue}
+                onSelect={setSelectedIssue}
+                onOpenTask={(issue) => {
+                  const linked = tasks.find((task) => task.plotCode === issue.plotCode && task.status !== 'COMPLETED');
+                  if (linked) setFocusedTaskId(linked.id);
+                  setActiveTab('tasks');
+                }}
+              />
             )}
 
-            {/* Harvest scaling */}
             {activeTab === 'harvest' && (
+              <HarvestRecorder
+                workItems={harvestWorkItems}
+                selected={selectedHarvestTask}
+                onSelect={openHarvestWorkspace}
+                photos={harvestPhotos}
+                onPhotos={handleHarvestPhotos}
+                onRemovePhoto={(index) => setHarvestPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index))}
+                weight={harvestWeight}
+                onWeight={setHarvestWeight}
+                confirmed={harvestConfirmed}
+                onConfirmed={setHarvestConfirmed}
+                user={user}
+                onSubmit={handleConfirmHarvestScale}
+              />
+            )}
+
+            {/* Legacy weighing workspace retained temporarily for data migration, never rendered. */}
+            {false && activeTab === 'harvest' && (
               <div className="grid min-h-[680px] overflow-hidden rounded-3xl border border-brand-border bg-white shadow-sm xl:grid-cols-[minmax(260px,0.75fr)_minmax(430px,1.25fr)]">
                 <aside className="border-b border-brand-border bg-[#faf9f4] p-4 sm:p-6 xl:border-b-0 xl:border-r">
                   <div className="mb-5">
@@ -1159,16 +1245,17 @@ export default function FieldWorkerDashboard() {
         </form>
       </Modal>
 
-      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-3 rounded-2xl border border-brand-border bg-white/95 p-2 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
+      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-2xl border border-brand-border bg-white/95 p-2 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
         {[
           { id: 'tasks', label: 'Công việc', icon: ListTodo },
-          { id: 'harvest', label: 'Đóng gói', icon: PackageCheck },
-          { id: 'issues', label: 'Sự cố', icon: AlertTriangle }
+          { id: 'harvest', label: 'Thu hoạch', icon: Camera },
+          { id: 'issues', label: 'Báo cáo', icon: FileText }
         ].map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
           return <button key={item.id} type="button" onClick={() => setActiveTab(item.id)} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold transition ${active ? 'bg-[#064b37] text-white' : 'text-stone-500 hover:bg-stone-50'}`}><Icon className="h-5 w-5" />{item.label}</button>;
         })}
+        <button type="button" onClick={() => window.dispatchEvent(new Event('farmely:open-profile'))} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold text-stone-500 hover:bg-stone-50"><UserCheck className="h-5 w-5" />Tài khoản</button>
       </nav>
 
       <div className={`transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>

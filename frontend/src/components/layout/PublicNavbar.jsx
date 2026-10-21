@@ -52,6 +52,12 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   const isAdmin = isAuthenticated && user?.role === 'ADMIN';
   const hasDashboardRail = typeof dashboardRailCollapsed === 'boolean';
 
+  useEffect(() => {
+    const openProfile = () => setIsProfileModalOpen(true);
+    window.addEventListener('farmely:open-profile', openProfile);
+    return () => window.removeEventListener('farmely:open-profile', openProfile);
+  }, []);
+
   // Sync profileForm with user on change
   useEffect(() => {
     if (user) {
