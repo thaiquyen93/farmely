@@ -21,8 +21,8 @@ export default {
         },
       },
       fontFamily: {
-        heading: ['Nunito', 'sans-serif'],
-        sans: ['Nunito', 'sans-serif'],
+        heading: ['Plus Jakarta Sans', 'Nunito', 'sans-serif'],
+        sans: ['Plus Jakarta Sans', 'Nunito', 'sans-serif'],
       },
       borderColor: {
         DEFAULT: 'rgba(41, 76, 59, 0.14)',

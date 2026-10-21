@@ -21,6 +21,7 @@ export default function FloatingExpertChat({
 }) {
   const [launcherPosition, setLauncherPosition] = useState(null);
   const [isMobileViewport, setIsMobileViewport] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1024);
+  const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const dragRef = useRef(null);
   const panelRef = useRef(null);
   const isAi = mode === 'ai';
@@ -33,6 +34,17 @@ export default function FloatingExpertChat({
     const onResize = () => setIsMobileViewport(window.innerWidth < 1024);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    const check = () => {
+      const panel = document.querySelector('[data-plot-detail-panel="open"]');
+      setIsDetailPanelOpen(Boolean(panel));
+    };
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-plot-detail-panel'] });
+    return () => obs.disconnect();
   }, []);
 
   useEffect(() => {
@@ -76,14 +88,14 @@ export default function FloatingExpertChat({
         left: launcherPosition.x >= 390 ? launcherPosition.x - 382 : launcherPosition.x + 68,
         top: clamp(launcherPosition.y - 450, 84, Math.max(84, window.innerHeight - 532))
       }
-    : { right: 92, bottom: effectiveBottomOffset };
+    : { right: isDetailPanelOpen && !isMobileViewport ? 364 : 92, bottom: effectiveBottomOffset };
 
   if (!isOpen) {
     return (
       <div
         data-draggable
-        className="fixed z-[60] block"
-        style={launcherPosition ? { left: launcherPosition.x, top: launcherPosition.y } : { right: 24, bottom: effectiveBottomOffset }}
+        className="fixed z-[60] block transition-[right] duration-300"
+        style={launcherPosition ? { left: launcherPosition.x, top: launcherPosition.y } : { right: isDetailPanelOpen && !isMobileViewport ? 356 : 24, bottom: effectiveBottomOffset }}
       >
         <button
           type="button"

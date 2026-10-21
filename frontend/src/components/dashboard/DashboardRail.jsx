@@ -8,7 +8,7 @@ export default function DashboardRail({ user, fallbackName, roleLabel, collapsed
         <div className={`flex items-center gap-3 border-b border-white/15 ${collapsed ? 'lg:flex-col lg:px-2 lg:py-3' : 'p-4'}`}>
           <img src={user?.avatar} alt="" className="h-10 w-10 shrink-0 rounded-xl border border-brand-border object-cover" />
           <div className={`min-w-0 flex-1 ${collapsed ? 'lg:hidden' : ''}`}>
-            <p className="truncate font-heading text-base font-black text-white">{user?.fullName || fallbackName}</p>
+            <p className="font-heading text-sm font-black text-white leading-tight">{user?.fullName || fallbackName}</p>
             <p className="truncate text-xs font-bold uppercase tracking-wider text-emerald-100/70">{roleLabel}</p>
           </div>
           <button type="button" onClick={() => setCollapsed((value) => !value)} className={`${collapsed ? 'lg:mx-auto' : 'ml-auto'} hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl text-emerald-100 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-yellow lg:inline-flex`} aria-label={collapsed ? 'Mở rộng thanh quản lý' : 'Thu gọn thanh quản lý'} title={collapsed ? 'Mở rộng thanh quản lý' : 'Thu gọn thanh quản lý'}>

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 import { useAuthStore } from '../../stores/authStore';
@@ -7,13 +7,25 @@ import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceI
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
 import { buildGeoJsonFromDbPlots } from '../../data/marketplaceGisData';
 import { farmApi } from '../../api/farm/farmApi';
-import { getSafeCropById } from '../../data/safeCrops';
+import { getSafeCropById, safeCrops } from '../../data/safeCrops';
 import { getStatusConfig, isAvailableStatus } from '../../utils/mapTheme';
+import {
+  normalizePlotCode,
+  findPlotByCode,
+  loadCartCodes,
+  saveCartCodes,
+  buildBookingUrl,
+  filterCompatibleCrops,
+  fetchCompatibleVarietyIds,
+  loadLeaseConfigMap,
+  saveLeaseConfigMap,
+  normalizeLeaseConfig,
+  buildCartSummary
+} from '../../utils/leaseSelection';
 import { LogIn, Search, X, ChevronRight, ChevronLeft, Sparkles, ArrowRight, Check, Plus, MapPin, Layers } from 'lucide-react';
 
 export default function Marketplace() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user, isAuthenticated, login } = useAuthStore();
 
@@ -26,17 +38,28 @@ export default function Marketplace() {
   const [isPlotListCollapsed, setIsPlotListCollapsed] = useState(() =>
     typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 1365px)').matches : false
   );
-  const [selectedCropByPlot, setSelectedCropByPlot] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
-    } catch {
-      return {};
-    }
-  });
+  // Cấu hình thuê theo mã thửa (vd {"P-04": { cropId: "CRP-03", cultivationMode: "ASSISTED", termMonths: 6 }}), dùng chung với trang BookPlot
+  const [leaseConfigByPlot, setLeaseConfigByPlot] = useState(loadLeaseConfigMap);
+  // Danh sách mã thửa cần thuê khi chưa đăng nhập (dùng sau khi đăng nhập)
+  const [pendingBookingCodes, setPendingBookingCodes] = useState([]);
 
   useEffect(() => {
-    localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(selectedCropByPlot));
-  }, [selectedCropByPlot]);
+    saveLeaseConfigMap(leaseConfigByPlot);
+  }, [leaseConfigByPlot]);
+
+  const updatePlotLeaseConfig = (plotCode, patch) => {
+    const code = normalizePlotCode(plotCode);
+    if (!code) return;
+    setLeaseConfigByPlot((prev) => {
+      const current = prev[code] || {};
+      const merged = { ...current, ...patch };
+      const crop = getSafeCropById(merged.cropId);
+      const normalized = normalizeLeaseConfig(merged, crop);
+      const next = { ...prev, [code]: normalized };
+      saveLeaseConfigMap(next);
+      return next;
+    });
+  };
 
   // Dữ liệu Nông trại & Thửa đất thực tế lấy từ Backend PostgreSQL Database
   const [lands, setLands] = useState([]);
@@ -73,7 +96,7 @@ export default function Marketplace() {
 
         if (landList.length > 0) {
           const urlLandId = searchParams.get('landId');
-          const urlPlotId = searchParams.get('plotId') || searchParams.get('plots');
+          const urlPlotId = searchParams.get('plotId') || searchParams.get('plot') || searchParams.get('plots');
           let matchedPlotLandId = null;
           if (urlPlotId && plotList.length > 0) {
             const firstPlotCode = urlPlotId.split(',')[0].trim().toLowerCase();
@@ -83,6 +106,11 @@ export default function Marketplace() {
             );
             if (foundPlot?.landId) {
               matchedPlotLandId = String(foundPlot.landId);
+            }
+            if (foundPlot) {
+              const codeToSelect = foundPlot.plotCode || String(foundPlot.plotId);
+              setSelectedPlotId(codeToSelect);
+              setShowDetailPanel(true);
             }
           }
 
@@ -157,80 +185,24 @@ export default function Marketplace() {
     return livePlotsGeoJson.features.map((f) => f.properties);
   }, [livePlotsGeoJson]);
 
-  // Danh sách chọn nhiều thửa đất trực tiếp trên Marketplace (bảo toàn qua localStorage & URL)
-  const [contractSelectedPlots, setContractSelectedPlots] = useState(() => {
-    try {
-      const saved = localStorage.getItem('farmely_master_lease_selected_plots');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return [];
-  });
-
-  // Tự động khôi phục danh sách thửa đất khi URL thay đổi hoặc quay lại trang
-  useEffect(() => {
-    const plotsQuery = searchParams.get('plots');
-    if (plotsQuery) {
-      const codes = plotsQuery.split(',').map((c) => c.trim().toLowerCase()).filter(Boolean);
-      const matched = allPlots.filter((p) => {
-        const idLower = (p.id || '').toLowerCase();
-        const codeLower = (p.code || '').toLowerCase();
-        const labelLower = (p.label || '').toLowerCase();
-        return codes.some(
-          (c) =>
-            idLower === c ||
-            codeLower === c ||
-            labelLower === c ||
-            codeLower.replace('plot ', '').trim() === c ||
-            c.replace('plot ', '').trim() === codeLower ||
-            idLower.includes(c) ||
-            c.includes(idLower)
-        );
-      });
-      if (matched.length > 0) {
-        setContractSelectedPlots(matched);
-        return;
-      }
-    }
-
-    try {
-      const saved = localStorage.getItem('farmely_master_lease_selected_plots');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const matched = parsed
-            .map((sp) => allPlots.find((p) => (p.id || p.code) === (sp.id || sp.code)) || sp)
-            .filter(Boolean);
-          if (matched.length > 0) {
-            setContractSelectedPlots(matched);
-          }
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [location.search, location.key, allPlots]);
+  // Giỏ thuê: nguồn sự thật duy nhất là danh sách MÃ thửa (vd ["P-04","P-05"]) trong localStorage.
+  // Thông tin thửa luôn suy ra từ dữ liệu DB hiện tại theo mã chính xác, không lưu object.
+  const [cartCodes, setCartCodes] = useState(loadCartCodes);
 
   useEffect(() => {
-    try {
-      if (contractSelectedPlots.length > 0) {
-        localStorage.setItem(
-          'farmely_master_lease_selected_plots',
-          JSON.stringify(contractSelectedPlots)
-        );
-      } else {
-        localStorage.removeItem('farmely_master_lease_selected_plots');
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [contractSelectedPlots]);
+    saveCartCodes(cartCodes);
+  }, [cartCodes]);
+
+  // Toàn bộ thửa (mọi khu đất) để thửa trong giỏ thuộc khu khác vẫn hiển thị đúng
+  const allDbPlotProps = useMemo(() => {
+    return buildGeoJsonFromDbPlots(dbPlots).features.map((f) => f.properties);
+  }, [dbPlots]);
+
+  const contractSelectedPlots = useMemo(() => {
+    return cartCodes.map((code) => findPlotByCode(allDbPlotProps, code)).filter(Boolean);
+  }, [cartCodes, allDbPlotProps]);
+
+  const getPlotKey = (plot) => normalizePlotCode(plot?.code || plot?.id);
 
   // Lọc theo search input & bộ lọc trạng thái
   const filteredPlots = useMemo(() => {
@@ -281,19 +253,19 @@ export default function Marketplace() {
     const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE' || plot.statusCode === 'AVAIL';
     if (!isVacant) return;
 
-    setContractSelectedPlots((prev) => {
-      const exists = prev.some((p) => (p.id || p.code) === (plot.id || plot.code));
-      if (exists) {
-        return prev.filter((p) => (p.id || p.code) !== (plot.id || plot.code));
-      } else {
-        return [...prev, plot];
-      }
-    });
+    const code = getPlotKey(plot);
+    if (!code) return;
+    setCartCodes((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
+  };
+
+  const removeFromCart = (code) => {
+    const target = normalizePlotCode(code);
+    setCartCodes((prev) => prev.filter((c) => c !== target));
   };
 
   const isPlotSelectedForContract = (plot) => {
     if (!plot) return false;
-    return contractSelectedPlots.some((p) => (p.id || p.code) === (plot.id || plot.code));
+    return cartCodes.includes(getPlotKey(plot));
   };
 
   // Tổng diện tích đã chọn
@@ -312,76 +284,81 @@ export default function Marketplace() {
     }, 0);
   }, [contractSelectedPlots]);
 
-  const handleBookPlot = (plot, cropId = selectedCropId) => {
+  // "Thuê ngay thửa này": chỉ thuê đúng thửa đang mở trong panel, không đụng tới giỏ thuê
+  const handleBookPlot = (plot) => {
     if (!plot) return;
     const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE' || plot.statusCode === 'AVAIL';
     if (!isVacant) return;
 
-    if (cropId) {
-      try {
-        const current = JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
-        current[plot.id] = cropId;
-        current[plot.code] = cropId;
-        localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(current));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    const allSelected = isPlotSelectedForContract(plot)
-      ? contractSelectedPlots
-      : contractSelectedPlots.length > 0
-      ? [...contractSelectedPlots.filter((p) => String(p.id) !== String(plot.id) && String(p.code) !== String(plot.code)), plot]
-      : [plot];
-
-    const firstPlot = allSelected[0];
-    const uniqueCodes = [...new Set(allSelected.map((p) => p.code || p.id))];
-    const plotCodes = uniqueCodes.join(',');
+    const code = getPlotKey(plot);
+    if (!code) return;
 
     if (!isAuthenticated) {
-      setPlotToBook(firstPlot);
+      setPlotToBook(plot);
+      setPendingBookingCodes([code]);
       setShowAuthModal(true);
     } else {
-      navigate(`/marketplace/plot/${firstPlot.id || firstPlot.code}/book?plots=${plotCodes}${cropId ? `&cropId=${cropId}` : ''}`);
+      navigate(buildBookingUrl([code]));
     }
   };
 
+  // "Tiếp tục thuê (N thửa)": thuê đúng các thửa trong giỏ
   const handleProceedToMultiPlotLease = () => {
-    if (contractSelectedPlots.length === 0) return;
-    const firstPlot = contractSelectedPlots[0];
-    const plotCodes = contractSelectedPlots.map((p) => p.code || p.id).join(',');
-
-    if (selectedCropId) {
-      try {
-        const current = JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
-        contractSelectedPlots.forEach((p) => {
-          current[p.id] = selectedCropId;
-          if (p.code) current[p.code] = selectedCropId;
-        });
-        localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(current));
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    // Dùng đúng danh sách đang hiển thị trên thanh giỏ (đã đối chiếu với DB)
+    const codes = contractSelectedPlots.map(getPlotKey).filter(Boolean);
+    if (codes.length === 0) return;
 
     if (!isAuthenticated) {
-      setPlotToBook(firstPlot);
+      setPlotToBook(contractSelectedPlots[0] || null);
+      setPendingBookingCodes(codes);
       setShowAuthModal(true);
     } else {
-      navigate(`/marketplace/plot/${firstPlot.id || firstPlot.code}/book?plots=${plotCodes}${selectedCropId ? `&cropId=${selectedCropId}` : ''}`);
+      navigate(buildBookingUrl(codes));
     }
   };
 
-  const handleQuickDemoLogin = () => {
-    login('customer@farmely.vn', '123456');
+  const handleQuickDemoLogin = async () => {
+    await login('customer@farmely.vn', '123456');
     setShowAuthModal(false);
-    if (plotToBook) {
-      const plotCodes = contractSelectedPlots.length > 0
-        ? contractSelectedPlots.map((p) => p.code || p.id).join(',')
-        : (plotToBook.code || plotToBook.id);
-      navigate(`/marketplace/plot/${plotToBook.id || plotToBook.code}/book?plots=${plotCodes}`);
+    if (pendingBookingCodes.length > 0) {
+      navigate(buildBookingUrl(pendingBookingCodes));
     }
   };
+
+  // BR03: chỉ hiển thị giống cây tương thích với thửa đang mở (theo plot_variety_compatibility)
+  const [compatByPlotId, setCompatByPlotId] = useState({});
+  const selectedPlotDbId = selectedPlot?.plot_id;
+
+  useEffect(() => {
+    if (selectedPlotDbId === undefined || selectedPlotDbId === null) return;
+    let active = true;
+    fetchCompatibleVarietyIds(selectedPlotDbId).then((ids) => {
+      if (active) setCompatByPlotId((prev) => ({ ...prev, [selectedPlotDbId]: ids }));
+    });
+    return () => {
+      active = false;
+    };
+  }, [selectedPlotDbId]);
+
+  const selectedPlotCompat = useMemo(() => {
+    return filterCompatibleCrops(safeCrops, selectedPlotDbId != null ? compatByPlotId[selectedPlotDbId] : null);
+  }, [compatByPlotId, selectedPlotDbId]);
+  const selectedPlotCompatLoaded = selectedPlotDbId != null && selectedPlotDbId in compatByPlotId;
+
+  const selectedPlotKey = getPlotKey(selectedPlot);
+  const selectedPlotConfig = useMemo(() => {
+    const raw = leaseConfigByPlot[selectedPlotKey] || {};
+    const crop = getSafeCropById(raw.cropId);
+    return normalizeLeaseConfig(raw, crop);
+  }, [leaseConfigByPlot, selectedPlotKey]);
+
+  // Bỏ giống cây đã lưu nếu không tương thích với thửa (khi DB có dữ liệu tương thích)
+  useEffect(() => {
+    if (!selectedPlotKey || !selectedPlotConfig.cropId || !selectedPlotCompat.hasData) return;
+    if (!selectedPlotCompat.crops.some((c) => c.id === selectedPlotConfig.cropId)) {
+      updatePlotLeaseConfig(selectedPlotKey, { cropId: '' });
+    }
+  }, [selectedPlotKey, selectedPlotConfig.cropId, selectedPlotCompat]);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-900 select-none font-sans">
@@ -689,7 +666,7 @@ export default function Marketplace() {
                 const inContract = isPlotSelectedForContract(p);
                 const displayPrice =
                   p.price || (p.rentalPrice ? `${p.rentalPrice.toLocaleString('vi-VN')} đ` : '1.200.000 đ');
-                const chosenCrop = getSafeCropById(selectedCropByPlot[p.id]);
+                const chosenCrop = getSafeCropById(leaseConfigByPlot[getPlotKey(p)]?.cropId);
                 const cropLabel = chosenCrop
                   ? `${chosenCrop.icon} ${chosenCrop.name}`
                   : Array.isArray(p.crops) && p.crops.length > 0
@@ -840,10 +817,10 @@ export default function Marketplace() {
         onBookPlot={handleBookPlot}
         isPlotSelectedForContract={isPlotSelectedForContract(selectedPlot)}
         onToggleSelectPlotForContract={handleToggleSelectPlotForContract}
-        selectedCropId={selectedCropByPlot[selectedPlot?.id] || ''}
-        onSelectCrop={(cropId) =>
-          setSelectedCropByPlot((current) => ({ ...current, [selectedPlot.id]: cropId }))
-        }
+        leaseConfig={selectedPlotConfig}
+        onChangeLeaseConfig={(patch) => updatePlotLeaseConfig(selectedPlotKey, patch)}
+        cropOptions={selectedPlotCompat.crops}
+        compatibilityMissing={selectedPlotCompatLoaded && !selectedPlotCompat.hasData}
       />
 
       {/* ─────────────────────────────────────────────────────────────────────────────
@@ -898,7 +875,7 @@ export default function Marketplace() {
               className="w-full text-xs font-bold"
               onClick={() => {
                 setShowAuthModal(false);
-                navigate(`/login?redirect=/marketplace/plot/${plotToBook?.id}/book`);
+                navigate(`/login?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes))}`);
               }}
             >
               Chuyển đến trang Đăng nhập
@@ -910,52 +887,118 @@ export default function Marketplace() {
       {/* ─────────────────────────────────────────────────────────────────────────────
           6. THANH ĐIỀU HƯỚNG GỘP HỢP ĐỒNG MASTER LEASE (KHI ĐÃ CHỌN >= 1 THỬA ĐẤT)
       ───────────────────────────────────────────────────────────────────────────── */}
-      {contractSelectedPlots.length > 0 && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-4 px-5 py-3 bg-slate-900/95 backdrop-blur-2xl rounded-2xl border border-emerald-500/40 shadow-[0_16px_50px_rgba(0,0,0,0.35)] text-white animate-fadeIn max-w-[95vw] sm:max-w-fit">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/25 shrink-0">
-              <span className="text-sm font-black">{contractSelectedPlots.length}</span>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/40">
-                  Danh sách đã chọn ({contractSelectedPlots.length} thửa)
-                </span>
-                <span className="text-xs font-bold text-white truncate max-w-[180px] sm:max-w-[280px]">
-                  {contractSelectedPlots.map((p) => p.code || p.id).join(', ')}
-                </span>
+      {contractSelectedPlots.length > 0 && (() => {
+        const cartSummary = buildCartSummary(contractSelectedPlots, leaseConfigByPlot, getSafeCropById);
+        return (
+          <div
+            className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-40 items-center gap-4 px-5 py-3 bg-slate-900/95 backdrop-blur-2xl rounded-2xl border border-emerald-500/40 shadow-[0_16px_50px_rgba(0,0,0,0.35)] text-white animate-fadeIn max-w-[95vw] sm:max-w-fit ${
+              showDetailPanel && selectedPlot ? 'hidden sm:flex' : 'flex'
+            }`}
+            style={
+              showDetailPanel && selectedPlot
+                ? { left: 'calc((100vw - 356px) / 2)', maxWidth: 'calc(100vw - 380px)' }
+                : undefined
+            }
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/25 shrink-0">
+                <span className="text-sm font-black">{contractSelectedPlots.length}</span>
               </div>
-              <p className="text-[11px] text-slate-300 mt-0.5">
-                Tổng diện tích: <strong className="text-white">{totalSelectedArea} m²</strong> •{' '}
-                <strong className="text-emerald-400">{totalSelectedPrice.toLocaleString('vi-VN')} đ/tháng</strong>
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-500/40">
+                    Danh sách đã chọn ({contractSelectedPlots.length} thửa)
+                  </span>
+                  <ul className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[200px] sm:max-w-[440px]" aria-label="Thửa đất trong giỏ thuê">
+                    {cartSummary.items.map((item) => {
+                      const code = item.code;
+                      const crop = item.crop;
+                      const mode = item.config.cultivationMode;
+                      const termMonths = item.config.termMonths;
+                      const modeLabel = mode === 'ASSISTED' ? 'Hỗ trợ' : mode === 'SELF' ? 'Tự trồng' : 'Chưa chọn';
+                      const hasError = Boolean(item.error);
+
+                      return (
+                        <li
+                          key={code}
+                          data-cart-code={code}
+                          className={`inline-flex shrink-0 items-center gap-1 rounded-full pl-2 pr-0.5 py-0.5 text-xs font-bold text-white border transition-all ${
+                            hasError
+                              ? 'bg-amber-950/80 border-amber-500/60 text-amber-200'
+                              : 'bg-slate-800 border-slate-700'
+                          }`}
+                          title={item.error || `${code} • ${crop?.variety || 'Chưa chọn giống'} • ${modeLabel} • ${termMonths} tháng`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const targetPlot = findPlotByCode(allDbPlotProps, code);
+                              if (targetPlot) {
+                                if (targetPlot.landId && targetPlot.landId !== selectedLandId) {
+                                  setSelectedLandId(targetPlot.landId);
+                                }
+                                setSelectedPlot(targetPlot);
+                                setShowDetailPanel(true);
+                              }
+                            }}
+                            className="hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>{code}</span>
+                            <span>·</span>
+                            <span>{crop ? crop.icon : '⚠'}</span>
+                            <span>·</span>
+                            <span>{termMonths}th</span>
+                            <span>·</span>
+                            <span className={!mode ? 'text-rose-400 font-extrabold' : 'text-slate-300'}>{modeLabel}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(code)}
+                            aria-label={`Bỏ thửa ${code} khỏi danh sách`}
+                            title={`Bỏ thửa ${code} khỏi danh sách`}
+                            className="flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-rose-500/80 hover:text-white transition-colors cursor-pointer"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  Tổng diện tích: <strong className="text-white">{totalSelectedArea} m²</strong> •{' '}
+                  <strong className="text-emerald-400">Tạm tính: {cartSummary.total.toLocaleString('vi-VN')} đ</strong>
+                  {contractSelectedPlots.length - cartSummary.configuredCount > 0 && (
+                    <span className="text-amber-400 font-bold ml-1.5">
+                      ({contractSelectedPlots.length - cartSummary.configuredCount} thửa chưa cấu hình)
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="h-7 w-[1px] bg-slate-700/80 shrink-0" />
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setCartCodes([])}
+                className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleProceedToMultiPlotLease}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <span>Tiếp tục thuê ({contractSelectedPlots.length} thửa)</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
-
-          <div className="h-7 w-[1px] bg-slate-700/80 shrink-0" />
-
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                setContractSelectedPlots([]);
-                localStorage.removeItem('farmely_master_lease_selected_plots');
-              }}
-              className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors cursor-pointer"
-            >
-              Hủy
-            </button>
-            <button
-              type="button"
-              onClick={handleProceedToMultiPlotLease}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-            >
-              <span>Tiếp tục thuê ({contractSelectedPlots.length} thửa)</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
