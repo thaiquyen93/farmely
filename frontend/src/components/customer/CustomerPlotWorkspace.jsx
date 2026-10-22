@@ -8,7 +8,7 @@ import {
   AlertTriangle, ArrowLeft, BookOpen, CalendarCheck, CalendarRange, Check, ChevronDown, ChevronRight,
   CircleDot, Clock, Clock3, Droplets, ExternalLink, Eye, Filter, Info, LayoutDashboard, Leaf,
   MapPin, Maximize2, PenLine, Radio, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
-  Sun, Thermometer, Truck, UserRound, Wheat, Wind, X
+  Sun, Thermometer, Truck, UserRound, Wheat, Wind, X, Camera, CheckCircle2, FileText
 } from 'lucide-react';
 
 /* ──────────────────────────────────────────────────────────────────────────
