@@ -43,6 +43,7 @@ import {
   FileText,
   X
 } from 'lucide-react';
+import { recordStaffActivity } from '../../services/cropStandardProcess';
 
 // SSoT danh mục giống canh tác chuẩn theo từng thửa đất tại Happy Valley
 const DEFAULT_PLOT_CROPS = {
@@ -439,6 +440,25 @@ export default function FieldWorkerDashboard() {
         console.warn('Could not patch task to DB:', err);
       }
     }
+
+    try {
+      recordStaffActivity({
+        activityId: `ACT-${selectedTaskToExecute.id || Date.now()}`,
+        plotId: selectedTaskToExecute.plotId || selectedTaskToExecute.plotCode || 'PLOT-CC-01',
+        plotCode: selectedTaskToExecute.plotCode || 'CC-01',
+        workerName: user?.fullName || 'Trần Văn Lực (CVLĐ)',
+        workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
+        title: selectedTaskToExecute.title || 'Chăm sóc luống cây trồng',
+        timestamp: `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Hôm nay`,
+        status: 'COMPLETED',
+        notes: taskProofNote || 'Nhiệm vụ đã được hoàn tất và nghiệm thu đạt tiêu chuẩn VietGAP.',
+        proofPhoto: taskProofPhoto || '/images/moc-chau-2811.jpg',
+        sensorSnapshot: { temp: '26.8°C', soilMoisture: '68%' }
+      });
+    } catch (e) {
+      console.warn('Could not record staff activity:', e);
+    }
+
     setTasks((prev) =>
       prev.map((t) =>
         t.id === selectedTaskToExecute.id

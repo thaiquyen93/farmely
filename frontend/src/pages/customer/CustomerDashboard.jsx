@@ -20,6 +20,7 @@ import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import { useSensorStream } from '../../api/monitoring/useSensorStream';
 import { apiFetch, unwrapData } from '../../api/apiClient';
+import { resolveStandardCropProcess } from '../../services/cropStandardProcess';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -1700,12 +1701,23 @@ export default function CustomerDashboard() {
     };
   }
 
-  const defaultProcessForPlot = (plot) => [
-    { stage: 'Gieo giống & bén rễ', date: 'Đầu chu kỳ', guide: 'Giữ ẩm đất 60–70%, kiểm tra độ nảy mầm hằng ngày.', status: 'COMPLETED' },
-    { stage: 'Sinh trưởng thân lá', date: 'Giai đoạn giữa vụ', guide: 'Bổ sung dinh dưỡng hữu cơ VietGAP và tỉa lá già định kỳ.', status: (plot?.progressPercent || 0) >= 30 ? 'COMPLETED' : 'IN_PROGRESS' },
-    { stage: plot?.stage || 'Ra hoa & đậu quả non', date: 'Hiện tại', guide: 'Theo dõi chỉ số độ ẩm vi khí hậu và sâu bệnh qua trạm IoT.', status: (plot?.progressPercent || 0) >= 70 ? 'COMPLETED' : 'IN_PROGRESS' },
-    { stage: 'Thu hoạch & nghiệm thu', date: plot?.expectedHarvestDate || 'Dự kiến', guide: 'Cân đối chứng, kiểm tra chất lượng và đóng thùng QR xuất xưởng.', status: 'PENDING' }
-  ];
+  const defaultProcessForPlot = (plot) => {
+    const resolved = resolveStandardCropProcess(plot);
+    if (resolved?.stages?.length) {
+      return resolved.stages.map((st) => ({
+        stage: st.name,
+        date: st.label,
+        guide: st.guide,
+        status: st.status
+      }));
+    }
+    return [
+      { stage: 'Gieo giống & bén rễ', date: 'Ngày 1 - 7', guide: 'Giữ ẩm đất 60–70%, che lưới mát, kiểm tra độ nảy mầm.', status: 'COMPLETED' },
+      { stage: 'Sinh trưởng thân lá', date: 'Ngày 8 - 22', guide: 'Bổ sung dinh dưỡng hữu cơ VietGAP và tỉa chồi nách định kỳ.', status: 'IN_PROGRESS' },
+      { stage: 'Ra hoa & đậu quả non', date: 'Ngày 23 - 35', guide: 'Theo dõi vi khí hậu và bón bổ sung Kali hữu cơ, chống rụng hoa.', status: 'PENDING' },
+      { stage: 'Nuôi trái & thu hoạch', date: 'Ngày 36 - 45', guide: 'Đạt chuẩn VietGAP, kiểm tra dư lượng an toàn và thu hoạch.', status: 'PENDING' }
+    ];
+  };
 
   const defaultAlertsForPlot = (plot) => [
     { level: 'LOW', title: 'Nhiệt độ & ẩm độ tối ưu', metric: `${plot?.temp || '28°C'} · Ẩm đất ${plot?.soilMoisture || '68%'}`, time: '10 phút trước' }
