@@ -564,7 +564,11 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                         <button
                           onClick={() => {
                             setUserDropdownOpen(false);
-                            setIsProfileModalOpen(true);
+                            if (user?.role === 'CUSTOMER') {
+                              navigate('/customer/profile');
+                            } else {
+                              setIsProfileModalOpen(true);
+                            }
                           }}
                           className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
                         >
@@ -589,7 +593,11 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                         <button
                           onClick={() => {
                             setUserDropdownOpen(false);
-                            setIsSettingsModalOpen(true);
+                            if (user?.role === 'CUSTOMER') {
+                              navigate('/customer/settings');
+                            } else {
+                              setIsSettingsModalOpen(true);
+                            }
                           }}
                           className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
                         >

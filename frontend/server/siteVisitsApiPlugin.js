@@ -74,11 +74,11 @@ let activePgConfig = null;
 function getPgConfig() {
   if (activePgConfig) return activePgConfig;
   return {
-    host: process.env.PGHOST || process.env.DB_HOST || rootEnv.DB_HOST || '127.0.0.1',
+    host: process.env.PGHOST || process.env.DB_HOST || rootEnv.DB_HOST || 'localhost',
     port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5432',
     database: process.env.PGDATABASE || process.env.DB_NAME || rootEnv.DB_NAME || 'farmely',
     user: process.env.PGUSER || process.env.DB_USER || rootEnv.DB_USER || 'postgres',
-    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || 'postgres'
+    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '@Bin054206'
   };
 }
 
@@ -178,6 +178,141 @@ export function siteVisitsApiPlugin() {
   return {
     name: 'site-visits-api-plugin',
     configureServer(server) {
+      if (!global.__farmelySseClients) {
+        global.__farmelySseClients = [];
+      }
+
+      async function triggerBulkTelemetryInsert(scenario = null) {
+        try {
+          const mode = scenario?.mode || 'normal';
+          const targetPlotId = scenario?.plotId ? parseInt(scenario.plotId, 10) : null;
+
+          // Mô hình vi khí hậu nhật triệt (Diurnal Solar-Thermal Cycle) theo giờ thực của Server:
+          // Trưa (12h-14h): Nắng gắt, nhiệt độ đạt đỉnh ~32.5°C - 33.5°C, không khí khô ~56% - 62%
+          // Đêm (23h-05h): Trời dịu mát ~24.5°C - 26°C, không khí ẩm đọng sương ~82% - 88%
+          const now = new Date();
+          const curHour = now.getHours() + now.getMinutes() / 60.0;
+          const solarFactor = Math.sin(((curHour - 7.5) * Math.PI) / 12.0); // -1.0 (đêm) đến +1.0 (trưa)
+
+          const diurnalTemp = (28.2 + 4.2 * solarFactor).toFixed(2);
+          const diurnalAir = (72.0 - 13.5 * solarFactor).toFixed(2);
+          const diurnalSoil = (68.0 - 3.5 * solarFactor).toFixed(2);
+
+          // Trôi dạt tự nhiên nhẹ nhàng: trôi dần về trục nhiệt theo giờ (0.12) + nhiễu vi khí hậu ngẫu nhiên (±0.10°C)
+          let tempExpr = `ROUND(LEAST(35.0, GREATEST(22.0, ((${diurnalTemp} + ((p.plot_id % 3) * 0.4) - 0.4) * 0.12 + COALESCE(prev.temperature, ${diurnalTemp}) * 0.88) + ((random() * 0.20) - 0.10)))::numeric, 2)`;
+          let airExpr = `ROUND(LEAST(95.0, GREATEST(45.0, ((${diurnalAir} + ((p.plot_id % 4) * 0.8) - 1.2) * 0.12 + COALESCE(prev.air_humidity, ${diurnalAir}) * 0.88) + ((random() * 0.4) - 0.20)))::numeric, 2)`;
+          let soilExpr = `ROUND(LEAST(85.0, GREATEST(50.0, ((${diurnalSoil} + ((p.plot_id % 3) * 0.6) - 0.6) * 0.12 + COALESCE(prev.soil_humidity, ${diurnalSoil}) * 0.88) + ((random() * 0.24) - 0.12)))::numeric, 2)`;
+
+          if (mode === 'alert_flood') {
+            if (targetPlotId) {
+              soilExpr = `CASE WHEN p.plot_id = ${targetPlotId} THEN 83.20 ELSE ${soilExpr} END`;
+              airExpr = `CASE WHEN p.plot_id = ${targetPlotId} THEN 88.50 ELSE ${airExpr} END`;
+            } else {
+              soilExpr = '83.20';
+              airExpr = '88.50';
+            }
+          } else if (mode === 'alert_dry') {
+            if (targetPlotId) {
+              soilExpr = `CASE WHEN p.plot_id = ${targetPlotId} THEN 46.50 ELSE ${soilExpr} END`;
+              tempExpr = `CASE WHEN p.plot_id = ${targetPlotId} THEN 34.80 ELSE ${tempExpr} END`;
+            } else {
+              soilExpr = '46.50';
+              tempExpr = '34.80';
+            }
+          }
+
+          const sql = `
+WITH inserted AS (
+  INSERT INTO sensor_readings (plot_id, temperature, air_humidity, soil_humidity, recorded_at)
+  SELECT 
+    p.plot_id,
+    ${tempExpr} AS temperature,
+    ${airExpr} AS air_humidity,
+    ${soilExpr} AS soil_humidity,
+    NOW() AS recorded_at
+  FROM plots p
+  LEFT JOIN LATERAL (
+    SELECT temperature, air_humidity, soil_humidity 
+    FROM sensor_readings 
+    WHERE plot_id = p.plot_id 
+    ORDER BY recorded_at DESC 
+    LIMIT 1
+  ) prev ON true
+  RETURNING reading_id, plot_id, temperature, air_humidity, soil_humidity, recorded_at
+)
+SELECT COALESCE(json_agg(
+  json_build_object(
+    'readingId', ins.reading_id,
+    'plotId', ins.plot_id,
+    'plotCode', p.plot_code,
+    'temperature', ins.temperature,
+    'airHumidity', ins.air_humidity,
+    'soilHumidity', ins.soil_humidity,
+    'recordedAt', ins.recorded_at,
+    'status', 'HEALTHY',
+    'statusMessage', 'Vi khí hậu ổn định trong ngưỡng an toàn VietGAP'
+  )
+), '[]'::json)
+FROM inserted ins
+JOIN plots p ON ins.plot_id = p.plot_id;
+`;
+          const data = await runPostgreSql(sql);
+          if (!data) return [];
+          const readings = JSON.parse(data);
+
+          if (Array.isArray(readings) && readings.length > 0 && global.__farmelySseClients && global.__farmelySseClients.length > 0) {
+            for (let i = global.__farmelySseClients.length - 1; i >= 0; i--) {
+              const client = global.__farmelySseClients[i];
+              if (client.res.destroyed || client.res.writableEnded) {
+                global.__farmelySseClients.splice(i, 1);
+                continue;
+              }
+              const target = client.plotId;
+              if (target === 'all') {
+                try {
+                  client.res.write(`event: SENSOR_ALL_UPDATE\ndata: ${JSON.stringify(readings)}\n\n`);
+                } catch {
+                  global.__farmelySseClients.splice(i, 1);
+                }
+                continue;
+              }
+              const matched = readings.find(r => 
+                String(r.plotId) === String(target) ||
+                String(r.plotCode).toUpperCase() === String(target).toUpperCase() ||
+                `PLOT-${r.plotCode}`.toUpperCase() === String(target).toUpperCase() ||
+                `P-${String(target).padStart(2, '0')}`.toUpperCase() === String(r.plotCode).toUpperCase()
+              );
+              if (matched) {
+                try {
+                  client.res.write(`event: SENSOR_UPDATE\ndata: ${JSON.stringify(matched)}\n\n`);
+                } catch {
+                  global.__farmelySseClients.splice(i, 1);
+                }
+              }
+            }
+          }
+
+          runPostgreSql(`DELETE FROM sensor_readings WHERE reading_id < (SELECT COALESCE(max(reading_id), 0) - 400 FROM sensor_readings);`).catch(() => {});
+          return readings;
+        } catch {
+          return [];
+        }
+      }
+
+      global.__triggerBulkTelemetryInsert = triggerBulkTelemetryInsert;
+
+      if (global.__farmelyTelemetryInterval) {
+        clearInterval(global.__farmelyTelemetryInterval);
+      }
+      setTimeout(() => triggerBulkTelemetryInsert(global.__farmelySimulatedScenario), 1000);
+      // Chu kỳ 10 giây đo đạc một lần theo đúng nhịp trạm IoT thực tế ngoài vườn
+      global.__farmelyTelemetryInterval = setInterval(() => {
+        if (global.__farmelySimulatedScenario && Date.now() > global.__farmelySimulatedScenario.expiresAt) {
+          global.__farmelySimulatedScenario = null;
+        }
+        triggerBulkTelemetryInsert(global.__farmelySimulatedScenario);
+      }, 10000);
+
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
 
@@ -464,7 +599,6 @@ Write-Output ($dt | ConvertTo-Json -Compress)
               const totalAmount = parseFloat(payload.totalAmount) || 2400000.00;
               const paymentMethod = (payload.paymentMethod || 'VNPAY').replace(/'/g, "''");
               const rentalMonths = parseInt(payload.rentalMonths, 10) || 6;
-              const startDate = (payload.startDate || new Date().toISOString().slice(0, 10)).trim().replace(/'/g, "''");
               const plotItems = Array.isArray(payload.plots) && payload.plots.length > 0 ? payload.plots : [{ code: 'P-01', price: totalAmount }];
               const nowStamp = Date.now().toString().slice(-6);
               const contractNumber = `MLA-2026-${nowStamp}`;
@@ -520,9 +654,11 @@ BEGIN
                   const itemServiceId = itemMode === 'ASSISTED' ? 15 : null;
                   const itemPrice = parseFloat(item.totalPrice) || parseFloat(item.price) || (totalAmount / plotItems.length);
                   const cleanPlotId = parseInt(cleanCode.replace(/\D/g, ''), 10) || 1;
-                  const rawCrop = item.cropId || item.varietyId;
-                  const parsedCropId = parseInt(String(rawCrop || '').replace(/\D/g, ''), 10);
-                  const varietyId = !isNaN(parsedCropId) && parsedCropId > 0 && parsedCropId <= 10 ? parsedCropId : 1;
+                  const rawVarId = item.varietyId || item.cropId;
+                  const parsedVarId = typeof rawVarId === 'number'
+                    ? rawVarId
+                    : parseInt(String(rawVarId || '').replace(/\D/g, ''), 10);
+                  const varietyId = !isNaN(parsedVarId) && parsedVarId > 0 && parsedVarId <= 10 ? parsedVarId : 1;
 
                   pgSql += `
     -- Tìm plot_id chính xác
@@ -548,30 +684,48 @@ BEGIN
     -- CẬP NHẬT TRẠNG THÁI THỬA ĐẤT SANG 'RENT' (ĐÃ THUÊ)
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id = v_plot_id;
 
-    -- TỰ ĐỘNG KHỞI TẠO CÁC BƯỚC ĐẦU TIÊN CỦA QUY TRÌNH VIETGAP CHUẨN TỪNG CÂY
+    -- 1. TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP CỦA GIỐNG CÂY
     INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
     SELECT 
         v_rental_id,
         ts.step_id,
-        COALESCE((SELECT user_id FROM users WHERE role_id = 4 LIMIT 1), 2),
-        ('${startDate}'::date + (ts.day_offset || ' days')::interval)::date,
-        CASE WHEN ts.day_offset = 0 AND '${startDate}'::date <= CURRENT_DATE THEN 'IN_PROG' ELSE 'PENDING' END,
-        ts.step_name || ': ' || ts.description,
+        8, -- Kỹ thuật viên Trần Văn Lực (CVLĐ)
+        CURRENT_DATE + (ts.day_offset || ' days')::interval,
+        CASE WHEN ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        ts.step_name || ' - ' || ts.description,
         NOW(),
         NOW()
-    FROM template_steps ts
-    JOIN process_templates pt ON ts.template_id = pt.template_id
+    FROM process_templates pt
+    JOIN template_steps ts ON pt.template_id = ts.template_id
     WHERE pt.variety_id = ${varietyId}
-    ORDER BY ts.day_offset ASC, ts.step_id ASC;
+    ORDER BY ts.step_order;
 
-    -- TẠO NHẬT KÝ ĐẦU TIÊN CHO THỬA MỚI
+    -- 2. TỰ ĐỘNG KHỞI TẠO BẢN GHI NHẬT KÝ NÔNG TRẠI (FARM DIARY)
     INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
+    SELECT 
+        v_rental_id,
+        'Khoi tao va ban giao thua dat cho mua vu moi. Da hoan tat lam dat, xu ly phoi ai, bon lot phan trun que va kiem tra tram IoT vi sinh theo quy trinh VietGAP cho giong ' || COALESCE(v.variety_name, 'cay trong') || '.',
+        COALESCE((SELECT image_url FROM plots WHERE plot_id = v_plot_id), 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80'),
+        NOW()
+    FROM varieties v WHERE v.variety_id = ${varietyId};
+
+    -- 3. TỰ ĐỘNG KHỞI TẠO HỒ SƠ THU HOẠCH & NGHIỆM THU (HARVEST RESULTS)
+    INSERT INTO harvest_results (rental_id, entered_by, harvest_date, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at)
     VALUES (
         v_rental_id,
-        'Khởi tạo chu kỳ canh tác chuẩn VietGAP cho giống ' || (SELECT COALESCE(variety_name, 'Rau sạch') FROM varieties WHERE variety_id = ${varietyId}) || '. Ngày bắt đầu: ' || TO_CHAR('${startDate}'::date, 'DD/MM/YYYY') || '.',
-        'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
+        8,
+        CURRENT_DATE + COALESCE((SELECT MAX(day_offset + duration_days) FROM template_steps ts JOIN process_templates pt ON ts.template_id = pt.template_id WHERE pt.variety_id = ${varietyId}), 65) * INTERVAL '1 day',
+        ROUND(COALESCE((SELECT area * 0.3 FROM plots WHERE plot_id = v_plot_id), 35.0)::numeric, 1),
+        'https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80',
+        'DELIVERY',
+        false,
         NOW()
     );
+
+    -- 4. TỰ ĐỘNG KHỞI TẠO DỮ LIỆU CẢM BIẾN IOT NẾU THỬA CHƯA CÓ
+    INSERT INTO sensor_readings (plot_id, temperature, air_humidity, soil_humidity, recorded_at)
+    SELECT v_plot_id, 28.5, 74.0, 68.0, NOW()
+    WHERE NOT EXISTS (SELECT 1 FROM sensor_readings WHERE plot_id = v_plot_id);
 `;
                 }
                 pgSql += `END $$;`;
@@ -1300,6 +1454,39 @@ Write-Output $json
           return;
         }
 
+        // 5.4b GET /api/users/staff (Fetch agricultural experts & field workers directly from PostgreSQL)
+        if (req.method === 'GET' && (url === '/api/users/staff' || url.startsWith('/api/users/staff?') || url === '/api/users' || url.startsWith('/api/users?'))) {
+          try {
+            const staffSql = `
+SELECT json_agg(json_build_object(
+  'userId', u.user_id,
+  'fullName', u.full_name,
+  'email', u.email,
+  'role', r.role_name,
+  'phoneNumber', u.phone_number
+))
+FROM users u
+JOIN roles r ON u.role_id = r.role_id
+WHERE r.role_name IN ('EXPERT', 'FIELD_WORKER');
+`;
+            const pgRes = await runPostgreSql(staffSql);
+            if (pgRes && pgRes.trim()) {
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(pgRes.trim());
+              return;
+            }
+          } catch (staffErr) {
+            console.warn('Error fetching staff from PostgreSQL:', staffErr.message);
+          }
+
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify([
+            { userId: 5, fullName: 'ThS. Nguyễn Hoàng Nam', email: 'expert@farmely.vn', role: 'EXPERT', phoneNumber: '0903888999' },
+            { userId: 8, fullName: 'Trần Văn Lực', email: 'worker@farmely.vn', role: 'FIELD_WORKER', phoneNumber: '0933111222' }
+          ]));
+          return;
+        }
+
         // 5.5 POST /api/auth/login & /api/v1/auth/login (Local/Docker PostgreSQL authentication)
         if (req.method === 'POST' && (url === '/api/auth/login' || url === '/api/v1/auth/login' || url.startsWith('/api/auth/login?') || url.startsWith('/api/v1/auth/login?'))) {
           const chunks = [];
@@ -1417,6 +1604,71 @@ LIMIT 1;
           return;
         }
 
+        // 6b. GET /api/auth/me (Get current authenticated user info)
+        if (req.method === 'GET' && url === '/api/auth/me') {
+          const authHeader = req.headers['authorization'] || '';
+          const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+          // Thử gọi identity-service trước nếu có token JWT chuẩn
+          if (token && !token.startsWith('farmely-jwt-token-') && !token.startsWith('demo-token-')) {
+            try {
+              const idRes = await fetch('http://localhost:8081/api/auth/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (idRes.ok) {
+                const idData = await idRes.json();
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify(idData));
+                return;
+              }
+            } catch (_) {}
+          }
+
+          // Fallback từ PostgreSQL hoặc token id
+          let userId = 1;
+          if (token && token.includes('farmely-jwt-token-')) {
+            const parts = token.split('-');
+            if (parts[3]) userId = parseInt(parts[3], 10) || 1;
+          }
+          try {
+            const userSql = `
+SELECT json_build_object(
+  'userId', u.user_id,
+  'roleId', u.role_id,
+  'email', u.email,
+  'fullName', u.full_name,
+  'phoneNumber', COALESCE(u.phone_number, ''),
+  'address', COALESCE(u.address, ''),
+  'role', CASE WHEN r.role_name = 'FIELD_WORKER' THEN 'STAFF' ELSE r.role_name END,
+  'status', u.status
+)
+FROM users u
+JOIN roles r ON u.role_id = r.role_id
+WHERE u.user_id = ${userId}
+LIMIT 1;
+`;
+            const pgRes = await runPostgreSql(userSql);
+            if (pgRes && pgRes.trim()) {
+              const u = JSON.parse(pgRes.trim().split('\n')[0]);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Thành công', data: u }));
+              return;
+            }
+          } catch (_) {}
+
+          // Fallback mặc định
+          const defaultUser = {
+            userId: 1,
+            email: 'customer@farmely.vn',
+            fullName: 'Lô Thái Quyền',
+            role: 'CUSTOMER',
+            status: 'ACTIVE'
+          };
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ success: true, message: 'Thành công', data: defaultUser }));
+          return;
+        }
+
 
         // 7. GET /api/users (List all registered users from PostgreSQL)
         if (req.method === 'GET' && url === '/api/users') {
@@ -1466,6 +1718,8 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
   SELECT 
     'PLOT-' || p.plot_code AS id,
     p.plot_code AS "mapPlotId",
+    p.plot_code AS "plotCode",
+    r.rental_id AS "rentalId",
     'Thửa ' || p.plot_code || ' - ' || l.land_name AS name,
     l.land_name AS location,
     p.area || 'm²' AS area,
@@ -1478,56 +1732,21 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     r.cultivation_mode AS "cultivationMode",
     COALESCE(r.term_months, GREATEST(1, ROUND((r.end_date - r.start_date) / 30.0))::int) AS "termMonths",
     COALESCE(v.variety_name, 'Rau củ VietGAP') AS crop,
-    COALESCE(
-      (
-        SELECT ts.step_name 
-        FROM template_steps ts
-        JOIN process_templates pt ON ts.template_id = pt.template_id
-        WHERE pt.variety_id = r.variety_id
-          AND (CURRENT_DATE - r.start_date) >= ts.day_offset
-        ORDER BY ts.day_offset DESC, ts.step_id DESC
-        LIMIT 1
-      ),
-      (
-        SELECT ts.step_name 
-        FROM template_steps ts
-        JOIN process_templates pt ON ts.template_id = pt.template_id
-        WHERE pt.variety_id = r.variety_id
-        ORDER BY ts.day_offset ASC, ts.step_id ASC
-        LIMIT 1
-      ),
-      'Làm đất & Bón lót'
-    ) AS stage,
-    CASE 
-      WHEN CURRENT_DATE < r.start_date THEN 0
-      ELSE (CURRENT_DATE - r.start_date) + 1
-    END AS "currentDay",
-    COALESCE(v.expected_duration, 60) AS "totalDays",
-    CASE
-      WHEN CURRENT_DATE < r.start_date THEN 0
-      ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - r.start_date + 1)::numeric / NULLIF(COALESCE(v.expected_duration, 60), 0)::numeric) * 100)))
-    END AS "progressPercent",
-    COALESCE(
-      (
-        SELECT json_agg(
-          json_build_object(
-            'stepId', ts.step_id,
-            'stage', ts.step_name,
-            'dayOffset', ts.day_offset,
-            'durationDays', ts.duration_days,
-            'guide', COALESCE(ts.description, '')
-          ) ORDER BY ts.day_offset ASC, ts.step_id ASC
-        )
-        FROM template_steps ts
-        JOIN process_templates pt ON ts.template_id = pt.template_id
-        WHERE pt.variety_id = r.variety_id
-      ),
-      '[]'::json
-    ) AS "processSteps",
+    COALESCE((
+      SELECT ts.step_name 
+      FROM care_tasks ct 
+      JOIN template_steps ts ON ct.step_id = ts.step_id 
+      WHERE ct.rental_id = r.rental_id AND ct.status IN ('IN_PROG', 'PENDING') 
+      ORDER BY ct.due_date ASC, ct.task_id ASC 
+      LIMIT 1
+    ), 'Chăm sóc sinh trưởng VietGAP') AS stage,
+    GREATEST(1, CURRENT_DATE - r.start_date + 1) AS "currentDay",
+    GREATEST(1, r.end_date - r.start_date) AS "totalDays",
+    LEAST(100, GREATEST(1, ROUND((CURRENT_DATE - r.start_date)::numeric / GREATEST(1, r.end_date - r.start_date) * 100))) AS "progressPercent",
     COALESCE(p.image_url, '/images/Mucangchai3.jpg') AS image,
-    '28.5°C' AS temp,
-    '68%' AS "soilMoisture",
-    '74%' AS "airHumidity",
+    COALESCE((SELECT sr.temperature || '°C' FROM sensor_readings sr WHERE sr.plot_id = p.plot_id ORDER BY sr.recorded_at DESC LIMIT 1), '28.5°C') AS temp,
+    COALESCE((SELECT sr.soil_humidity || '%' FROM sensor_readings sr WHERE sr.plot_id = p.plot_id ORDER BY sr.recorded_at DESC LIMIT 1), '68%') AS "soilMoisture",
+    COALESCE((SELECT sr.air_humidity || '%' FROM sensor_readings sr WHERE sr.plot_id = p.plot_id ORDER BY sr.recorded_at DESC LIMIT 1), '74%') AS "airHumidity",
     '45.000 Lux' AS light,
     '6.5' AS ph,
     'IOT-' || p.plot_code AS "stationId",
@@ -1535,15 +1754,14 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     'Trần Văn Lực (CVLĐ)' AS worker,
     c.contract_number AS "contractCode",
     TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "expectedHarvestDate",
-    '35 - 45 kg' AS "expectedYield",
+    ROUND(p.area * 0.25)::text || ' - ' || ROUND(p.area * 0.35)::text || ' kg' AS "expectedYield",
+    (SELECT COUNT(*) FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND ct.status != 'DONE') AS "openTasksCount",
     'Đất phù sa bồi lắng giàu mùn (pH 6.5)' AS "soilType",
     'Hệ thống nước tưới ngầm lọc cát + UV' AS "waterSource",
     c.contract_id, c.contract_number, c.renter_id, c.status AS contract_status,
     r.rental_id, r.service_id, 
     TO_CHAR(r.start_date, 'YYYY-MM-DD') AS start_date, 
-    TO_CHAR(r.start_date, 'YYYY-MM-DD') AS "startDate", 
     TO_CHAR(r.end_date, 'YYYY-MM-DD') AS end_date, 
-    TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "endDate", 
     r.total_price, r.status AS rental_status,
     p.plot_id, p.plot_code, p.area AS raw_area, p.status AS plot_status, p.image_url,
     l.land_id, l.land_name, l.address,
@@ -1557,7 +1775,7 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
   LEFT JOIN varieties v ON r.variety_id = v.variety_id
   LEFT JOIN services s ON r.service_id = s.service_id
   WHERE ${userClause}
-  ORDER BY r.rental_id DESC
+  ORDER BY r.rental_id ASC
 ) p_row;
 `;
             const data = await runPostgreSql(sql);
@@ -1569,6 +1787,191 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ error: String(err) }));
           }
+          return;
+        }
+
+        // 8.01 GET /api/customer/cultivation-processes (VietGAP processes from process_templates & template_steps in PostgreSQL)
+        if (req.method === 'GET' && (url === '/api/customer/cultivation-processes' || url === '/api/cultivation-processes' || url.startsWith('/api/customer/cultivation-processes?') || url.startsWith('/api/cultivation-processes?'))) {
+          try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const userId = urlObj.searchParams.get('userId') || '';
+            const email = urlObj.searchParams.get('email') || '';
+            const rentalId = urlObj.searchParams.get('rentalId') || '';
+            const plotCode = urlObj.searchParams.get('plotCode') || '';
+
+            let userClause = '1=1';
+            if (userId) {
+              const num = parseInt(String(userId).replace(/\D/g, ''), 10);
+              if (num) userClause = `c.renter_id = ${num}`;
+            } else if (email) {
+              userClause = `LOWER(u.email) = LOWER('${email.trim().replace(/'/g, "''")}')`;
+            }
+            if (rentalId) {
+              userClause += ` AND r.rental_id = ${parseInt(rentalId, 10)}`;
+            }
+            if (plotCode) {
+              const cleanCode = plotCode.replace(/^PLOT-/i, '').replace(/'/g, "''");
+              userClause += ` AND p.plot_code = '${cleanCode}'`;
+            }
+
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(cp)), '[]'::json) FROM (
+      SELECT 
+        r.rental_id AS "rentalId",
+        'PLOT-' || p.plot_code AS "plotId",
+        p.plot_code AS "plotCode",
+        'Thửa ' || p.plot_code AS "plotName",
+        v.variety_id AS "varietyId",
+        v.variety_name AS "varietyName",
+        ts.step_id AS "stepId",
+        ts.step_order AS "stepOrder",
+        ts.step_name AS stage,
+        ts.description AS guide,
+        ts.materials_needed AS "materialsNeeded",
+        ts.day_offset AS "dayOffset",
+        ts.duration_days AS "durationDays",
+        ts.min_temp AS "minTemp",
+        ts.max_temp AS "maxTemp",
+        ts.min_humidity AS "minHumidity",
+        ts.max_humidity AS "maxHumidity",
+        TO_CHAR(r.start_date + (ts.day_offset || ' days')::interval, 'DD/MM/YYYY') AS date,
+        CASE 
+          WHEN CURRENT_DATE >= (r.start_date + ((ts.day_offset + ts.duration_days) || ' days')::interval) THEN 'COMPLETED'
+          WHEN CURRENT_DATE >= (r.start_date + (ts.day_offset || ' days')::interval) THEN 'IN_PROGRESS'
+          ELSE 'PENDING'
+        END AS status
+      FROM rentals r
+      JOIN plots p ON r.plot_id = p.plot_id
+      JOIN contracts c ON r.contract_id = c.contract_id
+      JOIN users u ON c.renter_id = u.user_id
+      JOIN process_templates pt ON r.variety_id = pt.variety_id
+      JOIN template_steps ts ON pt.template_id = ts.template_id
+      JOIN varieties v ON r.variety_id = v.variety_id
+      WHERE ${userClause}
+      ORDER BY r.rental_id ASC, ts.step_order ASC
+    ) cp
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            console.error('Error on /api/customer/cultivation-processes:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 8.02 GET /api/customer/harvest-results & POST /api/customer/harvest-results/confirm
+        if (req.method === 'GET' && (url === '/api/customer/harvest-results' || url === '/api/harvest-results' || url.startsWith('/api/customer/harvest-results?') || url.startsWith('/api/harvest-results?'))) {
+          try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const userId = urlObj.searchParams.get('userId') || '';
+            const email = urlObj.searchParams.get('email') || '';
+            const rentalId = urlObj.searchParams.get('rentalId') || '';
+
+            let userClause = '1=1';
+            if (userId) {
+              const num = parseInt(String(userId).replace(/\D/g, ''), 10);
+              if (num) userClause = `c.renter_id = ${num}`;
+            } else if (email) {
+              userClause = `LOWER(u.email) = LOWER('${email.trim().replace(/'/g, "''")}')`;
+            }
+            if (rentalId) {
+              userClause += ` AND r.rental_id = ${parseInt(rentalId, 10)}`;
+            }
+
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(hr_row)), '[]'::json) FROM (
+      SELECT 
+        hr.harvest_id AS "harvestId",
+        'HRV-' || hr.harvest_id AS id,
+        hr.rental_id AS "rentalId",
+        r.plot_id AS "plotId",
+        p.plot_code AS "plotCode",
+        'PLOT-' || p.plot_code AS "plotScopeId",
+        'Thửa ' || p.plot_code || ' - ' || l.land_name AS "plotName",
+        v.variety_name AS crop,
+        TO_CHAR(hr.harvest_date, 'YYYY-MM-DD') AS "harvestDate",
+        TO_CHAR(hr.harvest_date, 'DD/MM/YYYY') AS "harvestDateFormatted",
+        hr.yield_amount AS "yieldAmount",
+        hr.yield_amount || ' kg' AS "formattedYield",
+        hr.evidence_image_url AS "evidenceImageUrl",
+        hr.delivery_type AS "deliveryType",
+        hr.customer_confirmed AS "customerConfirmed",
+        CASE WHEN hr.customer_confirmed THEN 'CONFIRMED' ELSE 'PENDING' END AS status,
+        COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS "enteredByWorker",
+        TO_CHAR(hr.created_at, 'HH24:MI - DD/MM/YYYY') AS "createdAt"
+      FROM harvest_results hr
+      JOIN rentals r ON hr.rental_id = r.rental_id
+      JOIN plots p ON r.plot_id = p.plot_id
+      JOIN lands l ON p.land_id = l.land_id
+      JOIN contracts c ON r.contract_id = c.contract_id
+      JOIN users u ON c.renter_id = u.user_id
+      LEFT JOIN varieties v ON r.variety_id = v.variety_id
+      LEFT JOIN users u_worker ON hr.entered_by = u_worker.user_id
+      WHERE ${userClause}
+      ORDER BY hr.harvest_date DESC, hr.harvest_id DESC
+    ) hr_row
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            console.error('Error on /api/customer/harvest-results:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        if (req.method === 'POST' && (url === '/api/customer/harvest-results/confirm' || url === '/api/harvest-results/confirm')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const harvestId = payload.harvestId ? parseInt(String(payload.harvestId).replace(/\D/g, ''), 10) : null;
+              const rentalId = payload.rentalId ? parseInt(String(payload.rentalId).replace(/\D/g, ''), 10) : null;
+              const deliveryType = (payload.deliveryMethod === 'FARM' || payload.deliveryMethod === 'PICKUP' ? 'PICKUP' : 'DELIVERY');
+
+              let whereClause = '';
+              if (harvestId) {
+                whereClause = `harvest_id = ${harvestId}`;
+              } else if (rentalId) {
+                whereClause = `rental_id = ${rentalId}`;
+              } else {
+                whereClause = `1=1`;
+              }
+
+              const sql = `
+UPDATE harvest_results
+SET customer_confirmed = true, delivery_type = '${deliveryType}'
+WHERE ${whereClause}
+RETURNING harvest_id, rental_id, customer_confirmed, delivery_type;
+`;
+              await runPostgreSql(sql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Xác nhận nghiệm thu nông sản thành công vào CSDL' }));
+            } catch (err) {
+              console.error('Error on /api/customer/harvest-results/confirm:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
           return;
         }
 
@@ -2586,7 +2989,25 @@ SELECT json_build_object(
         ) AS "steps",
         'Quy trình kỹ thuật nông nghiệp chuẩn VietGAP được ban hành chính thức cho giống ' || v.variety_name AS description,
         'Chuyên gia Nông nghiệp Farmely' AS "authorName",
-        TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt"
+        TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt",
+        COALESCE(
+          (SELECT json_agg(
+            json_build_object(
+              'stepId', ts.step_id,
+              'stepOrder', ts.step_order,
+              'stepName', ts.step_name,
+              'name', ts.step_name,
+              'day', ts.day_offset,
+              'dayOffset', ts.day_offset,
+              'type', 'BƯỚC ' || ts.step_order,
+              'details', COALESCE(ts.description, ''),
+              'description', ts.description,
+              'materialsNeeded', ts.materials_needed,
+              'durationDays', ts.duration_days
+            ) ORDER BY ts.step_order ASC
+          ) FROM template_steps ts WHERE ts.template_id = pt.template_id),
+          '[]'::json
+        ) AS steps
       FROM process_templates pt
       JOIN varieties v ON pt.variety_id = v.variety_id
       JOIN crops c ON v.crop_id = c.crop_id
@@ -2725,26 +3146,7 @@ SELECT json_build_object(
         p.area || 'm²' AS area,
         'Assisted-Growing' AS mode,
         COALESCE(v.variety_name, 'Cà chua bi Cherry F1') AS crop,
-        COALESCE(
-          (
-            SELECT ts.step_name 
-            FROM template_steps ts
-            JOIN process_templates pt ON ts.template_id = pt.template_id
-            WHERE pt.variety_id = rent.variety_id
-              AND (CURRENT_DATE - rent.start_date) >= ts.day_offset
-            ORDER BY ts.day_offset DESC, ts.step_id DESC
-            LIMIT 1
-          ),
-          (
-            SELECT ts.step_name 
-            FROM template_steps ts
-            JOIN process_templates pt ON ts.template_id = pt.template_id
-            WHERE pt.variety_id = rent.variety_id
-            ORDER BY ts.day_offset ASC, ts.step_id ASC
-            LIMIT 1
-          ),
-          'Làm đất & Bón lót'
-        ) AS stage,
+        'Sinh trưởng & phát triển' AS stage,
         p.image_url AS image,
         c.contract_number AS "contractCode",
         c.renter_id AS "renterId",
@@ -2873,10 +3275,11 @@ SELECT json_build_object(
         ct.task_id AS "taskId",
         'TSK-' || ct.task_id AS id,
         ct.rental_id AS "rentalId",
+        ct.service_request_id AS "serviceRequestId",
         rent.plot_id AS "plotId",
         p.plot_code AS "plotCode",
         'Thửa ' || p.plot_code AS "plotName",
-        COALESCE(ts.step_name, ct.notes, 'Chăm sóc vi sinh tiêu chuẩn') AS title,
+        COALESCE(ts.step_name, s.service_name, ct.notes, 'Chăm sóc vi sinh tiêu chuẩn') AS title,
         COALESCE(v.variety_name, 'Cà chua bi Cherry F1') AS crop,
         COALESCE(u_renter.full_name, 'Khách hàng') AS "customerName",
         COALESCE(u_worker.full_name, 'Chưa chỉ định nhân viên') AS "assignedTo",
@@ -2902,6 +3305,8 @@ SELECT json_build_object(
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
       LEFT JOIN varieties v ON rent.variety_id = v.variety_id
       LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+      LEFT JOIN service_requests sr ON ct.service_request_id = sr.request_id
+      LEFT JOIN services s ON sr.service_id = s.service_id
       ORDER BY ct.due_date ASC, ct.task_id ASC
     ) t
   )
@@ -3321,6 +3726,244 @@ SELECT json_build_object(
           return;
         }
 
+        // 21.1 CULTIVATION SERVICE CHECKOUT & PAYMENT API (POST /api/v1/payments/service/checkout)
+        if (req.method === 'POST' && (
+          url === '/api/v1/payments/service/checkout' ||
+          url === '/api/services/checkout' ||
+          url === '/api/services/requests/checkout' ||
+          url === '/api/services/requests' ||
+          url === '/api/v1/services/requests'
+        )) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              let serviceId = parseInt(String(payload.serviceId || payload.id || 1).replace(/\D/g, ''), 10) || 1;
+              let rawRentalId = parseInt(String(payload.rentalId || '').replace(/\D/g, ''), 10) || null;
+              const rawPlotCode = String(payload.plotCode || payload.plotId || '').replace(/^PLOT-/i, '').trim();
+              const scheduledDate = (payload.scheduledDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10)).replace(/'/g, "''");
+              const notes = (payload.notes || '').replace(/'/g, "''");
+              const paymentMethod = (payload.paymentMethod || 'VNPAY').replace(/'/g, "''");
+              const amount = parseFloat(payload.amount || 0) || 50000;
+              const serviceName = (payload.serviceName || 'Dịch vụ canh tác').replace(/'/g, "''");
+              const gatewayRef = (payload.gatewayRef || ('TXN_SVC_' + Date.now().toString().slice(-8))).replace(/'/g, "''");
+              const existingReqId = payload.serviceRequestId ? parseInt(String(payload.serviceRequestId).replace(/\D/g, ''), 10) : null;
+
+              let sql = '';
+              if (existingReqId) {
+                // Update existing service request and ensure payment transaction and care task exist
+                sql = `
+DO $$
+DECLARE
+  v_req_id INT := ${existingReqId};
+  v_rental_id INT := ${rawRentalId || 'NULL'};
+  v_worker_id INT := 8;
+  v_sched_date DATE := '${scheduledDate}'::date;
+  v_notes TEXT := '${notes}';
+  v_svc_name TEXT := '${serviceName}';
+BEGIN
+  -- 1. Update service_requests status to ASSIGNED
+  UPDATE service_requests
+  SET status = 'ASSIGNED', scheduled_date = v_sched_date
+  WHERE request_id = v_req_id;
+
+  -- 2. Update payment_transactions status to SUCCESS
+  UPDATE payment_transactions
+  SET status = 'SUCCESS', gateway_ref = '${gatewayRef}'
+  WHERE service_request_id = v_req_id;
+
+  -- 3. If care_task does not exist, insert into care_tasks for cultivation schedule
+  IF NOT EXISTS (SELECT 1 FROM care_tasks WHERE service_request_id = v_req_id) THEN
+    SELECT rental_id INTO v_rental_id FROM service_requests WHERE request_id = v_req_id;
+    IF v_rental_id IS NULL AND '${rawPlotCode}' <> '' THEN
+      SELECT r.rental_id INTO v_rental_id FROM rentals r JOIN plots p ON r.plot_id = p.plot_id WHERE UPPER(p.plot_code) = UPPER('${rawPlotCode.replace(/'/g, "''")}') ORDER BY r.rental_id DESC LIMIT 1;
+    END IF;
+    IF v_rental_id IS NULL THEN
+      SELECT rental_id INTO v_rental_id FROM rentals WHERE status = 'ACTIVE' LIMIT 1;
+    END IF;
+    INSERT INTO care_tasks (rental_id, service_request_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+    VALUES (
+      v_rental_id,
+      v_req_id,
+      v_worker_id,
+      v_sched_date,
+      'PENDING'::task_status_enum,
+      CASE WHEN v_notes <> '' THEN v_svc_name || ' - ' || v_notes ELSE v_svc_name END,
+      NOW(),
+      NOW()
+    );
+  END IF;
+END $$;
+`;
+              } else {
+                // New checkout: Atomically insert service_request, payment_transaction, and care_task
+                sql = `
+WITH resolved_rental AS (
+  SELECT COALESCE(
+    ${rawPlotCode ? `(SELECT r.rental_id FROM rentals r JOIN plots p ON r.plot_id = p.plot_id WHERE UPPER(p.plot_code) = UPPER('${rawPlotCode.replace(/'/g, "''")}') ORDER BY r.rental_id DESC LIMIT 1),` : ''}
+    ${rawRentalId ? `(SELECT rental_id FROM rentals WHERE rental_id = ${rawRentalId} LIMIT 1),` : ''}
+    (SELECT rental_id FROM rentals WHERE status = 'ACTIVE' LIMIT 1),
+    (SELECT rental_id FROM rentals LIMIT 1)
+  ) AS id
+),
+ins_req AS (
+  INSERT INTO service_requests (rental_id, service_id, scheduled_date, status, created_at)
+  VALUES (
+    (SELECT id FROM resolved_rental),
+    ${serviceId},
+    '${scheduledDate}'::date,
+    'ASSIGNED',
+    NOW()
+  )
+  RETURNING request_id, rental_id, service_id, scheduled_date, status
+),
+ins_tx AS (
+  INSERT INTO payment_transactions (service_request_id, type, amount, payment_method, gateway_ref, status, created_at)
+  SELECT 
+    request_id, 
+    'PAYMENT', 
+    ${amount}, 
+    '${paymentMethod}', 
+    '${gatewayRef}', 
+    'SUCCESS', 
+    NOW()
+  FROM ins_req
+  RETURNING transaction_id, gateway_ref, status
+),
+ins_task AS (
+  INSERT INTO care_tasks (rental_id, service_request_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+  SELECT 
+    ins_req.rental_id, 
+    ins_req.request_id, 
+    8, 
+    ins_req.scheduled_date, 
+    'PENDING'::task_status_enum, 
+    CASE WHEN '${notes}' <> '' THEN '${serviceName}' || ' - ' || '${notes}' ELSE '${serviceName}' END, 
+    NOW(), 
+    NOW()
+  FROM ins_req
+  RETURNING task_id, status
+)
+SELECT json_build_object(
+  'requestId', (SELECT request_id FROM ins_req),
+  'transactionId', (SELECT transaction_id FROM ins_tx),
+  'taskId', (SELECT task_id FROM ins_task),
+  'gatewayRef', (SELECT gateway_ref FROM ins_tx),
+  'status', 'SUCCESS'
+);
+`;
+              }
+
+              const resultRaw = await runPostgreSql(sql);
+              invalidatePlotsCache();
+
+              // Fetch details of created/updated request
+              const detailSql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Đã lưu giao dịch thanh toán vào CSDL và đồng bộ thành công vào Lịch canh tác!',
+  'data', (
+    SELECT json_build_object(
+      'requestId', sr.request_id,
+      'rentalId', sr.rental_id,
+      'serviceId', sr.service_id,
+      'serviceName', s.service_name,
+      'scheduledDate', TO_CHAR(sr.scheduled_date, 'YYYY-MM-DD'),
+      'status', sr.status,
+      'plotName', 'Thửa ' || p.plot_code,
+      'plotCode', p.plot_code,
+      'transactionId', pt.transaction_id,
+      'amount', pt.amount,
+      'paymentMethod', pt.payment_method,
+      'gatewayRef', pt.gateway_ref,
+      'paymentStatus', pt.status,
+      'taskId', ct.task_id,
+      'taskStatus', ct.status,
+      'worker', 'Trần Văn Lực (CVLĐ)'
+    )
+    FROM service_requests sr
+    JOIN services s ON sr.service_id = s.service_id
+    JOIN rentals rent ON sr.rental_id = rent.rental_id
+    JOIN plots p ON rent.plot_id = p.plot_id
+    LEFT JOIN payment_transactions pt ON sr.request_id = pt.service_request_id
+    LEFT JOIN care_tasks ct ON sr.request_id = ct.service_request_id
+    ORDER BY sr.request_id DESC
+    LIMIT 1
+  )
+);
+`;
+              const detailJson = await runPostgreSql(detailSql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(detailJson || '{"success":true,"message":"Thanh toán và đồng bộ thành công"}');
+            } catch (err) {
+              console.error('Error on service checkout:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Lỗi ghi nhận thanh toán & lịch canh tác: ' + err.message }));
+            }
+          });
+          return;
+        }
+
+        // 21.2 SERVICE REQUESTS QUERY (GET /api/services/requests)
+        if (req.method === 'GET' && (
+          url === '/api/services/requests' ||
+          url === '/api/v1/services/requests' ||
+          url.startsWith('/api/services/requests?') ||
+          url.startsWith('/api/v1/services/requests?')
+        )) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh sách yêu cầu dịch vụ thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json) FROM (
+      SELECT 
+        sr.request_id AS "requestId",
+        sr.rental_id AS "rentalId",
+        p.plot_code AS "plotCode",
+        'Thửa ' || p.plot_code AS "plotName",
+        json_build_object(
+          'serviceId', s.service_id,
+          'serviceName', s.service_name,
+          'serviceType', s.service_type,
+          'price', s.price,
+          'unit', s.unit,
+          'description', s.description,
+          'status', s.status
+        ) AS service,
+        TO_CHAR(sr.scheduled_date, 'YYYY-MM-DD') AS "scheduledDate",
+        sr.status,
+        TO_CHAR(sr.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
+        pt.transaction_id AS "transactionId",
+        COALESCE(pt.payment_method, 'VNPAY') AS "paymentMethod",
+        COALESCE(pt.status, 'SUCCESS') AS "paymentStatus",
+        COALESCE(pt.gateway_ref, 'VNPAY_' || sr.request_id) AS "gatewayRef",
+        COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS worker
+      FROM service_requests sr
+      JOIN services s ON sr.service_id = s.service_id
+      JOIN rentals rent ON sr.rental_id = rent.rental_id
+      JOIN plots p ON rent.plot_id = p.plot_id
+      LEFT JOIN payment_transactions pt ON sr.request_id = pt.service_request_id
+      LEFT JOIN care_tasks ct ON sr.request_id = ct.service_request_id
+      LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
+      ORDER BY sr.request_id DESC
+    ) r
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
         // 22. IOT STATIONS API (GET /api/iot-stations)
         if (req.method === 'GET' && (url === '/api/iot-stations' || url === '/api/v1/iot-stations' || url.startsWith('/api/iot-stations?') || url.startsWith('/api/v1/iot-stations?'))) {
           try {
@@ -3338,15 +3981,30 @@ SELECT json_build_object(
         'Thửa ' || p.plot_code AS "plotName",
         COALESCE(l.land_name, 'Happy Valley Củ Chi') AS "landName",
         'ONLINE' AS status,
-        '100%' AS battery,
-        '4G / LoRa' AS connectivity,
+        '96%' AS "batteryLevel",
+        'Tốt (-62 dBm)' AS "signalStrength",
+        'v2.4.1-pro' AS "firmwareVersion",
+        CASE 
+          WHEN sr.recorded_at IS NULL THEN 'Chưa có dữ liệu'
+          WHEN NOW() - sr.recorded_at < INTERVAL '1 minute' THEN 'Vừa xong'
+          WHEN NOW() - sr.recorded_at < INTERVAL '60 minutes' THEN EXTRACT(MINUTE FROM NOW() - sr.recorded_at)::int || ' phút trước'
+          ELSE TO_CHAR(sr.recorded_at, 'HH24:MI DD/MM')
+        END AS "lastSeen",
         json_build_object(
           'soilMoisture', COALESCE(sr.soil_humidity, 68.0) || '%',
           'temperature', COALESCE(sr.temperature, 28.5) || '°C',
+          'humidity', COALESCE(sr.air_humidity, 74.0) || '%',
           'airHumidity', COALESCE(sr.air_humidity, 74.0) || '%',
+          'soilPh', '6.5',
           'light', '45.000 Lux',
-          'lastUpdate', TO_CHAR(COALESCE(sr.recorded_at, NOW()), 'HH24:MI - DD/MM/YYYY')
-        ) AS readings
+          'lastUpdate', TO_CHAR(COALESCE(sr.recorded_at, NOW()), 'HH24:MI:SS - DD/MM/YYYY')
+        ) AS readings,
+        ARRAY[
+          'Độ ẩm đất điện dung (Capacitive Soil Sensor)',
+          'Nhiệt độ & Độ ẩm không khí SHT35',
+          'Cảm biến đo độ pH đất chuyên dụng',
+          'Cảm biến bức xạ mặt trời Solar Lux'
+        ] AS "sensorTypes"
       FROM plots p
       LEFT JOIN lands l ON p.land_id = l.land_id
       LEFT JOIN LATERAL (
@@ -3406,7 +4064,310 @@ SELECT json_build_object(
           return;
         }
 
-        // 24. IOT ALERTS API (GET, PUT, POST /api/alerts)
+        // 23.5 SSE REAL-TIME SENSOR STREAM (GET /api/sensors/plots/:plotId/stream)
+        if (req.method === 'GET' && (url.startsWith('/api/sensors/plots/') && (url.includes('/stream') || url.endsWith('/stream')))) {
+          const m = url.match(/\/api\/sensors\/plots\/([^/?]+)\/stream/);
+          const rawId = m ? m[1].trim() : '1';
+
+          res.writeHead(200, {
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-cache, no-transform',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.write(`event: CONNECTED\ndata: {"status":"connected","plotId":"${rawId}"}\n\n`);
+
+          const client = { res, plotId: rawId };
+          if (global.__farmelySseClients) {
+            global.__farmelySseClients.push(client);
+          }
+
+          // Gửi ngay bản ghi mới nhất để giao diện nhận dữ liệu tức thì
+          if (rawId === 'all') {
+            const allSql = `
+SELECT COALESCE(json_agg(
+  json_build_object(
+    'readingId', sr.reading_id,
+    'plotId', sr.plot_id,
+    'plotCode', p.plot_code,
+    'temperature', sr.temperature,
+    'airHumidity', sr.air_humidity,
+    'soilHumidity', sr.soil_humidity,
+    'recordedAt', sr.recorded_at,
+    'status', 'HEALTHY',
+    'statusMessage', 'Vi khí hậu ổn định trong ngưỡng an toàn VietGAP'
+  )
+), '[]'::json)
+FROM (
+  SELECT DISTINCT ON (plot_id) reading_id, plot_id, temperature, air_humidity, soil_humidity, recorded_at
+  FROM sensor_readings
+  ORDER BY plot_id, recorded_at DESC
+) sr
+JOIN plots p ON sr.plot_id = p.plot_id
+ORDER BY sr.plot_id ASC;
+`;
+            runPostgreSql(allSql).then((allJson) => {
+              if (allJson) {
+                try {
+                  res.write(`event: SENSOR_ALL_UPDATE\ndata: ${allJson}\n\n`);
+                } catch {}
+              }
+            }).catch(() => {});
+          } else {
+            const latestSql = `
+SELECT json_build_object(
+  'readingId', sr.reading_id,
+  'plotId', sr.plot_id,
+  'plotCode', p.plot_code,
+  'temperature', sr.temperature,
+  'airHumidity', sr.air_humidity,
+  'soilHumidity', sr.soil_humidity,
+  'recordedAt', sr.recorded_at,
+  'status', 'HEALTHY',
+  'statusMessage', 'Vi khí hậu ổn định trong ngưỡng an toàn VietGAP'
+)
+FROM sensor_readings sr
+JOIN plots p ON sr.plot_id = p.plot_id
+WHERE sr.plot_id = COALESCE(
+  (SELECT p2.plot_id FROM plots p2 
+   WHERE p2.plot_id::text = '${rawId.replace(/'/g, "''")}' 
+      OR UPPER(p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+      OR UPPER(p2.plot_code) = 'P-' || LPAD('${rawId.replace(/\D/g, '')}', 2, '0')
+      OR UPPER('PLOT-' || p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+   LIMIT 1),
+  1
+)
+ORDER BY sr.recorded_at DESC
+LIMIT 1;
+`;
+            runPostgreSql(latestSql).then((latestJson) => {
+              if (latestJson) {
+                try {
+                  res.write(`event: SENSOR_UPDATE\ndata: ${latestJson}\n\n`);
+                } catch {}
+              }
+            }).catch(() => {});
+          }
+
+          req.on('close', () => {
+            if (global.__farmelySseClients) {
+              global.__farmelySseClients = global.__farmelySseClients.filter((c) => c !== client);
+            }
+          });
+          return;
+        }
+
+        // 24. SIMULATE / TRIGGER SENSOR TELEMETRY INTO POSTGRESQL (POST /api/iot-stations/simulate)
+        if (req.method === 'POST' && (url === '/api/iot-stations/simulate' || url.startsWith('/api/iot-stations/simulate?') || url === '/api/sensors/mock/generate' || url.startsWith('/api/sensors/mock/generate?'))) {
+          try {
+            const parsedUrl = new URL(req.url, 'http://localhost');
+            const plotIdParam = parsedUrl.searchParams.get('plotId');
+            const modeParam = parsedUrl.searchParams.get('mode') || 'normal';
+
+            global.__farmelySimulatedScenario = {
+              mode: modeParam,
+              plotId: plotIdParam,
+              expiresAt: Date.now() + 30000 // Giữ kịch bản 30s rồi trở về bình thường
+            };
+
+            let list = [];
+            if (global.__triggerBulkTelemetryInsert) {
+              list = await global.__triggerBulkTelemetryInsert(global.__farmelySimulatedScenario);
+            }
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Đã kích hoạt đo đạc đồng loạt 17 trạm cảm biến IoT vào PostgreSQL',
+              count: list.length,
+              sample: list[0] || null
+            }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 25. SENSOR LATEST PER PLOT (GET /api/sensors/plots/:plotId/latest)
+        if (req.method === 'GET' && (url.startsWith('/api/sensors/plots/') && url.endsWith('/latest'))) {
+          try {
+            const m = url.match(/\/api\/sensors\/plots\/([^/]+)\/latest/);
+            const rawId = m ? m[1].trim() : '1';
+            const sql = `
+SELECT json_build_object(
+  'readingId', sr.reading_id,
+  'plotId', sr.plot_id,
+  'plotCode', p.plot_code,
+  'temperature', sr.temperature,
+  'airHumidity', sr.air_humidity,
+  'soilHumidity', sr.soil_humidity,
+  'recordedAt', sr.recorded_at,
+  'status', 'HEALTHY',
+  'statusMessage', 'Vi khí hậu ổn định trong ngưỡng an toàn VietGAP'
+)
+FROM sensor_readings sr
+JOIN plots p ON sr.plot_id = p.plot_id
+WHERE sr.plot_id = COALESCE(
+  (SELECT p2.plot_id FROM plots p2 
+   WHERE p2.plot_id::text = '${rawId.replace(/'/g, "''")}' 
+      OR UPPER(p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+      OR UPPER(p2.plot_code) = 'P-' || LPAD('${rawId.replace(/\D/g, '')}', 2, '0')
+      OR UPPER('PLOT-' || p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+   LIMIT 1),
+  1
+)
+ORDER BY sr.recorded_at DESC
+LIMIT 1;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 26. SENSOR HISTORY PER PLOT (GET /api/sensors/plots/:plotId/history)
+        if (req.method === 'GET' && (url.startsWith('/api/sensors/plots/') && (url.includes('/history') || url.endsWith('/history')))) {
+          try {
+            const m = url.match(/\/api\/sensors\/plots\/([^/?]+)\/history/);
+            const rawId = m ? m[1].trim() : '1';
+
+            // Lấy số đo thực tế mới nhất từ PostgreSQL của thửa đất này
+            const latestSql = `
+SELECT sr.reading_id, sr.plot_id, p.plot_code, sr.temperature, sr.air_humidity, sr.soil_humidity, sr.recorded_at
+FROM sensor_readings sr
+JOIN plots p ON sr.plot_id = p.plot_id
+WHERE sr.plot_id = COALESCE(
+  (SELECT p2.plot_id FROM plots p2 
+   WHERE p2.plot_id::text = '${rawId.replace(/'/g, "''")}' 
+      OR UPPER(p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+      OR UPPER(p2.plot_code) = 'P-' || LPAD('${rawId.replace(/\D/g, '')}', 2, '0')
+      OR UPPER('PLOT-' || p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+   LIMIT 1),
+  1
+)
+ORDER BY sr.recorded_at DESC 
+LIMIT 1;
+`;
+            const latestRaw = await runPostgreSql(latestSql);
+            let latestPoint = null;
+            if (latestRaw) {
+              const rows = latestRaw.split('\n').filter(Boolean);
+              if (rows.length > 0) {
+                const parts = rows[0].split('|');
+                if (parts.length >= 7) {
+                  latestPoint = {
+                    readingId: parseInt(parts[0], 10),
+                    plotId: parseInt(parts[1], 10),
+                    plotCode: parts[2],
+                    temperature: parseFloat(parts[3]),
+                    airHumidity: parseFloat(parts[4]),
+                    soilHumidity: parseFloat(parts[5]),
+                    recordedAt: parts[6]
+                  };
+                }
+              }
+            }
+
+            const pIdNum = parseInt(rawId.replace(/\D/g, '') || '1', 10);
+            const now = new Date();
+            const points = [];
+
+            for (let i = 23; i >= 0; i--) {
+              const d = new Date(now.getTime() - i * 3600 * 1000);
+              const hourOfDay = d.getHours() + d.getMinutes() / 60.0;
+              const solarFactor = Math.sin(((hourOfDay - 7.5) * Math.PI) / 12.0); // -1.0 đêm -> +1.0 trưa
+
+              // Nhiễu vi khí hậu xác định (deterministic seed) theo thửa và giờ để biểu đồ không bị giật
+              const seed = Math.sin(pIdNum * 17 + d.getHours() * 31);
+              const jitterT = seed * 0.35;
+              const jitterA = seed * -0.6;
+              const jitterS = seed * 0.25;
+
+              let tempVal = Number((28.2 + 4.2 * solarFactor + jitterT).toFixed(2));
+              let airVal = Number((72.0 - 13.5 * solarFactor + jitterA).toFixed(2));
+              let soilVal = Number((68.0 - 3.5 * solarFactor + jitterS).toFixed(2));
+
+              // Điểm cuối cùng (hiện tại) ưu tiên lấy số đo thực tế từ database
+              if (i === 0 && latestPoint) {
+                tempVal = latestPoint.temperature;
+                airVal = latestPoint.airHumidity;
+                soilVal = latestPoint.soilHumidity;
+              }
+
+              points.push({
+                readingId: 5000 + (24 - i),
+                plotId: latestPoint?.plotId || pIdNum,
+                plotCode: latestPoint?.plotCode || `P-${String(pIdNum).padStart(2, '0')}`,
+                temperature: tempVal,
+                airHumidity: airVal,
+                soilHumidity: soilVal,
+                recordedAt: d.toISOString()
+              });
+            }
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify(points));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 27. SENSOR SUMMARY PER PLOT (GET /api/sensors/plots/:plotId/summary)
+        if (req.method === 'GET' && (url.startsWith('/api/sensors/plots/') && (url.includes('/summary') || url.endsWith('/summary')))) {
+          try {
+            const m = url.match(/\/api\/sensors\/plots\/([^/?]+)\/summary/);
+            const rawId = m ? m[1].trim() : '1';
+            const sql = `
+SELECT json_build_object(
+  'plotId', p.plot_id,
+  'plotCode', p.plot_code,
+  'latestReading', (
+    SELECT json_build_object(
+      'temperature', sr.temperature,
+      'airHumidity', sr.air_humidity,
+      'soilHumidity', sr.soil_humidity,
+      'recordedAt', sr.recorded_at
+    )
+    FROM sensor_readings sr
+    WHERE sr.plot_id = p.plot_id
+    ORDER BY sr.recorded_at DESC LIMIT 1
+  ),
+  'avgTemperature', ROUND(COALESCE(AVG(sr2.temperature), 28.5)::numeric, 1),
+  'avgAirHumidity', ROUND(COALESCE(AVG(sr2.air_humidity), 72.0)::numeric, 1),
+  'avgSoilHumidity', ROUND(COALESCE(AVG(sr2.soil_humidity), 68.0)::numeric, 1),
+  'totalReadings24h', COUNT(sr2.reading_id)
+)
+FROM plots p
+LEFT JOIN sensor_readings sr2 ON p.plot_id = sr2.plot_id AND sr2.recorded_at >= NOW() - INTERVAL '24 hours'
+WHERE p.plot_id = COALESCE(
+  (SELECT p2.plot_id FROM plots p2 
+   WHERE p2.plot_id::text = '${rawId.replace(/'/g, "''")}' 
+      OR UPPER(p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+      OR UPPER(p2.plot_code) = 'P-' || LPAD('${rawId.replace(/\D/g, '')}', 2, '0')
+      OR UPPER('PLOT-' || p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+   LIMIT 1),
+  1
+)
+GROUP BY p.plot_id, p.plot_code;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 28. IOT ALERTS API (GET, PUT, POST /api/alerts)
         if (url.startsWith('/api/alerts')) {
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
@@ -3525,7 +4486,7 @@ SELECT json_build_object(
           }
         }
 
-        // 25. WEATHER & IRRIGATION POLICY API (GET /api/weather)
+        // 29. WEATHER & IRRIGATION POLICY API (GET /api/weather)
         if (url.startsWith('/api/weather')) {
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.end(JSON.stringify({
@@ -3554,7 +4515,7 @@ SELECT json_build_object(
           return;
         }
 
-        // 26. AI CHATBOT SERVICE API (POST /api/ai/chat & GET /api/ai/health)
+        // 30. AI CHATBOT SERVICE API (POST /api/ai/chat & GET /api/ai/health)
         if (url.startsWith('/api/ai/chat') && req.method === 'POST') {
           let body = '';
           req.on('data', chunk => { body += chunk; });

@@ -279,6 +279,12 @@ public class CareTaskServiceImpl implements CareTaskService {
                 title = step.getStepName();
                 instructions = step.getDescription();
             }
+        } else if (entity.getServiceRequestId() != null) {
+            ServiceRequestEntity sreq = serviceRequestRepository.findById(entity.getServiceRequestId()).orElse(null);
+            if (sreq != null && sreq.getService() != null) {
+                title = sreq.getService().getServiceName();
+                instructions = entity.getNotes() != null ? entity.getNotes() : sreq.getService().getDescription();
+            }
         }
 
         String workerName = null;

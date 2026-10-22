@@ -190,6 +190,13 @@ export default function FieldWorkerDashboard() {
   const [newIssueUrgency, setNewIssueUrgency] = useState('NORMAL');
   const [newIssuePhoto, setNewIssuePhoto] = useState('');
 
+  const readPhoto = (file, setter) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => setter(e.target?.result || '');
+    reader.readAsDataURL(file);
+  };
+
   // Harvest records loaded from the cultivation service.
   const [harvestTasks, setHarvestTasks] = useState([]);
   const [selectedHarvestTask, setSelectedHarvestTask] = useState(null);
@@ -226,6 +233,38 @@ export default function FieldWorkerDashboard() {
 
   useEffect(() => {
     loadPlots();
+
+    // Đồng bộ tức thời khi Admin nhảy số IoT trạm
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_iot_telemetry');
+        bc.onmessage = (msg) => {
+          if (msg.data?.type === 'TELEMETRY_UPDATED') {
+            loadPlots();
+          }
+        };
+      }
+    } catch {}
+
+    const handleStorage = (e) => {
+      if (e.key === 'farmely_iot_sync_ping') {
+        loadPlots();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // Chu kỳ 10 giây đồng bộ số liệu IoT thực địa
+    const pollInterval = setInterval(loadPlots, 10000);
+
+    return () => {
+      clearInterval(pollInterval);
+      if (bc) try { bc.close(); } catch {}
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!Number.isFinite(workerId)) return undefined;
     let cancelled = false;
     setDataError('');
@@ -349,6 +388,30 @@ export default function FieldWorkerDashboard() {
         return;
       } finally {
         setIsUploadingPhoto(false);
+      }
+    } else {
+      const taskId = selectedTaskToExecute.taskId || parseInt(String(selectedTaskToExecute.id).replace(/\D/g, ''), 10) || 1;
+      try {
+        await fetch(`/api/care-tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'COMPLETED',
+            proofPhoto: taskProofPhoto || '/images/moc-chau-2811.jpg',
+            instructions: taskProofNote || 'Nhiệm vụ đã được thợ hoàn tất và kiểm tra đạt tiêu chuẩn.'
+          })
+        });
+        await fetch('/api/farm-diaries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rentalId: selectedTaskToExecute.rentalId || 1,
+            content: `Hoàn tất nhiệm vụ: ${selectedTaskToExecute.title}. ${taskProofNote || ''}`,
+            imageUrl: taskProofPhoto || '/images/moc-chau-2811.jpg'
+          })
+        });
+      } catch (err) {
+        console.warn('Could not patch task to DB:', err);
       }
     }
     setTasks((prev) =>
