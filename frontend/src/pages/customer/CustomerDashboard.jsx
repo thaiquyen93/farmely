@@ -74,7 +74,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Star,
-  ShieldAlert
+  ShieldAlert,
+  Eye
 } from 'lucide-react';
 
 export default function CustomerDashboard() {
