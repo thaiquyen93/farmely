@@ -15,7 +15,9 @@ import {
   ChevronDown,
   Leaf,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Calendar,
+  Compass
 } from 'lucide-react';
 import { safeCrops } from '../../data/safeCrops';
 import PlotLeaseOptions from './PlotLeaseOptions';
@@ -25,16 +27,17 @@ import { getLeaseConfigError, computePlotLeasePrice } from '../../utils/leaseSel
    MarketplacePlotDetailPanel — Per-plot lease config + responsive 1366x768
    ────────────────────────────────────────────────────────────────────────── */
 export default function MarketplacePlotDetailPanel({
-  plot = null,
-  isOpen = true,
-  onBookPlot,
+  plot,
+  isOpen,
   onClose,
+  onBookPlot,
   isPlotSelectedForContract = false,
-  onToggleSelectPlotForContract = null,
-  leaseConfig = { cropId: '', cultivationMode: null, termMonths: 3 },
-  onChangeLeaseConfig = () => {},
-  cropOptions = safeCrops,
-  compatibilityMissing = false
+  onToggleSelectPlotForContract,
+  leaseConfig,
+  onChangeLeaseConfig,
+  cropOptions = [],
+  compatibilityMissing = false,
+  onOpenSiteVisit
 }) {
   const [copied, setCopied] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -652,6 +655,16 @@ export default function MarketplacePlotDetailPanel({
             <span>{isPlotSelectedForContract ? '✓ Đã chọn vào hợp đồng (bấm để bỏ)' : '+ Thêm vào hợp đồng thuê'}</span>
           </button>
         )}
+
+        {/* Nút phụ — Đặt lịch tham quan khảo sát thực tế */}
+        <button
+          type="button"
+          onClick={() => onOpenSiteVisit?.(plot)}
+          className="w-full py-2.5 rounded-xl border border-emerald-300/80 bg-emerald-50/50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-[0.99]"
+        >
+          <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+          <span>Chưa vội thuê? Đặt lịch xem đất thực tế (Miễn phí)</span>
+        </button>
 
         {showConfigErrors && configError && (
           <p className="text-[11px] font-bold text-rose-600 text-center leading-tight pt-0.5" role="alert">

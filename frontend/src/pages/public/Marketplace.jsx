@@ -22,7 +22,8 @@ import {
   normalizeLeaseConfig,
   buildCartSummary
 } from '../../utils/leaseSelection';
-import { LogIn, Search, X, ChevronRight, Sparkles, ArrowRight, Check, Plus, MapPin, Layers } from 'lucide-react';
+import { LogIn, Search, X, ChevronRight, Sparkles, ArrowRight, Check, Plus, MapPin, Layers, Calendar, Compass, Bus } from 'lucide-react';
+import SiteVisitForm from '../../components/public/SiteVisitForm';
 
 export default function Marketplace() {
   const navigate = useNavigate();
@@ -39,6 +40,15 @@ export default function Marketplace() {
   const [leaseConfigByPlot, setLeaseConfigByPlot] = useState(loadLeaseConfigMap);
   // Danh sách mã thửa cần thuê khi chưa đăng nhập (dùng sau khi đăng nhập)
   const [pendingBookingCodes, setPendingBookingCodes] = useState([]);
+
+  // Modal Đặt Lịch Khảo Sát Nông Trại Thực Tế (cho khách chưa login hoặc chưa vội thuê)
+  const [showSiteVisitModal, setShowSiteVisitModal] = useState(false);
+  const [siteVisitPlot, setSiteVisitPlot] = useState(null);
+
+  const handleOpenSiteVisit = (plot = null) => {
+    setSiteVisitPlot(plot || selectedPlot || null);
+    setShowSiteVisitModal(true);
+  };
 
   useEffect(() => {
     saveLeaseConfigMap(leaseConfigByPlot);
@@ -442,12 +452,14 @@ export default function Marketplace() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             Marketplace
           </Link>
-          <Link
-            to="/site-visit/book"
-            className="hidden whitespace-nowrap rounded-full px-2.5 py-1.5 transition-all hover:bg-slate-100/70 hover:text-slate-900 lg:block"
+          <button
+            type="button"
+            onClick={() => handleOpenSiteVisit(selectedPlot || null)}
+            className="hidden whitespace-nowrap rounded-full border border-emerald-300/80 bg-white/95 px-3 py-1.5 text-xs font-bold text-emerald-800 shadow-2xs transition-all hover:bg-emerald-50 hover:border-emerald-400 cursor-pointer lg:flex items-center gap-1.5"
           >
-            Đặt lịch tham quan
-          </Link>
+            <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Đặt lịch tham quan</span>
+          </button>
           {isAuthenticated && user?.role === 'CUSTOMER' && (
             <Link
               to="/customer/dashboard"
@@ -579,6 +591,7 @@ export default function Marketplace() {
         onChangeLeaseConfig={(patch) => updatePlotLeaseConfig(selectedPlotKey, patch)}
         cropOptions={selectedPlotCompat.crops}
         compatibilityMissing={selectedPlotCompatLoaded && !selectedPlotCompat.hasData}
+        onOpenSiteVisit={handleOpenSiteVisit}
       />
 
       {/* ─────────────────────────────────────────────────────────────────────────────
@@ -784,6 +797,58 @@ export default function Marketplace() {
           </div>
         );
       })()}
+
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          7. FLOATING CTA ĐẶT LỊCH THAM QUAN THỰC ĐỊA CHO KHÁCH VÃNG LAI
+      ───────────────────────────────────────────────────────────────────────────── */}
+      {!showDetailPanel && contractSelectedPlots.length === 0 && (
+        <div className="absolute bottom-6 right-6 z-20 hidden md:flex items-center gap-3.5 p-3.5 pl-4 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-emerald-200/80 pointer-events-auto max-w-sm animate-fadeIn">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+            <Compass className="w-5 h-5 text-lime-300" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                Miễn phí xe đưa đón
+              </span>
+              <span className="text-[10px] text-slate-400">• T7 & CN</span>
+            </div>
+            <p className="text-xs font-bold text-slate-900 mt-1 line-clamp-1">Khảo sát đất & vi khí hậu tận nơi</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleOpenSiteVisit(selectedPlot || null)}
+            className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shrink-0 shadow-sm transition-all cursor-pointer hover:shadow-md"
+          >
+            Đặt lịch
+          </button>
+        </div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          8. MODAL ĐẶT LỊCH THAM QUAN THỰC ĐỊA
+      ───────────────────────────────────────────────────────────────────────────── */}
+      <Modal
+        isOpen={showSiteVisitModal}
+        onClose={() => setShowSiteVisitModal(false)}
+        title="Đặt Lịch Khảo Sát Nông Trại Thực Tế"
+        subtitle={
+          siteVisitPlot
+            ? `Khảo sát thửa ${siteVisitPlot.code || siteVisitPlot.id} • Trang trại Happy Valley Củ Chi`
+            : 'Khảo sát thực địa • Miễn phí xe đưa đón cuối tuần'
+        }
+        maxWidth="max-w-2xl"
+      >
+        <div className="py-1">
+          <SiteVisitForm
+            preselectedPlotId={siteVisitPlot?.code || siteVisitPlot?.id || siteVisitPlot?.plotId}
+            inModal={true}
+            onSuccess={() => {
+              // Đóng hoặc giữ xem phiếu hẹn
+            }}
+          />
+        </div>
+      </Modal>
     </div>
   );
 }

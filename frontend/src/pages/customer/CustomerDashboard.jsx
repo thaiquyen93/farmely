@@ -16,6 +16,7 @@ import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
 import ContractCancellationModal from '../../components/customer/ContractCancellationModal';
 import CustomerContractCenter from '../../components/customer/CustomerContractCenter';
 import CustomerMobileNav from '../../components/customer/CustomerMobileNav';
+import CustomerWelcomeLounge from '../../components/customer/CustomerWelcomeLounge';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import { useSensorStream } from '../../api/monitoring/useSensorStream';
@@ -574,42 +575,38 @@ export default function CustomerDashboard() {
   const [dbPlots, setDbPlots] = useState(null);
   const [isLoadingPlots, setIsLoadingPlots] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchPlots = async () => {
-      try {
-        setIsLoadingPlots(true);
-        const userId = user?.userId || user?.id;
-        const email = user?.email;
-        if (!userId && !email) {
-          if (isMounted) {
-            setDbPlots([]);
-            setIsLoadingPlots(false);
-          }
-          return;
-        }
-
-        const query = userId
-          ? `userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email || '')}`
-          : `email=${encodeURIComponent(email || '')}`;
-
-        const res = await fetch(`/api/customer/rented-plots?${query}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted) {
-            setDbPlots(Array.isArray(data) ? data : []);
-          }
-        } else {
-          if (isMounted) setDbPlots([]);
-        }
-      } catch (err) {
-        console.error('Failed to load customer plots from DB:', err);
-        if (isMounted) setDbPlots([]);
-      } finally {
-        if (isMounted) setIsLoadingPlots(false);
+  const fetchCustomerPlots = useCallback(async () => {
+    try {
+      setIsLoadingPlots(true);
+      const userId = user?.userId || user?.id;
+      const email = user?.email;
+      if (!userId && !email) {
+        setDbPlots([]);
+        setIsLoadingPlots(false);
+        return;
       }
-    };
-    fetchPlots();
+
+      const query = userId
+        ? `userId=${encodeURIComponent(userId)}&email=${encodeURIComponent(email || '')}`
+        : `email=${encodeURIComponent(email || '')}`;
+
+      const res = await fetch(`/api/customer/rented-plots?${query}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDbPlots(Array.isArray(data) ? data : []);
+      } else {
+        setDbPlots([]);
+      }
+    } catch (err) {
+      console.error('Failed to load customer plots from DB:', err);
+      setDbPlots([]);
+    } finally {
+      setIsLoadingPlots(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchCustomerPlots();
 
     // Lắng nghe đồng bộ tức thì từ Admin qua BroadcastChannel & Storage Event
     let bc = null;
@@ -618,7 +615,7 @@ export default function CustomerDashboard() {
         bc = new BroadcastChannel('farmely_iot_telemetry');
         bc.onmessage = (msg) => {
           if (msg.data?.type === 'TELEMETRY_UPDATED') {
-            fetchPlots();
+            fetchCustomerPlots();
           }
         };
       }
@@ -626,16 +623,15 @@ export default function CustomerDashboard() {
 
     const handleStorage = (e) => {
       if (e.key === 'farmely_iot_sync_ping') {
-        fetchPlots();
+        fetchCustomerPlots();
       }
     };
     window.addEventListener('storage', handleStorage);
 
     // Chu kỳ đồng bộ 10 giây tự động cập nhật số liệu mới nhất từ PostgreSQL
-    const pollTimer = setInterval(fetchPlots, 10000);
+    const pollTimer = setInterval(fetchCustomerPlots, 10000);
 
     return () => { 
-      isMounted = false; 
       clearInterval(pollTimer);
       if (bc) { try { bc.close(); } catch {} }
       window.removeEventListener('storage', handleStorage);
@@ -2352,22 +2348,18 @@ export default function CustomerDashboard() {
                       </div>
                     </div>
                   ) : displayedPlots.length === 0 ? (
-                    <div className="rounded-3xl border border-dashed border-stone-300 bg-white p-8 sm:p-12 text-center shadow-sm">
-                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                        <Sprout className="h-8 w-8" />
-                      </div>
-                      <h3 className="mt-4 font-heading text-xl font-bold text-[#18352b]">
-                        {plotStatusFilter === 'CANCELLED'
-                          ? 'Không có thửa đất nào đã hủy'
-                          : `Chào mừng ${firstName} đến với Farmely!`}
-                      </h3>
-                      <p className="mx-auto mt-2 max-w-md text-sm text-stone-500">
-                        {plotStatusFilter === 'CANCELLED'
-                          ? 'Bạn chưa có hợp đồng thuê nào ở trạng thái đã hủy hoặc hết hạn.'
-                          : 'Tài khoản của bạn chưa có thửa đất canh tác nào trong hệ thống. Hãy truy cập Marketplace để chọn vị trí đất phù hợp và giống cây bạn muốn trồng.'}
-                      </p>
-                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                        {plotStatusFilter === 'CANCELLED' ? (
+                    plotStatusFilter === 'CANCELLED' ? (
+                      <div className="rounded-3xl border border-dashed border-stone-300 bg-white p-8 sm:p-12 text-center shadow-sm">
+                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                          <Sprout className="h-8 w-8" />
+                        </div>
+                        <h3 className="mt-4 font-heading text-xl font-bold text-[#18352b]">
+                          Không có thửa đất nào đã hủy
+                        </h3>
+                        <p className="mx-auto mt-2 max-w-md text-sm text-stone-500">
+                          Bạn chưa có hợp đồng thuê nào ở trạng thái đã hủy hoặc hết hạn.
+                        </p>
+                        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                           <button
                             type="button"
                             onClick={() => setPlotStatusFilter('ACTIVE')}
@@ -2375,17 +2367,14 @@ export default function CustomerDashboard() {
                           >
                             Quay lại Thửa đang canh tác
                           </button>
-                        ) : (
-                          <Link
-                            to="/marketplace"
-                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-6 py-3 text-sm font-bold text-white shadow-md shadow-emerald-700/20 transition hover:bg-emerald-800"
-                          >
-                            <ShoppingBag className="h-4 w-4" />
-                            Khám phá Marketplace & Thuê thửa ngay
-                          </Link>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <CustomerWelcomeLounge
+                        user={user}
+                        onRefreshPlots={fetchCustomerPlots}
+                      />
+                    )
                   ) : (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {displayedPlots.map((plot) => {
