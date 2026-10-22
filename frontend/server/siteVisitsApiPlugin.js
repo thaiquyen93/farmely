@@ -2568,6 +2568,23 @@ SELECT json_build_object(
           (SELECT sum(ts.duration_days)::int FROM template_steps ts WHERE ts.template_id = pt.template_id),
           v.expected_duration
         ) AS "totalDays",
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'id', ts.step_id,
+                'day', ts.day_offset,
+                'name', ts.step_name,
+                'type', ts.task_type,
+                'description', COALESCE(ts.description, '')
+              ) ORDER BY ts.day_offset, ts.step_id
+            )
+            FROM template_steps ts
+            WHERE ts.template_id = pt.template_id
+          ),
+          '[]'::json
+        ) AS "steps",
+        'Quy trình kỹ thuật nông nghiệp chuẩn VietGAP được ban hành chính thức cho giống ' || v.variety_name AS description,
         'Chuyên gia Nông nghiệp Farmely' AS "authorName",
         TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt"
       FROM process_templates pt

@@ -3,14 +3,19 @@ import { Link } from 'react-router-dom';
 import { MapPin, Maximize2, Sprout, ArrowRight, Activity } from 'lucide-react';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
+import { useAuthStore } from '../../stores/authStore';
 
 export default function PlotCard({ plot }) {
-  const isAvailable = plot.status === 'AVAILABLE';
+  const isAvailable = plot.status === 'AVAILABLE' || plot.status === 'Đang trống' || plot.status === 'Còn trống';
+  const { isAuthenticated } = useAuthStore();
+
+  const plotCode = plot.code || plot.id;
+  const targetUrl = `/marketplace?plot=${encodeURIComponent(plotCode)}${!isAuthenticated ? '&authRequired=true' : ''}`;
 
   return (
-    <div className="editorial-card group flex flex-col h-full bg-white">
+    <div className="editorial-card group flex flex-col h-full bg-white transition-all hover:shadow-lg rounded-2xl overflow-hidden border border-brand-border/60">
       {/* Image with Tag & Status */}
-      <div className="relative h-56 sm:h-64 overflow-hidden">
+      <Link to={targetUrl} className="relative h-56 sm:h-64 overflow-hidden block cursor-pointer">
         <img
           src={plot.imageUrl}
           alt={plot.name}
@@ -52,7 +57,7 @@ export default function PlotCard({ plot }) {
             </span>
           )}
         </div>
-      </div>
+      </Link>
 
       {/* Card Body */}
       <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
@@ -62,9 +67,11 @@ export default function PlotCard({ plot }) {
             <span className="truncate">{plot.landName}</span>
           </div>
 
-          <h3 className="font-heading text-lg font-bold text-brand-dark group-hover:text-brand-green transition-colors line-clamp-1">
-            {plot.name}
-          </h3>
+          <Link to={targetUrl} className="block group-hover:text-brand-green">
+            <h3 className="font-heading text-lg font-bold text-brand-dark group-hover:text-brand-green transition-colors line-clamp-1">
+              {plot.name}
+            </h3>
+          </Link>
 
           <p className="text-xs text-stone-500 mt-2 line-clamp-2 leading-relaxed">
             {plot.description}
@@ -77,7 +84,7 @@ export default function PlotCard({ plot }) {
               Cây trồng tương thích:
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {plot.compatibleCrops.slice(0, 3).map((crop, idx) => (
+              {(plot.compatibleCrops || []).slice(0, 3).map((crop, idx) => (
                 <span
                   key={idx}
                   className="px-2 py-0.5 rounded-md text-[11px] bg-brand-cream text-brand-green font-medium border border-brand-border/60"
@@ -96,17 +103,17 @@ export default function PlotCard({ plot }) {
               Giá thuê trọn gói
             </p>
             <p className="font-heading text-base font-extrabold text-brand-green">
-              {plot.formattedPrice}
+              {plot.formattedPrice || plot.rentalPriceFormatted || '1.200.000 đ/tháng'}
             </p>
           </div>
 
-          <Link to={`/marketplace/plot/${plot.id}`}>
+          <Link to={targetUrl}>
             <Button
               variant={isAvailable ? "primary" : "outline"}
               size="sm"
-              className="text-xs font-bold"
+              className="text-xs font-bold cursor-pointer"
             >
-              <span>Xem chi tiết</span>
+              <span>{isAvailable ? "Thuê ngay" : "Xem trên bản đồ"}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           </Link>

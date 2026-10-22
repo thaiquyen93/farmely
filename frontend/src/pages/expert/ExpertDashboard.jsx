@@ -194,7 +194,11 @@ export default function ExpertDashboard() {
       .then((res) => res.json())
       .then((res) => {
         if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setProcessTemplates(res.data);
+          const sanitized = res.data.map((tmpl) => ({
+            ...tmpl,
+            steps: Array.isArray(tmpl.steps) ? tmpl.steps : []
+          }));
+          setProcessTemplates(sanitized);
         }
       })
       .catch((err) => console.warn('Could not fetch live templates:', err));
@@ -1047,7 +1051,7 @@ export default function ExpertDashboard() {
                           </div>
 
                           {/* Message Bubbles */}
-                          {activeThread.messages.map((msg) => {
+                          {(activeThread.messages || []).map((msg) => {
                             const isExpert = msg.sender === 'expert';
 
                             if (isExpert) {
@@ -1474,7 +1478,7 @@ export default function ExpertDashboard() {
                             Lộ trình các mốc kỹ thuật:
                           </span>
                           <div className="flex flex-wrap gap-1.5">
-                            {tmpl.steps.map((st, i) => (
+                            {(tmpl.steps || []).map((st, i) => (
                               <span
                                 key={i}
                                 className="px-2 py-0.5 rounded text-[10px] font-medium bg-white text-stone-700 border border-brand-border"
@@ -1559,7 +1563,7 @@ export default function ExpertDashboard() {
                           Giống Cây Trồng Tương Thích Tối Ưu:
                         </span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                          {comp.compatibleCrops.map((c, i) => (
+                          {(comp.compatibleCrops || []).map((c, i) => (
                             <div
                               key={i}
                               className="p-3 rounded-xl bg-stone-50/80 border border-brand-border/70 flex items-center justify-between"
@@ -1840,7 +1844,7 @@ export default function ExpertDashboard() {
                 Lộ Trình Các Bước Kỹ Thuật Theo Ngày Tuổi:
               </h5>
               <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
-                {viewTemplateDetail.steps.map((st, idx) => (
+                {(viewTemplateDetail?.steps || []).map((st, idx) => (
                   <div
                     key={idx}
                     className="p-3 rounded-xl bg-stone-50 border border-brand-border flex items-start gap-3"
