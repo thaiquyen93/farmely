@@ -36,6 +36,8 @@ import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import {
   normalizePlotCode,
   findPlotByCode,
+  loadCartCodes,
+  saveCartCodes,
   removeCartCodes,
   buildBookingUrl,
   filterCompatibleCrops,
