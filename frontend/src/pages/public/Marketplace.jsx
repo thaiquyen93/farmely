@@ -799,34 +799,7 @@ export default function Marketplace() {
       })()}
 
       {/* ─────────────────────────────────────────────────────────────────────────────
-          7. FLOATING CTA ĐẶT LỊCH THAM QUAN THỰC ĐỊA CHO KHÁCH VÃNG LAI
-      ───────────────────────────────────────────────────────────────────────────── */}
-      {!showDetailPanel && contractSelectedPlots.length === 0 && (
-        <div className="absolute bottom-6 right-6 z-20 hidden md:flex items-center gap-3.5 p-3.5 pl-4 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-emerald-200/80 pointer-events-auto max-w-sm animate-fadeIn">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Compass className="w-5 h-5 text-lime-300" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                Miễn phí xe đưa đón
-              </span>
-              <span className="text-[10px] text-slate-400">• T7 & CN</span>
-            </div>
-            <p className="text-xs font-bold text-slate-900 mt-1 line-clamp-1">Khảo sát đất & vi khí hậu tận nơi</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => handleOpenSiteVisit(selectedPlot || null)}
-            className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shrink-0 shadow-sm transition-all cursor-pointer hover:shadow-md"
-          >
-            Đặt lịch
-          </button>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────────────────────
-          8. MODAL ĐẶT LỊCH THAM QUAN THỰC ĐỊA
+          7. MODAL ĐẶT LỊCH THAM QUAN THỰC ĐỊA
       ───────────────────────────────────────────────────────────────────────────── */}
       <Modal
         isOpen={showSiteVisitModal}

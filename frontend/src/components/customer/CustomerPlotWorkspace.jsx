@@ -21,7 +21,6 @@ import {
 
 export const PLOT_TABS = [
   { id: 'overview', label: 'Tổng quan', short: 'Tổng quan', icon: LayoutDashboard },
-  { id: 'timeline', label: 'Quy trình chuẩn', short: 'Quy trình', icon: CalendarRange },
   { id: 'tasks', label: 'Hoạt động Staff', short: 'Staff', icon: CalendarCheck },
   { id: 'iot', label: 'IoT & vi khí hậu', short: 'IoT', icon: Radio },
   { id: 'diary', label: 'Nhật ký', short: 'Nhật ký', icon: BookOpen },
@@ -928,7 +927,12 @@ function OverviewTab({
         <SectionTitle
           eyebrow={`Tiến trình chuẩn theo ngày tuổi · ${cropProcess.cropName}`}
           title="Quy trình canh tác chuẩn VietGAP"
-          action={<LinkButton onClick={() => goTab('timeline')}>Xem toàn bộ quy trình</LinkButton>}
+          action={
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200">
+              <Check className="h-3.5 w-3.5 text-emerald-600" />
+              Chuẩn VietGAP toàn trình
+            </span>
+          }
         />
         <div className="mt-4">
           <StandardProcessTimeline cropProcess={cropProcess} onSelectStage={onOpenStageDetail} />
@@ -1518,7 +1522,7 @@ export default function CustomerPlotWorkspace({
 
   const heroStats = [
     { label: 'Sức khoẻ', value: health.score ?? '—', unit: '/100', note: health.label, icon: Leaf, tab: 'iot' },
-    { label: 'Ngày tuổi', value: `D${cropProcess.currentDay}`, unit: `/${cropProcess.totalDays}`, note: cropProcess.cropName, icon: Sprout, tab: 'timeline' },
+    { label: 'Ngày tuổi', value: `D${cropProcess.currentDay}`, unit: `/${cropProcess.totalDays}`, note: cropProcess.cropName, icon: Sprout, tab: 'overview' },
     { label: 'Tới thu hoạch', value: cropProcess.daysLeft, unit: 'ngày', note: plot.expectedHarvestDate || 'Đúng tiến độ', icon: Wheat, tab: 'harvest' },
     { label: 'Việc Staff', value: staffActivities.length, unit: 'mục', note: `${openTaskCount} việc đang/chờ làm`, icon: CalendarCheck, tab: 'tasks' }
   ];
@@ -1663,24 +1667,6 @@ export default function CustomerPlotWorkspace({
             onOpenHarvest={onOpenHarvest}
             liveProviderInfo={liveIotResult}
           />
-        )}
-
-        {tab === 'timeline' && (
-          <div className="space-y-6">
-            <CropGrowthHero cropProcess={cropProcess} onOpenStageDetail={setSelectedStageDetail} />
-            <Card className="p-6">
-              <SectionTitle
-                eyebrow="Chi tiết từng mốc ngày"
-                title="Quy trình canh tác chuẩn VietGAP tính theo ngày tuổi"
-              />
-              <p className="mt-1 text-sm text-stone-600">
-                Nhấp vào từng giai đoạn để xem toàn bộ hướng dẫn kỹ thuật tưới nước, bón phân vi sinh, điều kiện vi khí hậu tối ưu và tiêu chí nghiệm thu của kỹ sư.
-              </p>
-              <div className="mt-6">
-                <StandardProcessTimeline cropProcess={cropProcess} onSelectStage={setSelectedStageDetail} />
-              </div>
-            </Card>
-          </div>
         )}
 
         {tab === 'tasks' && (
