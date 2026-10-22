@@ -191,7 +191,11 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
           
           {/* LEFT: Brand Logo + Vertical Divider matching reference image */}
           <div className={hideBrand ? 'hidden' : 'flex items-center'}>
-            <Link to="/" className="flex items-center gap-2.5 group pr-6 lg:pr-8 lg:border-r lg:border-white/20 h-12">
+            <Link
+              to={user && user.role !== 'CUSTOMER' ? getDashboardRoute(user.role) : "/"}
+              className="flex items-center gap-2.5 group pr-6 lg:pr-8 lg:border-r lg:border-white/20 h-12"
+              title={user && user.role !== 'CUSTOMER' ? 'Trở về Bàn làm việc' : 'Trang chủ Farmely'}
+            >
               <div className="w-10 h-10 rounded-full bg-brand-yellow flex items-center justify-center text-brand-dark shadow-sm group-hover:scale-105 transition-transform">
                 <Sprout className="w-5 h-5 text-brand-dark stroke-[2.5]" />
               </div>
@@ -481,7 +485,21 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
             )}
 
             {/* Auth Button or User Menu */}
-            <div className="pl-3">
+            <div className="pl-3 flex items-center gap-2">
+              {/* Quick direct return button to Dashboard for Staff / Expert / Admin on non-dashboard routes */}
+              {isAuthenticated && user?.role !== 'CUSTOMER' && !location.pathname.includes('/dashboard') && (
+                <Link
+                  to={getDashboardRoute(user.role)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-yellow hover:bg-amber-300 text-brand-dark text-xs font-black shadow-sm transition-all whitespace-nowrap"
+                  title="Quay lại bàn làm việc tác nghiệp"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>
+                    {user.role === 'STAFF' ? 'Vào Ca Trực' : user.role === 'EXPERT' ? 'Bàn Làm Việc' : 'Trang Quản Trị'}
+                  </span>
+                </Link>
+              )}
+
               {!isAuthenticated ? (
                 <div className="flex items-center gap-2">
                   <Link to="/login">
