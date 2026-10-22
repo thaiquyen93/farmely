@@ -2329,6 +2329,7 @@ export default function CustomerDashboard() {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {displayedPlots.map((plot) => {
                         const isCancelled = isPlotCancelled(plot);
+                        const isPendingPayment = !isCancelled && String(plot.contract_status || plot.rental_status || plot.status || '').toUpperCase() === 'PENDING_PAYMENT';
                         const tasks = plotOperations[plot.id]?.tasks || defaultOperationsForPlot(plot).tasks || [];
                         const nextTask = tasks.find((t) => t.status === 'IN_PROGRESS') || tasks.find((t) => t.status === 'PENDING');
                         const openCount = tasks.filter((t) => t.status !== 'COMPLETED').length;
@@ -2341,6 +2342,8 @@ export default function CustomerDashboard() {
                             className={`group flex flex-col overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 hover:shadow-lg ${
                               isCancelled
                                 ? 'border-rose-200/90 bg-stone-50/50 shadow-2xs'
+                                : isPendingPayment
+                                ? 'border-amber-300 bg-amber-50/20 shadow-sm'
                                 : 'border-stone-200/80 bg-white shadow-sm'
                             }`}
                           >
@@ -2363,6 +2366,10 @@ export default function CustomerDashboard() {
                               {isCancelled ? (
                                 <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
                                   🛑 Đã hủy
+                                </span>
+                              ) : isPendingPayment ? (
+                                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
+                                  ⏳ Chờ thanh toán
                                 </span>
                               ) : (
                                 <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-[11px] font-semibold text-[#18352b]">
@@ -2443,37 +2450,62 @@ export default function CustomerDashboard() {
                               )}
 
                               {/* Hàng nút bấm hành động */}
-                              <div className="mt-auto flex items-center gap-2 pt-1">
-                                {isCancelled ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenCancelModal(plot)}
-                                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-800 transition hover:bg-rose-100 cursor-pointer"
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                    Xem chi tiết hợp đồng đã hủy
-                                  </button>
-                                ) : (
-                                  <>
-                                    <button type="button" onClick={() => openPlot(plot.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
-                                      Mở thửa<ChevronRight className="h-4 w-4" />
+                              <div className="mt-auto flex flex-col gap-2 pt-1">
+                                {isPendingPayment && (
+                                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                                    <span className="font-semibold text-[11px]">Chờ thanh toán (15 phút)</span>
+                                    <button
+                                      type="button"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (plot.contract_id) {
+                                          try {
+                                            await fetch(`/api/contracts/${plot.contract_id}/activate`, { method: 'POST' });
+                                            fetchCustomerPlots(false);
+                                          } catch (err) {
+                                            console.error(err);
+                                          }
+                                        }
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold text-[11px] hover:bg-amber-700 transition cursor-pointer shadow-xs"
+                                    >
+                                      Kích hoạt ngay
                                     </button>
-                                    {[['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
-                                      <button key={tab} type="button" onClick={() => openPlot(plot.id, tab)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
-                                        <Icon className="h-4 w-4" />
-                                      </button>
-                                    ))}
+                                  </div>
+                                )}
+
+                                <div className="flex items-center gap-2">
+                                  {isCancelled ? (
                                     <button
                                       type="button"
                                       onClick={() => handleOpenCancelModal(plot)}
-                                      aria-label={`Hợp đồng & hủy ${plot.name}`}
-                                      title="Quản lý Hợp đồng & Hủy theo BR10"
-                                      className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
+                                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-800 transition hover:bg-rose-100 cursor-pointer"
                                     >
                                       <FileText className="h-4 w-4" />
+                                      Xem chi tiết hợp đồng đã hủy
                                     </button>
-                                  </>
-                                )}
+                                  ) : (
+                                    <>
+                                      <button type="button" onClick={() => openPlot(plot.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
+                                        Mở thửa<ChevronRight className="h-4 w-4" />
+                                      </button>
+                                      {[['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
+                                        <button key={tab} type="button" onClick={() => openPlot(plot.id, tab)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
+                                          <Icon className="h-4 w-4" />
+                                        </button>
+                                      ))}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenCancelModal(plot)}
+                                        aria-label={`Hợp đồng & hủy ${plot.name}`}
+                                        title="Quản lý Hợp đồng & Hủy theo BR10"
+                                        className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-stone-400 hover:bg-stone-50"
+                                      >
+                                        <FileText className="h-4 w-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </article>
