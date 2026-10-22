@@ -44,7 +44,7 @@ export default function Login() {
             navigate('/admin/dashboard');
           } else if (res.user.role === 'EXPERT') {
             navigate('/expert/dashboard');
-          } else if (res.user.role === 'STAFF') {
+          } else if (res.user.role === 'STAFF' || res.user.role === 'FIELD_WORKER') {
             navigate('/staff/dashboard');
           } else {
             navigate('/');
@@ -78,7 +78,7 @@ export default function Login() {
             navigate('/admin/dashboard');
           } else if (res.user.role === 'EXPERT') {
             navigate('/expert/dashboard');
-          } else if (res.user.role === 'STAFF') {
+          } else if (res.user.role === 'STAFF' || res.user.role === 'FIELD_WORKER') {
             navigate('/staff/dashboard');
           } else {
             navigate('/');
