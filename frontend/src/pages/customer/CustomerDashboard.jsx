@@ -76,7 +76,10 @@ import {
   PanelLeftOpen,
   Star,
   ShieldAlert,
-  Eye
+  Eye,
+  Wheat,
+  Truck,
+  CalendarCheck
 } from 'lucide-react';
 
 export default function CustomerDashboard() {
@@ -1051,31 +1054,62 @@ export default function CustomerDashboard() {
     }
   ];
 
-  // Active / Purchased Service Orders
-  const [activeServiceOrders, setActiveServiceOrders] = useState([
-    {
-      id: 'REQ-8829',
-      serviceName: 'Dịch vụ nhổ cỏ & làm tơi đất',
-      plotName: 'Thửa Mộc Châu B2',
-      price: '50.000 đ',
-      date: 'Hôm nay • 09:00 AM',
-      status: 'IN_PROGRESS',
-      statusLabel: 'Đang thực hiện',
-      worker: 'Nguyễn Văn Hưng (CVLĐ)',
-      paymentMethod: 'Chuyển khoản VietQR'
-    },
-    {
-      id: 'REQ-8815',
-      serviceName: 'Gói chăm sóc định kỳ tuần (7 ngày)',
-      plotName: 'Thửa Sen Vàng A1',
-      price: '150.000 đ',
-      date: '02/10/2026',
-      status: 'COMPLETED',
-      statusLabel: 'Đã hoàn tất',
-      worker: 'Trần Văn Lực (CVLĐ)',
-      paymentMethod: 'Ví Farmely'
-    }
-  ]);
+  // Active / Purchased Service Orders (với đồng bộ localStorage để không mất khi tải lại trang)
+  const getInitialServiceOrders = () => {
+    try {
+      const stored = localStorage.getItem('farmely_customer_service_orders');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'REQ-8829',
+        requestId: 8829,
+        transactionId: 'TXN-SVC-8829',
+        serviceName: 'Dịch vụ nhổ cỏ & làm tơi đất',
+        plotName: 'Thửa Mộc Châu B2',
+        plotCode: 'MC-02',
+        plotId: 'PLOT-MC-02',
+        rentalId: 2,
+        price: '50.000 đ',
+        amount: 50000,
+        date: 'Hôm nay • 09:00 AM',
+        scheduledDate: new Date().toISOString().slice(0, 10),
+        status: 'IN_PROGRESS',
+        statusLabel: 'Đang thực hiện',
+        worker: 'Nguyễn Văn Hưng (CVLĐ)',
+        paymentMethod: 'Chuyển khoản VietQR',
+        paymentStatus: 'SUCCESS',
+        proofPhoto: null
+      },
+      {
+        id: 'REQ-8815',
+        requestId: 8815,
+        transactionId: 'TXN-SVC-8815',
+        serviceName: 'Gói chăm sóc định kỳ tuần (7 ngày)',
+        plotName: 'Thửa Sen Vàng A1',
+        plotCode: 'CC-01',
+        plotId: 'PLOT-CC-01',
+        rentalId: 1,
+        price: '150.000 đ',
+        amount: 150000,
+        date: '02/10/2026',
+        scheduledDate: '2026-10-02',
+        status: 'COMPLETED',
+        statusLabel: 'Đã hoàn tất',
+        worker: 'Trần Văn Lực (CVLĐ)',
+        paymentMethod: 'Ví Farmely',
+        paymentStatus: 'SUCCESS',
+        proofPhoto: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
+        proofNotes: 'Đã hoàn thành làm cỏ và bón phân hữu cơ vi sinh đợt 1',
+        completedAt: '2026-10-02 16:30'
+      }
+    ];
+  };
+
+  const [activeServiceOrders, setActiveServiceOrders] = useState(getInitialServiceOrders);
 
   const serviceIconMap = { calendar: Calendar, layers: Layers, droplets: Droplets, sprout: Sprout };
   const effectiveServices = (apiServices && apiServices.length > 0)
@@ -1166,30 +1200,46 @@ export default function CustomerDashboard() {
       .then(unwrapData)
       .then(requests => {
         if (Array.isArray(requests)) {
-          const backendOrders = requests.map(req => ({
-            id: `REQ-${req.requestId}`,
-            requestId: req.requestId,
-            rentalId: req.rentalId,
-            plotCode: req.plotCode,
-            serviceName: req.service?.serviceName || 'Dịch vụ canh tác',
-            plotName: req.plotName || (req.rentalId === 1 ? 'Thửa P-01' : `Rental #${req.rentalId}`),
-            price: `${(Number(req.amount || req.service?.price) || 0).toLocaleString('vi-VN')} đ`,
-            date: req.scheduledDate || 'Hôm nay',
-            status: req.status === 'DONE' ? 'COMPLETED' : 'IN_PROGRESS',
-            statusLabel: req.status === 'DONE' ? 'Đã hoàn tất' : (req.status === 'ASSIGNED' ? 'Đã tiếp nhận & phân công' : 'Chờ xử lý'),
-            worker: req.worker || (req.status === 'ASSIGNED' || req.status === 'DONE' ? 'Trần Văn Lực (CVLĐ)' : 'Chưa phân công'),
-            transactionId: req.transactionId,
-            paymentMethod: req.paymentMethod ? `${req.paymentMethod} (Đã ghi CSDL)` : 'Đã lưu CSDL',
-            gatewayRef: req.gatewayRef
-          }));
+          const backendOrders = requests.map(req => {
+            const isCompleted = req.status === 'DONE' || req.taskStatus === 'COMPLETED' || req.taskStatus === 'DONE';
+            return {
+              id: `REQ-${req.requestId}`,
+              requestId: req.requestId,
+              rentalId: req.rentalId,
+              plotCode: req.plotCode,
+              plotId: req.plotCode ? `PLOT-${String(req.plotCode).replace(/^PLOT-/i, '')}` : undefined,
+              serviceName: req.service?.serviceName || req.serviceName || 'Dịch vụ canh tác',
+              plotName: req.plotName || (req.rentalId === 1 ? 'Thửa P-01' : `Rental #${req.rentalId}`),
+              price: `${(Number(req.paidAmount || req.amount || req.service?.price || req.price) || 0).toLocaleString('vi-VN')} đ`,
+              amount: Number(req.paidAmount || req.amount || req.service?.price || req.price) || 0,
+              date: req.scheduledDate ? `${req.scheduledDate} • Lịch làm việc` : 'Hôm nay',
+              scheduledDate: req.scheduledDate || '',
+              status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
+              statusLabel: isCompleted ? 'Đã hoàn tất' : (req.status === 'ASSIGNED' || req.assignedWorkerId ? 'Đang thực hiện (Đã phân công CVLĐ)' : 'Chờ xử lý'),
+              worker: req.assignedWorker || req.assignedWorkerName || req.worker || (req.status === 'ASSIGNED' || isCompleted ? 'Trần Văn Lực (CVLĐ)' : 'Chưa phân công'),
+              transactionId: req.transactionId ? `TXN-${req.transactionId}` : (req.gatewayRef || 'TXN-SUCCESS'),
+              paymentMethod: req.paymentMethod || 'Chuyển khoản VietQR',
+              paymentStatus: req.paymentStatus || 'SUCCESS',
+              gatewayRef: req.gatewayRef,
+              proofPhoto: req.proofPhoto || null,
+              proofNotes: req.proofNotes || req.note || req.notes || '',
+              completedAt: req.completedAt || null
+            };
+          });
           setActiveServiceOrders(prev => {
-            const ids = new Set(prev.map(p => p.id));
-            const merged = [...prev];
-            backendOrders.forEach(b => {
-              if (!ids.has(b.id)) {
-                merged.unshift(b);
+            const map = new Map();
+            // Backend orders from DB
+            backendOrders.forEach(b => map.set(b.id, b));
+            // Preserve local orders
+            prev.forEach(p => {
+              if (!map.has(p.id)) {
+                map.set(p.id, p);
               }
             });
+            const merged = Array.from(map.values());
+            try {
+              localStorage.setItem('farmely_customer_service_orders', JSON.stringify(merged));
+            } catch {}
             return merged;
           });
         }
@@ -1267,6 +1317,39 @@ export default function CustomerDashboard() {
 
       setLastPaymentResult(resultInfo);
 
+      // Thêm ngay đơn hàng mới vào state và localStorage để hiển thị tức thì
+      const newOrder = {
+        id: detail.requestId ? `REQ-${detail.requestId}` : (resultInfo.requestId ? `REQ-${resultInfo.requestId}` : `REQ-${Date.now().toString().slice(-4)}`),
+        requestId: detail.requestId,
+        transactionId: resultInfo.transactionId,
+        serviceName: selectedServiceToBuy.name,
+        plotName: targetPlot?.name || `Thửa ${targetPlotCode}`,
+        plotCode: targetPlotCode,
+        plotId: targetPlot?.id,
+        rentalId: targetRentalId,
+        price: selectedServiceToBuy.formattedPrice,
+        amount: Number(selectedServiceToBuy.price) || 0,
+        date: `${scheduledDate} • Hôm nay`,
+        scheduledDate: scheduledDate,
+        status: 'IN_PROGRESS',
+        statusLabel: 'Đang thực hiện (Đã phân công CVLĐ)',
+        worker: 'Trần Văn Lực (CVLĐ)',
+        paymentMethod: resultInfo.paymentMethod,
+        paymentStatus: 'SUCCESS',
+        gatewayRef: resultInfo.gatewayRef,
+        proofPhoto: null,
+        proofNotes: checkoutNotes || '',
+        notes: checkoutNotes || ''
+      };
+
+      setActiveServiceOrders((prev) => {
+        const next = [newOrder, ...prev.filter((p) => p.id !== newOrder.id)];
+        try {
+          localStorage.setItem('farmely_customer_service_orders', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
       // Đồng bộ ngay đơn hàng dịch vụ và lịch canh tác từ cơ sở dữ liệu
       fetchServiceOrders();
       if (typeof loadOperationsFromDb === 'function') {
@@ -1307,22 +1390,41 @@ export default function CustomerDashboard() {
     if (typeof loadOperationsFromDb === 'function') {
       loadOperationsFromDb();
     }
-    const selectedPlotObj = customerPlots.find(p => p.id === checkoutPlotId);
+    const targetPlot = customerPlots.find(p => p.id === checkoutPlotId) || selectedCheckoutPlot || customerPlots[0];
+    const targetPlotCode = targetPlot?.mapPlotId || targetPlot?.plotCode || (targetPlot?.id ? targetPlot.id.replace(/^PLOT-/i, '') : 'P-01');
     const newOrder = {
-      id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: paidResult?.requestId ? `REQ-${paidResult.requestId}` : `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      requestId: paidResult?.requestId,
+      transactionId: paidResult?.transactionId || `TXN-SVC-${Date.now().toString().slice(-6)}`,
       serviceName: selectedServiceToBuy?.name || 'Dịch vụ canh tác',
-      plotName: selectedPlotObj ? selectedPlotObj.name : 'Thửa đất đã chọn',
+      plotName: targetPlot ? targetPlot.name : 'Thửa đất đã chọn',
+      plotCode: targetPlotCode,
+      plotId: targetPlot?.id,
+      rentalId: targetPlot?.rentalId || targetPlot?.rental_id || 1,
       price: selectedServiceToBuy ? selectedServiceToBuy.formattedPrice : `${(paidResult?.amount || 0).toLocaleString('vi-VN')} đ`,
-      date: `${checkoutDate} • Mới kích hoạt`,
+      amount: Number(paidResult?.amount || selectedServiceToBuy?.price || 0),
+      date: `${checkoutDate || new Date().toISOString().slice(0, 10)} • Mới kích hoạt`,
+      scheduledDate: checkoutDate || new Date().toISOString().slice(0, 10),
       status: 'IN_PROGRESS',
-      statusLabel: 'Đang thực hiện',
-      worker: 'Đang điều phối CVLĐ',
-      paymentMethod: paidResult?.paymentMethod || (checkoutPaymentMethod === 'VNPAY' ? 'Cổng VNPAY Sandbox' : checkoutPaymentMethod === 'CARD' ? 'Thẻ Quốc tế / Nội địa' : 'Ví Farmely')
+      statusLabel: 'Đang thực hiện (Đã phân công CVLĐ)',
+      worker: 'Trần Văn Lực (CVLĐ)',
+      paymentMethod: paidResult?.paymentMethod || (checkoutPaymentMethod === 'VNPAY' ? 'Cổng VNPAY Sandbox' : checkoutPaymentMethod === 'CARD' ? 'Thẻ Quốc tế / Nội địa' : 'Ví Farmely'),
+      paymentStatus: 'SUCCESS',
+      gatewayRef: paidResult?.gatewayRef || `TXN_SVC_${Date.now().toString().slice(-8)}`,
+      proofPhoto: null,
+      proofNotes: checkoutNotes || ''
     };
 
-    setActiveServiceOrders(prev => [newOrder, ...prev]);
+    setActiveServiceOrders(prev => {
+      const next = [newOrder, ...prev.filter(p => p.id !== newOrder.id)];
+      try {
+        localStorage.setItem('farmely_customer_service_orders', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
     if (paidResult) {
       setLastPaymentResult(paidResult);
+    }
     }
     setSelectedServiceToBuy(null);
     setShowCheckoutSuccessModal(true);
@@ -1342,7 +1444,7 @@ export default function CustomerDashboard() {
         ord.rentalId === scopedPlot.rentalId
       )
     : activeServiceOrders;
-  const harvestModalPlot = customerPlots.find((p) => p.id === harvestModalPlotId) || null;
+  const harvestModalPlot = customerPlots.find((p) => p.id === harvestModalPlotId || p.plotCode === harvestModalPlotId) || null;
 
   /** Từ trang 1 thửa sang trang chức năng: giữ nguyên ngữ cảnh thửa đó */
   const openPlotScopedTab = (tab, plotId) => {
@@ -1872,10 +1974,7 @@ export default function CustomerDashboard() {
           {!sidebarCollapsed && <p className="px-3 pb-2 text-xs font-bold uppercase tracking-widest text-white/55">Quản lý nông trại</p>}
           {[
             ['Tổng quan', LayoutDashboard, 'overview'],
-            ['Dịch vụ canh tác', ShoppingBag, 'services'],
-            ['Nhật ký nông trại', BookOpen, 'diary'],
-            ['Quy trình canh tác chuẩn', ClipboardList, 'process'],
-            ['Kết quả thu hoạch & nghiệm thu', Apple, 'harvest']
+            ['Kế hoạch thu hoạch & nghiệm thu', Apple, 'harvest']
           ].map(([label, Icon, id]) => {
             const isActive = id === 'overview' ? (activeTab === 'yards' || Boolean(selectedPlotId)) : (!selectedPlotId && activeTab === id);
             return (
@@ -2108,13 +2207,11 @@ export default function CustomerDashboard() {
                   ))}
                 </dl>
 
-                {/* Mobile không có sidebar: lối vào các trang xem chung tất cả thửa */}
-                <nav aria-label="Xem theo tất cả thửa" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
-                  {[['services', 'Dịch vụ', ShoppingBag], ['diary', 'Nhật ký', BookOpen], ['process', 'Quy trình', ClipboardList], ['harvest', 'Nghiệm thu', Apple]].map(([id, label, Icon]) => (
-                    <button key={id} type="button" onClick={() => navigate(`/customer/dashboard?view=${id}`)} className="flex shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm">
-                      <Icon className="h-4 w-4 text-emerald-700" />{label}
-                    </button>
-                  ))}
+                {/* Mobile không có sidebar: lối vào Kế hoạch thu hoạch & nghiệm thu */}
+                <nav aria-label="Kế hoạch thu hoạch & nghiệm thu" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
+                  <button type="button" onClick={() => navigate('/customer/dashboard?view=harvest')} className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs">
+                    <Apple className="h-4 w-4 text-emerald-700" /> Kế hoạch thu hoạch & nghiệm thu
+                  </button>
                 </nav>
 
                 <section aria-labelledby="my-plots-heading">
@@ -3001,15 +3098,19 @@ export default function CustomerDashboard() {
                   )
                 : dbHarvestResults;
 
+              const harvestTargetPlots = scopedPlot ? [scopedPlot] : customerPlots;
+
               return (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-8">
+                {/* Tiêu đề chính */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-5">
                   <div>
-                    <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Kết Quả Thu Hoạch & Nghiệm Thu Nông Sản
+                    <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
+                      <Apple className="w-6 h-6 text-emerald-700" />
+                      <span>Kế Hoạch Thu Hoạch & Nghiệm Thu Nông Sản</span>
                     </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Minh bạch cân điện tử, đối chứng sản lượng và đặt lịch giao rau sạch tận nhà trực tiếp từ CSDL PostgreSQL.
+                    <p className="text-xs text-brand-muted mt-1">
+                      Đăng ký lịch hái theo dõi phê duyệt từ Kỹ sư nông nghiệp và nghiệm thu khối lượng thực tế đối chứng cân điện tử.
                     </p>
                   </div>
                   {customerPlots.length > 0 && (
@@ -3023,17 +3124,142 @@ export default function CustomerDashboard() {
                         }}
                         className="text-rose-700 border-rose-300 hover:bg-rose-50 font-bold text-xs cursor-pointer"
                       >
-                        Khiếu nại sản lượng / sự cố (UC20)
+                        Khiếu nại sản lượng / sự cố
                       </Button>
                     </div>
                   )}
                 </div>
 
+                {/* PHẦN 1: KẾ HOẠCH THU HOẠCH THEO TỪNG THỬA ĐẤT */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-heading font-black text-base text-brand-dark flex items-center gap-2">
+                        <CalendarCheck className="w-4 h-4 text-emerald-700" />
+                        <span>1. Kế Hoạch Thu Hoạch Của Bạn</span>
+                      </h4>
+                      <p className="text-xs text-stone-500">
+                        Chọn ngày thu hái và phương thức nhận hàng (Farmely giao tận nhà hoặc tự đến nông trại).
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                      {harvestTargetPlots.length} Thửa Đất Canh Tác
+                    </span>
+                  </div>
+
+                  {harvestTargetPlots.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-6 text-center text-xs text-stone-500">
+                      Bạn chưa có thửa đất canh tác nào.
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {harvestTargetPlots.map((plot) => {
+                        const plan = harvestPlans[plot.id] || harvestPlans[plot.plotCode] || null;
+                        const isApproved = plan?.status === 'APPROVED';
+
+                        return (
+                          <div
+                            key={plot.id}
+                            className="p-5 rounded-2xl border border-brand-border bg-stone-50/60 hover:bg-white hover:border-emerald-300 hover:shadow-2xs transition-all flex flex-col justify-between space-y-4 text-xs"
+                          >
+                            <div className="space-y-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/60 pb-2.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-emerald-800 text-sm">{plot.plotCode || plot.id}</span>
+                                  <span className="font-bold text-brand-dark text-sm">{plot.name}</span>
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    {plot.crop}
+                                  </span>
+                                </div>
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  isApproved
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                    : plan
+                                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                    : 'bg-stone-200 text-stone-600 border-stone-300'
+                                }`}>
+                                  {isApproved
+                                    ? '✓ Đã duyệt lịch · Sẵn sàng hái'
+                                    : plan
+                                    ? '⏳ Chờ kỹ sư xác nhận'
+                                    : 'Chưa đăng ký ngày hái'}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-stone-200/60 text-stone-600">
+                                <div>
+                                  <span className="text-[10px] text-stone-400 block font-bold">Ngày dự kiến theo vụ:</span>
+                                  <strong className="text-brand-dark">{plot.expectedHarvestDate || 'Đang cập nhật'}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-stone-400 block font-bold">Sản lượng ước tính:</span>
+                                  <strong className="text-emerald-800">{plot.expectedYield || 'Theo quy chuẩn'}</strong>
+                                </div>
+                                {plan && (
+                                  <>
+                                    <div>
+                                      <span className="text-[10px] text-stone-400 block font-bold">Ngày đề xuất thu hoạch:</span>
+                                      <strong className="text-emerald-700 flex items-center gap-1">
+                                        <Calendar className="w-3.5 h-3.5" /> {plan.date}
+                                      </strong>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] text-stone-400 block font-bold">Phương thức nhận:</span>
+                                      <strong className="text-brand-dark flex items-center gap-1">
+                                        <Truck className="w-3.5 h-3.5" /> {plan.methodLabel || plan.method}
+                                      </strong>
+                                    </div>
+                                    {plan.address && (
+                                      <div className="col-span-2 pt-1 border-t border-stone-100">
+                                        <span className="text-[10px] text-stone-400 block font-bold">Địa chỉ giao:</span>
+                                        <span className="text-stone-600 truncate block">{plan.address}</span>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end pt-1">
+                              <Button
+                                size="sm"
+                                onClick={() => setHarvestModalPlotId(plot.id)}
+                                className={`text-xs font-bold gap-1.5 cursor-pointer ${
+                                  plan
+                                    ? 'bg-stone-100 hover:bg-stone-200 text-brand-dark border border-stone-300'
+                                    : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                                }`}
+                              >
+                                <Wheat className="w-4 h-4" />
+                                <span>{plan ? 'Xem / Sửa kế hoạch thu hoạch' : 'Đăng ký thu hoạch ngay'}</span>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* PHẦN 2: KẾT QUẢ THU HOẠCH & NGHIỆM THU THỰC ĐỊA */}
+                <div className="space-y-4 pt-4 border-t border-brand-border/60">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-heading font-black text-base text-brand-dark flex items-center gap-2">
+                        <Apple className="w-4 h-4 text-emerald-700" />
+                        <span>2. Biên Bản Nghiệm Thu & Cân Đối Chứng Nông Sản (Thực tế sau khi thu hoạch)</span>
+                      </h4>
+                      <p className="text-xs text-stone-500">
+                        Đối chứng ảnh số cân điện tử do Chuyên viên lao động gửi về và xác nhận bàn giao nông sản.
+                      </p>
+                    </div>
+                  </div>
+
                 {customerPlots.length === 0 || displayedHarvests.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center">
                     <Apple className="mx-auto h-10 w-10 text-stone-400" />
-                    <p className="mt-2 font-bold text-stone-700">Chưa có vụ mùa thu hoạch</p>
-                    <p className="mt-1 text-xs text-stone-500">Bạn chưa có thửa đất canh tác nào hoặc mùa vụ đang trong giai đoạn phát triển ban đầu.</p>
+                    <p className="mt-2 font-bold text-stone-700">Chưa có kết quả cân thu hoạch nào</p>
+                    <p className="mt-1 text-xs text-stone-500">Sau khi hoàn tất đăng ký và chuyên viên lao động cắt cân nông sản tại vườn, biên bản nghiệm thu sẽ xuất hiện ở đây.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -3079,7 +3305,7 @@ export default function CustomerDashboard() {
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-rose-950 flex items-center gap-1.5">
                           <ShieldAlert className="w-4 h-4 text-rose-700" />
-                          Hồ Sơ Khiếu Nại & Tranh Chấp Đang Thẩm Tra (SSoT BR17):
+                          Hồ Sơ Khiếu Nại & Tranh Chấp Đang Thẩm Tra:
                         </span>
                         <span className="text-[10px] text-rose-700 font-bold bg-white px-2 py-0.5 rounded border border-rose-200">
                           {disputeList.length} hồ sơ
@@ -3102,6 +3328,7 @@ export default function CustomerDashboard() {
                   )}
                 </div>
                 )}
+                </div>
               </div>
               );
             })()}

@@ -6,12 +6,7 @@ import CustomerMobileNav from './CustomerMobileNav';
 
 const links = [
   ['Tổng quan', LayoutDashboard, '/customer/dashboard'],
-  ['Lịch canh tác', Calendar, '/customer/dashboard?view=tasks'],
-  ['Dịch vụ canh tác', ShoppingBag, '/customer/dashboard?view=services'],
-  ['Nhật ký nông trại', BookOpen, '/customer/dashboard?view=diary'],
-  ['Quy trình canh tác chuẩn', ClipboardList, '/customer/dashboard?view=process'],
-  ['Kết quả thu hoạch & nghiệm thu', Apple, '/customer/dashboard?view=harvest'],
-  ['Hợp đồng thuê đất', FileText, '/customer/dashboard?view=contracts']
+  ['Kế hoạch thu hoạch & nghiệm thu', Apple, '/customer/dashboard?view=harvest']
 ];
 
 export default function CustomerAccountLayout({ children }) {
