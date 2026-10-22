@@ -53,7 +53,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/api/v1/payments/vnpay/return",
             "/api/sensors/**",          // IoT Sensor Telemetry & SSE Stream
             "/api/files/**",            // Tải & hiển thị ảnh minh chứng hiện trường
-            "/api/ai/**",               // AI Chatbot Bác Ba Nông Dân
+            "/api/ai/**",               // Hệ thống AI Farmely Chatbot
             "/actuator/**",
             "/fallback/**",
             "/v3/api-docs/**",

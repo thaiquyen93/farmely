@@ -59,11 +59,13 @@ function RoleRoute({ role, children }) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  const normalizedUserRole = (user.role === 'FIELD_WORKER' || user.role === 'worker') ? 'STAFF' : user.role;
-  const normalizedTargetRole = (role === 'FIELD_WORKER' || role === 'worker') ? 'STAFF' : role;
+  const rawUserRole = String(user.role || '').toUpperCase();
+  const rawTargetRole = String(role || '').toUpperCase();
+  const normalizedUserRole = (rawUserRole === 'FIELD_WORKER' || rawUserRole === 'WORKER') ? 'STAFF' : rawUserRole;
+  const normalizedTargetRole = (rawTargetRole === 'FIELD_WORKER' || rawTargetRole === 'WORKER') ? 'STAFF' : rawTargetRole;
 
   if (normalizedUserRole !== normalizedTargetRole) {
-    return <Navigate to={dashboardByRole[user.role] || '/'} replace />;
+    return <Navigate to={dashboardByRole[normalizedUserRole] || dashboardByRole[user.role] || '/'} replace />;
   }
 
   return children;

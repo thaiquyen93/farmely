@@ -186,7 +186,7 @@ export const INITIAL_THREADS = [
         sender: 'customer',
         senderName: 'Lô Thái Quyền',
         text: 'Chào chuyên gia Nam! Lá cây cà chua của tôi ở tầng dưới hơi ngả vàng, liệu có phải do thiếu đạm cá hay độ ẩm đất quá cao không?',
-        photoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80',
+        photoUrl: 'https://images.unsplash.com/photo-1591857177580-dc82b9ac4e1e?auto=format&fit=crop&w=800&q=80',
         photoCaption: 'Ảnh hiện trường: Lá cà chua tầng dưới có dấu hiệu vàng úa mép lá',
         time: '15:10',
         seen: false
@@ -447,6 +447,19 @@ export const INITIAL_THREADS = [
   }
 ];
 
+export const DEFAULT_AVATARS = {
+  customer: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+  worker: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+  expert: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
+};
+
+export const getSafeAvatar = (url, role = 'customer') => {
+  if (url && typeof url === 'string' && url.trim().length > 5 && !url.includes('placeholder')) {
+    return url;
+  }
+  return DEFAULT_AVATARS[role] || DEFAULT_AVATARS.customer;
+};
+
 /**
  * Retrieve all threads from storage, or initialize if empty
  */
@@ -461,20 +474,83 @@ export function getStoredThreads() {
       return INITIAL_THREADS;
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length < 8) return INITIAL_THREADS;
+    if (!Array.isArray(parsed) || parsed.length < 8) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_THREADS));
+      return INITIAL_THREADS;
+    }
 
-    // Non-destructive seed migration: keep the user's existing messages and only
-    // add newly introduced demo conversations that are not in localStorage yet.
+    let needsUpdate = false;
+    // Auto-heal any threads that might have been corrupted with "Người dùng #" or missing avatars
+    const sanitized = parsed.map((thread) => {
+      let t = { ...thread };
+      if (!t.customerName || t.customerName.startsWith('Người dùng #')) {
+        const seed = INITIAL_THREADS.find((s) => s.id === t.id || s.plotCode === t.plotCode);
+        if (seed) {
+          t.customerName = seed.customerName;
+          t.customerAvatar = seed.customerAvatar;
+          t.plotName = seed.plotName;
+          t.crop = seed.crop;
+          needsUpdate = true;
+        }
+      }
+      if (!t.customerAvatar || t.customerAvatar.length < 5) {
+        t.customerAvatar = getSafeAvatar(t.customerAvatar, t.role);
+        needsUpdate = true;
+      }
+      if (!t.plotName || t.plotName.includes('Chưa gắn thửa đất')) {
+        const seed = INITIAL_THREADS.find((s) => s.id === t.id);
+        if (seed?.plotName) {
+          t.plotName = seed.plotName;
+          needsUpdate = true;
+        }
+      }
+      if (Array.isArray(t.messages)) {
+        t.messages = t.messages.map((m) => {
+          let updatedMsg = { ...m };
+          const isExp = updatedMsg.sender === 'expert' ||
+            Number(updatedMsg.senderId) === 2 ||
+            Number(updatedMsg.senderId) === 5 ||
+            String(updatedMsg.senderName || '').includes('Nam') ||
+            String(updatedMsg.text || '').includes('Chào anh Quyền');
+
+          if (isExp) {
+            if (updatedMsg.sender !== 'expert') {
+              updatedMsg.sender = 'expert';
+              needsUpdate = true;
+            }
+            if (!updatedMsg.senderName || updatedMsg.senderName === 'Người dùng Farmely') {
+              updatedMsg.senderName = 'ThS. Nguyễn Hoàng Nam';
+              needsUpdate = true;
+            }
+          } else {
+            if (!updatedMsg.senderName || updatedMsg.senderName === 'Người dùng Farmely') {
+              updatedMsg.senderName = t.customerName || 'Lô Thái Quyền';
+              needsUpdate = true;
+            }
+          }
+          return updatedMsg;
+        });
+      }
+      return t;
+    });
+
+    // Non-destructive seed migration: keep user's messages and ensure all initial threads exist
+    const existingIds = new Set(sanitized.map((t) => t.id));
     const missingSeedThreads = INITIAL_THREADS.filter(
-      (seedThread) => !parsed.some((thread) => thread.id === seedThread.id)
+      (seedThread) => !existingIds.has(seedThread.id)
     );
     if (missingSeedThreads.length > 0) {
-      const mergedThreads = [...missingSeedThreads, ...parsed];
+      const mergedThreads = [...missingSeedThreads, ...sanitized];
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedThreads));
       return mergedThreads;
     }
 
-    return parsed;
+    if (needsUpdate) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
+      return sanitized;
+    }
+
+    return sanitized;
   } catch (err) {
     console.error('[ChatStorage] Error loading threads from localStorage:', err);
     return INITIAL_THREADS;

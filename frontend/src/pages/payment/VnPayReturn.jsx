@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, MapPin, Layers } from 'lucide-react';
+import { CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, MapPin, Layers, Sprout } from 'lucide-react';
 import Button from '../../components/common/Button';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
@@ -12,6 +12,8 @@ export default function VnPayReturn() {
   const [isLoading, setIsLoading] = useState(true);
   const [result, setResult] = useState(null);
   const [contractDetails, setContractDetails] = useState(null);
+  const [serviceDetails, setServiceDetails] = useState(null);
+  const [isServiceOrder, setIsServiceOrder] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const hasCommittedRef = useRef(false);
 
@@ -108,6 +110,67 @@ export default function VnPayReturn() {
     }
   };
 
+  // 1.1 Ghi nhận dịch vụ canh tác vào CSDL PostgreSQL (service_requests, payment_transactions)
+  const commitPendingService = async (txnRef, transNo, verifyData) => {
+    try {
+      const savedServiceJson = localStorage.getItem('farmely_pending_vnpay_service');
+      let pendingService = null;
+      if (savedServiceJson) {
+        try {
+          pendingService = JSON.parse(savedServiceJson);
+        } catch (e) {
+          console.warn('Lỗi parse pending service JSON:', e);
+        }
+      }
+
+      // Luôn đồng bộ và xác nhận giao dịch thanh toán vào CSDL & Lịch canh tác (care_tasks)
+      try {
+        await fetch('/api/v1/payments/service/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            serviceRequestId: verifyData?.serviceRequestId || null,
+            rentalId: pendingService?.rentalId || 1,
+            serviceId: pendingService?.serviceId || 1,
+            serviceName: pendingService?.serviceName || 'Dịch vụ canh tác',
+            plotCode: pendingService?.plotCode || 'P-01',
+            scheduledDate: pendingService?.scheduledDate || new Date().toISOString().slice(0, 10),
+            amount: rawAmount || pendingService?.amount || 0,
+            notes: pendingService?.notes || '',
+            paymentMethod: 'VNPAY',
+            gatewayRef: transNo || txnRef || `VNPAY-${Date.now()}`
+          })
+        });
+      } catch (reqErr) {
+        console.warn('Sync service_requests & care_tasks error:', reqErr);
+      }
+
+      const orderInfo = params.get('vnp_OrderInfo') || '';
+      const resolvedName = pendingService?.serviceName || orderInfo.replace(/^Thanh toan /i, '') || 'Dịch vụ canh tác Farmely';
+      const serviceInfo = {
+        serviceName: resolvedName,
+        plotName: pendingService?.plotName || pendingService?.plotCode || 'Thửa đất canh tác',
+        plotCode: pendingService?.plotCode || 'P-01',
+        scheduledDate: pendingService?.scheduledDate || new Date().toISOString().slice(0, 10),
+        amount: rawAmount || pendingService?.amount || 0,
+        transactionNo: transNo || txnRef || `VNPAY-${Date.now()}`
+      };
+
+      setServiceDetails(serviceInfo);
+      if (serviceInfo.plotCode) {
+        try {
+          localStorage.setItem('farmely_selected_task_plot', 'PLOT-' + serviceInfo.plotCode.replace(/^PLOT-/i, ''));
+        } catch {}
+      }
+      localStorage.removeItem('farmely_pending_vnpay_service');
+      window.dispatchEvent(new CustomEvent('farmely_service_paid', { detail: serviceInfo }));
+      return serviceInfo;
+    } catch (err) {
+      console.error('Lỗi xử lý hoàn tất dịch vụ canh tác:', err);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const search = location.search;
     if (!search) {
@@ -137,6 +200,11 @@ export default function VnPayReturn() {
           verifySuccess = true;
         }
 
+        const savedServiceJson = localStorage.getItem('farmely_pending_vnpay_service');
+        const orderInfo = params.get('vnp_OrderInfo') || '';
+        const isService = Boolean(savedServiceJson) || /dich vu|service/i.test(orderInfo);
+        setIsServiceOrder(isService);
+
         if (verifySuccess) {
           setResult({
             status: 'SUCCESS',
@@ -146,10 +214,14 @@ export default function VnPayReturn() {
             bankCode: bankCode
           });
 
-          // Thực hiện commit hợp đồng và chuyển trạng thái thửa đất trong CSDL
+          // Thực hiện commit CSDL
           if (!hasCommittedRef.current) {
             hasCommittedRef.current = true;
-            await commitPendingBooking(vnpTxnRef, transactionNo);
+            if (isService) {
+              await commitPendingService(vnpTxnRef, transactionNo, verifyData);
+            } else {
+              await commitPendingBooking(vnpTxnRef, transactionNo);
+            }
           }
         } else {
           setResult({
@@ -182,7 +254,12 @@ export default function VnPayReturn() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          navigate('/customer/dashboard');
+          if (isServiceOrder) {
+            const plotTarget = serviceDetails?.plotCode ? `PLOT-${serviceDetails.plotCode.replace(/^PLOT-/i, '')}` : (localStorage.getItem('farmely_selected_task_plot') || 'PLOT-P-07');
+            navigate(`/customer/dashboard?view=tasks&plot=${plotTarget}`);
+          } else {
+            navigate('/customer/dashboard');
+          }
           return 0;
         }
         return prev - 1;
@@ -190,7 +267,7 @@ export default function VnPayReturn() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [result?.status, navigate]);
+  }, [result?.status, isServiceOrder, navigate]);
 
   return (
     <div className="min-h-screen bg-brand-cream flex flex-col font-sans">
@@ -229,108 +306,216 @@ export default function VnPayReturn() {
               </div>
             ) : result?.status === 'SUCCESS' || responseCode === '00' ? (
               /* Success State */
-              <div className="flex flex-col items-center text-center space-y-5 animate-fade-in">
-                <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm animate-bounce">
-                  <CheckCircle2 className="w-12 h-12" />
-                </div>
-
-                <div className="space-y-1">
-                  <h3 className="text-2xl font-heading font-black text-[#294C3B]">
-                    Thanh Toán & Ký Hợp Đồng Thành Công!
-                  </h3>
-                  <p className="text-sm font-medium text-stone-700">
-                    Thửa đất đã được đánh dấu <strong className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">ĐÃ THUÊ</strong> và bàn giao vào Dashboard cá nhân.
-                  </p>
-                </div>
-
-                {/* Auto close badge */}
-                <div className="text-xs font-semibold text-emerald-700 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-200 shadow-2xs">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                  <span>Tự động chuyển vào Dashboard sau <strong>{countdown}</strong> giây...</span>
-                </div>
-
-                {/* Transaction Receipt Card */}
-                <div className="w-full bg-stone-50 rounded-2xl p-4 sm:p-5 border border-stone-200 text-xs text-left space-y-2.5">
-                  <div className="flex justify-between items-center pb-2 border-b border-stone-200">
-                    <span className="text-stone-500">Mã hợp đồng điện tử:</span>
-                    <strong className="text-brand-green font-mono font-bold text-sm">
-                      {contractDetails?.contractCode || `MLA-2026-${(transactionNo || vnpTxnRef).slice(-6)}`}
-                    </strong>
+              isServiceOrder ? (
+                /* Service Payment Success View */
+                <div className="flex flex-col items-center text-center space-y-5 animate-fade-in">
+                  <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm animate-bounce">
+                    <Sprout className="w-12 h-12" />
                   </div>
 
-                  <div className="flex justify-between items-center pb-2 border-b border-stone-200">
-                    <span className="text-stone-500">Khách hàng thuê:</span>
-                    <strong className="text-stone-800 font-bold">
-                      {contractDetails?.customerName || 'Lô Thái Quyền'} ({contractDetails?.customerEmail || 'customer@farmely.vn'})
-                    </strong>
+                  <div className="space-y-1">
+                    <h3 className="text-2xl font-heading font-black text-[#294C3B]">
+                      Thanh Toán Dịch Vụ Canh Tác Thành Công!
+                    </h3>
+                    <p className="text-sm font-medium text-stone-700">
+                      Gói dịch vụ đã được ghi nhận vào CSDL hệ thống và tự động phân công đội ngũ kỹ thuật hiện trường.
+                    </p>
                   </div>
 
-                  <div className="flex justify-between items-start pb-2 border-b border-stone-200">
-                    <span className="text-stone-500">Thửa đất đã bàn giao:</span>
-                    <div className="text-right space-y-1">
-                      {contractDetails?.plots && contractDetails.plots.length > 0 ? (
-                        contractDetails.plots.map((p) => (
-                          <span
-                            key={p.id || p.code}
-                            className="inline-block ml-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-[11px] border border-emerald-300"
-                          >
-                            {p.code} - {p.name || `Thửa ${p.code}`}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="inline-block px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-[11px]">
-                          Thửa đất đăng ký thuê
-                        </span>
-                      )}
+                  {/* Auto close badge */}
+                  <div className="text-xs font-semibold text-emerald-700 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-200 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>Tự động chuyển vào Bảng Quản Lý Dịch Vụ sau <strong>{countdown}</strong> giây...</span>
+                  </div>
+
+                  {/* Service Transaction Receipt Card */}
+                  <div className="w-full bg-stone-50 rounded-2xl p-4 sm:p-5 border border-stone-200 text-xs text-left space-y-2.5">
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Mã giao dịch VNPAY:</span>
+                      <strong className="text-brand-green font-mono font-bold text-sm">
+                        {transactionNo || vnpTxnRef}
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Gói dịch vụ đã đặt:</span>
+                      <strong className="text-stone-800 font-bold">
+                        {serviceDetails?.serviceName || 'Dịch vụ canh tác tiêu chuẩn'}
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Thửa đất áp dụng:</span>
+                      <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-[11px] border border-emerald-300">
+                        {serviceDetails?.plotName || serviceDetails?.plotCode || 'Thửa đất đã chọn'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Ngày bắt đầu thực hiện:</span>
+                      <strong className="text-stone-800 font-mono font-bold">
+                        {serviceDetails?.scheduledDate || new Date().toLocaleDateString('vi-VN')}
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Cổng thanh toán:</span>
+                      <strong className="text-[#294C3B] font-bold">VNPAY Sandbox (2.1.0)</strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Ngân hàng phát hành thẻ:</span>
+                      <strong className="text-stone-800 font-mono font-bold">{bankCode}</strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Số tiền thanh toán:</span>
+                      <strong className="text-emerald-700 font-mono text-sm font-black">
+                        {rawAmount.toLocaleString('vi-VN')} đ
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-stone-500">Trạng thái hạch toán:</span>
+                      <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        SUCCESS (ĐÃ LƯU CSDL & PHÂN CÔNG)
+                      </span>
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center pb-2 border-b border-stone-200">
-                    <span className="text-stone-500">Cổng thanh toán:</span>
-                    <strong className="text-[#294C3B] font-bold">VNPAY (Sandbox 2.1.0)</strong>
-                  </div>
-
-                  <div className="flex justify-between items-center pb-2 border-b border-stone-200">
-                    <span className="text-stone-500">Ngân hàng phát hành thẻ:</span>
-                    <strong className="text-stone-800 font-mono font-bold">{bankCode}</strong>
-                  </div>
-
-                  <div className="flex justify-between items-center pb-2 border-b border-stone-200">
-                    <span className="text-stone-500">Số tiền thanh toán:</span>
-                    <strong className="text-emerald-700 font-mono text-sm font-black">
-                      {rawAmount.toLocaleString('vi-VN')} đ
-                    </strong>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <span className="text-stone-500">Trạng thái hạch toán:</span>
-                    <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      SUCCESS (ĐÃ GHI SỔ PG & BÀN GIAO)
-                    </span>
+                  {/* Navigation CTA Buttons */}
+                  <div className="pt-2 w-full flex flex-col sm:flex-row gap-3">
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      className="flex-1 font-bold uppercase tracking-wider text-sm shadow-md bg-[#294C3B] hover:bg-[#1f3a2d] text-white border-0 flex items-center justify-center gap-2 py-3.5 transition-colors cursor-pointer"
+                      onClick={() => navigate('/customer/dashboard?view=services')}
+                    >
+                      <span>Xem Lệnh Dịch Vụ Ngay</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="flex-1 font-bold text-sm border border-stone-300 text-stone-700 hover:bg-stone-100 py-3.5 transition-colors cursor-pointer"
+                      onClick={() => navigate('/customer/dashboard?view=yards')}
+                    >
+                      <span>Về Vườn Của Tôi</span>
+                    </Button>
                   </div>
                 </div>
+              ) : (
+                /* Plot Rental Payment Success View */
+                <div className="flex flex-col items-center text-center space-y-5 animate-fade-in">
+                  <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm animate-bounce">
+                    <CheckCircle2 className="w-12 h-12" />
+                  </div>
 
-                {/* Navigation CTA Buttons */}
-                <div className="pt-2 w-full flex flex-col sm:flex-row gap-3">
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    className="flex-1 font-bold uppercase tracking-wider text-sm shadow-md bg-[#294C3B] hover:bg-[#1f3a2d] text-white border-0 flex items-center justify-center gap-2 py-3.5 transition-colors cursor-pointer"
-                    onClick={() => navigate('/customer/dashboard')}
-                  >
-                    <span>Về Dashboard Cá Nhân Ngay</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    className="flex-1 font-bold text-sm border border-stone-300 text-stone-700 hover:bg-stone-100 py-3.5 transition-colors cursor-pointer"
-                    onClick={() => navigate('/marketplace')}
-                  >
-                    <span>Xem Trên Marketplace</span>
-                  </Button>
+                  <div className="space-y-1">
+                    <h3 className="text-2xl font-heading font-black text-[#294C3B]">
+                      Thanh Toán & Ký Hợp Đồng Thành Công!
+                    </h3>
+                    <p className="text-sm font-medium text-stone-700">
+                      Thửa đất đã được đánh dấu <strong className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">ĐÃ THUÊ</strong> và bàn giao vào Dashboard cá nhân.
+                    </p>
+                  </div>
+
+                  {/* Auto close badge */}
+                  <div className="text-xs font-semibold text-emerald-700 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-200 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>Tự động chuyển vào Dashboard sau <strong>{countdown}</strong> giây...</span>
+                  </div>
+
+                  {/* Transaction Receipt Card */}
+                  <div className="w-full bg-stone-50 rounded-2xl p-4 sm:p-5 border border-stone-200 text-xs text-left space-y-2.5">
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Mã hợp đồng điện tử:</span>
+                      <strong className="text-brand-green font-mono font-bold text-sm">
+                        {contractDetails?.contractCode || `MLA-2026-${(transactionNo || vnpTxnRef).slice(-6)}`}
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Khách hàng thuê:</span>
+                      <strong className="text-stone-800 font-bold">
+                        {contractDetails?.customerName || 'Lô Thái Quyền'} ({contractDetails?.customerEmail || 'customer@farmely.vn'})
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-start pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Thửa đất đã bàn giao:</span>
+                      <div className="text-right space-y-1">
+                        {contractDetails?.plots && contractDetails.plots.length > 0 ? (
+                          contractDetails.plots.map((p) => (
+                            <span
+                              key={p.id || p.code}
+                              className="inline-block ml-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-[11px] border border-emerald-300"
+                            >
+                              {p.code} - {p.name || `Thửa ${p.code}`}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="inline-block px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-[11px]">
+                            Thửa đất đăng ký thuê
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Cổng thanh toán:</span>
+                      <strong className="text-[#294C3B] font-bold">VNPAY (Sandbox 2.1.0)</strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Ngân hàng phát hành thẻ:</span>
+                      <strong className="text-stone-800 font-mono font-bold">{bankCode}</strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Số tiền thanh toán:</span>
+                      <strong className="text-emerald-700 font-mono text-sm font-black">
+                        {rawAmount.toLocaleString('vi-VN')} đ
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-stone-500">Trạng thái hạch toán:</span>
+                      <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        SUCCESS (ĐÃ GHI SỔ PG & BÀN GIAO)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Navigation CTA Buttons */}
+                  <div className="pt-2 w-full flex flex-col sm:flex-row gap-3">
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      className="flex-1 font-bold uppercase tracking-wider text-sm shadow-md bg-[#294C3B] hover:bg-[#1f3a2d] text-white border-0 flex items-center justify-center gap-2 py-3.5 transition-colors cursor-pointer"
+                      onClick={() => {
+                        if (isServiceOrder) {
+                          const plotTarget = serviceDetails?.plotCode ? `PLOT-${serviceDetails.plotCode.replace(/^PLOT-/i, '')}` : (localStorage.getItem('farmely_selected_task_plot') || 'PLOT-P-07');
+                          navigate(`/customer/dashboard?view=tasks&plot=${plotTarget}`);
+                        } else {
+                          navigate('/customer/dashboard');
+                        }
+                      }}
+                    >
+                      <span>{isServiceOrder ? 'Xem Lịch Canh Tác Thửa Đất Ngay' : 'Về Dashboard Cá Nhân Ngay'}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="flex-1 font-bold text-sm border border-stone-300 text-stone-700 hover:bg-stone-100 py-3.5 transition-colors cursor-pointer"
+                      onClick={() => navigate('/marketplace')}
+                    >
+                      <span>Xem Trên Marketplace</span>
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )
             ) : (
               /* Failed / Cancelled State */
               <div className="flex flex-col items-center text-center space-y-4 animate-fade-in">

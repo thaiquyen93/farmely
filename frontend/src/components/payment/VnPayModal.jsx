@@ -33,20 +33,45 @@ export default function VnPayModal({
         localStorage.setItem('farmely_pending_vnpay_booking', JSON.stringify(pendingBooking));
       }
 
+      // Đảm bảo serviceId luôn là kiểu số Integer hoặc null
+      let rawServiceId = additionalPayload?.serviceId ?? serviceInfo?.serviceId ?? serviceInfo?.id;
+      let resolvedServiceId = null;
+      if (rawServiceId !== null && rawServiceId !== undefined) {
+        if (typeof rawServiceId === 'number' && !isNaN(rawServiceId)) {
+          resolvedServiceId = rawServiceId;
+        } else {
+          const parsed = parseInt(String(rawServiceId).replace(/\D/g, ''), 10);
+          resolvedServiceId = !isNaN(parsed) && parsed > 0 ? parsed : 1;
+        }
+      }
+
       const payload = {
         amount: currentAmount,
         orderInfo: serviceInfo
           ? `Thanh toan dich vu ${serviceInfo.name}`
-          : `Thanh toan thue dat ${plotInfo?.code || ''}`,
+          : `Thanh toan thue dat ${plotInfo?.code || plotInfo?.name || ''}`,
         contractId: contractId || null,
-        serviceId: serviceInfo?.id || null,
-        serviceName: serviceInfo?.name || null,
-        plotCode: plotInfo?.code || null,
         bankCode: '', // Để trống để VNPay hiển thị đầy đủ các lựa chọn trên cổng
         returnUrl: `${window.location.origin}/payment/vnpay-return`,
-        ...additionalPayload
+        ...additionalPayload,
+        serviceId: resolvedServiceId,
+        serviceName: serviceInfo?.name || additionalPayload?.serviceName || null,
+        plotCode: plotInfo?.plotCode || plotInfo?.mapPlotId || plotInfo?.code || (additionalPayload?.plotCode ? String(additionalPayload.plotCode).replace(/^PLOT-/i, '') : null),
+        rentalId: plotInfo?.rentalId || plotInfo?.rental_id || additionalPayload?.rentalId || 1
       };
 
+      if (serviceInfo) {
+        localStorage.setItem('farmely_pending_vnpay_service', JSON.stringify({
+          serviceId: resolvedServiceId,
+          serviceName: serviceInfo.name,
+          amount: currentAmount,
+          plotCode: payload.plotCode,
+          plotName: plotInfo?.name || plotInfo?.code || 'Thửa đất đã chọn',
+          rentalId: payload.rentalId,
+          scheduledDate: payload.scheduledDate,
+          notes: payload.notes
+        }));
+      }
       const endpoint = window.location.port === '3000' 
         ? '/api/v1/payments/vnpay/create' 
         : 'http://localhost:8085/api/v1/payments/vnpay/create';
@@ -165,18 +190,29 @@ export default function VnPayModal({
             </div>
           )}
 
-          {/* Primary Action Button: "THANH TOÁN" - Màu xanh lá phẳng (Không gradient) */}
+          {/* Action Buttons */}
           <div className="pt-2">
-            <Button
+            <button
               type="button"
-              variant="primary"
-              size="lg"
-              loading={isSubmitting}
+              disabled={isSubmitting}
               onClick={handlePayment}
-              className="w-full font-black uppercase tracking-wider text-sm shadow-md bg-[#294C3B] hover:bg-[#1f3a2d] text-white border-0 py-3.5 flex items-center justify-center transition-colors"
+              className="w-full font-heading font-black uppercase tracking-wider text-xs sm:text-sm shadow-md bg-[#294C3B] hover:bg-[#1f3a2d] text-white border-0 py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer disabled:opacity-50"
             >
-              <span>THANH TOÁN</span>
-            </Button>
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>ĐANG KẾT NỐI VNPAY...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-5 h-5 text-emerald-300" />
+                  <span>CHUYỂN SANG CỔNG VNPAY THANH TOÁN</span>
+                </>
+              )}
+            </button>
           </div>
 
           {/* Cancel button */}

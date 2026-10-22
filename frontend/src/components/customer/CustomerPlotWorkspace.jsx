@@ -206,16 +206,31 @@ function SeasonTimeline({ stages = [] }) {
 /** Thẻ 1 chỉ số: đồng hồ cung + giá trị · trong/vượt ngưỡng · nghĩa là gì · cần làm gì */
 function ReadingCard({ metric, plot, onClick, active = false, showAction = true, delay = 0 }) {
   const Icon = metric.icon;
-  const reading = assessMetric(metric.key, plot[metric.key], plot.mode);
+  const currentVal = plot[metric.key];
+  const reading = assessMetric(metric.key, currentVal, plot.mode);
   const s = LEVEL_STYLE[reading.level];
   const Tag = onClick ? 'button' : 'div';
+
+  const [pulsing, setPulsing] = useState(false);
+  const prevValRef = useRef(currentVal);
+
+  useEffect(() => {
+    if (prevValRef.current !== currentVal && prevValRef.current !== undefined) {
+      prevValRef.current = currentVal;
+      setPulsing(true);
+      const timer = setTimeout(() => setPulsing(false), 1000);
+      return () => clearTimeout(timer);
+    }
+    prevValRef.current = currentVal;
+  }, [currentVal]);
+
   return (
     <Tag
       {...(onClick ? { type: 'button', onClick, 'aria-pressed': active } : {})}
-      aria-label={`${reading.label}: ${plot[metric.key] ?? 'chưa có'} — ${reading.chip}. ${reading.meaning}`}
+      aria-label={`${reading.label}: ${currentVal ?? 'chưa có'} — ${reading.chip}. ${reading.meaning}`}
       style={{ animationDelay: `${delay}ms` }}
       className={`group relative flex animate-fadeInUp flex-col overflow-hidden rounded-3xl border bg-white p-4 text-left transition duration-300 ${CARD_SHADOW} ${
-        active ? 'border-transparent ring-2' : 'border-white/80'
+        pulsing ? 'ring-2 ring-emerald-400 shadow-md scale-[1.01]' : active ? 'border-transparent ring-2' : 'border-white/80'
       } ${onClick ? 'hover:-translate-y-1 hover:shadow-[0_20px_40px_-18px_rgba(24,53,43,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400' : ''}`}
     >
       {/* Quầng màu theo chỉ số ở góc thẻ */}
@@ -227,12 +242,22 @@ function ReadingCard({ metric, plot, onClick, active = false, showAction = true,
           <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm" style={{ background: `linear-gradient(135deg, ${metric.color}cc, ${metric.color})` }}><Icon className="h-[18px] w-[18px]" /></span>
           {reading.label}
         </span>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${s.chip}`}>{reading.chip}</span>
+        <div className="flex items-center gap-1.5">
+          {pulsing && (
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+          )}
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors duration-300 ${s.chip}`}>{reading.chip}</span>
+        </div>
       </div>
 
       <div className="relative mt-2">
         <ArcGauge position={reading.position} color={metric.color} levelColor={s.hex}>
-          <span className={`whitespace-nowrap font-bold leading-none tracking-tight text-[#18352b] ${String(plot[metric.key] ?? '').length > 7 ? 'text-base' : 'text-[22px]'}`}>{plot[metric.key] ?? '—'}</span>
+          <span className={`whitespace-nowrap font-bold leading-none tracking-tight transition-all duration-300 ${pulsing ? 'text-emerald-600 scale-105' : 'text-[#18352b]'} ${String(currentVal ?? '').length > 7 ? 'text-base' : 'text-[22px]'}`}>
+            {currentVal ?? '—'}
+          </span>
           <span className="mt-1.5 text-[10px] font-medium text-emerald-700">An toàn {reading.min}–{reading.max}</span>
         </ArcGauge>
       </div>
@@ -339,8 +364,17 @@ function OverviewTab({ plot, operations, iotData, alerts, stages, harvestPlan, g
       {topAlert && <AlertCard alert={topAlert} mode={plot.mode} compact onMore={() => goTab('iot')} />}
 
       <section aria-label="Chỉ số môi trường">
-        <div className="mb-3 flex items-end justify-between">
-          <h3 className="font-heading text-lg font-bold text-[#18352b]">Môi trường quanh cây</h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h3 className="font-heading text-lg font-bold text-[#18352b]">Môi trường quanh cây</h3>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200 shadow-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-600"></span>
+              </span>
+              Trực tiếp IoT · Chu kỳ 10s {plot.lastUpdated ? `(Cập nhật ${plot.lastUpdated})` : '· Đang đo đạc'}
+            </span>
+          </div>
           <LinkButton onClick={() => goTab('iot')}>Xem biểu đồ</LinkButton>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -662,27 +696,30 @@ export default function CustomerPlotWorkspace({
   const tab = PLOT_TABS.some((t) => t.id === activeTab) ? activeTab : 'overview';
   const isSelf = plot.mode === 'Self-Growing';
 
-  // Lấy ID số của thửa đất để kết nối vào telemetry stream của trạm cảm biến
-  const numericPlotId = useMemo(() => {
-    if (!plot) return 1;
-    if (plot.plotId) return Number(plot.plotId);
-    if (plot.mapPlotId) {
-      const m = String(plot.mapPlotId).match(/\d+/);
-      if (m) return Number(m[0]);
-    }
-    const m = String(plot.id || '').match(/\d+/);
-    return m ? Number(m[0]) : 1;
+  // Lấy ID hoặc mã thửa đất để kết nối vào telemetry stream của trạm cảm biến
+  const targetPlotIdentifier = useMemo(() => {
+    if (!plot) return '1';
+    if (plot.plotCode) return plot.plotCode;
+    if (plot.mapPlotId) return plot.mapPlotId;
+    if (plot.plotId) return String(plot.plotId);
+    return String(plot.id || '1');
   }, [plot]);
 
   // Luồng dữ liệu cảm biến thời gian thực Server-Sent Events (SSE) liên tục từ monitoring-service
-  const { latest, history, isConnected } = useSensorStream(numericPlotId, 24);
+  const { latest, history, isConnected } = useSensorStream(targetPlotIdentifier, 24);
 
   // Ghi đè số liệu cảm biến mới nhất lên plot nếu trạm IoT phát tín hiệu
   const activePlot = useMemo(() => {
     if (!latest) return plot;
-    const tempNum = typeof latest.temperature === 'number' ? latest.temperature.toFixed(1) : null;
-    const soilNum = typeof latest.soilHumidity === 'number' ? Math.round(latest.soilHumidity) : null;
-    const airNum = typeof latest.airHumidity === 'number' ? Math.round(latest.airHumidity) : null;
+    const parseVal = (val) => {
+      if (val === null || val === undefined) return null;
+      const num = typeof val === 'number' ? val : parseFloat(String(val));
+      return Number.isFinite(num) ? num : null;
+    };
+
+    const t = parseVal(latest.temperature);
+    const s = parseVal(latest.soilHumidity);
+    const a = parseVal(latest.airHumidity);
 
     const recDate = latest.recordedAt ? new Date(latest.recordedAt) : new Date();
     const hour = !isNaN(recDate.getTime()) ? recDate.getHours() + recDate.getMinutes() / 60 : 12;
@@ -694,13 +731,39 @@ export default function CustomerPlotWorkspace({
 
     return {
       ...plot,
-      temp: tempNum !== null ? `${tempNum}°C` : plot.temp,
-      soilMoisture: soilNum !== null ? `${soilNum}%` : plot.soilMoisture,
-      airHumidity: airNum !== null ? `${airNum}%` : plot.airHumidity,
-      light: lightVal > 0 ? `${lightVal}.000 Lux` : '0 Lux',
+      temp: t !== null ? `${t.toFixed(2)}°C` : plot.temp,
+      soilMoisture: s !== null ? `${s.toFixed(2)}%` : plot.soilMoisture,
+      airHumidity: a !== null ? `${a.toFixed(2)}%` : plot.airHumidity,
+      light: lightVal > 0 ? `${lightVal}.000 Lux` : (plot.light || '45.000 Lux'),
       lastUpdated
     };
   }, [plot, latest]);
+
+  // Cảnh báo động sinh ra theo số đo thực tế của trạm (luật BR18 hoãn tưới hoặc cảnh báo khô hạn)
+  const activeAlerts = useMemo(() => {
+    const sNum = parseFloat(String(activePlot.soilMoisture || ''));
+    const dynamicList = [...(alerts || [])];
+    if (sNum >= 80) {
+      dynamicList.unshift({
+        id: 'DYNAMIC-FLOOD-BR18',
+        level: 'HIGH',
+        title: 'Mưa lớn & Đất bão hoà ẩm (BR18)',
+        explanation: `Độ ẩm đất hiện tại đang ở mức ${activePlot.soilMoisture} (≥ 80%). Hệ thống đã tự động kích hoạt luật BR18: Tạm hoãn mọi tác vụ tưới hôm nay để tránh úng ngập rễ.`,
+        action: 'Farmely đã tự động dời lịch tưới hôm nay.',
+        time: activePlot.lastUpdated || 'Vừa xong'
+      });
+    } else if (sNum < 50 && sNum > 0) {
+      dynamicList.unshift({
+        id: 'DYNAMIC-DRY-BR18',
+        level: 'HIGH',
+        title: 'Đất khô kiệt dưới ngưỡng an toàn (BR18)',
+        explanation: `Độ ẩm đất tụt xuống ${activePlot.soilMoisture} (< 50%). Cây trồng có nguy cơ sốc nhiệt và héo rễ nếu không được cấp nước bù.`,
+        action: 'Đã phát tín hiệu khẩn cấp đến kỹ thuật viên thực địa để tưới nhỏ giọt bù ẩm.',
+        time: activePlot.lastUpdated || 'Vừa xong'
+      });
+    }
+    return dynamicList;
+  }, [activePlot.soilMoisture, activePlot.lastUpdated, alerts]);
 
   // Cập nhật mảng lịch sử vẽ biểu đồ thời gian thực từ trạm cảm biến
   const activeIotData = useMemo(() => {
@@ -728,9 +791,9 @@ export default function CustomerPlotWorkspace({
       const lightVal = hour >= 6 && hour <= 18 ? Math.round(Math.max(0, 1 - (diff / 6) ** 2) * 50) : 0;
       return {
         time: timeStr,
-        temp: Number(Number(item.temperature).toFixed(1)),
-        moisture: Math.round(Number(item.soilHumidity)),
-        airHumidity: Math.round(Number(item.airHumidity)),
+        temp: Number(Number(item.temperature).toFixed(2)),
+        moisture: Number(Number(item.soilHumidity).toFixed(2)),
+        airHumidity: Number(Number(item.airHumidity).toFixed(2)),
         light: lightVal
       };
     });
@@ -742,7 +805,7 @@ export default function CustomerPlotWorkspace({
   }, [history, iotData]);
 
   const openTaskCount = operations.tasks.filter((t) => t.status !== 'COMPLETED').length;
-  const badges = useMemo(() => ({ tasks: openTaskCount, iot: alerts.filter((a) => a.level === 'HIGH').length }), [openTaskCount, alerts]);
+  const badges = useMemo(() => ({ tasks: openTaskCount, iot: activeAlerts.filter((a) => a.level === 'HIGH').length }), [openTaskCount, activeAlerts]);
 
   useEffect(() => {
     if (!pickerOpen) return undefined;
@@ -759,7 +822,7 @@ export default function CustomerPlotWorkspace({
   };
 
   const current = PLOT_TABS.find((t) => t.id === tab);
-  const health = computeHealthScore(activePlot, alerts);
+  const health = computeHealthScore(activePlot, activeAlerts);
   const daysLeft = Math.max(plot.totalDays - plot.currentDay, 0);
   const heroStats = [
     { label: 'Sức khoẻ', value: health.score ?? '—', unit: '/100', note: health.label, icon: Leaf, tab: 'iot' },
@@ -816,7 +879,11 @@ export default function CustomerPlotWorkspace({
                   {isSelf ? 'Tự canh tác' : 'Farmely chăm sóc'}
                 </span>
                 <span className="rounded-full border border-white/25 bg-white/5 px-2.5 py-1 backdrop-blur">{plot.id}</span>
-                <span className="rounded-full border border-white/25 bg-white/5 px-2.5 py-1 backdrop-blur">Trạm {plot.stationId}</span>
+                <span className="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-2.5 py-1 backdrop-blur text-lime-200">
+                  <Radio className="h-3 w-3 text-lime-400 animate-pulse" />
+                  Trạm {plot.stationId}
+                  {activePlot.lastUpdated ? <span className="text-white/70 font-normal">· {activePlot.lastUpdated}</span> : ''}
+                </span>
               </div>
               <h1 className="mt-3 font-heading text-3xl font-bold leading-tight tracking-tight !text-white drop-shadow sm:text-4xl lg:text-5xl">{plot.name}</h1>
               <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/85">
@@ -877,9 +944,9 @@ export default function CustomerPlotWorkspace({
       {/* Nội dung tab — key theo tab để mỗi lần chuyển tab có hiệu ứng vào */}
       <div key={tab} className="mx-auto max-w-[1400px] animate-fadeIn px-4 pt-5 sm:px-6 lg:px-10 lg:pt-7">
         <h2 className="mb-4 font-heading text-lg font-bold text-[#18352b] lg:hidden">{current.label}</h2>
-        {tab === 'overview' && <OverviewTab plot={activePlot} operations={operations} iotData={activeIotData} alerts={alerts} stages={stages} harvestPlan={harvestPlan} goTab={goTab} onOpenTask={onOpenTask} onOpenHarvest={onOpenHarvest} />}
+        {tab === 'overview' && <OverviewTab plot={activePlot} operations={operations} iotData={activeIotData} alerts={activeAlerts} stages={stages} harvestPlan={harvestPlan} goTab={goTab} onOpenTask={onOpenTask} onOpenHarvest={onOpenHarvest} />}
         {tab === 'tasks' && <TasksTab operations={operations} onOpenTask={onOpenTask} />}
-        {tab === 'iot' && <IotTab plot={activePlot} iotData={activeIotData} alerts={alerts} isConnected={isConnected} />}
+        {tab === 'iot' && <IotTab plot={activePlot} iotData={activeIotData} alerts={activeAlerts} isConnected={isConnected} />}
         {tab === 'diary' && <DiaryTab plot={activePlot} operations={operations} onAddDiary={onAddDiary} />}
         {tab === 'services' && <ServicesTab plot={activePlot} services={services} orders={serviceOrders} onSelectService={onSelectService} />}
         {tab === 'harvest' && <HarvestTab plot={activePlot} harvestPlan={harvestPlan} onOpenHarvest={onOpenHarvest} />}

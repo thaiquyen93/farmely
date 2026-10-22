@@ -83,8 +83,8 @@ export default function FarmelySmartAssistant() {
     {
       id: 'welcome-ai',
       sender: 'ai',
-      senderName: 'Bác Ba AI • Trợ lý Nông Nghiệp',
-      text: 'Xin chào! Tôi là Bác Ba Nông Dân — Trợ lý AI nông nghiệp thông minh của Farmely. Tôi có thể giải đáp mọi thắc mắc về kỹ thuật canh tác, vi khí hậu, sâu bệnh và quy trình mùa vụ cho bạn. Bạn cần tư vấn gì hôm nay?',
+      senderName: 'Farmely AI • Trợ lý Nông Nghiệp',
+      text: 'Xin chào! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Tôi có thể hỗ trợ bạn về kỹ thuật canh tác VietGAP, theo dõi vi khí hậu độ ẩm thửa đất, nhận diện sâu bệnh và giải đáp thủ tục mùa vụ. Bạn cần hỗ trợ gì hôm nay?',
       time: 'Vừa xong',
       referencedDocs: []
     }
@@ -190,7 +190,7 @@ export default function FarmelySmartAssistant() {
             {
               id: `ai-${Date.now()}`,
               sender: 'ai',
-              senderName: 'Bác Ba AI • Trợ lý Nông Nghiệp',
+              senderName: 'Farmely AI • Trợ lý Nông Nghiệp',
               text: data.reply,
               time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
               referencedDocs: data.referencedDocuments || []
@@ -210,14 +210,14 @@ export default function FarmelySmartAssistant() {
       let fallbackSource = 'Cẩm nang Kỹ thuật Nông nghiệp Farmely';
 
       // 1. Chào hỏi tự nhiên
-      if (lowerQ.match(/^(chào|hello|hi|xin chào|bác ba|alo|ơi|ê)(\s+bạn|\s+bác|\s+ạ)?$/i) || (lowerQ.includes('chào') && lowerQ.length <= 15)) {
-        fallbackReply = 'Dạ Bác Ba Nông Dân xin chào bạn nhé! Rất vui được gặp bạn trên nông trại thông minh Farmely. Hôm nay bạn cần Bác Ba tư vấn về kỹ thuật gieo trồng, kiểm tra độ ẩm đất IoT hay tìm hiểu thủ tục thuê thửa đất nào không?';
+      if (lowerQ.match(/^(chào|hello|hi|xin chào|farmely ai|ai|bot|alo|ơi|ê)(\s+bạn|\s+ạ)?$/i) || (lowerQ.includes('chào') && lowerQ.length <= 15)) {
+        fallbackReply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Rất vui được hỗ trợ bạn. Bạn cần tư vấn về kỹ thuật gieo trồng, kiểm tra độ ẩm đất IoT hay tìm hiểu thủ tục thuê thửa đất nào hôm nay?';
         fallbackSource = 'Cẩm nang Hướng dẫn Khách hàng Farmely';
       }
       // 2. Cảm ơn, tạm biệt
       else if (lowerQ.includes('cảm ơn') || lowerQ.includes('thank') || lowerQ.includes('tks')) {
-        fallbackReply = 'Dạ không có chi đâu bạn ơi! Làm nông cùng nhau vui và ý nghĩa lắm. Chúc vườn rau của bạn luôn xanh mơn mởn, sạch sâu bệnh và thu hoạch trĩu cành. Cần gì cứ gọi Bác Ba bất cứ lúc nào nhé!';
-        fallbackSource = 'Trợ lý Bác Ba AI';
+        fallbackReply = 'Rất vui được hỗ trợ bạn! Chúc bạn có những vụ mùa bội thu, rau sạch chuẩn VietGAP và trải nghiệm canh tác tuyệt vời trên Farmely. Cần hỗ trợ thêm, bạn cứ nhắn cho Farmely AI nhé!';
+        fallbackSource = 'Hệ thống Farmely AI';
       }
       // 3. Khớp từ khóa cẩm nang nông nghiệp
       else {
@@ -230,9 +230,9 @@ export default function FarmelySmartAssistant() {
           fallbackSource = matched.source;
         } else {
           if (question.length <= 8) {
-            fallbackReply = 'Dạ Bác Ba Nông Dân nghe đây! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm đất vi khí hậu hay muốn tìm hiểu thủ tục thuê thửa đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho Bác Ba nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nha.';
+            fallbackReply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm đất vi khí hậu hay muốn tìm hiểu thủ tục thuê thửa đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nha.';
           } else {
-            fallbackReply = 'Dạ Bác Ba đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+            fallbackReply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
           }
           fallbackSource = 'Cẩm nang Kỹ thuật Nông nghiệp Farmely';
         }
@@ -244,7 +244,7 @@ export default function FarmelySmartAssistant() {
           {
             id: `ai-fb-${Date.now()}`,
             sender: 'ai',
-            senderName: 'Bác Ba AI • Trợ lý Nông Nghiệp',
+            senderName: 'Farmely AI • Trợ lý Nông Nghiệp',
             text: fallbackReply,
             time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
             referencedDocs: [{ docTitle: fallbackSource, similarityScore: 0.92 }]
@@ -401,7 +401,7 @@ export default function FarmelySmartAssistant() {
                 </div>
                 <div>
                   <h3 className="text-xs font-black tracking-wide flex items-center gap-1.5">
-                    <span>{activeTab === 'ai' ? 'Bác Ba AI Nông Nghiệp' : (currentThread?.expertName || 'ThS. Nguyễn Hoàng Nam')}</span>
+                    <span>{activeTab === 'ai' ? 'Farmely AI Nông Nghiệp' : (currentThread?.expertName || 'ThS. Nguyễn Hoàng Nam')}</span>
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30" />
                   </h3>
                   <p className="text-[10px] text-white/70">
@@ -435,7 +435,7 @@ export default function FarmelySmartAssistant() {
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                <span>Trợ lý Bác Ba AI</span>
+                <span>Trợ lý Farmely AI</span>
               </button>
               <button
                 type="button"
@@ -452,7 +452,7 @@ export default function FarmelySmartAssistant() {
             </div>
           </header>
 
-          {/* NỘI DUNG CHAT TAB 1: BÁC BA AI (RAG BACKEND) */}
+          {/* NỘI DUNG CHAT TAB 1: FARMELY AI (RAG BACKEND) */}
           {activeTab === 'ai' && (
             <div className="flex-1 flex flex-col min-h-0 bg-slate-50/70">
               {/* Vùng tin nhắn */}
@@ -462,7 +462,7 @@ export default function FarmelySmartAssistant() {
                   return (
                     <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                       <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">
-                        {isMe ? msg.senderName : 'Bác Ba AI • Farmely'}
+                        {isMe ? msg.senderName : 'Farmely AI • Trợ lý Nông Nghiệp'}
                       </span>
                       <div
                         className={`max-w-[88%] rounded-2xl p-3 text-xs leading-relaxed shadow-sm ${
@@ -484,7 +484,7 @@ export default function FarmelySmartAssistant() {
                               <div key={idx} className="text-[10px] text-slate-600 bg-emerald-50/60 px-2 py-1 rounded-lg border border-emerald-100 flex items-center justify-between">
                                 <span className="truncate">{doc.docTitle || doc.sectionTitle || 'Cẩm nang kỹ thuật'}</span>
                                 {doc.similarityScore && (
-                                  <span className="text-[9px] font-bold text-emerald-700 ml-1 shrink-0">
+                                   <span className="text-[9px] font-bold text-emerald-700 ml-1 shrink-0">
                                     {(doc.similarityScore * 100).toFixed(0)}% khớp
                                   </span>
                                 )}
@@ -498,17 +498,17 @@ export default function FarmelySmartAssistant() {
                   );
                 })}
 
-                {/* Typing indicator khi AI đang trả lời lời */}
+                {/* Typing indicator khi AI đang trả lời */}
                 {isAiLoading && (
                   <div className="flex flex-col items-start">
-                    <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">Bác Ba AI</span>
+                    <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">Farmely AI</span>
                     <div className="bg-white text-slate-600 border border-slate-200 rounded-2xl rounded-tl-xs p-3 shadow-sm flex items-center gap-2">
                       <div className="flex gap-1">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce" />
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:0.2s]" />
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-bounce [animation-delay:0.4s]" />
                       </div>
-                      <span className="text-[11px] font-medium text-emerald-800">Bác Ba đang tra cứu cẩm nang kỹ thuật...</span>
+                      <span className="text-[11px] font-medium text-emerald-800">Farmely AI đang tra cứu cẩm nang kỹ thuật...</span>
                     </div>
                   </div>
                 )}
@@ -540,7 +540,7 @@ export default function FarmelySmartAssistant() {
                   type="text"
                   value={aiInput}
                   onChange={(e) => setAiInput(e.target.value)}
-                  placeholder="Hỏi Bác Ba về độ ẩm, sâu bệnh, giống cây..."
+                  placeholder="Hỏi Farmely AI về độ ẩm, sâu bệnh, giống cây..."
                   className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-100 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                 />
                 <button

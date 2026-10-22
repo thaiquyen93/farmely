@@ -8,7 +8,10 @@ export default function Modal({
   title,
   subtitle,
   children,
-  maxWidth = 'max-w-xl'
+  maxWidth = 'max-w-xl',
+  headerVariant = 'default', // 'default' | 'green'
+  variant,
+  headerColor
 }) {
   const dialogRef = useRef(null);
   const closeButtonRef = useRef(null);
@@ -80,27 +83,51 @@ export default function Modal({
         aria-labelledby={titleId}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-start justify-between border-b border-brand-border/60 bg-brand-cream/40 px-4 py-3 sm:px-6 sm:py-5">
-          <div>
-            <h3 id={titleId} className="font-heading text-xl font-bold text-brand-dark">
-              {title}
-            </h3>
-            {subtitle && (
-              <p className="text-xs text-brand-muted mt-0.5">
-                {subtitle}
-              </p>
-            )}
-          </div>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Đóng hộp thoại"
-            className="min-w-11 min-h-11 inline-flex items-center justify-center text-stone-400 hover:text-brand-dark hover:bg-stone-100 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        {(() => {
+          const isGreenHeader = headerVariant === 'green' || variant === 'green' || headerColor === 'green';
+          return (
+            <div
+              className={`flex shrink-0 items-start justify-between border-b px-4 py-3 sm:px-6 sm:py-5 ${
+                isGreenHeader
+                  ? 'bg-[#294C3B] text-white border-[#1f3a2d]'
+                  : 'border-brand-border/60 bg-brand-cream/40'
+              }`}
+            >
+              <div>
+                <h3
+                  id={titleId}
+                  className={`font-heading text-xl font-bold ${
+                    isGreenHeader ? 'text-white' : 'text-brand-dark'
+                  }`}
+                >
+                  {title}
+                </h3>
+                {subtitle && (
+                  <p
+                    className={`text-xs mt-0.5 ${
+                      isGreenHeader ? 'text-emerald-100/90' : 'text-brand-muted'
+                    }`}
+                  >
+                    {subtitle}
+                  </p>
+                )}
+              </div>
+              <button
+                ref={closeButtonRef}
+                type="button"
+                onClick={onClose}
+                aria-label="Đóng hộp thoại"
+                className={`min-w-11 min-h-11 inline-flex items-center justify-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green ${
+                  isGreenHeader
+                    ? 'text-white/80 hover:text-white hover:bg-white/10'
+                    : 'text-stone-400 hover:text-brand-dark hover:bg-stone-100'
+                }`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Content */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">

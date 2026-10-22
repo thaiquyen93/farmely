@@ -23,7 +23,7 @@ public class AiChatServiceImpl implements AiChatService {
         if (userMsg.isEmpty()) {
             return ChatResponse.builder()
                     .conversationId(convId)
-                    .reply("Dạ Bác Ba đây! Bạn có câu hỏi nào về vườn rau, độ ẩm đất hay kỹ thuật canh tác không cứ nhắn cho Bác nhé.")
+                    .reply("Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Bạn có thắc mắc nào về kỹ thuật canh tác, cảm biến vi khí hậu hay quản lý thửa đất không?")
                     .referencedDocuments(Collections.emptyList())
                     .status("SUCCESS")
                     .build();
@@ -35,8 +35,8 @@ public class AiChatServiceImpl implements AiChatService {
 
         // 1. Nhận diện chào hỏi xã giao
         if (isGreeting(lower)) {
-            reply = "Dạ Bác Ba Nông Dân xin chào bạn nhé! Rất vui được gặp bạn trên nông trại thông minh Farmely. "
-                    + "Hôm nay bạn cần Bác Ba tư vấn về kỹ thuật gieo trồng, kiểm tra độ ẩm đất IoT hay tìm hiểu thủ tục thuê thửa đất nào không?";
+            reply = "Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. "
+                    + "Tôi có thể hỗ trợ bạn về kỹ thuật gieo trồng chuẩn VietGAP, theo dõi độ ẩm vi khí hậu IoT và thủ tục thuê thửa đất. Bạn cần tôi giải đáp nội dung nào?";
             docs.add(ReferencedDocumentDto.builder()
                     .chunkId("doc-intro-01")
                     .docTitle("Cẩm nang Hướng dẫn Khách hàng Farmely 2026")
@@ -46,10 +46,9 @@ public class AiChatServiceImpl implements AiChatService {
         }
         // 2. Nhận diện cảm ơn / tạm biệt
         else if (isGratitude(lower)) {
-            reply = "Dạ không có chi đâu bạn ơi! Làm nông nghiệp sạch cùng nhau vui và ý nghĩa lắm. "
-                    + "Chúc bạn có một mùa vụ tươi tốt, rau lớn nhanh và luôn an lành nhé. Cần gì cứ gọi Bác Ba bất cứ lúc nào!";
+            reply = "Rất vui được hỗ trợ bạn! Chúc bạn có những vụ mùa bội thu, rau sạch chuẩn VietGAP và trải nghiệm canh tác tuyệt vời trên Farmely. Cần gì bạn cứ nhắn cho Farmely AI nhé!";
         } else if (isGoodbye(lower)) {
-            reply = "Tạm biệt bạn nhé! Chúc bạn một ngày ngập tràn niềm vui. Khi nào rảnh ghé thăm luống rau trên bản đồ vệ tinh Farmely nhen!";
+            reply = "Tạm biệt bạn nhé! Chúc bạn một ngày làm việc hiệu quả. Khi nào cần tra cứu số liệu thửa đất hay kỹ thuật chăm sóc, Farmely AI luôn sẵn sàng hỗ trợ!";
         }
         // 3. Tư vấn rau xà lách
         else if (lower.contains("xà lách") || lower.contains("xa lach")) {
@@ -120,9 +119,9 @@ public class AiChatServiceImpl implements AiChatService {
         // 8. Câu hỏi tổng quát
         else {
             if (userMsg.length() <= 8) {
-                reply = "Dạ Bác Ba Nông Dân nghe đây! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm đất vi khí hậu hay muốn tìm hiểu thủ tục thuê thửa đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho Bác Ba nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab 'Kênh Chuyên Gia' để trao đổi trực tiếp với ThS. Hoàng Nam nha.";
+                reply = "Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm đất vi khí hậu hay muốn tìm hiểu thủ tục thuê thửa đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab 'Kênh Chuyên Gia' để trao đổi trực tiếp với ThS. Hoàng Nam nha.";
             } else {
-                reply = "Dạ Bác Ba đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\n"
+                reply = "Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\n"
                         + "Bạn cũng có thể bấm sang tab 'Kênh Chuyên Gia' ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!";
             }
             docs.add(ReferencedDocumentDto.builder()
@@ -133,7 +132,7 @@ public class AiChatServiceImpl implements AiChatService {
                     .build());
         }
 
-        log.info("AI Chatbot processed query: '{}' -> convId: {}", userMsg, convId);
+        log.info("Farmely AI Chatbot processed query: '{}' -> convId: {}", userMsg, convId);
 
         return ChatResponse.builder()
                 .conversationId(convId)
@@ -144,7 +143,7 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     private boolean isGreeting(String text) {
-        return text.matches(".*\\b(chào|chao|hello|hi|xin chào|alo|bác ba ơi|bac ba oi|chào bạn|chao ban)\\b.*")
+        return text.matches(".*\\b(chào|chao|hello|hi|xin chào|alo|chào bạn|chao ban|farmely ai|ai|bot)\\b.*")
                 || text.equals("chào")
                 || text.equals("hi")
                 || text.equals("hello")

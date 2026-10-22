@@ -1,20 +1,28 @@
-﻿param(
+param(
     [switch]$Rebuild,
     [switch]$Wait
 )
 
 $ErrorActionPreference = 'Stop'
-$projectRoot = $PSScriptRoot
+# Tu dong xac dinh Project Root du script duoc goi tu thu muc goc hay tu thu muc Start\
+$projectRoot = if (Test-Path (Join-Path $PSScriptRoot 'backend')) {
+    $PSScriptRoot
+} elseif (Test-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'backend')) {
+    Split-Path -Parent $PSScriptRoot
+} else {
+    $PSScriptRoot
+}
 $runtimeDir = Join-Path $projectRoot '.run'
+
 # ==============================================================================
-# 1. NẠP CẤU HÌNH TẬP TRUNG TỪ FILE .env GỐC
+# 1. NAP CAU HINH TAP TRUNG TU FILE .env GOC
 # ==============================================================================
 $envFile = Join-Path $projectRoot '.env'
 $envExampleFile = Join-Path $projectRoot '.env.example'
 
 if (-not (Test-Path -LiteralPath $envFile) -and (Test-Path -LiteralPath $envExampleFile)) {
     Copy-Item -LiteralPath $envExampleFile -Destination $envFile
-    Write-Host 'Đã tự động tạo file .env từ .env.example' -ForegroundColor Yellow
+    Write-Host 'Da tu dong tao file .env tu .env.example' -ForegroundColor Yellow
 }
 
 if (Test-Path -LiteralPath $envFile) {
@@ -29,11 +37,11 @@ if (Test-Path -LiteralPath $envFile) {
             }
         }
     }
-    Write-Host 'Đã nạp toàn bộ cấu hình từ file .env gốc.' -ForegroundColor Green
+    Write-Host 'Da nap toan bo cau hinh tu file .env goc.' -ForegroundColor Green
 }
 
 # ==============================================================================
-# 2. TỰ ĐỘNG TÌM KIẾM JDK 21+ TRÊN MÁY
+# 2. TU DONG TIM KIEM JDK 21+ TREN MAY
 # ==============================================================================
 function Get-JavaMajorVersion {
     param([string]$homeDir)
@@ -64,6 +72,8 @@ if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
 if (-not $jdkHome) {
     $jdkCandidates = @(
         "$env:USERPROFILE\.jdks\jdk-21.0.12.1+1",
+        'C:\Users\Acer\.vscode\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
+        'C:\Users\Acer\.antigravity-ide\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
         'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot',
         'C:\Program Files\Java\jdk-25',
         'C:\Program Files\Java\jdk-21',
@@ -127,7 +137,7 @@ New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 Push-Location $projectRoot
 try {
     # ==============================================================================
-    # 3. KIỂM TRA DOCKER VÀ CƠ SỞ DỮ LIỆU POSTGRESQL
+    # 3. KIEM TRA DOCKER VA CO SO DU LIEU POSTGRESQL
     # ==============================================================================
     function Test-DockerReady {
         param($cmdPath)
@@ -146,27 +156,27 @@ try {
     $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
     $dockerReady = if ($dockerCommand) { Test-DockerReady -cmdPath $dockerCommand.Source } else { $false }
 
-    $configuredPort = if ($env:DB_PORT) { [int]$env:DB_PORT } else { 5433 }
+    $configuredPort = if ($env:DB_PORT) { [int]$env:DB_PORT } else { 5432 }
     $localPostgresPort = $null
-    if (Get-NetTCPConnection -LocalPort $configuredPort -State Listen -ErrorAction SilentlyContinue) {
+    if (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue) {
+        $localPostgresPort = 5432
+    } elseif (Get-NetTCPConnection -LocalPort $configuredPort -State Listen -ErrorAction SilentlyContinue) {
         $localPostgresPort = $configuredPort
     } elseif (Get-NetTCPConnection -LocalPort 5433 -State Listen -ErrorAction SilentlyContinue) {
         $localPostgresPort = 5433
-    } elseif (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue) {
-        $localPostgresPort = 5432
     }
     $localPostgres = ($null -ne $localPostgresPort)
 
     $dbHost = if ($env:DB_HOST) { $env:DB_HOST } else { 'localhost' }
     $dbName = if ($env:DB_NAME) { $env:DB_NAME } else { 'farmely' }
     $dbUser = if ($env:DB_USER) { $env:DB_USER } else { 'postgres' }
-    $dbPassword = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } elseif ($env:DB_PASS) { $env:DB_PASS } else { 'postgres' }
+    $dbPassword = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } elseif ($env:DB_PASS) { $env:DB_PASS } else { '@Bin054206' }
 
     # ponytail: auto-detect working local postgres password so dev environment never gets blocked
     if ($localPostgres) {
         $psqlBin = 'C:\Program Files\PostgreSQL\18\bin\psql.exe'
         if (Test-Path -LiteralPath $psqlBin) {
-            $passCandidates = @($dbPassword, 'postgres', '12345', '123456', 'admin', 'root')
+            $passCandidates = @($dbPassword, '@Bin054206', 'postgres', '12345', '123456', 'admin', 'root')
             foreach ($cand in $passCandidates) {
                 $env:PGPASSWORD = $cand
                 $null = & $psqlBin -U $dbUser -p $localPostgresPort -d $dbName -c 'SELECT 1;' 2>&1
@@ -199,7 +209,6 @@ try {
         Write-Host "Sử dụng PostgreSQL LOCAL trên cổng $localPostgresPort (database: $dbName)." -ForegroundColor Green
     }
     else {
-        # Chỉ khởi động Docker Desktop nếu cả local PostgreSQL và Docker daemon đều không có sẵn
         if ($dockerCommand) {
             $dockerDesktopCandidates = @(
                 'C:\Program Files\Docker\Docker\Docker Desktop.exe',
@@ -207,7 +216,7 @@ try {
             )
             $dockerDesktop = $dockerDesktopCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
             if ($dockerDesktop) {
-                Write-Host 'Đang khởi động Docker Desktop để chạy database...' -ForegroundColor Yellow
+                Write-Host 'Dang khoi dong Docker Desktop de chay database...' -ForegroundColor Yellow
                 Start-Process -FilePath $dockerDesktop -WindowStyle Hidden
                 for ($attempt = 0; $attempt -lt 24; $attempt++) {
                     Start-Sleep -Seconds 5
@@ -223,10 +232,10 @@ try {
             & $dockerCommand.Source compose up -d postgres rabbitmq
             $env:DB_PORT = '5432'
             $env:DB_URL = "jdbc:postgresql://${dbHost}:5432/${dbName}"
-            Write-Host "Sử dụng Docker PostgreSQL trên cổng 5432 (database: $dbName)." -ForegroundColor Cyan
+            Write-Host "Su dung Docker PostgreSQL tren cong 5432 (database: $dbName)." -ForegroundColor Cyan
         }
         else {
-            throw 'Không tìm thấy PostgreSQL local (hãy bật PostgreSQL service) hoặc Docker để kết nối cơ sở dữ liệu.'
+            throw 'Khong tim thay PostgreSQL local (hay bat service postgresql-x64-18) hoac Docker de ket noi co so du lieu.'
         }
     }
 
@@ -243,7 +252,7 @@ try {
     $env:PGPASSWORD = $dbPassword
 
     # ==============================================================================
-    # 4. ĐỒNG BỘ CẤU HÌNH CHO AI SERVICE (.env)
+    # 4. DONG BO CAU HINH CHO AI SERVICE (.env)
     # ==============================================================================
     $backendRoot = Join-Path $projectRoot 'backend'
     $aiEnvFile = Join-Path $backendRoot 'ai-service\.env'
@@ -265,7 +274,7 @@ SIMILARITY_THRESHOLD=0.10
 "@ | Set-Content -LiteralPath $aiEnvFile -Encoding UTF8
 
     # ==============================================================================
-    # 5. BUILD VÀ CHUẨN BỊ BACKEND & FRONTEND
+    # 5. BUILD VA CHUAN BI BACKEND & FRONTEND
     # ==============================================================================
     $requiredJars = @(
         'api-gateway\target\api-gateway-1.0.0-SNAPSHOT.jar',
@@ -310,7 +319,7 @@ SIMILARITY_THRESHOLD=0.10
     }
 
     # ==============================================================================
-    # 6. KHỞI CHẠY 10 MICROSERVICES VÀ FRONTEND
+    # 6. KHOI CHAY 10 MICROSERVICES VA FRONTEND
     # ==============================================================================
     $services = @(
         [pscustomobject]@{ Name = 'api-gateway'; Port = if ($env:PORT_API_GATEWAY) { [int]$env:PORT_API_GATEWAY } else { 8080 }; Jar = 'api-gateway\target\api-gateway-1.0.0-SNAPSHOT.jar' },
@@ -328,18 +337,20 @@ SIMILARITY_THRESHOLD=0.10
     $pidData = @()
     $pidFile = Join-Path $runtimeDir 'processes.json'
     if (Test-Path -LiteralPath $pidFile) {
-        $parsedProcesses = Get-Content -LiteralPath $pidFile -Raw | ConvertFrom-Json
-        $savedProcesses = if ($parsedProcesses.PSObject.Properties.Name -contains 'value') {
-            @($parsedProcesses.value)
-        }
-        else {
-            @($parsedProcesses)
-        }
-        foreach ($savedProcess in $savedProcesses) {
-            if (Get-Process -Id $savedProcess.Pid -ErrorAction SilentlyContinue) {
-                $pidData += $savedProcess
+        try {
+            $parsedProcesses = Get-Content -LiteralPath $pidFile -Raw | ConvertFrom-Json
+            $savedProcesses = if ($parsedProcesses.PSObject.Properties.Name -contains 'value') {
+                @($parsedProcesses.value)
             }
-        }
+            else {
+                @($parsedProcesses)
+            }
+            foreach ($savedProcess in $savedProcesses) {
+                if (Get-Process -Id $savedProcess.Pid -ErrorAction SilentlyContinue) {
+                    $pidData += $savedProcess
+                }
+            }
+        } catch {}
     }
 
     $rmHost = if ($env:RABBITMQ_HOST) { $env:RABBITMQ_HOST } else { 'localhost' }
@@ -411,7 +422,7 @@ SIMILARITY_THRESHOLD=0.10
     ConvertTo-Json -InputObject @($pidData) | Set-Content -LiteralPath $pidFile -Encoding UTF8
 
     # ==============================================================================
-    # 7. KIỂM TRA TRẠNG THÁI SẴN SÀNG CỦA CÁC CỔNG
+    # 7. KIEM TRA TRANG THAI SAN SANG CUA CAC CONG
     # ==============================================================================
     function Get-ServiceNameByPort {
         param([int]$targetPort)
@@ -427,14 +438,14 @@ SIMILARITY_THRESHOLD=0.10
     $ports = @($services | ForEach-Object { $_.Port }) + $frontendPort
     $deadline = (Get-Date).AddSeconds(90)
     $pendingPorts = @($ports)
-    Write-Host 'Đang đợi các dịch vụ khởi động...' -ForegroundColor Cyan
+    Write-Host 'Dang doi cac dich vu khoi dong...' -ForegroundColor Cyan
     while ($pendingPorts.Count -gt 0 -and (Get-Date) -lt $deadline) {
         $justReady = @($pendingPorts | Where-Object {
             Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue
         })
         foreach ($p in $justReady) {
             $svcName = Get-ServiceNameByPort -targetPort $p
-            Write-Host "  -> Cổng $p ($svcName) đã sẵn sàng!" -ForegroundColor Green
+            Write-Host "  -> Cong $p ($svcName) da san sang!" -ForegroundColor Green
         }
         $pendingPorts = @($pendingPorts | Where-Object {
             -not (Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue)
@@ -445,7 +456,7 @@ SIMILARITY_THRESHOLD=0.10
     }
     foreach ($port in $pendingPorts) {
         $svcName = Get-ServiceNameByPort -targetPort $port
-        Write-Warning "Cổng $port ($svcName) chưa phản hồi kịp sau 90s. Kiểm tra log tại: $runtimeDir."
+        Write-Warning "Cong $port ($svcName) chua phan hoi kip sau 90s. Kiem tra log tai: $runtimeDir."
     }
 
     Write-Host ''

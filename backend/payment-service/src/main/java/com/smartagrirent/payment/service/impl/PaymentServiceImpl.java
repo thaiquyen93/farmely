@@ -30,6 +30,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @Service
 public class PaymentServiceImpl implements PaymentService {
@@ -39,6 +41,32 @@ public class PaymentServiceImpl implements PaymentService {
     private final CultivationServiceRepository cultivationServiceRepository;
     private final PaymentSandboxService paymentSandboxService;
     private final VNPayConfig vnPayConfig;
+
+    @Autowired(required = false)
+    private JdbcTemplate jdbcTemplate;
+
+    private void syncToCareTasks(Integer serviceRequestId, Integer rentalId, LocalDate dueDate, String serviceName) {
+        if (jdbcTemplate == null || rentalId == null) return;
+        try {
+            LocalDate targetDate = dueDate != null ? dueDate : LocalDate.now().plusDays(1);
+            String taskNotes = (serviceName != null && !serviceName.isBlank()) ? serviceName : "Dịch vụ canh tác";
+            
+            Integer existing = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM care_tasks WHERE service_request_id = ?",
+                Integer.class,
+                serviceRequestId
+            );
+            if (existing != null && existing > 0) return;
+
+            jdbcTemplate.update(
+                "INSERT INTO care_tasks (rental_id, service_request_id, task_assigned_to, due_date, status, notes, created_at, updated_at) " +
+                "VALUES (?, ?, 8, ?, 'PENDING'::task_status_enum, ?, NOW(), NOW())",
+                rentalId, serviceRequestId, targetDate, taskNotes
+            );
+        } catch (Exception e) {
+            System.err.println("Could not sync care task from payment-service: " + e.getMessage());
+        }
+    }
 
     private static final String DEFAULT_BANK_ID = "ICB"; // VietinBank
     private static final String DEFAULT_BANK_NAME = "VietinBank (Ngân hàng TMCP Công Thương Việt Nam)";
@@ -110,6 +138,8 @@ public class PaymentServiceImpl implements PaymentService {
             serviceRequestRepository.findById(updated.getServiceRequestId()).ifPresent(req -> {
                 req.setStatus(RequestStatus.ASSIGNED);
                 serviceRequestRepository.save(req);
+                syncToCareTasks(req.getRequestId(), req.getRentalId(), req.getScheduledDate(),
+                        req.getService() != null ? req.getService().getServiceName() : null);
             });
         }
 
@@ -269,6 +299,8 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
         ServiceRequest savedRequest = serviceRequestRepository.save(serviceRequest);
+        syncToCareTasks(savedRequest.getRequestId(), savedRequest.getRentalId(), savedRequest.getScheduledDate(),
+                request.getServiceName());
 
         BigDecimal amount = resolveAmount(request, resolvedServiceId);
         String method = (request.getCardType() != null && !request.getCardType().isBlank())
@@ -339,6 +371,8 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
         ServiceRequest savedRequest = serviceRequestRepository.save(serviceRequest);
+        syncToCareTasks(savedRequest.getRequestId(), savedRequest.getRentalId(), savedRequest.getScheduledDate(),
+                request.getServiceName());
 
         BigDecimal amount = resolveAmount(request, resolvedServiceId);
         long timestamp = System.currentTimeMillis();
@@ -658,6 +692,8 @@ public class PaymentServiceImpl implements PaymentService {
                 serviceRequestRepository.findById(saved.getServiceRequestId()).ifPresent(req -> {
                     req.setStatus(RequestStatus.ASSIGNED);
                     serviceRequestRepository.save(req);
+                    syncToCareTasks(req.getRequestId(), req.getRentalId(), req.getScheduledDate(),
+                            req.getService() != null ? req.getService().getServiceName() : null);
                 });
             }
             return mapToResponse(saved);

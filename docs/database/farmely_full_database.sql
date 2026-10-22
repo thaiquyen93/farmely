@@ -856,9 +856,9 @@ FROM ordered_steps
 WHERE target.step_id = ordered_steps.step_id;
 
 UPDATE template_steps
-SET step_name = REPLACE(step_name, '&', '&'),
-    description = REPLACE(REPLACE(description, '&', '&'), '.. ', '. ')
-WHERE step_name LIKE '%&%' OR description LIKE '%&%' OR description LIKE '%.. %';
+SET step_name = REPLACE(step_name, '&amp;', '&'),
+    description = REPLACE(REPLACE(description, '&amp;', '&'), '.. ', '. ')
+WHERE step_name LIKE '%&amp;%' OR description LIKE '%&amp;%' OR description LIKE '%.. %';
 
 -- 9. CONTRACTS & RENTALS (Khách hàng & Hợp đồng thực tế)
 INSERT INTO contracts (contract_id, renter_id, contract_number, total_amount, status, created_at) VALUES
@@ -867,13 +867,13 @@ INSERT INTO contracts (contract_id, renter_id, contract_number, total_amount, st
 (3, 3, 'HD-2026-FARM-003', 1400000.00, 'ACTIVE', NOW() - INTERVAL '10 days')
 ON CONFLICT (contract_id) DO NOTHING;
 
-INSERT INTO rentals (rental_id, contract_id, service_id, plot_id, variety_id, start_date, end_date, total_price, status) VALUES
+INSERT INTO rentals (rental_id, contract_id, service_id, plot_id, variety_id, cultivation_mode, term_months, start_date, end_date, total_price, status) VALUES
 -- Rental 1: Lô Thái Quyền (ID 1) - P-01 - Cà chua bi đỏ F1 (variety_id = 4) - Gói toàn vụ S15
-(1, 1, 15, 1, 4, CURRENT_DATE - INTERVAL '30 days', CURRENT_DATE + INTERVAL '50 days', 3000000.00, 'ACTIVE'),
+(1, 1, 15, 1, 4, 'ASSISTED', 3, CURRENT_DATE - INTERVAL '30 days', CURRENT_DATE + INTERVAL '50 days', 3000000.00, 'ACTIVE'),
 -- Rental 2: Đào Duy Anh (ID 2) - P-02 - Xà lách Romaine VietGAP (variety_id = 3) - Gói toàn vụ S15
-(2, 2, 15, 2, 3, CURRENT_DATE - INTERVAL '25 days', CURRENT_DATE + INTERVAL '20 days', 2850000.00, 'ACTIVE'),
+(2, 2, 15, 2, 3, 'ASSISTED', 3, CURRENT_DATE - INTERVAL '25 days', CURRENT_DATE + INTERVAL '20 days', 2850000.00, 'ACTIVE'),
 -- Rental 3: Tạ Nguyễn Khôi Nguyên (ID 3) - P-03 - Dưa leo baby F1 (variety_id = 5) - Tự chăm sóc (Self-growing)
-(3, 3, NULL, 3, 5, CURRENT_DATE - INTERVAL '10 days', CURRENT_DATE + INTERVAL '45 days', 1400000.00, 'ACTIVE')
+(3, 3, NULL, 3, 5, 'SELF', 3, CURRENT_DATE - INTERVAL '10 days', CURRENT_DATE + INTERVAL '45 days', 1400000.00, 'ACTIVE')
 ON CONFLICT (rental_id) DO NOTHING;
 
 -- 10. PAYMENT TRANSACTIONS

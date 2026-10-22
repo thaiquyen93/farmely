@@ -57,7 +57,7 @@ export function useSensorStream(plotId, historyHours = 24) {
       (newReading) => {
         isStreamActive = true;
         setIsConnected(true);
-        setLatest(newReading);
+        setLatest({ ...newReading });
 
         // Đẩy điểm đo mới vào mảng lịch sử (giữ tối đa 300 điểm)
         setHistory((prev) => {
@@ -71,22 +71,60 @@ export function useSensorStream(plotId, historyHours = 24) {
       }
     );
 
-    // Fallback polling phòng ngừa nếu SSE tạm thời gián đoạn
-    const pollInterval = setInterval(() => {
-      if (!isStreamActive) {
+    // Đồng bộ tức thời qua BroadcastChannel giữa các tab trình duyệt
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_iot_telemetry');
+        bc.onmessage = (msg) => {
+          if (msg.data?.type === 'TELEMETRY_UPDATED') {
+            getLatestSensorReading(plotId)
+              .then((reading) => {
+                if (reading) {
+                  setLatest({ ...reading });
+                  setHistory((prev) => {
+                    const updated = [...prev, reading];
+                    return updated.length > 300 ? updated.slice(updated.length - 300) : updated;
+                  });
+                }
+              })
+              .catch(() => {});
+          }
+        };
+      }
+    } catch {
+      // ignore
+    }
+
+    const handleStorage = (e) => {
+      if (e.key === 'farmely_iot_sync_ping') {
         getLatestSensorReading(plotId)
           .then((reading) => {
-            if (reading) {
-              setLatest(reading);
-            }
+            if (reading) setLatest({ ...reading });
           })
           .catch(() => {});
       }
-    }, 15000);
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // Polling bổ trợ chu kỳ 10 giây đồng bộ với nhịp phát sóng trạm IoT
+    const pollInterval = setInterval(() => {
+      getLatestSensorReading(plotId)
+        .then((reading) => {
+          if (reading) {
+            setLatest({ ...reading });
+          }
+        })
+        .catch(() => {});
+    }, 10000);
 
     // Tự động đóng kết nối khi rời khỏi trang hoặc đổi plot
     return () => {
       clearInterval(pollInterval);
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
+      window.removeEventListener('storage', handleStorage);
       eventSource.close();
     };
   }, [plotId, historyHours]);
