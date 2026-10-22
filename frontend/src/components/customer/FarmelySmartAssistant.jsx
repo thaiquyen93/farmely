@@ -205,19 +205,37 @@ export default function FarmelySmartAssistant() {
       console.warn('Backend AI kết nối thất bại, chuyển sang Engine tri thức dự phòng:', err.message);
 
       // 2. Fallback sang Smart Agronomy Knowledge Base cục bộ
-      const lowerQ = question.toLowerCase();
-      let matched = FALLBACK_KNOWLEDGE_BASE.find((item) =>
-        item.keywords.some((kw) => lowerQ.includes(kw))
-      );
-
+      const lowerQ = question.toLowerCase().trim();
       let fallbackReply = '';
       let fallbackSource = 'Cẩm nang Kỹ thuật Nông nghiệp Farmely';
 
-      if (matched) {
-        fallbackReply = matched.reply;
-        fallbackSource = matched.source;
-      } else {
-        fallbackReply = `Cảm ơn bạn đã đặt câu hỏi về "${question}". Bác Ba Nông Dân khuyên bạn nên kiểm tra độ ẩm đất qua biểu đồ IoT trên trang quản lý, duy trì độ ẩm 65-75% và tuân thủ chu kỳ dinh dưỡng hữu cơ định kỳ. Bạn cũng có thể bấm sang tab "Chuyên gia" để trò chuyện trực tiếp với Thạc sĩ nông học Nam nhé!`;
+      // 1. Chào hỏi tự nhiên
+      if (lowerQ.match(/^(chào|hello|hi|xin chào|bác ba|alo|ơi|ê)(\s+bạn|\s+bác|\s+ạ)?$/i) || (lowerQ.includes('chào') && lowerQ.length <= 15)) {
+        fallbackReply = 'Dạ Bác Ba Nông Dân xin chào bạn nhé! Rất vui được gặp bạn trên nông trại thông minh Farmely. Hôm nay bạn cần Bác Ba tư vấn về kỹ thuật gieo trồng, kiểm tra độ ẩm đất IoT hay tìm hiểu thủ tục thuê thửa đất nào không?';
+        fallbackSource = 'Cẩm nang Hướng dẫn Khách hàng Farmely';
+      }
+      // 2. Cảm ơn, tạm biệt
+      else if (lowerQ.includes('cảm ơn') || lowerQ.includes('thank') || lowerQ.includes('tks')) {
+        fallbackReply = 'Dạ không có chi đâu bạn ơi! Làm nông cùng nhau vui và ý nghĩa lắm. Chúc vườn rau của bạn luôn xanh mơn mởn, sạch sâu bệnh và thu hoạch trĩu cành. Cần gì cứ gọi Bác Ba bất cứ lúc nào nhé!';
+        fallbackSource = 'Trợ lý Bác Ba AI';
+      }
+      // 3. Khớp từ khóa cẩm nang nông nghiệp
+      else {
+        let matched = FALLBACK_KNOWLEDGE_BASE.find((item) =>
+          item.keywords.some((kw) => lowerQ.includes(kw))
+        );
+
+        if (matched) {
+          fallbackReply = matched.reply;
+          fallbackSource = matched.source;
+        } else {
+          if (question.length <= 8) {
+            fallbackReply = 'Dạ Bác Ba Nông Dân nghe đây! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm đất vi khí hậu hay muốn tìm hiểu thủ tục thuê thửa đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho Bác Ba nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nha.';
+          } else {
+            fallbackReply = 'Dạ Bác Ba đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+          }
+          fallbackSource = 'Cẩm nang Kỹ thuật Nông nghiệp Farmely';
+        }
       }
 
       setTimeout(() => {
