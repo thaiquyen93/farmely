@@ -98,9 +98,23 @@ public class HarvestResultServiceImpl implements HarvestResultService {
         if (request.getDeliveryType() != null) {
             entity.setDeliveryType(request.getDeliveryType());
         }
+        if (request.getRating() != null) {
+            entity.setRating(request.getRating());
+        }
+        if (request.getFreshnessRating() != null) {
+            entity.setFreshnessRating(request.getFreshnessRating());
+        }
+        if (request.getPackagingRating() != null) {
+            entity.setPackagingRating(request.getPackagingRating());
+        }
+        if (request.getCustomerFeedback() != null && !request.getCustomerFeedback().isBlank()) {
+            entity.setCustomerFeedback(request.getCustomerFeedback());
+        }
+        entity.setConfirmedAt(OffsetDateTime.now());
+
         HarvestResultEntity saved = harvestResultRepository.save(entity);
 
-        log.info("Customer confirmed harvest #{}", saved.getHarvestId());
+        log.info("Customer confirmed and rated harvest #{} with {} stars", saved.getHarvestId(), saved.getRating());
         return mapToResponse(saved);
     }
 
@@ -144,6 +158,11 @@ public class HarvestResultServiceImpl implements HarvestResultService {
                 .evidenceImageUrl(entity.getEvidenceImageUrl())
                 .deliveryType(entity.getDeliveryType())
                 .customerConfirmed(entity.getCustomerConfirmed())
+                .rating(entity.getRating())
+                .freshnessRating(entity.getFreshnessRating())
+                .packagingRating(entity.getPackagingRating())
+                .customerFeedback(entity.getCustomerFeedback())
+                .confirmedAt(entity.getConfirmedAt())
                 .createdAt(entity.getCreatedAt())
                 .plotCode(plotCode)
                 .plotName(plotName)

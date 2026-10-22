@@ -1,5 +1,8 @@
 package com.smartagrirent.knowledge.service.impl;
 
+import com.smartagrirent.knowledge.dto.request.CreateProcessTemplateRequest;
+import com.smartagrirent.knowledge.dto.request.CreateTemplateStepRequest;
+import com.smartagrirent.knowledge.dto.request.UpdateProcessTemplateRequest;
 import com.smartagrirent.knowledge.dto.response.ProcessTemplateResponse;
 import com.smartagrirent.knowledge.dto.response.TemplateStepResponse;
 import com.smartagrirent.knowledge.entity.ProcessTemplate;
@@ -13,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -46,6 +50,89 @@ public class ProcessTemplateServiceImpl implements ProcessTemplateService {
         ProcessTemplate template = templateRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy quy trình chuẩn với ID: " + id));
         return mapToResponse(template);
+    }
+
+    @Override
+    @Transactional
+    public ProcessTemplateResponse createTemplate(CreateProcessTemplateRequest request) {
+        // Kiểm tra giống cây tồn tại
+        varietyRepository.findById(request.getVarietyId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giống cây với ID: " + request.getVarietyId()));
+
+        ProcessTemplate template = ProcessTemplate.builder()
+                .varietyId(request.getVarietyId())
+                .ptCreatedBy(request.getPtCreatedBy() != null ? request.getPtCreatedBy() : 1)
+                .version(request.getVersion() != null ? request.getVersion() : "1.0")
+                .build();
+
+        ProcessTemplate savedTemplate = templateRepository.save(template);
+
+        if (request.getSteps() != null && !request.getSteps().isEmpty()) {
+            List<TemplateStep> steps = new ArrayList<>();
+            for (CreateTemplateStepRequest stepReq : request.getSteps()) {
+                TemplateStep step = TemplateStep.builder()
+                        .templateId(savedTemplate.getTemplateId())
+                        .stepOrder(stepReq.getStepOrder())
+                        .stepName(stepReq.getStepName())
+                        .dayOffset(stepReq.getDayOffset())
+                        .description(stepReq.getDescription())
+                        .materialsNeeded(stepReq.getMaterialsNeeded())
+                        .build();
+                steps.add(step);
+            }
+            stepRepository.saveAll(steps);
+        }
+
+        return getTemplateById(savedTemplate.getTemplateId());
+    }
+
+    @Override
+    @Transactional
+    public ProcessTemplateResponse updateTemplate(Integer id, UpdateProcessTemplateRequest request) {
+        ProcessTemplate template = templateRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy quy trình chuẩn với ID: " + id));
+
+        if (request.getVarietyId() != null) {
+            varietyRepository.findById(request.getVarietyId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giống cây với ID: " + request.getVarietyId()));
+            template.setVarietyId(request.getVarietyId());
+        }
+
+        if (request.getVersion() != null && !request.getVersion().isBlank()) {
+            template.setVersion(request.getVersion());
+        }
+
+        templateRepository.save(template);
+
+        if (request.getSteps() != null) {
+            // Xóa các bước cũ và lưu các bước mới
+            stepRepository.deleteByTemplateId(id);
+
+            List<TemplateStep> newSteps = new ArrayList<>();
+            for (CreateTemplateStepRequest stepReq : request.getSteps()) {
+                TemplateStep step = TemplateStep.builder()
+                        .templateId(id)
+                        .stepOrder(stepReq.getStepOrder())
+                        .stepName(stepReq.getStepName())
+                        .dayOffset(stepReq.getDayOffset())
+                        .description(stepReq.getDescription())
+                        .materialsNeeded(stepReq.getMaterialsNeeded())
+                        .build();
+                newSteps.add(step);
+            }
+            stepRepository.saveAll(newSteps);
+        }
+
+        return getTemplateById(id);
+    }
+
+    @Override
+    @Transactional
+    public void deleteTemplate(Integer id) {
+        ProcessTemplate template = templateRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy quy trình chuẩn với ID: " + id));
+        stepRepository.deleteByTemplateId(id);
+        templateRepository.delete(template);
     }
 
     private ProcessTemplateResponse mapToResponse(ProcessTemplate template) {

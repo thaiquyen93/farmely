@@ -18,9 +18,11 @@ public class RentalDashboardResponse {
     private long completedContracts;
     private long cancelledContracts;
 
-    // Thống kê Lượt thuê đất
+    // Thống kê Lượt thuê đất & Tỷ lệ lấp đầy
     private long totalRentals;
     private long activeRentals;
+    private long totalPlots;
+    private Double occupancyRate; // Tỷ lệ lấp đầy thửa đất (%)
 
     // Doanh thu
     private BigDecimal totalContractRevenue;

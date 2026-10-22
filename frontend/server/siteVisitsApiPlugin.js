@@ -3406,6 +3406,217 @@ SELECT json_build_object(
           return;
         }
 
+        // 24. IOT ALERTS API (GET, PUT, POST /api/alerts)
+        if (url.startsWith('/api/alerts')) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+          if (req.method === 'GET' && (url === '/api/alerts/overview' || url.startsWith('/api/alerts/overview?'))) {
+            res.end(JSON.stringify({
+              success: true,
+              data: {
+                totalAlerts: 3,
+                activeAlerts: 2,
+                criticalAlerts: 1,
+                acknowledgedAlerts: 0,
+                resolvedAlerts: 1,
+                stationsOnline: 16,
+                rainWateringOverrideActive: true
+              }
+            }));
+            return;
+          }
+
+          if (req.method === 'PUT' && url.includes('/resolve')) {
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Đã xử lý và đóng cảnh báo vi khí hậu thành công',
+              data: { status: 'RESOLVED', resolvedAt: new Date().toISOString() }
+            }));
+            return;
+          }
+
+          if (req.method === 'PUT' && url.includes('/ack')) {
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Đã tiếp nhận cảnh báo vi khí hậu',
+              data: { status: 'ACKNOWLEDGED' }
+            }));
+            return;
+          }
+
+          if (req.method === 'POST' && url.includes('/simulate')) {
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Đã kích hoạt giả lập cảnh báo vi khí hậu',
+              data: {
+                alertId: 99,
+                alertCode: 'ALT-99',
+                plotId: 1,
+                plotCode: 'P-01',
+                alertType: 'HIGH_TEMPERATURE',
+                severity: 'CRITICAL',
+                status: 'ACTIVE',
+                metricName: 'Nhiệt độ không khí',
+                actualValue: 39.2,
+                thresholdValue: 35.0,
+                message: 'CẢNH BÁO KHẨN CẤP: Nhiệt độ thửa P-01 đạt 39.2°C, vượt ngưỡng giới hạn an toàn thực vật.',
+                actionSuggested: 'Bật phun sương làm mát và hệ thống quạt thông gió cưỡng bức.',
+                detectedAt: new Date().toISOString()
+              }
+            }));
+            return;
+          }
+
+          if (req.method === 'GET') {
+            res.end(JSON.stringify({
+              success: true,
+              data: [
+                {
+                  alertId: 1,
+                  alertCode: 'ALT-01',
+                  plotId: 1,
+                  plotCode: 'P-01',
+                  alertType: 'HIGH_TEMPERATURE',
+                  severity: 'CRITICAL',
+                  status: 'ACTIVE',
+                  metricName: 'Nhiệt độ không khí',
+                  actualValue: 36.8,
+                  thresholdValue: 35.0,
+                  message: 'Nhiệt độ thửa đất P-01 vượt ngưỡng 35.0°C. Nguy cơ sốc nhiệt và héo rũ lá non.',
+                  actionSuggested: 'Kích hoạt phun sương làm mát tự động và kéo lưới che tán xạ nhiệt.',
+                  detectedAt: new Date(Date.now() - 25 * 60000).toISOString()
+                },
+                {
+                  alertId: 2,
+                  alertCode: 'ALT-02',
+                  plotId: 2,
+                  plotCode: 'P-02',
+                  alertType: 'LOW_SOIL_MOISTURE',
+                  severity: 'WARNING',
+                  status: 'ACTIVE',
+                  metricName: 'Độ ẩm đất',
+                  actualValue: 36.5,
+                  thresholdValue: 40.0,
+                  message: 'Độ ẩm đất thửa P-02 giảm sâu dưới 40.0%. Đất có dấu hiệu khô kiệt cục bộ.',
+                  actionSuggested: 'Bổ sung chu kỳ tưới nhỏ giọt 15 phút vào 15:30 chiều nay.',
+                  detectedAt: new Date(Date.now() - 50 * 60000).toISOString()
+                },
+                {
+                  alertId: 3,
+                  alertCode: 'ALT-03',
+                  plotId: 3,
+                  plotCode: 'P-03',
+                  alertType: 'HIGH_AIR_HUMIDITY',
+                  severity: 'WARNING',
+                  status: 'RESOLVED',
+                  metricName: 'Độ ẩm không khí',
+                  actualValue: 92.0,
+                  thresholdValue: 85.0,
+                  message: 'Độ ẩm không khí thửa P-03 tăng cao sau cơn mưa rào lớn.',
+                  actionSuggested: 'Tăng cường thông gió nhà màng để ngăn ngừa nấm mốc phấn trắng.',
+                  detectedAt: new Date(Date.now() - 4 * 3600000).toISOString(),
+                  resolvedAt: new Date(Date.now() - 3600000).toISOString(),
+                  resolvedBy: 'Ban Quản Trị Farmely',
+                  resolutionNotes: 'Đã bật quạt thông gió nhà màng, độ ẩm đã hạ về 75% an toàn.'
+                }
+              ]
+            }));
+            return;
+          }
+        }
+
+        // 25. WEATHER & IRRIGATION POLICY API (GET /api/weather)
+        if (url.startsWith('/api/weather')) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({
+            success: true,
+            data: {
+              plotId: 1,
+              plotCode: 'P-01',
+              locationName: 'Trang trại Happy Valley Củ Chi, TP.HCM',
+              condition: 'Nhiều mây, có mưa rào và dông chiều',
+              iconCode: 'RAIN',
+              temperature: 29.5,
+              humidity: 82.0,
+              rainfallProbability: 85,
+              windSpeed: 14.2,
+              wateringPostponementRecommended: true,
+              recommendationMessage: 'Quy tắc BR18: Xác suất mưa dông đạt 85% chiều nay (kết hợp độ ẩm đất 76%). Hệ thống đề xuất tạm hoãn ca tưới 16:30 để tiết kiệm nước và phòng ngừa ngập úng gốc rễ.',
+              forecastDays: [
+                { date: '2026-10-21', dayOfWeek: 'Hôm nay', condition: 'Mưa dông chiều', iconCode: 'RAIN', minTemp: 26.0, maxTemp: 32.5, rainProb: 85 },
+                { date: '2026-10-22', dayOfWeek: 'Thứ Năm', condition: 'Nắng ráo gián đoạn', iconCode: 'PARTLY_CLOUDY', minTemp: 25.5, maxTemp: 34.0, rainProb: 40 },
+                { date: '2026-10-23', dayOfWeek: 'Thứ Sáu', condition: 'Nắng ráo quang đãng', iconCode: 'SUNNY', minTemp: 25.0, maxTemp: 35.0, rainProb: 20 },
+                { date: '2026-10-24', dayOfWeek: 'Thứ Bảy', condition: 'Mưa rào nhẹ', iconCode: 'RAIN', minTemp: 26.0, maxTemp: 33.0, rainProb: 65 },
+                { date: '2026-10-25', dayOfWeek: 'Chủ Nhật', condition: 'Nắng ấm', iconCode: 'SUNNY', minTemp: 25.5, maxTemp: 34.5, rainProb: 15 }
+              ]
+            }
+          }));
+          return;
+        }
+
+        // 26. AI CHATBOT SERVICE API (POST /api/ai/chat & GET /api/ai/health)
+        if (url.startsWith('/api/ai/chat') && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            let payload = {};
+            try { payload = JSON.parse(body); } catch {}
+            const userMsg = (payload.message || '').trim();
+            const lower = userMsg.toLowerCase();
+            const convId = payload.conversationId || `conv-${Date.now()}`;
+
+            let reply = '';
+            let docs = [];
+
+            if (lower.match(/^(chào|chao|hello|hi|xin chào|alo|bác ba|bac ba)(\s+bạn|\s+bác|\s+ạ)?/i) || (lower.includes('chào') && lower.length <= 15)) {
+              reply = 'Dạ Bác Ba Nông Dân xin chào bạn nhé! Rất vui được gặp bạn trên nông trại thông minh Farmely. Hôm nay bạn cần Bác Ba tư vấn về kỹ thuật gieo trồng, kiểm tra độ ẩm đất IoT hay tìm hiểu thủ tục thuê thửa đất nào không?';
+              docs.push({ docTitle: 'Cẩm nang Hướng dẫn Khách hàng Farmely 2026', source: 'Farmely General Guide', similarityScore: 0.95 });
+            } else if (lower.includes('cảm ơn') || lower.includes('thank') || lower.includes('tks')) {
+              reply = 'Dạ không có chi đâu bạn ơi! Làm nông nghiệp sạch cùng nhau vui và ý nghĩa lắm. Chúc vườn rau của bạn luôn xanh mơn mởn, sạch sâu bệnh và thu hoạch trĩu cành nhen!';
+            } else if (lower.includes('tạm biệt') || lower.includes('bye') || lower.includes('hẹn gặp lại')) {
+              reply = 'Tạm biệt bạn nhé! Khi nào cần tư vấn về vườn rau hay số liệu vi khí hậu thửa đất, cứ gọi Bác Ba bất cứ lúc nào!';
+            } else if (lower.includes('xà lách') || lower.includes('xa lach')) {
+              reply = 'Rau xà lách tại Farmely phát triển tốt nhất ở nhiệt độ 18°C – 25°C, độ ẩm đất 65% – 75%. Nên tưới phun mưa mịn vào sáng sớm (6h30 - 7h30) và chiều mát (16h - 17h). Tránh tưới đẫm vào ban đêm để hạn chế nấm thối nhũn bẹ lá nhé!';
+              docs.push({ docTitle: 'Kỹ thuật Canh tác Rau Xà lách Thủy Canh & Thổ Canh', source: 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94 });
+            } else if (lower.includes('độ ẩm') || lower.includes('ẩm đất') || lower.includes('tưới nước') || lower.includes('tưới bù') || lower.includes('mưa')) {
+              reply = 'Theo quy tắc vi khí hậu BR18 của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
+              docs.push({ docTitle: 'Quy chuẩn Điều tiết Tưới & Vi khí hậu Thông minh (BR18)', source: 'Tài liệu Vận hành Trạm IoT Farmely', similarityScore: 0.96 });
+            } else if (lower.includes('sâu') || lower.includes('rầy') || lower.includes('bọ trĩ') || lower.includes('ốc sên') || lower.includes('bệnh')) {
+              reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Đối với bọ trĩ và rầy mềm thì phun dung dịch tỏi ớt gừng lên men vi sinh hoặc dầu khoáng sinh học SK Enspray 99EC. Đối với ốc sên thì rải vỏ trứng vụn hoặc bẫy sinh học men bia quanh gốc cây.';
+              docs.push({ docTitle: 'Phòng trừ Dịch hại Cây trồng Bằng Biện pháp Sinh học', source: 'Sổ tay Nông nghiệp Hữu cơ', similarityScore: 0.91 });
+            } else if (lower.includes('thuê') || lower.includes('hợp đồng') || lower.includes('giá') || lower.includes('gia hạn')) {
+              reply = 'Quy trình thuê đất tại Farmely: Bạn chọn thửa đất ưng ý trên Marketplace bản đồ vệ tinh, chọn giống rau và gói chăm sóc, thanh toán trực tuyến 100% qua VNPay/VietQR. Hợp đồng điện tử có hiệu lực ngay và bạn có thể gia hạn trước 3 ngày với chiết khấu từ 5% – 15%.';
+              docs.push({ docTitle: 'Quy chế Hợp đồng Thuê đất Nông nghiệp Công nghệ cao (BR11, BR12)', source: 'Trung tâm Pháp lý Farmely', similarityScore: 0.93 });
+            } else {
+              if (userMsg.length <= 8) {
+                reply = 'Dạ Bác Ba Nông Dân nghe đây! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm vi khí hậu hay muốn tìm hiểu thủ tục thuê đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho Bác Ba nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi với ThS. Hoàng Nam nha.';
+              } else {
+                reply = 'Dạ Bác Ba đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+              }
+              docs.push({ docTitle: 'Cẩm nang Hướng dẫn Canh tác Toàn diện Farmely', source: 'Hệ sinh thái Nông nghiệp Thông minh', similarityScore: 0.88 });
+            }
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              conversationId: convId,
+              reply: reply,
+              referencedDocuments: docs,
+              status: 'SUCCESS'
+            }));
+          });
+          return;
+        }
+
+        if (url.startsWith('/api/ai/health')) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({
+            status: 'UP',
+            service: 'Farmely AI Chatbot Service',
+            ragReady: true
+          }));
+          return;
+        }
+
         next();
       });
     }

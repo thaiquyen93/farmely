@@ -11,6 +11,7 @@ import Marketplace from './pages/public/Marketplace';
 import PlotDetail from './pages/public/PlotDetail';
 import BookPlot from './pages/public/BookPlot';
 import ForgotPassword from './pages/public/ForgotPassword';
+import ResetPassword from './pages/public/ResetPassword';
 import About from './pages/public/About';
 import Terms from './pages/public/Terms';
 import RentalTerms from './pages/public/RentalTerms';
@@ -30,7 +31,7 @@ const cases = [
   ['home', '/', null, Home], ['login', '/login', null, Login], ['register', '/register', null, Register],
   ['visit', '/site-visit/book', null, SiteVisitBooking], ['marketplace', '/marketplace', null, Marketplace],
   ['plot', '/marketplace/plot/P-01', null, PlotDetail], ['book plot', '/marketplace/plot/P-01/book', null, BookPlot],
-  ['forgot password', '/forgot-password', null, ForgotPassword], ['about', '/about', null, About], ['terms', '/terms', null, Terms], ['rental terms', '/terms/rental', null, RentalTerms],
+  ['forgot password', '/forgot-password', null, ForgotPassword], ['reset password', '/reset-password', null, ResetPassword], ['about', '/about', null, About], ['terms', '/terms', null, Terms], ['rental terms', '/terms/rental', null, RentalTerms],
   ['customer overview', '/customer/dashboard', customer, CustomerDashboard], ['customer services', '/customer/dashboard?view=services', customer, CustomerDashboard],
   ['customer diary', '/customer/dashboard?view=diary', customer, CustomerDashboard], ['customer process', '/customer/dashboard?view=process', customer, CustomerDashboard],
   ['customer harvest', '/customer/dashboard?view=harvest', customer, CustomerDashboard], ['expert', '/expert/dashboard', expert, ExpertDashboard],

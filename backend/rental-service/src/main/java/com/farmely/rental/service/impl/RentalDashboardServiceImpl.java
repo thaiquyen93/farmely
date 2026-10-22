@@ -28,6 +28,7 @@ public class RentalDashboardServiceImpl implements RentalDashboardService {
     private final RentalRepository rentalRepository;
     private final ContractCancellationRepository cancellationRepository;
     private final SiteVisitRepository siteVisitRepository;
+    private final com.farmely.rental.repository.PlotReferenceRepository plotRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -40,6 +41,10 @@ public class RentalDashboardServiceImpl implements RentalDashboardService {
 
         long totalRentals = rentalRepository.count();
         long activeRentals = rentalRepository.countByStatus(RentalStatus.ACTIVE);
+        long totalPlots = plotRepository.count();
+        double occupancyRate = (totalPlots > 0)
+                ? Math.round(((double) activeRentals / totalPlots) * 10000.0) / 100.0
+                : 0.0;
 
         // Doanh thu từ các hợp đồng đã thanh toán / đang hoạt động hoặc hoàn thành
         List<ContractEntity> activeOrCompleted = contractRepository.findByStatus(ContractStatus.ACTIVE);
@@ -61,6 +66,8 @@ public class RentalDashboardServiceImpl implements RentalDashboardService {
                 .cancelledContracts(cancelledContracts)
                 .totalRentals(totalRentals)
                 .activeRentals(activeRentals)
+                .totalPlots(totalPlots)
+                .occupancyRate(occupancyRate)
                 .totalContractRevenue(totalRevenue)
                 .pendingCancellations(pendingCancellations)
                 .pendingSiteVisits(pendingSiteVisits)

@@ -32,14 +32,20 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(User user) {
+        return generateToken(user, false);
+    }
+
+    public String generateToken(User user, boolean rememberMe) {
         Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + jwtExpiration);
+        long expirationTime = rememberMe ? (14L * 24 * 60 * 60 * 1000) : jwtExpiration;
+        Date expiryDate = new Date(now.getTime() + expirationTime);
 
         return Jwts.builder()
                 .subject(user.getEmail())
                 .claim("userId", user.getUserId())
                 .claim("role", user.getRole().getRoleName())
                 .claim("fullName", user.getFullName())
+                .claim("rememberMe", rememberMe)
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(getSigningKey())
@@ -78,5 +84,9 @@ public class JwtTokenProvider {
 
     public long getExpiration() {
         return jwtExpiration;
+    }
+
+    public long getExpiration(boolean rememberMe) {
+        return rememberMe ? (14L * 24 * 60 * 60 * 1000) : jwtExpiration;
     }
 }

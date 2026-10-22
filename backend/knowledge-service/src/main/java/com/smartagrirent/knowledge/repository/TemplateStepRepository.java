@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface TemplateStepRepository extends JpaRepository<TemplateStep, Integer> {
     List<TemplateStep> findByTemplateIdOrderByStepOrderAsc(Integer templateId);
+    void deleteByTemplateId(Integer templateId);
 }
