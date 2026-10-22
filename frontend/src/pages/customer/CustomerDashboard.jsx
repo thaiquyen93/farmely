@@ -74,7 +74,10 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Star,
-  ShieldAlert
+  ShieldAlert,
+  Wheat,
+  Truck,
+  CalendarCheck
 } from 'lucide-react';
 
 export default function CustomerDashboard() {
@@ -1340,7 +1343,7 @@ export default function CustomerDashboard() {
         ord.rentalId === scopedPlot.rentalId
       )
     : activeServiceOrders;
-  const harvestModalPlot = customerPlots.find((p) => p.id === harvestModalPlotId) || null;
+  const harvestModalPlot = customerPlots.find((p) => p.id === harvestModalPlotId || p.plotCode === harvestModalPlotId) || null;
 
   /** Từ trang 1 thửa sang trang chức năng: giữ nguyên ngữ cảnh thửa đó */
   const openPlotScopedTab = (tab, plotId) => {
@@ -1871,35 +1874,11 @@ export default function CustomerDashboard() {
           {!sidebarCollapsed && <p className="px-3 pb-2 text-xs font-bold uppercase tracking-widest text-white/55">Quản lý nông trại</p>}
           {[
             ['Tổng quan', LayoutDashboard, 'overview'],
-            ['Lịch canh tác', Calendar, 'tasks'],
-            ['Dịch vụ canh tác', ShoppingBag, 'services'],
-            ['Nhật ký nông trại', BookOpen, 'diary'],
-            ['Quy trình canh tác chuẩn', ClipboardList, 'process'],
-            ['Kết quả thu hoạch & nghiệm thu', Apple, 'harvest']
+            ['Kế hoạch thu hoạch & nghiệm thu', Apple, 'harvest']
           ].map(([label, Icon, id]) => {
             const isActive = id === 'overview' ? (activeTab === 'yards' || Boolean(selectedPlotId)) : (!selectedPlotId && activeTab === id);
             return (
               <button key={id} type="button" onClick={() => {
-                if (id === 'tasks') {
-                  const saved = localStorage.getItem('farmely_selected_task_plot');
-                  const target = (plotScopeId && plotScopeId !== 'ALL')
-                    ? plotScopeId
-                    : (checkoutPlotId
-                      ? checkoutPlotId
-                      : (saved && customerPlots.some(p => p.id === saved || p.plotCode === saved) ? saved : 'ALL'));
-                  setSelectedPlotId(null);
-                  setActiveTab('tasks');
-                  if (target && target !== 'ALL') {
-                    setTasksPlotFilter(target);
-                    setPlotScopeId(target);
-                    navigate(`/customer/dashboard?view=tasks&plot=${target}`);
-                  } else {
-                    setTasksPlotFilter('ALL');
-                    setPlotScopeId(null);
-                    navigate('/customer/dashboard?view=tasks');
-                  }
-                  return;
-                }
                 setSelectedPlotId(null);
                 setPlotScopeId(null);
                 const nextTab = id === 'overview' ? 'yards' : id;
@@ -2128,13 +2107,11 @@ export default function CustomerDashboard() {
                   ))}
                 </dl>
 
-                {/* Mobile không có sidebar: lối vào các trang xem chung tất cả thửa */}
-                <nav aria-label="Xem theo tất cả thửa" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
-                  {[['tasks', 'Lịch canh tác', Calendar], ['services', 'Dịch vụ', ShoppingBag], ['diary', 'Nhật ký', BookOpen], ['process', 'Quy trình', ClipboardList], ['harvest', 'Nghiệm thu', Apple]].map(([id, label, Icon]) => (
-                    <button key={id} type="button" onClick={() => navigate(`/customer/dashboard?view=${id}`)} className="flex shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm">
-                      <Icon className="h-4 w-4 text-emerald-700" />{label}
-                    </button>
-                  ))}
+                {/* Mobile không có sidebar: lối vào Kế hoạch thu hoạch & nghiệm thu */}
+                <nav aria-label="Kế hoạch thu hoạch & nghiệm thu" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
+                  <button type="button" onClick={() => navigate('/customer/dashboard?view=harvest')} className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs">
+                    <Apple className="h-4 w-4 text-emerald-700" /> Kế hoạch thu hoạch & nghiệm thu
+                  </button>
                 </nav>
 
                 <section aria-labelledby="my-plots-heading">
@@ -3153,15 +3130,19 @@ export default function CustomerDashboard() {
                   )
                 : dbHarvestResults;
 
+              const harvestTargetPlots = scopedPlot ? [scopedPlot] : customerPlots;
+
               return (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-8">
+                {/* Tiêu đề chính */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-5">
                   <div>
-                    <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Kết Quả Thu Hoạch & Nghiệm Thu Nông Sản
+                    <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
+                      <Apple className="w-6 h-6 text-emerald-700" />
+                      <span>Kế Hoạch Thu Hoạch & Nghiệm Thu Nông Sản</span>
                     </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Minh bạch cân điện tử, đối chứng sản lượng và đặt lịch giao rau sạch tận nhà trực tiếp từ CSDL PostgreSQL.
+                    <p className="text-xs text-brand-muted mt-1">
+                      Đăng ký lịch hái theo dõi phê duyệt từ Kỹ sư nông nghiệp và nghiệm thu khối lượng thực tế đối chứng cân điện tử.
                     </p>
                   </div>
                   {customerPlots.length > 0 && (
@@ -3175,17 +3156,142 @@ export default function CustomerDashboard() {
                         }}
                         className="text-rose-700 border-rose-300 hover:bg-rose-50 font-bold text-xs cursor-pointer"
                       >
-                        Khiếu nại sản lượng / sự cố (UC20)
+                        Khiếu nại sản lượng / sự cố
                       </Button>
                     </div>
                   )}
                 </div>
 
+                {/* PHẦN 1: KẾ HOẠCH THU HOẠCH THEO TỪNG THỬA ĐẤT */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-heading font-black text-base text-brand-dark flex items-center gap-2">
+                        <CalendarCheck className="w-4 h-4 text-emerald-700" />
+                        <span>1. Kế Hoạch Thu Hoạch Của Bạn</span>
+                      </h4>
+                      <p className="text-xs text-stone-500">
+                        Chọn ngày thu hái và phương thức nhận hàng (Farmely giao tận nhà hoặc tự đến nông trại).
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                      {harvestTargetPlots.length} Thửa Đất Canh Tác
+                    </span>
+                  </div>
+
+                  {harvestTargetPlots.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-6 text-center text-xs text-stone-500">
+                      Bạn chưa có thửa đất canh tác nào.
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {harvestTargetPlots.map((plot) => {
+                        const plan = harvestPlans[plot.id] || harvestPlans[plot.plotCode] || null;
+                        const isApproved = plan?.status === 'APPROVED';
+
+                        return (
+                          <div
+                            key={plot.id}
+                            className="p-5 rounded-2xl border border-brand-border bg-stone-50/60 hover:bg-white hover:border-emerald-300 hover:shadow-2xs transition-all flex flex-col justify-between space-y-4 text-xs"
+                          >
+                            <div className="space-y-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/60 pb-2.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-emerald-800 text-sm">{plot.plotCode || plot.id}</span>
+                                  <span className="font-bold text-brand-dark text-sm">{plot.name}</span>
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    {plot.crop}
+                                  </span>
+                                </div>
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  isApproved
+                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                    : plan
+                                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                    : 'bg-stone-200 text-stone-600 border-stone-300'
+                                }`}>
+                                  {isApproved
+                                    ? '✓ Đã duyệt lịch · Sẵn sàng hái'
+                                    : plan
+                                    ? '⏳ Chờ kỹ sư xác nhận'
+                                    : 'Chưa đăng ký ngày hái'}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-stone-200/60 text-stone-600">
+                                <div>
+                                  <span className="text-[10px] text-stone-400 block font-bold">Ngày dự kiến theo vụ:</span>
+                                  <strong className="text-brand-dark">{plot.expectedHarvestDate || 'Đang cập nhật'}</strong>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] text-stone-400 block font-bold">Sản lượng ước tính:</span>
+                                  <strong className="text-emerald-800">{plot.expectedYield || 'Theo quy chuẩn'}</strong>
+                                </div>
+                                {plan && (
+                                  <>
+                                    <div>
+                                      <span className="text-[10px] text-stone-400 block font-bold">Ngày đề xuất thu hoạch:</span>
+                                      <strong className="text-emerald-700 flex items-center gap-1">
+                                        <Calendar className="w-3.5 h-3.5" /> {plan.date}
+                                      </strong>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] text-stone-400 block font-bold">Phương thức nhận:</span>
+                                      <strong className="text-brand-dark flex items-center gap-1">
+                                        <Truck className="w-3.5 h-3.5" /> {plan.methodLabel || plan.method}
+                                      </strong>
+                                    </div>
+                                    {plan.address && (
+                                      <div className="col-span-2 pt-1 border-t border-stone-100">
+                                        <span className="text-[10px] text-stone-400 block font-bold">Địa chỉ giao:</span>
+                                        <span className="text-stone-600 truncate block">{plan.address}</span>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end pt-1">
+                              <Button
+                                size="sm"
+                                onClick={() => setHarvestModalPlotId(plot.id)}
+                                className={`text-xs font-bold gap-1.5 cursor-pointer ${
+                                  plan
+                                    ? 'bg-stone-100 hover:bg-stone-200 text-brand-dark border border-stone-300'
+                                    : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                                }`}
+                              >
+                                <Wheat className="w-4 h-4" />
+                                <span>{plan ? 'Xem / Sửa kế hoạch thu hoạch' : 'Đăng ký thu hoạch ngay'}</span>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* PHẦN 2: KẾT QUẢ THU HOẠCH & NGHIỆM THU THỰC ĐỊA */}
+                <div className="space-y-4 pt-4 border-t border-brand-border/60">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-heading font-black text-base text-brand-dark flex items-center gap-2">
+                        <Apple className="w-4 h-4 text-emerald-700" />
+                        <span>2. Biên Bản Nghiệm Thu & Cân Đối Chứng Nông Sản (Thực tế sau khi thu hoạch)</span>
+                      </h4>
+                      <p className="text-xs text-stone-500">
+                        Đối chứng ảnh số cân điện tử do Chuyên viên lao động gửi về và xác nhận bàn giao nông sản.
+                      </p>
+                    </div>
+                  </div>
+
                 {customerPlots.length === 0 || displayedHarvests.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center">
                     <Apple className="mx-auto h-10 w-10 text-stone-400" />
-                    <p className="mt-2 font-bold text-stone-700">Chưa có vụ mùa thu hoạch</p>
-                    <p className="mt-1 text-xs text-stone-500">Bạn chưa có thửa đất canh tác nào hoặc mùa vụ đang trong giai đoạn phát triển ban đầu.</p>
+                    <p className="mt-2 font-bold text-stone-700">Chưa có kết quả cân thu hoạch nào</p>
+                    <p className="mt-1 text-xs text-stone-500">Sau khi hoàn tất đăng ký và chuyên viên lao động cắt cân nông sản tại vườn, biên bản nghiệm thu sẽ xuất hiện ở đây.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -3231,7 +3337,7 @@ export default function CustomerDashboard() {
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-rose-950 flex items-center gap-1.5">
                           <ShieldAlert className="w-4 h-4 text-rose-700" />
-                          Hồ Sơ Khiếu Nại & Tranh Chấp Đang Thẩm Tra (SSoT BR17):
+                          Hồ Sơ Khiếu Nại & Tranh Chấp Đang Thẩm Tra:
                         </span>
                         <span className="text-[10px] text-rose-700 font-bold bg-white px-2 py-0.5 rounded border border-rose-200">
                           {disputeList.length} hồ sơ
@@ -3254,6 +3360,7 @@ export default function CustomerDashboard() {
                   )}
                 </div>
                 )}
+                </div>
               </div>
               );
             })()}
