@@ -960,7 +960,7 @@ export default function AdminDashboard() {
                         : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
-                    <span>👷 Care Tasks Thực Địa (CVLĐ)</span>
+                    <span>👷 Nhiệm Vụ Thực Địa (Care Tasks)</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                       dispatchSubTab === 'staff_tasks' ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
                     }`}>
@@ -978,7 +978,7 @@ export default function AdminDashboard() {
                         : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
-                    <span>📋 Yêu Cầu Dịch Vụ Khách (CVLĐ)</span>
+                    <span>📋 Dịch Vụ Phát Sinh</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                       pendingStaffServicesCount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-stone-200 text-stone-600'
                     }`}>
@@ -996,7 +996,7 @@ export default function AdminDashboard() {
                         : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
-                    <span>🏡 Phân Công Thửa Đất (CVLĐ & CGNN)</span>
+                    <span>🏡 Phân Công Thửa Đất</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                       dispatchSubTab === 'expert_plots' ? 'bg-sky-100 text-sky-800' : 'bg-stone-200 text-stone-600'
                     }`}>
@@ -1014,7 +1014,7 @@ export default function AdminDashboard() {
                         : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
-                    <span>🚨 Sự Cố Nông Học Cần Thẩm Định (CGNN)</span>
+                    <span>🚨 Sự Cố Nông Học</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                       pendingExpertIssuesCount > 0 ? 'bg-rose-100 text-rose-800' : 'bg-stone-200 text-stone-600'
                     }`}>
@@ -1031,18 +1031,18 @@ export default function AdminDashboard() {
                     {/* Status Filter Bar */}
                     <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-stone-500 font-bold mr-1">Lọc trạng thái:</span>
+                        <span className="text-stone-500 font-bold mr-1">Trạng thái:</span>
                         {[
                           { id: 'ALL', label: 'Tất cả' },
                           { id: 'PENDING', label: 'Chờ giao việc' },
-                          { id: 'IN_PROGRESS', label: 'Đang thực hiện' },
+                          { id: 'IN_PROGRESS', label: 'Đang làm' },
                           { id: 'COMPLETED', label: 'Đã hoàn thành' }
                         ].map((flt) => (
                           <button
                             key={flt.id}
                             type="button"
                             onClick={() => setCareTaskFilter(flt.id)}
-                            className={`px-2.5 py-1 rounded-lg font-bold border transition cursor-pointer ${
+                            className={`px-3 py-1 rounded-lg font-bold border transition-all cursor-pointer ${
                               careTaskFilter === flt.id
                                 ? 'bg-emerald-800 text-white border-emerald-800 shadow-2xs'
                                 : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
@@ -1053,89 +1053,113 @@ export default function AdminDashboard() {
                         ))}
                       </div>
 
-                      <span className="text-stone-500 font-medium">
+                      <span className="text-stone-500 text-xs">
                         Hiển thị <strong>{displayedCareTasks.length}</strong> / {careTasks.length} nhiệm vụ
                       </span>
                     </div>
 
-                    {/* Task Cards List */}
-                    <div className="space-y-3">
-                      {displayedCareTasks.length === 0 ? (
-                        <div className="text-center py-12 text-stone-500 space-y-2">
-                          <CheckCircle2 className="w-10 h-10 mx-auto text-stone-300" />
-                          <p className="font-bold text-sm">Không có nhiệm vụ nào trong trạng thái này</p>
+                    {/* Compact Modern Data Table */}
+                    {displayedCareTasks.length === 0 ? (
+                      <div className="text-center py-12 text-stone-500 bg-stone-50/60 rounded-2xl border border-dashed border-stone-200 space-y-2">
+                        <CheckCircle2 className="w-8 h-8 mx-auto text-stone-300" />
+                        <p className="font-bold text-xs">Không có nhiệm vụ nào trong trạng thái này</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xs">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-stone-50/90 text-stone-600 font-bold uppercase tracking-wider text-[11px] border-b border-stone-200">
+                                <th className="py-3 px-4">Mã & Thửa</th>
+                                <th className="py-3 px-4">Nhiệm Vụ & Cây Trồng</th>
+                                <th className="py-3 px-4">Khách Hàng</th>
+                                <th className="py-3 px-4">Hạn Chót</th>
+                                <th className="py-3 px-4">Trạng Thái</th>
+                                <th className="py-3 px-4">CVLĐ Phụ Trách</th>
+                                <th className="py-3 px-4 text-right">Thao Tác</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-stone-100 text-stone-700">
+                              {displayedCareTasks.map((task) => {
+                                const isUnassigned = String(task.assignedTo).includes('Chưa');
+                                return (
+                                  <tr key={task.id} className="hover:bg-emerald-50/30 transition-colors">
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-mono font-bold text-emerald-800">{task.id}</span>
+                                        <span className="font-mono font-black text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.5 rounded border border-stone-200">
+                                          {task.plotCode}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="py-3.5 px-4 min-w-[200px]">
+                                      <div className="font-bold text-brand-dark">{task.title}</div>
+                                      <div className="flex items-center gap-1 text-[11px] text-stone-500 mt-0.5">
+                                        <span className="text-emerald-700 font-semibold">{task.crop}</span>
+                                        <span>•</span>
+                                        <span>{task.plotName}</span>
+                                      </div>
+                                      {task.instructions && (
+                                        <div className="text-[11px] text-stone-500 italic mt-0.5 truncate max-w-xs" title={task.instructions}>
+                                          "{task.instructions}"
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className="font-medium text-stone-800">{task.customerName}</span>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      {task.dueDate ? (
+                                        <span className="inline-flex items-center gap-1 text-stone-600 font-medium">
+                                          <Clock className="w-3.5 h-3.5 text-stone-400" />
+                                          <span>{task.dueDate}</span>
+                                        </span>
+                                      ) : (
+                                        <span className="text-stone-400">—</span>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                        task.status === 'COMPLETED'
+                                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                          : task.status === 'IN_PROGRESS'
+                                          ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                                          : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                      }`}>
+                                        {task.status === 'COMPLETED' ? '✓ Hoàn thành' : task.status === 'IN_PROGRESS' ? '⏳ Đang làm' : '● Chờ giao'}
+                                      </span>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className={`font-semibold inline-flex items-center gap-1 ${
+                                        isUnassigned ? 'text-amber-700 font-bold' : 'text-emerald-800'
+                                      }`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isUnassigned ? 'bg-amber-500' : 'bg-emerald-600'}`} />
+                                        {task.assignedTo}
+                                      </span>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                                      <Button
+                                        variant={task.status === 'PENDING' || isUnassigned ? 'primary' : 'outline'}
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedCareTaskToAssign(task);
+                                          setTaskAssignWorkerId(task.workerId || (staffUsers[0] ? staffUsers[0].id : 8));
+                                          setTaskAssignDueDate(task.dueDate || '');
+                                          setTaskAssignNotes(task.instructions || '');
+                                        }}
+                                        className="font-bold text-[11px] px-2.5 py-1"
+                                      >
+                                        {isUnassigned ? 'Giao việc' : 'Đổi người'}
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
-                      ) : (
-                        displayedCareTasks.map((task) => (
-                          <div
-                            key={task.id}
-                            className="p-4 sm:p-5 rounded-2xl border border-brand-border bg-white hover:border-emerald-300 transition-all shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs"
-                          >
-                            <div className="space-y-2 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono font-bold text-brand-green text-sm">{task.id}</span>
-                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-black bg-stone-100 text-stone-700">
-                                  {task.plotCode}
-                                </span>
-                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  task.status === 'COMPLETED'
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                    : task.status === 'IN_PROGRESS'
-                                    ? 'bg-sky-100 text-sky-800 border border-sky-200'
-                                    : 'bg-amber-100 text-amber-800 border border-amber-200'
-                                }`}>
-                                  {task.status === 'COMPLETED' ? '✓ Đã hoàn thành' : task.status === 'IN_PROGRESS' ? '⏳ Đang làm' : '● Chờ giao'}
-                                </span>
-                                {task.dueDate && (
-                                  <span className="text-stone-500 flex items-center gap-1">
-                                    <Clock className="w-3 h-3 text-stone-400" />
-                                    <span>Hạn chót: {task.dueDate}</span>
-                                  </span>
-                                )}
-                              </div>
-
-                              <div>
-                                <h4 className="font-bold text-brand-dark text-sm sm:text-base">{task.title}</h4>
-                                <p className="text-stone-600 mt-0.5">
-                                  {task.plotName} • Cây trồng: <strong className="text-emerald-800">{task.crop}</strong> • Khách thuê: <strong>{task.customerName}</strong>
-                                </p>
-                              </div>
-
-                              {task.instructions && (
-                                <p className="text-stone-600 bg-stone-50 p-2.5 rounded-xl border border-stone-200/80 leading-relaxed">
-                                  <strong>Chỉ đạo:</strong> {task.instructions}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex flex-col md:items-end justify-between gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-brand-border/60">
-                              <div className="text-left md:text-right">
-                                <span className="text-[11px] text-stone-500 block">CVLĐ Phụ Trách:</span>
-                                <span className={`font-bold text-sm block ${
-                                  String(task.assignedTo).includes('Chưa') ? 'text-amber-700' : 'text-emerald-800'
-                                }`}>
-                                  {task.assignedTo}
-                                </span>
-                              </div>
-
-                              <Button
-                                variant={task.status === 'PENDING' || String(task.assignedTo).includes('Chưa') ? 'primary' : 'outline'}
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedCareTaskToAssign(task);
-                                  setTaskAssignWorkerId(task.workerId || (staffUsers[0] ? staffUsers[0].id : 8));
-                                  setTaskAssignDueDate(task.dueDate || '');
-                                  setTaskAssignNotes(task.instructions || '');
-                                }}
-                                className="font-bold text-xs"
-                              >
-                                {String(task.assignedTo).includes('Chưa') ? 'Giao nhân viên' : 'Đổi nhân sự'}
-                              </Button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1145,64 +1169,101 @@ export default function AdminDashboard() {
                 {dispatchSubTab === 'staff_services' && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between text-xs text-stone-500">
-                      <span>Các yêu cầu dịch vụ chăm sóc do khách thuê đất đặt mua thêm (cắt tỉa, bón phân, tưới nước bổ sung).</span>
-                      <span className="font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                      <span>Yêu cầu dịch vụ phát sinh từ khách hàng (tưới bổ sung, bón phân, tỉa cành...)</span>
+                      <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
                         {serviceDispatches.filter(d => d.status === 'PENDING').length} Đơn Cần Giao Việc
                       </span>
                     </div>
 
-                    <div className="space-y-3">
-                      {serviceDispatches.map((disp) => (
-                        <div
-                          key={disp.id}
-                          className="p-5 rounded-2xl border border-brand-border bg-brand-cream/50 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs"
-                        >
-                          <div className="space-y-1.5 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-brand-green text-sm">{disp.id}</span>
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                disp.status === 'PENDING'
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                              }`}>
-                                {disp.status === 'PENDING' ? 'Chưa chỉ định công nhân' : 'Đã phân công'}
-                              </span>
-                              {disp.requestedDate && <span className="text-stone-400">• Ngày thực hiện: {disp.requestedDate}</span>}
-                            </div>
-
-                            <h4 className="font-bold text-brand-dark text-sm sm:text-base">{disp.serviceName}</h4>
-                            <p className="text-stone-600">
-                              Thửa đất: <strong className="text-brand-dark">{disp.plotName} ({disp.plotCode})</strong> • Khách hàng: <strong>{disp.customerName}</strong> {disp.customerPhone && `(${disp.customerPhone})`}
-                            </p>
-                            {disp.note && (
-                              <p className="text-stone-500 italic bg-white/70 p-2 rounded-lg border border-brand-border/40">
-                                Ghi chú: "{disp.note}"
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="flex flex-col md:items-end justify-between gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-brand-border/60">
-                            <div className="text-left md:text-right">
-                              <span className="font-heading font-black text-brand-green text-base block">{disp.price}</span>
-                              <span className="text-[11px] text-stone-500">Phụ trách: <strong>{disp.assignedWorker}</strong></span>
-                            </div>
-
-                            <Button
-                              variant={disp.status === 'PENDING' ? 'primary' : 'outline'}
-                              size="sm"
-                              onClick={() => {
-                                setSelectedDispatchToAssign(disp);
-                                setAssignedWorkerId(disp.assignedWorkerId || (staffUsers[0] ? staffUsers[0].id : 8));
-                                setServiceAssignNotes(disp.note || '');
-                              }}
-                              className="font-bold text-xs"
-                            >
-                              {disp.status === 'PENDING' ? 'Chỉ định công nhân' : 'Đổi nhân sự'}
-                            </Button>
-                          </div>
+                    {serviceDispatches.length === 0 ? (
+                      <div className="text-center py-12 text-stone-500 bg-stone-50/60 rounded-2xl border border-dashed border-stone-200">
+                        <p className="font-bold text-xs">Chưa có yêu cầu dịch vụ phát sinh nào.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xs">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-stone-50/90 text-stone-600 font-bold uppercase tracking-wider text-[11px] border-b border-stone-200">
+                                <th className="py-3 px-4">Mã Đơn & Ngày</th>
+                                <th className="py-3 px-4">Tên Dịch Vụ</th>
+                                <th className="py-3 px-4">Thửa Đất & Khách Hàng</th>
+                                <th className="py-3 px-4">Chi Phí</th>
+                                <th className="py-3 px-4">Trạng Thái</th>
+                                <th className="py-3 px-4">CVLĐ Phụ Trách</th>
+                                <th className="py-3 px-4 text-right">Thao Tác</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-stone-100 text-stone-700">
+                              {serviceDispatches.map((disp) => {
+                                const isPending = disp.status === 'PENDING';
+                                return (
+                                  <tr key={disp.id} className="hover:bg-emerald-50/30 transition-colors">
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className="font-mono font-bold text-emerald-800 block">{disp.id}</span>
+                                      <span className="text-[11px] text-stone-400">{disp.requestedDate || 'Hôm nay'}</span>
+                                    </td>
+                                    <td className="py-3.5 px-4 min-w-[180px]">
+                                      <span className="font-bold text-brand-dark block">{disp.serviceName}</span>
+                                      {disp.note && (
+                                        <span className="text-[11px] text-stone-500 italic block truncate max-w-xs" title={disp.note}>
+                                          "{disp.note}"
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 min-w-[180px]">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-mono font-bold text-[10px] bg-stone-100 text-stone-700 px-1.5 py-0.5 rounded">
+                                          {disp.plotCode}
+                                        </span>
+                                        <span className="font-semibold text-stone-800">{disp.plotName}</span>
+                                      </div>
+                                      <div className="text-[11px] text-stone-500 mt-0.5">
+                                        {disp.customerName} {disp.customerPhone && `• ${disp.customerPhone}`}
+                                      </div>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className="font-heading font-black text-emerald-700">{disp.price}</span>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                        isPending
+                                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                      }`}>
+                                        {isPending ? '● Chờ chỉ định' : '✓ Đã giao việc'}
+                                      </span>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className={`font-semibold inline-flex items-center gap-1 ${
+                                        isPending ? 'text-amber-700' : 'text-emerald-800'
+                                      }`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isPending ? 'bg-amber-500' : 'bg-emerald-600'}`} />
+                                        {disp.assignedWorker || 'Chưa phân công'}
+                                      </span>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                                      <Button
+                                        variant={isPending ? 'primary' : 'outline'}
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedDispatchToAssign(disp);
+                                          setAssignedWorkerId(disp.assignedWorkerId || (staffUsers[0] ? staffUsers[0].id : 8));
+                                          setServiceAssignNotes(disp.note || '');
+                                        }}
+                                        className="font-bold text-[11px] px-2.5 py-1"
+                                      >
+                                        {isPending ? 'Chỉ định' : 'Đổi người'}
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1211,21 +1272,17 @@ export default function AdminDashboard() {
                 {/* ========================================================================= */}
                 {dispatchSubTab === 'expert_plots' && (
                   <div className="space-y-4">
-                    <div className="p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-stone-700 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-                      <div className="flex items-start sm:items-center gap-2.5">
-                        <Users className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
-                        <div>
-                          <span className="font-bold text-amber-950 block sm:inline">Quy trình phân công theo đơn thuê của khách: </span>
-                          <span className="text-stone-700">Khi khách hàng thuê thửa đất, Admin cần chỉ định cả <strong>CVLĐ</strong> (chăm sóc thực địa) và <strong>CGNN</strong> (giám sát kỹ thuật & trạm IoT) cho khách hàng đó.</span>
-                        </div>
+                    <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2 text-stone-700">
+                        <Users className="w-4 h-4 text-emerald-700 shrink-0" />
+                        <span>Mỗi thửa đất hợp đồng cần được phân công <strong>1 CVLĐ</strong> (chăm sóc) và <strong>1 CGNN</strong> (giám sát).</span>
                       </div>
 
-                      {/* Filter Chips */}
-                      <div className="flex items-center gap-1.5 shrink-0 self-start md:self-auto bg-white/80 p-1 rounded-xl border border-amber-200/80">
+                      <div className="flex items-center gap-1.5 shrink-0 bg-white p-1 rounded-xl border border-stone-200">
                         <button
                           type="button"
                           onClick={() => setPlotAssignFilter('ALL')}
-                          className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
                             plotAssignFilter === 'ALL'
                               ? 'bg-brand-dark text-white shadow-xs'
                               : 'text-stone-600 hover:text-stone-900'
@@ -1236,18 +1293,18 @@ export default function AdminDashboard() {
                         <button
                           type="button"
                           onClick={() => setPlotAssignFilter('UNASSIGNED')}
-                          className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
                             plotAssignFilter === 'UNASSIGNED'
                               ? 'bg-amber-600 text-white shadow-xs'
                               : 'text-amber-800 hover:text-amber-950'
                           }`}
                         >
-                          ⚠️ Chưa phân công ({unassignedRentals.length})
+                          ⚠️ Chưa đủ ({unassignedRentals.length})
                         </button>
                         <button
                           type="button"
                           onClick={() => setPlotAssignFilter('ASSIGNED')}
-                          className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
                             plotAssignFilter === 'ASSIGNED'
                               ? 'bg-emerald-700 text-white shadow-xs'
                               : 'text-emerald-800 hover:text-emerald-950'
@@ -1258,97 +1315,103 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-stone-500">
-                      <span>Hiển thị danh sách {displayedRentals.length} thửa đất đang canh tác theo hợp đồng khách thuê:</span>
-                      <span className="font-bold text-sky-800 bg-sky-50 px-2.5 py-1 rounded-full border border-sky-200">
-                        {unassignedRentals.length > 0 ? `Cần giao: ${unassignedRentals.length} thửa` : 'Đã phân công toàn bộ'}
-                      </span>
-                    </div>
+                    {displayedRentals.length === 0 ? (
+                      <div className="text-center py-10 text-stone-500 bg-stone-50 rounded-2xl border border-dashed border-stone-200 text-xs">
+                        Không có thửa đất nào trong bộ lọc này.
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xs">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-stone-50/90 text-stone-600 font-bold uppercase tracking-wider text-[11px] border-b border-stone-200">
+                                <th className="py-3 px-4">Thửa & Hợp Đồng</th>
+                                <th className="py-3 px-4">Cây Trồng & Giai Đoạn</th>
+                                <th className="py-3 px-4">Khách Thuê</th>
+                                <th className="py-3 px-4">Vi Khí Hậu IoT</th>
+                                <th className="py-3 px-4">CVLĐ Hiện Trường</th>
+                                <th className="py-3 px-4">CGNN Giám Sát</th>
+                                <th className="py-3 px-4 text-right">Thao Tác</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-stone-100 text-stone-700">
+                              {displayedRentals.map((rental) => {
+                                const isStaffMissing = String(rental.staffName).includes('Chưa');
+                                const isExpertMissing = String(rental.expertName).includes('Chưa');
+                                const needsAssignment = isStaffMissing || isExpertMissing;
 
-                    <div className="space-y-3">
-                      {displayedRentals.length === 0 ? (
-                        <div className="text-center py-10 text-stone-500 bg-stone-50 rounded-2xl border border-dashed border-stone-300">
-                          <p className="font-bold text-sm">Không có thửa đất nào trong bộ lọc này.</p>
+                                return (
+                                  <tr key={rental.id} className="hover:bg-emerald-50/30 transition-colors">
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-mono font-bold text-sky-800 text-sm">{rental.plotCode}</span>
+                                        <span className="font-semibold text-stone-800">{rental.name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1 text-[11px] text-stone-400 mt-0.5">
+                                        <span className="font-mono">{rental.contractCode}</span>
+                                        <span>•</span>
+                                        <span>{rental.area}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <div className="font-bold text-emerald-800">{rental.crop}</div>
+                                      <div className="text-[11px] text-stone-500 mt-0.5">{rental.stage}</div>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <div className="font-semibold text-stone-800">{rental.renterName}</div>
+                                      <div className="text-[11px] text-stone-400 mt-0.5">{rental.renterEmail || 'Khách hàng'}</div>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <div className="flex items-center gap-2 text-[11px]">
+                                        <span className="flex items-center gap-0.5 text-amber-700 font-medium">
+                                          <Thermometer className="w-3 h-3" /> {rental.temp}
+                                        </span>
+                                        <span className="flex items-center gap-0.5 text-sky-700 font-medium">
+                                          <Droplets className="w-3 h-3" /> {rental.soilMoisture}
+                                        </span>
+                                      </div>
+                                      <div className="text-[10px] font-bold text-emerald-700 mt-0.5">
+                                        ● {rental.healthStatus === 'HEALTHY' ? 'Khỏe mạnh' : 'Cần chú ý'}
+                                      </div>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className={`inline-flex items-center gap-1 font-semibold ${
+                                        isStaffMissing ? 'text-amber-700 font-bold' : 'text-emerald-800'
+                                      }`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isStaffMissing ? 'bg-amber-500' : 'bg-emerald-600'}`} />
+                                        {rental.staffName}
+                                      </span>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className={`inline-flex items-center gap-1 font-semibold ${
+                                        isExpertMissing ? 'text-amber-700 font-bold' : 'text-sky-800'
+                                      }`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isExpertMissing ? 'bg-amber-500' : 'bg-sky-600'}`} />
+                                        {rental.expertName}
+                                      </span>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                                      <Button
+                                        variant={needsAssignment ? 'primary' : 'outline'}
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedRentalToAssignPersonnel(rental);
+                                          setRentalAssignExpertId(rental.expertId || (expertUsers[0] ? expertUsers[0].id : 5));
+                                          setRentalAssignStaffId(rental.staffId || (staffUsers[0] ? staffUsers[0].id : 8));
+                                        }}
+                                        className="font-bold text-[11px] px-2.5 py-1"
+                                      >
+                                        {needsAssignment ? 'Phân công' : 'Đổi người'}
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
-                      ) : (
-                        displayedRentals.map((rental) => (
-                        <div
-                          key={rental.id}
-                          className="p-5 rounded-2xl border border-brand-border bg-white hover:border-sky-300 transition-all shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs"
-                        >
-                          <div className="space-y-2 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono font-bold text-sky-800 text-sm">{rental.plotCode}</span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-stone-100 text-stone-700">
-                                {rental.name}
-                              </span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                {rental.contractCode}
-                              </span>
-                              <span className="text-stone-400">• {rental.location} ({rental.area})</span>
-                            </div>
-
-                            <div>
-                              <h4 className="font-bold text-brand-dark text-sm sm:text-base">
-                                Cây trồng: <span className="text-emerald-800">{rental.crop}</span>
-                              </h4>
-                              <p className="text-stone-600 mt-0.5">
-                                Khách thuê: <strong>{rental.renterName}</strong> ({rental.renterEmail || 'Khách hàng'}) • Giai đoạn: <strong>{rental.stage}</strong>
-                              </p>
-                            </div>
-
-                            {/* Telemetry info */}
-                            <div className="flex flex-wrap items-center gap-3 text-[11px] text-stone-600 pt-1">
-                              <span className="flex items-center gap-1 font-semibold text-stone-700">
-                                <Thermometer className="w-3.5 h-3.5 text-amber-600" />
-                                <span>{rental.temp}</span>
-                              </span>
-                              <span className="flex items-center gap-1 font-semibold text-stone-700">
-                                <Droplets className="w-3.5 h-3.5 text-sky-600" />
-                                <span>Ẩm độ đất: {rental.soilMoisture}</span>
-                              </span>
-                              <span className="text-emerald-700 font-bold">
-                                ● {rental.healthStatus === 'HEALTHY' ? 'Cây phát triển tốt' : 'Cần chú ý'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col md:items-end justify-between gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-brand-border/60">
-                            <div className="text-left md:text-right space-y-1">
-                              <div>
-                                <span className="text-[10px] text-stone-400 uppercase font-bold block">👷 CVLĐ Hiện Trường:</span>
-                                <span className={`font-bold text-xs block ${
-                                  String(rental.staffName).includes('Chưa') ? 'text-amber-700' : 'text-emerald-800'
-                                }`}>
-                                  {rental.staffName}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-[10px] text-stone-400 uppercase font-bold block">🔬 CGNN Giám Sát:</span>
-                                <span className={`font-bold text-xs block ${
-                                  String(rental.expertName).includes('Chưa') ? 'text-amber-700' : 'text-sky-800'
-                                }`}>
-                                  {rental.expertName}
-                                </span>
-                              </div>
-                            </div>
-
-                            <Button
-                              variant={String(rental.expertName).includes('Chưa') || String(rental.staffName).includes('Chưa') ? 'primary' : 'outline'}
-                              size="sm"
-                              onClick={() => {
-                                setSelectedRentalToAssignPersonnel(rental);
-                                setRentalAssignExpertId(rental.expertId || (expertUsers[0] ? expertUsers[0].id : 5));
-                                setRentalAssignStaffId(rental.staffId || (staffUsers[0] ? staffUsers[0].id : 8));
-                              }}
-                              className="font-bold text-xs"
-                            >
-                              {String(rental.expertName).includes('Chưa') || String(rental.staffName).includes('Chưa') ? 'Phân Công Nhân Sự' : 'Đổi Nhân Sự'}
-                            </Button>
-                          </div>
-                        </div>
-                      )))}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1358,87 +1421,104 @@ export default function AdminDashboard() {
                 {dispatchSubTab === 'expert_issues' && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between text-xs text-stone-500">
-                      <span>Báo cáo sâu bệnh, vi khí hậu hoặc sự cố thực địa do CVLĐ gửi về cần Chuyên Gia Nông Nghiệp chẩn đoán.</span>
+                      <span>Báo cáo sự cố nông học & dịch hại cần Chuyên Gia Nông Nghiệp chẩn đoán.</span>
                       <span className="font-bold text-rose-800 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
                         {pendingExpertIssuesCount} Sự Cố Chờ Thẩm Định
                       </span>
                     </div>
 
-                    <div className="space-y-3">
-                      {fieldIssues.length === 0 ? (
-                        <div className="text-center py-12 text-stone-500 space-y-2">
-                          <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-400" />
-                          <p className="font-bold text-sm">Hiện trường an toàn, không có sự cố nào</p>
+                    {fieldIssues.length === 0 ? (
+                      <div className="text-center py-12 text-stone-500 bg-stone-50/60 rounded-2xl border border-dashed border-stone-200 space-y-2">
+                        <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-400" />
+                        <p className="font-bold text-xs">Hiện trường an toàn, không có sự cố nào</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xs">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-stone-50/90 text-stone-600 font-bold uppercase tracking-wider text-[11px] border-b border-stone-200">
+                                <th className="py-3 px-4">Mã & Mức Độ</th>
+                                <th className="py-3 px-4">Sự Cố & Thửa Đất</th>
+                                <th className="py-3 px-4">Mô Tả Hiện Trường</th>
+                                <th className="py-3 px-4">Trạng Thái</th>
+                                <th className="py-3 px-4">Chuyên Gia Phụ Trách</th>
+                                <th className="py-3 px-4 text-right">Thao Tác</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-stone-100 text-stone-700">
+                              {fieldIssues.map((issue) => {
+                                const isUrgent = issue.urgency === 'HIGH';
+                                const isResolved = issue.status === 'RESOLVED';
+                                const isExpertUnassigned = String(issue.expertName).includes('Chưa');
+
+                                return (
+                                  <tr key={issue.id} className="hover:bg-rose-50/20 transition-colors">
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-mono font-bold text-rose-700">{issue.id}</span>
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                          isUrgent ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-amber-100 text-amber-800'
+                                        }`}>
+                                          {isUrgent ? '🚨 KHẨN CẤP' : '⚠️ Bình thường'}
+                                        </span>
+                                      </div>
+                                      <div className="text-[10px] text-stone-400 mt-0.5">{issue.reportedTime || 'Gần đây'}</div>
+                                    </td>
+                                    <td className="py-3.5 px-4 min-w-[180px]">
+                                      <div className="font-bold text-brand-dark">{issue.issueType}</div>
+                                      <div className="flex items-center gap-1 text-[11px] text-stone-500 mt-0.5">
+                                        <span className="font-mono font-bold text-stone-700">{issue.plotCode}</span>
+                                        <span>•</span>
+                                        <span>{issue.plotName}</span>
+                                      </div>
+                                      <div className="text-[11px] text-stone-400 mt-0.5">Báo bởi: {issue.workerName}</div>
+                                    </td>
+                                    <td className="py-3.5 px-4 min-w-[220px]">
+                                      <div className="text-stone-700 leading-relaxed">{issue.description}</div>
+                                      {issue.diagnosis && (
+                                        <div className="text-[11px] text-emerald-800 bg-emerald-50 p-1.5 rounded border border-emerald-100 mt-1">
+                                          <strong>Chỉ đạo:</strong> {issue.diagnosis}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                        isResolved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                      }`}>
+                                        {isResolved ? '✓ Đã xử lý' : '● Chờ xử lý'}
+                                      </span>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                      <span className={`font-semibold inline-flex items-center gap-1 ${
+                                        isExpertUnassigned ? 'text-amber-700 font-bold' : 'text-emerald-800'
+                                      }`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isExpertUnassigned ? 'bg-amber-500' : 'bg-emerald-600'}`} />
+                                        {issue.expertName}
+                                      </span>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                                      <Button
+                                        variant={isExpertUnassigned ? 'primary' : 'outline'}
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedIssueToAssignExpert(issue);
+                                          setIssueAssignExpertId(issue.expertId || (expertUsers[0] ? expertUsers[0].id : 5));
+                                          setIssueAssignNotes('');
+                                        }}
+                                        className="font-bold text-[11px] px-2.5 py-1"
+                                      >
+                                        {isExpertUnassigned ? 'Giao Chuyên gia' : 'Đổi người'}
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
-                      ) : (
-                        fieldIssues.map((issue) => (
-                          <div
-                            key={issue.id}
-                            className="p-5 rounded-2xl border border-brand-border bg-white hover:border-rose-300 transition-all shadow-2xs flex flex-col md:flex-row md:items-start justify-between gap-4 text-xs"
-                          >
-                            <div className="space-y-2 flex-1">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono font-bold text-rose-700 text-sm">{issue.id}</span>
-                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-stone-100 text-stone-700">
-                                  {issue.plotCode}
-                                </span>
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  issue.urgency === 'HIGH' ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
-                                }`}>
-                                  {issue.urgency === 'HIGH' ? '🚨 KHẨN CẤP' : '⚠️ Bình thường'}
-                                </span>
-                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  issue.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                                }`}>
-                                  {issue.status === 'RESOLVED' ? '✓ Đã chẩn đoán' : 'Chờ xử lý'}
-                                </span>
-                              </div>
-
-                              <div>
-                                <h4 className="font-bold text-brand-dark text-sm sm:text-base">{issue.issueType}</h4>
-                                <p className="text-stone-600 mt-0.5">
-                                  Thửa đất: <strong className="text-brand-dark">{issue.plotName}</strong> • Người báo: <strong>{issue.workerName}</strong> {issue.reportedTime && `(${issue.reportedTime})`}
-                                </p>
-                              </div>
-
-                              <p className="text-stone-600 bg-rose-50/60 p-3 rounded-xl border border-rose-200/80 leading-relaxed">
-                                <strong>Mô tả hiện trường:</strong> {issue.description}
-                              </p>
-
-                              {issue.diagnosis && (
-                                <p className="text-emerald-900 bg-emerald-50/70 p-3 rounded-xl border border-emerald-200 leading-relaxed">
-                                  <strong>Chỉ đạo của Chuyên gia:</strong> {issue.diagnosis}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex flex-col md:items-end justify-between gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-brand-border/60">
-                              <div className="text-left md:text-right">
-                                <span className="text-[11px] text-stone-500 block">Chuyên Gia Phụ Trách:</span>
-                                <span className={`font-bold text-sm block ${
-                                  String(issue.expertName).includes('Chưa') ? 'text-amber-700' : 'text-emerald-800'
-                                }`}>
-                                  {issue.expertName}
-                                </span>
-                              </div>
-
-                              <Button
-                                variant={String(issue.expertName).includes('Chưa') ? 'primary' : 'outline'}
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedIssueToAssignExpert(issue);
-                                  setIssueAssignExpertId(issue.expertId || (expertUsers[0] ? expertUsers[0].id : 5));
-                                  setIssueAssignNotes('');
-                                }}
-                                className="font-bold text-xs"
-                              >
-                                {String(issue.expertName).includes('Chưa') ? 'Giao Chuyên gia' : 'Đổi Chuyên gia'}
-                              </Button>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
