@@ -1056,53 +1056,10 @@ export default function CustomerDashboard() {
       const stored = localStorage.getItem('farmely_customer_service_orders');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
-    return [
-      {
-        id: 'REQ-8829',
-        requestId: 8829,
-        transactionId: 'TXN-SVC-8829',
-        serviceName: 'Dịch vụ nhổ cỏ & làm tơi đất',
-        plotName: 'Thửa Mộc Châu B2',
-        plotCode: 'MC-02',
-        plotId: 'PLOT-MC-02',
-        rentalId: 2,
-        price: '50.000 đ',
-        amount: 50000,
-        date: 'Hôm nay • 09:00 AM',
-        scheduledDate: new Date().toISOString().slice(0, 10),
-        status: 'IN_PROGRESS',
-        statusLabel: 'Đang thực hiện',
-        worker: 'Nguyễn Văn Hưng (CVLĐ)',
-        paymentMethod: 'Chuyển khoản VietQR',
-        paymentStatus: 'SUCCESS',
-        proofPhoto: null
-      },
-      {
-        id: 'REQ-8815',
-        requestId: 8815,
-        transactionId: 'TXN-SVC-8815',
-        serviceName: 'Gói chăm sóc định kỳ tuần (7 ngày)',
-        plotName: 'Thửa Sen Vàng A1',
-        plotCode: 'CC-01',
-        plotId: 'PLOT-CC-01',
-        rentalId: 1,
-        price: '150.000 đ',
-        amount: 150000,
-        date: '02/10/2026',
-        scheduledDate: '2026-10-02',
-        status: 'COMPLETED',
-        statusLabel: 'Đã hoàn tất',
-        worker: 'Trần Văn Lực (CVLĐ)',
-        paymentMethod: 'Ví Farmely',
-        paymentStatus: 'SUCCESS',
-        proofPhoto: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
-        proofNotes: 'Đã hoàn thành làm cỏ và bón phân hữu cơ vi sinh đợt 1',
-        completedAt: '2026-10-02 16:30'
-      }
-    ];
+    return [];
   };
 
   const [activeServiceOrders, setActiveServiceOrders] = useState(getInitialServiceOrders);
@@ -1222,21 +1179,11 @@ export default function CustomerDashboard() {
               completedAt: req.completedAt || null
             };
           });
-          setActiveServiceOrders(prev => {
-            const map = new Map();
-            // Backend orders from DB
-            backendOrders.forEach(b => map.set(b.id, b));
-            // Preserve local orders
-            prev.forEach(p => {
-              if (!map.has(p.id)) {
-                map.set(p.id, p);
-              }
-            });
-            const merged = Array.from(map.values());
+          setActiveServiceOrders(() => {
             try {
-              localStorage.setItem('farmely_customer_service_orders', JSON.stringify(merged));
+              localStorage.setItem('farmely_customer_service_orders', JSON.stringify(backendOrders));
             } catch {}
-            return merged;
+            return backendOrders;
           });
         }
       })
