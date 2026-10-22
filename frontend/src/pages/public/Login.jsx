@@ -157,25 +157,27 @@ export default function Login() {
           </div>
 
           {/* Quick Demo Switcher Banner */}
-          <div className="p-3.5 rounded-2xl bg-white border border-brand-border shadow-sm space-y-2">
-            <p className="text-[11px] font-bold text-brand-muted uppercase tracking-wider flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-brand-yellow" />
-              Đăng nhập nhanh các Role Demo (1-Click):
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => handleQuickDemoLogin(acc)}
-                  className="px-2.5 py-1.5 rounded-xl bg-brand-cream hover:bg-brand-yellow/20 border border-brand-border text-left transition-colors flex items-center justify-between"
-                >
-                  <span className="font-bold text-brand-dark truncate">{acc.role}</span>
-                  <span className="text-[10px] text-brand-green">Vào ngay →</span>
-                </button>
-              ))}
+          {searchParams.get('demo') !== 'false' && (
+            <div className="p-3.5 rounded-2xl bg-white border border-brand-border shadow-sm space-y-2">
+              <p className="text-[11px] font-bold text-brand-muted uppercase tracking-wider flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-brand-yellow" />
+                Đăng nhập nhanh các Role Demo (1-Click):
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {DEMO_ACCOUNTS.map((acc) => (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => handleQuickDemoLogin(acc)}
+                    className="px-2.5 py-1.5 rounded-xl bg-brand-cream hover:bg-brand-yellow/20 border border-brand-border text-left transition-colors flex items-center justify-between"
+                  >
+                    <span className="font-bold text-brand-dark truncate">{acc.role}</span>
+                    <span className="text-[10px] text-brand-green">Vào ngay →</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Alerts */}
           {errorMessage && (
@@ -222,7 +224,7 @@ export default function Login() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="rounded border-brand-border text-brand-green focus:ring-brand-green/20"
                 />
-                <span>Remember me (Ghi nhớ tôi)</span>
+                <span>Ghi nhớ đăng nhập</span>
               </label>
 
               <Link to="/forgot-password" className="font-semibold text-brand-green hover:underline">

@@ -36,6 +36,8 @@ import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import {
   normalizePlotCode,
   findPlotByCode,
+  loadCartCodes,
+  saveCartCodes,
   removeCartCodes,
   buildBookingUrl,
   filterCompatibleCrops,
@@ -696,8 +698,8 @@ export default function BookPlot() {
               <div className="flex-1">
                 <span className="text-xs font-bold text-brand-green">{primaryPlot.code}</span>
                 <h4 className="font-heading font-bold text-sm text-brand-dark">{primaryPlot.name}</h4>
-                <p className="text-xs text-stone-500">
-                  {primaryPlot.area} • {primaryPlot.formattedPrice}/tháng
+                <p className="text-xs text-stone-500 mt-0.5">
+                  {primaryPlot.area} • {primaryPlot.formattedPrice}
                 </p>
               </div>
             </div>
