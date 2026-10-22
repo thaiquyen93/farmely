@@ -537,7 +537,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                         <p className="font-bold text-brand-dark text-sm truncate">{user?.fullName || 'Người dùng'}</p>
                         <p className="text-[11px] text-brand-muted truncate">{user?.email}</p>
                         <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          {user?.roleTitle || (userRole === 'CUSTOMER' ? 'Khách hàng thuê đất' : userRole === 'ADMIN' ? 'Quản trị viên hệ thống' : userRole === 'EXPERT' ? 'Chuyên gia nông nghiệp' : 'Chuyên viên lao động')}
+                          {user?.roleTitle || (userRole === 'CUSTOMER' ? 'Khách hàng thuê đất' : userRole === 'ADMIN' ? 'Quản trị viên hệ thống' : userRole === 'EXPERT' ? 'Chuyên gia nông nghiệp' : 'Nhân viên lao động (STAFF)')}
                         </span>
                       </div>
 
