@@ -46,7 +46,8 @@ const dashboardByRole = {
   CUSTOMER: '/customer/dashboard',
   ADMIN: '/admin/dashboard',
   EXPERT: '/expert/dashboard',
-  STAFF: '/staff/dashboard'
+  STAFF: '/staff/dashboard',
+  FIELD_WORKER: '/staff/dashboard'
 };
 
 function RoleRoute({ role, children }) {
@@ -57,7 +58,10 @@ function RoleRoute({ role, children }) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  if (user.role !== role) {
+  const normalizedUserRole = (user.role === 'FIELD_WORKER' || user.role === 'worker') ? 'STAFF' : user.role;
+  const normalizedTargetRole = (role === 'FIELD_WORKER' || role === 'worker') ? 'STAFF' : role;
+
+  if (normalizedUserRole !== normalizedTargetRole) {
     return <Navigate to={dashboardByRole[user.role] || '/'} replace />;
   }
 
@@ -66,9 +70,10 @@ function RoleRoute({ role, children }) {
 
 function CustomerCommerceRoute({ children }) {
   const { user, isAuthenticated } = useAuthStore();
+  const normalizedRole = (user?.role === 'FIELD_WORKER' || user?.role === 'worker') ? 'STAFF' : user?.role;
 
-  if (isAuthenticated && (user?.role === 'STAFF' || user?.role === 'EXPERT')) {
-    return <Navigate to={dashboardByRole[user.role]} replace />;
+  if (isAuthenticated && (normalizedRole === 'STAFF' || normalizedRole === 'EXPERT')) {
+    return <Navigate to={dashboardByRole[normalizedRole] || '/staff/dashboard'} replace />;
   }
 
   return children;

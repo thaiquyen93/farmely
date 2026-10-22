@@ -41,7 +41,18 @@ export const DEMO_ACCOUNTS = [
 ];
 
 export const useAuthStore = create((set, get) => ({
-  user: JSON.parse(localStorage.getItem('farmely_user')) || null,
+  user: (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('farmely_user'));
+      if (u && (u.role === 'FIELD_WORKER' || u.role === 'worker')) {
+        u.role = 'STAFF';
+        localStorage.setItem('farmely_user', JSON.stringify(u));
+      }
+      return u || null;
+    } catch {
+      return null;
+    }
+  })(),
   token: localStorage.getItem('farmely_token') || null,
   isAuthenticated: !!localStorage.getItem('farmely_user'),
 
@@ -56,21 +67,22 @@ export const useAuthStore = create((set, get) => ({
 
       if (response.ok && resData && resData.success && resData.data) {
         const { token, user: dbUser } = resData.data;
+        const normalizedRole = (dbUser.role === 'FIELD_WORKER' || dbUser.role === 'worker') ? 'STAFF' : dbUser.role;
         const mappedUser = {
           id: `USR-${dbUser.userId}`,
           userId: dbUser.userId,
           fullName: dbUser.fullName,
           email: dbUser.email,
-          role: dbUser.role,
+          role: normalizedRole,
           phone: dbUser.phoneNumber || '',
           address: dbUser.address || '',
-          roleTitle: dbUser.role === 'ADMIN' ? 'Quản trị viên hệ thống (Admin)'
-            : dbUser.role === 'EXPERT' ? 'Chuyên gia nông nghiệp (CGNN)'
-            : dbUser.role === 'STAFF' ? 'Chuyên viên lao động hiện trường (CVLĐ)'
+          roleTitle: normalizedRole === 'ADMIN' ? 'Quản trị viên hệ thống (Admin)'
+            : normalizedRole === 'EXPERT' ? 'Chuyên gia nông nghiệp (CGNN)'
+            : normalizedRole === 'STAFF' ? 'Chuyên viên lao động hiện trường (CVLĐ)'
             : 'Khách hàng thuê đất',
-          avatar: dbUser.role === 'ADMIN' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80'
-            : dbUser.role === 'EXPERT' ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
-            : dbUser.role === 'STAFF' ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80'
+          avatar: normalizedRole === 'ADMIN' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80'
+            : normalizedRole === 'EXPERT' ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
+            : normalizedRole === 'STAFF' ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80'
             : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
         };
 
