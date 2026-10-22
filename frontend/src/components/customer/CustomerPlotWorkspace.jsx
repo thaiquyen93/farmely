@@ -415,7 +415,8 @@ function OverviewTab({ plot, operations, iotData, alerts, stages, harvestPlan, g
           </div>
           {harvestPlan && (
             <p className="relative mt-4 flex items-center gap-1.5 rounded-xl bg-white/70 px-3 py-2 text-xs font-semibold text-emerald-800 backdrop-blur">
-              <Check className="h-4 w-4" />Đã đăng ký thu hoạch · Chờ kỹ sư xác nhận
+              <Check className="h-4 w-4" />
+              {harvestPlan.status === 'APPROVED' ? '✓ Đã duyệt lịch thu hoạch · Sẵn sàng hái' : 'Đã đăng ký thu hoạch · Chờ kỹ sư xác nhận'}
             </p>
           )}
           <button type="button" onClick={() => onOpenHarvest?.(plot)} className="relative mt-auto pt-4">
@@ -669,7 +670,11 @@ function HarvestTab({ plot, harvestPlan, onOpenHarvest }) {
             <p className="flex items-center gap-2 text-[#18352b]"><CalendarCheck className="h-4 w-4 text-emerald-700" />Ngày hái: <strong>{planDate}</strong></p>
             <p className="flex items-center gap-2 text-[#18352b]"><Truck className="h-4 w-4 text-emerald-700" />{harvestPlan.methodLabel}</p>
             {harvestPlan.address && <p className="flex items-start gap-2 text-stone-600"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />{harvestPlan.address}</p>}
-            <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ kỹ sư xác nhận</p>
+            {harvestPlan.status === 'APPROVED' ? (
+              <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã duyệt lịch hái · Đang điều phối thu hoạch</p>
+            ) : (
+              <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ kỹ sư xác nhận</p>
+            )}
           </div>
         ) : (
           <p className="mt-4 text-sm text-stone-600">Chọn ngày và cách nhận nông sản. Farmely sẽ nhắc bạn trước 3 ngày.</p>
