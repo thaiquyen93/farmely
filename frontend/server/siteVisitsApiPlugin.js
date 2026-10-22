@@ -3604,8 +3604,8 @@ SELECT json_build_object(
           'description', s.description
         ) AS service,
         s.price,
-        p.plot_code AS "plotCode",
-        'Thửa ' || p.plot_code AS "plotName",
+        COALESCE(p.plot_code, 'P-01') AS "plotCode",
+        'Thửa ' || COALESCE(p.plot_code, 'P-01') AS "plotName",
         COALESCE(u_renter.full_name, 'Khách hàng') AS "customerName",
         COALESCE(u_renter.full_name, 'Khách hàng') AS "renterName",
         COALESCE(u_renter.phone_number, '') AS "customerPhone",
@@ -3617,13 +3617,24 @@ SELECT json_build_object(
         u_worker.user_id AS "assignedWorkerId",
         COALESCE(ct.notes, s.description, '') AS note,
         COALESCE(ct.notes, '') AS notes,
+        pt.transaction_id AS "transactionId",
+        COALESCE(pt.payment_method, 'VIETQR') AS "paymentMethod",
+        COALESCE(pt.gateway_ref, '') AS "gatewayRef",
+        COALESCE(pt.amount, s.price) AS "paidAmount",
+        COALESCE(pt.status, 'SUCCESS') AS "paymentStatus",
+        ct.task_id AS "taskId",
+        ct.status AS "taskStatus",
+        ct.evidence_image_url AS "proofPhoto",
+        COALESCE(ct.notes, '') AS "proofNotes",
+        TO_CHAR(ct.updated_at, 'YYYY-MM-DD HH24:MI') AS "completedAt",
         TO_CHAR(sr.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "createdAt"
       FROM service_requests sr
       JOIN services s ON sr.service_id = s.service_id
-      JOIN rentals rent ON sr.rental_id = rent.rental_id
-      JOIN plots p ON rent.plot_id = p.plot_id
-      JOIN contracts c ON rent.contract_id = c.contract_id
-      JOIN users u_renter ON c.renter_id = u_renter.user_id
+      LEFT JOIN rentals rent ON sr.rental_id = rent.rental_id
+      LEFT JOIN plots p ON rent.plot_id = p.plot_id
+      LEFT JOIN contracts c ON rent.contract_id = c.contract_id
+      LEFT JOIN users u_renter ON c.renter_id = u_renter.user_id
+      LEFT JOIN payment_transactions pt ON pt.service_request_id = sr.request_id
       LEFT JOIN care_tasks ct ON ct.service_request_id = sr.request_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
       ORDER BY sr.request_id DESC

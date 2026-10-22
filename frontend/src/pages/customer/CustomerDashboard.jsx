@@ -20,6 +20,7 @@ import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import { useSensorStream } from '../../api/monitoring/useSensorStream';
 import { apiFetch, unwrapData } from '../../api/apiClient';
+import { resolveStandardCropProcess } from '../../services/cropStandardProcess';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -75,6 +76,7 @@ import {
   PanelLeftOpen,
   Star,
   ShieldAlert,
+  Eye,
   Wheat,
   Truck,
   CalendarCheck
@@ -1052,31 +1054,62 @@ export default function CustomerDashboard() {
     }
   ];
 
-  // Active / Purchased Service Orders
-  const [activeServiceOrders, setActiveServiceOrders] = useState([
-    {
-      id: 'REQ-8829',
-      serviceName: 'Dịch vụ nhổ cỏ & làm tơi đất',
-      plotName: 'Thửa Mộc Châu B2',
-      price: '50.000 đ',
-      date: 'Hôm nay • 09:00 AM',
-      status: 'IN_PROGRESS',
-      statusLabel: 'Đang thực hiện',
-      worker: 'Nguyễn Văn Hưng (CVLĐ)',
-      paymentMethod: 'Chuyển khoản VietQR'
-    },
-    {
-      id: 'REQ-8815',
-      serviceName: 'Gói chăm sóc định kỳ tuần (7 ngày)',
-      plotName: 'Thửa Sen Vàng A1',
-      price: '150.000 đ',
-      date: '02/10/2026',
-      status: 'COMPLETED',
-      statusLabel: 'Đã hoàn tất',
-      worker: 'Trần Văn Lực (CVLĐ)',
-      paymentMethod: 'Ví Farmely'
-    }
-  ]);
+  // Active / Purchased Service Orders (với đồng bộ localStorage để không mất khi tải lại trang)
+  const getInitialServiceOrders = () => {
+    try {
+      const stored = localStorage.getItem('farmely_customer_service_orders');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'REQ-8829',
+        requestId: 8829,
+        transactionId: 'TXN-SVC-8829',
+        serviceName: 'Dịch vụ nhổ cỏ & làm tơi đất',
+        plotName: 'Thửa Mộc Châu B2',
+        plotCode: 'MC-02',
+        plotId: 'PLOT-MC-02',
+        rentalId: 2,
+        price: '50.000 đ',
+        amount: 50000,
+        date: 'Hôm nay • 09:00 AM',
+        scheduledDate: new Date().toISOString().slice(0, 10),
+        status: 'IN_PROGRESS',
+        statusLabel: 'Đang thực hiện',
+        worker: 'Nguyễn Văn Hưng (CVLĐ)',
+        paymentMethod: 'Chuyển khoản VietQR',
+        paymentStatus: 'SUCCESS',
+        proofPhoto: null
+      },
+      {
+        id: 'REQ-8815',
+        requestId: 8815,
+        transactionId: 'TXN-SVC-8815',
+        serviceName: 'Gói chăm sóc định kỳ tuần (7 ngày)',
+        plotName: 'Thửa Sen Vàng A1',
+        plotCode: 'CC-01',
+        plotId: 'PLOT-CC-01',
+        rentalId: 1,
+        price: '150.000 đ',
+        amount: 150000,
+        date: '02/10/2026',
+        scheduledDate: '2026-10-02',
+        status: 'COMPLETED',
+        statusLabel: 'Đã hoàn tất',
+        worker: 'Trần Văn Lực (CVLĐ)',
+        paymentMethod: 'Ví Farmely',
+        paymentStatus: 'SUCCESS',
+        proofPhoto: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
+        proofNotes: 'Đã hoàn thành làm cỏ và bón phân hữu cơ vi sinh đợt 1',
+        completedAt: '2026-10-02 16:30'
+      }
+    ];
+  };
+
+  const [activeServiceOrders, setActiveServiceOrders] = useState(getInitialServiceOrders);
 
   const serviceIconMap = { calendar: Calendar, layers: Layers, droplets: Droplets, sprout: Sprout };
   const effectiveServices = (apiServices && apiServices.length > 0)
@@ -1167,30 +1200,46 @@ export default function CustomerDashboard() {
       .then(unwrapData)
       .then(requests => {
         if (Array.isArray(requests)) {
-          const backendOrders = requests.map(req => ({
-            id: `REQ-${req.requestId}`,
-            requestId: req.requestId,
-            rentalId: req.rentalId,
-            plotCode: req.plotCode,
-            serviceName: req.service?.serviceName || 'Dịch vụ canh tác',
-            plotName: req.plotName || (req.rentalId === 1 ? 'Thửa P-01' : `Rental #${req.rentalId}`),
-            price: `${(Number(req.amount || req.service?.price) || 0).toLocaleString('vi-VN')} đ`,
-            date: req.scheduledDate || 'Hôm nay',
-            status: req.status === 'DONE' ? 'COMPLETED' : 'IN_PROGRESS',
-            statusLabel: req.status === 'DONE' ? 'Đã hoàn tất' : (req.status === 'ASSIGNED' ? 'Đã tiếp nhận & phân công' : 'Chờ xử lý'),
-            worker: req.worker || (req.status === 'ASSIGNED' || req.status === 'DONE' ? 'Trần Văn Lực (CVLĐ)' : 'Chưa phân công'),
-            transactionId: req.transactionId,
-            paymentMethod: req.paymentMethod ? `${req.paymentMethod} (Đã ghi CSDL)` : 'Đã lưu CSDL',
-            gatewayRef: req.gatewayRef
-          }));
+          const backendOrders = requests.map(req => {
+            const isCompleted = req.status === 'DONE' || req.taskStatus === 'COMPLETED' || req.taskStatus === 'DONE';
+            return {
+              id: `REQ-${req.requestId}`,
+              requestId: req.requestId,
+              rentalId: req.rentalId,
+              plotCode: req.plotCode,
+              plotId: req.plotCode ? `PLOT-${String(req.plotCode).replace(/^PLOT-/i, '')}` : undefined,
+              serviceName: req.service?.serviceName || req.serviceName || 'Dịch vụ canh tác',
+              plotName: req.plotName || (req.rentalId === 1 ? 'Thửa P-01' : `Rental #${req.rentalId}`),
+              price: `${(Number(req.paidAmount || req.amount || req.service?.price || req.price) || 0).toLocaleString('vi-VN')} đ`,
+              amount: Number(req.paidAmount || req.amount || req.service?.price || req.price) || 0,
+              date: req.scheduledDate ? `${req.scheduledDate} • Lịch làm việc` : 'Hôm nay',
+              scheduledDate: req.scheduledDate || '',
+              status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
+              statusLabel: isCompleted ? 'Đã hoàn tất' : (req.status === 'ASSIGNED' || req.assignedWorkerId ? 'Đang thực hiện (Đã phân công CVLĐ)' : 'Chờ xử lý'),
+              worker: req.assignedWorker || req.assignedWorkerName || req.worker || (req.status === 'ASSIGNED' || isCompleted ? 'Trần Văn Lực (CVLĐ)' : 'Chưa phân công'),
+              transactionId: req.transactionId ? `TXN-${req.transactionId}` : (req.gatewayRef || 'TXN-SUCCESS'),
+              paymentMethod: req.paymentMethod || 'Chuyển khoản VietQR',
+              paymentStatus: req.paymentStatus || 'SUCCESS',
+              gatewayRef: req.gatewayRef,
+              proofPhoto: req.proofPhoto || null,
+              proofNotes: req.proofNotes || req.note || req.notes || '',
+              completedAt: req.completedAt || null
+            };
+          });
           setActiveServiceOrders(prev => {
-            const ids = new Set(prev.map(p => p.id));
-            const merged = [...prev];
-            backendOrders.forEach(b => {
-              if (!ids.has(b.id)) {
-                merged.unshift(b);
+            const map = new Map();
+            // Backend orders from DB
+            backendOrders.forEach(b => map.set(b.id, b));
+            // Preserve local orders
+            prev.forEach(p => {
+              if (!map.has(p.id)) {
+                map.set(p.id, p);
               }
             });
+            const merged = Array.from(map.values());
+            try {
+              localStorage.setItem('farmely_customer_service_orders', JSON.stringify(merged));
+            } catch {}
             return merged;
           });
         }
@@ -1268,6 +1317,39 @@ export default function CustomerDashboard() {
 
       setLastPaymentResult(resultInfo);
 
+      // Thêm ngay đơn hàng mới vào state và localStorage để hiển thị tức thì
+      const newOrder = {
+        id: detail.requestId ? `REQ-${detail.requestId}` : (resultInfo.requestId ? `REQ-${resultInfo.requestId}` : `REQ-${Date.now().toString().slice(-4)}`),
+        requestId: detail.requestId,
+        transactionId: resultInfo.transactionId,
+        serviceName: selectedServiceToBuy.name,
+        plotName: targetPlot?.name || `Thửa ${targetPlotCode}`,
+        plotCode: targetPlotCode,
+        plotId: targetPlot?.id,
+        rentalId: targetRentalId,
+        price: selectedServiceToBuy.formattedPrice,
+        amount: Number(selectedServiceToBuy.price) || 0,
+        date: `${scheduledDate} • Hôm nay`,
+        scheduledDate: scheduledDate,
+        status: 'IN_PROGRESS',
+        statusLabel: 'Đang thực hiện (Đã phân công CVLĐ)',
+        worker: 'Trần Văn Lực (CVLĐ)',
+        paymentMethod: resultInfo.paymentMethod,
+        paymentStatus: 'SUCCESS',
+        gatewayRef: resultInfo.gatewayRef,
+        proofPhoto: null,
+        proofNotes: checkoutNotes || '',
+        notes: checkoutNotes || ''
+      };
+
+      setActiveServiceOrders((prev) => {
+        const next = [newOrder, ...prev.filter((p) => p.id !== newOrder.id)];
+        try {
+          localStorage.setItem('farmely_customer_service_orders', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
       // Đồng bộ ngay đơn hàng dịch vụ và lịch canh tác từ cơ sở dữ liệu
       fetchServiceOrders();
       if (typeof loadOperationsFromDb === 'function') {
@@ -1308,22 +1390,41 @@ export default function CustomerDashboard() {
     if (typeof loadOperationsFromDb === 'function') {
       loadOperationsFromDb();
     }
-    const selectedPlotObj = customerPlots.find(p => p.id === checkoutPlotId);
+    const targetPlot = customerPlots.find(p => p.id === checkoutPlotId) || selectedCheckoutPlot || customerPlots[0];
+    const targetPlotCode = targetPlot?.mapPlotId || targetPlot?.plotCode || (targetPlot?.id ? targetPlot.id.replace(/^PLOT-/i, '') : 'P-01');
     const newOrder = {
-      id: `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: paidResult?.requestId ? `REQ-${paidResult.requestId}` : `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      requestId: paidResult?.requestId,
+      transactionId: paidResult?.transactionId || `TXN-SVC-${Date.now().toString().slice(-6)}`,
       serviceName: selectedServiceToBuy?.name || 'Dịch vụ canh tác',
-      plotName: selectedPlotObj ? selectedPlotObj.name : 'Thửa đất đã chọn',
+      plotName: targetPlot ? targetPlot.name : 'Thửa đất đã chọn',
+      plotCode: targetPlotCode,
+      plotId: targetPlot?.id,
+      rentalId: targetPlot?.rentalId || targetPlot?.rental_id || 1,
       price: selectedServiceToBuy ? selectedServiceToBuy.formattedPrice : `${(paidResult?.amount || 0).toLocaleString('vi-VN')} đ`,
-      date: `${checkoutDate} • Mới kích hoạt`,
+      amount: Number(paidResult?.amount || selectedServiceToBuy?.price || 0),
+      date: `${checkoutDate || new Date().toISOString().slice(0, 10)} • Mới kích hoạt`,
+      scheduledDate: checkoutDate || new Date().toISOString().slice(0, 10),
       status: 'IN_PROGRESS',
-      statusLabel: 'Đang thực hiện',
-      worker: 'Đang điều phối CVLĐ',
-      paymentMethod: paidResult?.paymentMethod || (checkoutPaymentMethod === 'VNPAY' ? 'Cổng VNPAY Sandbox' : checkoutPaymentMethod === 'CARD' ? 'Thẻ Quốc tế / Nội địa' : 'Ví Farmely')
+      statusLabel: 'Đang thực hiện (Đã phân công CVLĐ)',
+      worker: 'Trần Văn Lực (CVLĐ)',
+      paymentMethod: paidResult?.paymentMethod || (checkoutPaymentMethod === 'VNPAY' ? 'Cổng VNPAY Sandbox' : checkoutPaymentMethod === 'CARD' ? 'Thẻ Quốc tế / Nội địa' : 'Ví Farmely'),
+      paymentStatus: 'SUCCESS',
+      gatewayRef: paidResult?.gatewayRef || `TXN_SVC_${Date.now().toString().slice(-8)}`,
+      proofPhoto: null,
+      proofNotes: checkoutNotes || ''
     };
 
-    setActiveServiceOrders(prev => [newOrder, ...prev]);
+    setActiveServiceOrders(prev => {
+      const next = [newOrder, ...prev.filter(p => p.id !== newOrder.id)];
+      try {
+        localStorage.setItem('farmely_customer_service_orders', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
     if (paidResult) {
       setLastPaymentResult(paidResult);
+    }
     }
     setSelectedServiceToBuy(null);
     setShowCheckoutSuccessModal(true);
@@ -1432,24 +1533,12 @@ export default function CustomerDashboard() {
     );
 
     if (requestedView === 'tasks') {
-      setSelectedPlotId(null);
-      setActiveTab('tasks');
+      setActiveTab('yards');
       if (requestedPlot) {
-        setTasksPlotFilter(requestedPlot.id);
-        setPlotScopeId(requestedPlot.id);
+        setSelectedPlotId(requestedPlot.id);
         setCheckoutPlotId(requestedPlot.id);
-        try { localStorage.setItem('farmely_selected_task_plot', requestedPlot.id); } catch {}
       } else {
-        try {
-          const saved = localStorage.getItem('farmely_selected_task_plot');
-          if (saved && customerPlots.some(p => p.id === saved || p.plotCode === saved || String(p.rentalId) === saved)) {
-            setTasksPlotFilter(saved);
-            setPlotScopeId(saved);
-          } else if (checkoutPlotId) {
-            setTasksPlotFilter(checkoutPlotId);
-            setPlotScopeId(checkoutPlotId);
-          }
-        } catch {}
+        setSelectedPlotId(null);
       }
     } else if (requestedPlot) {
       setActiveTab('yards');
@@ -1714,12 +1803,23 @@ export default function CustomerDashboard() {
     };
   }
 
-  const defaultProcessForPlot = (plot) => [
-    { stage: 'Gieo giống & bén rễ', date: 'Đầu chu kỳ', guide: 'Giữ ẩm đất 60–70%, kiểm tra độ nảy mầm hằng ngày.', status: 'COMPLETED' },
-    { stage: 'Sinh trưởng thân lá', date: 'Giai đoạn giữa vụ', guide: 'Bổ sung dinh dưỡng hữu cơ VietGAP và tỉa lá già định kỳ.', status: (plot?.progressPercent || 0) >= 30 ? 'COMPLETED' : 'IN_PROGRESS' },
-    { stage: plot?.stage || 'Ra hoa & đậu quả non', date: 'Hiện tại', guide: 'Theo dõi chỉ số độ ẩm vi khí hậu và sâu bệnh qua trạm IoT.', status: (plot?.progressPercent || 0) >= 70 ? 'COMPLETED' : 'IN_PROGRESS' },
-    { stage: 'Thu hoạch & nghiệm thu', date: plot?.expectedHarvestDate || 'Dự kiến', guide: 'Cân đối chứng, kiểm tra chất lượng và đóng thùng QR xuất xưởng.', status: 'PENDING' }
-  ];
+  const defaultProcessForPlot = (plot) => {
+    const resolved = resolveStandardCropProcess(plot);
+    if (resolved?.stages?.length) {
+      return resolved.stages.map((st) => ({
+        stage: st.name,
+        date: st.label,
+        guide: st.guide,
+        status: st.status
+      }));
+    }
+    return [
+      { stage: 'Gieo giống & bén rễ', date: 'Ngày 1 - 7', guide: 'Giữ ẩm đất 60–70%, che lưới mát, kiểm tra độ nảy mầm.', status: 'COMPLETED' },
+      { stage: 'Sinh trưởng thân lá', date: 'Ngày 8 - 22', guide: 'Bổ sung dinh dưỡng hữu cơ VietGAP và tỉa chồi nách định kỳ.', status: 'IN_PROGRESS' },
+      { stage: 'Ra hoa & đậu quả non', date: 'Ngày 23 - 35', guide: 'Theo dõi vi khí hậu và bón bổ sung Kali hữu cơ, chống rụng hoa.', status: 'PENDING' },
+      { stage: 'Nuôi trái & thu hoạch', date: 'Ngày 36 - 45', guide: 'Đạt chuẩn VietGAP, kiểm tra dư lượng an toàn và thu hoạch.', status: 'PENDING' }
+    ];
+  };
 
   const defaultAlertsForPlot = (plot) => [
     { level: 'LOW', title: 'Nhiệt độ & ẩm độ tối ưu', metric: `${plot?.temp || '28°C'} · Ẩm đất ${plot?.soilMoisture || '68%'}`, time: '10 phút trước' }
@@ -1917,7 +2017,20 @@ export default function CustomerDashboard() {
                 alerts={iotAlerts[currentSelectedPlot.id] || iotAlerts['PLOT-CC-01'] || []}
                 stages={cultivationProcesses[currentSelectedPlot.id] || cultivationProcesses[currentSelectedPlot.mapPlotId] || cultivationProcesses[`RENTAL-${currentSelectedPlot.rentalId}`] || []}
                 services={customerServiceCatalog}
-                serviceOrders={activeServiceOrders.filter((o) => o.plotName === currentSelectedPlot.name || o.plotCode === currentSelectedPlot.plotCode || o.rentalId === currentSelectedPlot.rentalId)}
+                serviceOrders={activeServiceOrders.filter((o) => {
+                  if (!currentSelectedPlot) return false;
+                  const pCode = (currentSelectedPlot.plotCode || currentSelectedPlot.mapPlotId || currentSelectedPlot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+                  const oCode = (o.plotCode || o.plotId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+                  if (o.plotId && o.plotId === currentSelectedPlot.id) return true;
+                  if (oCode && pCode && oCode === pCode) return true;
+                  if (o.rentalId && (o.rentalId === currentSelectedPlot.rentalId || o.rentalId === currentSelectedPlot.rental_id)) return true;
+                  if (o.plotName && currentSelectedPlot.name) {
+                    if (o.plotName === currentSelectedPlot.name) return true;
+                    if (pCode && o.plotName.toUpperCase().includes(pCode)) return true;
+                    if (oCode && currentSelectedPlot.name.toUpperCase().includes(oCode)) return true;
+                  }
+                  return false;
+                })}
                 harvestPlan={harvestPlans[currentSelectedPlot.id] || dbHarvestResults.find(h => h.plotScopeId === currentSelectedPlot.id || h.plotCode === currentSelectedPlot.plotCode || h.rentalId === currentSelectedPlot.rentalId) || null}
                 activeTab={plotTabFromUrl}
                 onTabChange={(tab) => navigate(`/customer/dashboard?plot=${currentSelectedPlot.id}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
@@ -1932,7 +2045,7 @@ export default function CustomerDashboard() {
             )}
 
             {/* Thanh ngữ cảnh: đang xem chức năng của riêng 1 thửa */}
-            {!selectedPlotId && scopedPlot && ['tasks', 'diary', 'services'].includes(activeTab) && (
+            {!selectedPlotId && scopedPlot && ['diary', 'services'].includes(activeTab) && (
               <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
                   <button type="button" onClick={backToScopedPlot} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
@@ -1942,7 +2055,7 @@ export default function CustomerDashboard() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-brand-dark">
                       {scopedPlot.name}
-                      <span className="font-normal text-brand-muted"> / {activeTab === 'diary' ? 'Nhật ký' : activeTab === 'tasks' ? 'Lịch canh tác' : 'Dịch vụ'}</span>
+                      <span className="font-normal text-brand-muted"> / {activeTab === 'diary' ? 'Nhật ký' : 'Dịch vụ'}</span>
                     </p>
                     <p className="truncate text-xs text-brand-muted">{scopedPlot.crop} · {scopedPlot.id}</p>
                   </div>
@@ -2384,7 +2497,7 @@ export default function CustomerDashboard() {
                                       <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block font-semibold">{topAlert.title}</span><span className="opacity-80">{topAlert.time}</span></span>
                                     </button>
                                   ) : nextTask ? (
-                                    <button type="button" onClick={() => openPlot(plot.id, 'tasks')} className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-left text-xs text-amber-900 hover:bg-amber-100">
+                                    <button type="button" onClick={() => openPlot(plot.id)} className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-left text-xs text-amber-900 hover:bg-amber-100">
                                       <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block truncate font-semibold">{nextTask.title}</span><span className="opacity-80">{nextTask.time}</span></span>
                                     </button>
                                   ) : null}
@@ -2407,10 +2520,9 @@ export default function CustomerDashboard() {
                                     <button type="button" onClick={() => openPlot(plot.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
                                       Mở thửa<ChevronRight className="h-4 w-4" />
                                     </button>
-                                    {[['tasks', Calendar, 'Công việc'], ['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
+                                    {[['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
                                       <button key={tab} type="button" onClick={() => openPlot(plot.id, tab)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
                                         <Icon className="h-4 w-4" />
-                                        {tab === 'tasks' && openCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">{openCount}</span>}
                                       </button>
                                     ))}
                                     <button
@@ -2436,138 +2548,7 @@ export default function CustomerDashboard() {
               );
             })()}
 
-            {activeTab === 'tasks' && !selectedPlotId && (() => {
-              const activeFilter = (tasksPlotFilter && tasksPlotFilter !== 'ALL')
-                ? tasksPlotFilter
-                : (plotScopeId
-                  ? plotScopeId
-                  : (() => {
-                      try {
-                        const saved = localStorage.getItem('farmely_selected_task_plot');
-                        if (saved && customerPlots.some(p => p.id === saved || p.plotCode === saved || String(p.rentalId) === saved)) return saved;
-                      } catch {}
-                      return checkoutPlotId || customerPlots[0]?.id || 'ALL';
-                    })());
 
-              const displayedTasksPlots = activeFilter !== 'ALL'
-                ? customerPlots.filter((p) =>
-                    p.id === activeFilter ||
-                    p.mapPlotId === activeFilter ||
-                    p.plotCode === activeFilter ||
-                    String(p.rentalId) === String(activeFilter) ||
-                    `RENTAL-${p.rentalId}` === activeFilter ||
-                    (activeFilter.startsWith('PLOT-') && p.plotCode === activeFilter.replace(/^PLOT-/i, ''))
-                  )
-                : customerPlots;
-
-              return (
-              <div className="mx-auto max-w-5xl space-y-5 rounded-3xl border border-brand-border bg-white p-5 shadow-sm sm:p-7">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-brand-green">Lịch canh tác</p>
-                    <h2 className="mt-1 font-heading text-2xl font-black text-brand-dark">Việc cần làm hôm nay</h2>
-                    <p className="mt-1 text-sm text-brand-muted">Theo dõi lịch chăm sóc và người phụ trách từng thửa.</p>
-                  </div>
-                  <button type="button" onClick={() => setActiveTab('services')} className="rounded-xl bg-brand-yellow px-4 py-2 text-xs font-black text-brand-dark hover:brightness-95">
-                    <ShoppingBag className="mr-1 inline h-4 w-4" />Đặt dịch vụ
-                  </button>
-                </div>
-                {/* Plot Filter Selector in Lịch canh tác */}
-                {customerPlots.length > 1 && (
-                  <div className="flex flex-wrap items-center gap-2 pt-1 pb-1 border-b border-brand-border/60">
-                    <span className="text-xs font-bold text-stone-500 mr-1">Lọc theo thửa:</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTasksPlotFilter('ALL');
-                        setPlotScopeId(null);
-                        try { localStorage.removeItem('farmely_selected_task_plot'); } catch {}
-                        navigate('/customer/dashboard?view=tasks', { replace: true });
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        activeFilter === 'ALL'
-                          ? 'bg-[#294C3B] text-white shadow-xs ring-2 ring-[#294C3B]/20'
-                          : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                      }`}
-                    >
-                      Tất cả ({customerPlots.length} thửa)
-                    </button>
-                    {customerPlots.map((plot, idx) => {
-                      const isSelected = activeFilter !== 'ALL' && (
-                        activeFilter === plot.id ||
-                        activeFilter === plot.mapPlotId ||
-                        activeFilter === plot.plotCode ||
-                        String(activeFilter) === String(plot.rentalId) ||
-                        activeFilter === `RENTAL-${plot.rentalId}` ||
-                        (activeFilter.startsWith('PLOT-') && plot.plotCode === activeFilter.replace(/^PLOT-/i, ''))
-                      );
-                      return (
-                        <button
-                          key={`${plot.id}-${plot.rentalId || plot.rental_id || idx}`}
-                          type="button"
-                          onClick={() => {
-                            setTasksPlotFilter(plot.id);
-                            setPlotScopeId(plot.id);
-                            setCheckoutPlotId(plot.id);
-                            try { localStorage.setItem('farmely_selected_task_plot', plot.id); } catch {}
-                            navigate(`/customer/dashboard?view=tasks&plot=${plot.id}`, { replace: true });
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#294C3B] text-white shadow-xs ring-2 ring-[#294C3B]/20'
-                              : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                          }`}
-                        >
-                          {plot.name.split(' - ')[0] || plot.name} ({plot.crop})
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {displayedTasksPlots.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center">
-                    <Calendar className="mx-auto h-10 w-10 text-stone-400" />
-                    <p className="mt-2 font-bold text-stone-700">Chưa có lịch canh tác</p>
-                    <p className="mt-1 text-xs text-stone-500">Bạn chưa có thửa đất nào đang canh tác để tạo lịch công việc.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {displayedTasksPlots.map((plot, pIdx) => {
-                      const tasks = (plot.rentalId && plotOperations[`RENTAL-${plot.rentalId}`]?.tasks) ||
-                        plotOperations[plot.id]?.tasks ||
-                        plotOperations[plot.mapPlotId]?.tasks ||
-                        plotOperations[`PLOT-${plot.plotCode}`]?.tasks ||
-                        defaultOperationsForPlot(plot).tasks || [];
-                      return (
-                      <section key={`${plot.id}-${plot.rentalId || pIdx}`} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25">
-                        <div className="flex flex-wrap items-center gap-3 border-b border-brand-border bg-white px-4 py-3">
-                          <img src={plot.image} alt="" className="h-11 w-14 rounded-xl object-cover" />
-                          <div className="min-w-0 flex-1">
-                            <h3 className="truncate font-heading text-base font-black text-brand-dark">{plot.name}</h3>
-                            <p className="truncate text-xs text-brand-muted">{plot.crop} · {plot.id}</p>
-                          </div>
-                          <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${plot.mode === 'Self-Growing' ? 'bg-emerald-100 text-emerald-800' : 'bg-lime-100 text-lime-800'}`}>
-                            {plot.mode === 'Self-Growing' ? 'Tự trồng' : 'Farmely chăm sóc'}
-                          </span>
-                        </div>
-                        <div className="grid gap-2 p-3 md:grid-cols-2">
-                          {tasks.map((task) => (
-                            <button key={task.id} type="button" onClick={() => { setTaskPhotoPreview(''); setSelectedTaskDetail({ ...task, plot }); }} className="flex items-center gap-3 rounded-xl border border-brand-border bg-white p-3 text-left transition hover:border-brand-green hover:shadow-sm">
-                              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${task.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{task.status === 'COMPLETED' ? <Check className="h-4 w-4" /> : <Clock className="h-4 w-4" />}</span>
-                              <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-brand-dark">{task.title}</span><span className="mt-0.5 block truncate text-xs text-brand-muted">{task.owner}</span></span>
-                              <span className="whitespace-nowrap text-[11px] font-bold text-brand-green">{task.time}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </section>
-                    );
-                  })}
-                </div>
-                )}
-              </div>
-              );
-            })()}
 
             {/* ============================================================== */}
             {/* VIEW C: DỊCH VỤ CANH TÁC & THANH TOÁN                         */}
@@ -4195,19 +4176,20 @@ export default function CustomerDashboard() {
                 setShowCheckoutSuccessModal(false);
                 setSelectedServiceToBuy(null);
                 setLastPaymentResult(null);
-                setSelectedPlotId(null);
+                setActiveTab('yards');
                 if (targetPlot) {
-                  setPlotScopeId(targetPlot.id);
-                  setTasksPlotFilter(targetPlot.id);
-                  try { localStorage.setItem('farmely_selected_task_plot', targetPlot.id); } catch {}
+                  setSelectedPlotId(targetPlot.id);
+                  setCheckoutPlotId(targetPlot.id);
+                  navigate(`/customer/dashboard?plot=${targetPlot.id}`);
+                } else {
+                  setSelectedPlotId(null);
+                  navigate('/customer/dashboard');
                 }
-                setActiveTab('tasks');
-                navigate(`/customer/dashboard?view=tasks&plot=${targetPlot?.id || 'PLOT-P-07'}`);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
             >
-              <Calendar className="w-4 h-4 text-emerald-300" />
-              <span>XEM LỊCH CANH TÁC</span>
+              <Eye className="w-4 h-4 text-emerald-300" />
+              <span>XEM CHI TIẾT THỬA ĐẤT</span>
             </button>
           </div>
         </div>
