@@ -1245,11 +1245,12 @@ export default function FieldWorkerDashboard() {
         </form>
       </Modal>
 
-      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-2xl border border-brand-border bg-white/95 p-2 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
+      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
         {[
           { id: 'tasks', label: 'Công việc', icon: ListTodo },
+          { id: 'plots', label: 'Thửa đất', icon: Layers },
           { id: 'harvest', label: 'Thu hoạch', icon: Camera },
-          { id: 'issues', label: 'Báo cáo', icon: FileText }
+          { id: 'issues', label: 'Sự cố', icon: FileText }
         ].map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
