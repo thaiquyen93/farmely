@@ -1521,10 +1521,30 @@ export default function CustomerPlotWorkspace({
   const health = computeHealthScore(activePlot, activeAlerts);
 
   const heroStats = [
-    { label: 'Sức khoẻ', value: health.score ?? '—', unit: '/100', note: health.label, icon: Leaf, tab: 'iot' },
-    { label: 'Ngày tuổi', value: `D${cropProcess.currentDay}`, unit: `/${cropProcess.totalDays}`, note: cropProcess.cropName, icon: Sprout, tab: 'overview' },
-    { label: 'Tới thu hoạch', value: cropProcess.daysLeft, unit: 'ngày', note: plot.expectedHarvestDate || 'Đúng tiến độ', icon: Wheat, tab: 'harvest' },
-    { label: 'Việc Staff', value: staffActivities.length, unit: 'mục', note: `${openTaskCount} việc đang/chờ làm`, icon: CalendarCheck, tab: 'tasks' }
+    {
+      label: 'Ngày tuổi',
+      value: `D${cropProcess.currentDay}`,
+      unit: `/${cropProcess.totalDays}`,
+      note: cropProcess.currentStage?.name || 'Đang nuôi trái',
+      icon: Sprout,
+      tab: 'overview'
+    },
+    {
+      label: 'Tới thu hoạch',
+      value: cropProcess.daysLeft,
+      unit: 'ngày',
+      note: plot.expectedHarvestDate ? `Dự kiến ${plot.expectedHarvestDate}` : 'Đúng tiến độ',
+      icon: Wheat,
+      tab: 'harvest'
+    },
+    {
+      label: 'Việc Staff',
+      value: staffActivities.length,
+      unit: 'mục',
+      note: openTaskCount > 0 ? `${openTaskCount} việc đang làm` : 'Đã nghiệm thu đủ',
+      icon: CalendarCheck,
+      tab: 'tasks'
+    }
   ];
 
   return (
@@ -1598,8 +1618,8 @@ export default function CustomerPlotWorkspace({
               </div>
             </div>
 
-            {/* 4 thẻ chỉ số nhanh */}
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:w-[560px]">
+            {/* 3 thẻ chỉ số nhanh */}
+            <div className="grid grid-cols-3 gap-2.5 lg:w-[480px]">
               {heroStats.map((s, i) => {
                 const Icon = s.icon;
                 return (
