@@ -575,9 +575,9 @@ export default function CustomerDashboard() {
   const [dbPlots, setDbPlots] = useState(null);
   const [isLoadingPlots, setIsLoadingPlots] = useState(true);
 
-  const fetchCustomerPlots = useCallback(async () => {
+  const fetchCustomerPlots = useCallback(async (isInitial = false) => {
     try {
-      setIsLoadingPlots(true);
+      if (isInitial && !dbPlots) setIsLoadingPlots(true);
       const userId = user?.userId || user?.id;
       const email = user?.email;
       if (!userId && !email) {
@@ -595,27 +595,27 @@ export default function CustomerDashboard() {
         const data = await res.json();
         setDbPlots(Array.isArray(data) ? data : []);
       } else {
-        setDbPlots([]);
+        if (!dbPlots) setDbPlots([]);
       }
     } catch (err) {
       console.error('Failed to load customer plots from DB:', err);
-      setDbPlots([]);
+      if (!dbPlots) setDbPlots([]);
     } finally {
-      setIsLoadingPlots(false);
+      if (isInitial) setIsLoadingPlots(false);
     }
-  }, [user]);
+  }, [user, dbPlots]);
 
   useEffect(() => {
-    fetchCustomerPlots();
+    fetchCustomerPlots(true);
 
-    // Lắng nghe đồng bộ tức thì từ Admin qua BroadcastChannel & Storage Event
+    // Lắng nghe cập nhật tức thì từ Admin qua BroadcastChannel & Storage Event
     let bc = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         bc = new BroadcastChannel('farmely_iot_telemetry');
         bc.onmessage = (msg) => {
           if (msg.data?.type === 'TELEMETRY_UPDATED') {
-            fetchCustomerPlots();
+            fetchCustomerPlots(false);
           }
         };
       }
@@ -623,20 +623,20 @@ export default function CustomerDashboard() {
 
     const handleStorage = (e) => {
       if (e.key === 'farmely_iot_sync_ping') {
-        fetchCustomerPlots();
+        fetchCustomerPlots(false);
       }
     };
     window.addEventListener('storage', handleStorage);
 
-    // Chu kỳ đồng bộ 10 giây tự động cập nhật số liệu mới nhất từ PostgreSQL
-    const pollTimer = setInterval(fetchCustomerPlots, 10000);
+    // Cập nhật ngầm định kỳ 30 giây (không hiện loading che màn hình)
+    const pollTimer = setInterval(() => fetchCustomerPlots(false), 30000);
 
     return () => { 
       clearInterval(pollTimer);
       if (bc) { try { bc.close(); } catch {} }
       window.removeEventListener('storage', handleStorage);
     };
-  }, [user?.id, user?.userId, user?.email]);
+  }, [fetchCustomerPlots]);
 
   const customerPlots = useMemo(() => {
     const list = Array.isArray(dbPlots) ? [...dbPlots] : [];
@@ -2287,12 +2287,15 @@ export default function CustomerDashboard() {
                     </span>
                   </div>
 
-                  {isLoadingPlots ? (
-                    <div className="flex h-48 items-center justify-center rounded-2xl border border-stone-200 bg-white shadow-sm">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-stone-500">
-                        <RefreshCw className="h-5 w-5 animate-spin text-emerald-600" />
-                        Đang đồng bộ danh sách thửa đất từ cơ sở dữ liệu...
-                      </div>
+                  {isLoadingPlots && (!dbPlots || dbPlots.length === 0) ? (
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {[1, 2, 3].map((n) => (
+                        <div key={n} className="animate-pulse rounded-3xl border border-stone-200/80 bg-white p-4 shadow-sm h-64">
+                          <div className="h-36 rounded-2xl bg-stone-200/60 mb-3" />
+                          <div className="h-4 w-3/4 rounded bg-stone-200/60 mb-2" />
+                          <div className="h-3 w-1/2 rounded bg-stone-100" />
+                        </div>
+                      ))}
                     </div>
                   ) : displayedPlots.length === 0 ? (
                     plotStatusFilter === 'CANCELLED' ? (

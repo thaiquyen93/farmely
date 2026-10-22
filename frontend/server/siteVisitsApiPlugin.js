@@ -75,10 +75,10 @@ function getPgConfig() {
   if (activePgConfig) return activePgConfig;
   return {
     host: process.env.PGHOST || process.env.DB_HOST || rootEnv.DB_HOST || 'localhost',
-    port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5432',
+    port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5433',
     database: process.env.PGDATABASE || process.env.DB_NAME || rootEnv.DB_NAME || 'farmely',
     user: process.env.PGUSER || process.env.DB_USER || rootEnv.DB_USER || 'postgres',
-    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '@Bin054206'
+    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '12345'
   };
 }
 
@@ -98,7 +98,7 @@ function runPostgreSqlAttempt(cfg, sqlQuery) {
       const child = spawn(
         PSQL_PATH,
         ['-U', cfg.user, '-h', cfg.host, '-p', String(cfg.port), '-d', cfg.database, '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
-        { env, windowsHide: true, timeout: 8000 }
+        { env, windowsHide: true, timeout: 3500 }
       );
       let stdout = '';
       let stderr = '';
@@ -141,8 +141,8 @@ async function runPostgreSql(sqlQuery) {
   }
 
   const base = getPgConfig();
-  const candidatePorts = Array.from(new Set(['5432', base.port].filter(Boolean)));
-  const candidatePasses = Array.from(new Set(['postgres', base.password, '12345', ''].filter(p => p !== undefined)));
+  const candidatePorts = Array.from(new Set([base.port, '5433', '5432'].filter(Boolean)));
+  const candidatePasses = Array.from(new Set([base.password, '12345', 'postgres', '@Bin054206', ''].filter(p => p !== undefined)));
 
   let lastErr = null;
   for (const port of candidatePorts) {
