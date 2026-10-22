@@ -2010,7 +2010,13 @@ SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
     COALESCE(l.description, '') AS "description",
     CASE 
       WHEN l.boundary_geojson IS NOT NULL AND l.boundary_geojson != '' 
-      THEN l.boundary_geojson::json 
+      THEN (
+        CASE 
+          WHEN l.boundary_geojson::jsonb ? 'coordinates' 
+          THEN l.boundary_geojson::json->'coordinates'->0 
+          ELSE l.boundary_geojson::json 
+        END
+      )
       ELSE NULL 
     END AS "boundary",
     (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id) AS "totalPlots",
@@ -2058,7 +2064,13 @@ SELECT row_to_json(l) FROM (
     COALESCE(l.description, '') AS "description",
     CASE 
       WHEN l.boundary_geojson IS NOT NULL AND l.boundary_geojson != '' 
-      THEN l.boundary_geojson::json 
+      THEN (
+        CASE 
+          WHEN l.boundary_geojson::jsonb ? 'coordinates' 
+          THEN l.boundary_geojson::json->'coordinates'->0 
+          ELSE l.boundary_geojson::json 
+        END
+      )
       ELSE NULL 
     END AS "boundary",
     (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id) AS "totalPlots",
@@ -2080,7 +2092,13 @@ SELECT row_to_json(l) FROM (
             p.image_url AS "imageUrl",
             CASE 
               WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
-              THEN p.boundary_geojson::json 
+              THEN (
+                CASE 
+                  WHEN p.boundary_geojson::jsonb ? 'coordinates' 
+                  THEN p.boundary_geojson::json->'coordinates'->0 
+                  ELSE p.boundary_geojson::json 
+                END
+              )
               ELSE NULL 
             END AS "boundary"
           FROM plots p

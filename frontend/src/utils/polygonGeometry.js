@@ -10,13 +10,42 @@ export const EARTH_RADIUS_M = 6378137;
 const EPS = 1e-7;
 const rad = (d) => (d * Math.PI) / 180;
 
-/** Bỏ điểm trùng liên tiếp và điểm đóng; không ném lỗi */
-export function cleanRing(ring = []) {
+/** Bỏ điểm trùng liên tiếp và điểm đóng; không ném lỗi; tự unwrap GeoJSON object hoặc chuỗi JSON */
+export function cleanRing(rawRing) {
+  if (!rawRing) return [];
+
+  let ring = rawRing;
+
+  // 1. Nếu là chuỗi JSON
+  if (typeof ring === 'string') {
+    try {
+      ring = JSON.parse(ring);
+    } catch {
+      return [];
+    }
+  }
+
+  // 2. Nếu là GeoJSON Feature hoặc Geometry (Polygon / MultiPolygon)
+  if (ring && typeof ring === 'object' && !Array.isArray(ring)) {
+    if (ring.geometry) ring = ring.geometry;
+    if (ring.coordinates) ring = ring.coordinates;
+    else if (ring.boundary) ring = ring.boundary;
+    else if (ring.ring) ring = ring.ring;
+  }
+
+  // 3. Nếu là mảng 3 chiều [[[lng, lat], ...]] (Polygon coordinates outer ring)
+  while (Array.isArray(ring) && ring.length > 0 && Array.isArray(ring[0]) && Array.isArray(ring[0][0])) {
+    ring = ring[0];
+  }
+
+  if (!Array.isArray(ring)) return [];
+
   const out = [];
   for (const p of ring) {
-    if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
+    if (!Array.isArray(p) || !Number.isFinite(Number(p[0])) || !Number.isFinite(Number(p[1]))) continue;
+    const pt = [Number(p[0]), Number(p[1])];
     const last = out[out.length - 1];
-    if (!last || !samePoint(last, p)) out.push([p[0], p[1]]);
+    if (!last || !samePoint(last, pt)) out.push(pt);
   }
   if (out.length > 1 && samePoint(out[0], out[out.length - 1])) out.pop();
   return out;
