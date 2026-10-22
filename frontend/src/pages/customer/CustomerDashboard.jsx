@@ -1429,24 +1429,12 @@ export default function CustomerDashboard() {
     );
 
     if (requestedView === 'tasks') {
-      setSelectedPlotId(null);
-      setActiveTab('tasks');
+      setActiveTab('yards');
       if (requestedPlot) {
-        setTasksPlotFilter(requestedPlot.id);
-        setPlotScopeId(requestedPlot.id);
+        setSelectedPlotId(requestedPlot.id);
         setCheckoutPlotId(requestedPlot.id);
-        try { localStorage.setItem('farmely_selected_task_plot', requestedPlot.id); } catch {}
       } else {
-        try {
-          const saved = localStorage.getItem('farmely_selected_task_plot');
-          if (saved && customerPlots.some(p => p.id === saved || p.plotCode === saved || String(p.rentalId) === saved)) {
-            setTasksPlotFilter(saved);
-            setPlotScopeId(saved);
-          } else if (checkoutPlotId) {
-            setTasksPlotFilter(checkoutPlotId);
-            setPlotScopeId(checkoutPlotId);
-          }
-        } catch {}
+        setSelectedPlotId(null);
       }
     } else if (requestedPlot) {
       setActiveTab('yards');
@@ -1871,7 +1859,6 @@ export default function CustomerDashboard() {
           {!sidebarCollapsed && <p className="px-3 pb-2 text-xs font-bold uppercase tracking-widest text-white/55">Quản lý nông trại</p>}
           {[
             ['Tổng quan', LayoutDashboard, 'overview'],
-            ['Lịch canh tác', Calendar, 'tasks'],
             ['Dịch vụ canh tác', ShoppingBag, 'services'],
             ['Nhật ký nông trại', BookOpen, 'diary'],
             ['Quy trình canh tác chuẩn', ClipboardList, 'process'],
@@ -1880,26 +1867,6 @@ export default function CustomerDashboard() {
             const isActive = id === 'overview' ? (activeTab === 'yards' || Boolean(selectedPlotId)) : (!selectedPlotId && activeTab === id);
             return (
               <button key={id} type="button" onClick={() => {
-                if (id === 'tasks') {
-                  const saved = localStorage.getItem('farmely_selected_task_plot');
-                  const target = (plotScopeId && plotScopeId !== 'ALL')
-                    ? plotScopeId
-                    : (checkoutPlotId
-                      ? checkoutPlotId
-                      : (saved && customerPlots.some(p => p.id === saved || p.plotCode === saved) ? saved : 'ALL'));
-                  setSelectedPlotId(null);
-                  setActiveTab('tasks');
-                  if (target && target !== 'ALL') {
-                    setTasksPlotFilter(target);
-                    setPlotScopeId(target);
-                    navigate(`/customer/dashboard?view=tasks&plot=${target}`);
-                  } else {
-                    setTasksPlotFilter('ALL');
-                    setPlotScopeId(null);
-                    navigate('/customer/dashboard?view=tasks');
-                  }
-                  return;
-                }
                 setSelectedPlotId(null);
                 setPlotScopeId(null);
                 const nextTab = id === 'overview' ? 'yards' : id;
@@ -1953,7 +1920,7 @@ export default function CustomerDashboard() {
             )}
 
             {/* Thanh ngữ cảnh: đang xem chức năng của riêng 1 thửa */}
-            {!selectedPlotId && scopedPlot && ['tasks', 'diary', 'services'].includes(activeTab) && (
+            {!selectedPlotId && scopedPlot && ['diary', 'services'].includes(activeTab) && (
               <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
                   <button type="button" onClick={backToScopedPlot} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
@@ -1963,7 +1930,7 @@ export default function CustomerDashboard() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-brand-dark">
                       {scopedPlot.name}
-                      <span className="font-normal text-brand-muted"> / {activeTab === 'diary' ? 'Nhật ký' : activeTab === 'tasks' ? 'Lịch canh tác' : 'Dịch vụ'}</span>
+                      <span className="font-normal text-brand-muted"> / {activeTab === 'diary' ? 'Nhật ký' : 'Dịch vụ'}</span>
                     </p>
                     <p className="truncate text-xs text-brand-muted">{scopedPlot.crop} · {scopedPlot.id}</p>
                   </div>
@@ -2130,7 +2097,7 @@ export default function CustomerDashboard() {
 
                 {/* Mobile không có sidebar: lối vào các trang xem chung tất cả thửa */}
                 <nav aria-label="Xem theo tất cả thửa" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
-                  {[['tasks', 'Lịch canh tác', Calendar], ['services', 'Dịch vụ', ShoppingBag], ['diary', 'Nhật ký', BookOpen], ['process', 'Quy trình', ClipboardList], ['harvest', 'Nghiệm thu', Apple]].map(([id, label, Icon]) => (
+                  {[['services', 'Dịch vụ', ShoppingBag], ['diary', 'Nhật ký', BookOpen], ['process', 'Quy trình', ClipboardList], ['harvest', 'Nghiệm thu', Apple]].map(([id, label, Icon]) => (
                     <button key={id} type="button" onClick={() => navigate(`/customer/dashboard?view=${id}`)} className="flex shrink-0 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-700 shadow-sm">
                       <Icon className="h-4 w-4 text-emerald-700" />{label}
                     </button>
@@ -2407,7 +2374,7 @@ export default function CustomerDashboard() {
                                       <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block font-semibold">{topAlert.title}</span><span className="opacity-80">{topAlert.time}</span></span>
                                     </button>
                                   ) : nextTask ? (
-                                    <button type="button" onClick={() => openPlot(plot.id, 'tasks')} className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-left text-xs text-amber-900 hover:bg-amber-100">
+                                    <button type="button" onClick={() => openPlot(plot.id)} className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-left text-xs text-amber-900 hover:bg-amber-100">
                                       <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block truncate font-semibold">{nextTask.title}</span><span className="opacity-80">{nextTask.time}</span></span>
                                     </button>
                                   ) : null}
@@ -2430,10 +2397,9 @@ export default function CustomerDashboard() {
                                     <button type="button" onClick={() => openPlot(plot.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
                                       Mở thửa<ChevronRight className="h-4 w-4" />
                                     </button>
-                                    {[['tasks', Calendar, 'Công việc'], ['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
+                                    {[['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
                                       <button key={tab} type="button" onClick={() => openPlot(plot.id, tab)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
                                         <Icon className="h-4 w-4" />
-                                        {tab === 'tasks' && openCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">{openCount}</span>}
                                       </button>
                                     ))}
                                     <button
@@ -2459,138 +2425,7 @@ export default function CustomerDashboard() {
               );
             })()}
 
-            {activeTab === 'tasks' && !selectedPlotId && (() => {
-              const activeFilter = (tasksPlotFilter && tasksPlotFilter !== 'ALL')
-                ? tasksPlotFilter
-                : (plotScopeId
-                  ? plotScopeId
-                  : (() => {
-                      try {
-                        const saved = localStorage.getItem('farmely_selected_task_plot');
-                        if (saved && customerPlots.some(p => p.id === saved || p.plotCode === saved || String(p.rentalId) === saved)) return saved;
-                      } catch {}
-                      return checkoutPlotId || customerPlots[0]?.id || 'ALL';
-                    })());
 
-              const displayedTasksPlots = activeFilter !== 'ALL'
-                ? customerPlots.filter((p) =>
-                    p.id === activeFilter ||
-                    p.mapPlotId === activeFilter ||
-                    p.plotCode === activeFilter ||
-                    String(p.rentalId) === String(activeFilter) ||
-                    `RENTAL-${p.rentalId}` === activeFilter ||
-                    (activeFilter.startsWith('PLOT-') && p.plotCode === activeFilter.replace(/^PLOT-/i, ''))
-                  )
-                : customerPlots;
-
-              return (
-              <div className="mx-auto max-w-5xl space-y-5 rounded-3xl border border-brand-border bg-white p-5 shadow-sm sm:p-7">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-brand-green">Lịch canh tác</p>
-                    <h2 className="mt-1 font-heading text-2xl font-black text-brand-dark">Việc cần làm hôm nay</h2>
-                    <p className="mt-1 text-sm text-brand-muted">Theo dõi lịch chăm sóc và người phụ trách từng thửa.</p>
-                  </div>
-                  <button type="button" onClick={() => setActiveTab('services')} className="rounded-xl bg-brand-yellow px-4 py-2 text-xs font-black text-brand-dark hover:brightness-95">
-                    <ShoppingBag className="mr-1 inline h-4 w-4" />Đặt dịch vụ
-                  </button>
-                </div>
-                {/* Plot Filter Selector in Lịch canh tác */}
-                {customerPlots.length > 1 && (
-                  <div className="flex flex-wrap items-center gap-2 pt-1 pb-1 border-b border-brand-border/60">
-                    <span className="text-xs font-bold text-stone-500 mr-1">Lọc theo thửa:</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTasksPlotFilter('ALL');
-                        setPlotScopeId(null);
-                        try { localStorage.removeItem('farmely_selected_task_plot'); } catch {}
-                        navigate('/customer/dashboard?view=tasks', { replace: true });
-                      }}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        activeFilter === 'ALL'
-                          ? 'bg-[#294C3B] text-white shadow-xs ring-2 ring-[#294C3B]/20'
-                          : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                      }`}
-                    >
-                      Tất cả ({customerPlots.length} thửa)
-                    </button>
-                    {customerPlots.map((plot, idx) => {
-                      const isSelected = activeFilter !== 'ALL' && (
-                        activeFilter === plot.id ||
-                        activeFilter === plot.mapPlotId ||
-                        activeFilter === plot.plotCode ||
-                        String(activeFilter) === String(plot.rentalId) ||
-                        activeFilter === `RENTAL-${plot.rentalId}` ||
-                        (activeFilter.startsWith('PLOT-') && plot.plotCode === activeFilter.replace(/^PLOT-/i, ''))
-                      );
-                      return (
-                        <button
-                          key={`${plot.id}-${plot.rentalId || plot.rental_id || idx}`}
-                          type="button"
-                          onClick={() => {
-                            setTasksPlotFilter(plot.id);
-                            setPlotScopeId(plot.id);
-                            setCheckoutPlotId(plot.id);
-                            try { localStorage.setItem('farmely_selected_task_plot', plot.id); } catch {}
-                            navigate(`/customer/dashboard?view=tasks&plot=${plot.id}`, { replace: true });
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-[#294C3B] text-white shadow-xs ring-2 ring-[#294C3B]/20'
-                              : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                          }`}
-                        >
-                          {plot.name.split(' - ')[0] || plot.name} ({plot.crop})
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {displayedTasksPlots.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center">
-                    <Calendar className="mx-auto h-10 w-10 text-stone-400" />
-                    <p className="mt-2 font-bold text-stone-700">Chưa có lịch canh tác</p>
-                    <p className="mt-1 text-xs text-stone-500">Bạn chưa có thửa đất nào đang canh tác để tạo lịch công việc.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {displayedTasksPlots.map((plot, pIdx) => {
-                      const tasks = (plot.rentalId && plotOperations[`RENTAL-${plot.rentalId}`]?.tasks) ||
-                        plotOperations[plot.id]?.tasks ||
-                        plotOperations[plot.mapPlotId]?.tasks ||
-                        plotOperations[`PLOT-${plot.plotCode}`]?.tasks ||
-                        defaultOperationsForPlot(plot).tasks || [];
-                      return (
-                      <section key={`${plot.id}-${plot.rentalId || pIdx}`} className="overflow-hidden rounded-2xl border border-brand-border bg-brand-cream/25">
-                        <div className="flex flex-wrap items-center gap-3 border-b border-brand-border bg-white px-4 py-3">
-                          <img src={plot.image} alt="" className="h-11 w-14 rounded-xl object-cover" />
-                          <div className="min-w-0 flex-1">
-                            <h3 className="truncate font-heading text-base font-black text-brand-dark">{plot.name}</h3>
-                            <p className="truncate text-xs text-brand-muted">{plot.crop} · {plot.id}</p>
-                          </div>
-                          <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${plot.mode === 'Self-Growing' ? 'bg-emerald-100 text-emerald-800' : 'bg-lime-100 text-lime-800'}`}>
-                            {plot.mode === 'Self-Growing' ? 'Tự trồng' : 'Farmely chăm sóc'}
-                          </span>
-                        </div>
-                        <div className="grid gap-2 p-3 md:grid-cols-2">
-                          {tasks.map((task) => (
-                            <button key={task.id} type="button" onClick={() => { setTaskPhotoPreview(''); setSelectedTaskDetail({ ...task, plot }); }} className="flex items-center gap-3 rounded-xl border border-brand-border bg-white p-3 text-left transition hover:border-brand-green hover:shadow-sm">
-                              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${task.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{task.status === 'COMPLETED' ? <Check className="h-4 w-4" /> : <Clock className="h-4 w-4" />}</span>
-                              <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-brand-dark">{task.title}</span><span className="mt-0.5 block truncate text-xs text-brand-muted">{task.owner}</span></span>
-                              <span className="whitespace-nowrap text-[11px] font-bold text-brand-green">{task.time}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </section>
-                    );
-                  })}
-                </div>
-                )}
-              </div>
-              );
-            })()}
 
             {/* ============================================================== */}
             {/* VIEW C: DỊCH VỤ CANH TÁC & THANH TOÁN                         */}
@@ -4088,19 +3923,20 @@ export default function CustomerDashboard() {
                 setShowCheckoutSuccessModal(false);
                 setSelectedServiceToBuy(null);
                 setLastPaymentResult(null);
-                setSelectedPlotId(null);
+                setActiveTab('yards');
                 if (targetPlot) {
-                  setPlotScopeId(targetPlot.id);
-                  setTasksPlotFilter(targetPlot.id);
-                  try { localStorage.setItem('farmely_selected_task_plot', targetPlot.id); } catch {}
+                  setSelectedPlotId(targetPlot.id);
+                  setCheckoutPlotId(targetPlot.id);
+                  navigate(`/customer/dashboard?plot=${targetPlot.id}`);
+                } else {
+                  setSelectedPlotId(null);
+                  navigate('/customer/dashboard');
                 }
-                setActiveTab('tasks');
-                navigate(`/customer/dashboard?view=tasks&plot=${targetPlot?.id || 'PLOT-P-07'}`);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
             >
-              <Calendar className="w-4 h-4 text-emerald-300" />
-              <span>XEM LỊCH CANH TÁC</span>
+              <Eye className="w-4 h-4 text-emerald-300" />
+              <span>XEM CHI TIẾT THỬA ĐẤT</span>
             </button>
           </div>
         </div>
