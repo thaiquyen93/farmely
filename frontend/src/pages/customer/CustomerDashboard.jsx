@@ -72,8 +72,7 @@ import {
   LayoutDashboard,
   MessageCircle,
   PanelLeftClose,
-  PanelLeftOpen,
-  ShieldAlert
+  PanelLeftOpen
 } from 'lucide-react';
 
 export default function CustomerDashboard() {
