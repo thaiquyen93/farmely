@@ -65,26 +65,6 @@ const DEFAULT_PLOT_CROPS = {
   'P-16': 'Xà lách Romaine VietGAP'
 };
 
-// SSoT danh mục giống canh tác chuẩn theo từng thửa đất tại Happy Valley
-const DEFAULT_PLOT_CROPS = {
-  'P-01': 'Cà chua bi đỏ F1',
-  'P-02': 'Xà lách Romaine VietGAP',
-  'P-03': 'Dưa leo baby F1',
-  'P-04': 'Cà chua bi đỏ F1',
-  'P-05': 'Cải ngọt bông F1',
-  'P-06': 'Xà lách xoăn Lollo Bionda',
-  'P-07': 'Dưa leo baby F1',
-  'P-08': 'Cải ngọt bông F1',
-  'P-09': 'Xà lách Romaine VietGAP',
-  'P-10': 'Cà chua bi đỏ F1',
-  'P-11': 'Dưa leo baby F1',
-  'P-12': 'Cà chua bi đỏ F1',
-  'P-13': 'Cải ngọt bông F1',
-  'P-14': 'Cà chua bi đỏ F1',
-  'P-15': 'Cải ngọt bông F1',
-  'P-16': 'Xà lách Romaine VietGAP'
-};
-
 const readPhoto = async (file, onLoad) => {
   if (!file) {
     onLoad('');

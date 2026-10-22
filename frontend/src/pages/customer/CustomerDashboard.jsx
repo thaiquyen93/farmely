@@ -1425,7 +1425,6 @@ export default function CustomerDashboard() {
     if (paidResult) {
       setLastPaymentResult(paidResult);
     }
-    }
     setSelectedServiceToBuy(null);
     setShowCheckoutSuccessModal(true);
   };

@@ -1045,8 +1045,25 @@ function DiaryTab({ plot, operations, onAddDiary }) {
 }
 
 function ServicesTab({ plot, services, orders, onSelectService }) {
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [selectedOrderForDetail, setSelectedOrderForDetail] = useState(null);
+
+  const filteredOrders = useMemo(() => {
+    if (statusFilter === 'IN_PROGRESS') {
+      return orders.filter((o) => o.status === 'IN_PROGRESS' || o.status === 'ASSIGNED' || o.status === 'PENDING');
+    }
+    if (statusFilter === 'COMPLETED') {
+      return orders.filter((o) => o.status === 'COMPLETED' || o.status === 'DONE');
+    }
+    return orders;
+  }, [orders, statusFilter]);
+
+  const inProgressCount = orders.filter((o) => o.status === 'IN_PROGRESS' || o.status === 'ASSIGNED' || o.status === 'PENDING').length;
+  const completedCount = orders.filter((o) => o.status === 'COMPLETED' || o.status === 'DONE').length;
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* 1. Đặt dịch vụ chăm sóc & vật tư */}
       <section>
         <SectionTitle eyebrow={`Cho ${plot.name}`} title="Đặt dịch vụ chăm sóc & vật tư" />
         <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -1067,26 +1084,218 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
           ))}
         </div>
       </section>
-      <section>
-        <SectionTitle eyebrow={`${orders.length} đơn`} title="Dịch vụ đã đặt cho thửa này" />
-        <div className="mt-3 space-y-2">
-          {orders.length ? orders.map((o) => (
-            <Card key={o.id} className="flex items-center gap-3 p-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                <ShoppingBag className="h-4 w-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-[#18352b]">{o.serviceName}</p>
-                <p className="truncate text-xs text-stone-500">{o.date} · {o.worker}</p>
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-sm font-semibold text-[#18352b]">{o.price}</p>
-                <p className="text-xs text-amber-700">{o.statusLabel}</p>
-              </div>
-            </Card>
-          )) : <EmptyState icon={ShoppingBag} title="Chưa đặt dịch vụ nào" note="Các dịch vụ bạn đặt cho thửa này sẽ hiện ở đây." />}
+
+      {/* 2. Lịch sử mua & sử dụng dịch vụ của thửa đất */}
+      <section className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200/80 pb-3">
+          <div>
+            <SectionTitle eyebrow={`${orders.length} đơn dịch vụ`} title="Lịch sử mua & sử dụng dịch vụ" />
+            <p className="text-xs text-stone-500 mt-0.5">Theo dõi chi tiết tiến độ thực hiện, nhân viên phụ trách và ảnh nghiệm thu thực địa (BR15).</p>
+          </div>
+          <div className="flex items-center gap-1.5 self-start sm:self-auto bg-stone-100 p-1 rounded-xl text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setStatusFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${statusFilter === 'ALL' ? 'bg-white text-emerald-800 shadow-xs font-bold' : 'text-stone-600 hover:text-stone-900'}`}
+            >
+              Tất cả ({orders.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('IN_PROGRESS')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${statusFilter === 'IN_PROGRESS' ? 'bg-white text-emerald-800 shadow-xs font-bold' : 'text-stone-600 hover:text-stone-900'}`}
+            >
+              Đang làm ({inProgressCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('COMPLETED')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${statusFilter === 'COMPLETED' ? 'bg-white text-emerald-800 shadow-xs font-bold' : 'text-stone-600 hover:text-stone-900'}`}
+            >
+              Hoàn thành ({completedCount})
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {filteredOrders.length ? (
+            filteredOrders.map((o) => {
+              const isCompleted = o.status === 'COMPLETED' || o.status === 'DONE';
+              return (
+                <Card key={o.id} className="p-4 sm:p-5 transition hover:shadow-md border border-stone-200/80">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          {o.id}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                          isCompleted
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                        }`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${isCompleted ? 'bg-emerald-600' : 'bg-amber-500 animate-pulse'}`} />
+                          {o.statusLabel}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[11px] text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          {o.paymentMethod || 'Đã thanh toán'}
+                        </span>
+                      </div>
+
+                      <h4 className="text-base font-bold text-[#18352b] pt-0.5">{o.serviceName}</h4>
+                      
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-600">
+                        <span className="flex items-center gap-1">
+                          <Clock3 className="w-3.5 h-3.5 text-stone-400" />
+                          {o.date}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <UserRound className="w-3.5 h-3.5 text-stone-400" />
+                          {o.worker || 'Trần Văn Lực (CVLĐ)'}
+                        </span>
+                        {o.transactionId && (
+                          <span className="text-stone-400 font-mono text-[11px]">
+                            GD: #{o.transactionId}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Photo evidence preview if completed or uploaded */}
+                      {o.proofPhoto ? (
+                        <div className="pt-2 flex items-center gap-3">
+                          <div 
+                            className="relative h-14 w-20 rounded-xl overflow-hidden border border-emerald-200 cursor-pointer shadow-xs group"
+                            onClick={() => setSelectedOrderForDetail(o)}
+                          >
+                            <img src={o.proofPhoto} alt="Minh chứng" className="h-full w-full object-cover transition group-hover:scale-105" />
+                            <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                              <Eye className="w-4 h-4 text-white" />
+                            </div>
+                          </div>
+                          <div className="text-xs">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              <Camera className="w-3 h-3" />
+                              Minh chứng hiện trường (BR15)
+                            </span>
+                            <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-1">{o.proofNotes || 'Đã nghiệm thu đạt chuẩn'}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-stone-400 italic pt-1 flex items-center gap-1">
+                          <Info className="w-3 h-3 text-stone-400" />
+                          {isCompleted ? 'Dịch vụ đã hoàn tất theo định mức' : 'Nhân viên sẽ chụp ảnh hiện trường gửi vào đây khi thực hiện (BR15)'}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex sm:flex-col items-end justify-between sm:justify-start gap-2 pt-2 sm:pt-0 shrink-0 border-t sm:border-t-0 border-stone-100">
+                      <span className="text-base font-extrabold text-emerald-800">{o.price}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOrderForDetail(o)}
+                        className="px-3 py-1.5 rounded-xl border border-stone-300 text-xs font-semibold text-stone-700 hover:bg-stone-50 hover:border-stone-400 transition cursor-pointer flex items-center gap-1"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-stone-500" />
+                        Chi tiết đơn
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })
+          ) : (
+            <EmptyState 
+              icon={ShoppingBag} 
+              title="Chưa có dịch vụ nào trong mục này" 
+              note="Các dịch vụ phát sinh hoặc gói ủy thác chăm sóc bạn đặt cho thửa này sẽ được lưu trữ và hiển thị đầy đủ tại đây." 
+            />
+          )}
         </div>
       </section>
+
+      {/* Modal chi tiết đơn dịch vụ */}
+      {selectedOrderForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
+          <div className="relative max-w-lg w-full rounded-3xl bg-white p-6 shadow-2xl overflow-hidden border border-stone-200 space-y-4">
+            <button
+              type="button"
+              onClick={() => setSelectedOrderForDetail(null)}
+              className="absolute right-4 top-4 rounded-full bg-stone-100 p-2 text-stone-600 hover:bg-stone-200 transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
+                <ShoppingBag className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-heading font-black text-base text-[#18352b]">Chi Tiết Đơn Dịch Vụ</h3>
+                <p className="text-xs text-stone-500 font-mono">#{selectedOrderForDetail.id} • {selectedOrderForDetail.transactionId || 'TXN-SUCCESS'}</p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-stone-50 p-4 space-y-2 text-xs border border-stone-200/80">
+              <div className="flex justify-between items-center py-1 border-b border-stone-200/60">
+                <span className="text-stone-500">Dịch vụ:</span>
+                <strong className="text-[#18352b] text-sm text-right">{selectedOrderForDetail.serviceName}</strong>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-stone-200/60">
+                <span className="text-stone-500">Thửa đất áp dụng:</span>
+                <span className="font-semibold text-stone-800">{plot.name} ({plot.plotCode || plot.mapPlotId || plot.id})</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-stone-200/60">
+                <span className="text-stone-500">Chi phí thanh toán:</span>
+                <strong className="text-emerald-700 text-sm font-bold">{selectedOrderForDetail.price}</strong>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-stone-200/60">
+                <span className="text-stone-500">Phương thức:</span>
+                <span className="font-semibold text-stone-800">{selectedOrderForDetail.paymentMethod || 'Chuyển khoản VietQR'}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-stone-200/60">
+                <span className="text-stone-500">Trạng thái:</span>
+                <span className="font-bold text-emerald-700">{selectedOrderForDetail.statusLabel}</span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-stone-500">Nhân viên phụ trách:</span>
+                <span className="font-semibold text-stone-800">{selectedOrderForDetail.worker || 'Trần Văn Lực (CVLĐ)'}</span>
+              </div>
+            </div>
+
+            {selectedOrderForDetail.proofPhoto && (
+              <div className="space-y-1.5">
+                <h5 className="font-bold text-xs text-[#18352b] flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-emerald-700" />
+                  Ảnh minh chứng hiện trường (BR15):
+                </h5>
+                <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-stone-900 flex items-center justify-center max-h-56">
+                  <img 
+                    src={selectedOrderForDetail.proofPhoto} 
+                    alt="Minh chứng hiện trường" 
+                    className="max-h-56 w-full object-cover"
+                  />
+                </div>
+                {selectedOrderForDetail.proofNotes && (
+                  <p className="text-xs text-stone-600 bg-emerald-50/60 p-2.5 rounded-xl border border-emerald-100">
+                    <strong>Ghi chú:</strong> {selectedOrderForDetail.proofNotes}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedOrderForDetail(null)}
+                className="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
