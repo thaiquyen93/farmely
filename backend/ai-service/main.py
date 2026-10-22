@@ -33,7 +33,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Farmely AI Chatbot Service",
-    description="Microservice tư vấn nông nghiệp thông minh Bác Ba Nông Dân qua RAG From-Scratch",
+    description="Microservice tư vấn nông nghiệp thông minh Farmely AI Chatbot qua RAG From-Scratch",
     version="1.0.0",
     lifespan=lifespan
 )

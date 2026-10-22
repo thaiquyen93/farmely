@@ -3568,13 +3568,13 @@ SELECT json_build_object(
             let reply = '';
             let docs = [];
 
-            if (lower.match(/^(chào|chao|hello|hi|xin chào|alo|bác ba|bac ba)(\s+bạn|\s+bác|\s+ạ)?/i) || (lower.includes('chào') && lower.length <= 15)) {
-              reply = 'Dạ Bác Ba Nông Dân xin chào bạn nhé! Rất vui được gặp bạn trên nông trại thông minh Farmely. Hôm nay bạn cần Bác Ba tư vấn về kỹ thuật gieo trồng, kiểm tra độ ẩm đất IoT hay tìm hiểu thủ tục thuê thửa đất nào không?';
+            if (lower.match(/^(chào|chao|hello|hi|xin chào|alo|farmely ai|ai|bot)(\s+bạn|\s+ạ)?/i) || (lower.includes('chào') && lower.length <= 15)) {
+              reply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Tôi có thể hỗ trợ bạn về kỹ thuật gieo trồng chuẩn VietGAP, theo dõi độ ẩm vi khí hậu IoT và thủ tục thuê thửa đất. Bạn cần tôi giải đáp nội dung nào?';
               docs.push({ docTitle: 'Cẩm nang Hướng dẫn Khách hàng Farmely 2026', source: 'Farmely General Guide', similarityScore: 0.95 });
             } else if (lower.includes('cảm ơn') || lower.includes('thank') || lower.includes('tks')) {
-              reply = 'Dạ không có chi đâu bạn ơi! Làm nông nghiệp sạch cùng nhau vui và ý nghĩa lắm. Chúc vườn rau của bạn luôn xanh mơn mởn, sạch sâu bệnh và thu hoạch trĩu cành nhen!';
+              reply = 'Rất vui được hỗ trợ bạn! Chúc bạn có những vụ mùa bội thu, rau sạch chuẩn VietGAP và trải nghiệm canh tác tuyệt vời trên Farmely. Cần hỗ trợ thêm, bạn cứ nhắn cho Farmely AI nhé!';
             } else if (lower.includes('tạm biệt') || lower.includes('bye') || lower.includes('hẹn gặp lại')) {
-              reply = 'Tạm biệt bạn nhé! Khi nào cần tư vấn về vườn rau hay số liệu vi khí hậu thửa đất, cứ gọi Bác Ba bất cứ lúc nào!';
+              reply = 'Tạm biệt bạn nhé! Chúc bạn một ngày làm việc hiệu quả. Khi nào cần tra cứu số liệu thửa đất hay kỹ thuật chăm sóc, Farmely AI luôn sẵn sàng hỗ trợ!';
             } else if (lower.includes('xà lách') || lower.includes('xa lach')) {
               reply = 'Rau xà lách tại Farmely phát triển tốt nhất ở nhiệt độ 18°C – 25°C, độ ẩm đất 65% – 75%. Nên tưới phun mưa mịn vào sáng sớm (6h30 - 7h30) và chiều mát (16h - 17h). Tránh tưới đẫm vào ban đêm để hạn chế nấm thối nhũn bẹ lá nhé!';
               docs.push({ docTitle: 'Kỹ thuật Canh tác Rau Xà lách Thủy Canh & Thổ Canh', source: 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94 });
@@ -3589,9 +3589,9 @@ SELECT json_build_object(
               docs.push({ docTitle: 'Quy chế Hợp đồng Thuê đất Nông nghiệp Công nghệ cao (BR11, BR12)', source: 'Trung tâm Pháp lý Farmely', similarityScore: 0.93 });
             } else {
               if (userMsg.length <= 8) {
-                reply = 'Dạ Bác Ba Nông Dân nghe đây! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm vi khí hậu hay muốn tìm hiểu thủ tục thuê đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho Bác Ba nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi với ThS. Hoàng Nam nha.';
+                reply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm vi khí hậu hay muốn tìm hiểu thủ tục thuê đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi với ThS. Hoàng Nam nha.';
               } else {
-                reply = 'Dạ Bác Ba đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+                reply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
               }
               docs.push({ docTitle: 'Cẩm nang Hướng dẫn Canh tác Toàn diện Farmely', source: 'Hệ sinh thái Nông nghiệp Thông minh', similarityScore: 0.88 });
             }

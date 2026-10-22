@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
 
-@Tag(name = "AI Chatbot API", description = "Trợ lý ảo Nông nghiệp thông minh Bác Ba Nông Dân qua RAG & NLP")
+@Tag(name = "AI Chatbot API", description = "Hệ thống AI Farmely Chatbot - Trợ lý Nông nghiệp thông minh qua RAG & NLP")
 @RestController
 @RequestMapping("/api/ai")
 @CrossOrigin(origins = "*")
@@ -21,7 +21,7 @@ public class AiChatController {
 
     private final AiChatService aiChatService;
 
-    @Operation(summary = "Gửi tin nhắn hỏi đáp nông nghiệp tới Bác Ba AI")
+    @Operation(summary = "Gửi tin nhắn hỏi đáp nông nghiệp tới Farmely AI Chatbot")
     @PostMapping("/chat")
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request) {
         ChatResponse response = aiChatService.processChat(request);

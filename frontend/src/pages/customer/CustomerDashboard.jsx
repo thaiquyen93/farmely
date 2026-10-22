@@ -1437,19 +1437,19 @@ export default function CustomerDashboard() {
       console.warn('AI Service chưa khởi chạy hoặc lỗi mạng, sử dụng fallback thông minh:', err);
       // Fallback mô phỏng khi chưa bật backend
       setTimeout(() => {
-        let reply = 'Bác Ba Nông Dân đã ghi nhận câu hỏi của cháu. ';
+        let reply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. ';
         const lower = query.toLowerCase();
 
         if (lower.includes('độ ẩm') || lower.includes('tưới')) {
-          reply = 'Bác Ba coi qua rồi nghen! Độ ẩm đất chuẩn VietGAP là 65-75%. Nếu độ ẩm vượt 80% thì tạm ngưng cữ tưới chiều nay để tránh úng rễ, xới nhẹ luống đất cho thoáng khí nghen cháu!';
+          reply = 'Farmely AI nhận thấy: Độ ẩm đất chuẩn VietGAP lý tưởng duy trì từ 65% – 75%. Nếu độ ẩm vượt 80% thì hệ thống khuyến nghị tạm hoãn cữ tưới chiều nay để tránh úng rễ và xới nhẹ luống đất cho thoáng khí.';
         } else if (lower.includes('sâu') || lower.includes('bệnh') || lower.includes('rệp') || lower.includes('vietgap')) {
-          reply = 'Tuyệt đối hổng dùng thuốc hóa học nhen cháu! Lấy nước tỏi ớt gừng ngâm rượu hoặc dầu khoáng SK Enspray pha loãng xịt ướt hai mặt lá vào chiều mát là rệp sâu tiêu biến ngay!';
+          reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Dùng dung dịch tỏi ớt gừng lên men hoặc dầu khoáng sinh học SK Enspray pha loãng phun đều hai mặt lá vào chiều mát để xử lý rầy mềm và bọ trĩ.';
         } else if (lower.includes('thu hoạch') || lower.includes('khi nào')) {
-          reply = 'Rau cải ngọt, cải thìa thì 25-30 ngày là thu hoạch được rồi; còn xà lách Romaine thì cỡ 35-45 ngày nhen. Thu hoạch sáng sớm hoặc chiều mát dùng dao sạch cắt cách gốc 2cm là chuẩn nghen!';
+          reply = 'Rau cải ngọt, cải thìa thì 25-30 ngày là thu hoạch được; còn xà lách Romaine chu kỳ từ 35-45 ngày. Nên thu hoạch sáng sớm hoặc chiều mát, dùng dụng cụ sạch cắt cách gốc 2cm.';
         } else if (lower.includes('dịch vụ') || lower.includes('thuê') || lower.includes('bón phân')) {
-          reply = 'Bạn có thể vào tab "Dịch vụ canh tác" để đặt các gói chăm sóc trọn vụ, gói theo tuần hoặc các dịch vụ lẻ như bón phân, nhổ cỏ. Hệ thống hỗ trợ thanh toán trực tiếp cực kỳ nhanh chóng!';
+          reply = 'Bạn có thể vào tab "Dịch vụ canh tác" để đặt các gói chăm sóc trọn vụ, gói theo tuần hoặc các dịch vụ lẻ như bón phân, nhổ cỏ. Hệ thống hỗ trợ thanh toán trực tuyến cực kỳ nhanh chóng.';
         } else {
-          reply = `Chào cháu! Bác Ba luôn túc trực hỗ trợ bà con canh tác rau sạch chuẩn VietGAP. Cứ hỏi bác cách bón phân trùn quế, bắt sâu sinh học là bác chỉ tận tình nghen!`;
+          reply = `Xin chào bạn! Farmely AI luôn sẵn sàng hỗ trợ bạn kỹ thuật canh tác rau sạch chuẩn VietGAP, theo dõi độ ẩm vi khí hậu và thủ tục dịch vụ nông trại.`;
         }
 
         setChatMessages((prev) => [
