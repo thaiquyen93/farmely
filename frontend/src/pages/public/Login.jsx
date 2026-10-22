@@ -20,7 +20,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
 
@@ -34,30 +34,78 @@ export default function Login() {
       const res = await login(email, password);
       setIsLoading(false);
       if (res.success) {
-        setSuccessMessage(`Đăng nhập thành công! Chào mừng ${res.user.fullName}.`);
-        setTimeout(() => {
-          if (res.user.role === 'CUSTOMER') {
-            navigate('/customer/dashboard');
-          } else if (redirectParam) {
-            navigate(redirectParam);
-          } else if (res.user.role === 'ADMIN') {
-            navigate('/admin/dashboard');
-          } else if (res.user.role === 'EXPERT') {
-            navigate('/expert/dashboard');
-          } else if (res.user.role === 'STAFF') {
-            navigate('/staff/dashboard');
-          } else {
-            navigate('/');
-          }
-        }, 500);
+        setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
+        const userRole = String(res.user.role || '').toUpperCase();
+        if (redirectParam) navigate(redirectParam);
+        else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
+        else if (userRole === 'ADMIN') navigate('/admin/dashboard');
+        else if (userRole === 'EXPERT') navigate('/expert/dashboard');
+        else if (userRole === 'STAFF') navigate('/staff/dashboard');
+        else navigate('/');
       } else {
         setErrorMessage(res.message || 'Email hoặc mật khẩu không chính xác.');
       }
-    } catch (err) {
+    } catch {
       setIsLoading(false);
-      setErrorMessage('Không thể kết nối đến máy chủ xác thực.');
+      setErrorMessage('Không thể kết nối máy chủ xác thực.');
     }
   };
+
+  const handleQuickLogin = async (account) => {
+    setEmail(account.email);
+    setPassword('Password@123');
+    setIsLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    try {
+      const res = await login(account.email, 'Password@123');
+      setIsLoading(false);
+      if (res.success) {
+        setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
+        const userRole = String(res.user.role || '').toUpperCase();
+        if (redirectParam) navigate(redirectParam);
+        else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
+        else if (userRole === 'ADMIN') navigate('/admin/dashboard');
+        else if (userRole === 'EXPERT') navigate('/expert/dashboard');
+        else if (userRole === 'STAFF') navigate('/staff/dashboard');
+        else navigate('/');
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback tức thì nếu có bất kỳ lỗi mạng hoặc backend
+    const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === account.email.toLowerCase());
+    if (demoAcc) {
+      const fallbackToken = 'demo-token-' + demoAcc.id;
+      const mappedUser = {
+        ...demoAcc,
+        userId: demoAcc.userId || parseInt(String(demoAcc.id).replace(/\D/g, ''), 10) || 1
+      };
+      localStorage.setItem('farmely_token', fallbackToken);
+      localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
+      localStorage.setItem('farmely_auth', JSON.stringify({ token: fallbackToken, user: mappedUser }));
+      useAuthStore.setState({ user: mappedUser, token: fallbackToken, isAuthenticated: true, isLoading: false });
+
+      setSuccessMessage(`Chào mừng ${mappedUser.fullName}.`);
+      const userRole = String(demoAcc.role || '').toUpperCase();
+      if (redirectParam) navigate(redirectParam);
+      else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
+      else if (userRole === 'ADMIN') navigate('/admin/dashboard');
+      else if (userRole === 'EXPERT') navigate('/expert/dashboard');
+      else if (userRole === 'STAFF') navigate('/staff/dashboard');
+      else navigate('/');
+    } else {
+      setIsLoading(false);
+    }
+  };
+
+  const quickAccounts = [
+    { label: 'Khách hàng', email: 'customer@farmely.vn' },
+    { label: 'Chuyên gia', email: 'expert@farmely.vn' },
+    { label: 'Nhân viên', email: 'worker@farmely.vn' },
+    { label: 'Quản trị', email: 'admin@farmely.vn' }
+  ];
 
   const handleQuickDemoLogin = async (acc) => {
     setEmail(acc.email);
@@ -92,7 +140,6 @@ export default function Login() {
       setErrorMessage('Không thể kết nối đến máy chủ xác thực.');
     }
   };
-
   return (
     <div className="min-h-screen bg-brand-cream flex">
       {/* LEFT: Cinematic Agriculture Photography */}
@@ -243,6 +290,22 @@ export default function Login() {
               ĐĂNG NHẬP
             </Button>
 
+            <div className="rounded-xl border border-brand-border bg-white/70 p-3">
+              <p className="mb-2 text-center text-[11px] font-bold text-stone-500">Đăng nhập nhanh để kiểm thử</p>
+              <div className="grid grid-cols-2 gap-2">
+                {quickAccounts.map((account) => (
+                  <button
+                    key={account.email}
+                    id={`quick-login-${account.email.split('@')[0]}`}
+                    type="button"
+                    onClick={() => handleQuickLogin(account)}
+                    className="rounded-lg border border-emerald-200 px-2 py-2 text-[11px] font-bold text-brand-green transition hover:bg-emerald-50 cursor-pointer active:scale-98"
+                  >
+                    {account.label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="text-center pt-2 text-xs text-stone-600">
               Chưa có tài khoản?{' '}
               <Link

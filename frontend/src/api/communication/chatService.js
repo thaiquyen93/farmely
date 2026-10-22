@@ -7,6 +7,7 @@ import { communicationBus } from './broadcastBus';
 import {
   getStoredThreads,
   getStoredThreadById,
+  saveThreads,
   appendMessage,
   markThreadAsReadInStorage,
   updateThreadRentalInStorage,
@@ -142,5 +143,69 @@ export const chatService = {
 
   getDemoExperts() {
     return DEMO_EXPERTS;
+  },
+
+  async syncBackendMessages() {
+    try {
+      const res = await fetch('/api/v1/conversations/1/messages');
+      if (!res.ok) return;
+      const json = await res.json();
+      const backendMsgs = json?.data;
+      if (!Array.isArray(backendMsgs) || backendMsgs.length === 0) return;
+
+      const threads = getStoredThreads();
+      const threadIndex = threads.findIndex((t) => t.id === 'CONS-401');
+      if (threadIndex === -1) return;
+
+      const thread = { ...threads[threadIndex] };
+      const currentTexts = new Set(thread.messages.map((m) => m.text));
+
+      let hasNew = false;
+      const newMessages = [...thread.messages];
+
+      backendMsgs.forEach((bMsg) => {
+        if (!currentTexts.has(bMsg.content)) {
+          hasNew = true;
+          const isExp = Number(bMsg.senderId) === 5 ||
+            Number(bMsg.senderId) === 2 ||
+            String(bMsg.senderName || '').includes('Nam') ||
+            String(bMsg.content || '').includes('Chào anh Quyền');
+          const isWorker = Number(bMsg.senderId) === 8 ||
+            Number(bMsg.senderId) === 3 ||
+            String(bMsg.senderName || '').includes('Lực');
+
+          let formattedTime = 'Vừa xong';
+          if (bMsg.createdAt) {
+            try {
+              formattedTime = new Date(bMsg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } catch (_) {}
+          }
+
+          newMessages.push({
+            id: bMsg.messageId || (Date.now() + Math.random()),
+            sender: isExp ? 'expert' : isWorker ? 'worker' : 'customer',
+            senderName: isExp ? 'ThS. Nguyễn Hoàng Nam' : isWorker ? 'Trần Văn Lực' : (thread.customerName || 'Lô Thái Quyền'),
+            text: bMsg.content,
+            time: bMsg.time || formattedTime,
+            seen: true
+          });
+        }
+      });
+
+      if (hasNew) {
+        thread.messages = newMessages;
+        threads[threadIndex] = thread;
+        saveThreads(threads);
+        communicationBus.postMessage({
+          type: CHAT_EVENTS.MESSAGE_SENT,
+          threadId: 'CONS-401',
+          thread,
+          timestamp: Date.now()
+        });
+      }
+    } catch (_) {
+      // offline fallback
+    }
   }
 };
+

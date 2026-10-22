@@ -24,20 +24,20 @@ foreach ($s in $services) {
     $conn = Get-NetTCPConnection -LocalPort $s.Port -State Listen -ErrorAction SilentlyContinue
     if ($conn) {
         $onlineCount++
-        Write-Host ('  [ONLINE]  Cổng {0,-4} : {1,-22} ({2})' -f $s.Port, $s.Name, $s.Type) -ForegroundColor Green
+        Write-Host ('  [ONLINE]  Cong {0,-4} : {1,-22} ({2})' -f $s.Port, $s.Name, $s.Type) -ForegroundColor Green
     } else {
-        Write-Host ('  [OFFLINE] Cổng {0,-4} : {1,-22} (Chưa sẵn sàng)' -f $s.Port, $s.Name) -ForegroundColor Red
+        Write-Host ('  [OFFLINE] Cong {0,-4} : {1,-22} (Chua san sang)' -f $s.Port, $s.Name) -ForegroundColor Red
     }
 }
 
 Write-Host '------------------------------------------------------------------------' -ForegroundColor Cyan
 if ($onlineCount -eq $services.Count) {
-    Write-Host "  Tất cả $onlineCount/$($services.Count) dịch vụ đang HOẠT ĐỘNG BÌNH THƯỜNG!" -ForegroundColor Green
+    Write-Host "  Tat ca $onlineCount/$($services.Count) dich vu dang HOAT DONG BINH THUONG!" -ForegroundColor Green
 } else {
-    Write-Host "  Hiện có $onlineCount/$($services.Count) dịch vụ đang hoạt động." -ForegroundColor Yellow
+    Write-Host "  Hien co $onlineCount/$($services.Count) dich vu dang hoat dong." -ForegroundColor Yellow
 }
 Write-Host '========================================================================' -ForegroundColor Cyan
-Write-Host '  Truy cập Nền tảng Frontend : http://localhost:3000' -ForegroundColor White
-Write-Host '  Truy cập API Gateway       : http://localhost:8080' -ForegroundColor White
+Write-Host '  Truy cap Frontend    : http://localhost:3000' -ForegroundColor White
+Write-Host '  Truy cap API Gateway : http://localhost:8080' -ForegroundColor White
 Write-Host '========================================================================' -ForegroundColor Cyan
 Write-Host ''

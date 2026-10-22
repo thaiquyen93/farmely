@@ -49,8 +49,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/api/compatibility/**",
             "/api/site-visits/**",      // Khách vãng lai có thể đăng ký tham quan
             "/api/v1/site-visits/**",
-            "/api/v1/payments/vnpay/return",
             "/api/sensors/**",          // IoT Sensor Telemetry & SSE Stream
+            "/api/v1/payments/vnpay/return",
             "/actuator/**",
             "/fallback/**",
             "/v3/api-docs/**",

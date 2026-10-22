@@ -65,6 +65,18 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
                 .build();
 
         ServiceRequestEntity saved = serviceRequestRepository.save(entity);
+
+        // Auto create care_task in "Lịch canh tác"
+        CareTaskEntity task = CareTaskEntity.builder()
+                .rentalId(saved.getRentalId())
+                .serviceRequestId(saved.getRequestId())
+                .taskAssignedTo(8)
+                .dueDate(saved.getScheduledDate() != null ? saved.getScheduledDate() : LocalDate.now().plusDays(1))
+                .status(TaskStatus.PENDING)
+                .notes("Dịch vụ: " + service.getServiceName() + (request.getNotes() != null && !request.getNotes().isBlank() ? " - " + request.getNotes() : ""))
+                .build();
+        careTaskRepository.save(task);
+
         return mapToResponse(saved);
     }
 
