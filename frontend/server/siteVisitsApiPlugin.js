@@ -178,6 +178,141 @@ export function siteVisitsApiPlugin() {
   return {
     name: 'site-visits-api-plugin',
     configureServer(server) {
+      if (!global.__farmelySseClients) {
+        global.__farmelySseClients = [];
+      }
+
+      async function triggerBulkTelemetryInsert(scenario = null) {
+        try {
+          const mode = scenario?.mode || 'normal';
+          const targetPlotId = scenario?.plotId ? parseInt(scenario.plotId, 10) : null;
+
+          // Mô hình vi khí hậu nhật triệt (Diurnal Solar-Thermal Cycle) theo giờ thực của Server:
+          // Trưa (12h-14h): Nắng gắt, nhiệt độ đạt đỉnh ~32.5°C - 33.5°C, không khí khô ~56% - 62%
+          // Đêm (23h-05h): Trời dịu mát ~24.5°C - 26°C, không khí ẩm đọng sương ~82% - 88%
+          const now = new Date();
+          const curHour = now.getHours() + now.getMinutes() / 60.0;
+          const solarFactor = Math.sin(((curHour - 7.5) * Math.PI) / 12.0); // -1.0 (đêm) đến +1.0 (trưa)
+
+          const diurnalTemp = (28.2 + 4.2 * solarFactor).toFixed(2);
+          const diurnalAir = (72.0 - 13.5 * solarFactor).toFixed(2);
+          const diurnalSoil = (68.0 - 3.5 * solarFactor).toFixed(2);
+
+          // Trôi dạt tự nhiên nhẹ nhàng: trôi dần về trục nhiệt theo giờ (0.12) + nhiễu vi khí hậu ngẫu nhiên (±0.10°C)
+          let tempExpr = `ROUND(LEAST(35.0, GREATEST(22.0, ((${diurnalTemp} + ((p.plot_id % 3) * 0.4) - 0.4) * 0.12 + COALESCE(prev.temperature, ${diurnalTemp}) * 0.88) + ((random() * 0.20) - 0.10)))::numeric, 2)`;
+          let airExpr = `ROUND(LEAST(95.0, GREATEST(45.0, ((${diurnalAir} + ((p.plot_id % 4) * 0.8) - 1.2) * 0.12 + COALESCE(prev.air_humidity, ${diurnalAir}) * 0.88) + ((random() * 0.4) - 0.20)))::numeric, 2)`;
+          let soilExpr = `ROUND(LEAST(85.0, GREATEST(50.0, ((${diurnalSoil} + ((p.plot_id % 3) * 0.6) - 0.6) * 0.12 + COALESCE(prev.soil_humidity, ${diurnalSoil}) * 0.88) + ((random() * 0.24) - 0.12)))::numeric, 2)`;
+
+          if (mode === 'alert_flood') {
+            if (targetPlotId) {
+              soilExpr = `CASE WHEN p.plot_id = ${targetPlotId} THEN 83.20 ELSE ${soilExpr} END`;
+              airExpr = `CASE WHEN p.plot_id = ${targetPlotId} THEN 88.50 ELSE ${airExpr} END`;
+            } else {
+              soilExpr = '83.20';
+              airExpr = '88.50';
+            }
+          } else if (mode === 'alert_dry') {
+            if (targetPlotId) {
+              soilExpr = `CASE WHEN p.plot_id = ${targetPlotId} THEN 46.50 ELSE ${soilExpr} END`;
+              tempExpr = `CASE WHEN p.plot_id = ${targetPlotId} THEN 34.80 ELSE ${tempExpr} END`;
+            } else {
+              soilExpr = '46.50';
+              tempExpr = '34.80';
+            }
+          }
+
+          const sql = `
+WITH inserted AS (
+  INSERT INTO sensor_readings (plot_id, temperature, air_humidity, soil_humidity, recorded_at)
+  SELECT 
+    p.plot_id,
+    ${tempExpr} AS temperature,
+    ${airExpr} AS air_humidity,
+    ${soilExpr} AS soil_humidity,
+    NOW() AS recorded_at
+  FROM plots p
+  LEFT JOIN LATERAL (
+    SELECT temperature, air_humidity, soil_humidity 
+    FROM sensor_readings 
+    WHERE plot_id = p.plot_id 
+    ORDER BY recorded_at DESC 
+    LIMIT 1
+  ) prev ON true
+  RETURNING reading_id, plot_id, temperature, air_humidity, soil_humidity, recorded_at
+)
+SELECT COALESCE(json_agg(
+  json_build_object(
+    'readingId', ins.reading_id,
+    'plotId', ins.plot_id,
+    'plotCode', p.plot_code,
+    'temperature', ins.temperature,
+    'airHumidity', ins.air_humidity,
+    'soilHumidity', ins.soil_humidity,
+    'recordedAt', ins.recorded_at,
+    'status', 'HEALTHY',
+    'statusMessage', 'Vi khí hậu ổn định trong ngưỡng an toàn VietGAP'
+  )
+), '[]'::json)
+FROM inserted ins
+JOIN plots p ON ins.plot_id = p.plot_id;
+`;
+          const data = await runPostgreSql(sql);
+          if (!data) return [];
+          const readings = JSON.parse(data);
+
+          if (Array.isArray(readings) && readings.length > 0 && global.__farmelySseClients && global.__farmelySseClients.length > 0) {
+            for (let i = global.__farmelySseClients.length - 1; i >= 0; i--) {
+              const client = global.__farmelySseClients[i];
+              if (client.res.destroyed || client.res.writableEnded) {
+                global.__farmelySseClients.splice(i, 1);
+                continue;
+              }
+              const target = client.plotId;
+              if (target === 'all') {
+                try {
+                  client.res.write(`event: SENSOR_ALL_UPDATE\ndata: ${JSON.stringify(readings)}\n\n`);
+                } catch {
+                  global.__farmelySseClients.splice(i, 1);
+                }
+                continue;
+              }
+              const matched = readings.find(r => 
+                String(r.plotId) === String(target) ||
+                String(r.plotCode).toUpperCase() === String(target).toUpperCase() ||
+                `PLOT-${r.plotCode}`.toUpperCase() === String(target).toUpperCase() ||
+                `P-${String(target).padStart(2, '0')}`.toUpperCase() === String(r.plotCode).toUpperCase()
+              );
+              if (matched) {
+                try {
+                  client.res.write(`event: SENSOR_UPDATE\ndata: ${JSON.stringify(matched)}\n\n`);
+                } catch {
+                  global.__farmelySseClients.splice(i, 1);
+                }
+              }
+            }
+          }
+
+          runPostgreSql(`DELETE FROM sensor_readings WHERE reading_id < (SELECT COALESCE(max(reading_id), 0) - 400 FROM sensor_readings);`).catch(() => {});
+          return readings;
+        } catch {
+          return [];
+        }
+      }
+
+      global.__triggerBulkTelemetryInsert = triggerBulkTelemetryInsert;
+
+      if (global.__farmelyTelemetryInterval) {
+        clearInterval(global.__farmelyTelemetryInterval);
+      }
+      setTimeout(() => triggerBulkTelemetryInsert(global.__farmelySimulatedScenario), 1000);
+      // Chu kỳ 10 giây đo đạc một lần theo đúng nhịp trạm IoT thực tế ngoài vườn
+      global.__farmelyTelemetryInterval = setInterval(() => {
+        if (global.__farmelySimulatedScenario && Date.now() > global.__farmelySimulatedScenario.expiresAt) {
+          global.__farmelySimulatedScenario = null;
+        }
+        triggerBulkTelemetryInsert(global.__farmelySimulatedScenario);
+      }, 10000);
+
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
 
@@ -519,8 +654,11 @@ BEGIN
                   const itemServiceId = itemMode === 'ASSISTED' ? 15 : null;
                   const itemPrice = parseFloat(item.totalPrice) || parseFloat(item.price) || (totalAmount / plotItems.length);
                   const cleanPlotId = parseInt(cleanCode.replace(/\D/g, ''), 10) || 1;
-                  const cropId = item.cropId ? parseInt(item.cropId, 10) : 1;
-                  const varietyId = !isNaN(cropId) && cropId > 0 && cropId <= 10 ? cropId : 1;
+                  const rawVarId = item.varietyId || item.cropId;
+                  const parsedVarId = typeof rawVarId === 'number'
+                    ? rawVarId
+                    : parseInt(String(rawVarId || '').replace(/\D/g, ''), 10);
+                  const varietyId = !isNaN(parsedVarId) && parsedVarId > 0 && parsedVarId <= 10 ? parsedVarId : 1;
 
                   pgSql += `
     -- Tìm plot_id chính xác
@@ -3808,15 +3946,30 @@ SELECT json_build_object(
         'Thửa ' || p.plot_code AS "plotName",
         COALESCE(l.land_name, 'Happy Valley Củ Chi') AS "landName",
         'ONLINE' AS status,
-        '100%' AS battery,
-        '4G / LoRa' AS connectivity,
+        '96%' AS "batteryLevel",
+        'Tốt (-62 dBm)' AS "signalStrength",
+        'v2.4.1-pro' AS "firmwareVersion",
+        CASE 
+          WHEN sr.recorded_at IS NULL THEN 'Chưa có dữ liệu'
+          WHEN NOW() - sr.recorded_at < INTERVAL '1 minute' THEN 'Vừa xong'
+          WHEN NOW() - sr.recorded_at < INTERVAL '60 minutes' THEN EXTRACT(MINUTE FROM NOW() - sr.recorded_at)::int || ' phút trước'
+          ELSE TO_CHAR(sr.recorded_at, 'HH24:MI DD/MM')
+        END AS "lastSeen",
         json_build_object(
           'soilMoisture', COALESCE(sr.soil_humidity, 68.0) || '%',
           'temperature', COALESCE(sr.temperature, 28.5) || '°C',
+          'humidity', COALESCE(sr.air_humidity, 74.0) || '%',
           'airHumidity', COALESCE(sr.air_humidity, 74.0) || '%',
+          'soilPh', '6.5',
           'light', '45.000 Lux',
-          'lastUpdate', TO_CHAR(COALESCE(sr.recorded_at, NOW()), 'HH24:MI - DD/MM/YYYY')
-        ) AS readings
+          'lastUpdate', TO_CHAR(COALESCE(sr.recorded_at, NOW()), 'HH24:MI:SS - DD/MM/YYYY')
+        ) AS readings,
+        ARRAY[
+          'Độ ẩm đất điện dung (Capacitive Soil Sensor)',
+          'Nhiệt độ & Độ ẩm không khí SHT35',
+          'Cảm biến đo độ pH đất chuyên dụng',
+          'Cảm biến bức xạ mặt trời Solar Lux'
+        ] AS "sensorTypes"
       FROM plots p
       LEFT JOIN lands l ON p.land_id = l.land_id
       LEFT JOIN LATERAL (
@@ -3872,6 +4025,310 @@ SELECT json_build_object(
           } catch (err) {
             res.statusCode = 500;
             res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 23.5 SSE REAL-TIME SENSOR STREAM (GET /api/sensors/plots/:plotId/stream)
+        if (req.method === 'GET' && (url.startsWith('/api/sensors/plots/') && (url.includes('/stream') || url.endsWith('/stream')))) {
+          const m = url.match(/\/api\/sensors\/plots\/([^/?]+)\/stream/);
+          const rawId = m ? m[1].trim() : '1';
+
+          res.writeHead(200, {
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-cache, no-transform',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.write(`event: CONNECTED\ndata: {"status":"connected","plotId":"${rawId}"}\n\n`);
+
+          const client = { res, plotId: rawId };
+          if (global.__farmelySseClients) {
+            global.__farmelySseClients.push(client);
+          }
+
+          // Gửi ngay bản ghi mới nhất để giao diện nhận dữ liệu tức thì
+          if (rawId === 'all') {
+            const allSql = `
+SELECT COALESCE(json_agg(
+  json_build_object(
+    'readingId', sr.reading_id,
+    'plotId', sr.plot_id,
+    'plotCode', p.plot_code,
+    'temperature', sr.temperature,
+    'airHumidity', sr.air_humidity,
+    'soilHumidity', sr.soil_humidity,
+    'recordedAt', sr.recorded_at,
+    'status', 'HEALTHY',
+    'statusMessage', 'Vi khí hậu ổn định trong ngưỡng an toàn VietGAP'
+  )
+), '[]'::json)
+FROM (
+  SELECT DISTINCT ON (plot_id) reading_id, plot_id, temperature, air_humidity, soil_humidity, recorded_at
+  FROM sensor_readings
+  ORDER BY plot_id, recorded_at DESC
+) sr
+JOIN plots p ON sr.plot_id = p.plot_id
+ORDER BY sr.plot_id ASC;
+`;
+            runPostgreSql(allSql).then((allJson) => {
+              if (allJson) {
+                try {
+                  res.write(`event: SENSOR_ALL_UPDATE\ndata: ${allJson}\n\n`);
+                } catch {}
+              }
+            }).catch(() => {});
+          } else {
+            const latestSql = `
+SELECT json_build_object(
+  'readingId', sr.reading_id,
+  'plotId', sr.plot_id,
+  'plotCode', p.plot_code,
+  'temperature', sr.temperature,
+  'airHumidity', sr.air_humidity,
+  'soilHumidity', sr.soil_humidity,
+  'recordedAt', sr.recorded_at,
+  'status', 'HEALTHY',
+  'statusMessage', 'Vi khí hậu ổn định trong ngưỡng an toàn VietGAP'
+)
+FROM sensor_readings sr
+JOIN plots p ON sr.plot_id = p.plot_id
+WHERE sr.plot_id = COALESCE(
+  (SELECT p2.plot_id FROM plots p2 
+   WHERE p2.plot_id::text = '${rawId.replace(/'/g, "''")}' 
+      OR UPPER(p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+      OR UPPER(p2.plot_code) = 'P-' || LPAD('${rawId.replace(/\D/g, '')}', 2, '0')
+      OR UPPER('PLOT-' || p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+   LIMIT 1),
+  1
+)
+ORDER BY sr.recorded_at DESC
+LIMIT 1;
+`;
+            runPostgreSql(latestSql).then((latestJson) => {
+              if (latestJson) {
+                try {
+                  res.write(`event: SENSOR_UPDATE\ndata: ${latestJson}\n\n`);
+                } catch {}
+              }
+            }).catch(() => {});
+          }
+
+          req.on('close', () => {
+            if (global.__farmelySseClients) {
+              global.__farmelySseClients = global.__farmelySseClients.filter((c) => c !== client);
+            }
+          });
+          return;
+        }
+
+        // 24. SIMULATE / TRIGGER SENSOR TELEMETRY INTO POSTGRESQL (POST /api/iot-stations/simulate)
+        if (req.method === 'POST' && (url === '/api/iot-stations/simulate' || url.startsWith('/api/iot-stations/simulate?') || url === '/api/sensors/mock/generate' || url.startsWith('/api/sensors/mock/generate?'))) {
+          try {
+            const parsedUrl = new URL(req.url, 'http://localhost');
+            const plotIdParam = parsedUrl.searchParams.get('plotId');
+            const modeParam = parsedUrl.searchParams.get('mode') || 'normal';
+
+            global.__farmelySimulatedScenario = {
+              mode: modeParam,
+              plotId: plotIdParam,
+              expiresAt: Date.now() + 30000 // Giữ kịch bản 30s rồi trở về bình thường
+            };
+
+            let list = [];
+            if (global.__triggerBulkTelemetryInsert) {
+              list = await global.__triggerBulkTelemetryInsert(global.__farmelySimulatedScenario);
+            }
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Đã kích hoạt đo đạc đồng loạt 17 trạm cảm biến IoT vào PostgreSQL',
+              count: list.length,
+              sample: list[0] || null
+            }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 25. SENSOR LATEST PER PLOT (GET /api/sensors/plots/:plotId/latest)
+        if (req.method === 'GET' && (url.startsWith('/api/sensors/plots/') && url.endsWith('/latest'))) {
+          try {
+            const m = url.match(/\/api\/sensors\/plots\/([^/]+)\/latest/);
+            const rawId = m ? m[1].trim() : '1';
+            const sql = `
+SELECT json_build_object(
+  'readingId', sr.reading_id,
+  'plotId', sr.plot_id,
+  'plotCode', p.plot_code,
+  'temperature', sr.temperature,
+  'airHumidity', sr.air_humidity,
+  'soilHumidity', sr.soil_humidity,
+  'recordedAt', sr.recorded_at,
+  'status', 'HEALTHY',
+  'statusMessage', 'Vi khí hậu ổn định trong ngưỡng an toàn VietGAP'
+)
+FROM sensor_readings sr
+JOIN plots p ON sr.plot_id = p.plot_id
+WHERE sr.plot_id = COALESCE(
+  (SELECT p2.plot_id FROM plots p2 
+   WHERE p2.plot_id::text = '${rawId.replace(/'/g, "''")}' 
+      OR UPPER(p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+      OR UPPER(p2.plot_code) = 'P-' || LPAD('${rawId.replace(/\D/g, '')}', 2, '0')
+      OR UPPER('PLOT-' || p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+   LIMIT 1),
+  1
+)
+ORDER BY sr.recorded_at DESC
+LIMIT 1;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 26. SENSOR HISTORY PER PLOT (GET /api/sensors/plots/:plotId/history)
+        // 26. SENSOR HISTORY PER PLOT (GET /api/sensors/plots/:plotId/history)
+        if (req.method === 'GET' && (url.startsWith('/api/sensors/plots/') && (url.includes('/history') || url.endsWith('/history')))) {
+          try {
+            const m = url.match(/\/api\/sensors\/plots\/([^/?]+)\/history/);
+            const rawId = m ? m[1].trim() : '1';
+
+            // Lấy số đo thực tế mới nhất từ PostgreSQL của thửa đất này
+            const latestSql = `
+SELECT sr.reading_id, sr.plot_id, p.plot_code, sr.temperature, sr.air_humidity, sr.soil_humidity, sr.recorded_at
+FROM sensor_readings sr
+JOIN plots p ON sr.plot_id = p.plot_id
+WHERE sr.plot_id = COALESCE(
+  (SELECT p2.plot_id FROM plots p2 
+   WHERE p2.plot_id::text = '${rawId.replace(/'/g, "''")}' 
+      OR UPPER(p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+      OR UPPER(p2.plot_code) = 'P-' || LPAD('${rawId.replace(/\D/g, '')}', 2, '0')
+      OR UPPER('PLOT-' || p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+   LIMIT 1),
+  1
+)
+ORDER BY sr.recorded_at DESC 
+LIMIT 1;
+`;
+            const latestRaw = await runPostgreSql(latestSql);
+            let latestPoint = null;
+            if (latestRaw) {
+              const rows = latestRaw.split('\n').filter(Boolean);
+              if (rows.length > 0) {
+                const parts = rows[0].split('|');
+                if (parts.length >= 7) {
+                  latestPoint = {
+                    readingId: parseInt(parts[0], 10),
+                    plotId: parseInt(parts[1], 10),
+                    plotCode: parts[2],
+                    temperature: parseFloat(parts[3]),
+                    airHumidity: parseFloat(parts[4]),
+                    soilHumidity: parseFloat(parts[5]),
+                    recordedAt: parts[6]
+                  };
+                }
+              }
+            }
+
+            const pIdNum = parseInt(rawId.replace(/\D/g, '') || '1', 10);
+            const now = new Date();
+            const points = [];
+
+            for (let i = 23; i >= 0; i--) {
+              const d = new Date(now.getTime() - i * 3600 * 1000);
+              const hourOfDay = d.getHours() + d.getMinutes() / 60.0;
+              const solarFactor = Math.sin(((hourOfDay - 7.5) * Math.PI) / 12.0); // -1.0 đêm -> +1.0 trưa
+
+              // Nhiễu vi khí hậu xác định (deterministic seed) theo thửa và giờ để biểu đồ không bị giật
+              const seed = Math.sin(pIdNum * 17 + d.getHours() * 31);
+              const jitterT = seed * 0.35;
+              const jitterA = seed * -0.6;
+              const jitterS = seed * 0.25;
+
+              let tempVal = Number((28.2 + 4.2 * solarFactor + jitterT).toFixed(2));
+              let airVal = Number((72.0 - 13.5 * solarFactor + jitterA).toFixed(2));
+              let soilVal = Number((68.0 - 3.5 * solarFactor + jitterS).toFixed(2));
+
+              // Điểm cuối cùng (hiện tại) ưu tiên lấy số đo thực tế từ database
+              if (i === 0 && latestPoint) {
+                tempVal = latestPoint.temperature;
+                airVal = latestPoint.airHumidity;
+                soilVal = latestPoint.soilHumidity;
+              }
+
+              points.push({
+                readingId: 5000 + (24 - i),
+                plotId: latestPoint?.plotId || pIdNum,
+                plotCode: latestPoint?.plotCode || `P-${String(pIdNum).padStart(2, '0')}`,
+                temperature: tempVal,
+                airHumidity: airVal,
+                soilHumidity: soilVal,
+                recordedAt: d.toISOString()
+              });
+            }
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify(points));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 27. SENSOR SUMMARY PER PLOT (GET /api/sensors/plots/:plotId/summary)
+        if (req.method === 'GET' && (url.startsWith('/api/sensors/plots/') && (url.includes('/summary') || url.endsWith('/summary')))) {
+          try {
+            const m = url.match(/\/api\/sensors\/plots\/([^/?]+)\/summary/);
+            const rawId = m ? m[1].trim() : '1';
+            const sql = `
+SELECT json_build_object(
+  'plotId', p.plot_id,
+  'plotCode', p.plot_code,
+  'latestReading', (
+    SELECT json_build_object(
+      'temperature', sr.temperature,
+      'airHumidity', sr.air_humidity,
+      'soilHumidity', sr.soil_humidity,
+      'recordedAt', sr.recorded_at
+    )
+    FROM sensor_readings sr
+    WHERE sr.plot_id = p.plot_id
+    ORDER BY sr.recorded_at DESC LIMIT 1
+  ),
+  'avgTemperature', ROUND(COALESCE(AVG(sr2.temperature), 28.5)::numeric, 1),
+  'avgAirHumidity', ROUND(COALESCE(AVG(sr2.air_humidity), 72.0)::numeric, 1),
+  'avgSoilHumidity', ROUND(COALESCE(AVG(sr2.soil_humidity), 68.0)::numeric, 1),
+  'totalReadings24h', COUNT(sr2.reading_id)
+)
+FROM plots p
+LEFT JOIN sensor_readings sr2 ON p.plot_id = sr2.plot_id AND sr2.recorded_at >= NOW() - INTERVAL '24 hours'
+WHERE p.plot_id = COALESCE(
+  (SELECT p2.plot_id FROM plots p2 
+   WHERE p2.plot_id::text = '${rawId.replace(/'/g, "''")}' 
+      OR UPPER(p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+      OR UPPER(p2.plot_code) = 'P-' || LPAD('${rawId.replace(/\D/g, '')}', 2, '0')
+      OR UPPER('PLOT-' || p2.plot_code) = UPPER('${rawId.replace(/'/g, "''")}')
+   LIMIT 1),
+  1
+)
+GROUP BY p.plot_id, p.plot_code;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
           }
           return;
         }

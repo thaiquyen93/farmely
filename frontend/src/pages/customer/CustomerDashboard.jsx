@@ -58,6 +58,7 @@ import {
   Sun,
   Layers,
   ChevronRight,
+  ChevronDown,
   ShoppingBag,
   Check,
   MessageSquare,
@@ -265,6 +266,21 @@ export default function CustomerDashboard() {
   const [cancelledContracts, setCancelledContracts] = useState({});
   const [emergencyRequests, setEmergencyRequests] = useState({});
 
+  // Bộ lọc trạng thái thửa đất (Ưu tiên: Đang canh tác ACTIVE)
+  const [plotStatusFilter, setPlotStatusFilter] = useState('ACTIVE'); // 'ACTIVE' | 'CANCELLED' | 'ALL'
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const statusDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target)) {
+        setShowStatusDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleOpenCancelModal = (item) => {
     const isNew = item.isPendingHandover || item.contractCode === 'CTR-2026-FARM-NEW';
     const contractData = {
@@ -343,7 +359,36 @@ export default function CustomerDashboard() {
       }
     };
     fetchPlots();
-    return () => { isMounted = false; };
+
+    // Lắng nghe đồng bộ tức thì từ Admin qua BroadcastChannel & Storage Event
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_iot_telemetry');
+        bc.onmessage = (msg) => {
+          if (msg.data?.type === 'TELEMETRY_UPDATED') {
+            fetchPlots();
+          }
+        };
+      }
+    } catch {}
+
+    const handleStorage = (e) => {
+      if (e.key === 'farmely_iot_sync_ping') {
+        fetchPlots();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // Chu kỳ đồng bộ 10 giây tự động cập nhật số liệu mới nhất từ PostgreSQL
+    const pollTimer = setInterval(fetchPlots, 10000);
+
+    return () => { 
+      isMounted = false; 
+      clearInterval(pollTimer);
+      if (bc) { try { bc.close(); } catch {} }
+      window.removeEventListener('storage', handleStorage);
+    };
   }, [user?.id, user?.userId, user?.email]);
 
   const customerPlots = useMemo(() => {
@@ -1705,9 +1750,74 @@ export default function CustomerDashboard() {
               const hour = new Date().getHours();
               const greeting = hour < 11 ? 'Chào buổi sáng' : hour < 14 ? 'Chào buổi trưa' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
               const firstName = (user?.fullName || user?.name || '').trim().split(/\s+/).pop() || 'bạn';
-              const openTasksAll = customerPlots.reduce((n, p) => n + (plotOperations[p.id]?.tasks || defaultOperationsForPlot(p).tasks || []).filter((t) => t.status !== 'COMPLETED').length, 0);
-              const highAlertsAll = customerPlots.reduce((n, p) => n + (iotAlerts[p.id] || defaultAlertsForPlot(p) || []).filter((a) => a.level === 'HIGH').length, 0);
+
+              // Kiểm tra thửa đất đã hủy / hết hạn
+              const isPlotCancelled = (plot) => {
+                if (!plot) return false;
+                if (plot.contractCode && cancelledContracts[plot.contractCode]) return true;
+                const rs = String(
+                  plot.rental_status ||
+                  plot.rentalStatus ||
+                  plot.contract_status ||
+                  plot.contractStatus ||
+                  plot.displayStatus ||
+                  plot.status ||
+                  ''
+                ).toUpperCase();
+                return (
+                  rs === 'CANCELLED' ||
+                  rs === 'CANCELED' ||
+                  rs.includes('HỦY') ||
+                  rs === 'ĐÃ HỦY'
+                );
+              };
+
+              // 1. Lọc sơ bộ các hợp đồng không bị hủy
+              const rawActiveList = customerPlots.filter((p) => !isPlotCancelled(p));
+
+              // 2. Nguyên tắc BR: Mỗi thửa đất chỉ có 1 vụ canh tác ACTIVE duy nhất
+              // Nếu DB có nhiều hợp đồng ACTIVE cho cùng 1 thửa, chỉ giữ lại 1 hợp đồng (ưu tiên có gói chăm sóc / đủ dữ liệu)
+              const activePlotMap = new Map();
+              const supersededList = [];
+
+              rawActiveList.forEach((plot) => {
+                const code = String(plot.plotCode || plot.mapPlotId || plot.id).toUpperCase().replace(/^PLOT-/i, '');
+                if (!activePlotMap.has(code)) {
+                  activePlotMap.set(code, plot);
+                } else {
+                  const existing = activePlotMap.get(code);
+                  if (plot.mode === 'Assisted-Growing' && existing.mode !== 'Assisted-Growing') {
+                    supersededList.push(existing);
+                    activePlotMap.set(code, plot);
+                  } else {
+                    supersededList.push(plot);
+                  }
+                }
+              });
+
+              const activeCustomerPlots = Array.from(activePlotMap.values());
+              const cancelledCustomerPlots = [
+                ...customerPlots.filter((p) => isPlotCancelled(p)),
+                ...supersededList
+              ];
+
+              const displayedPlots =
+                plotStatusFilter === 'ACTIVE'
+                  ? activeCustomerPlots
+                  : plotStatusFilter === 'CANCELLED'
+                  ? cancelledCustomerPlots
+                  : customerPlots;
+
+              const openTasksAll = activeCustomerPlots.reduce(
+                (n, p) => n + (plotOperations[p.id]?.tasks || defaultOperationsForPlot(p).tasks || []).filter((t) => t.status !== 'COMPLETED').length,
+                0
+              );
+              const highAlertsAll = activeCustomerPlots.reduce(
+                (n, p) => n + (iotAlerts[p.id] || defaultAlertsForPlot(p) || []).filter((a) => a.level === 'HIGH').length,
+                0
+              );
               const openPlot = (plotId, tab) => navigate(`/customer/dashboard?plot=${plotId}${tab ? `&tab=${tab}` : ''}`);
+
               return (
               <div className="mx-auto max-w-[1400px] space-y-6 px-4 pb-16 pt-5 sm:px-6 lg:px-10 lg:pt-8">
                 <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -1722,7 +1832,7 @@ export default function CustomerDashboard() {
 
                 <dl className="grid grid-cols-3 gap-3">
                   {[
-                    ['Thửa đang canh tác', customerPlots.length, 'text-[#18352b]'],
+                    ['Thửa đang canh tác', activeCustomerPlots.length, 'text-[#18352b]'],
                     ['Việc chưa xong', openTasksAll, 'text-amber-700'],
                     ['Cảnh báo cao', highAlertsAll, highAlertsAll ? 'text-rose-700' : 'text-[#18352b]']
                   ].map(([label, value, tone]) => (
@@ -1743,7 +1853,123 @@ export default function CustomerDashboard() {
                 </nav>
 
                 <section aria-labelledby="my-plots-heading">
-                  <h2 id="my-plots-heading" className="mb-3 font-heading text-lg font-bold text-[#18352b]">Thửa đất của bạn</h2>
+                  {/* TIÊU ĐỀ + DROPDOWN LỌC TRẠNG THÁI (KIỂU 2) */}
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 id="my-plots-heading" className="font-heading text-lg font-bold text-[#18352b]">
+                        Thửa đất của bạn
+                      </h2>
+
+                      {/* Dropdown Menu Option 2 */}
+                      <div className="relative inline-block text-left" ref={statusDropdownRef}>
+                        <button
+                          type="button"
+                          id="plot-status-dropdown-button"
+                          onClick={() => setShowStatusDropdown((prev) => !prev)}
+                          className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3.5 py-1.5 text-xs font-bold text-stone-700 shadow-2xs transition hover:bg-stone-50 hover:border-stone-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 cursor-pointer"
+                          aria-expanded={showStatusDropdown}
+                          aria-haspopup="true"
+                        >
+                          <span
+                            className={`h-2 w-2 rounded-full ${
+                              plotStatusFilter === 'ACTIVE'
+                                ? 'bg-emerald-500 ring-2 ring-emerald-200'
+                                : plotStatusFilter === 'CANCELLED'
+                                ? 'bg-rose-500 ring-2 ring-rose-200'
+                                : 'bg-stone-400 ring-2 ring-stone-200'
+                            }`}
+                          />
+                          <span>
+                            {plotStatusFilter === 'ACTIVE'
+                              ? `Đang canh tác (${activeCustomerPlots.length})`
+                              : plotStatusFilter === 'CANCELLED'
+                              ? `Đã hủy / Lịch sử (${cancelledCustomerPlots.length})`
+                              : `Tất cả trạng thái (${customerPlots.length})`}
+                          </span>
+                          <ChevronDown
+                            className={`h-3.5 w-3.5 text-stone-400 transition-transform duration-200 ${
+                              showStatusDropdown ? 'rotate-180 text-emerald-600' : ''
+                            }`}
+                          />
+                        </button>
+
+                        {showStatusDropdown && (
+                          <div className="absolute left-0 z-30 mt-1.5 w-60 rounded-2xl border border-stone-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPlotStatusFilter('ACTIVE');
+                                setShowStatusDropdown(false);
+                              }}
+                              className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition cursor-pointer ${
+                                plotStatusFilter === 'ACTIVE'
+                                  ? 'bg-emerald-50 text-emerald-800 font-bold'
+                                  : 'text-stone-700 hover:bg-stone-50'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                🌱 Đang canh tác (Ưu tiên)
+                              </span>
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                                {activeCustomerPlots.length}
+                              </span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPlotStatusFilter('CANCELLED');
+                                setShowStatusDropdown(false);
+                              }}
+                              className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition cursor-pointer ${
+                                plotStatusFilter === 'CANCELLED'
+                                  ? 'bg-rose-50 text-rose-800 font-bold'
+                                  : 'text-stone-700 hover:bg-stone-50'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-rose-500" />
+                                🛑 Đã hủy / Hết hạn
+                              </span>
+                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-800">
+                                {cancelledCustomerPlots.length}
+                              </span>
+                            </button>
+
+                            <div className="my-1 border-t border-stone-100" />
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPlotStatusFilter('ALL');
+                                setShowStatusDropdown(false);
+                              }}
+                              className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition cursor-pointer ${
+                                plotStatusFilter === 'ALL'
+                                  ? 'bg-stone-100 text-stone-900 font-bold'
+                                  : 'text-stone-700 hover:bg-stone-50'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className="h-2 w-2 rounded-full bg-stone-400" />
+                                📑 Tất cả hợp đồng
+                              </span>
+                              <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-bold text-stone-600">
+                                {customerPlots.length}
+                              </span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Tag tóm tắt nhỏ phía bên phải */}
+                    <span className="text-xs text-stone-400">
+                      Hiển thị {displayedPlots.length} / {customerPlots.length} hợp đồng
+                    </span>
+                  </div>
+
                   {isLoadingPlots ? (
                     <div className="flex h-48 items-center justify-center rounded-2xl border border-stone-200 bg-white shadow-sm">
                       <div className="flex items-center gap-2 text-sm font-semibold text-stone-500">
@@ -1751,96 +1977,191 @@ export default function CustomerDashboard() {
                         Đang đồng bộ danh sách thửa đất từ cơ sở dữ liệu...
                       </div>
                     </div>
-                  ) : customerPlots.length === 0 ? (
+                  ) : displayedPlots.length === 0 ? (
                     <div className="rounded-3xl border border-dashed border-stone-300 bg-white p-8 sm:p-12 text-center shadow-sm">
                       <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                         <Sprout className="h-8 w-8" />
                       </div>
                       <h3 className="mt-4 font-heading text-xl font-bold text-[#18352b]">
-                        Chào mừng {firstName} đến với Farmely!
+                        {plotStatusFilter === 'CANCELLED'
+                          ? 'Không có thửa đất nào đã hủy'
+                          : `Chào mừng ${firstName} đến với Farmely!`}
                       </h3>
                       <p className="mx-auto mt-2 max-w-md text-sm text-stone-500">
-                        Tài khoản của bạn chưa có thửa đất canh tác nào trong hệ thống. Hãy truy cập Marketplace để chọn vị trí đất phù hợp và giống cây bạn muốn trồng.
+                        {plotStatusFilter === 'CANCELLED'
+                          ? 'Bạn chưa có hợp đồng thuê nào ở trạng thái đã hủy hoặc hết hạn.'
+                          : 'Tài khoản của bạn chưa có thửa đất canh tác nào trong hệ thống. Hãy truy cập Marketplace để chọn vị trí đất phù hợp và giống cây bạn muốn trồng.'}
                       </p>
                       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                        <Link
-                          to="/marketplace"
-                          className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-6 py-3 text-sm font-bold text-white shadow-md shadow-emerald-700/20 transition hover:bg-emerald-800"
-                        >
-                          <ShoppingBag className="h-4 w-4" />
-                          Khám phá Marketplace & Thuê thửa ngay
-                        </Link>
+                        {plotStatusFilter === 'CANCELLED' ? (
+                          <button
+                            type="button"
+                            onClick={() => setPlotStatusFilter('ACTIVE')}
+                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-800 transition cursor-pointer"
+                          >
+                            Quay lại Thửa đang canh tác
+                          </button>
+                        ) : (
+                          <Link
+                            to="/marketplace"
+                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-6 py-3 text-sm font-bold text-white shadow-md shadow-emerald-700/20 transition hover:bg-emerald-800"
+                          >
+                            <ShoppingBag className="h-4 w-4" />
+                            Khám phá Marketplace & Thuê thửa ngay
+                          </Link>
+                        )}
                       </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {customerPlots.map((plot) => {
+                      {displayedPlots.map((plot) => {
+                        const isCancelled = isPlotCancelled(plot);
                         const tasks = plotOperations[plot.id]?.tasks || defaultOperationsForPlot(plot).tasks || [];
                         const nextTask = tasks.find((t) => t.status === 'IN_PROGRESS') || tasks.find((t) => t.status === 'PENDING');
                         const openCount = tasks.filter((t) => t.status !== 'COMPLETED').length;
                         const topAlert = (iotAlerts[plot.id] || defaultAlertsForPlot(plot) || []).find((a) => a.level === 'HIGH');
                         const daysLeft = Math.max(plot.totalDays - plot.currentDay, 0);
+
                         return (
-                          <article key={plot.id} className="group flex flex-col overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-                            <button type="button" onClick={() => openPlot(plot.id)} className="relative block h-40 w-full overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400" aria-label={`Mở ${plot.name}`}>
-                              <img src={plot.image} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                          <article
+                            key={`${plot.id}-${plot.rentalId || plot.contractCode || ''}`}
+                            className={`group flex flex-col overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 hover:shadow-lg ${
+                              isCancelled
+                                ? 'border-rose-200/90 bg-stone-50/50 shadow-2xs'
+                                : 'border-stone-200/80 bg-white shadow-sm'
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => (isCancelled ? handleOpenCancelModal(plot) : openPlot(plot.id))}
+                              className="relative block h-40 w-full overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400 cursor-pointer"
+                              aria-label={`Mở ${plot.name}`}
+                            >
+                              <img
+                                src={plot.image}
+                                alt=""
+                                className={`h-full w-full object-cover transition duration-500 group-hover:scale-105 ${
+                                  isCancelled ? 'grayscale-[35%] opacity-80' : ''
+                                }`}
+                              />
                               <span className="absolute inset-0 bg-gradient-to-t from-[#0f2a20]/90 via-[#0f2a20]/30 to-transparent" />
-                              <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-[11px] font-semibold text-[#18352b]">{plot.mode === 'Self-Growing' ? 'Tự canh tác' : 'Farmely chăm sóc'}</span>
-                              {topAlert && <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-semibold text-white"><Flame className="h-3 w-3" />Cảnh báo</span>}
+                              
+                              {/* Tag trạng thái góc trên bên trái */}
+                              {isCancelled ? (
+                                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
+                                  🛑 Đã hủy
+                                </span>
+                              ) : (
+                                <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-[11px] font-semibold text-[#18352b]">
+                                  {plot.mode === 'Self-Growing' ? 'Tự canh tác' : 'Farmely chăm sóc'}
+                                </span>
+                              )}
+
+                              {!isCancelled && topAlert && (
+                                <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+                                  <Flame className="h-3 w-3" />Cảnh báo
+                                </span>
+                              )}
+
                               <span className="absolute inset-x-3 bottom-3 text-white">
                                 <span className="block font-heading text-lg font-bold leading-tight">{plot.name}</span>
-                                <span className="mt-0.5 flex items-center gap-1 text-xs text-white/80"><MapPin className="h-3.5 w-3.5" />{plot.location} · {plot.area}</span>
+                                <span className="mt-0.5 flex items-center gap-1 text-xs text-white/80">
+                                  <MapPin className="h-3.5 w-3.5" />{plot.location} · {plot.area}
+                                </span>
                               </span>
                             </button>
 
                             <div className="flex flex-1 flex-col gap-3 p-4">
+                              {/* Thông tin mùa vụ */}
                               <div>
                                 <div className="flex items-center justify-between gap-2 text-sm">
-                                  <span className="flex min-w-0 items-center gap-1.5 font-semibold text-[#18352b]"><Sprout className="h-4 w-4 shrink-0 text-emerald-600" /><span className="truncate">{plot.crop}</span></span>
-                                  <span className="shrink-0 text-xs text-stone-500">{daysLeft > 0 ? `Còn ${daysLeft} ngày` : 'Đến vụ'}</span>
+                                  <span className="flex min-w-0 items-center gap-1.5 font-semibold text-[#18352b]">
+                                    <Sprout className={`h-4 w-4 shrink-0 ${isCancelled ? 'text-stone-400' : 'text-emerald-600'}`} />
+                                    <span className="truncate">{plot.crop}</span>
+                                  </span>
+                                  <span className="shrink-0 text-xs text-stone-500">
+                                    {isCancelled ? 'Hợp đồng kết thúc' : daysLeft > 0 ? `Còn ${daysLeft} ngày` : 'Đến vụ'}
+                                  </span>
                                 </div>
-                                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${plot.progressPercent}%` }} /></div>
-                                <p className="mt-1 text-xs text-stone-500">{plot.stage}</p>
+                                {!isCancelled && (
+                                  <>
+                                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100">
+                                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${plot.progressPercent}%` }} />
+                                    </div>
+                                    <p className="mt-1 text-xs text-stone-500">{plot.stage}</p>
+                                  </>
+                                )}
                               </div>
 
-                              <div className="grid grid-cols-3 gap-2 text-center">
-                                {[['Nhiệt độ', plot.temp], ['Ẩm đất', plot.soilMoisture], ['Ánh sáng', plot.light]].map(([label, value]) => (
-                                  <div key={label} className="rounded-xl bg-stone-50 px-2 py-2">
-                                    <p className="text-[11px] text-stone-500">{label}</p>
-                                    <p className="truncate text-sm font-semibold text-[#18352b]">{value}</p>
+                              {/* Hiển thị chi tiết: Thửa đang chạy vs Thửa đã hủy */}
+                              {isCancelled ? (
+                                <div className="rounded-xl border border-rose-100 bg-rose-50/70 p-3 text-xs text-rose-900 space-y-1.5">
+                                  <div className="flex items-center justify-between font-bold">
+                                    <span className="text-[11px] text-stone-700">Mã HĐ: {plot.contractCode || 'HD-CANCELLED'}</span>
+                                    <span className="rounded-full bg-rose-100 border border-rose-200 px-2 py-0.5 text-[10px] font-extrabold text-rose-700">
+                                      NGỪNG CANH TÁC
+                                    </span>
                                   </div>
-                                ))}
-                              </div>
+                                  <p className="text-[11px] text-stone-600">
+                                    Thời gian thuê: {plot.startDate || plot.start_date || '---'} đến {plot.expectedHarvestDate || plot.endDate || plot.end_date || '---'}
+                                  </p>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="grid grid-cols-3 gap-2 text-center">
+                                    {[['Nhiệt độ', plot.temp], ['Ẩm đất', plot.soilMoisture], ['Ánh sáng', plot.light]].map(([label, value]) => (
+                                      <div key={label} className="rounded-xl bg-stone-50 px-2 py-2">
+                                        <p className="text-[11px] text-stone-500">{label}</p>
+                                        <p className="truncate text-sm font-semibold text-[#18352b]">{value}</p>
+                                      </div>
+                                    ))}
+                                  </div>
 
-                              {topAlert ? (
-                                <button type="button" onClick={() => openPlot(plot.id, 'iot')} className="flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2 text-left text-xs text-rose-800 hover:bg-rose-100">
-                                  <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block font-semibold">{topAlert.title}</span><span className="opacity-80">{topAlert.time}</span></span>
-                                </button>
-                              ) : nextTask ? (
-                                <button type="button" onClick={() => openPlot(plot.id, 'tasks')} className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-left text-xs text-amber-900 hover:bg-amber-100">
-                                  <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block truncate font-semibold">{nextTask.title}</span><span className="opacity-80">{nextTask.time}</span></span>
-                                </button>
-                              ) : null}
+                                  {topAlert ? (
+                                    <button type="button" onClick={() => openPlot(plot.id, 'iot')} className="flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2 text-left text-xs text-rose-800 hover:bg-rose-100">
+                                      <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block font-semibold">{topAlert.title}</span><span className="opacity-80">{topAlert.time}</span></span>
+                                    </button>
+                                  ) : nextTask ? (
+                                    <button type="button" onClick={() => openPlot(plot.id, 'tasks')} className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-left text-xs text-amber-900 hover:bg-amber-100">
+                                      <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block truncate font-semibold">{nextTask.title}</span><span className="opacity-80">{nextTask.time}</span></span>
+                                    </button>
+                                  ) : null}
+                                </>
+                              )}
 
+                              {/* Hàng nút bấm hành động */}
                               <div className="mt-auto flex items-center gap-2 pt-1">
-                                <button type="button" onClick={() => openPlot(plot.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
-                                  Mở thửa<ChevronRight className="h-4 w-4" />
-                                </button>
-                                {[['tasks', Calendar, 'Công việc'], ['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
-                                  <button key={tab} type="button" onClick={() => openPlot(plot.id, tab)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
-                                    <Icon className="h-4 w-4" />
-                                    {tab === 'tasks' && openCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">{openCount}</span>}
+                                {isCancelled ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenCancelModal(plot)}
+                                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-800 transition hover:bg-rose-100 cursor-pointer"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                    Xem chi tiết hợp đồng đã hủy
                                   </button>
-                                ))}
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenCancelModal(plot)}
-                                  aria-label={`Hợp đồng & hủy ${plot.name}`}
-                                  title="Quản lý Hợp đồng & Hủy theo BR10"
-                                  className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
-                                >
-                                  <FileText className="h-4 w-4" />
-                                </button>
+                                ) : (
+                                  <>
+                                    <button type="button" onClick={() => openPlot(plot.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
+                                      Mở thửa<ChevronRight className="h-4 w-4" />
+                                    </button>
+                                    {[['tasks', Calendar, 'Công việc'], ['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
+                                      <button key={tab} type="button" onClick={() => openPlot(plot.id, tab)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
+                                        <Icon className="h-4 w-4" />
+                                        {tab === 'tasks' && openCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">{openCount}</span>}
+                                      </button>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenCancelModal(plot)}
+                                      aria-label={`Hợp đồng & hủy ${plot.name}`}
+                                      title="Quản lý Hợp đồng & Hủy theo BR10"
+                                      className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
+                                    >
+                                      <FileText className="h-4 w-4" />
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </article>

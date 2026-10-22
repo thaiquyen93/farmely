@@ -219,6 +219,33 @@ export default function ExpertDashboard() {
     loadFieldIssues();
     loadTemplates();
     loadAssignedPlots();
+
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_iot_telemetry');
+        bc.onmessage = (msg) => {
+          if (msg.data?.type === 'TELEMETRY_UPDATED') {
+            loadAssignedPlots();
+          }
+        };
+      }
+    } catch {}
+
+    const handleStorage = (e) => {
+      if (e.key === 'farmely_iot_sync_ping') {
+        loadAssignedPlots();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    const pollInterval = setInterval(loadAssignedPlots, 5000);
+
+    return () => {
+      clearInterval(pollInterval);
+      if (bc) try { bc.close(); } catch {}
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   // Submit diagnosis for worker field issue
