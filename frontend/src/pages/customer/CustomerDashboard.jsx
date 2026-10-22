@@ -2017,7 +2017,20 @@ export default function CustomerDashboard() {
                 alerts={iotAlerts[currentSelectedPlot.id] || iotAlerts['PLOT-CC-01'] || []}
                 stages={cultivationProcesses[currentSelectedPlot.id] || cultivationProcesses[currentSelectedPlot.mapPlotId] || cultivationProcesses[`RENTAL-${currentSelectedPlot.rentalId}`] || []}
                 services={customerServiceCatalog}
-                serviceOrders={activeServiceOrders.filter((o) => o.plotName === currentSelectedPlot.name || o.plotCode === currentSelectedPlot.plotCode || o.rentalId === currentSelectedPlot.rentalId)}
+                serviceOrders={activeServiceOrders.filter((o) => {
+                  if (!currentSelectedPlot) return false;
+                  const pCode = (currentSelectedPlot.plotCode || currentSelectedPlot.mapPlotId || currentSelectedPlot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+                  const oCode = (o.plotCode || o.plotId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+                  if (o.plotId && o.plotId === currentSelectedPlot.id) return true;
+                  if (oCode && pCode && oCode === pCode) return true;
+                  if (o.rentalId && (o.rentalId === currentSelectedPlot.rentalId || o.rentalId === currentSelectedPlot.rental_id)) return true;
+                  if (o.plotName && currentSelectedPlot.name) {
+                    if (o.plotName === currentSelectedPlot.name) return true;
+                    if (pCode && o.plotName.toUpperCase().includes(pCode)) return true;
+                    if (oCode && currentSelectedPlot.name.toUpperCase().includes(oCode)) return true;
+                  }
+                  return false;
+                })}
                 harvestPlan={harvestPlans[currentSelectedPlot.id] || dbHarvestResults.find(h => h.plotScopeId === currentSelectedPlot.id || h.plotCode === currentSelectedPlot.plotCode || h.rentalId === currentSelectedPlot.rentalId) || null}
                 activeTab={plotTabFromUrl}
                 onTabChange={(tab) => navigate(`/customer/dashboard?plot=${currentSelectedPlot.id}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
