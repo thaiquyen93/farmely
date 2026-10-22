@@ -2972,7 +2972,25 @@ SELECT json_build_object(
           v.expected_duration
         ) AS "totalDays",
         'Chuyên gia Nông nghiệp Farmely' AS "authorName",
-        TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt"
+        TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt",
+        COALESCE(
+          (SELECT json_agg(
+            json_build_object(
+              'stepId', ts.step_id,
+              'stepOrder', ts.step_order,
+              'stepName', ts.step_name,
+              'name', ts.step_name,
+              'day', ts.day_offset,
+              'dayOffset', ts.day_offset,
+              'type', 'BƯỚC ' || ts.step_order,
+              'details', COALESCE(ts.description, ''),
+              'description', ts.description,
+              'materialsNeeded', ts.materials_needed,
+              'durationDays', ts.duration_days
+            ) ORDER BY ts.step_order ASC
+          ) FROM template_steps ts WHERE ts.template_id = pt.template_id),
+          '[]'::json
+        ) AS steps
       FROM process_templates pt
       JOIN varieties v ON pt.variety_id = v.variety_id
       JOIN crops c ON v.crop_id = c.crop_id
