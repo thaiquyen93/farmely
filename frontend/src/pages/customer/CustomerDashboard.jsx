@@ -423,6 +423,45 @@ export default function CustomerDashboard() {
       return {};
     }
   });
+
+  useEffect(() => {
+    const handleSync = () => {
+      try {
+        const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
+        if (Array.isArray(shared) && shared.length > 0) {
+          setHarvestPlans((prev) => {
+            const next = { ...prev };
+            let changed = false;
+            shared.forEach((item) => {
+              const code = item.plotCode || item.plotId;
+              if (code && next[code]) {
+                if (next[code].status !== item.status) {
+                  next[code] = { ...next[code], status: item.status, approvedAt: item.approvedAt, approvedBy: item.approvedBy };
+                  changed = true;
+                }
+              }
+            });
+            return changed ? next : prev;
+          });
+        }
+      } catch {}
+    };
+
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_harvest_sync');
+        bc.onmessage = handleSync;
+      }
+    } catch {}
+
+    window.addEventListener('storage', handleSync);
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem(harvestStorageKey, JSON.stringify(harvestPlans));
@@ -1321,7 +1360,46 @@ export default function CustomerDashboard() {
   };
 
   const handleConfirmHarvestPlan = (plan) => {
-    setHarvestPlans((prev) => ({ ...prev, [plan.plotId]: plan }));
+    const targetKey = plan.plotCode || plan.plotId;
+    setHarvestPlans((prev) => ({ ...prev, [targetKey]: plan, [plan.plotId]: plan }));
+    try {
+      const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
+      const existingIdx = shared.findIndex(item => item.plotCode === (plan.plotCode || plan.plotId) || item.plotId === plan.plotId);
+      const newReq = {
+        id: existingIdx >= 0 ? shared[existingIdx].id : `HARV-REQ-${Date.now().toString().slice(-4)}`,
+        plotId: plan.plotId,
+        plotCode: plan.plotCode || plan.plotId,
+        plotName: plan.plotName || `Thửa ${plan.plotCode || plan.plotId}`,
+        crop: plan.crop || 'Cà chua bi đỏ F1',
+        renterName: user?.fullName || 'Lô Thái Quyền',
+        renterEmail: user?.email || 'customer@farmely.vn',
+        phone: plan.phone || user?.phone || '0901234567',
+        address: plan.address || '',
+        requestedDate: plan.date,
+        method: plan.method,
+        methodLabel: plan.methodLabel,
+        expectedYield: plan.expectedYield || 'Theo mùa vụ',
+        phiDays: 6,
+        phiStandardDays: 5,
+        status: 'PENDING',
+        notes: plan.notes || '',
+        createdAt: new Date().toISOString(),
+        workerName: 'Trần Văn Lực (CVLĐ)'
+      };
+      if (existingIdx >= 0) {
+        shared[existingIdx] = { ...shared[existingIdx], ...newReq };
+      } else {
+        shared.unshift(newReq);
+      }
+      localStorage.setItem('farmely_shared_harvest_plans', JSON.stringify(shared));
+      try {
+        const bc = new BroadcastChannel('farmely_harvest_sync');
+        bc.postMessage({ type: 'HARVEST_PLAN_UPDATED' });
+        bc.close();
+      } catch {}
+    } catch (err) {
+      console.warn('Sync harvest plans error:', err);
+    }
     setHarvestModalPlotId(null);
   };
 

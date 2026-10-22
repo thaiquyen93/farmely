@@ -632,6 +632,29 @@ export default function FieldWorkerDashboard() {
     if (selectedHarvestTask.sourceTaskId) {
       setTasks((prev) => prev.map((task) => task.id === selectedHarvestTask.sourceTaskId ? { ...task, status: 'COMPLETED', completedAt: completedHarvest.verifiedAt } : task));
     }
+
+    try {
+      const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
+      const code = selectedHarvestTask.plotCode;
+      const updated = shared.map((item) => {
+        if (item.plotCode === code || item.plotId === selectedHarvestTask.rentalId) {
+          return {
+            ...item,
+            status: 'COMPLETED',
+            actualYield: `${parsedWeight.toFixed(2)} kg`,
+            evidenceImageUrl: saved.evidenceImageUrl || harvestPhotos[0],
+            completedAt: new Date().toISOString(),
+            workerName: user?.fullName || 'Trần Văn Lực (CVLĐ)'
+          };
+        }
+        return item;
+      });
+      localStorage.setItem('farmely_shared_harvest_plans', JSON.stringify(updated));
+      const bc = new BroadcastChannel('farmely_harvest_sync');
+      bc.postMessage({ type: 'HARVEST_COMPLETED' });
+      bc.close();
+    } catch {}
+
     setSelectedHarvestTask(completedHarvest);
     setHarvestPhotos([]);
     setHarvestWeight('');
@@ -688,8 +711,34 @@ export default function FieldWorkerDashboard() {
       };
     });
   const candidateRentalIds = new Set(harvestTaskCandidates.map((item) => item.rentalId).filter(Boolean));
+  const candidatePlotCodes = new Set(harvestTaskCandidates.map((item) => item.plotCode).filter(Boolean));
+
+  let sharedApprovedHarvests = [];
+  try {
+    const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
+    if (Array.isArray(shared)) {
+      sharedApprovedHarvests = shared
+        .filter((item) => item.status === 'APPROVED' && !candidatePlotCodes.has(item.plotCode))
+        .map((item) => ({
+          id: `SHARED-${item.id}`,
+          sourceTaskId: null,
+          apiTaskId: null,
+          rentalId: item.rentalId || 1,
+          plotCode: item.plotCode,
+          plotName: item.plotName || `Thửa ${item.plotCode}`,
+          crop: item.crop || DEFAULT_PLOT_CROPS[item.plotCode] || 'Rau củ chuẩn VietGAP',
+          customerName: item.renterName || 'Khách hàng Farmely',
+          expectedYield: item.expectedYield || 'Theo kết quả cân thực tế',
+          status: 'READY_TO_HARVEST',
+          actualWeight: '',
+          deadline: item.requestedDate || 'Hôm nay'
+        }));
+    }
+  } catch {}
+
   const harvestWorkItems = [
     ...harvestTaskCandidates,
+    ...sharedApprovedHarvests,
     ...harvestTasks.filter((item) => !candidateRentalIds.has(item.rentalId))
   ];
 
