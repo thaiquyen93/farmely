@@ -308,10 +308,10 @@ const STORAGE_KEY = 'farmely_persisted_staff_activities_v2';
 export const DEFAULT_STAFF_ACTIVITIES = [
   {
     activityId: 'ACT-001',
-    plotId: 'PLOT-CC-01',
-    plotCode: 'CC-01',
+    plotId: 'P-01',
+    plotCode: 'P-01',
     rentalId: 1,
-    workerId: 101,
+    workerId: 8,
     workerName: 'Trần Văn Lực',
     workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
     workerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
@@ -327,12 +327,12 @@ export const DEFAULT_STAFF_ACTIVITIES = [
   },
   {
     activityId: 'ACT-002',
-    plotId: 'PLOT-CC-01',
-    plotCode: 'CC-01',
+    plotId: 'P-01',
+    plotCode: 'P-01',
     rentalId: 1,
-    workerId: 102,
-    workerName: 'ThS. Nguyễn Hoàng Nam',
-    workerRole: 'Kỹ sư Nông học VietGAP & Dinh dưỡng cây',
+    workerId: 8,
+    workerName: 'Trần Văn Lực',
+    workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
     workerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
     actionType: 'NUTRITION',
     actionTypeName: 'Bổ sung dinh dưỡng & Bón thúc',
@@ -346,10 +346,10 @@ export const DEFAULT_STAFF_ACTIVITIES = [
   },
   {
     activityId: 'ACT-003',
-    plotId: 'PLOT-CC-01',
-    plotCode: 'CC-01',
+    plotId: 'P-01',
+    plotCode: 'P-01',
     rentalId: 1,
-    workerId: 101,
+    workerId: 8,
     workerName: 'Trần Văn Lực',
     workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
     workerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
@@ -365,10 +365,10 @@ export const DEFAULT_STAFF_ACTIVITIES = [
   },
   {
     activityId: 'ACT-004',
-    plotId: 'PLOT-CC-01',
-    plotCode: 'CC-01',
-    rentalId: 1,
-    workerId: 103,
+    plotId: 'P-02',
+    plotCode: 'P-02',
+    rentalId: 2,
+    workerId: 9,
     workerName: 'Nguyễn Văn Đạt',
     workerRole: 'Kỹ thuật viên Bảo vệ thực vật sinh học',
     workerAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
@@ -418,10 +418,11 @@ export function getPersistedStaffActivities(plotId = null) {
 
     if (!plotId) return list;
 
-    const cleanId = String(plotId).replace(/^PLOT-/i, '').trim();
+    const cleanId = String(plotId).replace(/^PLOT-|^PLT-/i, '').trim().toUpperCase();
     return list.filter((item) => {
-      const itemCode = String(item.plotCode || item.plotId || '').replace(/^PLOT-/i, '').trim();
-      return itemCode === cleanId || item.plotId === plotId || !plotId;
+      const itemCode = String(item.plotCode || item.plotId || '').replace(/^PLOT-|^PLT-/i, '').trim().toUpperCase();
+      const numMatch = cleanId.replace(/\D/g, '') !== '' && cleanId.replace(/\D/g, '') === itemCode.replace(/\D/g, '');
+      return itemCode === cleanId || item.plotId === plotId || numMatch || !plotId;
     });
   } catch (e) {
     console.warn('[StaffActivities] Không thể đọc từ localStorage:', e);

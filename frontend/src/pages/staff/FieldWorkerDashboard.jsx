@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
@@ -10,6 +10,7 @@ import { apiFetch, unwrapData } from '../../api/apiClient';
 import {
   UserCheck,
   CheckCircle2,
+  Check,
   Clock,
   Camera,
   AlertTriangle,
@@ -240,6 +241,7 @@ export default function FieldWorkerDashboard() {
   const serialReaderRef = useRef(null);
 
   const [assignedPlots, setAssignedPlots] = useState([]);
+  const [selectedPlotCode, setSelectedPlotCode] = useState('ALL');
 
   const loadPlots = () => {
     apiFetch('/api/rentals')
@@ -442,10 +444,12 @@ export default function FieldWorkerDashboard() {
     }
 
     try {
+      const pCode = selectedTaskToExecute.plotCode || 'P-01';
       recordStaffActivity({
         activityId: `ACT-${selectedTaskToExecute.id || Date.now()}`,
-        plotId: selectedTaskToExecute.plotId || selectedTaskToExecute.plotCode || 'PLOT-CC-01',
-        plotCode: selectedTaskToExecute.plotCode || 'CC-01',
+        plotId: pCode,
+        plotCode: pCode,
+        rentalId: selectedTaskToExecute.rentalId || 1,
         workerName: user?.fullName || 'Trần Văn Lực (CVLĐ)',
         workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
         title: selectedTaskToExecute.title || 'Chăm sóc luống cây trồng',
@@ -699,6 +703,55 @@ export default function FieldWorkerDashboard() {
     groups[key].tasks.push(task);
     return groups;
   }, {});
+
+  const plotSummaryList = useMemo(() => {
+    const map = new Map();
+
+    // 1. Phân bổ từ danh sách thửa đất phụ trách thực địa
+    assignedPlots.forEach((p) => {
+      const code = p.plotCode || p.name;
+      if (!code) return;
+      map.set(code, {
+        plotCode: code,
+        plotName: p.name || `Thửa ${code}`,
+        customerName: p.renterName || 'Khách thuê',
+        contractCode: p.contractCode || '#CTR-2026-001',
+        crop: p.crop || DEFAULT_PLOT_CROPS[code] || 'Rau củ chuẩn VietGAP',
+        area: p.area || '150 m²',
+        location: p.location || 'Khu Nông Trại Happy Valley Củ Chi',
+        rentalId: p.rentalId || p.id,
+        tasks: []
+      });
+    });
+
+    // 2. Gộp và đồng bộ nhiệm vụ thực tế
+    orderedTasks.forEach((task) => {
+      const code = task.plotCode || task.plotName || 'P-01';
+      if (!map.has(code)) {
+        map.set(code, {
+          plotCode: code,
+          plotName: task.plotName || `Thửa ${code}`,
+          customerName: task.customerName || 'Khách thuê',
+          contractCode: '#CTR-2026-001',
+          crop: task.crop || DEFAULT_PLOT_CROPS[code] || 'Rau củ chuẩn VietGAP',
+          area: '150 m²',
+          location: 'Khu Nông Trại Happy Valley Củ Chi',
+          rentalId: task.rentalId,
+          tasks: []
+        });
+      }
+      const entry = map.get(code);
+      if (task.customerName && (!entry.customerName || entry.customerName === 'Khách thuê')) {
+        entry.customerName = task.customerName;
+      }
+      if (task.crop && (!entry.crop || entry.crop === 'Rau củ chuẩn VietGAP')) {
+        entry.crop = task.crop;
+      }
+      entry.tasks.push(task);
+    });
+
+    return Array.from(map.values());
+  }, [assignedPlots, orderedTasks]);
   const currentSession = new Date().getHours() < 12 ? 'MORNING' : 'AFTERNOON';
   const currentSessionTasks = tasks.filter((task) => task.session === currentSession);
   const harvestedWeight = harvestTasks.reduce((sum, item) => sum + (Number.parseFloat(item.actualWeight) || 0), 0);
@@ -864,107 +917,372 @@ export default function FieldWorkerDashboard() {
 
             {/* Assigned care tasks */}
             {activeTab === 'tasks' && (
-              <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="space-y-5 rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6">
-                  <div className="flex flex-col justify-between gap-3 border-b border-brand-border/60 pb-4 sm:flex-row sm:items-center">
+              <div className="space-y-6">
+                {/* 1. BỘ CHỌN THỬA ĐẤT PHỤ TRÁCH (CHIA Ô PLOTS RIÊNG BIỆT NHƯ CUSTOMER) */}
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <h3 className="font-heading text-xl font-black text-brand-dark">Nhiệm vụ theo thửa</h3>
-                      <p className="mt-0.5 text-xs text-brand-muted">Chọn một nhiệm vụ để xem hướng dẫn và thao tác tại hiện trường.</p>
+                      <h3 className="font-heading text-lg font-black text-brand-dark flex items-center gap-2">
+                        <Layers className="h-5 w-5 text-emerald-800" />
+                        <span>Thửa đất phụ trách ca trực</span>
+                      </h3>
+                      <p className="text-xs text-stone-500">
+                        Chọn từng ô thửa đất để xem công việc, chụp ảnh nghiệm thu (BR15) hoặc báo cáo sự cố (BR16).
+                      </p>
                     </div>
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-brand-green">{actionableCount} việc cần làm</span>
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">
+                      {plotSummaryList.length} Thửa đất canh tác
+                    </span>
                   </div>
 
-                  <div className="space-y-4">
-                  {Object.values(tasksByPlot).length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center text-sm text-brand-muted">Chưa có nhiệm vụ được phân công từ hệ thống.</div>
-                  )}
-                  {Object.values(tasksByPlot).map((plotGroup) => {
-                    const plotKey = plotGroup.plotCode || plotGroup.plotName;
-                    const isExpanded = expandedPlots[plotKey] !== false;
-                    const completedForPlot = plotGroup.tasks.filter((task) => task.status === 'COMPLETED').length;
-                    return (
-                      <section key={plotKey} className="overflow-hidden rounded-2xl border border-brand-border bg-white shadow-sm">
-                        <div className="relative h-28 overflow-hidden bg-emerald-950 sm:h-36">
-                          <img src={plotGroup.plotImage} alt="" className="h-full w-full object-cover opacity-75" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/80 via-transparent to-transparent" />
-                          <div className="absolute inset-x-4 bottom-3 flex items-end justify-between gap-3 text-white">
-                            <div><span className="rounded-full bg-emerald-500/90 px-2 py-1 text-[10px] font-black">Đang trực</span><h4 className="mt-2 font-heading text-xl font-black">{plotGroup.plotCode} · {plotGroup.crop}</h4></div>
-                            <Button type="button" variant="danger" size="sm" onClick={() => { setNewIssuePlot(plotGroup.plotCode); setShowNewIssueModal(true); }}><AlertTriangle className="mr-1 h-3.5 w-3.5" />Báo sự cố</Button>
+                  {/* Grid các ô Plots */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {/* Ô Tất cả các thửa */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPlotCode('ALL')}
+                      className={`flex flex-col justify-between p-4 rounded-2xl border text-left transition-all ${
+                        selectedPlotCode === 'ALL'
+                          ? 'border-emerald-600 bg-emerald-50/70 shadow-sm ring-2 ring-emerald-600/30'
+                          : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/50'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="font-heading font-black text-sm text-brand-dark">Tất cả các thửa</span>
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+                            {tasks.length} việc
+                          </span>
+                        </div>
+                        <p className="mt-1.5 text-xs text-stone-500">Tổng hợp toàn bộ nhiệm vụ của ca trực hôm nay</p>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between border-t border-stone-200/60 pt-2 text-[11px]">
+                        <span className="font-bold text-amber-700">{actionableCount} việc cần làm</span>
+                        <span className="text-stone-400">{tasks.length - actionableCount} đã xong</span>
+                      </div>
+                    </button>
+
+                    {/* Từng ô Thửa đất cụ thể */}
+                    {plotSummaryList.map((plot) => {
+                      const isSelected = selectedPlotCode === plot.plotCode;
+                      const pending = plot.tasks.filter((t) => t.status !== 'COMPLETED').length;
+                      const done = plot.tasks.filter((t) => t.status === 'COMPLETED').length;
+                      const total = plot.tasks.length;
+                      const progress = total > 0 ? Math.round((done / total) * 100) : 100;
+
+                      return (
+                        <button
+                          key={plot.plotCode}
+                          type="button"
+                          onClick={() => setSelectedPlotCode(plot.plotCode)}
+                          className={`flex flex-col justify-between p-4 rounded-2xl border text-left transition-all ${
+                            isSelected
+                              ? 'border-emerald-600 bg-emerald-50/80 shadow-sm ring-2 ring-emerald-600/40'
+                              : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/50'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2 py-0.5 rounded font-mono font-black text-xs bg-emerald-800 text-white">
+                                  {plot.plotCode}
+                                </span>
+                                <span className="font-heading font-black text-sm text-brand-dark truncate">
+                                  {plot.plotName}
+                                </span>
+                              </div>
+                              {pending > 0 ? (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                                  {pending} cần làm
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 flex items-center gap-0.5">
+                                  <Check className="h-3 w-3" /> Xong ca
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-2 text-xs space-y-0.5">
+                              <p className="font-bold text-emerald-900 truncate">🌱 {plot.crop}</p>
+                              <p className="text-stone-500 truncate">👤 Khách: <strong className="text-stone-800">{plot.customerName}</strong></p>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 border-t border-stone-200/60 pt-2">
+                            <div className="flex items-center justify-between text-[11px] text-stone-500 mb-1">
+                              <span>Tiến độ ca</span>
+                              <span className="font-bold text-stone-700">{done}/{total} việc</span>
+                            </div>
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
+                              <div className="h-full bg-emerald-600 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. KHU VỰC CHI TIẾT NHIỆM VỤ THEO THỬA ĐÃ CHỌN (PLOT WORKSPACE) */}
+                <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+                  <div className="space-y-5 rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6">
+                    {selectedPlotCode !== 'ALL' ? (() => {
+                      const activePlot = plotSummaryList.find((p) => p.plotCode === selectedPlotCode) || plotSummaryList[0];
+                      const plotTasks = activePlot?.tasks || [];
+                      const pendingTasks = plotTasks.filter((t) => t.status !== 'COMPLETED');
+                      const completedTasks = plotTasks.filter((t) => t.status === 'COMPLETED');
+
+                      return (
+                        <div className="space-y-5">
+                          {/* Header thông tin thửa gọn gàng */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50/90 via-white to-emerald-50/50 shadow-2xs">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="px-2.5 py-0.5 rounded-md bg-emerald-800 text-white font-mono font-bold text-xs">{activePlot.plotCode}</span>
+                                <h3 className="font-heading font-black text-lg text-brand-dark">{activePlot.plotName}</h3>
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white border border-emerald-300 text-emerald-800">
+                                  🌱 {activePlot.crop}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-xs text-stone-600 flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span>👤 Khách hàng: <strong className="text-stone-900">{activePlot.customerName}</strong></span>
+                                <span className="text-stone-300">•</span>
+                                <span>📋 Hợp đồng: <strong className="font-mono text-stone-700">{activePlot.contractCode}</strong></span>
+                                <span className="text-stone-300">•</span>
+                                <span>📍 <strong className="text-stone-700">{activePlot.location}</strong></span>
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 self-start sm:self-auto">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => { setNewIssuePlot(activePlot.plotCode); setShowNewIssueModal(true); }}
+                                className="gap-1.5 font-bold border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100"
+                              >
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-700" />
+                                Báo sự cố
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => {
+                                  const harvest = harvestWorkItems.find((item) => item.plotCode === activePlot.plotCode);
+                                  if (harvest) openHarvestWorkspace(harvest);
+                                  else setActiveTab('harvest');
+                                }}
+                                className="gap-1.5 font-bold bg-emerald-800 text-white hover:bg-emerald-900"
+                              >
+                                <Scale className="h-3.5 w-3.5" />
+                                Nghiệm thu thu hoạch
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Danh sách việc cần làm */}
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between border-b border-stone-200/60 pb-2">
+                              <h4 className="font-heading font-black text-sm text-brand-dark flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-amber-600" />
+                                <span>Việc Cần Thực Hiện Hôm Nay ({pendingTasks.length})</span>
+                              </h4>
+                              {pendingTasks.length > 0 && (
+                                <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                                  Ưu tiên hoàn thành trong ca
+                                </span>
+                              )}
+                            </div>
+
+                            {pendingTasks.length === 0 ? (
+                              <div className="p-6 text-center text-xs text-stone-500 bg-emerald-50/30 rounded-2xl border border-dashed border-emerald-200 flex flex-col items-center gap-1.5">
+                                <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                                <p className="font-bold text-emerald-900 text-sm">Tuyệt vời! Đã hoàn thành mọi việc tại thửa này</p>
+                                <p className="text-stone-500">Toàn bộ nhiệm vụ chăm sóc đã được nghiệm thu đạt chuẩn VietGAP.</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {pendingTasks.map((task) => {
+                                  const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(task.title);
+                                  const isFocused = focusedTask?.id === task.id;
+                                  const timing = getTaskTimingMeta(task);
+
+                                  return (
+                                    <div
+                                      key={task.id}
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={() => setFocusedTaskId(task.id)}
+                                      onKeyDown={(event) => event.key === 'Enter' && setFocusedTaskId(task.id)}
+                                      className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                                        isFocused ? 'border-emerald-500 bg-emerald-50/40 ring-1 ring-emerald-500' : 'border-stone-200 bg-white hover:border-emerald-300'
+                                      }`}
+                                    >
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div className="space-y-1">
+                                          <div className="flex items-center gap-2">
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${timing.tone}`}>
+                                              <span className={`h-1.5 w-1.5 rounded-full ${timing.dot}`} />
+                                              {timing.label}
+                                            </span>
+                                            <span className="text-[11px] text-stone-500 font-medium">Hạn: {task.deadline}</span>
+                                          </div>
+                                          <h5 className="font-heading font-black text-sm text-brand-dark">{task.title}</h5>
+                                          <p className="text-xs text-stone-600 leading-relaxed bg-stone-50 p-2.5 rounded-xl border border-stone-200/60 mt-1">
+                                            📖 {task.instructions}
+                                          </p>
+                                        </div>
+
+                                        <div className="shrink-0 self-end sm:self-center">
+                                          <Button
+                                            variant={isHarvestTask ? 'secondary' : 'primary'}
+                                            size="sm"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (isHarvestTask) {
+                                                const harvest = harvestWorkItems.find((item) => item.plotCode === task.plotCode);
+                                                if (harvest) openHarvestWorkspace(harvest);
+                                                else handleTaskAction(task);
+                                              } else {
+                                                handleTaskAction(task);
+                                              }
+                                            }}
+                                            className="gap-1.5 font-bold whitespace-nowrap shadow-xs"
+                                          >
+                                            {isHarvestTask ? <Scale className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+                                            {isHarvestTask ? 'Thu hoạch' : 'Nghiệm thu (Chụp ảnh BR15)'}
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Danh sách việc đã hoàn thành */}
+                          <div className="space-y-3 pt-2">
+                            <div className="flex items-center justify-between border-b border-stone-200/60 pb-2">
+                              <h4 className="font-heading font-black text-sm text-brand-dark flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                                <span>Lịch Sử Đã Nghiệm Thu Hoàn Thành ({completedTasks.length})</span>
+                              </h4>
+                            </div>
+
+                            {completedTasks.length === 0 ? (
+                              <p className="text-xs text-stone-400 italic">Chưa có nhiệm vụ nào hoàn tất trong ca trực này.</p>
+                            ) : (
+                              <div className="space-y-2.5">
+                                {completedTasks.map((task) => (
+                                  <div
+                                    key={task.id}
+                                    onClick={() => setFocusedTaskId(task.id)}
+                                    className="flex items-start justify-between gap-3 p-3.5 rounded-2xl border border-emerald-100 bg-emerald-50/30 text-xs cursor-pointer hover:bg-emerald-50/60 transition"
+                                  >
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-bold text-emerald-800 flex items-center gap-1">
+                                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                          {task.title}
+                                        </span>
+                                        <span className="text-[10px] text-stone-400">
+                                          {task.completedAt ? `• ${task.completedAt}` : ''}
+                                        </span>
+                                      </div>
+                                      <p className="text-stone-600 text-[11px]">{task.instructions}</p>
+                                      <p className="text-[10px] text-emerald-700 font-semibold">
+                                        👷 Nghiệm thu: {task.workerName || user?.fullName || 'Trần Văn Lực (CVLĐ)'}
+                                      </p>
+                                    </div>
+
+                                    {task.proofPhoto && (
+                                      <div className="shrink-0">
+                                        <img
+                                          src={task.proofPhoto}
+                                          alt="Ảnh nghiệm thu"
+                                          className="w-14 h-14 object-cover rounded-xl border border-emerald-200 shadow-2xs hover:scale-105 transition"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedPlots((current) => ({ ...current, [plotKey]: !isExpanded }))}
-                          className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-emerald-50/40"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="truncate font-heading text-base font-black text-brand-dark">{plotGroup.plotName}</h4>
-                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">{plotGroup.crop}</span>
-                            </div>
-                            <div className="mt-2 flex items-center gap-2">
-                              <div className="h-1.5 min-w-20 flex-1 overflow-hidden rounded-full bg-stone-100">
-                                <div className="h-full rounded-full bg-emerald-600" style={{ width: `${plotGroup.tasks.length ? (completedForPlot / plotGroup.tasks.length) * 100 : 0}%` }} />
-                              </div>
-                              <span className="text-[10px] font-bold text-stone-500">{completedForPlot}/{plotGroup.tasks.length} nhiệm vụ</span>
-                            </div>
-                          </div>
-                          {isExpanded ? <ChevronDown className="h-5 w-5 text-stone-400" /> : <ChevronRight className="h-5 w-5 text-stone-400" />}
-                        </button>
+                      );
+                    })() : (
+                      /* HIỂN THỊ KHI CHỌN 'TẤT CẢ CÁC THỬA' */
+                      <div className="space-y-6">
+                        <div className="flex items-center justify-between border-b border-brand-border/60 pb-3">
+                          <h4 className="font-heading font-black text-base text-brand-dark">
+                            Toàn bộ nhiệm vụ ca trực hôm nay
+                          </h4>
+                          <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                            {tasks.length} nhiệm vụ tổng cộng
+                          </span>
+                        </div>
 
-                        {isExpanded && (
-                          <div className="divide-y divide-brand-border/60 border-t border-brand-border/60">
-                            {plotGroup.tasks.map((task) => {
-                              const isDone = task.status === 'COMPLETED';
-                              const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(task.title);
-                              const isFocused = focusedTask?.id === task.id;
-                              const timing = getTaskTimingMeta(task);
-                              return (
-                                <div
-                                  key={task.id}
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={() => setFocusedTaskId(task.id)}
-                                  onKeyDown={(event) => event.key === 'Enter' && setFocusedTaskId(task.id)}
-                                  className={`grid cursor-pointer gap-3 border-l-4 p-4 text-xs transition sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center ${isFocused ? 'ring-1 ring-inset ring-emerald-500/40' : ''} ${timing.row}`}
-                                >
-                                  <span className={`inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 font-bold ${timing.tone}`}>
-                                    <span className={`h-2 w-2 rounded-full ${timing.dot}`} />
-                                    {timing.label}
-                                  </span>
-                                  <div className="min-w-0">
-                                    <h5 className="font-heading text-sm font-black text-brand-dark">{task.title}</h5>
-                                    <p className="mt-1 line-clamp-2 text-stone-500"><Clock className="mr-1 inline h-3.5 w-3.5" />{task.deadline} · {task.instructions}</p>
+                        {plotSummaryList.map((plot) => (
+                          <div key={plot.plotCode} className="rounded-2xl border border-stone-200 overflow-hidden bg-white shadow-2xs">
+                            <div className="flex items-center justify-between p-3.5 bg-stone-50 border-b border-stone-200">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="px-2 py-0.5 rounded font-mono font-black text-xs bg-emerald-800 text-white">
+                                  {plot.plotCode}
+                                </span>
+                                <span className="font-heading font-black text-sm text-brand-dark">
+                                  {plot.plotName}
+                                </span>
+                                <span className="text-xs text-stone-500">• {plot.crop}</span>
+                                <span className="text-xs text-stone-500">• Khách: <strong>{plot.customerName}</strong></span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPlotCode(plot.plotCode)}
+                                className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1"
+                              >
+                                Vào thửa này <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="p-3.5 divide-y divide-stone-100">
+                              {plot.tasks.map((task) => {
+                                const isDone = task.status === 'COMPLETED';
+                                const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(task.title);
+
+                                return (
+                                  <div key={task.id} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 text-xs">
+                                    <div className="space-y-0.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                          {isDone ? 'Đã xong' : 'Cần làm'}
+                                        </span>
+                                        <h5 className="font-heading font-black text-sm text-brand-dark">{task.title}</h5>
+                                      </div>
+                                      <p className="text-stone-500 text-[11px]">{task.instructions}</p>
+                                    </div>
+
+                                    {!isDone && (
+                                      <Button
+                                        variant={isHarvestTask ? 'secondary' : 'outline'}
+                                        size="sm"
+                                        onClick={() => handleTaskAction(task)}
+                                        className="shrink-0 gap-1 font-bold text-xs"
+                                      >
+                                        <Camera className="h-3.5 w-3.5" />
+                                        Nghiệm thu
+                                      </Button>
+                                    )}
                                   </div>
-                                  {!isDone && (
-                                    <Button
-                                      variant={isHarvestTask ? 'secondary' : 'outline'}
-                                      size="sm"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        if (isHarvestTask) {
-                                           const harvest = harvestWorkItems.find((item) => item.plotCode === task.plotCode) || harvestWorkItems.find((item) => item.status !== 'COMPLETED');
-                                          if (harvest) openHarvestWorkspace(harvest);
-                                           else handleTaskAction(task);
-                                        } else {
-                                           handleTaskAction(task);
-                                        }
-                                      }}
-                                      className="w-full gap-1.5 font-bold sm:w-auto"
-                                    >
-                                      {isHarvestTask ? <Scale className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                                      {isHarvestTask ? 'Thu hoạch' : 'Hoàn thành'}
-                                    </Button>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
-                        )}
-                      </section>
-                    );
-                  })}
-                </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <aside className="overflow-hidden rounded-3xl border border-brand-border bg-white shadow-sm xl:sticky xl:top-24">

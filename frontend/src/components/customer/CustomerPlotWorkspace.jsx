@@ -1387,10 +1387,50 @@ export default function CustomerPlotWorkspace({
   });
   const [selectedPhotoActivity, setSelectedPhotoActivity] = useState(null);
 
-  // Lắng nghe sự kiện đồng bộ hoạt động của Staff (qua BroadcastChannel hoặc Storage)
+  // Lắng nghe sự kiện đồng bộ hoạt động của Staff (qua BroadcastChannel, Storage hoặc API DB)
   useEffect(() => {
+    let isMounted = true;
     const reloadStaffActivities = () => {
-      setStaffActivities(getPersistedStaffActivities(plot.id));
+      fetch('/api/tasks')
+        .then((res) => res.json())
+        .then((resData) => {
+          if (!isMounted) return;
+          const list = resData?.data || (Array.isArray(resData) ? resData : []);
+          if (Array.isArray(list) && list.length > 0) {
+            const pCode = String(plot.plotCode || plot.mapPlotId || plot.id || '').replace(/^PLOT-|^PLT-/i, '').trim().toUpperCase();
+            const pRental = plot.rentalId || plot.rental_id;
+            const pNum = pCode.replace(/\D/g, '');
+            const matched = list.filter((t) => {
+              const tCode = String(t.plotCode || t.plotId || '').replace(/^PLOT-|^PLT-/i, '').trim().toUpperCase();
+              const tNum = tCode.replace(/\D/g, '');
+              const numMatch = pNum !== '' && tNum !== '' && pNum === tNum;
+              return (pCode && tCode === pCode) || numMatch || (pRental && t.rentalId === pRental);
+            });
+            if (matched.length > 0) {
+              const mapped = matched.map((m) => ({
+                activityId: m.id || `TSK-${m.taskId}`,
+                plotId: m.plotCode || plot.id,
+                plotCode: m.plotCode || plot.plotCode || 'P-01',
+                rentalId: m.rentalId,
+                workerName: m.workerName || m.assignedTo || 'Trần Văn Lực (CVLĐ)',
+                workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
+                workerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+                title: m.title,
+                timestamp: m.completedAt || `${m.dueDate} • ${m.deadline || 'Ca sáng'}`,
+                status: m.status === 'DONE' ? 'COMPLETED' : m.status === 'IN_PROG' ? 'IN_PROGRESS' : m.status || 'PENDING',
+                notes: m.instructions || m.notes || 'Thực hiện chăm sóc chuẩn quy trình VietGAP.',
+                proofPhoto: m.proofPhoto || '/images/Mucangchai3.jpg',
+                sensorSnapshot: { temp: '26.8°C', soilMoisture: '68%', light: '42.000 Lux' }
+              }));
+              setStaffActivities(mapped);
+              return;
+            }
+          }
+          setStaffActivities(getPersistedStaffActivities(plot.id));
+        })
+        .catch(() => {
+          if (isMounted) setStaffActivities(getPersistedStaffActivities(plot.id));
+        });
     };
 
     reloadStaffActivities();
@@ -1413,10 +1453,11 @@ export default function CustomerPlotWorkspace({
     window.addEventListener('storage', onStorage);
 
     return () => {
+      isMounted = false;
       window.removeEventListener('storage', onStorage);
       if (bc) bc.close();
     };
-  }, [plot.id]);
+  }, [plot.id, plot.plotCode, plot.rentalId]);
 
   // 3. Tích hợp Open-Meteo Global Agrometeorology Live 3rd-Party API
   const [liveIotResult, setLiveIotResult] = useState(null);
