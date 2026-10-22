@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
@@ -34,6 +34,7 @@ export default function Marketplace() {
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [plotToBook, setPlotToBook] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const hasPromptedAuthRef = useRef(false);
   // Cấu hình thuê theo mã thửa (vd {"P-04": { cropId: "CRP-03", cultivationMode: "ASSISTED", termMonths: 6 }}), dùng chung với trang BookPlot
   const [leaseConfigByPlot, setLeaseConfigByPlot] = useState(loadLeaseConfigMap);
   // Danh sách mã thửa cần thuê khi chưa đăng nhập (dùng sau khi đăng nhập)
@@ -107,6 +108,24 @@ export default function Marketplace() {
               const codeToSelect = foundPlot.plotCode || String(foundPlot.plotId);
               setSelectedPlotId(codeToSelect);
               setShowDetailPanel(true);
+
+              const isAuthReq = searchParams.get('authRequired') === 'true' || searchParams.get('requireAuth') === 'true';
+              if (isAuthReq && !isAuthenticated && !hasPromptedAuthRef.current) {
+                hasPromptedAuthRef.current = true;
+                const areaNum = Number(foundPlot.area || foundPlot.size || 100);
+                const priceNum = Number(foundPlot.pricePerPeriod ?? foundPlot.rentalPrice ?? 1200000);
+                setPlotToBook({
+                  ...foundPlot,
+                  id: codeToSelect,
+                  code: codeToSelect,
+                  name: foundPlot.name || `Thửa đất ${codeToSelect}`,
+                  area: `${areaNum} m²`,
+                  price: `${priceNum.toLocaleString('vi-VN')} đ/tháng`,
+                  rentalPrice: priceNum
+                });
+                setPendingBookingCodes([codeToSelect]);
+                setShowAuthModal(true);
+              }
             }
           }
 
@@ -222,6 +241,17 @@ export default function Marketplace() {
     if (!selectedPlotId) return null;
     return allPlots.find((p) => p.id === selectedPlotId || p.code === selectedPlotId) || null;
   }, [allPlots, selectedPlotId]);
+
+  // Tự động bật Modal Đăng nhập để tiếp tục khi URL yêu cầu authRequired mà khách chưa đăng nhập
+  useEffect(() => {
+    const isAuthRequired = searchParams.get('authRequired') === 'true' || searchParams.get('requireAuth') === 'true';
+    if (isAuthRequired && !isAuthenticated && selectedPlot && !hasPromptedAuthRef.current) {
+      hasPromptedAuthRef.current = true;
+      setPlotToBook(selectedPlot);
+      setPendingBookingCodes([selectedPlot.code || selectedPlot.id]);
+      setShowAuthModal(true);
+    }
+  }, [searchParams, isAuthenticated, selectedPlot]);
 
   // Chọn thửa đất
   const handleSelectPlot = (plot) => {
@@ -557,57 +587,84 @@ export default function Marketplace() {
       <Modal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        title="Yêu Cầu Đăng Nhập Để Thuê Thửa Đất"
+        title="Đăng Nhập Để Tiếp Tục"
         subtitle={plotToBook ? `${plotToBook.code || plotToBook.id} • ${plotToBook.name}` : undefined}
       >
         <div className="space-y-4 text-center py-2 text-slate-800">
-          <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto">
+          <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto shadow-xs">
             <LogIn className="w-7 h-7" />
           </div>
 
           <div className="space-y-1">
-            <h4 className="font-heading font-bold text-base text-slate-900">
-              Đăng nhập tài khoản Farmely
+            <h4 className="font-heading font-black text-lg text-slate-900">
+              Đăng nhập để tiếp tục
             </h4>
             <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-              Bạn cần đăng nhập tài khoản khách hàng để tiến hành ký hợp đồng thuê thửa đất, chọn hình
-              thức canh tác và thanh toán VietQR.
+              Vui lòng đăng nhập tài khoản khách hàng để xem chi tiết đầy đủ, chọn mô hình canh tác và ký hợp đồng thuê thửa đất.
             </p>
           </div>
 
           {plotToBook && (
-            <div className="p-3 bg-slate-50 rounded-xl text-left text-xs border border-slate-200 space-y-1">
-              <p>
-                <strong>Thửa đất:</strong> {plotToBook.code || plotToBook.id} ({plotToBook.name})
-              </p>
-              <p>
-                <strong>Diện tích:</strong> {plotToBook.area}
-              </p>
-              <p>
-                <strong>Giá thuê:</strong> {plotToBook.price || `${plotToBook.rentalPrice?.toLocaleString('vi-VN')} đ`}/tháng
-              </p>
+            <div className="p-3.5 bg-slate-50 rounded-2xl text-left text-xs border border-slate-200/80 space-y-1.5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-slate-900 text-sm">{plotToBook.code || plotToBook.id}</span>
+                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  {plotToBook.name || `Thửa đất ${plotToBook.code || plotToBook.id}`}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/60">
+                <span>Diện tích:</span>
+                <span className="font-semibold text-slate-900">{plotToBook.area || '150 m²'}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Đơn giá niêm yết:</span>
+                <span className="font-bold text-emerald-700">
+                  {plotToBook.formattedPrice || plotToBook.price || (plotToBook.rentalPrice ? `${plotToBook.rentalPrice.toLocaleString('vi-VN')} đ/tháng` : '1.200.000 đ/tháng')}
+                </span>
+              </div>
             </div>
           )}
 
-          <div className="space-y-2 pt-2">
+          <div className="space-y-2.5 pt-2">
             <Button
               variant="primary"
-              className="w-full font-bold uppercase tracking-wider text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={handleQuickDemoLogin}
-            >
-              Đăng nhập nhanh (Tài khoản mẫu Khách Hàng)
-            </Button>
-
-            <Button
-              variant="outline"
-              className="w-full text-xs font-bold"
+              className="w-full font-bold uppercase tracking-wider text-xs bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl shadow-md cursor-pointer"
               onClick={() => {
                 setShowAuthModal(false);
                 navigate(`/login?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes))}`);
               }}
             >
-              Chuyển đến trang Đăng nhập
+              Đăng nhập ngay
             </Button>
+
+            <Button
+              variant="outline"
+              className="w-full text-xs font-bold py-2.5 rounded-xl cursor-pointer"
+              onClick={handleQuickDemoLogin}
+            >
+              Đăng nhập nhanh (Tài khoản mẫu Khách Hàng)
+            </Button>
+
+            <div className="pt-1 flex items-center justify-center gap-4 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAuthModal(false);
+                  navigate(`/register?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes))}`);
+                }}
+                className="text-brand-green font-bold hover:underline cursor-pointer"
+              >
+                Chưa có tài khoản? Đăng ký →
+              </button>
+              <span className="text-slate-300">•</span>
+              <button
+                type="button"
+                onClick={() => setShowAuthModal(false)}
+                className="text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
+              >
+                Xem trên bản đồ trước
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
