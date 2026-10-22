@@ -45,7 +45,7 @@ export default function PlotLeaseOptions({
             <span>Hình thức canh tác</span>
             <span className="text-rose-500 font-bold">*</span>
           </label>
-          <span className="text-[10px] text-slate-400 font-medium">SSoT • 2 mô hình</span>
+          <span className="text-[10px] text-slate-400 font-medium">Lựa chọn mô hình</span>
         </div>
 
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Hình thức canh tác">
@@ -115,7 +115,7 @@ export default function PlotLeaseOptions({
           {growthDays > 35 && (
             <span className="text-[10px] text-amber-700 font-semibold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
               <Shield className="w-3 h-3 text-amber-600 shrink-0" />
-              Cây &gt;35 ngày: Tối thiểu 3 tháng (BR04)
+              Cây &gt;35 ngày: Tối thiểu 3 tháng
             </span>
           )}
         </div>
@@ -127,7 +127,7 @@ export default function PlotLeaseOptions({
             const isLocked = Boolean(lockReason);
             const lockTitle =
               lockReason === 'BR04'
-                ? `Giống cây có chu kỳ ${growthDays} ngày (>35 ngày), yêu cầu thuê tối thiểu 3 tháng theo quy định BR04.`
+                ? `Giống cây có chu kỳ ${growthDays} ngày (>35 ngày), yêu cầu thuê tối thiểu 3 tháng để trọn vẹn vụ mùa.`
                 : lockReason === 'ASSISTED'
                 ? 'Gói Assisted-Growing trọn gói yêu cầu tối thiểu 3 tháng (1 vụ mùa).'
                 : '';

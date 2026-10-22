@@ -1609,7 +1609,7 @@ export default function CustomerDashboard() {
                                   type="button"
                                   onClick={() => handleOpenCancelModal(plot)}
                                   aria-label={`Hợp đồng & hủy ${plot.name}`}
-                                  title="Quản lý Hợp đồng & Hủy theo BR10"
+                                  title="Quản lý hợp đồng & hủy hợp đồng"
                                   className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
                                 >
                                   <FileText className="h-4 w-4" />
@@ -2257,13 +2257,12 @@ export default function CustomerDashboard() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 border border-emerald-200">
-                        SSoT: Master Lease Agreement
+                        Hợp Đồng Thuê Thửa Đất
                       </span>
-                      <span className="text-xs text-stone-500">Mã màn hình: SCR-KH-08 / SCR-AD-10</span>
                     </div>
                     <h3 className="font-heading font-black text-xl text-brand-dark mt-1 flex items-center gap-2">
                       <FileText className="w-5 h-5 text-brand-green" />
-                      Danh Sách Hợp Đồng Thuê & Chính Sách Hoàn Hủy (BR10)
+                      Danh Sách Hợp Đồng Thuê & Chính Sách Hoàn Hủy
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Quản lý các kỳ thuê đất, theo dõi ngày bàn giao thực tế và gửi yêu cầu hủy hợp đồng theo đúng tỷ lệ khấu trừ.
@@ -2276,17 +2275,17 @@ export default function CustomerDashboard() {
                   </Link>
                 </div>
 
-                {/* Banner giải thích quy chuẩn BR10 & BR23 */}
+                {/* Banner giải thích quy chuẩn hoàn tiền */}
                 <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 space-y-1.5">
                   <div className="font-bold flex items-center gap-1.5 text-blue-950">
                     <ShieldAlert className="w-4 h-4 text-blue-700" />
-                    Chính Sách Hoàn Tiền Khi Hủy Hợp Đồng (Quy định SSoT BR10):
+                    Chính Sách Hoàn Tiền Khi Hủy Hợp Đồng:
                   </div>
                   <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-blue-900/90 leading-relaxed">
                     <li><strong>Trước ngày bắt đầu ≥ 3 ngày:</strong> Khấu trừ 20% phí quản trị & giữ chỗ, <strong>hoàn trả 80%</strong> số tiền đã đóng.</li>
                     <li><strong>Trước ngày bắt đầu &lt; 3 ngày:</strong> Khấu trừ 50% chi phí giống & chuẩn bị đất, <strong>hoàn trả 50%</strong> số tiền đã đóng.</li>
                     <li><strong>Khi đã đến hoặc sau ngày bắt đầu canh tác:</strong> Khấu trừ 100%, <strong>không hoàn tiền</strong> vì cây giống đã trồng và công nhân đã triển khai.</li>
-                    <li><strong>Bảo trì thửa đất (BR23):</strong> Mọi thửa đất sau khi hủy đều chuyển sang trạng thái <strong>Bảo dưỡng phơi ải 4 ngày (MAINT)</strong> trước khi mở lại trên sàn.</li>
+                    <li><strong>Bảo trì thửa đất:</strong> Mọi thửa đất sau khi hủy đều chuyển sang trạng thái <strong>Bảo dưỡng phơi ải 4 ngày</strong> trước khi mở lại trên sàn.</li>
                   </ul>
                 </div>
 
@@ -2339,13 +2338,13 @@ export default function CustomerDashboard() {
 
                         {cancelledContracts[plot.contractCode || `CTR-${plot.id}`] ? (
                           <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
-                            <span>✓ Đã gửi yêu cầu chấm dứt hợp đồng sớm (Thửa đất chuyển bảo dưỡng 4 ngày BR23)</span>
+                            <span>✓ Đã gửi yêu cầu chấm dứt hợp đồng sớm (Thửa đất chuyển bảo dưỡng 4 ngày)</span>
                             <span className="text-[11px] bg-rose-200 px-2 py-0.5 rounded">ĐÃ HỦY NGANG</span>
                           </div>
                         ) : (
                           <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-brand-border/40">
                             <span className="text-[11px] text-stone-400">
-                              Gia hạn trước tối thiểu 3 ngày theo quy định BR11b.
+                              Gia hạn trước tối thiểu 3 ngày trước khi kết thúc hợp đồng.
                             </span>
                             <div className="flex gap-2">
                               <Button variant="outline" size="sm" onClick={() => setShowRenewContractModal(true)}>
@@ -2364,7 +2363,7 @@ export default function CustomerDashboard() {
                                 })}
                                 className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-bold self-center cursor-pointer px-2"
                               >
-                                Chấm dứt hợp đồng sớm (BR10)
+                                Chấm dứt hợp đồng sớm
                               </button>
                             </div>
                           </div>

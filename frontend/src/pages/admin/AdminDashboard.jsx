@@ -1372,7 +1372,7 @@ export default function AdminDashboard() {
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div>
                   <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Phê Duyệt Hủy Hợp Đồng & Hoàn Tiền (BR10)
+                    Phê Duyệt Hủy Hợp Đồng & Hoàn Tiền
                   </h3>
                   <p className="text-xs text-brand-muted mt-0.5">
                     Chính sách hoàn tiền tự động: Hoàn 80% trước 7 ngày, hoàn 50% trước 1-7 ngày.
@@ -1433,7 +1433,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-2">
                       <Calendar className="w-5 h-5 text-brand-green" />
                       <h3 className="font-heading font-black text-xl text-brand-dark">
-                        Lịch Hẹn Tham Quan Nông Trại Thực Tế (SCR-PUB-05)
+                        Lịch Hẹn Tham Quan Nông Trại Thực Tế
                       </h3>
                     </div>
                     <p className="text-xs text-brand-muted mt-0.5">
@@ -1857,7 +1857,7 @@ export default function AdminDashboard() {
               rows={2}
               value={newTaskNotes}
               onChange={(e) => setNewTaskNotes(e.target.value)}
-              placeholder="Chụp 01 ảnh nghiệm thu hiện trường sau khi hoàn thành theo chuẩn BR15."
+              placeholder="Chụp 01 ảnh nghiệm thu hiện trường sau khi hoàn thành công việc."
               className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs"
             />
           </div>
@@ -1906,7 +1906,7 @@ export default function AdminDashboard() {
                 ))}
               </select>
               <p className="text-[11px] text-stone-500 mt-1">
-                Nhân sự chịu trách nhiệm trực tiếp chăm sóc cây trồng, tưới tiêu, bón phân và báo cáo sản lượng thu hoạch tại hiện trường thửa đất (BR14).
+                Nhân sự chịu trách nhiệm trực tiếp chăm sóc cây trồng, tưới tiêu, bón phân và báo cáo sản lượng thu hoạch tại hiện trường thửa đất.
               </p>
             </div>
 
@@ -1926,7 +1926,7 @@ export default function AdminDashboard() {
                 ))}
               </select>
               <p className="text-[11px] text-stone-500 mt-1">
-                Chuyên gia có toàn quyền theo dõi trạm IoT vi khí hậu, nhật ký canh tác và trực tiếp tư vấn 1-1 cho khách hàng theo chuẩn BR24.
+                Chuyên gia có toàn quyền theo dõi trạm IoT vi khí hậu, nhật ký canh tác và trực tiếp tư vấn 1-1 cho khách hàng.
               </p>
             </div>
 

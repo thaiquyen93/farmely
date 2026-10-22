@@ -144,7 +144,7 @@ export default function Plots() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: Plot (Đơn vị cho thuê nhỏ nhất - BR02)
+            Thực thể: Thửa Đất (Plot)
           </span>
           <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
             Quản Lý Thửa Đất Canh Tác

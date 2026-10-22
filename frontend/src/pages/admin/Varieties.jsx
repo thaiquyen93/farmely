@@ -158,7 +158,7 @@ export default function Varieties() {
             <Clock className="w-3.5 h-3.5 text-brand-green" />
             {row.growthDuration} ngày
           </span>
-          <span className="text-[10px] text-stone-500">Buffer: +{row.bufferTime} ngày (BR04)</span>
+          <span className="text-[10px] text-stone-500">Đệm: +{row.bufferTime} ngày</span>
         </div>
       )
     },
@@ -229,7 +229,7 @@ export default function Varieties() {
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-              Thực thể: Variety (Giống cây trồng được kiểm định - BR03)
+              Thực thể: Giống Cây Trồng (Variety)
             </span>
             {isLiveDb && (
               <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">

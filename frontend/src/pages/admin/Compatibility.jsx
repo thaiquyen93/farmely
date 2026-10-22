@@ -134,7 +134,7 @@ export default function Compatibility() {
       )
     },
     {
-      header: 'Giải Thích & Cơ Sở Kỹ Thuật (BR03)',
+      header: 'Giải Thích & Cơ Sở Kỹ Thuật',
       key: 'notes',
       render: (row) => (
         <span className="text-xs text-stone-600 line-clamp-2 max-w-md block">
@@ -177,7 +177,7 @@ export default function Compatibility() {
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-              Thực thể: PlotVarietyCompatibility (Ma Trận Sinh Học BR03)
+              Thực thể: PlotVarietyCompatibility (Tương Thích Thổ Nhưỡng)
             </span>
             {isLiveDb && (
               <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
@@ -309,7 +309,7 @@ export default function Compatibility() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         title="Thêm Quy Tắc Tương Thích Thổ Nhưỡng Mới"
-        subtitle="Ràng buộc giống cây và điều kiện đất canh tác (BR03)"
+        subtitle="Ràng buộc giống cây và điều kiện đất canh tác"
       >
         <form onSubmit={handleCreateRule} className="space-y-4">
           <Select

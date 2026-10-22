@@ -139,7 +139,7 @@ export default function AdminSidebar({ mobileOpen = false, setMobileOpen, collap
         </Link>
         <div className={`px-3 py-2 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2.5 text-[11px] text-white/70 ${collapsed ? 'lg:justify-center lg:px-0' : ''}`} title={collapsed ? 'Master Data v2.1' : undefined}>
           <ShieldCheck className="w-4 h-4 text-brand-yellow shrink-0" />
-          <span className={collapsed ? 'lg:hidden' : ''}>Phiên bản Master Data v2.1 (BR01-BR25)</span>
+          <span className={collapsed ? 'lg:hidden' : ''}>Phiên bản Master Data v2.1</span>
         </div>
       </div>
     </aside>
