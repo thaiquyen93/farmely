@@ -46,7 +46,8 @@ const dashboardByRole = {
   CUSTOMER: '/customer/dashboard',
   ADMIN: '/admin/dashboard',
   EXPERT: '/expert/dashboard',
-  STAFF: '/staff/dashboard'
+  STAFF: '/staff/dashboard',
+  FIELD_WORKER: '/staff/dashboard'
 };
 
 function RoleRoute({ role, children }) {
@@ -58,10 +59,12 @@ function RoleRoute({ role, children }) {
   }
 
   const userRole = String(user.role || '').toUpperCase();
+  const normalizedUserRole = (userRole === 'FIELD_WORKER' || userRole === 'WORKER') ? 'STAFF' : userRole;
   const targetRole = String(role || '').toUpperCase();
+  const normalizedTargetRole = (targetRole === 'FIELD_WORKER' || targetRole === 'WORKER') ? 'STAFF' : targetRole;
 
-  if (userRole !== targetRole) {
-    return <Navigate to={dashboardByRole[userRole] || '/'} replace />;
+  if (normalizedUserRole !== normalizedTargetRole) {
+    return <Navigate to={dashboardByRole[normalizedUserRole] || '/'} replace />;
   }
 
   return children;
@@ -69,9 +72,10 @@ function RoleRoute({ role, children }) {
 
 function CustomerCommerceRoute({ children }) {
   const { user, isAuthenticated } = useAuthStore();
+  const normalizedRole = (user?.role === 'FIELD_WORKER' || user?.role === 'worker') ? 'STAFF' : user?.role;
 
-  if (isAuthenticated && (user?.role === 'STAFF' || user?.role === 'EXPERT')) {
-    return <Navigate to={dashboardByRole[user.role]} replace />;
+  if (isAuthenticated && (normalizedRole === 'STAFF' || normalizedRole === 'EXPERT')) {
+    return <Navigate to={dashboardByRole[normalizedRole] || '/staff/dashboard'} replace />;
   }
 
   return children;

@@ -33,3 +33,5 @@ Thumbs.db
 /tools/
 .cursorrules
 .agents/
+capture_*.py
+/docs/screenshots_srs/

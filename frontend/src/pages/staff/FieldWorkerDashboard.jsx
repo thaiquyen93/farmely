@@ -703,7 +703,7 @@ export default function FieldWorkerDashboard() {
 
             {[
               { id: 'tasks', label: 'Việc hôm nay', icon: CheckCircle2, count: pendingCount },
-              { id: 'plots', label: 'Thửa Đất Phụ Trách (BR14)', icon: Layers, count: assignedPlots.length },
+              { id: 'plots', label: 'Thửa Đất Phụ Trách', icon: Layers, count: assignedPlots.length },
               { id: 'harvest', label: 'Thu hoạch & đóng gói', icon: PackageCheck, count: harvestWorkItems.filter(h => h.status !== 'COMPLETED').length },
               { id: 'issues', label: 'Báo cáo sự cố', icon: AlertTriangle, count: myIssues.length }
             ].map((tab) => {
@@ -925,7 +925,7 @@ export default function FieldWorkerDashboard() {
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
                       <Layers className="w-5 h-5 text-emerald-800" />
-                      <span>Thửa Đất Được Phân Công Chăm Sóc (BR14)</span>
+                      <span>Thửa Đất Được Phân Công Chăm Sóc</span>
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh sách các thửa đất thực địa được Ban Quản Trị giao cho bạn phụ trách canh tác và vận hành trạm IoT.
@@ -989,7 +989,7 @@ export default function FieldWorkerDashboard() {
                           <div>
                             <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Quan Trắc IoT:</span>
                             <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
-                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu ẩm &gt;= 80% (BR18)</span>
+                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu độ ẩm đất &ge; 80%</span>
                           </div>
                         </div>
 
@@ -1308,11 +1308,12 @@ export default function FieldWorkerDashboard() {
         </form>
       </Modal>
 
-      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-2xl border border-brand-border bg-white/95 p-2 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
+      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
         {[
           { id: 'tasks', label: 'Công việc', icon: ListTodo },
+          { id: 'plots', label: 'Thửa đất', icon: Layers },
           { id: 'harvest', label: 'Thu hoạch', icon: Camera },
-          { id: 'issues', label: 'Báo cáo', icon: FileText }
+          { id: 'issues', label: 'Sự cố', icon: FileText }
         ].map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;

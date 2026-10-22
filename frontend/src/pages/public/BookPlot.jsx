@@ -642,7 +642,7 @@ export default function BookPlot() {
                 <Clock className="w-5 h-5 text-brand-yellow animate-pulse" />
                 <div>
                   <span className="text-[10px] text-stone-300 block font-bold uppercase tracking-wider">
-                    Khóa giữ chỗ 15 phút (BR08)
+                    Khóa giữ chỗ 15 phút
                   </span>
                   <span className="font-mono text-lg font-black text-brand-yellow">
                     {formattedTimer}
@@ -654,7 +654,7 @@ export default function BookPlot() {
                     onClick={handleExtendGracePeriod}
                     disabled={isExtendingGrace}
                     className="ml-2 px-2.5 py-1 text-[11px] font-bold bg-brand-yellow text-brand-dark rounded-lg hover:bg-yellow-400 transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
-                    title="Cộng thêm 10 phút ân hạn khi chuẩn bị thanh toán (BR08)"
+                    title="Cộng thêm 10 phút ân hạn khi chuẩn bị thanh toán"
                   >
                     {isExtendingGrace ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                     <span>+10p Ân Hạn</span>
@@ -698,8 +698,8 @@ export default function BookPlot() {
               <div className="flex-1">
                 <span className="text-xs font-bold text-brand-green">{primaryPlot.code}</span>
                 <h4 className="font-heading font-bold text-sm text-brand-dark">{primaryPlot.name}</h4>
-                <p className="text-xs text-stone-500">
-                  {primaryPlot.area} • {primaryPlot.formattedPrice}/tháng
+                <p className="text-xs text-stone-500 mt-0.5">
+                  {primaryPlot.area} • {primaryPlot.formattedPrice}
                 </p>
               </div>
             </div>

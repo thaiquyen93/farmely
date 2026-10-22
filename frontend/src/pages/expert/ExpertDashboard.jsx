@@ -305,7 +305,7 @@ export default function ExpertDashboard() {
     {
       id: 'TMPL-TOMATO-01',
       code: 'TMPL-TOMATO-01',
-      version: 'v2.3 (Chuẩn VietGAP)',
+      version: 'v2.3 · Chuẩn VietGAP',
       name: 'Phác Đồ Canh Tác Cà Chua Bi Cherry F1',
       variety: 'Cà chua bi Cherry F1',
       durationDays: 65,
@@ -325,7 +325,7 @@ export default function ExpertDashboard() {
     {
       id: 'TMPL-LETTUCE-02',
       code: 'TMPL-LETTUCE-02',
-      version: 'v1.8 (Chuẩn VietGAP)',
+      version: 'v1.8 · Chuẩn VietGAP',
       name: 'Phác Đồ Xà Lách Romaine Hữu Cơ',
       variety: 'Xà lách Romaine VietGAP',
       durationDays: 35,
@@ -344,26 +344,26 @@ export default function ExpertDashboard() {
     {
       id: 'TMPL-CUCUMBER-03',
       code: 'TMPL-CUCUMBER-03',
-      version: 'v2.0 (Chuẩn VietGAP)',
+      version: 'v2.0 · Chuẩn VietGAP',
       name: 'Phác Đồ Dưa Leo Baby Đà Lạt F1',
-      variety: 'Dưa leo Baby F1',
+      variety: 'Dưa leo Baby',
       durationDays: 45,
       stagesCount: 4,
       stepsCount: 5,
       status: 'ACTIVE',
-      description: 'Trồng giàn lưới nhà màng sinh thái, kết hợp thả ong mật tự nhiên thụ phấn.',
+      description: 'Quy trình giàn lưới nhà màng, thụ phấn tự nhiên và bón kali hữu cơ tạo độ ngọt giòn.',
       steps: [
-        { day: 1, name: 'Gieo hạt trực tiếp vào luống', type: 'GIEO HẠT', details: 'Tra hạt sâu 1.5cm, tưới ẩm 70% kích mầm.' },
-        { day: 14, name: 'Cột dây leo giàn & Tỉa nhánh phụ', type: 'CHĂM SÓC', details: 'Tỉa bỏ hoa đực và nhánh phụ từ mắt thứ 5 trở xuống.' },
-        { day: 25, name: 'Thả đàn ong mật thụ phấn hoa', type: 'SINH THÁI', details: 'Thả thùng ong mật trong nhà lưới để thụ phấn tự nhiên.' },
-        { day: 40, name: 'Cách ly trước thu hái 5 ngày', type: 'CÁCH LY', details: 'Ngưng tưới chế phẩm sinh học.' },
-        { day: 45, name: 'Thu hoạch quả non baby 10-12cm', type: 'THU HOẠCH', details: 'Cắt cuống bằng kéo sạch, thu hái hàng ngày.' }
+        { day: 1, name: 'Ươm hạt khay xơ dừa', type: 'Ủ GIỐNG & GIEO', details: 'Gieo hạt sâu 1cm trong giá thể xơ dừa đã xử lý tanin.' },
+        { day: 10, name: 'Trồng cây vào luống dinh dưỡng', type: 'TRỒNG CÂY', details: 'Đặt cây con vào bầu, tưới kích rễ phân cá 1:400.' },
+        { day: 20, name: 'Quấn ngọn lên dây giàn', type: 'CẮT TỈA', details: 'Quấn ngọn theo chiều kim đồng hồ, ngắt tua cuốn.' },
+        { day: 38, name: 'Cách ly an toàn trước thu hoạch', type: 'CÁCH LY', details: 'Chỉ tưới nước qua trạm IoT vi khí hậu tự động.' },
+        { day: 45, name: 'Thu hoạch quả xanh non lứa đầu', type: 'THU HOẠCH', details: 'Cắt quả cuống dài 1cm vào buổi sáng mát.' }
       ]
     },
     {
-      id: 'TMPL-STRAW-04',
-      code: 'TMPL-STRAW-04',
-      version: 'v1.5 (Chuẩn VietGAP)',
+      id: 'TMPL-CHILI-04',
+      code: 'TMPL-CHILI-04',
+      version: 'v1.5 · Chuẩn VietGAP',
       name: 'Phác Đồ Dâu Tây Hana Chịu Nhiệt',
       variety: 'Dâu tây Hana Nhật Bản',
       durationDays: 90,
@@ -651,7 +651,7 @@ export default function ExpertDashboard() {
     const newTmpl = {
       id: `TMPL-${Date.now()}`,
       code: newTemplateData.code || `TMPL-${Math.floor(1000 + Math.random() * 9000)}`,
-      version: 'v1.0 (Chuẩn VietGAP)',
+      version: 'v1.0 · Chuẩn VietGAP',
       name: newTemplateData.name,
       variety: newTemplateData.variety,
       durationDays: Number(newTemplateData.durationDays) || 45,
@@ -775,11 +775,11 @@ export default function ExpertDashboard() {
           
           {/* Expert Menu (5 core functions per SRS) */}
           <DashboardRail user={user} fallbackName="ThS. Nguyễn Hoàng Nam" roleLabel="Chuyên gia nông nghiệp" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
-            <div className={`px-2 pb-2 text-xs font-bold text-stone-500 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Bàn Làm Việc Kỹ Thuật</div>
+            <div className={`px-2 pb-2 text-xs font-bold text-emerald-100/70 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Bàn Làm Việc Kỹ Thuật</div>
 
             {[
               { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
-              { id: 'plots', label: 'Thửa Đất Giám Sát (BR24)', icon: Layers, count: assignedPlots.length },
+              { id: 'plots', label: 'Thửa Đất Giám Sát', icon: Layers, count: assignedPlots.length },
               { id: 'issues', label: 'Xử Lý Sự Cố Hiện Trường', icon: AlertTriangle, count: fieldIssues.filter(i => i.status === 'PENDING' || i.status === 'OPEN').length },
               { id: 'templates', label: 'Quy Trình Canh Tác VietGAP', icon: FileSpreadsheet, count: null },
               { id: 'compatibility', label: 'Ma Trận Thổ Nhưỡng – Giống', icon: SlidersHorizontal, count: null },
@@ -795,13 +795,13 @@ export default function ExpertDashboard() {
                   aria-label={sidebarCollapsed ? tab.label : undefined}
                   className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
                     isActive
-                      ? 'bg-[#294C38] text-white shadow-sm'
-                      : 'text-stone-700 hover:bg-stone-50 hover:text-brand-dark'
+                      ? 'bg-white text-[#064b37] shadow-sm'
+                      : 'text-white/80 hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-stone-400'}`} />
-                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} truncate`}>{tab.label}</span>
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-700' : 'text-emerald-100/80'}`} />
+                    <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{tab.label}</span>
                   </div>
                   {tab.count !== null && tab.count > 0 && (
                     <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-xs font-bold shrink-0 ${
@@ -1320,7 +1320,7 @@ export default function ExpertDashboard() {
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
                       <Layers className="w-5 h-5 text-sky-700" />
-                      <span>Thửa Đất Giám Sát Kỹ Thuật (BR24)</span>
+                      <span>Thửa Đất Giám Sát Kỹ Thuật</span>
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh sách các thửa đất canh tác do Ban Quản Trị chỉ định cho Chuyên Gia Nông Nghiệp phụ trách chuyên môn.
@@ -1386,7 +1386,7 @@ export default function ExpertDashboard() {
                           <div>
                             <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Quan Trắc IoT:</span>
                             <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
-                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu ẩm &gt;= 80% (BR18)</span>
+                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu độ ẩm đất &ge; 80%</span>
                           </div>
                         </div>
 
@@ -1512,7 +1512,7 @@ export default function ExpertDashboard() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Quy Trình Canh Tác Chuẩn VietGAP (UC09)
+                      Quy Trình Canh Tác Chuẩn VietGAP
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh mục phác đồ tiêu chuẩn cho từng giống cây, phân định ngày tuổi, mốc bón phân vi sinh và cách ly an toàn.

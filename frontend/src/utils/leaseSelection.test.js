@@ -60,7 +60,7 @@ describe('BR04 term rules', () => {
   it('getLeaseTermError', () => {
     expect(getLeaseTermError({ termMonths: 2, cultivationMode: 'SELF', growthDays: 30 })).toMatch('không hợp lệ');
     expect(getLeaseTermError({ termMonths: 3, cultivationMode: null, growthDays: 30 })).toMatch('hình thức canh tác');
-    expect(getLeaseTermError({ termMonths: 1, cultivationMode: 'SELF', growthDays: days('CRP-09'), varietyName: 'Ớt' })).toContain('BR04');
+    expect(getLeaseTermError({ termMonths: 1, cultivationMode: 'SELF', growthDays: days('CRP-09'), varietyName: 'Ớt' })).toContain('tối thiểu 3 tháng');
     expect(getLeaseTermError({ termMonths: 1, cultivationMode: 'SELF', growthDays: days('CRP-02') })).toBe('');
     expect(getLeaseTermError({ termMonths: 1, cultivationMode: 'ASSISTED', growthDays: 30 })).toMatch('Assisted-Growing');
     expect(getLeaseTermError({ termMonths: 12, cultivationMode: 'ASSISTED', growthDays: 85 })).toBe('');

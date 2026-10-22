@@ -29,7 +29,7 @@ export const DEMO_ACCOUNTS = [
     email: "worker@farmely.vn",
     role: "STAFF",
     phone: "0923456789",
-    roleTitle: "Chuyên viên lao động hiện trường (CVLĐ)",
+    roleTitle: "Nhân viên lao động (STAFF)",
     avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80"
   },
   {
@@ -53,12 +53,13 @@ const ROLE_TITLES = {
 
 const normalizeUser = (user, token) => {
   if (!user) return null;
-  const role = user?.role === 'FIELD_WORKER' ? 'STAFF' : user?.role;
+  const role = (user?.role === 'FIELD_WORKER' || user?.role === 'worker') ? 'STAFF' : user?.role;
   return {
     ...user,
     id: user?.id || (user?.userId ? `USR-${user.userId}` : undefined),
     userId: user?.userId || (typeof user?.id === 'number' ? user.id : undefined),
-    phone: user?.phone || user?.phoneNumber,
+    phone: user?.phone || user?.phoneNumber || '',
+    address: user?.address || '',
     role,
     roleTitle: ROLE_TITLES[role] || role,
     avatar: user?.avatar || (
@@ -109,7 +110,8 @@ export const useAuthStore = create((set, get) => ({
       const resData = await response.json();
       if (response.ok && resData && resData.success && resData.data) {
         const data = resData.data;
-        const user = normalizeUser(data.user, data.token);
+        const rawUser = data.user || data.dbUser;
+        const user = normalizeUser(rawUser, data.token);
         persistAuth({ token: data.token, expiresIn: data.expiresIn, user });
         set({ user, token: data.token, isAuthenticated: true, isLoading: false });
         return { success: true, user };

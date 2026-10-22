@@ -147,7 +147,7 @@ export default function ProcessTemplateDetail() {
                 <div className="pt-1 flex items-center justify-between text-[11px] text-brand-muted">
                   <span className="flex items-center gap-1 text-emerald-800 font-semibold">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                    Yêu cầu tải tối thiểu 1 ảnh minh chứng thực địa khi hoàn tất (BR16)
+                    Yêu cầu tải tối thiểu 1 ảnh minh chứng thực địa khi hoàn tất
                   </span>
                   <span className="text-stone-400">Tự động đồng bộ Farm Diary</span>
                 </div>

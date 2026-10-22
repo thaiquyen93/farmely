@@ -1531,7 +1531,7 @@ SELECT json_build_object(
   'fullName', u.full_name,
   'phoneNumber', COALESCE(u.phone_number, ''),
   'address', COALESCE(u.address, ''),
-  'role', CASE WHEN r.role_name = 'FIELD_WORKER' THEN 'STAFF' ELSE r.role_name END,
+  'role', CASE WHEN r.role_name IN ('FIELD_WORKER', 'STAFF') THEN 'STAFF' ELSE r.role_name END,
   'status', u.status,
   'passwordHash', u.password_hash
 )
@@ -1675,7 +1675,7 @@ LIMIT 1;
           try {
             const sql = `
 SELECT COALESCE(json_agg(row_to_json(u)), '[]'::json) FROM (
-  SELECT u.user_id, u.email, u.full_name, u.phone_number, r.role_name AS role, u.status, TO_CHAR(u.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
+  SELECT u.user_id, u.email, u.full_name, u.phone_number, CASE WHEN r.role_name IN ('FIELD_WORKER', 'STAFF') THEN 'STAFF' ELSE r.role_name END AS role, u.status, TO_CHAR(u.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
   FROM users u
   JOIN roles r ON u.role_id = r.role_id
   ORDER BY u.user_id DESC

@@ -120,7 +120,7 @@ export const getLeaseTermError = ({ termMonths, cultivationMode, growthDays = 0,
   if (!isValidMode(cultivationMode)) return 'Vui lòng chọn hình thức canh tác (Self-Growing hoặc Assisted-Growing).';
   const reason = getTermLockReason(months, { growthDays, cultivationMode });
   if (reason === 'BR04') {
-    return `Giống ${varietyName || 'đã chọn'} có chu kỳ sinh trưởng ${growthDays} ngày (trên 35 ngày), thời hạn thuê tối thiểu 3 tháng (BR04).`;
+    return `Giống ${varietyName || 'đã chọn'} có chu kỳ sinh trưởng ${growthDays} ngày (trên 35 ngày), thời hạn thuê tối thiểu 3 tháng.`;
   }
   if (reason === 'ASSISTED') return 'Gói Assisted-Growing yêu cầu thời hạn thuê tối thiểu 3 tháng (1 vụ mùa).';
   return '';

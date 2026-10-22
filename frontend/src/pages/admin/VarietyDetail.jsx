@@ -132,7 +132,7 @@ export default function VarietyDetail() {
             </div>
             <div>
               <span className="text-brand-muted uppercase text-[10px] font-bold block">Thời gian đệm (Buffer)</span>
-              <span className="font-bold text-brand-dark text-sm mt-0.5 block">+{variety.bufferTime} ngày (BR04)</span>
+              <span className="font-bold text-brand-dark text-sm mt-0.5 block">+{variety.bufferTime} ngày</span>
             </div>
             <div>
               <span className="text-brand-muted uppercase text-[10px] font-bold block">Năng suất kỳ vọng</span>

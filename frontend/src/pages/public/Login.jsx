@@ -34,14 +34,23 @@ export default function Login() {
       const res = await login(email, password);
       setIsLoading(false);
       if (res.success) {
-        setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
+        setSuccessMessage(`Đăng nhập thành công! Chào mừng ${res.user.fullName}.`);
         const userRole = String(res.user.role || '').toUpperCase();
-        if (redirectParam) navigate(redirectParam);
-        else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
-        else if (userRole === 'ADMIN') navigate('/admin/dashboard');
-        else if (userRole === 'EXPERT') navigate('/expert/dashboard');
-        else if (userRole === 'STAFF') navigate('/staff/dashboard');
-        else navigate('/');
+        setTimeout(() => {
+          if (redirectParam) {
+            navigate(redirectParam);
+          } else if (userRole === 'CUSTOMER') {
+            navigate('/customer/dashboard');
+          } else if (userRole === 'ADMIN') {
+            navigate('/admin/dashboard');
+          } else if (userRole === 'EXPERT') {
+            navigate('/expert/dashboard');
+          } else if (userRole === 'STAFF' || userRole === 'FIELD_WORKER' || userRole === 'WORKER') {
+            navigate('/staff/dashboard');
+          } else {
+            navigate('/');
+          }
+        }, 400);
       } else {
         setErrorMessage(res.message || 'Email hoặc mật khẩu không chính xác.');
       }
@@ -126,7 +135,7 @@ export default function Login() {
             navigate('/admin/dashboard');
           } else if (res.user.role === 'EXPERT') {
             navigate('/expert/dashboard');
-          } else if (res.user.role === 'STAFF') {
+          } else if (res.user.role === 'STAFF' || res.user.role === 'FIELD_WORKER') {
             navigate('/staff/dashboard');
           } else {
             navigate('/');
@@ -178,10 +187,7 @@ export default function Login() {
         <div className="w-full max-w-md space-y-8">
           
           <div>
-            <div className="flex items-center justify-between">
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-brand-cream text-brand-green border border-brand-border">
-                Mã: SCR-PUB-03
-              </span>
+            <div className="flex items-center justify-end">
               <Link to="/" className="text-xs font-bold text-brand-green hover:underline">
                 ← Về trang chủ
               </Link>
@@ -207,25 +213,27 @@ export default function Login() {
           </div>
 
           {/* Quick Demo Switcher Banner */}
-          <div className="p-3.5 rounded-2xl bg-white border border-brand-border shadow-sm space-y-2">
-            <p className="text-[11px] font-bold text-brand-muted uppercase tracking-wider flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-brand-yellow" />
-              Đăng nhập nhanh các Role Demo (1-Click):
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              {DEMO_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => handleQuickDemoLogin(acc)}
-                  className="px-2.5 py-1.5 rounded-xl bg-brand-cream hover:bg-brand-yellow/20 border border-brand-border text-left transition-colors flex items-center justify-between"
-                >
-                  <span className="font-bold text-brand-dark truncate">{acc.role}</span>
-                  <span className="text-[10px] text-brand-green">Vào ngay →</span>
-                </button>
-              ))}
+          {searchParams.get('demo') !== 'false' && (
+            <div className="p-3.5 rounded-2xl bg-white border border-brand-border shadow-sm space-y-2">
+              <p className="text-[11px] font-bold text-brand-muted uppercase tracking-wider flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-brand-yellow" />
+                Đăng nhập nhanh các Role Demo (1-Click):
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {DEMO_ACCOUNTS.map((acc) => (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => handleQuickDemoLogin(acc)}
+                    className="px-2.5 py-1.5 rounded-xl bg-brand-cream hover:bg-brand-yellow/20 border border-brand-border text-left transition-colors flex items-center justify-between"
+                  >
+                    <span className="font-bold text-brand-dark truncate">{acc.role}</span>
+                    <span className="text-[10px] text-brand-green">Vào ngay →</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Alerts */}
           {errorMessage && (
@@ -272,7 +280,7 @@ export default function Login() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="rounded border-brand-border text-brand-green focus:ring-brand-green/20"
                 />
-                <span>Remember me (Ghi nhớ tôi)</span>
+                <span>Ghi nhớ đăng nhập</span>
               </label>
 
               <Link to="/forgot-password" className="font-semibold text-brand-green hover:underline">

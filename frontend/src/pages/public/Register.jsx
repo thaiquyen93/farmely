@@ -137,9 +137,7 @@ export default function Register() {
         <div className="w-full max-w-md space-y-6">
           
           <div>
-            <div className="flex items-center justify-between">
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-brand-cream text-brand-green border border-brand-border">
-              </span>
+            <div className="flex items-center justify-end">
               <Link to="/" className="text-xs font-bold text-brand-green hover:underline">
                 ← Về trang chủ
               </Link>

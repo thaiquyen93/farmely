@@ -46,10 +46,11 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   const navigate = useNavigate();
 
   // Role flags for strictly scoped navigation (RBAC)
-  const isCustomerOrGuest = !isAuthenticated || user?.role === 'CUSTOMER';
-  const isStaff = isAuthenticated && user?.role === 'STAFF';
-  const isExpert = isAuthenticated && user?.role === 'EXPERT';
-  const isAdmin = isAuthenticated && user?.role === 'ADMIN';
+  const userRole = (user?.role === 'FIELD_WORKER' || user?.role === 'worker') ? 'STAFF' : user?.role;
+  const isCustomerOrGuest = !isAuthenticated || userRole === 'CUSTOMER';
+  const isStaff = isAuthenticated && userRole === 'STAFF';
+  const isExpert = isAuthenticated && userRole === 'EXPERT';
+  const isAdmin = isAuthenticated && userRole === 'ADMIN';
   const hasDashboardRail = typeof dashboardRailCollapsed === 'boolean';
 
   useEffect(() => {
@@ -175,7 +176,8 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   };
 
   const getDashboardRoute = (role) => {
-    switch (role) {
+    const r = (role === 'FIELD_WORKER' || role === 'worker') ? 'STAFF' : role;
+    switch (r) {
       case 'ADMIN': return '/admin/dashboard';
       case 'EXPERT': return '/expert/dashboard';
       case 'STAFF': return '/staff/dashboard';
@@ -191,7 +193,11 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
           
           {/* LEFT: Brand Logo + Vertical Divider matching reference image */}
           <div className={hideBrand ? 'hidden' : 'flex items-center'}>
-            <Link to="/" className="flex items-center gap-2.5 group pr-6 lg:pr-8 lg:border-r lg:border-white/20 h-12">
+            <Link
+              to={user && user.role !== 'CUSTOMER' ? getDashboardRoute(user.role) : "/"}
+              className="flex items-center gap-2.5 group pr-6 lg:pr-8 lg:border-r lg:border-white/20 h-12"
+              title={user && user.role !== 'CUSTOMER' ? 'Trở về Bàn làm việc' : 'Trang chủ Farmely'}
+            >
               <div className="w-10 h-10 rounded-full bg-brand-yellow flex items-center justify-center text-brand-dark shadow-sm group-hover:scale-105 transition-transform">
                 <Sprout className="w-5 h-5 text-brand-dark stroke-[2.5]" />
               </div>
@@ -481,7 +487,21 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
             )}
 
             {/* Auth Button or User Menu */}
-            <div className="pl-3">
+            <div className="pl-3 flex items-center gap-2">
+              {/* Quick direct return button to Dashboard for Staff / Expert / Admin on non-dashboard routes */}
+              {isAuthenticated && userRole !== 'CUSTOMER' && !location.pathname.includes('/dashboard') && (
+                <Link
+                  to={getDashboardRoute(userRole)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-yellow hover:bg-amber-300 text-brand-dark text-xs font-black shadow-sm transition-all whitespace-nowrap"
+                  title="Quay lại bàn làm việc tác nghiệp"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>
+                    {userRole === 'STAFF' ? 'Vào Ca Trực' : userRole === 'EXPERT' ? 'Bàn Làm Việc' : 'Trang Quản Trị'}
+                  </span>
+                </Link>
+              )}
+
               {!isAuthenticated ? (
                 <div className="flex items-center gap-2">
                   <Link to="/login">
@@ -517,24 +537,24 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                         <p className="font-bold text-brand-dark text-sm truncate">{user?.fullName || 'Người dùng'}</p>
                         <p className="text-[11px] text-brand-muted truncate">{user?.email}</p>
                         <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                          {user?.roleTitle || (user?.role === 'CUSTOMER' ? 'Khách hàng thuê đất' : user?.role === 'ADMIN' ? 'Quản trị viên hệ thống' : user?.role === 'EXPERT' ? 'Chuyên gia nông nghiệp' : 'Chuyên viên lao động')}
+                          {user?.roleTitle || (userRole === 'CUSTOMER' ? 'Khách hàng thuê đất' : userRole === 'ADMIN' ? 'Quản trị viên hệ thống' : userRole === 'EXPERT' ? 'Chuyên gia nông nghiệp' : 'Nhân viên lao động (STAFF)')}
                         </span>
                       </div>
 
                       <div className="py-1">
                         {/* 1. Dashboard Link theo Role */}
                         <Link
-                          to={getDashboardRoute(user?.role)}
+                          to={getDashboardRoute(userRole)}
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
                         >
                           <LayoutDashboard className="w-4 h-4 text-brand-green" />
                           <span>
-                            {user?.role === 'CUSTOMER'
+                            {userRole === 'CUSTOMER'
                               ? 'Vườn Của Tôi (Dashboard)'
-                              : user?.role === 'ADMIN'
+                              : userRole === 'ADMIN'
                               ? 'Bảng Quản Trị Hệ Thống'
-                              : user?.role === 'EXPERT'
+                              : userRole === 'EXPERT'
                               ? 'Bàn Làm Việc Chuyên Gia'
                               : 'Ca Trực Hiện Trường'}
                           </span>

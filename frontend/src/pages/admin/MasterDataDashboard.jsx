@@ -213,7 +213,7 @@ export default function MasterDataDashboard() {
               <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
               <div>
                 <strong className="text-emerald-900 block font-semibold">Ma trận tương thích (Compatibility) đã kích hoạt</strong>
-                <span className="text-emerald-800 text-[11px]">Kiểm soát chặt chẽ BR03, đã liên kết {totalVarieties} giống cây VietGAP thích ứng với từng thửa đất.</span>
+                <span className="text-emerald-800 text-[11px]">Đã liên kết {totalVarieties} giống cây thích ứng tối ưu với từng thửa đất.</span>
               </div>
             </div>
 
@@ -229,7 +229,7 @@ export default function MasterDataDashboard() {
               <Radio className="w-4 h-4 text-sky-600 mt-0.5 shrink-0" />
               <div>
                 <strong className="text-sky-900 block font-semibold">Trạm quan trắc IoT vi khí hậu đang vận hành</strong>
-                <span className="text-sky-800 text-[11px]">{totalIoT} trạm cảm biến đo nhiệt độ, độ ẩm không khí và độ ẩm đất tự động (BR18 hoãn tưới khi độ ẩm đất ≥ 80%).</span>
+                <span className="text-sky-800 text-[11px]">{totalIoT} trạm cảm biến đo nhiệt độ, độ ẩm không khí và độ ẩm đất tự động (Tự động hoãn tưới khi độ ẩm đất ≥ 80%).</span>
               </div>
             </div>
           </div>

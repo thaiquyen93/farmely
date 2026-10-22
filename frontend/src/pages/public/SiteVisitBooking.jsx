@@ -49,7 +49,7 @@ export default function SiteVisitBooking() {
             <div className="lg:col-span-7 xl:col-span-8">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/10 text-emerald-100 border border-white/20 mb-3 backdrop-blur-xs shadow-2xs">
                 <Sparkles className="w-3.5 h-3.5 text-brand-yellow" />
-                <span>Trải Nghiệm Thực Địa Miễn Phí • SCR-PUB-05</span>
+                <span>Trải Nghiệm Thực Địa Miễn Phí</span>
               </div>
 
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-heading font-black text-white tracking-tight leading-tight">
