@@ -4,7 +4,7 @@ import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import BoundaryPreviewMap from '../../components/admin/BoundaryPreviewMap';
 import { farmApi, plotStatusBadge } from '../../api/farm/farmApi';
-import { formatArea } from '../../utils/polygonGeometry';
+import { cleanRing, formatArea } from '../../utils/polygonGeometry';
 import { ArrowLeft, Check, Edit, Grid3X3, Loader2, MapPin, PenLine, Plus } from 'lucide-react';
 
 const money = (v) => (v == null ? '—' : `${Number(v).toLocaleString('vi-VN')} đ`);
@@ -46,7 +46,7 @@ export default function LandDetail() {
   }
 
   const plots = land.plots || [];
-  const drawn = plots.filter((p) => p.boundary?.length >= 3).length;
+  const drawn = plots.filter((p) => cleanRing(p.boundary).length >= 3).length;
 
   return (
     <div className="space-y-6">
@@ -107,11 +107,11 @@ export default function LandDetail() {
                     <td className="font-mono font-bold text-brand-dark">{p.plotCode}</td>
                     <td>{formatArea(Number(p.area))}</td>
                     <td className="font-bold text-brand-green">{money(p.pricePerPeriod)}</td>
-                    <td>{p.boundary?.length >= 3 ? <span className="text-xs font-semibold text-emerald-700">Đã vẽ · {p.boundary.length} góc</span> : <span className="text-xs text-stone-400">Chưa vẽ</span>}</td>
+                    <td>{cleanRing(p.boundary).length >= 3 ? <span className="text-xs font-semibold text-emerald-700">Đã vẽ · {cleanRing(p.boundary).length} góc</span> : <span className="text-xs text-stone-400">Chưa vẽ</span>}</td>
                     <td><Badge variant={plotStatusBadge(p.status)} size="sm">{plotStatusBadge(p.status)}</Badge></td>
                     <td>
                       <Link to={`/admin/master-data/plots/create?editId=${p.plotId}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-brand-green hover:bg-stone-100">
-                        <PenLine className="h-3.5 w-3.5" />{p.boundary?.length >= 3 ? 'Sửa' : 'Vẽ ranh giới'}
+                        <PenLine className="h-3.5 w-3.5" />{cleanRing(p.boundary).length >= 3 ? 'Sửa' : 'Vẽ ranh giới'}
                       </Link>
                     </td>
                   </tr>

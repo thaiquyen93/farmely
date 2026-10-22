@@ -52,6 +52,16 @@ describe('polygonGeometry (khớp backend PolygonGeometryTest)', () => {
     expect(cleanRing([[1, 1], [1, 1], [2, 1], [2, 2], [1, 1]])).toEqual([[1, 1], [2, 1], [2, 2]]);
   });
 
+  it('safely handles null, undefined, strings, and GeoJSON objects without throwing', () => {
+    expect(cleanRing(null)).toEqual([]);
+    expect(cleanRing(undefined)).toEqual([]);
+    expect(cleanRing({})).toEqual([]);
+    expect(cleanRing('invalid')).toEqual([]);
+    expect(cleanRing('[[1, 1], [2, 1], [2, 2]]')).toEqual([[1, 1], [2, 1], [2, 2]]);
+    expect(cleanRing({ type: 'Polygon', coordinates: [[[1, 1], [2, 1], [2, 2], [1, 1]]] })).toEqual([[1, 1], [2, 1], [2, 2]]);
+    expect(cleanRing([[[1, 1], [2, 1], [2, 2], [1, 1]]])).toEqual([[1, 1], [2, 1], [2, 2]]);
+  });
+
   it('detects self-intersection', () => {
     expect(isSimple(sq(106.35, 10.68))).toBe(true);
     expect(isSimple([[0, 0], [0.001, 0.001], [0.001, 0], [0, 0.001]])).toBe(false);
