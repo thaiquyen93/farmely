@@ -2,6 +2,7 @@ import fs from 'fs';
 import { spawn, execFile } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
 
 let rentalLeaseColumnsEnsured = false;
@@ -131,33 +132,52 @@ function runPostgreSqlAttempt(cfg, sqlQuery) {
   });
 }
 
-async function runPostgreSql(sqlQuery) {
-  if (activePgConfig) {
-    try {
-      return await runPostgreSqlAttempt(activePgConfig, sqlQuery);
-    } catch {
-      activePgConfig = null; // reset cache on failure and re-probe
-    }
+let pgPoolInstance = null;
+function getPgPool() {
+  if (!pgPoolInstance) {
+    const base = getPgConfig();
+    pgPoolInstance = new pg.Pool({
+      host: base.host || 'localhost',
+      port: parseInt(base.port || '5432', 10),
+      database: base.database || 'farmely',
+      user: base.user || 'postgres',
+      password: base.password || 'postgres',
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000
+    });
+    pgPoolInstance.on('error', (err) => {
+      console.warn('[Postgres Pool Error]', err?.message);
+    });
   }
+  return pgPoolInstance;
+}
 
-  const base = getPgConfig();
-  const candidatePorts = Array.from(new Set(['5432', base.port].filter(Boolean)));
-  const candidatePasses = Array.from(new Set(['postgres', base.password, '12345', ''].filter(p => p !== undefined)));
-
-  let lastErr = null;
-  for (const port of candidatePorts) {
-    for (const pass of candidatePasses) {
-      const trialCfg = { ...base, port, password: pass };
+async function runPostgreSql(sqlQuery) {
+  try {
+    const pool = getPgPool();
+    const res = await pool.query(sqlQuery);
+    if (!res || !res.rows || res.rows.length === 0) {
+      return '';
+    }
+    const firstRow = res.rows[0];
+    const firstKey = Object.keys(firstRow)[0];
+    const val = firstRow[firstKey];
+    if (typeof val === 'object' && val !== null) {
+      return JSON.stringify(val);
+    }
+    return String(val ?? '');
+  } catch (poolErr) {
+    if (activePgConfig) {
       try {
-        const res = await runPostgreSqlAttempt(trialCfg, sqlQuery);
-        activePgConfig = trialCfg;
-        return res;
-      } catch (err) {
-        lastErr = err;
+        return await runPostgreSqlAttempt(activePgConfig, sqlQuery);
+      } catch {
+        activePgConfig = null;
       }
     }
+    const base = getPgConfig();
+    return await runPostgreSqlAttempt({ ...base, port: '5432', password: 'postgres' }, sqlQuery);
   }
-  throw lastErr || new Error('Không thể kết nối đến PostgreSQL cục bộ');
 }
 
 function runPowershell(script) {
