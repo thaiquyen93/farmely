@@ -44,6 +44,26 @@ import {
   X
 } from 'lucide-react';
 
+// SSoT danh mục giống canh tác chuẩn theo từng thửa đất tại Happy Valley
+const DEFAULT_PLOT_CROPS = {
+  'P-01': 'Cà chua bi đỏ F1',
+  'P-02': 'Xà lách Romaine VietGAP',
+  'P-03': 'Dưa leo baby F1',
+  'P-04': 'Cà chua bi đỏ F1',
+  'P-05': 'Cải ngọt bông F1',
+  'P-06': 'Xà lách xoăn Lollo Bionda',
+  'P-07': 'Dưa leo baby F1',
+  'P-08': 'Cải ngọt bông F1',
+  'P-09': 'Xà lách Romaine VietGAP',
+  'P-10': 'Cà chua bi đỏ F1',
+  'P-11': 'Dưa leo baby F1',
+  'P-12': 'Cà chua bi đỏ F1',
+  'P-13': 'Cải ngọt bông F1',
+  'P-14': 'Cà chua bi đỏ F1',
+  'P-15': 'Cải ngọt bông F1',
+  'P-16': 'Xà lách Romaine VietGAP'
+};
+
 const readPhoto = async (file, onLoad) => {
   if (!file) {
     onLoad('');
@@ -214,14 +234,19 @@ export default function FieldWorkerDashboard() {
   const [assignedPlots, setAssignedPlots] = useState([]);
 
   const loadPlots = () => {
-    fetch('/api/rentals')
-      .then((res) => res.json())
+    apiFetch('/api/rentals')
       .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setAssignedPlots(res.data);
+        const list = unwrapData(res) || [];
+        if (Array.isArray(list) && list.length > 0) {
+          setAssignedPlots(list.map((p) => ({
+            ...p,
+            crop: p.varietyName || p.crop || DEFAULT_PLOT_CROPS[p.plotCode] || 'Rau củ chuẩn VietGAP'
+          })));
         }
       })
-      .catch((err) => console.warn('Could not fetch live rentals:', err));
+      .catch((err) => {
+        console.warn('Could not fetch live rentals:', err);
+      });
   };
 
   useEffect(() => {
@@ -248,8 +273,8 @@ export default function FieldWorkerDashboard() {
           title: task.title || 'Nhiệm vụ chăm sóc',
           plotCode: task.plotCode || 'Chưa có mã thửa',
           plotName: task.plotName || task.plotCode || 'Chưa có tên thửa',
-          crop: task.cropName || 'Chưa có dữ liệu giống cây',
-          customerName: task.customerName || 'Chưa có dữ liệu khách hàng',
+          crop: task.cropName || task.varietyName || DEFAULT_PLOT_CROPS[task.plotCode] || 'Rau củ chuẩn VietGAP',
+          customerName: task.customerName || 'Khách hàng Farmely',
           plotImage: task.plotImageUrl || (task.plotCode === 'P-04' ? '/images/moc-chau-2811.jpg' : '/images/Mucangchai3.jpg'),
           deadline: task.dueDate || 'Chưa có hạn thực hiện',
           instructions: task.instructions || task.notes || 'Chưa có hướng dẫn từ hệ thống.',
@@ -280,8 +305,8 @@ export default function FieldWorkerDashboard() {
           rentalId: harvest.rentalId,
           plotCode: harvest.plotCode || 'Chưa có mã thửa',
           plotName: harvest.plotName || harvest.plotCode || 'Chưa có tên thửa',
-          crop: harvest.cropName || 'Chưa có dữ liệu giống cây',
-          customerName: harvest.customerName || 'Chưa có dữ liệu khách hàng',
+          crop: harvest.cropName || harvest.varietyName || DEFAULT_PLOT_CROPS[harvest.plotCode] || 'Rau củ chuẩn VietGAP',
+          customerName: harvest.customerName || 'Khách hàng Farmely',
           expectedYield: 'Theo kết quả cân thực tế',
           status: harvest.customerConfirmed ? 'COMPLETED' : 'READY_TO_HARVEST',
           actualWeight: harvest.yieldAmount ? `${harvest.yieldAmount} kg` : '',
@@ -582,6 +607,7 @@ export default function FieldWorkerDashboard() {
     .map((task) => {
       const recordedHarvest = harvestTasks.find((item) => item.rentalId === task.rentalId);
       const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(`${task.title} ${task.instructions}`);
+      const resolvedCrop = task.crop || DEFAULT_PLOT_CROPS[task.plotCode] || 'Rau củ chuẩn VietGAP';
       return {
         id: `WORK-${task.id}`,
         sourceTaskId: isHarvestTask ? task.id : null,
@@ -590,7 +616,7 @@ export default function FieldWorkerDashboard() {
         rentalId: task.rentalId,
         plotCode: task.plotCode,
         plotName: task.plotName,
-        crop: task.crop,
+        crop: resolvedCrop,
         customerName: task.customerName,
         expectedYield: 'Theo kết quả cân thực tế',
         status: task.status === 'COMPLETED' || recordedHarvest ? 'COMPLETED' : 'READY_TO_HARVEST',
