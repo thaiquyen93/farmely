@@ -484,7 +484,8 @@ export default function AdminDashboard() {
     if (!selectedDispatchToAssign) return;
     try {
       const targetWorkerId = Number(assignedWorkerId) || (staffUsers[0] ? Number(staffUsers[0].id) : 8);
-      await apiFetch(`/api/services/requests/${selectedDispatchToAssign.id}/assign`, {
+      const reqId = selectedDispatchToAssign.requestId || String(selectedDispatchToAssign.id).replace(/\D/g, '');
+      await apiFetch(`/api/services/requests/${reqId}/assign`, {
         method: 'PUT',
         body: JSON.stringify({
           workerId: targetWorkerId,
@@ -492,7 +493,7 @@ export default function AdminDashboard() {
           notes: serviceAssignNotes || selectedDispatchToAssign.note || 'Thực hiện dịch vụ theo chỉ định của Quản trị viên'
         })
       });
-      triggerSuccessToast(`Đã phân công thành công dịch vụ #${selectedDispatchToAssign.id} cho chuyên viên lao động!`);
+      triggerSuccessToast(`Đã phân công thành công dịch vụ #${reqId} cho chuyên viên lao động!`);
       setSelectedDispatchToAssign(null);
       setServiceAssignNotes('');
       await loadAdminData();
@@ -507,7 +508,7 @@ export default function AdminDashboard() {
     if (!selectedCareTaskToAssign) return;
     try {
       const targetWorkerId = Number(taskAssignWorkerId) || (staffUsers[0] ? Number(staffUsers[0].id) : 8);
-      const taskId = selectedCareTaskToAssign.taskId || selectedCareTaskToAssign.id;
+      const taskId = selectedCareTaskToAssign.taskId || String(selectedCareTaskToAssign.id).replace(/\D/g, '');
       await apiFetch(`/api/care-tasks/${taskId}`, {
         method: 'PATCH',
         body: JSON.stringify({
@@ -563,7 +564,7 @@ export default function AdminDashboard() {
     try {
       const targetExpertId = Number(rentalAssignExpertId) || (expertUsers[0] ? Number(expertUsers[0].id) : 5);
       const targetStaffId = Number(rentalAssignStaffId) || (staffUsers[0] ? Number(staffUsers[0].id) : 8);
-      const rentalId = selectedRentalToAssignPersonnel.rentalId || selectedRentalToAssignPersonnel.id;
+      const rentalId = selectedRentalToAssignPersonnel.rentalId || String(selectedRentalToAssignPersonnel.id).replace(/\D/g, '');
       await apiFetch(`/api/rentals/${rentalId}/assign`, {
         method: 'PUT',
         body: JSON.stringify({ expertId: targetExpertId, staffId: targetStaffId })
@@ -582,7 +583,7 @@ export default function AdminDashboard() {
     if (!selectedIssueToAssignExpert) return;
     try {
       const targetExpertId = Number(issueAssignExpertId) || (expertUsers[0] ? Number(expertUsers[0].id) : 5);
-      const issueId = selectedIssueToAssignExpert.issueId || selectedIssueToAssignExpert.id;
+      const issueId = selectedIssueToAssignExpert.issueId || String(selectedIssueToAssignExpert.id).replace(/\D/g, '');
       await apiFetch(`/api/issue-reports/${issueId}/assign`, {
         method: 'PUT',
         body: JSON.stringify({
