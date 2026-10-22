@@ -26,7 +26,7 @@ export const DEMO_ACCOUNTS = [
     email: "worker@farmely.vn",
     role: "STAFF",
     phone: "0923456789",
-    roleTitle: "Chuyên viên lao động hiện trường (CVLĐ)",
+    roleTitle: "Nhân viên lao động (STAFF)",
     avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80"
   },
   {
@@ -78,7 +78,7 @@ export const useAuthStore = create((set, get) => ({
           address: dbUser.address || '',
           roleTitle: normalizedRole === 'ADMIN' ? 'Quản trị viên hệ thống (Admin)'
             : normalizedRole === 'EXPERT' ? 'Chuyên gia nông nghiệp (CGNN)'
-            : normalizedRole === 'STAFF' ? 'Chuyên viên lao động hiện trường (CVLĐ)'
+            : normalizedRole === 'STAFF' ? 'Nhân viên lao động (STAFF)'
             : 'Khách hàng thuê đất',
           avatar: normalizedRole === 'ADMIN' ? 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80'
             : normalizedRole === 'EXPERT' ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
