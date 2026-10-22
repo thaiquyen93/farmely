@@ -174,9 +174,18 @@ try {
 
     # ponytail: auto-detect working local postgres password so dev environment never gets blocked
     if ($localPostgres) {
-        $psqlBin = 'C:\Program Files\PostgreSQL\18\bin\psql.exe'
-        if (Test-Path -LiteralPath $psqlBin) {
-            $passCandidates = @($dbPassword, '@Bin054206', 'postgres', '12345', '123456', 'admin', 'root')
+        $psqlCandidates = @(
+            'D:\S5\PostgreSQL\bin\psql.exe',
+            'C:\Program Files\PostgreSQL\18\bin\psql.exe',
+            'C:\Program Files\PostgreSQL\17\bin\psql.exe',
+            'C:\Program Files\PostgreSQL\16\bin\psql.exe',
+            'C:\Program Files\PostgreSQL\15\bin\psql.exe'
+        )
+        $cmdPsql = Get-Command psql.exe -ErrorAction SilentlyContinue
+        if ($cmdPsql) { $psqlCandidates = @($cmdPsql.Source) + $psqlCandidates }
+        $psqlBin = $psqlCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+        if ($psqlBin) {
+            $passCandidates = @($dbPassword, '@Bin054206', '12345', 'postgres', '123456', 'admin', 'root')
             foreach ($cand in $passCandidates) {
                 $env:PGPASSWORD = $cand
                 $null = & $psqlBin -U $dbUser -p $localPostgresPort -d $dbName -c 'SELECT 1;' 2>&1
