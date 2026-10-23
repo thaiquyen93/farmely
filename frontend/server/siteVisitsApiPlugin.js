@@ -2,6 +2,8 @@ import fs from 'fs';
 import { spawn, execFile } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
+const { Pool } = pg;
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
 
 let rentalLeaseColumnsEnsured = false;
@@ -69,10 +71,7 @@ const PSQL_PATH = PSQL_CANDIDATES.find(p => {
   try { return fs.existsSync(p); } catch { return false; }
 }) || 'psql';
 
-let activePgConfig = null;
-
 function getPgConfig() {
-  if (activePgConfig) return activePgConfig;
   return {
     host: process.env.PGHOST || process.env.DB_HOST || rootEnv.DB_HOST || 'localhost',
     port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5433',
@@ -84,80 +83,55 @@ function getPgConfig() {
 
 let cachedPlotsData = null;
 let cachedPlotsTime = 0;
-const CACHE_TTL_MS = 20000; // 20s in-memory cache
+const CACHE_TTL_MS = 20000;
 
 function invalidatePlotsCache() {
   cachedPlotsData = null;
   cachedPlotsTime = 0;
 }
 
-function runPostgreSqlAttempt(cfg, sqlQuery) {
-  return new Promise((resolve, reject) => {
-    try {
-      const env = { ...process.env, PGPASSWORD: cfg.password, PGCLIENTENCODING: 'UTF8' };
-      const child = spawn(
-        PSQL_PATH,
-        ['-U', cfg.user, '-h', cfg.host, '-p', String(cfg.port), '-d', cfg.database, '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
-        { env, windowsHide: true, timeout: 3500 }
-      );
-      let stdout = '';
-      let stderr = '';
-      let hasError = false;
+let pgPool = null;
 
-      child.on('error', err => {
-        hasError = true;
-        reject(err);
-      });
-
-      child.stdout.on('data', d => stdout += d.toString('utf8'));
-      child.stderr.on('data', d => stderr += d.toString('utf8'));
-
-      child.on('close', code => {
-        if (hasError) return;
-        if (code !== 0) reject(new Error(stderr || 'Exit ' + code));
-        else resolve(stdout.trim());
-      });
-
-      child.stdin.on('error', err => {
-        hasError = true;
-        reject(err);
-      });
-
-      child.stdin.write(sqlQuery, 'utf8');
-      child.stdin.end();
-    } catch (e) {
-      reject(e);
-    }
+function getPgPool() {
+  if (pgPool) return pgPool;
+  const cfg = getPgConfig();
+  pgPool = new Pool({
+    host: cfg.host,
+    port: parseInt(String(cfg.port), 10) || 5433,
+    user: cfg.user,
+    password: String(cfg.password),
+    database: cfg.database,
+    max: 10,
+    idleTimeoutMillis: 30000
   });
+  pgPool.on('error', (err) => {
+    console.warn('[PostgreSQL Pool] Warning:', err.message);
+  });
+  return pgPool;
 }
 
 async function runPostgreSql(sqlQuery) {
-  if (activePgConfig) {
-    try {
-      return await runPostgreSqlAttempt(activePgConfig, sqlQuery);
-    } catch {
-      activePgConfig = null; // reset cache on failure and re-probe
-    }
-  }
-
-  const base = getPgConfig();
-  const candidatePorts = Array.from(new Set([base.port, '5433', '5432'].filter(Boolean)));
-  const candidatePasses = Array.from(new Set([base.password, '12345', 'postgres', '@Bin054206', ''].filter(p => p !== undefined)));
-
-  let lastErr = null;
-  for (const port of candidatePorts) {
-    for (const pass of candidatePasses) {
-      const trialCfg = { ...base, port, password: pass };
-      try {
-        const res = await runPostgreSqlAttempt(trialCfg, sqlQuery);
-        activePgConfig = trialCfg;
-        return res;
-      } catch (err) {
-        lastErr = err;
+  try {
+    const pool = getPgPool();
+    const result = await pool.query(sqlQuery);
+    if (!result || !result.rows || result.rows.length === 0) return '';
+    const firstRow = result.rows[0];
+    const keys = Object.keys(firstRow);
+    if (keys.length === 1) {
+      const val = firstRow[keys[0]];
+      if (typeof val === 'object' && val !== null) {
+        return JSON.stringify(val);
       }
+      return String(val ?? '');
     }
+    return result.rows.map(r => Object.values(r).map(v => v === null ? '' : v).join('|')).join('\n');
+  } catch (err) {
+    if (err.code === 'ECONNREFUSED' && pgPool) {
+      try { await pgPool.end(); } catch {}
+      pgPool = null;
+    }
+    throw err;
   }
-  throw lastErr || new Error('Không thể kết nối đến PostgreSQL cục bộ');
 }
 
 function runPowershell(script) {
