@@ -43,7 +43,6 @@ import {
   Thermometer,
   Droplets,
   ExternalLink,
-  Scale,
   CloudRain,
   ShieldAlert
 } from 'lucide-react';
@@ -152,12 +151,6 @@ export default function AdminDashboard() {
   });
   const [weatherData, setWeatherData] = useState(null);
   const [alertFilterStatus, setAlertFilterStatus] = useState('ALL');
-
-  // 12. Customer Harvest Disputes & Complaints (SCR-AD-11 / UC20 / BR17)
-  const [selectedDisputeToResolve, setSelectedDisputeToResolve] = useState(null);
-  const [disputeDecision, setDisputeDecision] = useState('APPROVE_REFUND'); // 'APPROVE_REFUND' | 'COMPENSATE_NEXT_SEASON' | 'REJECT'
-  const [disputeCompensationNote, setDisputeCompensationNote] = useState('');
-  const [isResolvingDispute, setIsResolvingDispute] = useState(false);
 
   // Filtered staff and expert lists
   const staffUsers = useMemo(() => {
@@ -683,49 +676,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // 12. Xử lý khiếu nại & tranh chấp sau thu hoạch (SCR-AD-11 / UC20 / BR17)
-  const handleResolveDispute = async (e) => {
-    e?.preventDefault();
-    if (!selectedDisputeToResolve) return;
-    setIsResolvingDispute(true);
-    try {
-      const decisionPrefix = disputeDecision === 'APPROVE_REFUND'
-        ? '[BQT PHÊ DUYỆT BỒI THƯỜNG HOÀN TIỀN VNPAY]'
-        : disputeDecision === 'COMPENSATE_NEXT_SEASON'
-        ? '[BQT GHI NHẬN BÙ SẢN LƯỢNG MÙA VỤ KẾ TIẾP]'
-        : '[BQT TỪ CHỐI KHIẾU NẠI]';
-
-      const fullResolutionNote = `${decisionPrefix} ${disputeCompensationNote || 'Đã thẩm tra biên bản cân đo và giải quyết thỏa đáng theo quy chế BR17.'}`;
-
-      const disputeId = selectedDisputeToResolve.issueId || selectedDisputeToResolve.id;
-      await apiFetch(`/api/issues/${disputeId}/resolve?notes=${encodeURIComponent(fullResolutionNote)}`, {
-        method: 'PUT'
-      });
-
-      triggerSuccessToast(`Đã hoàn tất thẩm định và ra quyết định bồi thường cho khiếu nại #${disputeId}!`);
-      setSelectedDisputeToResolve(null);
-      setDisputeCompensationNote('');
-      await loadAdminData();
-    } catch (err) {
-      setDataError('Không thể lưu quyết định bồi thường: ' + (err.message || 'Lỗi mạng'));
-    } finally {
-      setIsResolvingDispute(false);
-    }
-  };
-
-  // Filtered dispute list (UC20)
-  const disputeIssues = useMemo(() => {
-    return fieldIssues.filter((i) =>
-      String(i.issueType).toUpperCase().includes('DISPUTE') ||
-      String(i.issueType).toUpperCase().includes('KHIẾU NẠI') ||
-      String(i.description).includes('[KHIẾU NẠI')
-    );
-  }, [fieldIssues]);
-
-  const pendingDisputesCount = useMemo(() => {
-    return disputeIssues.filter((d) => d.status === 'OPEN').length;
-  }, [disputeIssues]);
-
   // Pending assignment counts
   const pendingStaffTasksCount = careTasks.filter((t) => t.status === 'PENDING' || !t.workerId || String(t.assignedTo).includes('Chưa')).length;
   const pendingStaffServicesCount = serviceDispatches.filter((d) => d.status === 'PENDING').length;
@@ -864,7 +814,6 @@ export default function AdminDashboard() {
               { id: 'dispatch', label: 'Điều Phối Nhân Sự', icon: UserCheck, count: totalDispatchPendingCount },
               { id: 'overview', label: 'Tổng Quan Hoạt Động', icon: Activity, count: null },
               { id: 'contracts', label: 'Hợp Đồng & Hoàn Cọc', icon: FileText, count: refundRequests.filter(r => r.status === 'PENDING').length },
-              { id: 'disputes', label: 'Khiếu Nại & Tranh Chấp', icon: Scale, count: pendingDisputesCount },
               { id: 'visits', label: 'Lịch Hẹn Tham Quan', icon: Calendar, count: siteVisits.filter(v => v.status === 'PENDING').length },
               { id: 'users', label: 'Người Dùng & Phân Quyền', icon: Users, count: systemUsers.length },
               { id: 'iot-alerts', label: 'Trạm IoT & Cảnh Báo', icon: Radio, count: alertOverview.activeAlerts || iotAlerts.filter(a => a.status === 'ACTIVE').length },
@@ -1705,174 +1654,6 @@ export default function AdminDashboard() {
                       )}
                     </div>
                   ))}
-                </div>
-              </div>
-            )}
-
-            {/* ========================================================================= */}
-            {/* TAB 3.5: DISPUTES & COMPLAINT RESOLUTION (SCR-AD-11 / UC20 / BR17)        */}
-            {/* ========================================================================= */}
-            {activeTab === 'disputes' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6 text-left">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Scale className="w-5 h-5 text-brand-green" />
-                      <h3 className="font-heading font-black text-xl text-brand-dark">
-                        Thẩm Định Khiếu Nại & Tranh Chấp Sau Thu Hoạch (SCR-AD-11 / UC20 / BR17)
-                      </h3>
-                    </div>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Tiếp nhận và giải quyết phản ánh của khách hàng về hao hụt sản lượng cam kết, dập nát nông sản hoặc sai quy trình.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-stone-500 bg-stone-100 px-3 py-1 rounded-xl">
-                      {disputeIssues.length} Hồ sơ khiếu nại
-                    </span>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={loadAdminData}
-                      className="text-xs font-bold gap-1.5"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Làm mới</span>
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Dispute Metric Gauges */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                  <div className="p-4 rounded-2xl bg-brand-cream/60 border border-brand-border space-y-1">
-                    <p className="font-bold text-stone-700">Tổng Khiếu Nại</p>
-                    <p className="text-2xl font-black text-brand-dark">{disputeIssues.length}</p>
-                    <p className="text-[11px] text-stone-500">Toàn bộ hồ sơ mùa vụ</p>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-1">
-                    <p className="font-bold text-amber-900">Chờ Thẩm Định</p>
-                    <p className="text-2xl font-black text-amber-700">{pendingDisputesCount}</p>
-                    <p className="text-[11px] text-amber-800 font-medium">Cần BQT ra quyết định</p>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-1">
-                    <p className="font-bold text-emerald-900">Đã Giải Quyết / Bồi Thường</p>
-                    <p className="text-2xl font-black text-emerald-700">
-                      {disputeIssues.filter((d) => d.status === 'RESOLVED').length}
-                    </p>
-                    <p className="text-[11px] text-emerald-800 font-medium">Hoàn tất thủ tục BR17</p>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-1">
-                    <p className="font-bold text-sky-900">Chính Sách Cam Kết BR16</p>
-                    <p className="text-2xl font-black text-sky-700">80%</p>
-                    <p className="text-[11px] text-stone-500">Bồi thường nếu hụt &gt; 20%</p>
-                  </div>
-                </div>
-
-                {/* Dispute Cards List */}
-                <div className="space-y-4">
-                  {disputeIssues.length === 0 ? (
-                    <div className="text-center py-12 text-stone-500 space-y-2 border border-dashed border-brand-border rounded-2xl">
-                      <Scale className="w-10 h-10 mx-auto text-stone-300" />
-                      <p className="font-bold text-sm">Chưa có khiếu nại hoặc tranh chấp nào phát sinh</p>
-                      <p className="text-xs text-stone-400">
-                        Hệ thống canh tác VietGAP và nghiệm thu điện tử đang vận hành minh bạch và an toàn.
-                      </p>
-                    </div>
-                  ) : (
-                    disputeIssues.map((dispute) => {
-                      const isOpen = dispute.status === 'OPEN';
-                      return (
-                        <div
-                          key={dispute.id}
-                          className="p-5 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3 text-xs"
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-brand-border/60">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200 text-xs">
-                                {dispute.id}
-                              </span>
-                              <span className="font-bold text-brand-dark text-sm">
-                                {dispute.plotName} ({dispute.plotCode})
-                              </span>
-                              <span className="text-stone-400">| {dispute.reportedTime}</span>
-                            </div>
-                            <span
-                              className={`px-3 py-1 rounded-full text-[10px] font-bold w-fit ${
-                                isOpen
-                                  ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
-                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                              }`}
-                            >
-                              {isOpen ? '● Chờ Ban Quản Trị Thẩm Tra' : '✓ Đã Phê Duyệt / Giải Quyết'}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-stone-700">
-                            <div>
-                              <p className="text-stone-400">Phân loại sự việc:</p>
-                              <p className="font-bold text-rose-800 mt-0.5">{dispute.issueType}</p>
-                            </div>
-                            <div>
-                              <p className="text-stone-400">Người đại diện gửi:</p>
-                              <p className="font-bold text-brand-dark mt-0.5">
-                                {dispute.reportedByName || 'Khách hàng thuê đất'}
-                              </p>
-                            </div>
-                            <div className="sm:col-span-2 rounded-xl bg-stone-50 p-3 border border-stone-200">
-                              <p className="font-bold text-stone-600 mb-1">Nội dung phản ánh từ khách:</p>
-                              <p className="text-stone-800 italic leading-relaxed">"{dispute.description}"</p>
-                            </div>
-
-                            {dispute.photoUrl && (
-                              <div className="sm:col-span-2 flex items-center gap-3 pt-1">
-                                <span className="text-stone-500 font-semibold">Ảnh bằng chứng hiện trường:</span>
-                                <a
-                                  href={dispute.photoUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-xs text-sky-700 underline font-bold hover:text-sky-900 flex items-center gap-1"
-                                >
-                                  <span>Xem ảnh cân đối chứng</span>
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </a>
-                              </div>
-                            )}
-
-                            {dispute.diagnosis && (
-                              <div className="sm:col-span-2 rounded-xl bg-emerald-50/80 p-3 border border-emerald-200 text-emerald-950">
-                                <p className="font-bold flex items-center gap-1.5 text-emerald-800 mb-1">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                  <span>Quyết Định Của Ban Quản Trị:</span>
-                                </p>
-                                <p className="leading-relaxed">{dispute.diagnosis}</p>
-                              </div>
-                            )}
-                          </div>
-
-                          {isOpen && (
-                            <div className="pt-2 flex justify-end gap-2 border-t border-brand-border/60">
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedDisputeToResolve(dispute);
-                                  setDisputeDecision('APPROVE_REFUND');
-                                  setDisputeCompensationNote('');
-                                }}
-                                className="bg-[#203c2c] hover:bg-emerald-900 text-white font-bold text-xs gap-1.5"
-                              >
-                                <Scale className="w-4 h-4 text-brand-yellow" />
-                                <span>Thẩm Định &amp; Quyết Định Bồi Thường (UC20)</span>
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })
-                  )}
                 </div>
               </div>
             )}
@@ -2926,116 +2707,6 @@ export default function AdminDashboard() {
                 className="font-bold bg-brand-green hover:bg-[#203c2c] text-white"
               >
                 {isUpdatingUser ? 'Đang cập nhật...' : 'Lưu Thay Đổi'}
-              </Button>
-            </div>
-          </form>
-        )}
-      </Modal>
-
-      {/* ========================================================================= */}
-      {/* MODAL 7: THẨM ĐỊNH KHIẾU NẠI & QUYẾT ĐỊNH BỒI THƯỜNG (UC20 / BR17)        */}
-      {/* ========================================================================= */}
-      <Modal
-        isOpen={Boolean(selectedDisputeToResolve)}
-        onClose={() => setSelectedDisputeToResolve(null)}
-        title="Thẩm Định Khiếu Nại & Quyết Định Bồi Thường (UC20 / BR17)"
-        subtitle={selectedDisputeToResolve?.plotName}
-      >
-        {selectedDisputeToResolve && (
-          <form onSubmit={handleResolveDispute} className="space-y-4 text-xs text-left">
-            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 space-y-1">
-              <p><strong>Mã khiếu nại:</strong> {selectedDisputeToResolve.id}</p>
-              <p><strong>Thửa đất:</strong> {selectedDisputeToResolve.plotName} ({selectedDisputeToResolve.plotCode})</p>
-              <p><strong>Khách hàng gửi:</strong> {selectedDisputeToResolve.reportedByName || 'Khách hàng'}</p>
-              <p><strong>Vấn đề:</strong> {selectedDisputeToResolve.issueType}</p>
-              <p><strong>Nội dung:</strong> "{selectedDisputeToResolve.description}"</p>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block font-bold text-stone-800">
-                Lựa chọn phương án giải quyết (Theo quy chế BR16 &amp; BR17):
-              </label>
-
-              <div className="space-y-2">
-                <label className="flex items-start gap-2.5 p-3 rounded-xl border border-brand-border bg-stone-50 hover:bg-stone-100 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="disputeDecision"
-                    value="APPROVE_REFUND"
-                    checked={disputeDecision === 'APPROVE_REFUND'}
-                    onChange={(e) => setDisputeDecision(e.target.value)}
-                    className="mt-0.5 text-brand-green"
-                  />
-                  <div>
-                    <strong className="text-brand-dark block">1. Phê duyệt bồi thường hoàn tiền (VNPay)</strong>
-                    <span className="text-[11px] text-stone-500 block">
-                      Áp dụng khi sản lượng hụt &gt; 20% so với cam kết sinh học hoặc nông sản dập nát do khâu thu hoạch của nhân viên (BR16).
-                    </span>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-2.5 p-3 rounded-xl border border-brand-border bg-stone-50 hover:bg-stone-100 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="disputeDecision"
-                    value="COMPENSATE_NEXT_SEASON"
-                    checked={disputeDecision === 'COMPENSATE_NEXT_SEASON'}
-                    onChange={(e) => setDisputeDecision(e.target.value)}
-                    className="mt-0.5 text-brand-green"
-                  />
-                  <div>
-                    <strong className="text-brand-dark block">2. Ghi nhận bù sản lượng vào hợp đồng vụ mùa tiếp theo</strong>
-                    <span className="text-[11px] text-stone-500 block">
-                      Khách hàng đồng ý cấn trừ và cộng thêm khối lượng nông sản tiêu chuẩn tương đương vào kỳ thu hoạch sau.
-                    </span>
-                  </div>
-                </label>
-
-                <label className="flex items-start gap-2.5 p-3 rounded-xl border border-brand-border bg-stone-50 hover:bg-stone-100 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="disputeDecision"
-                    value="REJECT"
-                    checked={disputeDecision === 'REJECT'}
-                    onChange={(e) => setDisputeDecision(e.target.value)}
-                    className="mt-0.5 text-brand-green"
-                  />
-                  <div>
-                    <strong className="text-rose-800 block">3. Bác bỏ khiếu nại (Không đủ căn cứ / Sự kiện bất khả kháng)</strong>
-                    <span className="text-[11px] text-stone-500 block">
-                      Biên bản cân tại vườn đã được khách ký nhận đầy đủ hoặc thiệt hại do thiên tai bão lũ bất khả kháng (khoản 4.2 Hợp đồng).
-                    </span>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label className="block font-bold text-stone-800 mb-1">
-                Công văn kết luận &amp; Giải trình của Ban Quản Trị:
-              </label>
-              <textarea
-                rows={3}
-                required
-                value={disputeCompensationNote}
-                onChange={(e) => setDisputeCompensationNote(e.target.value)}
-                placeholder="Nhập chi tiết quyết định bồi thường, số tiền hoặc khối lượng bù sản lượng gửi đến khách hàng..."
-                className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs text-stone-900 focus:outline-none focus:ring-1 focus:ring-brand-green"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setSelectedDisputeToResolve(null)}>
-                Hủy bỏ
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                size="sm"
-                disabled={isResolvingDispute}
-                className="font-bold bg-[#203c2c] hover:bg-emerald-900 text-white"
-              >
-                {isResolvingDispute ? 'Đang lưu quyết định...' : 'Ban Hành Quyết Định'}
               </Button>
             </div>
           </form>
