@@ -182,6 +182,54 @@ export function siteVisitsApiPlugin() {
         global.__farmelySseClients = [];
       }
 
+      // Helper tính diện tích m² theo toạ độ ring [lng, lat]
+      const EARTH_RADIUS_M = 6378137;
+      function calculateAreaM2(ring) {
+        if (!ring || !Array.isArray(ring) || ring.length < 3) return 0;
+        const rad = (d) => (d * Math.PI) / 180;
+        let total = 0;
+        const n = ring.length;
+        for (let i = 0; i < n; i++) {
+          const p1 = ring[i];
+          const p2 = ring[(i + 1) % n];
+          total += rad(p2[0] - p1[0]) * (2 + Math.sin(rad(p1[1])) + Math.sin(rad(p2[1])));
+        }
+        return Math.round(Math.abs((total * EARTH_RADIUS_M * EARTH_RADIUS_M) / 2) * 100) / 100;
+      }
+
+      function extractRing(geojson) {
+        if (!geojson) return null;
+        try {
+          const obj = typeof geojson === 'string' ? JSON.parse(geojson) : geojson;
+          if (Array.isArray(obj)) {
+            return Array.isArray(obj[0]) && typeof obj[0][0] === 'number' ? obj : (Array.isArray(obj[0]) ? obj[0] : null);
+          }
+          if (obj && obj.coordinates && Array.isArray(obj.coordinates)) {
+            return Array.isArray(obj.coordinates[0]) ? (Array.isArray(obj.coordinates[0][0]) ? obj.coordinates[0][0] : obj.coordinates[0]) : null;
+          }
+        } catch {}
+        return null;
+      }
+
+      function calculateCentroid(ring) {
+        if (!ring || !Array.isArray(ring) || ring.length === 0) return null;
+        let sumLng = 0;
+        let sumLat = 0;
+        let count = 0;
+        for (const pt of ring) {
+          if (Array.isArray(pt) && pt.length >= 2 && !isNaN(pt[0]) && !isNaN(pt[1])) {
+            sumLng += Number(pt[0]);
+            sumLat += Number(pt[1]);
+            count++;
+          }
+        }
+        if (count === 0) return null;
+        return {
+          latitude: Math.round((sumLat / count) * 100000) / 100000,
+          longitude: Math.round((sumLng / count) * 100000) / 100000
+        };
+      }
+
       async function triggerBulkTelemetryInsert(scenario = null) {
         try {
           const mode = scenario?.mode || 'normal';
@@ -1764,7 +1812,9 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     TO_CHAR(r.end_date, 'YYYY-MM-DD') AS end_date, 
     r.total_price, r.status AS rental_status,
     p.plot_id, p.plot_code, p.area AS raw_area, p.status AS plot_status, p.image_url,
+    p.boundary_geojson AS plot_boundary_geojson,
     l.land_id, l.land_name, l.address,
+    l.boundary_geojson AS land_boundary_geojson,
     v.variety_id, v.variety_name,
     s.service_name, s.service_type
   FROM contracts c
@@ -1779,8 +1829,37 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
 ) p_row;
 `;
             const data = await runPostgreSql(sql);
+            let parsed = [];
+            try {
+              parsed = JSON.parse(data || '[]');
+              parsed.forEach(item => {
+                const ring = extractRing(item.plot_boundary_geojson || item.land_boundary_geojson);
+                if (ring) {
+                  const c = calculateCentroid(ring);
+                  if (c) {
+                    item.latitude = c.latitude;
+                    item.longitude = c.longitude;
+                  }
+                }
+                // Nếu chưa có boundary, fallback theo địa chỉ lưu trong DB
+                if (!item.latitude && item.address) {
+                  const addr = String(item.address).toLowerCase();
+                  if (addr.includes('củ chi') || addr.includes('cu chi')) {
+                    item.latitude = 10.6877; item.longitude = 106.3503;
+                  } else if (addr.includes('long an') || addr.includes('đức hòa') || addr.includes('duc hoa')) {
+                    item.latitude = 10.7025; item.longitude = 106.4011;
+                  } else if (addr.includes('đà lạt') || addr.includes('da lat') || addr.includes('lâm đồng')) {
+                    item.latitude = 11.9404; item.longitude = 108.4583;
+                  } else if (addr.includes('mộc châu') || addr.includes('sơn la')) {
+                    item.latitude = 20.8443; item.longitude = 104.6838;
+                  }
+                }
+              });
+            } catch (pErr) {
+              console.warn('Plot centroid computation error:', pErr);
+            }
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(data || '[]');
+            res.end(JSON.stringify(parsed));
           } catch (err) {
             console.error('Error on /api/customer/rented-plots:', err);
             res.statusCode = 500;
@@ -1975,21 +2054,6 @@ RETURNING harvest_id, rental_id, customer_confirmed, delivery_type;
           return;
         }
 
-        // Helper tính diện tích m² theo toạ độ ring [lng, lat]
-        const EARTH_RADIUS_M = 6378137;
-        function calculateAreaM2(ring) {
-          if (!ring || !Array.isArray(ring) || ring.length < 3) return 0;
-          const rad = (d) => (d * Math.PI) / 180;
-          let total = 0;
-          const n = ring.length;
-          for (let i = 0; i < n; i++) {
-            const p1 = ring[i];
-            const p2 = ring[(i + 1) % n];
-            total += rad(p2[0] - p1[0]) * (2 + Math.sin(rad(p1[1])) + Math.sin(rad(p2[1])));
-          }
-          return Math.round(Math.abs((total * EARTH_RADIUS_M * EARTH_RADIUS_M) / 2) * 100) / 100;
-        }
-
         // 8.1 GET /api/lands & /api/v1/lands (List all lands / farm zones)
         if (req.method === 'GET' && (url === '/api/lands' || url === '/api/v1/lands' || url.startsWith('/api/lands?') || url.startsWith('/api/v1/lands?'))) {
           try {
@@ -2034,6 +2098,9 @@ SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
             const landsList = JSON.parse(rawData || '[]');
             landsList.forEach(l => {
               l.boundaryAreaM2 = l.boundary ? calculateAreaM2(l.boundary) : null;
+              const c = l.boundary ? calculateCentroid(l.boundary) : null;
+              l.latitude = c ? c.latitude : null;
+              l.longitude = c ? c.longitude : null;
             });
 
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -2120,6 +2187,16 @@ SELECT row_to_json(l) FROM (
             } else {
               const landObj = JSON.parse(rawData);
               landObj.boundaryAreaM2 = landObj.boundary ? calculateAreaM2(landObj.boundary) : null;
+              const c = landObj.boundary ? calculateCentroid(landObj.boundary) : null;
+              landObj.latitude = c ? c.latitude : null;
+              landObj.longitude = c ? c.longitude : null;
+              if (Array.isArray(landObj.plots)) {
+                landObj.plots.forEach(p => {
+                  const pc = p.boundary ? calculateCentroid(p.boundary) : null;
+                  p.latitude = pc ? pc.latitude : landObj.latitude;
+                  p.longitude = pc ? pc.longitude : landObj.longitude;
+                });
+              }
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
@@ -2394,6 +2471,11 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
 `;
             const data = await runPostgreSql(sql);
             const plotsList = JSON.parse(data || '[]');
+            plotsList.forEach(p => {
+              const c = p.boundary ? calculateCentroid(p.boundary) : null;
+              p.latitude = c ? c.latitude : null;
+              p.longitude = c ? c.longitude : null;
+            });
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
