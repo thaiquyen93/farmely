@@ -350,70 +350,6 @@ export default function CustomerDashboard() {
     }
   };
 
-  // Customer Disputes & Complaints (UC20 / BR17 / SCR-KH-15)
-  const [showDisputeModal, setShowDisputeModal] = useState(false);
-  const [disputeList, setDisputeList] = useState([]);
-  const [disputeData, setDisputeData] = useState({
-    plotId: '',
-    disputeType: 'YIELD_SHORTAGE',
-    reason: 'Thiếu hụt sản lượng so với cam kết tối thiểu (BR16)',
-    requestedSolution: 'COMPENSATE_NEXT',
-    evidenceUrl: '',
-    notes: ''
-  });
-  const [isSubmittingDispute, setIsSubmittingDispute] = useState(false);
-
-  const handleCreateDispute = async (e) => {
-    e.preventDefault();
-    if (!disputeData.notes.trim()) return;
-    setIsSubmittingDispute(true);
-    try {
-      const selectedPlot = customerPlots.find(p => p.id === disputeData.plotId) || customerPlots[0];
-      const rentalId = selectedPlot?.rentalId || 1;
-
-      await fetch('/api/issues', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rentalId: rentalId,
-          reportedBy: user?.id || 1,
-          issueType: `[KHIẾU NẠI] ${disputeData.reason}`,
-          description: `Yêu cầu xử lý: ${disputeData.requestedSolution}. Ghi chú: ${disputeData.notes}`,
-          imageUrl: disputeData.evidenceUrl || null
-        })
-      }).catch(() => null);
-
-      const newDispute = {
-        id: `DISPUTE-${Date.now().toString().slice(-4)}`,
-        plotName: selectedPlot ? selectedPlot.name : 'Thửa đã chọn',
-        disputeType: disputeData.disputeType,
-        reason: disputeData.reason,
-        requestedSolution: disputeData.requestedSolution,
-        evidenceUrl: disputeData.evidenceUrl,
-        notes: disputeData.notes,
-        createdAt: new Date().toLocaleString('vi-VN'),
-        status: 'OPEN',
-        statusLabel: 'Chờ Ban Quản Trị & Chuyên Gia thẩm tra (BR17)'
-      };
-
-      setDisputeList(prev => [newDispute, ...prev]);
-      setShowDisputeModal(false);
-      setDisputeData({
-        plotId: '',
-        disputeType: 'YIELD_SHORTAGE',
-        reason: 'Thiếu hụt sản lượng so với cam kết tối thiểu (BR16)',
-        requestedSolution: 'COMPENSATE_NEXT',
-        evidenceUrl: '',
-        notes: ''
-      });
-      alert('Đã gửi hồ sơ khiếu nại thành công! Ban Quản Trị Farmely cam kết thẩm tra và phản hồi kết quả trong vòng 24 giờ làm việc.');
-    } catch (err) {
-      console.warn('Lỗi gửi khiếu nại:', err);
-    } finally {
-      setIsSubmittingDispute(false);
-    }
-  };
-
   // Ngữ cảnh thửa: khi đi từ trang 1 thửa sang Nhật ký / Lịch / Dịch vụ thì chỉ hiện
   // dữ liệu của ĐÚNG thửa đó (null = xem tất cả thửa, khi vào từ sidebar)
   const [plotScopeId, setPlotScopeId] = useState(null);
@@ -3061,21 +2997,6 @@ export default function CustomerDashboard() {
                       Đăng ký lịch hái theo dõi phê duyệt từ Kỹ sư nông nghiệp và nghiệm thu khối lượng thực tế đối chứng cân điện tử.
                     </p>
                   </div>
-                  {customerPlots.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setDisputeData(prev => ({ ...prev, plotId: customerPlots[0]?.id || '' }));
-                          setShowDisputeModal(true);
-                        }}
-                        className="text-rose-700 border-rose-300 hover:bg-rose-50 font-bold text-xs cursor-pointer"
-                      >
-                        Khiếu nại sản lượng / sự cố
-                      </Button>
-                    </div>
-                  )}
                 </div>
 
                 {/* PHẦN 1: KẾ HOẠCH THU HOẠCH THEO TỪNG THỬA ĐẤT */}
@@ -3246,34 +3167,6 @@ export default function CustomerDashboard() {
                       </div>
                     );
                   })}
-
-                  {/* Danh sách khiếu nại đã gửi (nếu có) */}
-                  {disputeList.length > 0 && (
-                    <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200 space-y-3 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-rose-950 flex items-center gap-1.5">
-                          <ShieldAlert className="w-4 h-4 text-rose-700" />
-                          Hồ Sơ Khiếu Nại & Tranh Chấp Đang Thẩm Tra:
-                        </span>
-                        <span className="text-[10px] text-rose-700 font-bold bg-white px-2 py-0.5 rounded border border-rose-200">
-                          {disputeList.length} hồ sơ
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {disputeList.map((dsp) => (
-                          <div key={dsp.id} className="p-3 rounded-xl bg-white border border-rose-200 space-y-1">
-                            <div className="flex flex-wrap justify-between items-center gap-1 text-[11px]">
-                              <span className="font-mono font-bold text-rose-800">{dsp.id} • {dsp.plotName}</span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">{dsp.statusLabel}</span>
-                            </div>
-                            <p className="font-semibold text-stone-800">{dsp.reason}</p>
-                            <p className="text-stone-600 text-[11px]">{dsp.notes}</p>
-                            <p className="text-[10px] text-stone-400">Gửi lúc: {dsp.createdAt}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
                 )}
                 </div>
@@ -4588,104 +4481,6 @@ export default function CustomerDashboard() {
               className="bg-brand-green hover:bg-[#203c2c] text-white font-bold"
             >
               {isSubmittingCustomService ? 'Đang gửi...' : 'GỬI YÊU CẦU DỊCH VỤ'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal: Gửi Khiếu Nại & Tranh Chấp Sản Lượng / Chất Lượng (SCR-KH-15 / UC20 / BR17) */}
-      <Modal
-        isOpen={showDisputeModal}
-        onClose={() => setShowDisputeModal(false)}
-        title="Gửi Khiếu Nại & Tranh Chấp Vụ Mùa (UC20 / BR17)"
-        subtitle="Hệ thống cam kết tiếp nhận và phản hồi phán quyết trong vòng 24 giờ"
-      >
-        <form onSubmit={handleCreateDispute} className="space-y-3.5 text-xs text-left max-h-[75vh] overflow-y-auto pr-1">
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Thửa đất khiếu nại:</label>
-            <select
-              value={disputeData.plotId}
-              onChange={(e) => setDisputeData({ ...disputeData, plotId: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs font-bold"
-            >
-              {customerPlots.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.mapPlotId || p.id}) — {p.crop}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Loại khiếu nại:</label>
-            <select
-              value={disputeData.reason}
-              onChange={(e) => setDisputeData({ ...disputeData, reason: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs"
-            >
-              <option value="Thiếu hụt sản lượng so với cam kết tối thiểu (BR16)">Thiếu hụt sản lượng so với cam kết tối thiểu (BR16)</option>
-              <option value="Nông sản bị dập nát, hư hỏng trong quá trình vận chuyển">Nông sản bị dập nát, hư hỏng trong quá trình vận chuyển</option>
-              <option value="Chăm sóc không đúng quy trình kỹ thuật VietGAP đã cam kết">Chăm sóc không đúng quy trình kỹ thuật VietGAP đã cam kết</option>
-              <option value="Phát hiện dấu hiệu sâu bệnh bất thường không được cảnh báo">Phát hiện dấu hiệu sâu bệnh bất thường không được cảnh báo</option>
-              <option value="Khác (Ý kiến về vệ sinh, đóng gói)">Khác (Ý kiến về vệ sinh, đóng gói)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Phương án bồi thường mong muốn:</label>
-            <select
-              value={disputeData.requestedSolution}
-              onChange={(e) => setDisputeData({ ...disputeData, requestedSolution: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs"
-            >
-              <option value="Bồi thường nông sản tương đương trong đợt thu hoạch kế tiếp">Bồi thường nông sản tương đương trong đợt thu hoạch kế tiếp</option>
-              <option value="Hoàn tiền tương ứng phần sản lượng thiếu hụt vào ví Farmely">Hoàn tiền tương ứng phần sản lượng thiếu hụt vào ví Farmely</option>
-              <option value="Cử chuyên gia nông nghiệp trực tiếp thẩm định hiện trường">Cử chuyên gia nông nghiệp trực tiếp thẩm định hiện trường</option>
-              <option value="Gia hạn thêm ngày chăm sóc bù đắp chi phí">Gia hạn thêm ngày chăm sóc bù đắp chi phí</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Link ảnh chụp minh chứng (URL):</label>
-            <input
-              type="text"
-              value={disputeData.evidenceUrl}
-              onChange={(e) => setDisputeData({ ...disputeData, evidenceUrl: e.target.value })}
-              placeholder="https://example.com/anh-can-thieu.jpg"
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Mô tả chi tiết nội dung khiếu nại:</label>
-            <textarea
-              rows={3}
-              required
-              value={disputeData.notes}
-              onChange={(e) => setDisputeData({ ...disputeData, notes: e.target.value })}
-              placeholder="Ghi rõ thời điểm nhận hàng, tình trạng thực tế đối chiếu với thông số cân trên hệ thống..."
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
-          <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 space-y-1 text-[11px]">
-            <p className="font-bold">Chính sách bảo vệ khách hàng Farmely (BR17):</p>
-            <p>• Dữ liệu cân điện tử và camera tại trạm đóng gói được trích xuất để đối chứng minh bạch.</p>
-            <p>• Trường hợp lỗi do quy trình nông trại, Farmely cam kết bồi thường 100% thiệt hại.</p>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
-            <Button type="button" variant="outline" size="sm" onClick={() => setShowDisputeModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={isSubmittingDispute}
-              className="bg-rose-700 hover:bg-rose-800 text-white font-bold"
-            >
-              {isSubmittingDispute ? 'Đang gửi...' : 'GỬI HỒ SƠ KHIẾU NẠI'}
             </Button>
           </div>
         </form>
