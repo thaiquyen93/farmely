@@ -110,10 +110,10 @@ function getPgPool() {
   return pgPool;
 }
 
-async function runPostgreSql(sqlQuery) {
+async function runPostgreSql(sqlQuery, params = []) {
   try {
     const pool = getPgPool();
-    const result = await pool.query(sqlQuery);
+    const result = (params && params.length > 0) ? await pool.query(sqlQuery, params) : await pool.query(sqlQuery);
     if (!result || !result.rows || result.rows.length === 0) return '';
     const firstRow = result.rows[0];
     const keys = Object.keys(firstRow);
@@ -3494,12 +3494,14 @@ SELECT json_build_object(
         TO_CHAR(fd.created_at, 'YYYY-MM-DD') AS date,
         TO_CHAR(fd.created_at, 'HH24:MI') AS time,
         TO_CHAR(fd.created_at, 'DD/MM/YYYY HH24:MI') AS "dateFormatted",
-        COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS author,
-        COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS "authorName",
+        COALESCE(u_worker.full_name, u_cust.full_name, 'Chủ vườn') AS author,
+        COALESCE(u_worker.full_name, u_cust.full_name, 'Chủ vườn') AS "authorName",
         'Chăm sóc & theo dõi' AS stage
       FROM farm_diaries fd
       JOIN rentals rent ON fd.rental_id = rent.rental_id
       JOIN plots p ON rent.plot_id = p.plot_id
+      LEFT JOIN contracts c ON rent.contract_id = c.contract_id
+      LEFT JOIN users u_cust ON c.renter_id = u_cust.user_id
       LEFT JOIN varieties v ON rent.variety_id = v.variety_id
       LEFT JOIN care_tasks ct ON fd.task_id = ct.task_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
@@ -3524,17 +3526,143 @@ SELECT json_build_object(
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const rentalId = payload.rentalId || payload.rental_id || 1;
-              const content = (payload.content || payload.note || 'Cập nhật nhật ký hiện trường').replace(/'/g, "''");
-              const imageUrl = (payload.imageUrl || payload.photo || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80').replace(/'/g, "''");
-              const sql = `
-INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
-VALUES (${rentalId}, '${content}', '${imageUrl}', NOW())
-RETURNING diary_id;
-`;
-              await runPostgreSql(sql);
+              let rentalId = payload.rentalId || payload.rental_id;
+              const pool = getPgPool();
+
+              if (!rentalId && (payload.plotId || payload.plotCode)) {
+                const code = String(payload.plotCode || payload.plotId).replace(/^PLOT-/i, '').trim();
+                const findRes = await pool.query(`
+                  SELECT r.rental_id 
+                  FROM rentals r 
+                  JOIN plots p ON r.plot_id = p.plot_id 
+                  WHERE p.plot_code = $1 OR p.plot_code = $2 
+                  ORDER BY r.rental_id DESC LIMIT 1
+                `, [code, `PLOT-${code}`]);
+                if (findRes && findRes.rows && findRes.rows[0]) {
+                  rentalId = findRes.rows[0].rental_id;
+                }
+              }
+              if (!rentalId) {
+                rentalId = 24;
+              }
+
+              const content = (payload.content || payload.note || 'Cập nhật tiến độ canh tác tại vườn').trim();
+              const imageUrl = (payload.imageUrl || payload.photo || '').trim();
+
+              const insertResult = await pool.query(`
+                INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
+                VALUES ($1, $2, $3, NOW())
+                RETURNING diary_id, rental_id, content, image_url, created_at;
+              `, [rentalId, content, imageUrl]);
+
+              const row = insertResult.rows[0];
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true, message: 'Thêm nhật ký canh tác thành công' }));
+              res.end(JSON.stringify({ 
+                success: true, 
+                message: 'Thêm nhật ký canh tác thành công',
+                data: {
+                  id: `DIR-${row.diary_id}`,
+                  diaryId: row.diary_id,
+                  rentalId: row.rental_id,
+                  content: row.content,
+                  imageUrl: row.image_url,
+                  created_at: row.created_at
+                }
+              }));
+            } catch (err) {
+              console.error('Error inserting farm diary:', err);
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 19b. FILE UPLOAD API (/api/files/upload, /api/upload)
+        if (req.method === 'POST' && (url === '/api/files/upload' || url === '/api/upload')) {
+          const contentType = req.headers['content-type'] || '';
+          const uploadDir = path.resolve(process.cwd(), 'public', 'uploads');
+          if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+          if (contentType.includes('application/json')) {
+            let body = '';
+            req.on('data', chunk => body += chunk);
+            req.on('end', async () => {
+              try {
+                const payload = JSON.parse(body || '{}');
+                const fileData = payload.file || payload.dataUrl || payload.base64 || '';
+                if (!fileData.startsWith('data:image/')) {
+                  res.statusCode = 400;
+                  res.end(JSON.stringify({ success: false, message: 'Invalid image data' }));
+                  return;
+                }
+                const match = fileData.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+                const ext = match ? (match[1] === 'jpeg' ? 'jpg' : match[1]) : 'jpg';
+                const base64Data = match ? match[2] : fileData;
+                const buffer = Buffer.from(base64Data, 'base64');
+                const fileName = `diary_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+                fs.writeFileSync(path.join(uploadDir, fileName), buffer);
+                const fileUrl = `/uploads/${fileName}`;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({
+                  success: true,
+                  message: 'Tải tệp tin lên thành công',
+                  data: { fileName, fileUrl }
+                }));
+              } catch (err) {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ success: false, error: String(err) }));
+              }
+            });
+            return;
+          }
+
+          const chunks = [];
+          req.on('data', chunk => chunks.push(chunk));
+          req.on('end', async () => {
+            try {
+              const fullBuffer = Buffer.concat(chunks);
+              let fileBuffer = null;
+              let fileExt = 'jpg';
+              const boundaryMatch = contentType.match(/boundary=([^;]+)/i);
+
+              if (boundaryMatch) {
+                const boundary = boundaryMatch[1].trim();
+                const boundaryBuffer = Buffer.from(`--${boundary}`);
+                const headerDelimiter = Buffer.from('\r\n\r\n');
+                
+                let startPos = fullBuffer.indexOf(boundaryBuffer);
+                if (startPos !== -1) {
+                  const headerStart = startPos + boundaryBuffer.length + 2;
+                  const headerEnd = fullBuffer.indexOf(headerDelimiter, headerStart);
+                  if (headerEnd !== -1) {
+                    const headerText = fullBuffer.subarray(headerStart, headerEnd).toString('utf8');
+                    const nameMatch = headerText.match(/filename="([^"]+)"/);
+                    if (nameMatch) {
+                      fileExt = path.extname(nameMatch[1]).replace('.', '') || 'jpg';
+                    }
+                    const dataStart = headerEnd + 4;
+                    const nextBoundary = fullBuffer.indexOf(boundaryBuffer, dataStart);
+                    const dataEnd = nextBoundary !== -1 ? nextBoundary - 2 : fullBuffer.length;
+                    fileBuffer = fullBuffer.subarray(dataStart, dataEnd);
+                  }
+                }
+              }
+
+              if (!fileBuffer || fileBuffer.length === 0) {
+                fileBuffer = fullBuffer;
+              }
+
+              const fileName = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
+              fs.writeFileSync(path.join(uploadDir, fileName), fileBuffer);
+              const fileUrl = `/uploads/${fileName}`;
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Tải tệp tin lên thành công',
+                data: { fileName, fileUrl }
+              }));
             } catch (err) {
               res.statusCode = 500;
               res.end(JSON.stringify({ success: false, error: String(err) }));

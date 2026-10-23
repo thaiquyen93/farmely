@@ -1017,13 +1017,11 @@ function DiaryTab({ plot, operations, onAddDiary }) {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-stone-600">
-          {canWrite ? 'Bạn tự canh tác thửa này — hãy ghi lại mỗi lần chăm sóc.' : 'Farmely lưu trữ nhật ký chăm sóc kèm ảnh minh chứng từ đội ngũ kỹ thuật viên.'}
+          {canWrite ? 'Bạn tự canh tác thửa này — hãy ghi lại mỗi lần chăm sóc và hình ảnh hiện trường.' : 'Farmely lưu trữ nhật ký chăm sóc kèm ảnh minh chứng từ kỹ thuật viên & ghi chú của bạn.'}
         </p>
-        {canWrite && (
-          <button type="button" onClick={() => onAddDiary?.(plot)} className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800">
-            <PenLine className="h-4 w-4" />Thêm nhật ký
-          </button>
-        )}
+        <button type="button" onClick={() => onAddDiary?.(plot)} className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 shadow-sm transition">
+          <PenLine className="h-4 w-4" />+ Thêm nhật ký
+        </button>
       </div>
       {operations.diary?.length ? (
         <ol className="relative space-y-3 border-l-2 border-emerald-100 pl-5">
@@ -1038,7 +1036,22 @@ function DiaryTab({ plot, operations, onAddDiary }) {
                   </span>
                 </div>
                 <p className="mt-2 text-sm font-semibold text-[#18352b]">{e.title}</p>
-                <p className="mt-1 text-sm leading-relaxed text-stone-600">{e.note}</p>
+                <p className="mt-1 text-sm leading-relaxed text-stone-600 whitespace-pre-line">{e.note}</p>
+                {(e.image || e.imageUrl || e.photo) && (
+                  <div className="mt-3 overflow-hidden rounded-xl border border-stone-200/80 bg-stone-50 max-w-md">
+                    <img
+                      src={e.image || e.imageUrl || e.photo}
+                      alt={e.title || 'Ảnh nhật ký hiện trường'}
+                      className="max-h-72 w-full object-cover transition-transform duration-300 hover:scale-[1.02] cursor-pointer"
+                      onClick={() => window.open(e.image || e.imageUrl || e.photo, '_blank')}
+                      loading="lazy"
+                    />
+                    <div className="p-2 bg-white/80 text-[11px] text-stone-500 flex items-center justify-between border-t border-stone-100">
+                      <span>📸 Ảnh minh chứng thực tế</span>
+                      <span className="text-[10px] text-emerald-700 font-semibold cursor-pointer hover:underline" onClick={() => window.open(e.image || e.imageUrl || e.photo, '_blank')}>Mở ảnh phóng to ↗</span>
+                    </div>
+                  </div>
+                )}
               </Card>
             </li>
           ))}
