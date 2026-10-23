@@ -707,11 +707,30 @@ export default function FieldWorkerDashboard() {
   const plotSummaryList = useMemo(() => {
     const map = new Map();
 
-    // Chỉ gom nhóm các thửa đất có nhiệm vụ trong ca trực này
+    // 1. Khởi tạo từ danh sách thửa đất phụ trách
+    if (Array.isArray(assignedPlots)) {
+      assignedPlots.forEach((p) => {
+        const code = p?.plotCode || p?.name;
+        if (!code) return;
+        map.set(code, {
+          plotCode: code,
+          plotName: p.name || `Thửa ${code}`,
+          customerName: p.renterName || 'Khách thuê',
+          contractCode: p.contractCode || '#CTR-2026-001',
+          crop: p.crop || DEFAULT_PLOT_CROPS[code] || 'Rau củ chuẩn VietGAP',
+          area: p.area || '150 m²',
+          location: p.location || 'Khu Nông Trại Happy Valley Củ Chi',
+          rentalId: p.rentalId || p.id || 1,
+          tasks: []
+        });
+      });
+    }
+
+    // 2. Gộp nhiệm vụ thực tế
     orderedTasks.forEach((task) => {
-      const code = task.plotCode || task.plotName || 'P-01';
+      const code = task?.plotCode || task?.plotName || 'P-01';
       if (!map.has(code)) {
-        const assigned = assignedPlots.find((p) => (p.plotCode || p.name) === code);
+        const assigned = (assignedPlots || []).find((p) => (p?.plotCode || p?.name) === code);
         map.set(code, {
           plotCode: code,
           plotName: task.plotName || assigned?.name || `Thửa ${code}`,
@@ -727,9 +746,13 @@ export default function FieldWorkerDashboard() {
       map.get(code).tasks.push(task);
     });
 
-    return Array.from(map.values()).sort((a, b) => {
-      const aPending = a.tasks.filter((t) => t.status !== 'COMPLETED').length;
-      const bPending = b.tasks.filter((t) => t.status !== 'COMPLETED').length;
+    const list = Array.from(map.values());
+    const withTasks = list.filter((p) => p.tasks && p.tasks.length > 0);
+    const result = withTasks.length > 0 ? withTasks : list;
+
+    return result.sort((a, b) => {
+      const aPending = (a.tasks || []).filter((t) => t.status !== 'COMPLETED').length;
+      const bPending = (b.tasks || []).filter((t) => t.status !== 'COMPLETED').length;
       return bPending - aPending;
     });
   }, [assignedPlots, orderedTasks]);
@@ -1015,8 +1038,21 @@ export default function FieldWorkerDashboard() {
                 {/* 2. KHU VỰC CHI TIẾT NHIỆM VỤ THEO THỬA ĐÃ CHỌN (PLOT WORKSPACE FULL WIDTH) */}
                 <div className="space-y-5 rounded-3xl border border-brand-border bg-white p-5 sm:p-7 shadow-sm">
                   {selectedPlotCode !== 'ALL' ? (() => {
-                    const activePlot = plotSummaryList.find((p) => p.plotCode === selectedPlotCode) || plotSummaryList[0];
-                    const plotTasks = activePlot?.tasks || [];
+                    const activePlot = (plotSummaryList && plotSummaryList.length > 0
+                      ? plotSummaryList.find((p) => p.plotCode === selectedPlotCode) || plotSummaryList[0]
+                      : null);
+
+                    if (!activePlot) {
+                      return (
+                        <div className="p-8 text-center bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+                          <Layers className="w-8 h-8 mx-auto text-stone-300 mb-2" />
+                          <p className="font-heading font-black text-stone-700 text-sm">Chưa có thông tin thửa đất hoặc ca trực chưa có nhiệm vụ</p>
+                          <p className="text-xs text-stone-400 mt-1">Đang tải dữ liệu thực địa từ hệ thống...</p>
+                        </div>
+                      );
+                    }
+
+                    const plotTasks = activePlot.tasks || [];
                     const pendingTasks = plotTasks.filter((t) => t.status !== 'COMPLETED');
                     const completedTasks = plotTasks.filter((t) => t.status === 'COMPLETED');
 
@@ -1027,21 +1063,21 @@ export default function FieldWorkerDashboard() {
                           <div className="space-y-1.5">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="px-3 py-1 rounded-md bg-[#07533d] text-white font-mono font-bold text-xs shadow-2xs">
-                                {activePlot.plotCode}
+                                {activePlot.plotCode || 'P-01'}
                               </span>
                               <h3 className="font-heading font-black text-xl text-stone-900 tracking-tight">
-                                {activePlot.plotName}
+                                {activePlot.plotName || 'Thửa P-01'}
                               </h3>
                               <span className="px-3 py-1 rounded-full text-xs font-bold bg-white border border-emerald-300 text-emerald-800 shadow-2xs">
-                                🌱 {activePlot.crop}
+                                🌱 {activePlot.crop || 'Rau củ chuẩn VietGAP'}
                               </span>
                             </div>
                             <p className="text-xs text-stone-600 flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
-                              <span>👤 Khách hàng: <strong className="text-stone-900">{activePlot.customerName}</strong></span>
+                              <span>👤 Khách hàng: <strong className="text-stone-900">{activePlot.customerName || 'Khách thuê'}</strong></span>
                               <span className="text-stone-300">•</span>
-                              <span>📋 Hợp đồng: <strong className="font-mono text-stone-700">{activePlot.contractCode}</strong></span>
+                              <span>📋 Hợp đồng: <strong className="font-mono text-stone-700">{activePlot.contractCode || '#CTR-2026-001'}</strong></span>
                               <span className="text-stone-300">•</span>
-                              <span>📍 <strong className="text-stone-700">{activePlot.location}</strong></span>
+                              <span>📍 <strong className="text-stone-700">{activePlot.location || 'Khu Nông Trại Happy Valley Củ Chi'}</strong></span>
                             </p>
                           </div>
                           <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
@@ -1049,7 +1085,7 @@ export default function FieldWorkerDashboard() {
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => { setNewIssuePlot(activePlot.plotCode); setShowNewIssueModal(true); }}
+                              onClick={() => { setNewIssuePlot(activePlot.plotCode || 'P-01'); setShowNewIssueModal(true); }}
                               className="gap-1.5 font-bold border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100"
                             >
                               <AlertTriangle className="h-4 w-4 text-amber-700" />
