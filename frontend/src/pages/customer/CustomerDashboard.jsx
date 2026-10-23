@@ -567,19 +567,22 @@ export default function CustomerDashboard() {
   const [isProcessingDiaryPhoto, setIsProcessingDiaryPhoto] = useState(false);
   const [isSubmittingDiary, setIsSubmittingDiary] = useState(false);
   const [isDragOverDiary, setIsDragOverDiary] = useState(false);
+  const [diarySuccessToast, setDiarySuccessToast] = useState('');
+  const [diaryFormError, setDiaryFormError] = useState('');
   const diaryFileInputRef = useRef(null);
   const diaryCameraInputRef = useRef(null);
 
   const handleProcessDiaryFile = useCallback((file) => {
     if (!file) return;
     if (!file.type || !file.type.startsWith('image/')) {
-      alert('Vui lòng chọn tệp định dạng hình ảnh (PNG, JPG, JPEG, WEBP).');
+      setDiaryFormError('Vui lòng chọn tệp định dạng hình ảnh (PNG, JPG, JPEG, WEBP).');
       return;
     }
     if (file.size > 15 * 1024 * 1024) {
-      alert('Kích thước ảnh quá lớn (tối đa 15MB). Vui lòng chọn ảnh khác.');
+      setDiaryFormError('Kích thước ảnh quá lớn (tối đa 15MB). Vui lòng chọn ảnh khác.');
       return;
     }
+    setDiaryFormError('');
 
     setIsProcessingDiaryPhoto(true);
     const sizeInMb = (file.size / (1024 * 1024)).toFixed(1);
@@ -640,7 +643,7 @@ export default function CustomerDashboard() {
       img.src = dataUrl;
     };
     reader.onerror = () => {
-      alert('Không thể đọc file ảnh. Vui lòng thử lại.');
+      setDiaryFormError('Không thể đọc file ảnh. Vui lòng thử lại.');
       setIsProcessingDiaryPhoto(false);
     };
     reader.readAsDataURL(file);
@@ -650,6 +653,7 @@ export default function CustomerDashboard() {
     setDiaryPhotoPreview('');
     setDiaryPhotoFile(null);
     setDiaryPhotoMeta(null);
+    setDiaryFormError('');
     if (diaryFileInputRef.current) diaryFileInputRef.current.value = '';
     if (diaryCameraInputRef.current) diaryCameraInputRef.current.value = '';
   };
@@ -4334,11 +4338,22 @@ export default function CustomerDashboard() {
                 <textarea
                   rows={3}
                   value={diaryNote}
-                  onChange={(e) => setDiaryNote(e.target.value)}
+                  onChange={(e) => {
+                    setDiaryNote(e.target.value);
+                    if (diaryFormError) setDiaryFormError('');
+                  }}
                   placeholder="Ví dụ: Hôm nay ra thăm vườn, mầm đã nảy xanh đều, đất tơi xốp, lá non xanh mướt..."
                   className="w-full p-3 rounded-xl border border-brand-border text-xs leading-relaxed focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green transition"
                 />
               </div>
+
+              {/* Thông báo lỗi nếu có */}
+              {diaryFormError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-xs font-semibold text-rose-700 flex items-center gap-1.5">
+                  <span>⚠️</span>
+                  <span>{diaryFormError}</span>
+                </div>
+              )}
 
               {/* 3. UPLOAD ẢNH (HỖ TRỢ ĐIỆN THOẠI & LAPTOP) */}
               <div>
@@ -4487,6 +4502,7 @@ export default function CustomerDashboard() {
                   onClick={() => {
                     setShowNewDiaryModal(false);
                     handleClearDiaryPhoto();
+                    setDiaryFormError('');
                   }}
                 >
                   HỦY
@@ -4497,7 +4513,7 @@ export default function CustomerDashboard() {
                   disabled={isSubmittingDiary || (!diaryNote.trim() && !diaryPhotoPreview)}
                   onClick={async () => {
                     if (!diaryNote.trim() && !diaryPhotoPreview) {
-                      alert('Vui lòng nhập ghi chú hoặc đính kèm ảnh hiện trường.');
+                      setDiaryFormError('Vui lòng nhập ghi chú hoặc đính kèm ảnh hiện trường.');
                       return;
                     }
 
@@ -4506,6 +4522,7 @@ export default function CustomerDashboard() {
                     const authorName = user?.fullName || user?.name || 'Lô Thái Quyền (Chủ vườn)';
 
                     setIsSubmittingDiary(true);
+                    setDiaryFormError('');
                     let finalImageUrl = diaryPhotoPreview || '';
 
                     // Nếu có tệp ảnh gốc, thử tải lên API lưu trữ
@@ -4567,13 +4584,14 @@ export default function CustomerDashboard() {
                       });
 
                       loadOperationsFromDb();
-                      alert('Đã lưu nhật ký Farm Diary thành công vào cơ sở dữ liệu!');
                       setShowNewDiaryModal(false);
                       setDiaryNote('');
                       handleClearDiaryPhoto();
+                      setDiarySuccessToast(`Đã lưu nhật ký và tải ảnh hiện trường thành công cho ${targetPlot?.name || 'thửa vườn'}!`);
+                      setTimeout(() => setDiarySuccessToast(''), 4500);
                     } catch (err) {
                       console.warn('Could not post diary to DB:', err);
-                      alert('Có lỗi khi lưu nhật ký. Vui lòng thử lại.');
+                      setDiaryFormError('Có lỗi khi lưu nhật ký. Vui lòng kiểm tra kết nối và thử lại.');
                     } finally {
                       setIsSubmittingDiary(false);
                     }
@@ -5074,6 +5092,28 @@ export default function CustomerDashboard() {
           </div>
         </form>
       </Modal>
+
+      {/* Floating Toast Notification for Farm Diary */}
+      {diarySuccessToast && (
+        <div className="fixed top-20 right-6 z-50 max-w-md animate-in slide-in-from-top-3 fade-in duration-300">
+          <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/40 bg-[#18352b] px-4 py-3 text-white shadow-2xl backdrop-blur-md">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow">
+              <CheckCircle2 className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1 text-xs">
+              <p className="font-extrabold text-emerald-300">Nhật Ký Canh Tác</p>
+              <p className="text-stone-200 mt-0.5 leading-snug">{diarySuccessToast}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDiarySuccessToast('')}
+              className="ml-2 rounded-lg p-1.5 text-stone-400 hover:bg-white/10 hover:text-white transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <CustomerMobileNav activeView={activeTab} />
     </div>
