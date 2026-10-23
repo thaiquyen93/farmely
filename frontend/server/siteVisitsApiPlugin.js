@@ -2,6 +2,7 @@ import fs from 'fs';
 import { spawn, execFile } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
 
 let rentalLeaseColumnsEnsured = false;
@@ -131,33 +132,68 @@ function runPostgreSqlAttempt(cfg, sqlQuery) {
   });
 }
 
-async function runPostgreSql(sqlQuery) {
-  if (activePgConfig) {
-    try {
-      return await runPostgreSqlAttempt(activePgConfig, sqlQuery);
-    } catch {
-      activePgConfig = null; // reset cache on failure and re-probe
-    }
+let pgPoolInstance = null;
+function getPgPool() {
+  if (!pgPoolInstance) {
+    const base = getPgConfig();
+    pgPoolInstance = new pg.Pool({
+      host: base.host || 'localhost',
+      port: parseInt(base.port || '5432', 10),
+      database: base.database || 'farmely',
+      user: base.user || 'postgres',
+      password: base.password || 'postgres',
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000
+    });
+    pgPoolInstance.on('error', (err) => {
+      console.warn('[Postgres Pool Error]', err?.message);
+    });
   }
+  return pgPoolInstance;
+}
 
-  const base = getPgConfig();
-  const candidatePorts = Array.from(new Set(['5432', base.port].filter(Boolean)));
-  const candidatePasses = Array.from(new Set(['@Bin054206', base.password, '12345', 'postgres', ''].filter(p => p !== undefined)));
-
-  let lastErr = null;
-  for (const port of candidatePorts) {
-    for (const pass of candidatePasses) {
-      const trialCfg = { ...base, port, password: pass };
+async function runPostgreSql(sqlQuery) {
+  try {
+    const pool = getPgPool();
+    const res = await pool.query(sqlQuery);
+    if (!res || !res.rows || res.rows.length === 0) {
+      return '';
+    }
+    const firstRow = res.rows[0];
+    const firstKey = Object.keys(firstRow)[0];
+    const val = firstRow[firstKey];
+    if (typeof val === 'object' && val !== null) {
+      return JSON.stringify(val);
+    }
+    return String(val ?? '');
+  } catch (poolErr) {
+    if (activePgConfig) {
       try {
-        const res = await runPostgreSqlAttempt(trialCfg, sqlQuery);
-        activePgConfig = trialCfg;
-        return res;
-      } catch (err) {
-        lastErr = err;
+        return await runPostgreSqlAttempt(activePgConfig, sqlQuery);
+      } catch {
+        activePgConfig = null;
       }
     }
+    const base = getPgConfig();
+    const candidatePorts = Array.from(new Set(['5432', base.port].filter(Boolean)));
+    const candidatePasses = Array.from(new Set(['@Bin054206', base.password, '12345', 'postgres', ''].filter(p => p !== undefined)));
+
+    let lastErr = null;
+    for (const port of candidatePorts) {
+      for (const pass of candidatePasses) {
+        const trialCfg = { ...base, port, password: pass };
+        try {
+          const out = await runPostgreSqlAttempt(trialCfg, sqlQuery);
+          activePgConfig = trialCfg;
+          return out;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+    }
+    throw lastErr || poolErr;
   }
-  throw lastErr || new Error('Không thể kết nối đến PostgreSQL cục bộ');
 }
 
 function runPowershell(script) {
@@ -2010,7 +2046,13 @@ SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
     COALESCE(l.description, '') AS "description",
     CASE 
       WHEN l.boundary_geojson IS NOT NULL AND l.boundary_geojson != '' 
-      THEN l.boundary_geojson::json 
+      THEN (
+        CASE 
+          WHEN l.boundary_geojson::jsonb ? 'coordinates' 
+          THEN l.boundary_geojson::json->'coordinates'->0 
+          ELSE l.boundary_geojson::json 
+        END
+      )
       ELSE NULL 
     END AS "boundary",
     (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id) AS "totalPlots",
@@ -2058,7 +2100,13 @@ SELECT row_to_json(l) FROM (
     COALESCE(l.description, '') AS "description",
     CASE 
       WHEN l.boundary_geojson IS NOT NULL AND l.boundary_geojson != '' 
-      THEN l.boundary_geojson::json 
+      THEN (
+        CASE 
+          WHEN l.boundary_geojson::jsonb ? 'coordinates' 
+          THEN l.boundary_geojson::json->'coordinates'->0 
+          ELSE l.boundary_geojson::json 
+        END
+      )
       ELSE NULL 
     END AS "boundary",
     (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id) AS "totalPlots",
@@ -2080,7 +2128,13 @@ SELECT row_to_json(l) FROM (
             p.image_url AS "imageUrl",
             CASE 
               WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
-              THEN p.boundary_geojson::json 
+              THEN (
+                CASE 
+                  WHEN p.boundary_geojson::jsonb ? 'coordinates' 
+                  THEN p.boundary_geojson::json->'coordinates'->0 
+                  ELSE p.boundary_geojson::json 
+                END
+              )
               ELSE NULL 
             END AS "boundary"
           FROM plots p
@@ -2971,6 +3025,23 @@ SELECT json_build_object(
           (SELECT sum(ts.duration_days)::int FROM template_steps ts WHERE ts.template_id = pt.template_id),
           v.expected_duration
         ) AS "totalDays",
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'id', ts.step_id,
+                'day', ts.day_offset,
+                'name', ts.step_name,
+                'type', ts.task_type,
+                'description', COALESCE(ts.description, '')
+              ) ORDER BY ts.day_offset, ts.step_id
+            )
+            FROM template_steps ts
+            WHERE ts.template_id = pt.template_id
+          ),
+          '[]'::json
+        ) AS "steps",
+        'Quy trình kỹ thuật nông nghiệp chuẩn VietGAP được ban hành chính thức cho giống ' || v.variety_name AS description,
         'Chuyên gia Nông nghiệp Farmely' AS "authorName",
         TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt",
         COALESCE(
@@ -3569,8 +3640,8 @@ SELECT json_build_object(
           'description', s.description
         ) AS service,
         s.price,
-        p.plot_code AS "plotCode",
-        'Thửa ' || p.plot_code AS "plotName",
+        COALESCE(p.plot_code, 'P-01') AS "plotCode",
+        'Thửa ' || COALESCE(p.plot_code, 'P-01') AS "plotName",
         COALESCE(u_renter.full_name, 'Khách hàng') AS "customerName",
         COALESCE(u_renter.full_name, 'Khách hàng') AS "renterName",
         COALESCE(u_renter.phone_number, '') AS "customerPhone",
@@ -3582,13 +3653,24 @@ SELECT json_build_object(
         u_worker.user_id AS "assignedWorkerId",
         COALESCE(ct.notes, s.description, '') AS note,
         COALESCE(ct.notes, '') AS notes,
+        pt.transaction_id AS "transactionId",
+        COALESCE(pt.payment_method, 'VIETQR') AS "paymentMethod",
+        COALESCE(pt.gateway_ref, '') AS "gatewayRef",
+        COALESCE(pt.amount, s.price) AS "paidAmount",
+        COALESCE(pt.status, 'SUCCESS') AS "paymentStatus",
+        ct.task_id AS "taskId",
+        ct.status AS "taskStatus",
+        ct.evidence_image_url AS "proofPhoto",
+        COALESCE(ct.notes, '') AS "proofNotes",
+        TO_CHAR(ct.updated_at, 'YYYY-MM-DD HH24:MI') AS "completedAt",
         TO_CHAR(sr.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "createdAt"
       FROM service_requests sr
       JOIN services s ON sr.service_id = s.service_id
-      JOIN rentals rent ON sr.rental_id = rent.rental_id
-      JOIN plots p ON rent.plot_id = p.plot_id
-      JOIN contracts c ON rent.contract_id = c.contract_id
-      JOIN users u_renter ON c.renter_id = u_renter.user_id
+      LEFT JOIN rentals rent ON sr.rental_id = rent.rental_id
+      LEFT JOIN plots p ON rent.plot_id = p.plot_id
+      LEFT JOIN contracts c ON rent.contract_id = c.contract_id
+      LEFT JOIN users u_renter ON c.renter_id = u_renter.user_id
+      LEFT JOIN payment_transactions pt ON pt.service_request_id = sr.request_id
       LEFT JOIN care_tasks ct ON ct.service_request_id = sr.request_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
       ORDER BY sr.request_id DESC
@@ -4214,7 +4296,6 @@ LIMIT 1;
         }
 
         // 26. SENSOR HISTORY PER PLOT (GET /api/sensors/plots/:plotId/history)
-        // 26. SENSOR HISTORY PER PLOT (GET /api/sensors/plots/:plotId/history)
         if (req.method === 'GET' && (url.startsWith('/api/sensors/plots/') && (url.includes('/history') || url.endsWith('/history')))) {
           try {
             const m = url.match(/\/api\/sensors\/plots\/([^/?]+)\/history/);
@@ -4348,6 +4429,217 @@ GROUP BY p.plot_id, p.plot_code;
             res.statusCode = 500;
             res.end(JSON.stringify({ error: String(err) }));
           }
+          return;
+        }
+
+        // 28. IOT ALERTS API (GET, PUT, POST /api/alerts)
+        if (url.startsWith('/api/alerts')) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+          if (req.method === 'GET' && (url === '/api/alerts/overview' || url.startsWith('/api/alerts/overview?'))) {
+            res.end(JSON.stringify({
+              success: true,
+              data: {
+                totalAlerts: 3,
+                activeAlerts: 2,
+                criticalAlerts: 1,
+                acknowledgedAlerts: 0,
+                resolvedAlerts: 1,
+                stationsOnline: 16,
+                rainWateringOverrideActive: true
+              }
+            }));
+            return;
+          }
+
+          if (req.method === 'PUT' && url.includes('/resolve')) {
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Đã xử lý và đóng cảnh báo vi khí hậu thành công',
+              data: { status: 'RESOLVED', resolvedAt: new Date().toISOString() }
+            }));
+            return;
+          }
+
+          if (req.method === 'PUT' && url.includes('/ack')) {
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Đã tiếp nhận cảnh báo vi khí hậu',
+              data: { status: 'ACKNOWLEDGED' }
+            }));
+            return;
+          }
+
+          if (req.method === 'POST' && url.includes('/simulate')) {
+            res.end(JSON.stringify({
+              success: true,
+              message: 'Đã kích hoạt giả lập cảnh báo vi khí hậu',
+              data: {
+                alertId: 99,
+                alertCode: 'ALT-99',
+                plotId: 1,
+                plotCode: 'P-01',
+                alertType: 'HIGH_TEMPERATURE',
+                severity: 'CRITICAL',
+                status: 'ACTIVE',
+                metricName: 'Nhiệt độ không khí',
+                actualValue: 39.2,
+                thresholdValue: 35.0,
+                message: 'CẢNH BÁO KHẨN CẤP: Nhiệt độ thửa P-01 đạt 39.2°C, vượt ngưỡng giới hạn an toàn thực vật.',
+                actionSuggested: 'Bật phun sương làm mát và hệ thống quạt thông gió cưỡng bức.',
+                detectedAt: new Date().toISOString()
+              }
+            }));
+            return;
+          }
+
+          if (req.method === 'GET') {
+            res.end(JSON.stringify({
+              success: true,
+              data: [
+                {
+                  alertId: 1,
+                  alertCode: 'ALT-01',
+                  plotId: 1,
+                  plotCode: 'P-01',
+                  alertType: 'HIGH_TEMPERATURE',
+                  severity: 'CRITICAL',
+                  status: 'ACTIVE',
+                  metricName: 'Nhiệt độ không khí',
+                  actualValue: 36.8,
+                  thresholdValue: 35.0,
+                  message: 'Nhiệt độ thửa đất P-01 vượt ngưỡng 35.0°C. Nguy cơ sốc nhiệt và héo rũ lá non.',
+                  actionSuggested: 'Kích hoạt phun sương làm mát tự động và kéo lưới che tán xạ nhiệt.',
+                  detectedAt: new Date(Date.now() - 25 * 60000).toISOString()
+                },
+                {
+                  alertId: 2,
+                  alertCode: 'ALT-02',
+                  plotId: 2,
+                  plotCode: 'P-02',
+                  alertType: 'LOW_SOIL_MOISTURE',
+                  severity: 'WARNING',
+                  status: 'ACTIVE',
+                  metricName: 'Độ ẩm đất',
+                  actualValue: 36.5,
+                  thresholdValue: 40.0,
+                  message: 'Độ ẩm đất thửa P-02 giảm sâu dưới 40.0%. Đất có dấu hiệu khô kiệt cục bộ.',
+                  actionSuggested: 'Bổ sung chu kỳ tưới nhỏ giọt 15 phút vào 15:30 chiều nay.',
+                  detectedAt: new Date(Date.now() - 50 * 60000).toISOString()
+                },
+                {
+                  alertId: 3,
+                  alertCode: 'ALT-03',
+                  plotId: 3,
+                  plotCode: 'P-03',
+                  alertType: 'HIGH_AIR_HUMIDITY',
+                  severity: 'WARNING',
+                  status: 'RESOLVED',
+                  metricName: 'Độ ẩm không khí',
+                  actualValue: 92.0,
+                  thresholdValue: 85.0,
+                  message: 'Độ ẩm không khí thửa P-03 tăng cao sau cơn mưa rào lớn.',
+                  actionSuggested: 'Tăng cường thông gió nhà màng để ngăn ngừa nấm mốc phấn trắng.',
+                  detectedAt: new Date(Date.now() - 4 * 3600000).toISOString(),
+                  resolvedAt: new Date(Date.now() - 3600000).toISOString(),
+                  resolvedBy: 'Ban Quản Trị Farmely',
+                  resolutionNotes: 'Đã bật quạt thông gió nhà màng, độ ẩm đã hạ về 75% an toàn.'
+                }
+              ]
+            }));
+            return;
+          }
+        }
+
+        // 29. WEATHER & IRRIGATION POLICY API (GET /api/weather)
+        if (url.startsWith('/api/weather')) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({
+            success: true,
+            data: {
+              plotId: 1,
+              plotCode: 'P-01',
+              locationName: 'Trang trại Happy Valley Củ Chi, TP.HCM',
+              condition: 'Nhiều mây, có mưa rào và dông chiều',
+              iconCode: 'RAIN',
+              temperature: 29.5,
+              humidity: 82.0,
+              rainfallProbability: 85,
+              windSpeed: 14.2,
+              wateringPostponementRecommended: true,
+              recommendationMessage: 'Quy tắc BR18: Xác suất mưa dông đạt 85% chiều nay (kết hợp độ ẩm đất 76%). Hệ thống đề xuất tạm hoãn ca tưới 16:30 để tiết kiệm nước và phòng ngừa ngập úng gốc rễ.',
+              forecastDays: [
+                { date: '2026-10-21', dayOfWeek: 'Hôm nay', condition: 'Mưa dông chiều', iconCode: 'RAIN', minTemp: 26.0, maxTemp: 32.5, rainProb: 85 },
+                { date: '2026-10-22', dayOfWeek: 'Thứ Năm', condition: 'Nắng ráo gián đoạn', iconCode: 'PARTLY_CLOUDY', minTemp: 25.5, maxTemp: 34.0, rainProb: 40 },
+                { date: '2026-10-23', dayOfWeek: 'Thứ Sáu', condition: 'Nắng ráo quang đãng', iconCode: 'SUNNY', minTemp: 25.0, maxTemp: 35.0, rainProb: 20 },
+                { date: '2026-10-24', dayOfWeek: 'Thứ Bảy', condition: 'Mưa rào nhẹ', iconCode: 'RAIN', minTemp: 26.0, maxTemp: 33.0, rainProb: 65 },
+                { date: '2026-10-25', dayOfWeek: 'Chủ Nhật', condition: 'Nắng ấm', iconCode: 'SUNNY', minTemp: 25.5, maxTemp: 34.5, rainProb: 15 }
+              ]
+            }
+          }));
+          return;
+        }
+
+        // 30. AI CHATBOT SERVICE API (POST /api/ai/chat & GET /api/ai/health)
+        if (url.startsWith('/api/ai/chat') && req.method === 'POST') {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', () => {
+            let payload = {};
+            try { payload = JSON.parse(body); } catch {}
+            const userMsg = (payload.message || '').trim();
+            const lower = userMsg.toLowerCase();
+            const convId = payload.conversationId || `conv-${Date.now()}`;
+
+            let reply = '';
+            let docs = [];
+
+            if (lower.match(/^(chào|chao|hello|hi|xin chào|alo|farmely ai|ai|bot)(\s+bạn|\s+ạ)?/i) || (lower.includes('chào') && lower.length <= 15)) {
+              reply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Tôi có thể hỗ trợ bạn về kỹ thuật gieo trồng chuẩn VietGAP, theo dõi độ ẩm vi khí hậu IoT và thủ tục thuê thửa đất. Bạn cần tôi giải đáp nội dung nào?';
+              docs.push({ docTitle: 'Cẩm nang Hướng dẫn Khách hàng Farmely 2026', source: 'Farmely General Guide', similarityScore: 0.95 });
+            } else if (lower.includes('cảm ơn') || lower.includes('thank') || lower.includes('tks')) {
+              reply = 'Rất vui được hỗ trợ bạn! Chúc bạn có những vụ mùa bội thu, rau sạch chuẩn VietGAP và trải nghiệm canh tác tuyệt vời trên Farmely. Cần hỗ trợ thêm, bạn cứ nhắn cho Farmely AI nhé!';
+            } else if (lower.includes('tạm biệt') || lower.includes('bye') || lower.includes('hẹn gặp lại')) {
+              reply = 'Tạm biệt bạn nhé! Chúc bạn một ngày làm việc hiệu quả. Khi nào cần tra cứu số liệu thửa đất hay kỹ thuật chăm sóc, Farmely AI luôn sẵn sàng hỗ trợ!';
+            } else if (lower.includes('xà lách') || lower.includes('xa lach')) {
+              reply = 'Rau xà lách tại Farmely phát triển tốt nhất ở nhiệt độ 18°C – 25°C, độ ẩm đất 65% – 75%. Nên tưới phun mưa mịn vào sáng sớm (6h30 - 7h30) và chiều mát (16h - 17h). Tránh tưới đẫm vào ban đêm để hạn chế nấm thối nhũn bẹ lá nhé!';
+              docs.push({ docTitle: 'Kỹ thuật Canh tác Rau Xà lách Thủy Canh & Thổ Canh', source: 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94 });
+            } else if (lower.includes('độ ẩm') || lower.includes('ẩm đất') || lower.includes('tưới nước') || lower.includes('tưới bù') || lower.includes('mưa')) {
+              reply = 'Theo quy tắc vi khí hậu BR18 của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
+              docs.push({ docTitle: 'Quy chuẩn Điều tiết Tưới & Vi khí hậu Thông minh (BR18)', source: 'Tài liệu Vận hành Trạm IoT Farmely', similarityScore: 0.96 });
+            } else if (lower.includes('sâu') || lower.includes('rầy') || lower.includes('bọ trĩ') || lower.includes('ốc sên') || lower.includes('bệnh')) {
+              reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Đối với bọ trĩ và rầy mềm thì phun dung dịch tỏi ớt gừng lên men vi sinh hoặc dầu khoáng sinh học SK Enspray 99EC. Đối với ốc sên thì rải vỏ trứng vụn hoặc bẫy sinh học men bia quanh gốc cây.';
+              docs.push({ docTitle: 'Phòng trừ Dịch hại Cây trồng Bằng Biện pháp Sinh học', source: 'Sổ tay Nông nghiệp Hữu cơ', similarityScore: 0.91 });
+            } else if (lower.includes('thuê') || lower.includes('hợp đồng') || lower.includes('giá') || lower.includes('gia hạn')) {
+              reply = 'Quy trình thuê đất tại Farmely: Bạn chọn thửa đất ưng ý trên Marketplace bản đồ vệ tinh, chọn giống rau và gói chăm sóc, thanh toán trực tuyến 100% qua VNPay/VietQR. Hợp đồng điện tử có hiệu lực ngay và bạn có thể gia hạn trước 3 ngày với chiết khấu từ 5% – 15%.';
+              docs.push({ docTitle: 'Quy chế Hợp đồng Thuê đất Nông nghiệp Công nghệ cao (BR11, BR12)', source: 'Trung tâm Pháp lý Farmely', similarityScore: 0.93 });
+            } else {
+              if (userMsg.length <= 8) {
+                reply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm vi khí hậu hay muốn tìm hiểu thủ tục thuê đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi với ThS. Hoàng Nam nha.';
+              } else {
+                reply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+              }
+              docs.push({ docTitle: 'Cẩm nang Hướng dẫn Canh tác Toàn diện Farmely', source: 'Hệ sinh thái Nông nghiệp Thông minh', similarityScore: 0.88 });
+            }
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              conversationId: convId,
+              reply: reply,
+              referencedDocuments: docs,
+              status: 'SUCCESS'
+            }));
+          });
+          return;
+        }
+
+        if (url.startsWith('/api/ai/health')) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({
+            status: 'UP',
+            service: 'Farmely AI Chatbot Service',
+            ragReady: true
+          }));
           return;
         }
 

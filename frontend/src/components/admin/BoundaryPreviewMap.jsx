@@ -8,8 +8,11 @@ import { cleanRing, interiorPoint, ringBounds } from '../../utils/polygonGeometr
  * Bấm vào thửa -> onSelect(plotId).
  */
 const STATUS_COLOR = { AVAIL: '#22c55e', RENT: '#f59e0b', MAINT: '#94a3b8' };
-const empty = { type: 'FeatureCollection', features: [] };
-const poly = (ring, props) => ({ type: 'Feature', properties: props, geometry: { type: 'Polygon', coordinates: [[...ring, ring[0]]] } });
+const poly = (ring, props) => {
+  const r = cleanRing(ring);
+  if (!r || r.length < 3) return { type: 'Feature', properties: props, geometry: { type: 'Polygon', coordinates: [] } };
+  return { type: 'Feature', properties: props, geometry: { type: 'Polygon', coordinates: [[...r, r[0]]] } };
+};
 
 export default function BoundaryPreviewMap({
   land, plots = [], highlightId = null, onSelect, height = 380,
@@ -56,8 +59,10 @@ export default function BoundaryPreviewMap({
     return () => { labelsRef.current.forEach((m) => m.remove()); map.remove(); };
   }, []);
 
-  const landRing = cleanRing(land?.boundary || []);
-  const plotRings = plots.map((p) => ({ ...p, ring: cleanRing(p.boundary || []) })).filter((p) => p.ring.length >= 3);
+  const landRing = cleanRing(land?.boundary);
+  const plotRings = (Array.isArray(plots) ? plots : [])
+    .map((p) => ({ ...p, ring: cleanRing(p?.boundary) }))
+    .filter((p) => p.ring && p.ring.length >= 3);
   const key = JSON.stringify([landRing, plotRings.map((p) => [p.plotId, p.status, p.ring]), highlightId]);
 
   useEffect(() => {

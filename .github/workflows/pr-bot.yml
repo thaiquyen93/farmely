@@ -1,0 +1,125 @@
+name: Farmely PR Verification and Auto-Merge Bot
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+    branches: [dev, main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  verify:
+    name: 🔍 Verify PR Compliance & Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: farmely
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🏷️ Check Branch Naming Convention
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "Kiểm tra tên nhánh: $BRANCH_NAME"
+          PATTERN="^(feature|feat|fix|hotfix|docs|chore|refactor|test|perf|ci|build)/((T[0-9]+\.[0-9]+|Tx|[a-zA-Z0-9]+)-)?[a-zA-Z0-9._/-]+$"
+          if [[ ! "$BRANCH_NAME" =~ $PATTERN ]]; then
+            echo "::warning::⚠️ Tên nhánh '$BRANCH_NAME' chưa đúng định dạng khuyến nghị (<loại>/[<mã-task>-]<mô-tả>)."
+          else
+            echo "✅ Tên nhánh hợp lệ!"
+          fi
+
+      - name: 📝 Check PR Title Convention
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          echo "Kiểm tra tiêu đề PR: $PR_TITLE"
+          shopt -s nocasematch
+          PATTERN="^(\[[^]]+\][[:space:]]*)?(feat|feature|fix|hotfix|docs|refactor|test|style|chore|build|ci|perf)(\([^)]+\))?:[[:space:]]*.+$"
+          if [[ ! "$PR_TITLE" =~ $PATTERN ]]; then
+            echo "::warning::⚠️ Tiêu đề PR '$PR_TITLE' chưa đúng chuẩn Conventional Commits (<loại>(<phạm-vi>): <mô-tả>)."
+          else
+            echo "✅ Tiêu đề PR hợp lệ!"
+          fi
+          shopt -u nocasematch
+
+      - name: ☕ Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: 🧪 Run Backend Compile & Tests (Spring Boot 3.3.4)
+        working-directory: backend
+        run: mvn clean test --batch-mode
+
+      - name: ⚡ Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 🎨 Run Frontend Build Check (React Vite)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: 🐍 Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 🧠 Check AI Service Syntax
+        working-directory: backend/ai-service
+        run: python -m compileall .
+
+  auto-approve-and-merge:
+    name: 🚀 Auto-Approve and Squash-Merge
+    needs: [verify]
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: ✅ Auto Approve PR
+        run: |
+          echo "Tiến hành tự động approve PR #${{ github.event.pull_request.number }}..."
+          gh pr review "${{ github.event.pull_request.html_url }}" --approve --body "🤖 **Farmely Bot**: Đã kiểm tra tự động thành công (Tên nhánh, Tiêu đề PR, Backend Java 21 test, Frontend Vite build, AI Service). Tiến hành tự động duyệt và merge!"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔀 Auto Squash and Merge & Xóa nhánh vừa làm
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
+
+          CLEAN_TITLE="$(echo "$PR_TITLE" | sed -E 's/^\[[^]]+\][[:space:]]*//') (#${{ github.event.pull_request.number }})"
+          echo "Tiêu đề commit squash: $CLEAN_TITLE"
+
+          echo "Đang thực hiện Squash and Merge và tự động xóa nhánh tính năng cho PR: $PR_URL"
+          gh pr merge "$PR_URL" --squash --subject "$CLEAN_TITLE" --delete-branch || \
+          gh pr merge "$PR_URL" --squash --subject "$CLEAN_TITLE" --auto --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

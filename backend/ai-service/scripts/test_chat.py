@@ -35,8 +35,8 @@ def run_tests():
                 "message": "Khi nào dưa leo baby tại luống của tôi có thể thu hoạch được?"
             },
             {
-                "name": "Hỏi ngoài phạm vi (Kiểm tra từ chối chuẩn Bác Ba)",
-                "message": "Bác Ba viết giúp cháu đoạn code Python giải phương trình bậc 2 với!"
+                "name": "Hỏi ngoài phạm vi (Kiểm tra từ chối chuyên môn nông nghiệp)",
+                "message": "Viết giúp tôi đoạn code Python giải phương trình bậc 2 với!"
             }
         ]
 
@@ -57,7 +57,7 @@ def run_tests():
             data = chat_res.json()
             conv_id = data["conversationId"]
             print(f" -> Mã phiên chat (conversationId): {conv_id}")
-            print(f" -> Phản hồi từ Bác Ba:\n    \"{data['reply']}\"")
+            print(f" -> Phản hồi từ Farmely AI:\n    \"{data['reply']}\"")
             
             referenced_docs = data.get("referencedDocuments", [])
             print(f" -> Nguồn tài liệu RAG trích xuất ({len(referenced_docs)} tài liệu):")
@@ -71,7 +71,7 @@ def run_tests():
         messages = hist_res.json()["messages"]
         print(f" -> Tổng số tin nhắn đã lưu trong DB: {len(messages)} tin nhắn")
         for m in messages:
-            sender_tag = "👤 Khách" if m["sender"] == "user" else "👴 Bác Ba"
+            sender_tag = "👤 Khách" if m["sender"] == "user" else "🤖 Farmely AI"
             print(f"    {sender_tag}: {m['content'][:70]}...")
 
     print("\n" + "=" * 65)

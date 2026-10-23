@@ -1,6 +1,6 @@
 # 🌾 Farmely AI Chatbot Service (`ai-service`)
 
-Microservice tư vấn nông nghiệp thông minh **"Bác Ba Nông Dân"** xây dựng trên nền tảng **RAG (Retrieval-Augmented Generation) Từ Đầu (From-Scratch)**, không sử dụng framework trung gian (LangChain / LlamaIndex), tích hợp chuẩn vào hệ thống Farmely.
+Microservice tư vấn nông nghiệp thông minh **Farmely AI Chatbot** xây dựng trên nền tảng **RAG (Retrieval-Augmented Generation) Từ Đầu (From-Scratch)**, không sử dụng framework trung gian (LangChain / LlamaIndex), tích hợp chuẩn vào hệ sinh thái Farmely.
 
 ---
 
@@ -12,11 +12,10 @@ Microservice tư vấn nông nghiệp thông minh **"Bác Ba Nông Dân"** xây 
 2. **Kiến Trúc 2 Pha Chuẩn ML:**
    - **Offline Ingestion:** Đọc tài liệu Markdown (`data/raw/`), cắt nhỏ theo tiêu đề (`chunker.py`), sinh vector nhúng và lưu thành `data/processed/vectors.npy` + `chunks.json`.
    - **Online Query:** Nhận câu hỏi, tìm kiếm tương đồng trên RAM trong < 1 mili-giây, ghép prompt và gọi Gemini 1.5 Flash.
-3. **Nhân cách "Bác Ba Nông Dân":**
-   - Phong cách mộc mạc, đậm chất nhà nông Nam Bộ, xưng "Bác - cháu".
-   - Tuân thủ nghiêm ngặt tiêu chuẩn VietGAP (tuyệt đối không dùng phân thuốc hóa học độc hại).
-   - Từ chối hài hước các câu hỏi ngoài phạm vi (code, giải toán, chính trị...).
-   - Đính kèm tuyên bố miễn trừ trách nhiệm (Disclaimer).
+3. **Trợ lý Farmely AI chuyên nghiệp & thân thiện:**
+   - Hỗ trợ giải đáp kỹ thuật chuẩn VietGAP (tuyệt đối không dùng phân thuốc hóa học độc hại).
+   - Tư vấn theo dõi vi khí hậu cảm biến IoT (độ ẩm đất, nhiệt độ, chu kỳ tưới bù BR18).
+   - Hướng dẫn quy trình thuê thửa đất, hợp đồng điện tử và chính sách hoàn hủy BR10.
 4. **Quản lý Phiên & Lưu trữ PostgreSQL:**
    - Đọc/ghi các bảng `conversations` và `messages` từ schema PostgreSQL của Farmely.
    - Hỗ trợ fallback tự động sang SQLite nội bộ (`data/chat.db`) nếu môi trường phát triển chưa bật Docker PostgreSQL.
@@ -81,7 +80,7 @@ Tài liệu tương tác Swagger UI: **`http://localhost:8089/docs`**
 
 | Phương thức | Đường dẫn | Mô tả |
 |---|---|---|
-| `POST` | `/api/ai/chat` | Gửi tin nhắn trò chuyện với Bác Ba Nông Dân qua RAG |
+| `POST` | `/api/ai/chat` | Gửi tin nhắn hỏi đáp với Farmely AI Chatbot qua RAG |
 | `GET` | `/api/ai/conversations/{id}/messages` | Lấy lịch sử tin nhắn của phiên chat |
 | `GET` | `/api/ai/health` | Kiểm tra trạng thái service và số lượng vector trên RAM |
 | `GET` | `/docs` | Giao diện Swagger UI thử nghiệm trực tiếp |

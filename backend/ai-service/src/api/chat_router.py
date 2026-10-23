@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/ai", tags=["AI Chatbot"])
 @router.post("/chat", response_model=ChatResponse)
 def handle_chat(payload: ChatRequest, db: Session = Depends(get_db)):
     """
-    Endpoint nhận tin nhắn người dùng và trả về phản hồi từ Bác Ba Nông Dân qua RAG:
+    Endpoint nhận tin nhắn người dùng và trả về phản hồi từ Farmely AI Chatbot qua RAG:
     1. Quản lý Conversation & lấy lịch sử hội thoại gần nhất.
     2. Lưu tin nhắn của người dùng vào database.
     3. Tìm kiếm ngữ cảnh nông nghiệp liên quan qua RAG (From-Scratch Cosine Similarity).

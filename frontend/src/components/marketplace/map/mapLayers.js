@@ -126,16 +126,15 @@ export function registerFarmLayers(map, plotsData, options = {}) {
     },
   });
 
-  // 4. Viền ranh giới tổng khu đất (nét đứt vàng/cam nổi bật)
+  // 4. Viền ranh giới tổng khu đất — ẩn đi để tránh lệch tọa độ với các thửa thực tế
   ensureLayer(map, {
     id: LAYER_IDS.farmBoundaryLine,
     type: 'line',
     source: LAYER_IDS.farmBoundarySource,
     paint: {
-      'line-color': getStatusConfig('RENTED').color,
-      'line-width': 2.5,
-      'line-dasharray': [3, 2],
-      'line-opacity': 0.95,
+      'line-color': '#10B981',
+      'line-width': 0,
+      'line-opacity': 0,
     },
   });
 

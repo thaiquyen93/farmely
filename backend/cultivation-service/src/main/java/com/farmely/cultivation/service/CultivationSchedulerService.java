@@ -21,9 +21,11 @@ public class CultivationSchedulerService {
     @Scheduled(cron = "0 0 * * * *")
     public void monitorOverdueTasks() {
         LocalDate today = LocalDate.now();
-        long overdueCount = careTaskRepository.countOverdueTasks(today);
-        if (overdueCount > 0) {
-            log.info("[Scheduler] Hiện tại có {} tác vụ chăm sóc quá hạn (Overdue) theo quy tắc BR15", overdueCount);
+        List<CareTaskEntity> overdueTasks = careTaskRepository.findByStatusNotAndDueDateBefore(TaskStatus.DONE, today);
+        if (!overdueTasks.isEmpty()) {
+            log.warn("[BR15 Overdue Alert] Phát hiện {} tác vụ chăm sóc hiện trường quá hạn (chưa hoàn thành trước {}): {}",
+                    overdueTasks.size(), today,
+                    overdueTasks.stream().map(t -> "#" + t.getTaskId() + " (Rental " + t.getRentalId() + ", Due " + t.getDueDate() + ")").toList());
         }
     }
 }

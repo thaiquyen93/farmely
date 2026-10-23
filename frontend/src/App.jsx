@@ -11,6 +11,7 @@ import Marketplace from './pages/public/Marketplace';
 import PlotDetail from './pages/public/PlotDetail';
 import BookPlot from './pages/public/BookPlot';
 import ForgotPassword from './pages/public/ForgotPassword';
+import ResetPassword from './pages/public/ResetPassword';
 import About from './pages/public/About';
 import Terms from './pages/public/Terms';
 import RentalTerms from './pages/public/RentalTerms';
@@ -58,13 +59,13 @@ function RoleRoute({ role, children }) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  const userRole = String(user.role || '').toUpperCase();
-  const normalizedUserRole = (userRole === 'FIELD_WORKER' || userRole === 'WORKER') ? 'STAFF' : userRole;
-  const targetRole = String(role || '').toUpperCase();
-  const normalizedTargetRole = (targetRole === 'FIELD_WORKER' || targetRole === 'WORKER') ? 'STAFF' : targetRole;
+  const rawUserRole = String(user.role || '').toUpperCase();
+  const rawTargetRole = String(role || '').toUpperCase();
+  const normalizedUserRole = (rawUserRole === 'FIELD_WORKER' || rawUserRole === 'WORKER') ? 'STAFF' : rawUserRole;
+  const normalizedTargetRole = (rawTargetRole === 'FIELD_WORKER' || rawTargetRole === 'WORKER') ? 'STAFF' : rawTargetRole;
 
   if (normalizedUserRole !== normalizedTargetRole) {
-    return <Navigate to={dashboardByRole[normalizedUserRole] || '/'} replace />;
+    return <Navigate to={dashboardByRole[normalizedUserRole] || dashboardByRole[user.role] || '/'} replace />;
   }
 
   return children;
@@ -92,6 +93,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/terms/rental" element={<RentalTerms />} />
         <Route path="/site-visit/book" element={<CustomerCommerceRoute><SiteVisitBooking /></CustomerCommerceRoute>} />
         <Route path="/site-visit" element={<Navigate to="/site-visit/book" replace />} />

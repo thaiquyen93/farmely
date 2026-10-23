@@ -154,7 +154,7 @@ export default function PlotDetail() {
             className="inline-flex items-center gap-1.5 text-xs text-brand-yellow font-bold hover:underline mb-3"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Quay lại danh sách thửa đất</span>
+            <span>Quay lại Bản đồ Marketplace</span>
           </Link>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -173,6 +173,13 @@ export default function PlotDetail() {
             </div>
 
             <div className="flex items-center gap-3">
+              <Link
+                to={`/marketplace?plot=${plot.code || plot.id}${!isAuthenticated ? '&authRequired=true' : ''}`}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-sm transition-all flex items-center gap-1.5"
+              >
+                <span>Xem trên Bản đồ GIS</span>
+                <span aria-hidden="true">→</span>
+              </Link>
               <Badge variant={plot.status} size="lg">
                 {plot.status === 'AVAILABLE'
                   ? 'Đang mở cho thuê'

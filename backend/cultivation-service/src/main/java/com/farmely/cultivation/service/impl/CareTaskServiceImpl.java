@@ -162,13 +162,16 @@ public class CareTaskServiceImpl implements CareTaskService {
 
         CareTaskEntity saved = careTaskRepository.save(task);
 
-        // BR17: Automatic synchronization to Farm Diary
-        if (Boolean.TRUE.equals(request.getSyncToDiary())) {
+        // BR17: Automatic synchronization to Farm Diary (Default true unless explicitly false)
+        if (!Boolean.FALSE.equals(request.getSyncToDiary())) {
             boolean diaryExists = farmDiaryRepository.existsByTaskId(saved.getTaskId());
             if (!diaryExists) {
+                String taskTitle = (saved.getTitle() != null && !saved.getTitle().trim().isEmpty())
+                        ? saved.getTitle()
+                        : "Nhiệm vụ chăm sóc hiện trường";
                 String diaryContent = (saved.getNotes() != null && !saved.getNotes().trim().isEmpty())
-                        ? saved.getNotes()
-                        : "Hoàn tất nhiệm vụ chăm sóc hiện trường tại thửa đất.";
+                        ? "[" + taskTitle + "] " + saved.getNotes()
+                        : "Đã hoàn thành công tác: " + taskTitle + ". Minh chứng ảnh hiện trường đã được xác thực.";
 
                 FarmDiaryEntity diary = FarmDiaryEntity.builder()
                         .rentalId(saved.getRentalId())
@@ -177,7 +180,7 @@ public class CareTaskServiceImpl implements CareTaskService {
                         .imageUrl(saved.getEvidenceImageUrl())
                         .build();
                 farmDiaryRepository.save(diary);
-                log.info("Auto synced care task #{} to farm diary for rental #{}", saved.getTaskId(), saved.getRentalId());
+                log.info("Auto synced care task #{} ({}) to farm diary for rental #{}", saved.getTaskId(), taskTitle, saved.getRentalId());
             }
         }
 

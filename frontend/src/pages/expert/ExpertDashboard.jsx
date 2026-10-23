@@ -45,12 +45,109 @@ import {
   ArrowLeft,
   Smile,
   Leaf,
-  ExternalLink
+  ExternalLink,
+  Trash2,
+  Plus,
+  MapPin,
+  Phone
 } from 'lucide-react';
+
+// SSoT danh mục giống canh tác chuẩn theo từng thửa đất tại Happy Valley
+const DEFAULT_PLOT_CROPS = {
+  'P-01': 'Cà chua bi đỏ F1',
+  'P-02': 'Xà lách Romaine VietGAP',
+  'P-03': 'Dưa leo baby F1',
+  'P-04': 'Cà chua bi đỏ F1',
+  'P-05': 'Cải ngọt bông F1',
+  'P-06': 'Xà lách xoăn Lollo Bionda',
+  'P-07': 'Dưa leo baby F1',
+  'P-08': 'Cải ngọt bông F1',
+  'P-09': 'Xà lách Romaine VietGAP',
+  'P-10': 'Cà chua bi đỏ F1',
+  'P-11': 'Dưa leo baby F1',
+  'P-12': 'Cà chua bi đỏ F1',
+  'P-13': 'Cải ngọt bông F1',
+  'P-14': 'Cà chua bi đỏ F1',
+  'P-15': 'Cải ngọt bông F1',
+  'P-16': 'Xà lách Romaine VietGAP'
+};
+
+const DEFAULT_HARVEST_REQUESTS = [
+  {
+    id: 'HARV-REQ-001',
+    plotCode: 'P-01',
+    plotName: 'Thửa P-01',
+    crop: 'Cà chua bi đỏ F1',
+    renterName: 'Lô Thái Quyền',
+    renterEmail: 'customer@farmely.vn',
+    phone: '0901234567',
+    address: '123 Nguyễn Huệ, P. Bến Nghé, Quận 1, TP.HCM',
+    requestedDate: '2026-10-23',
+    method: 'DELIVERY',
+    methodLabel: 'Farmely thu hoạch & giao tận nhà (trong 24h)',
+    expectedYield: '12.0 kg',
+    phiDays: 6,
+    phiStandardDays: 5,
+    status: 'PENDING',
+    notes: 'Nhờ kỹ sư kiểm tra độ chín đồng đều của các chùm quả trước khi cho cắt.',
+    createdAt: '2026-10-22T08:30:00Z',
+    workerName: 'Trần Văn Lực (CVLĐ)'
+  },
+  {
+    id: 'HARV-REQ-002',
+    plotCode: 'P-02',
+    plotName: 'Thửa P-02',
+    crop: 'Xà lách Romaine VietGAP',
+    renterName: 'Đào Duy Anh',
+    renterEmail: 'duyanh@farmely.vn',
+    phone: '0912345678',
+    address: '',
+    requestedDate: '2026-10-25',
+    method: 'FARM_PICKUP',
+    methodLabel: 'Khách đến nông trại tự thu hoạch & trải nghiệm',
+    expectedYield: '8.5 kg',
+    phiDays: 5,
+    phiStandardDays: 5,
+    status: 'APPROVED',
+    notes: 'Khách đăng ký xuống nông trại Happy Valley vào sáng thứ Bảy.',
+    createdAt: '2026-10-21T14:15:00Z',
+    workerName: 'Trần Văn Lực (CVLĐ)',
+    approvedAt: '2026-10-22T09:00:00Z'
+  },
+  {
+    id: 'HARV-REQ-003',
+    plotCode: 'P-03',
+    plotName: 'Thửa P-03',
+    crop: 'Dưa leo baby F1',
+    renterName: 'Tạ Nguyễn Khôi Nguyên',
+    renterEmail: 'tanguyen@farmely.vn',
+    phone: '0934567890',
+    address: '456 Lê Duẩn, Quận 1, TP.HCM',
+    requestedDate: '2026-10-10',
+    method: 'DELIVERY',
+    methodLabel: 'Farmely thu hoạch & giao tận nhà',
+    expectedYield: '30.0 kg',
+    actualYield: '32.5 kg',
+    phiDays: 7,
+    phiStandardDays: 5,
+    status: 'COMPLETED',
+    notes: 'Đã hoàn tất nghiệm thu và giao hàng tươi trong ngày.',
+    createdAt: '2026-10-09T10:00:00Z',
+    workerName: 'TS. Lê Hoàng Đức',
+    approvedAt: '2026-10-09T11:00:00Z',
+    completedAt: '2026-10-10T07:44:00Z'
+  }
+];
 
 export default function ExpertDashboard() {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'issues' | 'templates' | 'compatibility' | 'knowledge'
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('tab');
+      if (['chat', 'plots', 'harvest', 'issues', 'templates', 'compatibility', 'knowledge'].includes(p)) return p;
+    }
+    return 'chat';
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const isExpertUser = user?.role === 'EXPERT';
@@ -222,16 +319,120 @@ export default function ExpertDashboard() {
 
   const [assignedPlots, setAssignedPlots] = useState([]);
 
+  // Quản lý Yêu cầu Thu hoạch & Thẩm định VietGAP (PHI Check)
+  const [harvestRequests, setHarvestRequests] = useState(() => {
+    try {
+      const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || 'null');
+      if (Array.isArray(shared) && shared.length > 0) return shared;
+    } catch {}
+    return DEFAULT_HARVEST_REQUESTS;
+  });
+  const [harvestFilter, setHarvestFilter] = useState('ALL');
+  const [harvestSuccessToast, setHarvestSuccessToast] = useState('');
+  const [postponeModalReq, setPostponeModalReq] = useState(null);
+  const [postponeReason, setPostponeReason] = useState('Cần ngưng bón dinh dưỡng thêm 2 ngày để đảm bảo độ ngọt và chỉ số an toàn PHI.');
+
   const loadAssignedPlots = () => {
-    fetch('/api/rentals')
-      .then((res) => res.json())
+    apiFetch('/api/rentals')
       .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setAssignedPlots(res.data);
+        const list = unwrapData(res) || [];
+        if (Array.isArray(list) && list.length > 0) {
+          setAssignedPlots(list.map((p) => ({
+            ...p,
+            crop: p.varietyName || p.crop || DEFAULT_PLOT_CROPS[p.plotCode] || 'Rau củ chuẩn VietGAP'
+          })));
         }
       })
       .catch((err) => console.warn('Could not fetch live rentals:', err));
   };
+
+  useEffect(() => {
+    const handleHarvestSync = () => {
+      try {
+        const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || 'null');
+        if (Array.isArray(shared) && shared.length > 0) {
+          setHarvestRequests(shared);
+        }
+      } catch {}
+    };
+
+    let harvestBc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        harvestBc = new BroadcastChannel('farmely_harvest_sync');
+        harvestBc.onmessage = handleHarvestSync;
+      }
+    } catch {}
+
+    window.addEventListener('storage', handleHarvestSync);
+    return () => {
+      if (harvestBc) try { harvestBc.close(); } catch {}
+      window.removeEventListener('storage', handleHarvestSync);
+    };
+  }, []);
+
+  const pendingHarvestCount = harvestRequests.filter(r => r.status === 'PENDING' || r.status === 'PENDING_CONFIRM').length;
+
+  const handleApproveHarvest = (reqId) => {
+    setHarvestRequests((prev) => {
+      const next = prev.map((item) => {
+        if (item.id === reqId) {
+          return {
+            ...item,
+            status: 'APPROVED',
+            approvedAt: new Date().toISOString(),
+            approvedBy: expertSenderName,
+            workerName: item.workerName || 'Trần Văn Lực (CVLĐ)'
+          };
+        }
+        return item;
+      });
+      try {
+        localStorage.setItem('farmely_shared_harvest_plans', JSON.stringify(next));
+        const bc = new BroadcastChannel('farmely_harvest_sync');
+        bc.postMessage({ type: 'HARVEST_PLAN_UPDATED' });
+        bc.close();
+      } catch {}
+      return next;
+    });
+    setHarvestSuccessToast('Đã phê duyệt lệnh thu hoạch đạt chuẩn VietGAP! Lệnh điều phối đã chuyển sang ca trực của CVLĐ.');
+    setTimeout(() => setHarvestSuccessToast(''), 4500);
+  };
+
+  const handleConfirmPostpone = () => {
+    if (!postponeModalReq) return;
+    setHarvestRequests((prev) => {
+      const next = prev.map((item) => {
+        if (item.id === postponeModalReq.id) {
+          return {
+            ...item,
+            status: 'POSTPONED',
+            postponeReason: postponeReason.trim(),
+            postponedAt: new Date().toISOString(),
+            postponedBy: expertSenderName
+          };
+        }
+        return item;
+      });
+      try {
+        localStorage.setItem('farmely_shared_harvest_plans', JSON.stringify(next));
+        const bc = new BroadcastChannel('farmely_harvest_sync');
+        bc.postMessage({ type: 'HARVEST_PLAN_UPDATED' });
+        bc.close();
+      } catch {}
+      return next;
+    });
+    setPostponeModalReq(null);
+    setHarvestSuccessToast('Đã ban hành yêu cầu hoãn hái và hướng dẫn cách ly cho khách hàng.');
+    setTimeout(() => setHarvestSuccessToast(''), 4500);
+  };
+
+  const filteredHarvestRequests = harvestRequests.filter((r) => {
+    if (harvestFilter === 'PENDING') return r.status === 'PENDING' || r.status === 'PENDING_CONFIRM';
+    if (harvestFilter === 'APPROVED') return r.status === 'APPROVED';
+    if (harvestFilter === 'COMPLETED') return r.status === 'COMPLETED';
+    return true;
+  });
 
   useEffect(() => {
     loadFieldIssues();
@@ -305,7 +506,7 @@ export default function ExpertDashboard() {
     {
       id: 'TMPL-TOMATO-01',
       code: 'TMPL-TOMATO-01',
-      version: 'v2.3 · Chuẩn VietGAP',
+      version: 'v2.3 (Chuẩn VietGAP)',
       name: 'Phác Đồ Canh Tác Cà Chua Bi Cherry F1',
       variety: 'Cà chua bi Cherry F1',
       durationDays: 65,
@@ -325,7 +526,7 @@ export default function ExpertDashboard() {
     {
       id: 'TMPL-LETTUCE-02',
       code: 'TMPL-LETTUCE-02',
-      version: 'v1.8 · Chuẩn VietGAP',
+      version: 'v1.8 (Chuẩn VietGAP)',
       name: 'Phác Đồ Xà Lách Romaine Hữu Cơ',
       variety: 'Xà lách Romaine VietGAP',
       durationDays: 35,
@@ -344,26 +545,26 @@ export default function ExpertDashboard() {
     {
       id: 'TMPL-CUCUMBER-03',
       code: 'TMPL-CUCUMBER-03',
-      version: 'v2.0 · Chuẩn VietGAP',
+      version: 'v2.0 (Chuẩn VietGAP)',
       name: 'Phác Đồ Dưa Leo Baby Đà Lạt F1',
-      variety: 'Dưa leo Baby',
+      variety: 'Dưa leo Baby F1',
       durationDays: 45,
       stagesCount: 4,
       stepsCount: 5,
       status: 'ACTIVE',
-      description: 'Quy trình giàn lưới nhà màng, thụ phấn tự nhiên và bón kali hữu cơ tạo độ ngọt giòn.',
+      description: 'Trồng giàn lưới nhà màng sinh thái, kết hợp thả ong mật tự nhiên thụ phấn.',
       steps: [
-        { day: 1, name: 'Ươm hạt khay xơ dừa', type: 'Ủ GIỐNG & GIEO', details: 'Gieo hạt sâu 1cm trong giá thể xơ dừa đã xử lý tanin.' },
-        { day: 10, name: 'Trồng cây vào luống dinh dưỡng', type: 'TRỒNG CÂY', details: 'Đặt cây con vào bầu, tưới kích rễ phân cá 1:400.' },
-        { day: 20, name: 'Quấn ngọn lên dây giàn', type: 'CẮT TỈA', details: 'Quấn ngọn theo chiều kim đồng hồ, ngắt tua cuốn.' },
-        { day: 38, name: 'Cách ly an toàn trước thu hoạch', type: 'CÁCH LY', details: 'Chỉ tưới nước qua trạm IoT vi khí hậu tự động.' },
-        { day: 45, name: 'Thu hoạch quả xanh non lứa đầu', type: 'THU HOẠCH', details: 'Cắt quả cuống dài 1cm vào buổi sáng mát.' }
+        { day: 1, name: 'Gieo hạt trực tiếp vào luống', type: 'GIEO HẠT', details: 'Tra hạt sâu 1.5cm, tưới ẩm 70% kích mầm.' },
+        { day: 14, name: 'Cột dây leo giàn & Tỉa nhánh phụ', type: 'CHĂM SÓC', details: 'Tỉa bỏ hoa đực và nhánh phụ từ mắt thứ 5 trở xuống.' },
+        { day: 25, name: 'Thả đàn ong mật thụ phấn hoa', type: 'SINH THÁI', details: 'Thả thùng ong mật trong nhà lưới để thụ phấn tự nhiên.' },
+        { day: 40, name: 'Cách ly trước thu hái 5 ngày', type: 'CÁCH LY', details: 'Ngưng tưới chế phẩm sinh học.' },
+        { day: 45, name: 'Thu hoạch quả non baby 10-12cm', type: 'THU HOẠCH', details: 'Cắt cuống bằng kéo sạch, thu hái hàng ngày.' }
       ]
     },
     {
-      id: 'TMPL-CHILI-04',
-      code: 'TMPL-CHILI-04',
-      version: 'v1.5 · Chuẩn VietGAP',
+      id: 'TMPL-STRAW-04',
+      code: 'TMPL-STRAW-04',
+      version: 'v1.5 (Chuẩn VietGAP)',
       name: 'Phác Đồ Dâu Tây Hana Chịu Nhiệt',
       variety: 'Dâu tây Hana Nhật Bản',
       durationDays: 90,
@@ -445,12 +646,24 @@ export default function ExpertDashboard() {
 
   const [viewTemplateDetail, setViewTemplateDetail] = useState(null);
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
+  const [varietiesList, setVarietiesList] = useState([]);
+  const [isSubmittingTemplate, setIsSubmittingTemplate] = useState(false);
+  const [successToast, setSuccessToast] = useState('');
+  const triggerSuccessToast = (msg) => {
+    setSuccessToast(msg);
+    setTimeout(() => setSuccessToast(''), 4000);
+  };
   const [newTemplateData, setNewTemplateData] = useState({
     code: '',
-    name: '',
-    variety: '',
-    durationDays: 45,
-    description: ''
+    varietyId: 1,
+    version: '1.0',
+    description: '',
+    steps: [
+      { stepOrder: 1, stepName: 'Làm đất & Xử lý giá thể vi sinh', dayOffset: 1, description: 'Làm đất tơi xốp, bón lót phân trùn quế và phun Trichoderma.', materialsNeeded: 'Phân trùn quế, Trichoderma' },
+      { stepOrder: 2, stepName: 'Xuống giống & Tưới ẩm định kỳ', dayOffset: 10, description: 'Cấy cây con mật độ 20x25cm, duy trì tưới ẩm nhỏ giọt.', materialsNeeded: 'Cây giống F1, Nước tưới' },
+      { stepOrder: 3, stepName: 'Bón thúc & Phòng trừ sinh học', dayOffset: 25, description: 'Bón thúc đạm cá thủy phân, phun phòng trừ chiết xuất thảo mộc.', materialsNeeded: 'Dịch đạm cá, Thảo mộc tỏi ớt' },
+      { stepOrder: 4, stepName: 'Cách ly VietGAP & Thu hoạch', dayOffset: 45, description: 'Ngưng hoàn toàn dinh dưỡng trước thu hoạch 5 ngày, thu hái đạt chuẩn.', materialsNeeded: 'Kéo chuyên dụng, Thùng đựng' }
+    ]
   });
 
   // 4. Plot-Crop Compatibility Matrix State (Screen 42)
@@ -559,18 +772,23 @@ export default function ExpertDashboard() {
 
   const loadExpertData = async () => {
     try {
-      const [issuePayload, templatePayload, plotPayload, documentPayload, userPayload] = await Promise.all([
-        apiFetch('/api/issues'),
-        apiFetch('/api/templates'),
-        apiFetch('/api/plots'),
-        apiFetch('/api/v1/knowledge-documents'),
-        apiFetch('/api/users')
+      const [issuePayload, templatePayload, plotPayload, documentPayload, userPayload, varietyPayload] = await Promise.all([
+        apiFetch('/api/issues').catch(() => ({ data: [] })),
+        apiFetch('/api/templates').catch(() => ({ data: [] })),
+        apiFetch('/api/plots').catch(() => ({ data: [] })),
+        apiFetch('/api/v1/knowledge-documents').catch(() => ({ data: [] })),
+        apiFetch('/api/users').catch(() => ({ data: [] })),
+        apiFetch('/api/varieties').catch(() => ({ data: [] }))
       ]);
       const issues = unwrapData(issuePayload) || [];
       const templates = unwrapData(templatePayload) || [];
       const plots = unwrapData(plotPayload) || [];
       const documents = unwrapData(documentPayload) || [];
       const users = unwrapData(userPayload) || [];
+      const varieties = unwrapData(varietyPayload) || [];
+      if (varieties.length > 0) {
+        setVarietiesList(varieties);
+      }
       const userById = new Map(users.map((account) => [Number(account.userId || account.id), account]));
 
       if (issues.length > 0) {
@@ -645,30 +863,61 @@ export default function ExpertDashboard() {
     }
   };
 
-  const handleCreateTemplate = (e) => {
+  const handleCreateTemplate = async (e) => {
     e.preventDefault();
-    if (!newTemplateData.name || !newTemplateData.variety) return;
-    const newTmpl = {
-      id: `TMPL-${Date.now()}`,
-      code: newTemplateData.code || `TMPL-${Math.floor(1000 + Math.random() * 9000)}`,
-      version: 'v1.0 · Chuẩn VietGAP',
-      name: newTemplateData.name,
-      variety: newTemplateData.variety,
-      durationDays: Number(newTemplateData.durationDays) || 45,
-      stagesCount: 4,
-      stepsCount: 4,
-      status: 'ACTIVE',
-      description: newTemplateData.description || 'Quy trình canh tác chuẩn VietGAP.',
-      steps: [
-        { day: 1, name: 'Làm đất & Gieo giống', type: 'GIEO GIỐNG', details: 'Chuẩn bị giá thể và gieo ươm theo chuẩn VietGAP.' },
-        { day: 15, name: 'Xuống luống & Tưới ẩm vi sinh', type: 'TRỒNG CÂY', details: 'Bố trí mật độ chuẩn, kích rễ sinh học.' },
-        { day: 35, name: 'Cách ly an toàn VietGAP', type: 'CÁCH LY', details: 'Ngưng dinh dưỡng trước thu hoạch 5 ngày.' },
-        { day: Number(newTemplateData.durationDays) || 45, name: 'Thu hoạch thành phẩm', type: 'THU HOẠCH', details: 'Thu hái đạt độ chín tối ưu.' }
-      ]
-    };
-    setProcessTemplates(prev => [newTmpl, ...prev]);
-    setIsCreateTemplateOpen(false);
-    setNewTemplateData({ code: '', name: '', variety: '', durationDays: 45, description: '' });
+    if (!newTemplateData.varietyId) return;
+    setIsSubmittingTemplate(true);
+    try {
+      await apiFetch('/api/templates', {
+        method: 'POST',
+        body: JSON.stringify({
+          varietyId: Number(newTemplateData.varietyId),
+          ptCreatedBy: user?.id || 5,
+          version: newTemplateData.version || '1.0',
+          steps: newTemplateData.steps
+        })
+      });
+      triggerSuccessToast('Đã ban hành quy trình canh tác VietGAP mới thành công!');
+      setIsCreateTemplateOpen(false);
+      await loadExpertData();
+    } catch (err) {
+      console.warn('Lỗi gọi API templates, fallback lưu local:', err);
+      const chosenVar = varietiesList.find(v => v.varietyId === Number(newTemplateData.varietyId));
+      const newTmpl = {
+        id: `TMPL-${Date.now()}`,
+        code: newTemplateData.code || `TMPL-${Math.floor(1000 + Math.random() * 9000)}`,
+        version: newTemplateData.version || 'v1.0',
+        name: `Quy trình ${chosenVar?.varietyName || 'canh tác VietGAP'}`,
+        variety: chosenVar?.varietyName || 'Rau hữu cơ',
+        durationDays: Math.max(...newTemplateData.steps.map(s => Number(s.dayOffset) || 0)),
+        stagesCount: newTemplateData.steps.length,
+        stepsCount: newTemplateData.steps.length,
+        status: 'ACTIVE',
+        description: newTemplateData.description || 'Quy trình canh tác chuẩn VietGAP.',
+        steps: newTemplateData.steps.map(s => ({
+          day: s.dayOffset,
+          name: s.stepName,
+          type: `BƯỚC ${s.stepOrder}`,
+          details: `${s.description} • Vật tư: ${s.materialsNeeded}`
+        }))
+      };
+      setProcessTemplates(prev => [newTmpl, ...prev]);
+      setIsCreateTemplateOpen(false);
+      triggerSuccessToast('Đã lưu quy trình canh tác mới vào hệ thống!');
+    } finally {
+      setIsSubmittingTemplate(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa quy trình canh tác này?')) return;
+    try {
+      await apiFetch(`/api/templates/${templateId}`, { method: 'DELETE' });
+      triggerSuccessToast('Đã xóa quy trình canh tác thành công!');
+    } catch (err) {
+      console.warn('Lỗi khi xóa template:', err);
+    }
+    setProcessTemplates(prev => prev.filter(t => t.id !== templateId));
   };
 
   const handleAddCompatibility = (e) => {
@@ -779,7 +1028,8 @@ export default function ExpertDashboard() {
 
             {[
               { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
-              { id: 'plots', label: 'Thửa Đất Giám Sát', icon: Layers, count: assignedPlots.length },
+              { id: 'plots', label: 'Thửa Đất Giám Sát (BR24)', icon: Layers, count: assignedPlots.length },
+              { id: 'harvest', label: 'Duyệt Kế Hoạch Thu Hoạch', icon: Wheat, count: pendingHarvestCount },
               { id: 'issues', label: 'Xử Lý Sự Cố Hiện Trường', icon: AlertTriangle, count: fieldIssues.filter(i => i.status === 'PENDING' || i.status === 'OPEN').length },
               { id: 'templates', label: 'Quy Trình Canh Tác VietGAP', icon: FileSpreadsheet, count: null },
               { id: 'compatibility', label: 'Ma Trận Thổ Nhưỡng – Giống', icon: SlidersHorizontal, count: null },
@@ -818,6 +1068,16 @@ export default function ExpertDashboard() {
 
           {/* Expert Main Display Content */}
           <section className="flex-1 min-w-0 w-full space-y-6">
+
+            {successToast && (
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold text-xs flex items-center justify-between shadow-sm animate-fade-in">
+                <span className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  {successToast}
+                </span>
+                <button onClick={() => setSuccessToast('')} className="text-emerald-700 hover:text-emerald-900 text-xs">✕</button>
+              </div>
+            )}
 
             {/* TAB 1: UNIFIED CHAT - MESSENGER FOR CUSTOMERS & FIELD WORKERS */}
             {activeTab === 'chat' && (
@@ -1320,7 +1580,7 @@ export default function ExpertDashboard() {
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
                       <Layers className="w-5 h-5 text-sky-700" />
-                      <span>Thửa Đất Giám Sát Kỹ Thuật</span>
+                      <span>Thửa Đất Giám Sát Kỹ Thuật (BR24)</span>
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh sách các thửa đất canh tác do Ban Quản Trị chỉ định cho Chuyên Gia Nông Nghiệp phụ trách chuyên môn.
@@ -1386,7 +1646,7 @@ export default function ExpertDashboard() {
                           <div>
                             <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Quan Trắc IoT:</span>
                             <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
-                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu độ ẩm đất &ge; 80%</span>
+                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu ẩm &gt;= 80% (BR18)</span>
                           </div>
                         </div>
 
@@ -1405,6 +1665,237 @@ export default function ExpertDashboard() {
                         </div>
                       </div>
                     ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB: DUYỆT KẾ HOẠCH THU HOẠCH & NGHIỆM THU */}
+            {activeTab === 'harvest' && (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
+                  <div>
+                    <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
+                      <Wheat className="w-5 h-5 text-emerald-700" />
+                      <span>Thẩm Định & Duyệt Kế Hoạch Thu Hoạch (Chuẩn VietGAP)</span>
+                    </h3>
+                    <p className="text-xs text-brand-muted mt-0.5">
+                      Tiếp nhận yêu cầu thu hoạch từ khách hàng, kiểm tra thời gian cách ly sinh học (PHI) và ban hành lệnh điều phối thu hái cho Chuyên viên lao động.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                      {pendingHarvestCount} Yêu Cầu Chờ Duyệt
+                    </span>
+                  </div>
+                </div>
+
+                {/* Toast Notification */}
+                {harvestSuccessToast && (
+                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{harvestSuccessToast}</span>
+                  </div>
+                )}
+
+                {/* Filter Tabs */}
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-stone-50 p-2 rounded-2xl border border-stone-200/60">
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { id: 'ALL', label: 'Tất cả yêu cầu', count: harvestRequests.length },
+                      { id: 'PENDING', label: 'Chờ thẩm định', count: pendingHarvestCount },
+                      { id: 'APPROVED', label: 'Đã duyệt lệnh', count: harvestRequests.filter(r => r.status === 'APPROVED').length },
+                      { id: 'COMPLETED', label: 'Đã hoàn tất', count: harvestRequests.filter(r => r.status === 'COMPLETED').length }
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setHarvestFilter(f.id)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          harvestFilter === f.id
+                            ? 'bg-white text-emerald-800 shadow-2xs border border-emerald-200'
+                            : 'text-stone-500 hover:text-brand-dark'
+                        }`}
+                      >
+                        {f.label} ({f.count})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Request List */}
+                <div className="space-y-4">
+                  {filteredHarvestRequests.length === 0 ? (
+                    <div className="text-center py-12 text-stone-500 space-y-2">
+                      <Wheat className="w-10 h-10 mx-auto text-stone-300" />
+                      <p className="font-bold text-sm">Không có yêu cầu thu hoạch nào trong danh mục này</p>
+                    </div>
+                  ) : (
+                    filteredHarvestRequests.map((req) => {
+                      const isPending = req.status === 'PENDING' || req.status === 'PENDING_CONFIRM';
+                      const isApproved = req.status === 'APPROVED';
+                      const isCompleted = req.status === 'COMPLETED';
+                      const isPostponed = req.status === 'POSTPONED';
+                      const isPhiSafe = (req.phiDays || 6) >= (req.phiStandardDays || 5);
+
+                      return (
+                        <div
+                          key={req.id}
+                          className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white hover:border-emerald-300 transition-all shadow-2xs space-y-4 text-xs"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border/60 pb-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono font-bold text-emerald-800 text-sm">{req.plotCode}</span>
+                              <span className="font-bold text-brand-dark text-sm">{req.plotName}</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-stone-100 text-stone-700">
+                                {req.id}
+                              </span>
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                🌱 Giống: {req.crop}
+                              </span>
+                            </div>
+
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${
+                              isApproved
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : isCompleted
+                                ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                : isPostponed
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              {isApproved ? '● Đã duyệt lịch · Đang điều phối CVLĐ'
+                                : isCompleted ? '✓ Đã hoàn tất thu hoạch & nghiệm thu'
+                                : isPostponed ? '⚠ Đã yêu cầu hoãn cách ly'
+                                : '⏳ Chờ Kỹ sư thẩm định VietGAP'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-stone-50/70 p-4 rounded-xl border border-stone-200/60">
+                            {/* Cột 1: Khách hàng & Ngày hẹn */}
+                            <div className="space-y-1.5">
+                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Khách Hàng & Lịch Hẹn:</span>
+                              <p className="font-bold text-brand-dark text-xs">{req.renterName}</p>
+                              <p className="text-stone-500 text-[11px] flex items-center gap-1">
+                                <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+                                Ngày thu hoạch đề xuất: <strong>{req.requestedDate}</strong>
+                              </p>
+                              <p className="text-stone-500 text-[11px] flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-stone-400" />
+                                Hình thức: <strong>{req.methodLabel || req.method}</strong>
+                              </p>
+                              {req.address && (
+                                <p className="text-stone-500 text-[11px] truncate flex items-center gap-1">
+                                  <MapPin className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                                  <span>{req.address}</span>
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Cột 2: Tiêu chuẩn an toàn VietGAP (PHI) */}
+                            <div className="space-y-1.5">
+                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Thẩm Định VietGAP (PHI):</span>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${
+                                  isPhiSafe ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  Cách ly PHI: {req.phiDays || 6} / {req.phiStandardDays || 5} ngày
+                                </span>
+                                {isPhiSafe ? (
+                                  <span className="text-emerald-700 font-bold text-[11px] flex items-center gap-0.5">
+                                    <ShieldCheck className="w-3.5 h-3.5" /> Đạt chuẩn an toàn
+                                  </span>
+                                ) : (
+                                  <span className="text-rose-700 font-bold text-[11px] flex items-center gap-0.5">
+                                    <AlertTriangle className="w-3.5 h-3.5" /> Chưa đủ thời gian cách ly
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-stone-500 text-[11px]">
+                                Độ ẩm đất hiện tại: <strong className="text-sky-800">68%</strong> (Đất ráo, đủ điều kiện hái)
+                              </p>
+                              {req.notes && (
+                                <p className="text-stone-600 italic text-[11px] bg-white p-2 rounded-lg border border-stone-200">
+                                  "{req.notes}"
+                                </p>
+                              )}
+                              {isPostponed && req.postponeReason && (
+                                <p className="text-amber-800 font-semibold text-[11px] bg-amber-50 p-2 rounded-lg border border-amber-200">
+                                  Lý do hoãn: {req.postponeReason}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Cột 3: Trạng thái & Điều phối CVLĐ */}
+                            <div className="space-y-1.5 md:border-l md:border-stone-200/80 md:pl-4">
+                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Điều Phối Thực Địa:</span>
+                              <p className="text-stone-600 text-[11px]">
+                                CVLĐ đảm nhiệm: <strong>{req.workerName || 'Trần Văn Lực (CVLĐ)'}</strong>
+                              </p>
+                              <p className="text-stone-600 text-[11px]">
+                                Sản lượng ước tính: <strong>{req.expectedYield || 'Theo mùa vụ'}</strong>
+                              </p>
+                              {isCompleted && req.actualYield && (
+                                <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-[11px]">
+                                  Thực thu: {req.actualYield} (Đã cân & chụp ảnh hiện trường)
+                                </div>
+                              )}
+                              {isApproved && (
+                                <div className="text-[11px] text-emerald-800 font-semibold">
+                                  ✓ Đã duyệt ngày {req.approvedAt ? new Date(req.approvedAt).toLocaleDateString('vi-VN') : 'hôm nay'}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Hành động của Kỹ Sư */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-brand-border/40">
+                            <span className="text-[11px] text-stone-400">
+                              Người thẩm định chuyên môn: <strong>{expertSenderName}</strong>
+                            </span>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              {isPending && (
+                                <>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => {
+                                      setPostponeModalReq(req);
+                                      setPostponeReason('Cần ngưng bón dinh dưỡng thêm 2 ngày để đảm bảo độ ngọt và chỉ số an toàn PHI.');
+                                    }}
+                                    className="text-xs font-bold text-amber-800 hover:bg-amber-50 gap-1.5"
+                                  >
+                                    <Clock className="w-3.5 h-3.5 text-amber-700" />
+                                    <span>Yêu Cầu Hoãn Hái</span>
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleApproveHarvest(req.id)}
+                                    className="text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5"
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Phê Duyệt Lịch Thu Hoạch</span>
+                                  </Button>
+                                </>
+                              )}
+
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => {
+                                  setActiveTab('chat');
+                                }}
+                                className="text-xs font-bold gap-1.5 text-stone-700"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Trao Đổi 1-1 Với Khách</span>
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -1512,7 +2003,7 @@ export default function ExpertDashboard() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Quy Trình Canh Tác Chuẩn VietGAP
+                      Quy Trình Canh Tác Chuẩn VietGAP (UC09)
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh mục phác đồ tiêu chuẩn cho từng giống cây, phân định ngày tuổi, mốc bón phân vi sinh và cách ly an toàn.
@@ -1536,12 +2027,22 @@ export default function ExpertDashboard() {
                     >
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-mono text-xs font-bold text-brand-green bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
-                            {tmpl.code}
-                          </span>
-                          <span className="text-[10px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
-                            {tmpl.version}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-brand-green bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                              {tmpl.code}
+                            </span>
+                            <span className="text-[10px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
+                              {tmpl.version}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTemplate(tmpl.id)}
+                            title="Xóa quy trình chuẩn"
+                            className="p-1 rounded text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
 
                         <div>
@@ -1965,74 +2466,179 @@ export default function ExpertDashboard() {
       <Modal
         isOpen={isCreateTemplateOpen}
         onClose={() => setIsCreateTemplateOpen(false)}
-        title="Soạn Thảo Quy Trình Canh Tác Chuẩn VietGAP"
-        subtitle="Ban hành quy trình kỹ thuật mới cho nông trại"
+        title="Soạn Thảo Quy Trình Canh Tác Chuẩn VietGAP (UC23)"
+        subtitle="Ban hành quy trình kỹ thuật mới cho nông trại Farmely"
       >
-        <form onSubmit={handleCreateTemplate} className="space-y-3 text-xs text-left">
+        <form onSubmit={handleCreateTemplate} className="space-y-3.5 text-xs text-left max-h-[75vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-bold text-brand-dark mb-1">Mã Quy Trình (Code):</label>
-              <input
-                type="text"
-                placeholder="TMPL-CABBAGE-05"
-                value={newTemplateData.code}
-                onChange={(e) => setNewTemplateData({ ...newTemplateData, code: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-              />
+              <label className="block font-bold text-brand-dark mb-1">Giống Cây Trồng Áp Dụng:</label>
+              <select
+                value={newTemplateData.varietyId}
+                onChange={(e) => setNewTemplateData({ ...newTemplateData, varietyId: Number(e.target.value) })}
+                className="w-full p-2.5 rounded-xl border border-brand-border text-xs font-bold bg-white"
+              >
+                {varietiesList.length > 0 ? (
+                  varietiesList.map((v) => (
+                    <option key={v.varietyId} value={v.varietyId}>
+                      {v.varietyName}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value={1}>Cà chua bi Cherry F1</option>
+                    <option value={2}>Xà lách Romaine VietGAP</option>
+                    <option value={3}>Dưa leo Baby Đà Lạt</option>
+                    <option value={4}>Rau mồng tơi hữu cơ</option>
+                    <option value={5}>Bắp cải Brussels tí hon</option>
+                  </>
+                )}
+              </select>
             </div>
             <div>
-              <label className="block font-bold text-brand-dark mb-1">Chu kỳ sinh trưởng (ngày):</label>
+              <label className="block font-bold text-brand-dark mb-1">Phiên Bản (Version):</label>
               <input
-                type="number"
-                required
-                value={newTemplateData.durationDays}
-                onChange={(e) => setNewTemplateData({ ...newTemplateData, durationDays: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
+                type="text"
+                value={newTemplateData.version}
+                onChange={(e) => setNewTemplateData({ ...newTemplateData, version: e.target.value })}
+                placeholder="1.0"
+                className="w-full p-2.5 rounded-xl border border-brand-border text-xs"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Tên Quy Trình:</label>
-            <input
-              type="text"
-              required
-              placeholder="Phác Đồ Canh Tác Bắp Cải Tí Hon Brussels F1"
-              value={newTemplateData.name}
-              onChange={(e) => setNewTemplateData({ ...newTemplateData, name: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Giống Cây Trồng Áp Dụng:</label>
-            <input
-              type="text"
-              required
-              placeholder="Bắp cải Brussels hữu cơ"
-              value={newTemplateData.variety}
-              onChange={(e) => setNewTemplateData({ ...newTemplateData, variety: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
           </div>
 
           <div>
             <label className="block font-bold text-brand-dark mb-1">Mô tả tóm tắt kỹ thuật & cách ly:</label>
             <textarea
-              rows={3}
+              rows={2}
               value={newTemplateData.description}
               onChange={(e) => setNewTemplateData({ ...newTemplateData, description: e.target.value })}
               placeholder="Quy trình chuẩn hóa cách ly dinh dưỡng trước thu hoạch 5 ngày, tưới nhỏ giọt kiểm soát ẩm độ..."
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
+              className="w-full p-2.5 rounded-xl border border-brand-border text-xs"
             />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="font-bold text-brand-dark">Các Bước Quy Trình Kỹ Thuật:</label>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextOrder = newTemplateData.steps.length + 1;
+                  const lastDay = newTemplateData.steps.length > 0
+                    ? Number(newTemplateData.steps[newTemplateData.steps.length - 1].dayOffset) + 10
+                    : 10;
+                  setNewTemplateData({
+                    ...newTemplateData,
+                    steps: [
+                      ...newTemplateData.steps,
+                      {
+                        stepOrder: nextOrder,
+                        stepName: `Bước ${nextOrder}: Kỹ thuật chăm sóc`,
+                        dayOffset: lastDay,
+                        description: 'Thực hiện chăm sóc chuẩn VietGAP',
+                        materialsNeeded: 'Phân bón sinh học'
+                      }
+                    ]
+                  });
+                }}
+                className="text-[11px] font-bold text-brand-green hover:underline inline-flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Thêm Bước Mới
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
+              {newTemplateData.steps.map((st, idx) => (
+                <div key={idx} className="p-3 rounded-xl bg-stone-50 border border-brand-border space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-brand-dark">Bước #{st.stepOrder}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[11px] text-stone-500">Mốc Ngày:</span>
+                        <input
+                          type="number"
+                          value={st.dayOffset}
+                          onChange={(e) => {
+                            const updated = [...newTemplateData.steps];
+                            updated[idx].dayOffset = Number(e.target.value);
+                            setNewTemplateData({ ...newTemplateData, steps: updated });
+                          }}
+                          className="w-16 p-1 rounded-lg border border-stone-300 text-center font-bold text-brand-green text-xs"
+                        />
+                      </div>
+                      {newTemplateData.steps.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = newTemplateData.steps.filter((_, i) => i !== idx).map((step, newIdx) => ({
+                              ...step,
+                              stepOrder: newIdx + 1
+                            }));
+                            setNewTemplateData({ ...newTemplateData, steps: updated });
+                          }}
+                          className="text-stone-400 hover:text-rose-600 p-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <input
+                    type="text"
+                    required
+                    value={st.stepName}
+                    onChange={(e) => {
+                      const updated = [...newTemplateData.steps];
+                      updated[idx].stepName = e.target.value;
+                      setNewTemplateData({ ...newTemplateData, steps: updated });
+                    }}
+                    placeholder="Tên bước (VD: Làm đất, Xuống giống...)"
+                    className="w-full p-2 rounded-lg border border-stone-300 text-xs font-semibold"
+                  />
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={st.description}
+                      onChange={(e) => {
+                        const updated = [...newTemplateData.steps];
+                        updated[idx].description = e.target.value;
+                        setNewTemplateData({ ...newTemplateData, steps: updated });
+                      }}
+                      placeholder="Mô tả kỹ thuật..."
+                      className="p-1.5 rounded-lg border border-stone-300 text-[11px]"
+                    />
+                    <input
+                      type="text"
+                      value={st.materialsNeeded}
+                      onChange={(e) => {
+                        const updated = [...newTemplateData.steps];
+                        updated[idx].materialsNeeded = e.target.value;
+                        setNewTemplateData({ ...newTemplateData, steps: updated });
+                      }}
+                      placeholder="Vật tư vi sinh cần dùng..."
+                      className="p-1.5 rounded-lg border border-stone-300 text-[11px]"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
             <Button type="button" variant="outline" size="sm" onClick={() => setIsCreateTemplateOpen(false)}>
               Hủy
             </Button>
-            <Button type="submit" variant="primary" size="sm" className="font-bold">
-              Lưu & Ban Hành Quy Trình
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={isSubmittingTemplate}
+              className="font-bold bg-brand-green hover:bg-[#203c2c] text-white"
+            >
+              {isSubmittingTemplate ? 'Đang lưu...' : 'Lưu & Ban Hành Quy Trình'}
             </Button>
           </div>
         </form>
@@ -2210,6 +2816,38 @@ export default function ExpertDashboard() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal Hoãn Thu Hoạch & Cách Ly Thêm */}
+      <Modal
+        isOpen={Boolean(postponeModalReq)}
+        onClose={() => setPostponeModalReq(null)}
+        title="Yêu Cầu Hoãn Hái & Bổ Sung Cách Ly VietGAP"
+        subtitle={postponeModalReq ? `${postponeModalReq.plotCode} · ${postponeModalReq.plotName} (${postponeModalReq.renterName})` : ''}
+      >
+        <div className="space-y-4 text-xs text-left">
+          <p className="text-stone-600">
+            Nếu kiểm tra thấy thời gian cách ly phân bón/chế phẩm sinh học (PHI) chưa đủ hoặc thời tiết ẩm ướt gây ảnh hưởng chất lượng bảo quản, chuyên gia có thể chỉ đạo hoãn hái:
+          </p>
+          <label className="block space-y-1">
+            <span className="font-bold text-brand-dark">Lý do chuyên môn và khuyến nghị can thiệp:</span>
+            <textarea
+              rows={3}
+              value={postponeReason}
+              onChange={(e) => setPostponeReason(e.target.value)}
+              className="w-full p-3 rounded-xl border border-brand-border bg-white text-xs outline-none focus:border-emerald-600"
+              placeholder="Nhập lý do hoãn hái và hướng dẫn cách ly..."
+            />
+          </label>
+          <div className="flex justify-end gap-2 pt-2 border-t border-brand-border/60">
+            <Button variant="secondary" size="sm" onClick={() => setPostponeModalReq(null)}>
+              Hủy
+            </Button>
+            <Button size="sm" onClick={handleConfirmPostpone} className="bg-amber-600 hover:bg-amber-700 text-white font-bold">
+              Gửi Yêu Cầu Hoãn
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       <div className={`transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>

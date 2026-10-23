@@ -62,7 +62,7 @@ def main():
             if not query:
                 continue
             if query.lower() in ("exit", "quit", "q"):
-                print("\nBác Ba: Tạm biệt cháu nghen! Chúc vườn rau của cháu luôn xanh tốt bội thu! 👋")
+                print("\nFarmely AI: Tạm biệt bạn nhé! Chúc vườn rau của bạn luôn xanh tốt bội thu! 👋")
                 break
             ask_question(query, history)
         except (KeyboardInterrupt, EOFError):
