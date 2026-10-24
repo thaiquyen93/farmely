@@ -72,6 +72,45 @@ const DEFAULT_PLOT_CROPS = {
   'P-16': 'Xà lách Romaine VietGAP'
 };
 
+const formatIssueCode = (issue) => issue?.issueCode || (String(issue?.id || '').startsWith('ISS-') ? String(issue.id) : `ISS-${issue?.id || ''}`);
+
+const EXPERT_ISSUE_PREVIEW = [
+  {
+    id: 'ISS-DEMO-24',
+    issueCode: 'ISS-DEMO-24',
+    rentalId: 401,
+    reportedBy: 12,
+    isStaffReporter: true,
+    workerName: 'Trần Văn Lực',
+    plotCode: 'P-01',
+    plotName: 'Thửa P-01 · Happy Valley',
+    urgency: 'HIGH',
+    issueType: 'Rầy mềm xuất hiện ở lá non',
+    description: 'Phát hiện rầy mềm ở mặt dưới lá non, tập trung gần ngọn. Đã chụp ảnh và tạm khoanh vùng, chưa phun xử lý.',
+    reportedTime: 'Hôm nay · 08:45',
+    photoUrl: '',
+    diagnosis: '',
+    status: 'PENDING'
+  },
+  {
+    id: 'ISS-DEMO-23',
+    issueCode: 'ISS-DEMO-23',
+    rentalId: 402,
+    reportedBy: 12,
+    isStaffReporter: true,
+    workerName: 'Trần Văn Lực',
+    plotCode: 'P-02',
+    plotName: 'Thửa P-02 · Happy Valley',
+    urgency: 'NORMAL',
+    issueType: 'Một số lá xà lách bị úa mép',
+    description: 'Có vài lá già úa nhẹ ở rìa luống. Độ ẩm đất đang ổn định; gửi chuyên gia kiểm tra trước khi tỉa bỏ.',
+    reportedTime: 'Hôm qua · 15:20',
+    photoUrl: '',
+    diagnosis: 'Theo dõi độ thông thoáng và kiểm tra lại vào ca sáng tiếp theo.',
+    status: 'OPEN'
+  }
+];
+
 const DEFAULT_HARVEST_REQUESTS = [
   {
     id: 'HARV-REQ-001',
@@ -141,6 +180,9 @@ const DEFAULT_HARVEST_REQUESTS = [
 
 export default function ExpertDashboard() {
   const { user } = useAuthStore();
+  const isIssuePreviewMode = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('preview') === '1'
+    && new URLSearchParams(window.location.search).get('tab') === 'issues';
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('tab');
@@ -242,7 +284,7 @@ export default function ExpertDashboard() {
   };
 
   // 2. Field Issue Reports from Workers (UC12 / UC48)
-  const [fieldIssues, setFieldIssues] = useState([
+  const [fieldIssues, setFieldIssues] = useState(isIssuePreviewMode ? EXPERT_ISSUE_PREVIEW : [
     {
       id: 'ISS-901',
       workerName: 'Trần Văn Lực (CVLĐ)',
@@ -276,16 +318,40 @@ export default function ExpertDashboard() {
   const [selectedIssueToAssign, setSelectedIssueToAssign] = useState(null);
   const [taskAssignment, setTaskAssignment] = useState({ title: '', dueDate: '', instructions: '', templateId: '' });
   const [isAssigningTask, setIsAssigningTask] = useState(false);
+  const [selectedIssueId, setSelectedIssueId] = useState(null);
+  const [issueStatusFilter, setIssueStatusFilter] = useState('OPEN');
+  const [issueSearch, setIssueSearch] = useState('');
+  const [mobileShowIssueDetail, setMobileShowIssueDetail] = useState(false);
 
   const loadFieldIssues = () => {
-    fetch('/api/issue-reports')
-      .then((res) => res.json())
-      .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setFieldIssues(res.data);
-        }
-      })
-      .catch((err) => console.warn('Could not fetch live issues:', err));
+    Promise.all([
+      apiFetch('/api/issues').catch(() => ({ data: [] })),
+      apiFetch('/api/users').catch(() => ({ data: [] }))
+    ]).then(([issuePayload, userPayload]) => {
+      const issues = unwrapData(issuePayload) || [];
+      const users = unwrapData(userPayload) || [];
+      const userById = new Map(users.map((account) => [Number(account.userId || account.id), account]));
+      if (issues.length > 0) {
+        setFieldIssues(issues.map((issue) => ({
+          id: issue.issueId,
+          issueCode: issue.issueCode,
+          apiId: issue.issueId,
+          rentalId: issue.rentalId,
+          reportedBy: issue.reportedBy,
+          isStaffReporter: ['STAFF', 'FIELD_WORKER'].includes(String(userById.get(Number(issue.reportedBy))?.role || '').toUpperCase()),
+          workerName: issue.reporterName || `Người báo #${issue.reportedBy}`,
+          plotCode: issue.plotCode || '',
+          plotName: issue.plotName || 'Chưa xác định thửa',
+          urgency: String(issue.description || '').includes('[KHẨN CẤP]') ? 'HIGH' : 'NORMAL',
+          issueType: issue.issueType || 'Báo cáo hiện trường',
+          description: issue.description || '',
+          reportedTime: issue.createdAt ? new Date(issue.createdAt).toLocaleString('vi-VN') : '',
+          photoUrl: issue.imageUrl,
+          diagnosis: issue.resolutionNotes || '',
+          status: issue.status || issue.displayStatus || 'PENDING'
+        })).sort((first, second) => Number(second.isStaffReporter) - Number(first.isStaffReporter)));
+      }
+    }).catch((err) => console.warn('Could not fetch live issues:', err));
   };
 
   const loadTemplates = () => {
@@ -435,7 +501,7 @@ export default function ExpertDashboard() {
   });
 
   useEffect(() => {
-    loadFieldIssues();
+    if (!isIssuePreviewMode) loadFieldIssues();
     loadTemplates();
     loadAssignedPlots();
 
@@ -597,6 +663,15 @@ export default function ExpertDashboard() {
   const handleAssignIssueTask = async (event) => {
     event.preventDefault();
     if (!selectedIssueToAssign || !taskAssignment.title.trim() || !taskAssignment.dueDate) return;
+    if (isIssuePreviewMode) {
+      setFieldIssues((current) => current.map((issue) => issue.id === selectedIssueToAssign.id
+        ? { ...issue, assignedTaskCode: 'TSK-DEMO-01', assignedDueDate: taskAssignment.dueDate, diagnosis: 'Đã giao nhiệm vụ cho Trần Văn Lực.' }
+        : issue));
+      setSelectedIssueToAssign(null);
+      setDataError('');
+      triggerSuccessToast('Bản xem thử: task mẫu đã hiển thị, chưa ghi vào hệ thống.');
+      return;
+    }
     if (!selectedIssueToAssign.rentalId || !selectedIssueToAssign.reportedBy) {
       setDataError('Báo cáo chưa có lượt thuê hoặc người báo cáo để giao nhiệm vụ.');
       return;
@@ -604,7 +679,7 @@ export default function ExpertDashboard() {
 
     const selectedTemplate = processTemplates.find((template) => String(template.id) === String(taskAssignment.templateId));
     const notes = [
-      `[KHẨN CẤP] [${selectedIssueToAssign.issueCode || selectedIssueToAssign.id}] ${taskAssignment.title.trim()}`,
+      `[KHẨN CẤP] [${formatIssueCode(selectedIssueToAssign)}] ${taskAssignment.title.trim()}`,
       taskAssignment.instructions.trim(),
       selectedTemplate ? `Quy trình tham chiếu: ${selectedTemplate.name} (${selectedTemplate.version})` : ''
     ].filter(Boolean).join('\n');
@@ -769,6 +844,23 @@ export default function ExpertDashboard() {
     pages: 10
   });
   const [dataError, setDataError] = useState('');
+
+  const pendingFieldIssueCount = fieldIssues.filter((issue) => ['PENDING', 'OPEN'].includes(issue.status) && !issue.assignedTaskCode).length;
+  const normalizedIssueSearch = issueSearch.trim().toLowerCase();
+  const visibleFieldIssues = fieldIssues
+    .filter((issue) => {
+      const open = ['PENDING', 'OPEN'].includes(issue.status) && !issue.assignedTaskCode;
+      const assigned = Boolean(issue.assignedTaskCode);
+      const closed = issue.status === 'RESOLVED';
+      const matchesFilter = issueStatusFilter === 'ALL'
+        || (issueStatusFilter === 'OPEN' && open)
+        || (issueStatusFilter === 'ASSIGNED' && assigned)
+        || (issueStatusFilter === 'CLOSED' && closed);
+      const haystack = `${issue.issueCode || issue.id} ${issue.plotCode} ${issue.issueType} ${issue.workerName} ${issue.description}`.toLowerCase();
+      return matchesFilter && (!normalizedIssueSearch || haystack.includes(normalizedIssueSearch));
+    })
+    .sort((first, second) => Number(second.urgency === 'HIGH' || second.urgency === 'CRITICAL') - Number(first.urgency === 'HIGH' || first.urgency === 'CRITICAL'));
+  const selectedFieldIssue = visibleFieldIssues.find((issue) => String(issue.id) === String(selectedIssueId)) || visibleFieldIssues[0] || null;
 
   const loadExpertData = async () => {
     try {
@@ -965,7 +1057,7 @@ export default function ExpertDashboard() {
       <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
         
         {/* Top Agronomy Metrics */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {activeTab !== 'issues' && <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Thửa Đất Giám Sát
@@ -1017,7 +1109,7 @@ export default function ExpertDashboard() {
             </div>
             <span className="text-[10px] text-sky-700 font-bold block">Đã nạp RAG AI</span>
           </div>
-        </div>
+        </div>}
 
         {/* Layout Left Sidebar + Content */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -1903,98 +1995,91 @@ export default function ExpertDashboard() {
 
             {/* TAB 2: FIELD ISSUES (Chẩn đoán sự cố hiện trường do công nhân gửi - UC12 / UC48) */}
             {activeTab === 'issues' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Xử Lý Báo Cáo Sự Cố Hiện Trường (UC12 / UC48)
-                  </h3>
-                  <p className="text-xs text-brand-muted mt-0.5">
-                    Tiếp nhận ảnh chụp và phản ánh từ Chuyên viên lao động hiện trường để chẩn đoán sâu và ban hành chỉ đạo can thiệp kỹ thuật.
-                  </p>
-                </div>
+              <section className="min-w-0 overflow-hidden rounded-[26px] border border-[#dbe5de] bg-[#f8faf7] shadow-sm">
+                <header className="flex flex-col gap-5 border-b border-[#dbe5de] bg-white px-5 py-5 sm:px-7 sm:py-6 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-[#5c7468]">Báo cáo từ hiện trường</p>
+                    <h2 className="mt-1 font-heading text-2xl font-black tracking-tight text-[#123d2e] sm:text-3xl">Xử lý sự cố</h2>
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-[#63766c]">Xem ảnh, đánh giá tình hình và giao hướng xử lý đúng cho người đã báo cáo.</p>
+                    {isIssuePreviewMode && <span className="mt-3 inline-flex rounded-full border border-[#d9e4dc] bg-[#f4f7f3] px-3 py-1 text-[11px] font-bold tracking-wide text-[#60766b]">BẢN XEM THỬ · KHÔNG GHI DATABASE</span>}
+                  </div>
+                  <div className="flex gap-2 text-sm">
+                    <div className="min-w-28 rounded-2xl bg-[#edf4ef] px-4 py-3"><span className="block text-xs text-[#60766b]">Chờ xử lý</span><strong className="mt-0.5 block text-xl text-[#174e39]">{pendingFieldIssueCount}</strong></div>
+                    <div className="min-w-28 rounded-2xl bg-[#fff4df] px-4 py-3"><span className="block text-xs text-[#856130]">Ưu tiên cao</span><strong className="mt-0.5 block text-xl text-[#9a5817]">{fieldIssues.filter((issue) => ['HIGH', 'CRITICAL'].includes(issue.urgency) && !issue.assignedTaskCode).length}</strong></div>
+                  </div>
+                </header>
 
-                <div className="space-y-4">
-                  {fieldIssues.map((issue) => (
-                    <div
-                      key={issue.id}
-                      className="p-5 rounded-2xl border border-brand-border bg-white shadow-sm space-y-4 text-xs"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border/60 pb-2.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono font-bold text-brand-green text-sm">{issue.id}</span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            issue.urgency === 'HIGH' ? 'bg-rose-100 text-rose-800' : 'bg-stone-100 text-stone-700'
-                          }`}>
-                            {issue.urgency === 'HIGH' ? 'Khẩn cấp' : 'Bình thường'}
-                          </span>
-                          <span className="text-stone-400">• {issue.reportedTime}</span>
-                          {issue.expertName && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
-                              🔬 Phụ trách: {issue.expertName}
-                            </span>
-                          )}
-                        </div>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          issue.status === 'PENDING' || issue.status === 'OPEN' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                        }`}>
-                          {issue.status === 'PENDING' || issue.status === 'OPEN' ? 'Chờ chẩn đoán' : 'Đã ban hành phác đồ'}
-                        </span>
+                {dataError && <div role="alert" className="mx-4 mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 sm:mx-6">{dataError}</div>}
+
+                <div className="grid min-w-0 lg:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.55fr)]">
+                  <aside className={`${mobileShowIssueDetail ? 'hidden lg:block' : 'block'} min-w-0 border-b border-[#dbe5de] bg-[#f4f7f3] lg:border-b-0 lg:border-r`}>
+                    <div className="space-y-3 border-b border-[#dbe5de] p-4 sm:p-5">
+                      <label className="relative block">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#71847a]" />
+                        <input value={issueSearch} onChange={(event) => setIssueSearch(event.target.value)} placeholder="Tìm thửa, người báo cáo..." className="w-full rounded-xl border border-[#d3dfd6] bg-white py-3 pl-10 pr-3 text-sm text-[#173d30] outline-none transition focus:border-[#28704f] focus:ring-2 focus:ring-[#28704f]/15" />
+                      </label>
+                      <div className="flex gap-1 overflow-x-auto pb-0.5" aria-label="Lọc báo cáo">
+                        {[
+                          ['OPEN', 'Cần xử lý'], ['ASSIGNED', 'Đã giao'], ['CLOSED', 'Đã đóng'], ['ALL', 'Tất cả']
+                        ].map(([value, label]) => <button key={value} type="button" onClick={() => setIssueStatusFilter(value)} className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition ${issueStatusFilter === value ? 'bg-[#174e39] text-white' : 'bg-white text-[#60766b] hover:bg-[#e8efe9]'}`}>{label}</button>)}
                       </div>
-
-                      <div className="flex flex-col sm:flex-row gap-4 items-start">
-                        <img
-                          src={issue.photoUrl}
-                          alt="Ảnh hiện trường"
-                          className="w-32 h-24 rounded-xl object-cover border border-brand-border shrink-0"
-                        />
-                        <div className="space-y-1.5 flex-1">
-                          <h4 className="font-bold text-brand-dark text-sm">{issue.issueType}</h4>
-                          <p className="text-stone-600">
-                            Thửa đất: <strong>{issue.plotName} ({issue.plotCode})</strong> • Báo cáo bởi: <strong>{issue.workerName}</strong>
-                          </p>
-                          <p className="text-stone-700 bg-stone-50 p-2.5 rounded-xl border border-brand-border/60">
-                            "{issue.description}"
-                          </p>
-                          {issue.diagnosis && (
-                            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900">
-                              <strong>Chỉ đạo của chuyên gia:</strong> {issue.diagnosis}
-                            </div>
-                          )}
-                          {issue.assignedTaskCode && (
-                            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-900">
-                              <CheckCircle2 className="h-4 w-4" />
-                              <strong>Đã giao {issue.assignedTaskCode}</strong>
-                              <span>cho {issue.workerName}</span>
-                              {issue.assignedDueDate ? <span className="ml-auto">Hạn {new Date(`${issue.assignedDueDate}T00:00:00`).toLocaleDateString('vi-VN')}</span> : null}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap justify-end gap-2 pt-2 border-t border-brand-border/60">
-                          {issue.isStaffReporter ? <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openTaskAssignment(issue)}
-                            disabled={Boolean(issue.assignedTaskCode)}
-                            className="font-bold"
-                          >
-                            <UserCheck className="mr-1.5 h-4 w-4" />
-                            {issue.assignedTaskCode ? 'Đã giao nhiệm vụ' : 'Giao nhiệm vụ'}
-                          </Button> : null}
-                          {issue.status === 'PENDING' ? <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => setSelectedIssueToDiagnose(issue)}
-                            className="bg-emerald-700 font-bold"
-                          >
-                            Chẩn đoán & Ban hành chỉ đạo kỹ thuật
-                          </Button> : null}
-                        </div>
                     </div>
-                  ))}
+
+                    <div className="max-h-[calc(100vh-330px)] space-y-2 overflow-y-auto p-3 sm:p-4">
+                      {visibleFieldIssues.length === 0 ? <div className="rounded-2xl border border-dashed border-[#cddbd0] bg-white p-8 text-center"><AlertTriangle className="mx-auto h-7 w-7 text-[#91a99a]" /><p className="mt-3 text-sm font-bold text-[#244b37]">Không có báo cáo phù hợp</p><p className="mt-1 text-xs text-[#71847a]">Thử đổi bộ lọc hoặc từ khóa.</p></div> : visibleFieldIssues.map((issue) => {
+                        const isSelected = String(selectedFieldIssue?.id) === String(issue.id);
+                        const isUrgent = ['HIGH', 'CRITICAL'].includes(issue.urgency);
+                        const isAssigned = Boolean(issue.assignedTaskCode);
+                        return <button key={issue.id} type="button" onClick={() => { setSelectedIssueId(issue.id); setMobileShowIssueDetail(true); }} className={`w-full rounded-2xl border p-3.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#28704f] ${isSelected ? 'border-[#4b8b67] bg-white shadow-sm ring-1 ring-[#4b8b67]/20' : 'border-transparent bg-white/70 hover:border-[#cbdacf] hover:bg-white'}`}>
+                          <div className="flex items-center gap-3">
+                            <div className="h-14 w-16 shrink-0 overflow-hidden rounded-xl bg-[#e6eee8]">
+                              {issue.photoUrl ? <img src={issue.photoUrl} alt="" className="h-full w-full object-cover" /> : <ImageIcon className="m-auto mt-4 h-6 w-6 text-[#86a18e]" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2"><span className="truncate text-[11px] font-bold text-[#70847a]">{formatIssueCode(issue)}</span><span className={`h-2 w-2 shrink-0 rounded-full ${isUrgent ? 'bg-[#d77832]' : 'bg-[#58a278]'}`} /></div>
+                              <p className="mt-1 truncate text-sm font-bold text-[#173d30]">{issue.issueType}</p>
+                              <p className="mt-1 truncate text-xs text-[#71847a]">{issue.plotCode} · {issue.workerName}</p>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center justify-between gap-2"><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${isAssigned ? 'bg-[#e7f3eb] text-[#286344]' : isUrgent ? 'bg-[#fff1e2] text-[#9c581e]' : 'bg-[#edf2ee] text-[#5e7466]'}`}>{isAssigned ? 'Đã giao task' : isUrgent ? 'Ưu tiên cao' : issue.status === 'RESOLVED' ? 'Đã đóng' : 'Chờ xử lý'}</span><span className="truncate text-[11px] text-[#86968c]">{issue.reportedTime}</span></div>
+                        </button>;
+                      })}
+                    </div>
+                  </aside>
+
+                  <article className={`${mobileShowIssueDetail ? 'block' : 'hidden lg:block'} min-w-0 bg-white p-4 sm:p-6 lg:p-7`}>
+                    {selectedFieldIssue ? <div className="mx-auto max-w-4xl space-y-6">
+                      <button type="button" onClick={() => setMobileShowIssueDetail(false)} className="inline-flex items-center gap-2 text-sm font-bold text-[#37674a] lg:hidden"><ArrowLeft className="h-4 w-4" />Danh sách báo cáo</button>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-md bg-[#edf4ef] px-2.5 py-1 text-xs font-bold text-[#315c40]">{formatIssueCode(selectedFieldIssue)}</span><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${['HIGH', 'CRITICAL'].includes(selectedFieldIssue.urgency) ? 'bg-[#fff1e2] text-[#9c581e]' : 'bg-[#edf2ee] text-[#5e7466]'}`}>{['HIGH', 'CRITICAL'].includes(selectedFieldIssue.urgency) ? 'Ưu tiên cao' : 'Bình thường'}</span></div><h3 className="mt-3 font-heading text-xl font-black leading-tight text-[#173d30] sm:text-2xl">{selectedFieldIssue.issueType}</h3><p className="mt-2 text-sm text-[#65796d]">{selectedFieldIssue.plotName} ({selectedFieldIssue.plotCode}) <span className="px-1.5 text-[#b2c0b5]">/</span> {selectedFieldIssue.reportedTime}</p></div>
+                        <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${selectedFieldIssue.assignedTaskCode ? 'bg-[#e7f3eb] text-[#286344]' : selectedFieldIssue.status === 'RESOLVED' ? 'bg-[#edf2ee] text-[#60766b]' : 'bg-[#fff4df] text-[#8a641f]'}`}>{selectedFieldIssue.assignedTaskCode ? 'Đã giao cho staff' : selectedFieldIssue.status === 'RESOLVED' ? 'Đã đóng' : 'Cần xử lý'}</span>
+                      </div>
+
+                      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(230px,0.75fr)]">
+                        <div className="min-w-0 space-y-4">
+                          <div className="overflow-hidden rounded-2xl bg-[#e9efea]">
+                            {selectedFieldIssue.photoUrl ? <img src={selectedFieldIssue.photoUrl} alt={`Ảnh hiện trường ${selectedFieldIssue.plotCode}`} className="max-h-[410px] min-h-52 w-full object-cover" /> : <div className="flex min-h-52 flex-col items-center justify-center text-sm text-[#71847a]"><ImageIcon className="mb-2 h-8 w-8" />Chưa có ảnh hiện trường</div>}
+                          </div>
+                          <div className="rounded-2xl border border-[#e0e8e1] bg-[#fbfcfa] p-4 sm:p-5"><div className="flex items-center gap-2 text-sm font-bold text-[#244b37]"><AlertTriangle className="h-4 w-4 text-[#a56c2d]" />Mô tả từ hiện trường</div><p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#52695a]">{selectedFieldIssue.description || 'Người báo cáo chưa bổ sung mô tả.'}</p></div>
+                        </div>
+
+                        <aside className="h-fit rounded-2xl border border-[#dfe8e0] bg-[#f6f9f5] p-4 sm:p-5">
+                          <p className="text-xs font-bold text-[#77897d]">NGƯỜI BÁO CÁO</p>
+                          <p className="mt-1 text-base font-black text-[#173d30]">{selectedFieldIssue.workerName}</p>
+                          <div className="mt-4 border-t border-[#dfe8e0] pt-4"><p className="text-xs font-bold text-[#77897d]">THỬA ĐẤT</p><p className="mt-1 text-sm font-bold text-[#244b37]">{selectedFieldIssue.plotName} · {selectedFieldIssue.plotCode}</p></div>
+                          {selectedFieldIssue.diagnosis && <div className="mt-4 rounded-xl border border-[#cfe4d3] bg-white p-3.5"><p className="text-xs font-bold text-[#356448]">Ý kiến chuyên gia</p><p className="mt-1.5 text-sm leading-5 text-[#52695a]">{selectedFieldIssue.diagnosis}</p></div>}
+                          {selectedFieldIssue.assignedTaskCode && <div className="mt-4 rounded-xl border border-[#cfe4d3] bg-[#eaf5ed] p-3.5"><div className="flex items-start gap-2 text-[#286344]"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /><div><p className="text-sm font-bold">{selectedFieldIssue.assignedTaskCode} đã giao</p><p className="mt-1 text-xs">Thực hiện bởi {selectedFieldIssue.workerName}</p>{selectedFieldIssue.assignedDueDate && <p className="mt-1 text-xs">Hạn {new Date(`${selectedFieldIssue.assignedDueDate}T00:00:00`).toLocaleDateString('vi-VN')}</p>}</div></div></div>}
+                          <div className="mt-5 space-y-2.5">
+                            {selectedFieldIssue.isStaffReporter && !selectedFieldIssue.assignedTaskCode && <Button variant="primary" onClick={() => openTaskAssignment(selectedFieldIssue)} className="w-full justify-center bg-[#174e39] font-bold hover:bg-[#103e2d]"><UserCheck className="mr-2 h-4 w-4" />Giao task cho người báo cáo</Button>}
+                            {!selectedFieldIssue.assignedTaskCode && selectedFieldIssue.status === 'PENDING' && <Button variant="outline" onClick={() => setSelectedIssueToDiagnose(selectedFieldIssue)} className="w-full justify-center border-[#bdcfc0] font-bold text-[#315c40]">Viết chỉ đạo kỹ thuật</Button>}
+                            {selectedFieldIssue.assignedTaskCode && <p className="rounded-xl bg-[#eaf5ed] px-3 py-3 text-center text-xs font-semibold text-[#356448]">Task đã được chuyển tới dashboard staff với mức ưu tiên cao.</p>}
+                          </div>
+                        </aside>
+                      </div>
+                    </div> : <div className="flex min-h-[420px] flex-col items-center justify-center text-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#edf4ef] text-[#557e61]"><CheckCircle2 className="h-7 w-7" /></div><h3 className="mt-4 font-heading text-xl font-black text-[#173d30]">Chưa có báo cáo cần xem</h3><p className="mt-1 max-w-sm text-sm leading-6 text-[#71847a]">Báo cáo sự cố mới từ staff sẽ xuất hiện tại đây để chuyên gia xử lý.</p></div>}
+                  </article>
                 </div>
-              </div>
+              </section>
             )}
 
             {/* TAB 3: VIETGAP PROCESS TEMPLATES (Quản lý Phác đồ canh tác chuẩn VietGAP - UC09) */}
@@ -2339,7 +2424,7 @@ export default function ExpertDashboard() {
         isOpen={Boolean(selectedIssueToAssign)}
         onClose={() => !isAssigningTask && setSelectedIssueToAssign(null)}
         title="Giao nhiệm vụ xử lý"
-        subtitle={selectedIssueToAssign ? `${selectedIssueToAssign.issueCode || selectedIssueToAssign.id} · ${selectedIssueToAssign.plotName}` : ''}
+        subtitle={selectedIssueToAssign ? `${formatIssueCode(selectedIssueToAssign)} · ${selectedIssueToAssign.plotName}` : ''}
       >
         {selectedIssueToAssign && (
           <form onSubmit={handleAssignIssueTask} className="space-y-4 text-left text-xs">

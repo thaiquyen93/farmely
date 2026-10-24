@@ -44,7 +44,6 @@ import {
   FileText,
   X
 } from 'lucide-react';
-import { recordStaffActivity } from '../../services/cropStandardProcess';
 
 // SSoT danh mục giống canh tác chuẩn theo từng thửa đất tại Happy Valley
 const DEFAULT_PLOT_CROPS = {
@@ -66,7 +65,7 @@ const DEFAULT_PLOT_CROPS = {
   'P-16': 'Xà lách Romaine VietGAP'
 };
 
-const readPhoto = async (file, onLoad) => {
+const uploadPhoto = async (file, onLoad) => {
   if (!file) {
     onLoad('');
     return;
@@ -112,15 +111,16 @@ const getTaskTimingMeta = (task) => {
   if (task.status === 'COMPLETED') return { key: 'COMPLETED', label: 'Hoàn thành', tone: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500', row: 'border-l-emerald-200 bg-emerald-50/30' };
   if (task.priority === 'HIGH') return { key: 'URGENT', label: 'Khẩn cấp', tone: 'bg-rose-100 text-rose-800', dot: 'bg-rose-500', row: 'border-l-rose-500 bg-rose-50/80' };
   if (task.status === 'OVERDUE') return { key: 'OVERDUE', label: 'Quá hạn', tone: 'bg-rose-100 text-rose-800', dot: 'bg-rose-500', row: 'border-l-rose-400 bg-rose-50/70' };
-  if (task.status === 'IN_PROGRESS') return { key: 'DUE_SOON', label: 'Cần làm', tone: 'bg-sky-100 text-sky-800', dot: 'bg-sky-500', row: 'border-l-sky-400 bg-sky-50/70' };
 
   const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(task.deadline || '') ? new Date(`${task.deadline}T00:00:00`) : null;
   if (dueDate && !Number.isNaN(dueDate.getTime())) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / 86400000);
+    if (daysUntilDue < 0) return { key: 'OVERDUE', label: 'Quá hạn', tone: 'bg-rose-100 text-rose-800', dot: 'bg-rose-500', row: 'border-l-rose-400 bg-rose-50/70' };
     if (daysUntilDue <= 2) return { key: 'DUE_SOON', label: 'Cần làm', tone: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500', row: 'border-l-amber-400 bg-amber-50/50' };
   }
+  if (task.status === 'IN_PROGRESS') return { key: 'DUE_SOON', label: 'Đang làm', tone: 'bg-sky-100 text-sky-800', dot: 'bg-sky-500', row: 'border-l-sky-400 bg-sky-50/70' };
 
   return { key: 'NOT_DUE', label: 'Chưa tới hạn', tone: 'bg-stone-100 text-stone-600', dot: 'bg-stone-400', row: 'border-l-stone-200 bg-white' };
 };
@@ -241,18 +241,19 @@ export default function FieldWorkerDashboard() {
   const serialReaderRef = useRef(null);
 
   const [assignedPlots, setAssignedPlots] = useState([]);
-  const [selectedPlotCode, setSelectedPlotCode] = useState('P-01');
+  const [selectedPlotCode, setSelectedPlotCode] = useState(null);
+  const [showPlotTasks, setShowPlotTasks] = useState(false);
 
   const loadPlots = () => {
-    apiFetch('/api/rentals')
+    if (!Number.isFinite(workerId)) return;
+    apiFetch(`/api/rentals?staffId=${workerId}`)
       .then((res) => {
         const list = unwrapData(res) || [];
-        if (Array.isArray(list) && list.length > 0) {
-          setAssignedPlots(list.map((p) => ({
-            ...p,
-            crop: p.varietyName || p.crop || DEFAULT_PLOT_CROPS[p.plotCode] || 'Rau củ chuẩn VietGAP'
-          })));
-        }
+        setAssignedPlots(Array.isArray(list) ? list.map((p) => ({
+          ...p,
+          plotImage: p.image || p.plotImage || '',
+          crop: p.varietyName || p.crop || DEFAULT_PLOT_CROPS[p.plotCode] || 'Rau củ chuẩn VietGAP'
+        })) : []);
       })
       .catch((err) => {
         console.warn('Could not fetch live rentals:', err);
@@ -296,16 +297,19 @@ export default function FieldWorkerDashboard() {
     if (!Number.isFinite(workerId)) return undefined;
     let cancelled = false;
     setDataError('');
-    Promise.all([
+    Promise.allSettled([
       apiFetch(`/api/tasks?workerId=${workerId}`),
       apiFetch(`/api/issues?reportedBy=${workerId}`),
       apiFetch(`/api/harvest?enteredBy=${workerId}`)
     ])
-      .then(([taskBody, issueBody, harvestBody]) => {
+      .then((results) => {
         if (cancelled) return;
-        const taskData = unwrapData(taskBody) || [];
-        const issueData = unwrapData(issueBody) || [];
-        const harvestData = unwrapData(harvestBody) || [];
+        const [taskResult, issueResult, harvestResult] = results;
+        const failed = results.some((result) => result.status === 'rejected');
+        const taskData = taskResult.status === 'fulfilled' ? (unwrapData(taskResult.value) || []) : [];
+        const issueData = issueResult.status === 'fulfilled' ? (unwrapData(issueResult.value) || []) : [];
+        const harvestData = harvestResult.status === 'fulfilled' ? (unwrapData(harvestResult.value) || []) : [];
+        setDataError(failed ? 'Một số dữ liệu chưa tải được. Công việc khả dụng vẫn được hiển thị.' : '');
         setTasks(taskData.map((task) => ({
           id: task.taskCode || `TASK-${task.taskId}`,
           apiId: task.taskId,
@@ -319,6 +323,7 @@ export default function FieldWorkerDashboard() {
           customerName: task.customerName || 'Khách hàng Farmely',
           plotImage: task.plotImageUrl || (task.plotCode === 'P-04' ? '/images/moc-chau-2811.jpg' : '/images/Mucangchai3.jpg'),
           deadline: task.dueDate || 'Chưa có hạn thực hiện',
+          dueDate: task.dueDate || null,
           instructions: task.instructions || task.notes || 'Chưa có hướng dẫn từ hệ thống.',
           status: normalizeTaskStatus(task.displayStatus || task.status),
           priority: task.serviceRequestId ? 'HIGH' : (task.isOverdue ? 'OVERDUE' : 'NORMAL'),
@@ -364,14 +369,6 @@ export default function FieldWorkerDashboard() {
           plotExpansion[task.plotCode || task.plotName || 'Chưa xác định'] = true;
         });
         setExpandedPlots(plotExpansion);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setTasks([]);
-          setMyIssues([]);
-          setHarvestTasks([]);
-          setDataError(error.message || 'Không thể tải dữ liệu ca trực từ hệ thống.');
-        }
       });
     return () => { cancelled = true; };
   }, [workerId]);
@@ -409,7 +406,7 @@ export default function FieldWorkerDashboard() {
       try {
         await apiFetch(`/api/tasks/${selectedTaskToExecute.apiId}/complete`, {
           method: 'PUT',
-          body: JSON.stringify({ evidenceImageUrl: taskProofPhoto, notes: taskProofNote, syncToDiary: true })
+          body: JSON.stringify({ evidenceImageUrl: taskProofPhoto, notes: taskProofNote, syncToDiary: false })
         });
       } catch (error) {
         setDataError(error.message || 'Không thể cập nhật nhiệm vụ lên hệ thống.');
@@ -429,38 +426,9 @@ export default function FieldWorkerDashboard() {
             instructions: taskProofNote || 'Nhiệm vụ đã được thợ hoàn tất và kiểm tra đạt tiêu chuẩn.'
           })
         });
-        await fetch('/api/farm-diaries', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            rentalId: selectedTaskToExecute.rentalId || 1,
-            content: `Hoàn tất nhiệm vụ: ${selectedTaskToExecute.title}. ${taskProofNote || ''}`,
-            imageUrl: taskProofPhoto || '/images/moc-chau-2811.jpg'
-          })
-        });
       } catch (err) {
         console.warn('Could not patch task to DB:', err);
       }
-    }
-
-    try {
-      const pCode = selectedTaskToExecute.plotCode || 'P-01';
-      recordStaffActivity({
-        activityId: `ACT-${selectedTaskToExecute.id || Date.now()}`,
-        plotId: pCode,
-        plotCode: pCode,
-        rentalId: selectedTaskToExecute.rentalId || 1,
-        workerName: user?.fullName || 'Trần Văn Lực (CVLĐ)',
-        workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
-        title: selectedTaskToExecute.title || 'Chăm sóc luống cây trồng',
-        timestamp: `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Hôm nay`,
-        status: 'COMPLETED',
-        notes: taskProofNote || 'Nhiệm vụ đã được hoàn tất và nghiệm thu đạt tiêu chuẩn VietGAP.',
-        proofPhoto: taskProofPhoto || '/images/moc-chau-2811.jpg',
-        sensorSnapshot: { temp: '26.8°C', soilMoisture: '68%' }
-      });
-    } catch (e) {
-      console.warn('Could not record staff activity:', e);
     }
 
     setTasks((prev) =>
@@ -470,7 +438,8 @@ export default function FieldWorkerDashboard() {
               ...t,
               status: 'COMPLETED',
               completedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              proofPhoto: taskProofPhoto
+              proofPhoto: taskProofPhoto,
+              completionNote: taskProofNote
             }
       : t)
     );
@@ -478,7 +447,7 @@ export default function FieldWorkerDashboard() {
     setTaskProofNote('');
     setTaskProofPhoto('');
     setDataError('');
-    setDataSuccess('Đã hoàn thành nhiệm vụ và đồng bộ ảnh vào nhật ký nông trại.');
+    setDataSuccess('Đã hoàn thành nhiệm vụ, ảnh minh chứng và ghi chú đã được lưu cùng công việc.');
   };
 
   // Handle Submit New Issue
@@ -689,7 +658,7 @@ export default function FieldWorkerDashboard() {
 
   const completedCount = tasks.filter((t) => t.status === 'COMPLETED').length;
   const pendingCount = tasks.length - completedCount;
-  const overdueCount = tasks.filter((task) => task.status === 'OVERDUE').length;
+  const overdueCount = tasks.filter((task) => getTaskTimingMeta(task).key === 'OVERDUE').length;
   const dueSoonCount = tasks.filter((task) => ['DUE_SOON', 'URGENT'].includes(getTaskTimingMeta(task).key)).length;
   const notDueCount = tasks.filter((task) => getTaskTimingMeta(task).key === 'NOT_DUE').length;
   const actionableCount = overdueCount + dueSoonCount;
@@ -718,6 +687,7 @@ export default function FieldWorkerDashboard() {
           customerName: p.renterName || 'Khách thuê',
           contractCode: p.contractCode || '#CTR-2026-001',
           crop: p.crop || DEFAULT_PLOT_CROPS[code] || 'Rau củ chuẩn VietGAP',
+          plotImage: p.plotImage || p.image || '',
           area: p.area || '150 m²',
           location: p.location || 'Khu Nông Trại Happy Valley Củ Chi',
           rentalId: p.rentalId || p.id || 1,
@@ -737,6 +707,7 @@ export default function FieldWorkerDashboard() {
           customerName: task.customerName || assigned?.renterName || 'Khách thuê',
           contractCode: assigned?.contractCode || '#CTR-2026-001',
           crop: task.crop || assigned?.crop || DEFAULT_PLOT_CROPS[code] || 'Rau củ chuẩn VietGAP',
+          plotImage: task.plotImage || assigned?.plotImage || '',
           area: assigned?.area || '150 m²',
           location: assigned?.location || 'Khu Nông Trại Happy Valley Củ Chi',
           rentalId: task.rentalId || assigned?.rentalId || 1,
@@ -747,10 +718,7 @@ export default function FieldWorkerDashboard() {
     });
 
     const list = Array.from(map.values());
-    const withTasks = list.filter((p) => p.tasks && p.tasks.length > 0);
-    const result = withTasks.length > 0 ? withTasks : list;
-
-    return result.sort((a, b) => {
+    return list.sort((a, b) => {
       const aPending = (a.tasks || []).filter((t) => t.status !== 'COMPLETED').length;
       const bPending = (b.tasks || []).filter((t) => t.status !== 'COMPLETED').length;
       return bPending - aPending;
@@ -836,8 +804,8 @@ export default function FieldWorkerDashboard() {
         <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />Ca trực hiện trường</div>
-            <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">{activeTab === 'tasks' ? 'Việc hôm nay' : activeTab === 'harvest' ? 'Thu hoạch' : 'Lịch sử báo cáo'}</h1>
-            <p className="mt-1 text-xs text-brand-muted">{activeTab === 'tasks' ? `${tasks.length} nhiệm vụ tại ${Object.keys(tasksByPlot).length} thửa đất` : activeTab === 'harvest' ? 'Chụp ảnh, nhập số cân và xác nhận kết quả thu hoạch tại thửa.' : 'Theo dõi các sự cố đã gửi và tiến độ xử lý từ chuyên gia.'}</p>
+            <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">{activeTab === 'tasks' ? (showPlotTasks ? 'Công việc tại thửa' : 'Thửa được phân công') : activeTab === 'harvest' ? 'Thu hoạch' : 'Lịch sử báo cáo'}</h1>
+            <p className="mt-1 text-xs text-brand-muted">{activeTab === 'tasks' ? (showPlotTasks ? 'Việc hiện tại, sắp tới và đã hoàn thành tại thửa này.' : 'Chọn một thửa để xem và cập nhật công việc.') : activeTab === 'harvest' ? 'Chụp ảnh, nhập số cân và xác nhận kết quả thu hoạch tại thửa.' : 'Theo dõi các sự cố đã gửi và tiến độ xử lý từ chuyên gia.'}</p>
           </div>
           {activeTab === 'tasks' && <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs shadow-sm"><span className="font-bold text-stone-500">{currentSession === 'MORNING' ? 'Ca sáng' : 'Ca chiều'} · </span><strong className="text-emerald-800">{completedCount}/{tasks.length} nhiệm vụ hoàn thành</strong></div>}
         </section>
@@ -855,14 +823,14 @@ export default function FieldWorkerDashboard() {
           </div>
         ) : null}
 
-        {activeTab === 'tasks' && (
+        {activeTab === 'tasks' && !showPlotTasks && (
           <div className="grid grid-cols-2 gap-3 sm:max-w-xl sm:grid-cols-3">
             <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-2xs">
-              <span className="block text-xs font-bold text-stone-500 uppercase tracking-wider">Tổng nhiệm vụ</span>
-              <strong className="font-heading text-2xl font-black text-stone-900 mt-1 block">{tasks.length}</strong>
+              <span className="block text-xs font-bold text-stone-500 uppercase tracking-wider">Thửa phụ trách</span>
+              <strong className="font-heading text-2xl font-black text-stone-900 mt-1 block">{plotSummaryList.length}</strong>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-2xs">
-              <span className="block text-xs font-bold text-amber-800 uppercase tracking-wider">Cần làm hôm nay</span>
+              <span className="block text-xs font-bold text-amber-800 uppercase tracking-wider">Việc chưa xong</span>
               <strong className="font-heading text-2xl font-black text-amber-900 mt-1 block">{pendingCount}</strong>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-2xs">
@@ -872,7 +840,7 @@ export default function FieldWorkerDashboard() {
           </div>
         )}
 
-        {activeTab === 'tasks' && overdueCount > 0 ? (
+        {activeTab === 'tasks' && showPlotTasks && overdueCount > 0 ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-800">
             Có {overdueCount} công việc đang thực hiện đã quá hạn. Nhân viên vẫn có thể mở và hoàn thành các công việc này.
           </div>
@@ -887,8 +855,7 @@ export default function FieldWorkerDashboard() {
             <div className={`px-2 pb-2 text-xs font-bold text-emerald-100/70 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Nghiệp Vụ Hiện Trường</div>
 
             {[
-              { id: 'tasks', label: 'Việc hôm nay', icon: CheckCircle2, count: pendingCount },
-              { id: 'plots', label: 'Thửa Đất Phụ Trách', icon: Layers, count: assignedPlots.length },
+              { id: 'tasks', label: 'Thửa & công việc', icon: CheckCircle2, count: pendingCount },
               { id: 'harvest', label: 'Thu hoạch & đóng gói', icon: PackageCheck, count: harvestWorkItems.filter(h => h.status !== 'COMPLETED').length },
               { id: 'issues', label: 'Báo cáo sự cố', icon: AlertTriangle, count: myIssues.length }
             ].map((tab) => {
@@ -930,16 +897,17 @@ export default function FieldWorkerDashboard() {
             {/* Assigned care tasks */}
             {activeTab === 'tasks' && (
               <div className="space-y-6">
+                {!showPlotTasks && <div className="space-y-3">
                 {/* 1. BỘ CHỌN THỬA ĐẤT PHỤ TRÁCH (CHIA Ô PLOTS RIÊNG BIỆT NHƯ CUSTOMER) */}
                 <div className="space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <h3 className="font-heading text-lg font-black text-brand-dark flex items-center gap-2">
                         <Layers className="h-5 w-5 text-emerald-800" />
-                        <span>Thửa đất phụ trách ca trực</span>
+                        <span>Thửa đất của bạn</span>
                       </h3>
                       <p className="text-xs text-stone-500">
-                        Chọn từng thửa đất có nhiệm vụ hôm nay để thao tác nghiệm thu (BR15) hoặc báo sự cố (BR16).
+                        Mở thửa để xem các công việc được giao.
                       </p>
                     </div>
                     <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">
@@ -947,33 +915,9 @@ export default function FieldWorkerDashboard() {
                     </span>
                   </div>
 
-                  {/* Grid 3 cột cân đối tuyệt đối */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                    {/* Ô Tất cả các thửa */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPlotCode('ALL')}
-                      className={`flex flex-col justify-between p-4 sm:p-5 rounded-2xl border text-left transition-all ${
-                        selectedPlotCode === 'ALL'
-                          ? 'border-emerald-600 bg-emerald-50/80 shadow-sm ring-2 ring-emerald-600/30'
-                          : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/50'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-heading font-black text-sm text-brand-dark">Tất cả các thửa</span>
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-black text-emerald-800">
-                            {tasks.length} việc
-                          </span>
-                        </div>
-                        <p className="mt-2 text-xs text-stone-500">Toàn bộ nhiệm vụ trong ca trực trên các thửa đất</p>
-                      </div>
-                      <div className="mt-4 flex items-center justify-between border-t border-stone-200/60 pt-2.5 text-xs">
-                        <span className="font-bold text-amber-700">{pendingCount} việc cần làm</span>
-                        <span className="text-stone-400 font-medium">{completedCount} đã xong</span>
-                      </div>
-                    </button>
-
+                  {/* Plot cards mirror the customer overview and collapse to one column on mobile. */}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {plotSummaryList.length === 0 && <div className="rounded-3xl border border-dashed border-stone-300 bg-white p-8 text-center text-sm text-stone-500 sm:col-span-2 xl:col-span-3">Hiện chưa có thửa đất nào được phân công cho tài khoản này.</div>}
                     {/* Từng ô Thửa đất cụ thể */}
                     {plotSummaryList.map((plot) => {
                       const isSelected = selectedPlotCode === plot.plotCode;
@@ -986,57 +930,39 @@ export default function FieldWorkerDashboard() {
                         <button
                           key={plot.plotCode}
                           type="button"
-                          onClick={() => setSelectedPlotCode(plot.plotCode)}
-                          className={`flex flex-col justify-between p-4 sm:p-5 rounded-2xl border text-left transition-all ${
-                            isSelected
-                              ? 'border-emerald-600 bg-emerald-50/80 shadow-sm ring-2 ring-emerald-600/40'
-                              : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/50'
-                          }`}
+                          onClick={() => { setSelectedPlotCode(plot.plotCode); setShowPlotTasks(true); }}
+                          className={`group overflow-hidden rounded-3xl border bg-white text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${isSelected && showPlotTasks ? 'border-emerald-700 ring-2 ring-emerald-700/20' : 'border-stone-200 hover:border-emerald-300'}`}
                         >
-                          <div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="px-2.5 py-0.5 rounded-md font-mono font-black text-xs bg-emerald-800 text-white">
-                                  {plot.plotCode}
-                                </span>
-                                <span className="font-heading font-black text-sm text-brand-dark truncate">
-                                  {plot.plotName}
-                                </span>
-                              </div>
-                              {pending > 0 ? (
-                                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
-                                  {pending} cần làm
-                                </span>
-                              ) : (
-                                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 flex items-center gap-1">
-                                  <Check className="h-3 w-3" /> Xong ca
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="mt-2.5 text-xs space-y-1">
-                              <p className="font-bold text-emerald-900 truncate">🌱 {plot.crop}</p>
-                              <p className="text-stone-500 truncate">👤 Khách hàng: <strong className="text-stone-800">{plot.customerName}</strong></p>
+                          <div className="relative h-36 bg-gradient-to-br from-emerald-800 to-emerald-950">
+                            {plot.plotImage ? <img src={plot.plotImage} alt={plot.plotName} className="absolute inset-0 h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" /> : null}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                            <span className="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1 text-xs font-bold text-emerald-950">{plot.plotCode}</span>
+                            <div className="absolute inset-x-4 bottom-4 text-white">
+                              <h4 className="!text-white truncate font-heading text-lg font-black">{plot.plotName}</h4>
+                              <p className="mt-0.5 truncate text-xs !text-white/90">{plot.location}</p>
                             </div>
                           </div>
-
-                          <div className="mt-4 border-t border-stone-200/60 pt-2.5">
-                            <div className="flex items-center justify-between text-xs text-stone-500 mb-1.5">
-                              <span>Tiến độ ca trực</span>
-                              <span className="font-bold text-stone-700">{done}/{total} việc</span>
+                          <div className="space-y-3 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="truncate text-sm font-bold text-brand-dark">{plot.crop}</span>
+                              <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800">{pending} việc cần làm</span>
                             </div>
-                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
-                              <div className="h-full bg-emerald-600 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                            <div className="flex items-center justify-between border-t border-stone-100 pt-3 text-xs text-stone-500">
+                              <span>{done}/{total} việc hoàn thành</span>
+                              <span className="inline-flex items-center gap-1 font-bold text-emerald-800">Xem công việc <ArrowRight className="h-3.5 w-3.5" /></span>
                             </div>
+                            <div className="h-1.5 overflow-hidden rounded-full bg-stone-100"><div className="h-full rounded-full bg-emerald-600 transition-all" style={{ width: `${progress}%` }} /></div>
                           </div>
                         </button>
                       );
                     })}
                   </div>
                 </div>
+                </div>}
 
                 {/* 2. KHU VỰC CHI TIẾT NHIỆM VỤ THEO THỬA ĐÃ CHỌN (PLOT WORKSPACE FULL WIDTH) */}
-                <div className="space-y-5 rounded-3xl border border-brand-border bg-white p-5 sm:p-7 shadow-sm">
+                {showPlotTasks && <div className="space-y-5 rounded-3xl border border-brand-border bg-white p-5 sm:p-7 shadow-sm">
+                  <button type="button" onClick={() => setShowPlotTasks(false)} className="inline-flex items-center gap-2 text-sm font-bold text-emerald-800 hover:text-emerald-950"><ArrowRight className="h-4 w-4 rotate-180" />Quay lại danh sách thửa</button>
                   {selectedPlotCode !== 'ALL' ? (() => {
                     const activePlot = (plotSummaryList && plotSummaryList.length > 0
                       ? plotSummaryList.find((p) => p.plotCode === selectedPlotCode) || plotSummaryList[0]
@@ -1053,7 +979,8 @@ export default function FieldWorkerDashboard() {
                     }
 
                     const plotTasks = activePlot.tasks || [];
-                    const pendingTasks = plotTasks.filter((t) => t.status !== 'COMPLETED');
+                    const pendingTasks = plotTasks.filter((t) => t.status !== 'COMPLETED' && getTaskTimingMeta(t).key !== 'NOT_DUE');
+                    const upcomingTasks = plotTasks.filter((t) => t.status !== 'COMPLETED' && getTaskTimingMeta(t).key === 'NOT_DUE');
                     const completedTasks = plotTasks.filter((t) => t.status === 'COMPLETED');
 
                     return (
@@ -1073,11 +1000,7 @@ export default function FieldWorkerDashboard() {
                               </span>
                             </div>
                             <p className="text-xs text-stone-600 flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5">
-                              <span>👤 Khách hàng: <strong className="text-stone-900">{activePlot.customerName || 'Khách thuê'}</strong></span>
-                              <span className="text-stone-300">•</span>
-                              <span>📋 Hợp đồng: <strong className="font-mono text-stone-700">{activePlot.contractCode || '#CTR-2026-001'}</strong></span>
-                              <span className="text-stone-300">•</span>
-                              <span>📍 <strong className="text-stone-700">{activePlot.location || 'Khu Nông Trại Happy Valley Củ Chi'}</strong></span>
+                              <span>{activePlot.location || 'Trang trại Farmely'}</span>
                             </p>
                           </div>
                           <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
@@ -1113,7 +1036,7 @@ export default function FieldWorkerDashboard() {
                           <div className="flex items-center justify-between border-b border-stone-200/80 pb-3">
                             <h4 className="font-heading font-black text-base text-stone-900 flex items-center gap-2">
                               <Clock className="w-5 h-5 text-amber-600" />
-                              <span>Việc Cần Thực Hiện Hôm Nay ({pendingTasks.length})</span>
+                              <span>Việc hiện tại ({pendingTasks.length})</span>
                             </h4>
                             {pendingTasks.length > 0 && (
                               <span className="text-xs font-bold text-amber-800 bg-amber-50 px-3 py-1 rounded-full border border-amber-200/80">
@@ -1125,8 +1048,8 @@ export default function FieldWorkerDashboard() {
                           {pendingTasks.length === 0 ? (
                             <div className="p-8 text-center bg-emerald-50/40 rounded-2xl border border-dashed border-emerald-200 flex flex-col items-center gap-2">
                               <CheckCircle2 className="w-8 h-8 text-emerald-600" />
-                              <p className="font-heading font-black text-stone-900 text-base">Đã hoàn thành mọi việc tại thửa này!</p>
-                              <p className="text-xs text-stone-500">Toàn bộ nhiệm vụ chăm sóc đã được nghiệm thu đạt chuẩn VietGAP.</p>
+                              <p className="font-heading font-black text-stone-900 text-base">Không có việc cần làm ngay</p>
+                              <p className="text-xs text-stone-500">Chưa có việc cần xử lý ngay tại thửa này.</p>
                             </div>
                           ) : (
                             <div className="grid gap-3.5">
@@ -1162,7 +1085,7 @@ export default function FieldWorkerDashboard() {
                                       <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100 text-xs text-stone-700 leading-relaxed flex items-start gap-2.5">
                                         <BookOpen className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                                         <div>
-                                          <span className="font-bold text-emerald-950">Hướng dẫn kỹ thuật VietGAP: </span>
+                                          <span className="font-bold text-emerald-950">Cách làm: </span>
                                           <span>{task.instructions}</span>
                                         </div>
                                       </div>
@@ -1184,7 +1107,7 @@ export default function FieldWorkerDashboard() {
                                         className="gap-2 font-bold px-4 py-2.5 bg-[#07533d] hover:bg-[#053d2d] text-white shadow-xs"
                                       >
                                         {isHarvestTask ? <Scale className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
-                                        {isHarvestTask ? 'Thu hoạch' : 'Nghiệm thu (Chụp ảnh BR15)'}
+                                        {isHarvestTask ? 'Thu hoạch' : 'Nghiệm thu'}
                                       </Button>
                                     </div>
                                   </div>
@@ -1194,12 +1117,24 @@ export default function FieldWorkerDashboard() {
                           )}
                         </div>
 
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b border-stone-200/80 pb-3">
+                            <h4 className="font-heading font-black text-base text-brand-dark">Sắp tới <span className="ml-1 text-sm font-semibold text-stone-400">{upcomingTasks.length}</span></h4>
+                          </div>
+                          {upcomingTasks.length ? upcomingTasks.map((task) => (
+                            <div key={task.id} className="flex flex-col gap-2 rounded-2xl border border-stone-200 bg-stone-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0"><p className="font-bold text-brand-dark">{task.title}</p><p className="mt-1 line-clamp-2 text-xs text-stone-500">{task.instructions}</p></div>
+                              <span className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-stone-600">{task.dueDate || task.deadline || 'Chưa có hạn'}</span>
+                            </div>
+                          )) : <p className="text-xs text-stone-400">Chưa có công việc sắp tới.</p>}
+                        </div>
+
                         {/* Danh sách việc đã hoàn thành */}
                         <div className="space-y-4 pt-3">
                           <div className="flex items-center justify-between border-b border-stone-200/80 pb-3">
                             <h4 className="font-heading font-black text-base text-stone-900 flex items-center gap-2">
                               <CheckCircle2 className="w-5 h-5 text-emerald-700" />
-                              <span>Lịch Sử Đã Nghiệm Thu Hoàn Thành ({completedTasks.length})</span>
+                              <span>Đã hoàn thành ({completedTasks.length})</span>
                             </h4>
                           </div>
 
@@ -1223,6 +1158,7 @@ export default function FieldWorkerDashboard() {
                                       </span>
                                     </div>
                                     <p className="text-xs text-stone-600">{task.instructions}</p>
+                                    {task.completionNote && <p className="text-xs text-stone-600">Ghi chú: {task.completionNote}</p>}
                                     <p className="text-xs text-emerald-800 font-semibold">
                                       👷 Kỹ thuật viên nghiệm thu: <strong>{task.workerName || user?.fullName || 'Trần Văn Lực (CVLĐ)'}</strong>
                                     </p>
@@ -1315,7 +1251,7 @@ export default function FieldWorkerDashboard() {
                       ))}
                     </div>
                   )}
-                </div>
+                </div>}
               </div>
             )}
 
@@ -1565,7 +1501,7 @@ export default function FieldWorkerDashboard() {
       <Modal
         isOpen={Boolean(selectedTaskToExecute)}
         onClose={() => setSelectedTaskToExecute(null)}
-        title="Xác Nhận Hoàn Thành Ca Trực Hiện Trường"
+        title="Gửi minh chứng hoàn thành"
         subtitle={selectedTaskToExecute?.title}
       >
         {selectedTaskToExecute && (
@@ -1579,15 +1515,20 @@ export default function FieldWorkerDashboard() {
             <div className="p-4 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-1.5 bg-stone-50">
               <Camera className="w-7 h-7 text-brand-green mx-auto" />
               <p className="font-bold text-stone-700">Đính kèm ảnh minh chứng thực tế</p>
-              <p className="text-[10px] text-stone-400">Ảnh này sẽ tự động xuất hiện trên Farm Diary của khách hàng</p>
+              <p className="text-[10px] text-stone-400">Ảnh sẽ được lưu cùng kết quả của công việc này.</p>
               <input
                 type="file"
                 accept="image/*"
+                capture="environment"
                 required
-                onChange={(event) => readPhoto(event.target.files?.[0], setTaskProofPhoto)}
+                onChange={async (event) => {
+                  setIsUploadingPhoto(true);
+                  await uploadPhoto(event.target.files?.[0], setTaskProofPhoto);
+                  setIsUploadingPhoto(false);
+                }}
                 className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-3 file:py-1.5 file:font-bold file:text-emerald-800"
               />
-              {taskProofPhoto && <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold text-emerald-800">✓ Đã chọn ảnh minh chứng</span>}
+              {taskProofPhoto && <div className="mx-auto mt-3 max-w-xs"><img src={taskProofPhoto} alt="Xem trước ảnh minh chứng" className="max-h-48 w-full rounded-xl object-cover" /><span className="mt-2 inline-block rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold text-emerald-800">✓ Ảnh minh chứng sẵn sàng</span></div>}
             </div>
 
             <div>
@@ -1608,7 +1549,7 @@ export default function FieldWorkerDashboard() {
                 Hủy
               </Button>
               <Button type="submit" variant="primary" size="sm" className="font-bold">
-                {isUploadingPhoto ? 'ĐANG ĐỒNG BỘ...' : 'XÁC NHẬN HOÀN TẤT & ĐỒNG BỘ DIARY'}
+                {isUploadingPhoto ? 'ĐANG LƯU...' : 'HOÀN THÀNH CÔNG VIỆC'}
               </Button>
             </div>
           </form>

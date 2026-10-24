@@ -12,6 +12,8 @@ async function ensureRentalLeaseColumns() {
     await runPostgreSql(`
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS cultivation_mode VARCHAR(20);
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS term_months INTEGER;
+ALTER TABLE rentals ADD COLUMN IF NOT EXISTS expert_id INTEGER REFERENCES users(user_id);
+ALTER TABLE rentals ADD COLUMN IF NOT EXISTS staff_id INTEGER REFERENCES users(user_id);
 `);
     rentalLeaseColumnsEnsured = true;
   } catch (err) {
@@ -71,6 +73,7 @@ const PSQL_PATH = PSQL_CANDIDATES.find(p => {
 }) || 'psql';
 
 let activePgConfig = null;
+const PG_CONNECTION_ERROR_CODES = new Set(['ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'ECONNRESET', 'EHOSTUNREACH', '28P01', '3D000', '08001', '08006']);
 
 function getPgConfig() {
   if (activePgConfig) return activePgConfig;
@@ -168,6 +171,8 @@ async function runPostgreSql(sqlQuery) {
     }
     return String(val ?? '');
   } catch (poolErr) {
+    console.warn('[PostgreSQL query failed before CLI fallback]', poolErr?.code || '', poolErr?.message || poolErr);
+    if (!PG_CONNECTION_ERROR_CODES.has(poolErr?.code)) throw poolErr;
     if (activePgConfig) {
       try {
         return await runPostgreSqlAttempt(activePgConfig, sqlQuery);
@@ -3159,12 +3164,17 @@ SELECT json_build_object(
             const urlObj = new URL(url, 'http://localhost:3000');
             const emailFilter = (urlObj.searchParams.get('email') || '').trim().toLowerCase();
             const customerIdParam = parseInt(urlObj.searchParams.get('customerId') || urlObj.searchParams.get('renter_id') || '0', 10);
+            const staffIdParam = parseInt(urlObj.searchParams.get('staffId') || '0', 10);
             let whereSql = '';
             if (emailFilter) {
               whereSql = `WHERE LOWER(u.email) = '${emailFilter.replace(/'/g, "''")}'`;
             } else if (customerIdParam > 0) {
               whereSql = `WHERE c.renter_id = ${customerIdParam}`;
+            } else if (staffIdParam > 0) {
+              whereSql = `WHERE rent.staff_id = ${staffIdParam}`;
             }
+
+            await ensureRentalLeaseColumns();
 
             const sql = `
 SELECT json_build_object(
@@ -3303,6 +3313,10 @@ ON CONFLICT DO NOTHING;
         // 18. CARE TASKS API (GET, POST, PATCH /api/care-tasks)
         if (req.method === 'GET' && (url === '/api/care-tasks' || url === '/api/v1/care-tasks' || url === '/api/tasks' || url.startsWith('/api/care-tasks?') || url.startsWith('/api/v1/care-tasks?') || url.startsWith('/api/tasks?'))) {
           try {
+            const workerIdParam = parseInt(new URL(url, 'http://localhost:3000').searchParams.get('workerId') || '', 10);
+            const workerFilter = Number.isInteger(workerIdParam) && workerIdParam > 0
+              ? `WHERE ct.task_assigned_to = ${workerIdParam}`
+              : '';
             const sql = `
 SELECT json_build_object(
   'success', true,
@@ -3345,6 +3359,7 @@ SELECT json_build_object(
       LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
       LEFT JOIN service_requests sr ON ct.service_request_id = sr.request_id
       LEFT JOIN services s ON sr.service_id = s.service_id
+      ${workerFilter}
       ORDER BY ct.due_date ASC, ct.task_id ASC
     ) t
   )

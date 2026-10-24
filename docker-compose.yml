@@ -260,7 +260,17 @@ services:
     ports:
       - "3000:3000"
     depends_on:
-      - api-gateway
+      postgres:
+        condition: service_healthy
+      api-gateway:
+        condition: service_started
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DOCKER_ENV=true
     networks:
       - farmely-net
 

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { normalizeRole } from '../utils/roleRouting';
 
 // Default mock demo users for quick role switching & testing
 export const DEMO_ACCOUNTS = [
@@ -13,8 +14,8 @@ export const DEMO_ACCOUNTS = [
     avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80"
   },
   {
-    id: "USR-002",
-    userId: 2,
+    id: "USR-005",
+    userId: 5,
     fullName: "ThS. Nguyễn Hoàng Nam",
     email: "expert@farmely.vn",
     role: "EXPERT",
@@ -23,8 +24,8 @@ export const DEMO_ACCOUNTS = [
     avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80"
   },
   {
-    id: "USR-003",
-    userId: 3,
+    id: "USR-008",
+    userId: 8,
     fullName: "Trần Văn Lực",
     email: "worker@farmely.vn",
     role: "STAFF",
@@ -33,8 +34,8 @@ export const DEMO_ACCOUNTS = [
     avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80"
   },
   {
-    id: "USR-004",
-    userId: 4,
+    id: "USR-011",
+    userId: 11,
     fullName: "Ban Quản Trị Farmely",
     email: "admin@farmely.vn",
     role: "ADMIN",
@@ -53,7 +54,7 @@ const ROLE_TITLES = {
 
 const normalizeUser = (user, token) => {
   if (!user) return null;
-  const role = user?.role === 'FIELD_WORKER' ? 'STAFF' : user?.role;
+  const role = normalizeRole(user?.role);
   return {
     ...user,
     id: user?.id || (user?.userId ? `USR-${user.userId}` : undefined),
@@ -90,6 +91,12 @@ const persistAuth = (auth) => {
   if (auth.token) localStorage.setItem('farmely_token', auth.token);
 };
 
+const clearPersistedAuth = () => {
+  localStorage.removeItem('farmely_token');
+  localStorage.removeItem('farmely_user');
+  localStorage.removeItem('farmely_auth');
+};
+
 const initialAuth = readAuth();
 
 export const useAuthStore = create((set, get) => ({
@@ -114,30 +121,25 @@ export const useAuthStore = create((set, get) => ({
         set({ user, token: data.token, isAuthenticated: true, isLoading: false });
         return { success: true, user };
       }
-      // Fallback cho tài khoản demo kiểm thử nếu mật khẩu DB không khớp
-      const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
-      if (demoAcc) {
-        const fallbackToken = 'demo-token-' + demoAcc.id;
-        const normalized = normalizeUser(demoAcc, fallbackToken);
-        persistAuth({ token: fallbackToken, user: normalized });
-        set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
-        return { success: true, user: normalized };
-      }
+      clearPersistedAuth();
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       return { success: false, message: resData?.message || 'Email hoặc mật khẩu không chính xác.' };
     } catch (error) {
-      // Fallback cho tài khoản demo khi Identity Service offline
-      const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
-      if (demoAcc) {
-        const fallbackToken = 'demo-token-' + demoAcc.id;
-        const normalized = normalizeUser(demoAcc, fallbackToken);
-        persistAuth({ token: fallbackToken, user: normalized });
-        set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
-        return { success: true, user: normalized };
-      }
+      clearPersistedAuth();
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       return { success: false, message: error.message || 'Không thể kết nối đến máy chủ xác thực.' };
     }
+  },
+
+  loginDemo: (email) => {
+    const demoAcc = DEMO_ACCOUNTS.find((account) => account.email.toLowerCase() === String(email || '').trim().toLowerCase());
+    if (!demoAcc) return { success: false, message: 'Không tìm thấy tài khoản demo.' };
+
+    const token = `demo-token-${demoAcc.id}`;
+    const user = normalizeUser(demoAcc, token);
+    persistAuth({ token, user });
+    set({ user, token, isAuthenticated: true, isLoading: false });
+    return { success: true, user };
   },
 
   register: async (userData) => {
@@ -199,9 +201,7 @@ export const useAuthStore = create((set, get) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('farmely_token');
-    localStorage.removeItem('farmely_user');
-    localStorage.removeItem('farmely_auth');
+    clearPersistedAuth();
     set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
 
@@ -216,19 +216,8 @@ export const useAuthStore = create((set, get) => ({
   },
 
   switchRole: async (role) => {
-    const target = DEMO_ACCOUNTS.find(acc => acc.role === role);
-    if (target) {
-      const normalized = normalizeUser(target, 'demo-token-' + target.id);
-      persistAuth({ token: 'demo-token-' + target.id, user: normalized });
-      set({ user: normalized, isAuthenticated: true });
-    }
-    const roleEmailMap = {
-      CUSTOMER: 'customer@farmely.vn',
-      EXPERT: 'expert@farmely.vn',
-      STAFF: 'worker@farmely.vn',
-      ADMIN: 'admin@farmely.vn'
-    };
-    const email = roleEmailMap[role] || 'customer@farmely.vn';
-    return await get().login(email, 'Password@123').catch(() => ({ success: true, user: target }));
+    const normalizedRole = normalizeRole(role);
+    const target = DEMO_ACCOUNTS.find((account) => normalizeRole(account.role) === normalizedRole);
+    return target ? get().loginDemo(target.email) : { success: false, message: 'Không tìm thấy role demo.' };
   }
 }));

@@ -15,7 +15,6 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
-import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { useLocation } from 'react-router-dom';
 
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
@@ -62,6 +61,12 @@ export default function FarmelySmartAssistant() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('ai'); // 'ai' | 'expert'
+  const [groupInput, setGroupInput] = useState('');
+  const [groupMessages, setGroupMessages] = useState([
+    { id: 'group-1', sender: 'customer', senderName: 'Lô Thái Quyền', text: 'Lá cà chua có chấm bạc, nhờ mọi người xem giúp mình với.', time: '15:10' },
+    { id: 'group-2', sender: 'staff', senderName: 'Trần Văn Lực', text: 'Em vừa kiểm tra thửa P-01 và gửi ảnh hiện trường lên nhóm.', time: '15:12' },
+    { id: 'group-3', sender: 'expert', senderName: 'ThS. Nguyễn Hoàng Nam', text: 'Tôi đã xem. Trước mắt khoanh vùng luống bị ảnh hưởng, chưa cần phun toàn thửa.', time: '15:16' }
+  ]);
 
   // Position state (hỗ trợ kéo thả & lưu session)
   const [position, setPosition] = useState(() => {
@@ -91,20 +96,25 @@ export default function FarmelySmartAssistant() {
   ]);
 
   // Expert Chat State
-  const [expertInput, setExpertInput] = useState('');
   const isStaff = user?.role === 'STAFF';
-  const chatRole = isStaff ? 'worker' : 'customer';
-  const fallbackName = isStaff ? 'Nhân viên hiện trường' : 'Khách hàng';
-  const threadId = useMemo(
-    () => `${isStaff ? 'WORK' : 'CONS'}-${user?.id || user?.email || (isStaff ? 'STAFF' : 'CUSTOMER')}`,
-    [isStaff, user?.id, user?.email]
-  );
+  const isExpert = user?.role === 'EXPERT';
+  const groupRole = isStaff ? 'staff' : isExpert ? 'expert' : 'customer';
+  const fallbackName = isStaff ? 'Nhân viên hiện trường' : isExpert ? 'Chuyên gia nông học' : 'Khách hàng';
+  const currentSenderName = user?.fullName || user?.name || fallbackName;
 
-  const { currentThread, sendMessage: sendExpertMessage } = useRealtimeChat({
-    role: chatRole,
-    initialThreadId: threadId,
-    senderName: user?.fullName || user?.name || fallbackName
-  });
+  const handleSendGroupMessage = (event) => {
+    event.preventDefault();
+    const text = groupInput.trim();
+    if (!text) return;
+    setGroupMessages((messages) => [...messages, {
+      id: `group-${Date.now()}`,
+      sender: groupRole,
+      senderName: currentSenderName,
+      text,
+      time: new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(new Date())
+    }]);
+    setGroupInput('');
+  };
 
   const dragRef = useRef(null);
   const panelRef = useRef(null);
@@ -144,7 +154,7 @@ export default function FarmelySmartAssistant() {
     if (activeTab === 'expert' && expertScrollRef.current) {
       expertScrollRef.current.scrollTop = expertScrollRef.current.scrollHeight;
     }
-  }, [currentThread?.messages, activeTab]);
+  }, [groupMessages, activeTab]);
 
   // Xử lý gửi tin nhắn AI (Gắn Backend FastAPI qua Gateway /api/ai/chat)
   const handleSendAi = async (textToSend) => {
@@ -401,11 +411,11 @@ export default function FarmelySmartAssistant() {
                 </div>
                 <div>
                   <h3 className="text-xs font-black tracking-wide flex items-center gap-1.5">
-                    <span>{activeTab === 'ai' ? 'Farmely AI Nông Nghiệp' : (currentThread?.expertName || 'ThS. Nguyễn Hoàng Nam')}</span>
+                    <span>{activeTab === 'ai' ? 'Farmely AI Nông Nghiệp' : 'Nhóm chăm sóc · P-01'}</span>
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30" />
                   </h3>
                   <p className="text-[10px] text-white/70">
-                    {activeTab === 'ai' ? 'RAG Engine • Tư vấn chuyên sâu 24/7' : 'Kênh chuyên môn • Tư vấn trực tiếp'}
+                    {activeTab === 'ai' ? 'RAG Engine • Tư vấn chuyên sâu 24/7' : 'Khách hàng · Chuyên gia · Nhân viên'}
                   </p>
                 </div>
               </div>
@@ -560,68 +570,37 @@ export default function FarmelySmartAssistant() {
             <div className="flex-1 flex flex-col min-h-0 bg-stone-50/60">
               {/* Vùng tin nhắn chuyên gia */}
               <div ref={expertScrollRef} className="flex-1 overflow-y-auto p-3.5 space-y-3">
-                {(!currentThread?.messages || currentThread.messages.length === 0) ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400 space-y-2">
-                    <MessageSquare className="w-10 h-10 text-emerald-600/40" />
-                    <p className="text-xs font-bold text-slate-600">Bắt đầu phiên tư vấn chuyên môn</p>
-                    <p className="text-[11px] leading-relaxed">
-                      Đặt câu hỏi hoặc báo cáo sự cố hiện trường để Chuyên gia Nông học ThS. Nguyễn Hoàng Nam hỗ trợ bạn trực tiếp.
-                    </p>
-                  </div>
-                ) : (
-                  currentThread.messages.map((message) => {
-                    const isMe = message.sender === chatRole || message.sender === 'user';
-                    return (
-                      <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                        <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">
-                          {isMe ? (message.senderName || fallbackName) : (currentThread.expertName || 'ThS. Nguyễn Hoàng Nam')}
-                        </span>
-                        <div
-                          className={`max-w-[88%] rounded-2xl p-3 text-xs leading-relaxed shadow-sm ${
-                            isMe
-                              ? 'bg-[#064b37] text-white rounded-tr-xs'
-                              : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-xs'
-                          }`}
-                        >
-                          {message.photoUrl && (
-                            <img
-                              src={message.photoUrl}
-                              alt="Minh chứng hiện trường"
-                              className="mb-2 max-h-36 w-full rounded-xl object-cover border border-slate-200"
-                            />
-                          )}
-                          <p className="whitespace-pre-wrap">{message.text}</p>
-                        </div>
-                        <span className="text-[9px] text-slate-400 mt-1 px-1">{message.time}</span>
+                <div className="mx-auto w-fit rounded-full bg-white px-2.5 py-1 text-[9px] font-semibold text-slate-400">Thửa P-01 · 3 thành viên</div>
+                {groupMessages.map((message) => {
+                  const isMe = message.sender === groupRole;
+                  return (
+                    <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <span className="mb-1 px-1 text-[10px] font-bold text-slate-400">{message.senderName}</span>
+                      <div className={`max-w-[88%] rounded-2xl p-3 text-xs leading-relaxed shadow-sm ${isMe ? 'rounded-tr-xs bg-[#064b37] text-white' : 'rounded-tl-xs border border-slate-200/80 bg-white text-slate-800'}`}>
+                        <p className="whitespace-pre-wrap">{message.text}</p>
                       </div>
-                    );
-                  })
-                )}
+                      <span className="mt-1 px-1 text-[9px] text-slate-400">{message.time}</span>
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Form nhập tin nhắn gửi chuyên gia */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (expertInput.trim()) {
-                    sendExpertMessage(expertInput.trim());
-                    setExpertInput('');
-                  }
-                }}
+              {/* Mock UI: tin nhắn nhóm chưa kết nối backend */}
+              <form onSubmit={handleSendGroupMessage}
                 className="p-2.5 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0"
               >
                 <input
                   type="text"
-                  value={expertInput}
-                  onChange={(e) => setExpertInput(e.target.value)}
-                  placeholder="Gửi tin nhắn hoặc câu hỏi tới ThS. Nam..."
+                  value={groupInput}
+                  onChange={(e) => setGroupInput(e.target.value)}
+                  placeholder="Nhắn cho nhóm phụ trách..."
                   className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-100 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                 />
                 <button
                   type="submit"
-                  disabled={!expertInput.trim()}
+                  disabled={!groupInput.trim()}
                   className="w-9 h-9 rounded-xl bg-[#064b37] text-white flex items-center justify-center hover:opacity-95 active:scale-95 disabled:opacity-40 transition-all cursor-pointer shadow-sm"
-                  aria-label="Gửi tin nhắn cho chuyên gia"
+                  aria-label="Gửi tin nhắn cho nhóm"
                 >
                   <Send className="w-4 h-4" />
                 </button>

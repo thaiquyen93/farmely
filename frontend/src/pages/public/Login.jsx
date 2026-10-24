@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, Shield, Sprout, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
+import { postLoginRouteForRole } from '../../utils/roleRouting';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
@@ -16,8 +17,13 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const redirectParam = searchParams.get('redirect');
 
-  const { login } = useAuthStore();
+  const { login, loginDemo } = useAuthStore();
   const navigate = useNavigate();
+
+  const finishLogin = (user) => {
+    setSuccessMessage(`Đăng nhập thành công! Chào mừng ${user.fullName}.`);
+    navigate(postLoginRouteForRole(user.role, redirectParam, window.location.origin), { replace: true });
+  };
 
   const handleLogin = async (e) => {
     if (e && typeof e.preventDefault === 'function') e.preventDefault();
@@ -34,23 +40,7 @@ export default function Login() {
       const res = await login(email, password, rememberMe);
       setIsLoading(false);
       if (res.success) {
-        setSuccessMessage(`Đăng nhập thành công! Chào mừng ${res.user.fullName}.`);
-        const userRole = String(res.user.role || '').toUpperCase();
-        setTimeout(() => {
-          if (redirectParam) {
-            navigate(redirectParam);
-          } else if (userRole === 'CUSTOMER') {
-            navigate('/customer/dashboard');
-          } else if (userRole === 'ADMIN') {
-            navigate('/admin/dashboard');
-          } else if (userRole === 'EXPERT') {
-            navigate('/expert/dashboard');
-          } else if (userRole === 'STAFF' || userRole === 'FIELD_WORKER') {
-            navigate('/staff/dashboard');
-          } else {
-            navigate('/');
-          }
-        }, 500);
+        finishLogin(res.user);
       } else {
         setErrorMessage(res.message || 'Email hoặc mật khẩu không chính xác.');
       }
@@ -62,51 +52,21 @@ export default function Login() {
 
   const handleQuickLogin = async (account) => {
     setEmail(account.email);
-    setPassword('Password@123');
+    setPassword('');
     setIsLoading(true);
     setErrorMessage('');
     setSuccessMessage('');
 
     try {
-      const res = await login(account.email, 'Password@123');
+      const res = loginDemo(account.email);
       setIsLoading(false);
       if (res.success) {
-        setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
-        const userRole = String(res.user.role || '').toUpperCase();
-        if (redirectParam) navigate(redirectParam);
-        else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
-        else if (userRole === 'ADMIN') navigate('/admin/dashboard');
-        else if (userRole === 'EXPERT') navigate('/expert/dashboard');
-        else if (userRole === 'STAFF') navigate('/staff/dashboard');
-        else navigate('/');
+        finishLogin(res.user);
         return;
       }
     } catch (_) {}
-
-    // Fallback tức thì nếu có bất kỳ lỗi mạng hoặc backend
-    const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === account.email.toLowerCase());
-    if (demoAcc) {
-      const fallbackToken = 'demo-token-' + demoAcc.id;
-      const mappedUser = {
-        ...demoAcc,
-        userId: demoAcc.userId || parseInt(String(demoAcc.id).replace(/\D/g, ''), 10) || 1
-      };
-      localStorage.setItem('farmely_token', fallbackToken);
-      localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
-      localStorage.setItem('farmely_auth', JSON.stringify({ token: fallbackToken, user: mappedUser }));
-      useAuthStore.setState({ user: mappedUser, token: fallbackToken, isAuthenticated: true, isLoading: false });
-
-      setSuccessMessage(`Chào mừng ${mappedUser.fullName}.`);
-      const userRole = String(demoAcc.role || '').toUpperCase();
-      if (redirectParam) navigate(redirectParam);
-      else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
-      else if (userRole === 'ADMIN') navigate('/admin/dashboard');
-      else if (userRole === 'EXPERT') navigate('/expert/dashboard');
-      else if (userRole === 'STAFF') navigate('/staff/dashboard');
-      else navigate('/');
-    } else {
-      setIsLoading(false);
-    }
+    setIsLoading(false);
+    setErrorMessage('Không thể đăng nhập nhanh bằng tài khoản demo.');
   };
 
   const quickAccounts = [
@@ -118,29 +78,15 @@ export default function Login() {
 
   const handleQuickDemoLogin = async (acc) => {
     setEmail(acc.email);
-    setPassword('123456');
+    setPassword('');
     setErrorMessage('');
     setIsLoading(true);
     try {
-      const res = await login(acc.email, '123456');
+      const res = loginDemo(acc.email);
       setIsLoading(false);
       if (res.success) {
         setSuccessMessage(`Đăng nhập thành công (${acc.role})! Chào mừng ${res.user.fullName}.`);
-        setTimeout(() => {
-          if (res.user.role === 'CUSTOMER') {
-            navigate('/customer/dashboard');
-          } else if (redirectParam) {
-            navigate(redirectParam);
-          } else if (res.user.role === 'ADMIN') {
-            navigate('/admin/dashboard');
-          } else if (res.user.role === 'EXPERT') {
-            navigate('/expert/dashboard');
-          } else if (res.user.role === 'STAFF' || res.user.role === 'FIELD_WORKER') {
-            navigate('/staff/dashboard');
-          } else {
-            navigate('/');
-          }
-        }, 500);
+        navigate(postLoginRouteForRole(res.user.role, redirectParam, window.location.origin), { replace: true });
       } else {
         setErrorMessage(res.message || 'Đăng nhập không thành công.');
       }

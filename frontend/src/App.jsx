@@ -22,6 +22,7 @@ import CustomerSettings from './pages/customer/CustomerSettings';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ExpertDashboard from './pages/expert/ExpertDashboard';
 import FieldWorkerDashboard from './pages/staff/FieldWorkerDashboard';
+import ChatRoomPreview from './pages/public/ChatRoomPreview';
 
 // Admin Master Data Pages
 import MasterDataLayout from './components/master-data/MasterDataLayout';
@@ -42,14 +43,7 @@ import ProcessTemplates from './pages/admin/ProcessTemplates';
 import ProcessTemplateDetail from './pages/admin/ProcessTemplateDetail';
 import Services from './pages/admin/Services';
 import GlobalExpertChat from './components/customer/GlobalExpertChat';
-
-const dashboardByRole = {
-  CUSTOMER: '/customer/dashboard',
-  ADMIN: '/admin/dashboard',
-  EXPERT: '/expert/dashboard',
-  STAFF: '/staff/dashboard',
-  FIELD_WORKER: '/staff/dashboard'
-};
+import { dashboardRouteForRole, normalizeRole } from './utils/roleRouting';
 
 function RoleRoute({ role, children }) {
   const { user, isAuthenticated } = useAuthStore();
@@ -59,13 +53,11 @@ function RoleRoute({ role, children }) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  const rawUserRole = String(user.role || '').toUpperCase();
-  const rawTargetRole = String(role || '').toUpperCase();
-  const normalizedUserRole = (rawUserRole === 'FIELD_WORKER' || rawUserRole === 'WORKER') ? 'STAFF' : rawUserRole;
-  const normalizedTargetRole = (rawTargetRole === 'FIELD_WORKER' || rawTargetRole === 'WORKER') ? 'STAFF' : rawTargetRole;
+  const normalizedUserRole = normalizeRole(user.role);
+  const normalizedTargetRole = normalizeRole(role);
 
   if (normalizedUserRole !== normalizedTargetRole) {
-    return <Navigate to={dashboardByRole[normalizedUserRole] || dashboardByRole[user.role] || '/'} replace />;
+    return <Navigate to={dashboardRouteForRole(normalizedUserRole)} replace />;
   }
 
   return children;
@@ -73,13 +65,19 @@ function RoleRoute({ role, children }) {
 
 function CustomerCommerceRoute({ children }) {
   const { user, isAuthenticated } = useAuthStore();
-  const normalizedRole = (user?.role === 'FIELD_WORKER' || user?.role === 'worker') ? 'STAFF' : user?.role;
+  const normalizedRole = normalizeRole(user?.role);
 
   if (isAuthenticated && (normalizedRole === 'STAFF' || normalizedRole === 'EXPERT')) {
-    return <Navigate to={dashboardByRole[normalizedRole] || '/staff/dashboard'} replace />;
+    return <Navigate to={dashboardRouteForRole(normalizedRole)} replace />;
   }
 
   return children;
+}
+
+function OptionalGlobalExpertChat() {
+  const location = useLocation();
+  if (location.pathname === '/chat-room-preview') return null;
+  return <GlobalExpertChat />;
 }
 
 export default function App() {
@@ -102,6 +100,7 @@ export default function App() {
         <Route path="/marketplace/plot/:id" element={<CustomerCommerceRoute><PlotDetail /></CustomerCommerceRoute>} />
         <Route path="/marketplace/plot/:id/book" element={<CustomerCommerceRoute><BookPlot /></CustomerCommerceRoute>} />
         <Route path="/payment/vnpay-return" element={<VnPayReturn />} />
+        <Route path="/chat-room-preview" element={<ChatRoomPreview />} />
 
         {/* Role-Specific Dashboards */}
         <Route path="/customer/dashboard" element={<RoleRoute role="CUSTOMER"><CustomerDashboard /></RoleRoute>} />
@@ -146,7 +145,7 @@ export default function App() {
         {/* Fallback to Home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <GlobalExpertChat />
+      <OptionalGlobalExpertChat />
     </BrowserRouter>
   );
 }
