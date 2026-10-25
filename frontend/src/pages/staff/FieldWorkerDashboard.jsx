@@ -410,7 +410,7 @@ export default function FieldWorkerDashboard() {
     e.preventDefault();
     if (!selectedTaskToExecute) return;
     if (!taskProofPhoto) {
-      setDataError('Ảnh minh chứng là bắt buộc theo quy trình nghiệm thu công việc.');
+      setDataError('Ảnh minh chứng thực địa là bắt buộc khi báo cáo hoàn thành công việc.');
       return;
     }
 
@@ -465,7 +465,7 @@ export default function FieldWorkerDashboard() {
         title: selectedTaskToExecute.title || 'Chăm sóc luống cây trồng',
         timestamp: `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Hôm nay`,
         status: 'COMPLETED',
-        notes: taskProofNote || 'Nhiệm vụ đã được hoàn tất và nghiệm thu đạt tiêu chuẩn VietGAP.',
+        notes: taskProofNote || 'Nhiệm vụ đã được hoàn tất đạt tiêu chuẩn VietGAP.',
         proofPhoto: taskProofPhoto || '/images/moc-chau-2811.jpg',
         sensorSnapshot: { temp: '26.8°C', soilMoisture: '68%' }
       });
@@ -890,7 +890,7 @@ export default function FieldWorkerDashboard() {
               <strong className="font-heading text-2xl font-black text-amber-900 mt-1 block">{pendingCount}</strong>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-2xs">
-              <span className="block text-xs font-bold text-emerald-800 uppercase tracking-wider">Đã nghiệm thu</span>
+              <span className="block text-xs font-bold text-emerald-800 uppercase tracking-wider">Đã hoàn thành</span>
               <strong className="font-heading text-2xl font-black text-emerald-900 mt-1 block">{completedCount}</strong>
             </div>
           </div>
@@ -1171,7 +1171,7 @@ export default function FieldWorkerDashboard() {
                               className="gap-1.5 font-bold bg-[#07533d] hover:bg-[#053d2d] text-white"
                             >
                               <Scale className="h-4 w-4" />
-                              Nghiệm thu thu hoạch
+                              Cân đo thu hoạch
                             </Button>
                           </div>
                         </div>
@@ -1194,7 +1194,7 @@ export default function FieldWorkerDashboard() {
                             <div className="p-8 text-center bg-emerald-50/40 rounded-2xl border border-dashed border-emerald-200 flex flex-col items-center gap-2">
                               <CheckCircle2 className="w-8 h-8 text-emerald-600" />
                               <p className="font-heading font-black text-stone-900 text-base">Đã hoàn thành mọi việc tại thửa này!</p>
-                              <p className="text-xs text-stone-500">Toàn bộ nhiệm vụ chăm sóc đã được nghiệm thu đạt chuẩn VietGAP.</p>
+                              <p className="text-xs text-stone-500">Toàn bộ nhiệm vụ chăm sóc đã hoàn tất đạt chuẩn VietGAP.</p>
                             </div>
                           ) : (
                             <div className="grid gap-3.5">
@@ -1252,7 +1252,7 @@ export default function FieldWorkerDashboard() {
                                         className="gap-2 font-bold px-4 py-2.5 bg-[#07533d] hover:bg-[#053d2d] text-white shadow-xs"
                                       >
                                         {isHarvestTask ? <Scale className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
-                                        {isHarvestTask ? 'Thu hoạch' : 'Nghiệm thu (Chụp ảnh BR15)'}
+                                        {isHarvestTask ? 'Thu hoạch' : 'Báo cáo hoàn thành (Kèm ảnh)'}
                                       </Button>
                                     </div>
                                   </div>
@@ -1267,7 +1267,7 @@ export default function FieldWorkerDashboard() {
                           <div className="flex items-center justify-between border-b border-stone-200/80 pb-3">
                             <h4 className="font-heading font-black text-base text-stone-900 flex items-center gap-2">
                               <CheckCircle2 className="w-5 h-5 text-emerald-700" />
-                              <span>Lịch Sử Đã Nghiệm Thu Hoàn Thành ({completedTasks.length})</span>
+                              <span>Lịch Sử Công Việc Đã Hoàn Thành ({completedTasks.length})</span>
                             </h4>
                           </div>
 
@@ -1292,7 +1292,7 @@ export default function FieldWorkerDashboard() {
                                     </div>
                                     <p className="text-xs text-stone-600">{task.instructions}</p>
                                     <p className="text-xs text-emerald-800 font-semibold">
-                                      👷 Kỹ thuật viên nghiệm thu: <strong>{task.workerName || user?.fullName || 'Trần Văn Lực (CVLĐ)'}</strong>
+                                      👷 Nhân viên thực hiện: <strong>{task.workerName || user?.fullName || 'Trần Văn Lực (CVLĐ)'}</strong>
                                     </p>
                                   </div>
 
@@ -1300,7 +1300,7 @@ export default function FieldWorkerDashboard() {
                                     <div className="shrink-0">
                                       <img
                                         src={task.proofPhoto}
-                                        alt="Ảnh nghiệm thu"
+                                        alt="Ảnh minh chứng hoàn thành"
                                         className="w-16 h-16 object-cover rounded-xl border border-emerald-300 shadow-2xs hover:scale-105 transition cursor-pointer"
                                         onClick={() => window.open(task.proofPhoto, '_blank')}
                                       />
@@ -1372,7 +1372,7 @@ export default function FieldWorkerDashboard() {
                                       className="shrink-0 gap-1.5 font-bold text-xs bg-[#07533d] text-white"
                                     >
                                       <Camera className="h-3.5 w-3.5" />
-                                      Nghiệm thu
+                                      Báo cáo hoàn thành
                                     </Button>
                                   )}
                                 </div>
@@ -1616,7 +1616,7 @@ export default function FieldWorkerDashboard() {
 
                       <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-brand-border bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:justify-end sm:border-0 sm:bg-transparent sm:p-0">
                         <Button type="button" variant="outline"><Save className="mr-1 h-4 w-4" />Lưu tạm</Button>
-                        <Button type="submit" variant="secondary" disabled={totalBatchWeight <= 0 || boxCount <= 0}><CheckCircle2 className="mr-1 h-4 w-4" />Hoàn tất & gửi nghiệm thu</Button>
+                        <Button type="submit" variant="secondary" disabled={totalBatchWeight <= 0 || boxCount <= 0}><CheckCircle2 className="mr-1 h-4 w-4" />Hoàn tất & lưu kết quả</Button>
                       </div>
                     </form>
                   )}
