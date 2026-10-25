@@ -3550,8 +3550,9 @@ SELECT json_build_object(
           return;
         }
 
-        if ((req.method === 'PATCH' || req.method === 'PUT') && url.match(/^\/api\/(?:v1\/)?care-tasks\/(\d+)/)) {
-          const taskId = url.match(/^\/api\/(?:v1\/)?care-tasks\/(\d+)/)[1];
+        if ((req.method === 'PATCH' || req.method === 'PUT') && url.match(/^\/api\/(?:v1\/)?(?:care-tasks|tasks)\/(\d+)/)) {
+          const taskId = url.match(/^\/api\/(?:v1\/)?(?:care-tasks|tasks)\/(\d+)/)[1];
+          const isCompleteAction = url.includes('/complete');
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
@@ -3559,21 +3560,25 @@ SELECT json_build_object(
               const payload = JSON.parse(body || '{}');
               const workerId = payload.workerId || payload.taskAssignedTo || payload.assignedWorkerId;
               let setClauses = [];
-              if (payload.status) {
-                const dbStatus = payload.status === 'COMPLETED' || payload.status === 'DONE' ? 'DONE' : payload.status === 'IN_PROGRESS' || payload.status === 'IN_PROG' ? 'IN_PROG' : 'PENDING';
+
+              if (isCompleteAction || payload.status === 'COMPLETED' || payload.status === 'DONE') {
+                setClauses.push(`status = 'DONE'`);
+              } else if (payload.status) {
+                const dbStatus = payload.status === 'IN_PROGRESS' || payload.status === 'IN_PROG' ? 'IN_PROG' : 'PENDING';
                 setClauses.push(`status = '${dbStatus}'`);
               } else if (workerId) {
                 setClauses.push(`status = 'IN_PROG'`);
               }
+
               if (workerId) {
                 setClauses.push(`task_assigned_to = ${parseInt(workerId, 10)}`);
               }
-              if (payload.proofPhoto || payload.evidence_image_url) {
-                const proof = (payload.proofPhoto || payload.evidence_image_url).replace(/'/g, "''");
+              const proof = (payload.evidenceImageUrl || payload.proofPhoto || payload.evidence_image_url || '').replace(/'/g, "''");
+              if (proof) {
                 setClauses.push(`evidence_image_url = '${proof}'`);
               }
-              if (payload.instructions || payload.notes) {
-                const notes = (payload.instructions || payload.notes).replace(/'/g, "''");
+              const notes = (payload.notes || payload.instructions || '').replace(/'/g, "''");
+              if (notes) {
                 setClauses.push(`notes = '${notes}'`);
               }
               if (payload.dueDate || payload.due_date) {
@@ -3585,9 +3590,28 @@ SELECT json_build_object(
 UPDATE care_tasks
 SET ${setClauses.join(', ')}
 WHERE task_id = ${taskId}
-RETURNING task_id, status, task_assigned_to;
+RETURNING task_id, rental_id, status, task_assigned_to, notes;
 `;
-              await runPostgreSql(sql);
+              const updatedResult = await runPostgreSql(sql);
+
+              // Tự động đồng bộ vào Nhật ký nông trại (Farm Diary) nếu có ảnh nghiệm thu hoặc yêu cầu syncToDiary
+              if (isCompleteAction || payload.syncToDiary || proof) {
+                try {
+                  const diaryPhoto = proof || '/images/Mucangchai3.jpg';
+                  const diaryNote = notes || 'Nhân viên hiện trường đã hoàn thành nhiệm vụ và chụp ảnh minh chứng thực địa.';
+                  const diarySql = `
+INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
+SELECT rental_id, 'Hoàn tất nhiệm vụ: ' || COALESCE(SPLIT_PART(notes, ' - ', 1), 'Chăm sóc thực địa') || '. ${diaryNote}', '${diaryPhoto}', NOW()
+FROM care_tasks
+WHERE task_id = ${taskId}
+ON CONFLICT DO NOTHING;
+`;
+                  await runPostgreSql(diarySql);
+                } catch (diaryErr) {
+                  console.warn('[Farm Diary Sync] Warning:', diaryErr.message);
+                }
+              }
+
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: true, message: `Cập nhật nhiệm vụ #${taskId} thành công` }));
             } catch (err) {
