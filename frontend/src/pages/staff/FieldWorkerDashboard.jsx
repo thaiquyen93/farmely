@@ -297,9 +297,18 @@ export default function FieldWorkerDashboard() {
     let cancelled = false;
     setDataError('');
     Promise.all([
-      apiFetch(`/api/tasks?workerId=${workerId}`),
-      apiFetch(`/api/issues?reportedBy=${workerId}`),
-      apiFetch(`/api/harvest?enteredBy=${workerId}`)
+      apiFetch(`/api/tasks?workerId=${workerId}`).catch((err) => {
+        console.warn('Could not load tasks:', err);
+        return { data: [] };
+      }),
+      apiFetch(`/api/issues?reportedBy=${workerId}`).catch((err) => {
+        console.warn('Could not load issues:', err);
+        return { data: [] };
+      }),
+      apiFetch(`/api/harvest?enteredBy=${workerId}`).catch((err) => {
+        console.warn('Could not load harvest results:', err);
+        return { data: [] };
+      })
     ])
       .then(([taskBody, issueBody, harvestBody]) => {
         if (cancelled) return;

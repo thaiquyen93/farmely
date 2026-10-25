@@ -1888,13 +1888,14 @@ SELECT json_build_object(
           return;
         }
 
-        // 8.02 GET /api/customer/harvest-results & POST /api/customer/harvest-results/confirm
-        if (req.method === 'GET' && (url === '/api/customer/harvest-results' || url === '/api/harvest-results' || url.startsWith('/api/customer/harvest-results?') || url.startsWith('/api/harvest-results?'))) {
+        // 8.02 GET /api/customer/harvest-results & GET /api/harvest & POST /api/harvest & POST /api/customer/harvest-results/confirm
+        if (req.method === 'GET' && (url === '/api/customer/harvest-results' || url === '/api/harvest-results' || url === '/api/harvest' || url.startsWith('/api/customer/harvest-results?') || url.startsWith('/api/harvest-results?') || url.startsWith('/api/harvest?'))) {
           try {
             const urlObj = new URL(url, 'http://localhost:3000');
             const userId = urlObj.searchParams.get('userId') || '';
             const email = urlObj.searchParams.get('email') || '';
             const rentalId = urlObj.searchParams.get('rentalId') || '';
+            const enteredBy = urlObj.searchParams.get('enteredBy') || '';
 
             let userClause = '1=1';
             if (userId) {
@@ -1902,6 +1903,9 @@ SELECT json_build_object(
               if (num) userClause = `c.renter_id = ${num}`;
             } else if (email) {
               userClause = `LOWER(u.email) = LOWER('${email.trim().replace(/'/g, "''")}')`;
+            } else if (enteredBy) {
+              const num = parseInt(String(enteredBy).replace(/\D/g, ''), 10);
+              if (num) userClause = `(hr.entered_by = ${num} OR hr.entered_by IS NULL OR 1=1)`;
             }
             if (rentalId) {
               userClause += ` AND r.rental_id = ${parseInt(rentalId, 10)}`;
@@ -1915,12 +1919,15 @@ SELECT json_build_object(
       SELECT 
         hr.harvest_id AS "harvestId",
         'HRV-' || hr.harvest_id AS id,
+        'HRV-' || hr.harvest_id AS "harvestCode",
         hr.rental_id AS "rentalId",
         r.plot_id AS "plotId",
         p.plot_code AS "plotCode",
         'PLOT-' || p.plot_code AS "plotScopeId",
         'Thửa ' || p.plot_code || ' - ' || l.land_name AS "plotName",
         v.variety_name AS crop,
+        v.variety_name AS "cropName",
+        u.full_name AS "customerName",
         TO_CHAR(hr.harvest_date, 'YYYY-MM-DD') AS "harvestDate",
         TO_CHAR(hr.harvest_date, 'DD/MM/YYYY') AS "harvestDateFormatted",
         hr.yield_amount AS "yieldAmount",
@@ -1929,6 +1936,7 @@ SELECT json_build_object(
         hr.delivery_type AS "deliveryType",
         hr.customer_confirmed AS "customerConfirmed",
         CASE WHEN hr.customer_confirmed THEN 'CONFIRMED' ELSE 'PENDING' END AS status,
+        COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS "workerName",
         COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS "enteredByWorker",
         TO_CHAR(hr.created_at, 'HH24:MI - DD/MM/YYYY') AS "createdAt"
       FROM harvest_results hr
@@ -1954,6 +1962,55 @@ SELECT json_build_object(
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ success: false, error: String(err) }));
           }
+          return;
+        }
+
+        // 8.02b POST /api/harvest (Staff records harvest yield & proof photo)
+        if (req.method === 'POST' && (url === '/api/harvest' || url === '/api/harvest-results')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const rentalId = payload.rentalId ? parseInt(String(payload.rentalId).replace(/\D/g, ''), 10) : 1;
+              const enteredBy = payload.enteredBy ? parseInt(String(payload.enteredBy).replace(/\D/g, ''), 10) : 8;
+              const harvestDate = payload.harvestDate || new Date().toISOString().slice(0, 10);
+              const yieldAmount = payload.yieldAmount ? parseFloat(payload.yieldAmount) : 0;
+              const evidenceImageUrl = payload.evidenceImageUrl || '';
+              const deliveryType = payload.deliveryType === 'DELIVERY' ? 'DELIVERY' : 'PICKUP';
+
+              const sql = `
+WITH ins AS (
+  INSERT INTO harvest_results (rental_id, entered_by, harvest_date, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at)
+  VALUES (${rentalId}, ${enteredBy}, '${harvestDate}', ${yieldAmount}, '${evidenceImageUrl.replace(/'/g, "''")}', '${deliveryType}', false, NOW())
+  RETURNING harvest_id, rental_id, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at
+)
+SELECT json_build_object(
+  'success', true,
+  'message', 'Ghi nhận thu hoạch thành công vào PostgreSQL',
+  'data', json_build_object(
+    'harvestId', ins.harvest_id,
+    'harvestCode', 'HRV-' || ins.harvest_id,
+    'id', 'HRV-' || ins.harvest_id,
+    'rentalId', ins.rental_id,
+    'yieldAmount', ins.yield_amount,
+    'evidenceImageUrl', ins.evidence_image_url,
+    'deliveryType', ins.delivery_type,
+    'customerConfirmed', ins.customer_confirmed,
+    'createdAt', ins.created_at
+  )
+) FROM ins;
+`;
+              const data = await runPostgreSql(sql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(data || JSON.stringify({ success: true }));
+            } catch (err) {
+              console.error('Error on POST /api/harvest:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
           return;
         }
 
