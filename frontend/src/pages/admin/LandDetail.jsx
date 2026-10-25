@@ -17,6 +17,7 @@ export default function LandDetail() {
   const [error, setError] = useState('');
   const [flash, setFlash] = useState(location.state?.flash || '');
   const [selected, setSelected] = useState(location.state?.highlightPlotId ?? null);
+  const [updatingPlotId, setUpdatingPlotId] = useState(null);
 
   const load = useCallback(() => {
     setError('');
@@ -31,6 +32,37 @@ export default function LandDetail() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleStatusChange = async (plotId, newStatus) => {
+    setUpdatingPlotId(plotId);
+    try {
+      await farmApi.updatePlotStatus(plotId, newStatus);
+      setLand((prev) => {
+        if (!prev) return prev;
+        const nextPlots = (prev.plots || []).map((p) =>
+          p.plotId === plotId ? { ...p, status: newStatus } : p
+        );
+        const availCount = nextPlots.filter((p) => p.status === 'AVAIL').length;
+        const rentCount = nextPlots.filter((p) => p.status === 'RENT').length;
+        const maintCount = nextPlots.filter((p) => p.status === 'MAINT').length;
+        return {
+          ...prev,
+          plots: nextPlots,
+          availablePlots: availCount,
+          rentedPlots: rentCount,
+          maintenancePlots: maintCount
+        };
+      });
+      const plotObj = land?.plots?.find((p) => p.plotId === plotId);
+      const plotName = plotObj?.plotCode || `#${plotId}`;
+      const statusLabel = newStatus === 'RENT' ? 'Đã thuê (RENTED)' : newStatus === 'AVAIL' ? 'Đang trống (AVAILABLE)' : 'Bảo trì (MAINTENANCE)';
+      setFlash(`Đã chuyển trạng thái thửa ${plotName} thành ${statusLabel}.`);
+    } catch (err) {
+      setError(err.message || 'Không thể cập nhật trạng thái thửa đất');
+    } finally {
+      setUpdatingPlotId(null);
+    }
+  };
 
   if (error) {
     return (
@@ -102,20 +134,45 @@ export default function LandDetail() {
             <table className="admin-table">
               <thead><tr><th>Mã thửa</th><th>Diện tích</th><th>Giá thuê / tháng</th><th>Ranh giới</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
               <tbody>
-                {plots.map((p) => (
-                  <tr key={p.plotId} onClick={() => setSelected(p.plotId)} className={`cursor-pointer ${String(selected) === String(p.plotId) ? 'bg-emerald-50' : ''}`}>
-                    <td className="font-mono font-bold text-brand-dark">{p.plotCode}</td>
-                    <td>{formatArea(Number(p.area))}</td>
-                    <td className="font-bold text-brand-green">{money(p.pricePerPeriod)}</td>
-                    <td>{cleanRing(p.boundary).length >= 3 ? <span className="text-xs font-semibold text-emerald-700">Đã vẽ · {cleanRing(p.boundary).length} góc</span> : <span className="text-xs text-stone-400">Chưa vẽ</span>}</td>
-                    <td><Badge variant={plotStatusBadge(p.status)} size="sm">{plotStatusBadge(p.status)}</Badge></td>
-                    <td>
-                      <Link to={`/admin/master-data/plots/create?editId=${p.plotId}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-brand-green hover:bg-stone-100">
-                        <PenLine className="h-3.5 w-3.5" />{cleanRing(p.boundary).length >= 3 ? 'Sửa' : 'Vẽ ranh giới'}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {plots.map((p) => {
+                  const ringLen = cleanRing(p.boundary).length;
+                  const hasBoundary = ringLen >= 3;
+                  return (
+                    <tr key={p.plotId} onClick={() => setSelected(p.plotId)} className={`cursor-pointer transition-colors ${String(selected) === String(p.plotId) ? 'bg-emerald-50/70' : ''}`}>
+                      <td className="font-mono font-bold text-brand-dark">{p.plotCode}</td>
+                      <td>{formatArea(Number(p.area))}</td>
+                      <td className="font-bold text-brand-green">{money(p.pricePerPeriod)}</td>
+                      <td>{hasBoundary ? <span className="text-xs font-semibold text-emerald-700">Đã vẽ · {ringLen} góc</span> : <span className="text-xs text-stone-400">Chưa vẽ</span>}</td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={p.status || 'AVAIL'}
+                            disabled={updatingPlotId === p.plotId}
+                            onChange={(e) => handleStatusChange(p.plotId, e.target.value)}
+                            className={`rounded-lg border px-2 py-1 text-xs font-bold shadow-sm transition-colors cursor-pointer outline-none ${
+                              p.status === 'RENT'
+                                ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                : p.status === 'MAINT'
+                                ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                            }`}
+                            title="Bấm để thay đổi nhanh trạng thái thửa đất"
+                          >
+                            <option value="AVAIL">AVAILABLE (Đang trống)</option>
+                            <option value="RENT">RENTED (Đã thuê)</option>
+                            <option value="MAINT">MAINTENANCE (Bảo trì)</option>
+                          </select>
+                          {updatingPlotId === p.plotId && <Loader2 className="h-3.5 w-3.5 animate-spin text-stone-500" />}
+                        </div>
+                      </td>
+                      <td>
+                        <Link to={`/admin/master-data/plots/create?editId=${p.plotId}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-brand-green hover:bg-stone-100">
+                          <PenLine className="h-3.5 w-3.5" />{hasBoundary ? 'Sửa' : 'Vẽ ranh giới'}
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

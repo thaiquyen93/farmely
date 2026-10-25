@@ -74,11 +74,39 @@ const normalizeUser = (user, token) => {
 
 const readAuth = () => {
   try {
-    const auth = JSON.parse(localStorage.getItem('farmely_auth') || 'null');
-    if (auth?.token && auth?.user) return auth;
-    const user = JSON.parse(localStorage.getItem('farmely_user') || 'null');
-    const token = localStorage.getItem('farmely_token') || null;
-    if (user) return { token, user: normalizeUser(user, token) };
+    // 1. Ưu tiên cao nhất: sessionStorage (đảm bảo mỗi tab duy trì phiên đăng nhập & vai trò độc lập, không bị ghi đè chéo khi F5)
+    if (typeof sessionStorage !== 'undefined') {
+      const sessAuth = JSON.parse(sessionStorage.getItem('farmely_auth') || 'null');
+      if (sessAuth?.token && sessAuth?.user) return sessAuth;
+      const sessUser = JSON.parse(sessionStorage.getItem('farmely_user') || 'null');
+      const sessToken = sessionStorage.getItem('farmely_token') || null;
+      if (sessUser) return { token: sessToken, user: normalizeUser(sessUser, sessToken) };
+    }
+
+    // 2. Fallback: localStorage (khi mở tab mới lần đầu tiên chưa có sessionStorage)
+    if (typeof localStorage !== 'undefined') {
+      const auth = JSON.parse(localStorage.getItem('farmely_auth') || 'null');
+      if (auth?.token && auth?.user) {
+        // Sao chép sang sessionStorage của tab hiện tại để từ nay F5 tab này sẽ giữ nguyên vai trò riêng
+        try {
+          sessionStorage.setItem('farmely_auth', JSON.stringify(auth));
+          sessionStorage.setItem('farmely_user', JSON.stringify(auth.user));
+          if (auth.token) sessionStorage.setItem('farmely_token', auth.token);
+        } catch {}
+        return auth;
+      }
+      const user = JSON.parse(localStorage.getItem('farmely_user') || 'null');
+      const token = localStorage.getItem('farmely_token') || null;
+      if (user) {
+        const normalized = { token, user: normalizeUser(user, token) };
+        try {
+          sessionStorage.setItem('farmely_auth', JSON.stringify(normalized));
+          sessionStorage.setItem('farmely_user', JSON.stringify(normalized.user));
+          if (token) sessionStorage.setItem('farmely_token', token);
+        } catch {}
+        return normalized;
+      }
+    }
     return null;
   } catch {
     return null;
@@ -86,9 +114,24 @@ const readAuth = () => {
 };
 
 const persistAuth = (auth) => {
-  localStorage.setItem('farmely_auth', JSON.stringify(auth));
-  localStorage.setItem('farmely_user', JSON.stringify(auth.user));
-  if (auth.token) localStorage.setItem('farmely_token', auth.token);
+  if (!auth) return;
+  // 1. Ghi vào sessionStorage của riêng TAB hiện tại (cách ly độc lập từng tab trình duyệt)
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('farmely_auth', JSON.stringify(auth));
+      sessionStorage.setItem('farmely_user', JSON.stringify(auth.user));
+      if (auth.token) sessionStorage.setItem('farmely_token', auth.token);
+    }
+  } catch {}
+
+  // 2. Ghi vào localStorage để hỗ trợ mở tab mới
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('farmely_auth', JSON.stringify(auth));
+      localStorage.setItem('farmely_user', JSON.stringify(auth.user));
+      if (auth.token) localStorage.setItem('farmely_token', auth.token);
+    }
+  } catch {}
 };
 
 const initialAuth = readAuth();
@@ -201,9 +244,18 @@ export const useAuthStore = create((set, get) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('farmely_token');
-    localStorage.removeItem('farmely_user');
-    localStorage.removeItem('farmely_auth');
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('farmely_token');
+        sessionStorage.removeItem('farmely_user');
+        sessionStorage.removeItem('farmely_auth');
+      }
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('farmely_token');
+        localStorage.removeItem('farmely_user');
+        localStorage.removeItem('farmely_auth');
+      }
+    } catch {}
     set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
 
@@ -211,7 +263,14 @@ export const useAuthStore = create((set, get) => ({
     const current = get().user;
     if (!current) return;
     const updated = { ...current, ...changes };
-    localStorage.setItem('farmely_user', JSON.stringify(updated));
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('farmely_user', JSON.stringify(updated));
+      }
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('farmely_user', JSON.stringify(updated));
+      }
+    } catch {}
     const auth = readAuth();
     if (auth) persistAuth({ ...auth, user: updated });
     set({ user: updated, isAuthenticated: true });

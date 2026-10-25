@@ -11,7 +11,8 @@ export default function Modal({
   maxWidth = 'max-w-xl',
   headerVariant = 'default', // 'default' | 'green'
   variant,
-  headerColor
+  headerColor,
+  zIndex = 'z-[100]'
 }) {
   const dialogRef = useRef(null);
   const closeButtonRef = useRef(null);
@@ -67,7 +68,7 @@ export default function Modal({
   if (!isOpen || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4">
+    <div className={`fixed inset-0 ${zIndex} flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4`}>
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-brand-dark/70 backdrop-blur-sm transition-opacity animate-fadeIn"

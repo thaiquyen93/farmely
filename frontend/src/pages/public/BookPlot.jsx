@@ -406,8 +406,9 @@ export default function BookPlot() {
       ? Number(user.userId)
       : (user?.id ? Number(String(user.id).replace(/\D/g, '')) : 1);
 
-    const start = startDate ? new Date(startDate) : new Date();
-    const startStr = start.toISOString().split('T')[0];
+    const startStr = typeof startDate === 'string' && startDate.includes('-')
+      ? startDate.trim().slice(0, 10)
+      : (startDate ? new Date(startDate).toLocaleDateString('en-CA') : new Date().toLocaleDateString('en-CA'));
 
     const items = selectedPlots.map((p) => {
       const crop = getPlotSelectedCrop(p);
@@ -583,6 +584,11 @@ export default function BookPlot() {
 
       // Thông báo cho toàn bộ các tab và component làm mới dữ liệu
       window.dispatchEvent(new Event('farmely_plot_booked'));
+      try {
+        const bc = new BroadcastChannel('farmely_plot_updates');
+        bc.postMessage({ type: 'PLOT_BOOKED', plots: selectedPlots });
+        bc.close();
+      } catch (e) {}
 
       try {
         removeCartCodes(selectedPlots.map((p) => p.code));

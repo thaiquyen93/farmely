@@ -577,16 +577,28 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                         </button>
 
                         {user?.role === 'CUSTOMER' && (
-                          <button
-                            onClick={() => {
-                              setUserDropdownOpen(false);
-                              navigate('/customer/dashboard?view=contracts');
-                            }}
-                            className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
-                          >
-                            <ClipboardCheck className="w-4 h-4 text-brand-green" />
-                            <span>Hợp đồng & lịch sử thuê</span>
-                          </button>
+                          <>
+                            <button
+                              onClick={() => {
+                                setUserDropdownOpen(false);
+                                navigate('/customer/dashboard?tab=welcome');
+                              }}
+                              className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
+                            >
+                              <Calendar className="w-4 h-4 text-emerald-600" />
+                              <span>Vé khảo sát thực địa (Boarding Pass)</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setUserDropdownOpen(false);
+                                navigate('/customer/dashboard?view=contracts');
+                              }}
+                              className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 hover:bg-brand-cream transition-colors font-medium text-stone-700 hover:text-brand-dark cursor-pointer"
+                            >
+                              <ClipboardCheck className="w-4 h-4 text-brand-green" />
+                              <span>Hợp đồng & lịch sử thuê</span>
+                            </button>
+                          </>
                         )}
 
                         {/* 3. Cài đặt tài khoản (Settings) */}

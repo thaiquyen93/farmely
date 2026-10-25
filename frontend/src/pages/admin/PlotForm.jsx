@@ -51,7 +51,7 @@ export default function PlotForm() {
           setOriginalStatus(plot.status);
           setIsPublished(Boolean(plot.isPublished));
           setImageUrl(plot.imageUrl || '');
-          setBoundary(plot.boundary || []);
+          setBoundary(cleanRing(plot.boundary || []));
         } else if (!defaultLandId && landList?.length) {
           setLandId(String(landList[0].landId));
         }
@@ -73,11 +73,12 @@ export default function PlotForm() {
     return () => { alive = false; };
   }, [landId]);
 
-  const outer = land?.boundary?.length >= 3 ? { ring: land.boundary, label: land.landName } : null;
+  const landRing = useMemo(() => cleanRing(land?.boundary || []), [land]);
+  const outer = landRing.length >= 3 ? { ring: landRing, label: land.landName } : null;
   const others = useMemo(
     () => (land?.plots || [])
-      .filter((p) => String(p.plotId) !== String(editId) && p.boundary?.length >= 3)
-      .map((p) => ({ label: p.plotCode, ring: p.boundary })),
+      .filter((p) => String(p.plotId) !== String(editId) && cleanRing(p.boundary || []).length >= 3)
+      .map((p) => ({ label: p.plotCode, ring: cleanRing(p.boundary || []) })),
     [land, editId]
   );
 
@@ -90,9 +91,9 @@ export default function PlotForm() {
     const errs = {};
     if (!landId) errs.landId = 'Chọn nông trại chứa thửa đất.';
     if (!code.trim()) errs.code = 'Nhập mã thửa đất (vd P-17).';
-    if (!hasRing && !(Number(manualArea) > 0)) errs.area = 'Vẽ ranh giới trên bản đồ hoặc nhập diện tích.';
+    if (!hasRing && !(Number(manualArea) > 0) && !lockedBoundary) errs.area = 'Vẽ ranh giới trên bản đồ hoặc nhập diện tích.';
     if (!(Number(price) >= 0) || price === '') errs.price = 'Nhập giá thuê hợp lệ.';
-    if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
+    if (!lockedBoundary && ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };

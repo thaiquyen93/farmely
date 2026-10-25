@@ -29,10 +29,65 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
 
   const [visitDate, setVisitDate] = useState(defaultSaturday);
   const [visitSlot, setVisitSlot] = useState('MORNING');
-  const [selectedPlotCode, setSelectedPlotCode] = useState('P-01');
+  const [selectedPlotCode, setSelectedPlotCode] = useState('P-04');
   const [transportMode, setTransportMode] = useState('SHUTTLE_Q1');
   const [groupSize, setGroupSize] = useState('2');
   const [visitorNotes, setVisitorNotes] = useState('');
+
+  // Danh sách các thửa đất thực tế đang AVAILABLE từ Marketplace
+  const [availablePlots, setAvailablePlots] = useState([]);
+  const [isLoadingPlots, setIsLoadingPlots] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPlots = async () => {
+      setIsLoadingPlots(true);
+      try {
+        const res = await fetch('/api/plots');
+        if (res.ok) {
+          const json = await res.json();
+          const list = Array.isArray(json) ? json : (json?.data || []);
+          const avail = list.filter((p) => {
+            const st = String(p.status || '').toUpperCase();
+            return (st === 'AVAIL' || st === 'AVAILABLE') && p.plotCode !== 'P100';
+          });
+          if (isMounted) {
+            setAvailablePlots(avail);
+            if (avail.length > 0) {
+              setSelectedPlotCode((prev) => {
+                if (avail.some((p) => p.plotCode === prev)) return prev;
+                return avail[0].plotCode;
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load available plots:', e);
+      } finally {
+        if (isMounted) setIsLoadingPlots(false);
+      }
+    };
+    fetchPlots();
+
+    const handleSync = () => fetchPlots();
+    window.addEventListener('farmely_plot_booked', handleSync);
+    window.addEventListener('farmely_plot_status_changed', handleSync);
+
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_plot_updates');
+        bc.onmessage = () => fetchPlots();
+      }
+    } catch {}
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('farmely_plot_booked', handleSync);
+      window.removeEventListener('farmely_plot_status_changed', handleSync);
+      if (bc) { try { bc.close(); } catch {} }
+    };
+  }, []);
 
   // Tải danh sách lịch tham quan từ Database
   useEffect(() => {
@@ -478,10 +533,22 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
                   onChange={(e) => setSelectedPlotCode(e.target.value)}
                   className="w-full h-11 px-3 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-800 focus:border-emerald-500 focus:outline-none"
                 >
-                  <option value="P-01">Thửa P-01 (150 m² - Đất phù sa ven sông)</option>
-                  <option value="P-02">Thửa P-02 (150 m² - Gần trạm IoT trung tâm)</option>
-                  <option value="P-04">Thửa P-04 (150 m² - Thoát nước tốt, đón nắng)</option>
-                  <option value="P-07">Thửa P-07 (200 m² - Lô góc diện tích lớn)</option>
+                  {availablePlots.length === 0 ? (
+                    <option value="">{isLoadingPlots ? 'Đang tải danh sách thửa đất...' : 'Không có thửa đất khả dụng'}</option>
+                  ) : (
+                    availablePlots.map((p) => {
+                      const code = p.plotCode || p.code;
+                      const areaStr = p.area ? `${p.area} m²` : '160 m²';
+                      const desc = (Array.isArray(p.crops) && p.crops.length > 0)
+                        ? p.crops.slice(0, 2).join(', ')
+                        : (p.landName || 'Đất phù sa VietGAP');
+                      return (
+                        <option key={p.plotId || code} value={code}>
+                          Thửa {code} ({areaStr} - {desc})
+                        </option>
+                      );
+                    })
+                  )}
                 </select>
               </div>
 
@@ -562,84 +629,78 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
           </Link>
         </div>
 
-        {/* 3 Thửa đất tiêu biểu gợi ý thuê */}
+        {/* Danh sách Thửa đất khả dụng (Available) gợi ý thuê từ Marketplace */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            {
-              code: 'P-01',
-              name: 'Thửa Đất P-01 (Happy Valley)',
-              area: '150 m²',
-              soil: 'Đất phù sa bồi lắng ven sông',
-              crop: 'Cà chua bi, Dưa leo baby',
-              price: '1.200.000 đ/tháng',
-              tag: 'Vị trí đắc địa'
-            },
-            {
-              code: 'P-02',
-              name: 'Thửa Đất P-02 (Happy Valley)',
-              area: '150 m²',
-              soil: 'Độ mùn cao, gần trạm IoT trung tâm',
-              crop: 'Cải xoăn Kale, Rau muống VietGAP',
-              price: '1.200.000 đ/tháng',
-              tag: 'Đất màu mỡ'
-            },
-            {
-              code: 'P-04',
-              name: 'Thửa Đất P-04 (Happy Valley)',
-              area: '150 m²',
-              soil: 'Đón nắng 8h/ngày, thoát nước tốt',
-              crop: 'Dâu tây giống Nhật, Ớt chuông',
-              price: '1.350.000 đ/tháng',
-              tag: 'Năng suất cao'
-            }
-          ].map((plot) => (
-            <div
-              key={plot.code}
-              className="rounded-3xl border border-stone-200/90 bg-white p-5 shadow-sm transition-all hover:border-emerald-300 hover:shadow-md flex flex-col justify-between"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                    {plot.code}
-                  </span>
-                  <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                    {plot.tag}
-                  </span>
-                </div>
-
-                <div>
-                  <h4 className="font-bold text-sm text-[#18352b]">{plot.name}</h4>
-                  <p className="text-xs text-stone-500 mt-0.5">{plot.soil}</p>
-                </div>
-
-                <div className="p-3 rounded-2xl bg-stone-50 border border-stone-100 text-xs space-y-1.5">
-                  <div className="flex justify-between text-stone-600">
-                    <span>Diện tích:</span>
-                    <strong className="text-stone-900">{plot.area}</strong>
-                  </div>
-                  <div className="flex justify-between text-stone-600">
-                    <span>Cây trồng đề xuất:</span>
-                    <strong className="text-emerald-700">{plot.crop}</strong>
-                  </div>
-                  <div className="flex justify-between text-stone-600 pt-1 border-t border-stone-200/60">
-                    <span>Giá thuê niêm yết:</span>
-                    <strong className="text-emerald-800 font-extrabold">{plot.price}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-4">
-                <button
-                  type="button"
-                  onClick={() => navigate(`/marketplace?plot=${plot.code}`)}
-                  className="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span>Chốt Thuê Thửa {plot.code} Ngay</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+          {availablePlots.length === 0 ? (
+            <div className="col-span-full rounded-3xl border border-stone-200 bg-white p-8 text-center text-stone-500 text-xs">
+              Hiện tại tất cả các thửa đất đều đã có khách thuê hoặc đang trong kỳ bảo dưỡng đất. Quý khách vui lòng xem Bản đồ Marketplace để cập nhật thông tin mới nhất!
             </div>
-          ))}
+          ) : (
+            availablePlots.slice(0, 3).map((plot, idx) => {
+              const code = plot.plotCode || plot.code;
+              const name = `Thửa Đất ${code} (${plot.landName || 'Happy Valley'})`;
+              const area = `${plot.area || 160} m²`;
+              const soil = idx === 0 
+                ? 'Đất phù sa bồi lắng ven sông, vi sinh tự nhiên'
+                : idx === 1 
+                ? 'Độ mùn cao, vi khí hậu mát mẻ đón nắng 8h/ngày' 
+                : 'Thoát nước tốt, giàu khoáng chất hữu cơ';
+              const crop = (Array.isArray(plot.crops) && plot.crops.length > 0)
+                ? plot.crops.slice(0, 3).join(', ')
+                : 'Cà chua bi, Dưa leo baby, Xà lách';
+              const price = `${Number(plot.pricePerPeriod || 1300000).toLocaleString('vi-VN')} đ/tháng`;
+              const tag = idx === 0 ? 'Vị trí đắc địa' : idx === 1 ? 'Năng suất cao' : 'Đất màu mỡ';
+
+              return (
+                <div
+                  key={code}
+                  className="rounded-3xl border border-stone-200/90 bg-white p-5 shadow-sm transition-all hover:border-emerald-300 hover:shadow-md flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        {code}
+                      </span>
+                      <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        {tag}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="font-bold text-sm text-[#18352b]">{name}</h4>
+                      <p className="text-xs text-stone-500 mt-0.5">{soil}</p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-stone-50 border border-stone-100 text-xs space-y-1.5">
+                      <div className="flex justify-between text-stone-600">
+                        <span>Diện tích:</span>
+                        <strong className="text-stone-900">{area}</strong>
+                      </div>
+                      <div className="flex justify-between text-stone-600">
+                        <span>Cây trồng đề xuất:</span>
+                        <strong className="text-emerald-700 truncate max-w-[170px]" title={crop}>{crop}</strong>
+                      </div>
+                      <div className="flex justify-between text-stone-600 pt-1 border-t border-stone-200/60">
+                        <span>Giá thuê niêm yết:</span>
+                        <strong className="text-emerald-800 font-extrabold">{price}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/marketplace?plot=${code}`)}
+                      className="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <span>Chốt Thuê Thửa {code} Ngay</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </section>
     </div>

@@ -52,7 +52,7 @@ export default function LandForm() {
           setPin(c);
           setGpsText(`${c[1].toFixed(6)}, ${c[0].toFixed(6)}`);
         }
-        setExistingPlots((land.plots || []).filter((p) => p.boundary?.length >= 3).map((p) => ({ label: p.plotCode, ring: p.boundary })));
+        setExistingPlots((land.plots || []).filter((p) => cleanRing(p.boundary).length >= 3).map((p) => ({ label: p.plotCode, ring: cleanRing(p.boundary) })));
       })
       .catch((e) => alive && setLoadError(e.message))
       .finally(() => alive && setLoading(false));

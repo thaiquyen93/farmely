@@ -1037,21 +1037,8 @@ export function buildGeoJsonFromDbPlots(plots = []) {
     const plotCode = p.plotCode || p.plot_code || p.code || `P-${p.plotId || p.plot_id || p.id}`;
     const plotId = String(plotCode).replace(/^Plot\s+/i, '');
 
-    const recentBooked = (() => {
-      try {
-        return JSON.parse(localStorage.getItem('farmely_recently_booked_plots') || '[]');
-      } catch {
-        return [];
-      }
-    })();
-    const isRecentlyBooked = recentBooked.some(
-      (c) =>
-        String(c).toLowerCase() === String(plotCode).toLowerCase() ||
-        String(c).toLowerCase() === String(plotId).toLowerCase() ||
-        String(c).toLowerCase() === String(p.plotId || p.id).toLowerCase()
-    );
-
-    const rawStatus = isRecentlyBooked ? 'RENT' : (p.status || '').toUpperCase();
+    // Trạng thái chuẩn hoá từ PostgreSQL Database (nguồn sự thật duy nhất, đồng bộ Admin Master Data)
+    const rawStatus = (p.status || '').toUpperCase();
     const statusLabel = rawStatus === 'AVAIL' || rawStatus === 'AVAILABLE'
       ? 'Đang trống'
       : (rawStatus === 'RENT' || rawStatus === 'RENTED'

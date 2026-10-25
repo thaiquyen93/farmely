@@ -17,6 +17,7 @@ public class CareTaskResponse {
     private String taskCode; // e.g. TSK-101
     private Integer rentalId;
     private Integer stepId;
+    private Integer stepOrder;
     private Integer serviceRequestId;
     private Integer taskAssignedTo;
     private String workerName;

@@ -104,7 +104,7 @@ export default function PlotHarvestModal({ plot, isOpen, onClose, existingPlan =
         <div className="flex gap-4 rounded-2xl border border-brand-border bg-brand-cream/40 p-3">
           <img src={plot.image} alt="" className="hidden h-20 w-28 shrink-0 rounded-xl object-cover sm:block" />
           <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-            <div><p className="text-[11px] text-brand-muted">Ngày dự kiến</p><p className="font-bold text-brand-dark">{plot.expectedHarvestDate}</p></div>
+            <div><p className="text-[11px] text-brand-muted">Ngày dự kiến</p><p className="font-bold text-brand-dark">{toViDate(plot.expectedHarvestDate) || plot.expectedHarvestDate}</p></div>
             <div><p className="text-[11px] text-brand-muted">Sản lượng dự kiến</p><p className="font-bold text-brand-dark">{plot.expectedYield}</p></div>
             <div><p className="text-[11px] text-brand-muted">Còn lại</p><p className="font-bold text-brand-dark">{stage.daysLeft > 0 ? `${stage.daysLeft} ngày` : 'Đã đến vụ'}</p></div>
             <div><p className="text-[11px] text-brand-muted">Diện tích</p><p className="font-bold text-brand-dark">{plot.area}</p></div>

@@ -82,6 +82,11 @@ export default function VnPayReturn() {
       localStorage.removeItem('farmely_pending_vnpay_booking');
 
       window.dispatchEvent(new CustomEvent('farmely_plot_booked', { detail: pending.plots }));
+      try {
+        const bc = new BroadcastChannel('farmely_plot_updates');
+        bc.postMessage({ type: 'PLOT_BOOKED', plots: pending.plots });
+        bc.close();
+      } catch (e) {}
 
       // Đồng bộ thông tin hợp đồng vào Chat hỗ trợ
       if (pending.customerName) {

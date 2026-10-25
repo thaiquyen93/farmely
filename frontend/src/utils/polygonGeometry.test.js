@@ -60,6 +60,11 @@ describe('polygonGeometry (khớp backend PolygonGeometryTest)', () => {
     expect(cleanRing('[[1, 1], [2, 1], [2, 2]]')).toEqual([[1, 1], [2, 1], [2, 2]]);
     expect(cleanRing({ type: 'Polygon', coordinates: [[[1, 1], [2, 1], [2, 2], [1, 1]]] })).toEqual([[1, 1], [2, 1], [2, 2]]);
     expect(cleanRing([[[1, 1], [2, 1], [2, 2], [1, 1]]])).toEqual([[1, 1], [2, 1], [2, 2]]);
+    const geoJson = {
+      type: 'Polygon',
+      coordinates: [[[106.342, 10.686], [106.352, 10.686], [106.352, 10.696], [106.342, 10.686]]]
+    };
+    expect(cleanRing(geoJson)).toHaveLength(3);
   });
 
   it('detects self-intersection', () => {

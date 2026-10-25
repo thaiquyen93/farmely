@@ -35,3 +35,7 @@ Thumbs.db
 .agents/
 capture_*.py
 /docs/screenshots_srs/
+
+# Temporary scratch and fix folders
+/Fix/
+/frontend/scripts/

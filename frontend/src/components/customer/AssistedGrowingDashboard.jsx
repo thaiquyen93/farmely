@@ -11,6 +11,7 @@ import {
   Award
 } from 'lucide-react';
 import Button from '../common/Button';
+import { formatDisplayDate } from './CustomerPlotWorkspace';
 
 export default function AssistedGrowingDashboard({ plot, onOpenExpertChat, onOpenHarvestModal }) {
   return (
@@ -37,7 +38,7 @@ export default function AssistedGrowingDashboard({ plot, onOpenExpertChat, onOpe
           <div className="flex justify-between text-[11px] text-stone-400">
             <span>Gieo mầm</span>
             <span className="text-brand-dark font-semibold">Hiện tại: {plot.stage}</span>
-            <span>Thu hoạch ({plot.expectedHarvestDate})</span>
+            <span>Thu hoạch ({formatDisplayDate(plot.expectedHarvestDate)})</span>
           </div>
         </div>
 
@@ -56,7 +57,7 @@ export default function AssistedGrowingDashboard({ plot, onOpenExpertChat, onOpe
           </div>
           <div className="p-2.5 rounded-xl bg-stone-50 border border-stone-200 text-center">
             <span className="text-[10px] text-stone-500 font-bold block">GĐ 4: Thu hoạch</span>
-            <span className="text-xs font-bold text-stone-600">{plot.expectedHarvestDate}</span>
+            <span className="text-xs font-bold text-stone-600">{formatDisplayDate(plot.expectedHarvestDate)}</span>
           </div>
         </div>
       </div>

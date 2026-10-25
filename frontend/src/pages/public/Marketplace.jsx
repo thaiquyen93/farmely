@@ -175,16 +175,41 @@ export default function Marketplace() {
       }
     }
 
+    try {
+      localStorage.removeItem('farmely_recently_booked_plots');
+    } catch {}
+
     loadDataFromDb();
     const handleFocus = () => loadDataFromDb();
     const handlePlotBooked = () => loadDataFromDb();
+    const handlePlotStatusChanged = () => loadDataFromDb();
+    const handleStorage = () => loadDataFromDb();
     window.addEventListener('focus', handleFocus);
     window.addEventListener('farmely_plot_booked', handlePlotBooked);
+    window.addEventListener('farmely_plot_status_changed', handlePlotStatusChanged);
+    window.addEventListener('storage', handleStorage);
+
+    let plotBc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        plotBc = new BroadcastChannel('farmely_plot_updates');
+        plotBc.onmessage = () => {
+          loadDataFromDb();
+        };
+      }
+    } catch {}
 
     return () => {
       active = false;
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('farmely_plot_booked', handlePlotBooked);
+      window.removeEventListener('farmely_plot_status_changed', handlePlotStatusChanged);
+      window.removeEventListener('storage', handleStorage);
+      if (plotBc) {
+        try {
+          plotBc.close();
+        } catch {}
+      }
     };
   }, [searchParams]);
 

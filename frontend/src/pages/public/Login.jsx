@@ -4,17 +4,18 @@ import { Mail, Lock, ArrowRight, Shield, Sprout, AlertCircle, CheckCircle2, Info
 import { useAuthStore, DEMO_ACCOUNTS } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [searchParams] = useSearchParams();
+  const redirectParam = searchParams.get('redirect');
+  const phoneParam = searchParams.get('phone');
+  const emailParam = searchParams.get('email');
+
+  const [email, setEmail] = useState(() => emailParam || '');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const [searchParams] = useSearchParams();
-  const redirectParam = searchParams.get('redirect');
 
   const { login } = useAuthStore();
   const navigate = useNavigate();
@@ -91,9 +92,16 @@ export default function Login() {
         ...demoAcc,
         userId: demoAcc.userId || parseInt(String(demoAcc.id).replace(/\D/g, ''), 10) || 1
       };
-      localStorage.setItem('farmely_token', fallbackToken);
-      localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
-      localStorage.setItem('farmely_auth', JSON.stringify({ token: fallbackToken, user: mappedUser }));
+      try {
+        sessionStorage.setItem('farmely_token', fallbackToken);
+        sessionStorage.setItem('farmely_user', JSON.stringify(mappedUser));
+        sessionStorage.setItem('farmely_auth', JSON.stringify({ token: fallbackToken, user: mappedUser }));
+      } catch {}
+      try {
+        localStorage.setItem('farmely_token', fallbackToken);
+        localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
+        localStorage.setItem('farmely_auth', JSON.stringify({ token: fallbackToken, user: mappedUser }));
+      } catch {}
       useAuthStore.setState({ user: mappedUser, token: fallbackToken, isAuthenticated: true, isLoading: false });
 
       setSuccessMessage(`Chào mừng ${mappedUser.fullName}.`);
@@ -317,7 +325,11 @@ export default function Login() {
             <div className="text-center pt-2 text-xs text-stone-600">
               Chưa có tài khoản?{' '}
               <Link
-                to={redirectParam ? `/register?redirect=${encodeURIComponent(redirectParam)}` : '/register'}
+                to={`/register?${new URLSearchParams({
+                  ...(redirectParam ? { redirect: redirectParam } : {}),
+                  ...(phoneParam ? { phone: phoneParam } : {}),
+                  ...(email ? { email } : {})
+                }).toString()}`}
                 className="font-bold text-brand-green hover:underline"
               >
                 Đăng ký tài khoản mới

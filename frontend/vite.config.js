@@ -35,6 +35,8 @@ export default defineConfig({
       },
       '/api/services': { target: 'http://localhost:8086', changeOrigin: true },
       '/api/tasks': { target: 'http://localhost:8086', changeOrigin: true },
+      '/api/diary': { target: 'http://localhost:8086', changeOrigin: true },
+      '/api/cultivation': { target: 'http://localhost:8086', changeOrigin: true },
       '/api/issues': { target: 'http://localhost:8086', changeOrigin: true },
       '/api/harvest': { target: 'http://localhost:8086', changeOrigin: true },
       '/api/plots': { target: 'http://localhost:8082', changeOrigin: true },

@@ -247,6 +247,16 @@ public class CareTaskServiceImpl implements CareTaskService {
     }
 
     @Override
+    @Transactional
+    public void deleteTask(Integer taskId) {
+        if (!careTaskRepository.existsById(taskId)) {
+            throw new ResourceNotFoundException("Không tìm thấy tác vụ với mã: " + taskId);
+        }
+        careTaskRepository.deleteById(taskId);
+        log.info("Deleted care task #{}", taskId);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public long checkAndMarkOverdueTasks() {
         return careTaskRepository.countOverdueTasks(LocalDate.now());
@@ -273,17 +283,35 @@ public class CareTaskServiceImpl implements CareTaskService {
 
         String title = entity.getNotes();
         String instructions = entity.getNotes();
+        Integer stepOrder = null;
         if (entity.getStepId() != null) {
             TemplateStepReference step = templateStepReferenceRepository.findById(entity.getStepId()).orElse(null);
             if (step != null) {
                 title = step.getStepName();
                 instructions = step.getDescription();
+                stepOrder = step.getStepId();
             }
         } else if (entity.getServiceRequestId() != null) {
             ServiceRequestEntity sreq = serviceRequestRepository.findById(entity.getServiceRequestId()).orElse(null);
             if (sreq != null && sreq.getService() != null) {
                 title = sreq.getService().getServiceName();
                 instructions = entity.getNotes() != null ? entity.getNotes() : sreq.getService().getDescription();
+            }
+        } else if (entity.getNotes() != null) {
+            String rawNotes = entity.getNotes().trim();
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("^\\[Bước\\s*(\\d+)\\]\\s*(.*)$", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(rawNotes);
+            if (m.find()) {
+                try {
+                    stepOrder = Integer.parseInt(m.group(1));
+                } catch (Exception ignored) {}
+                rawNotes = m.group(2).trim();
+            }
+            if (rawNotes.contains(":::")) {
+                String[] parts = rawNotes.split(":::", 2);
+                title = parts[0].trim();
+                instructions = parts[1].trim();
+            } else {
+                title = rawNotes;
             }
         }
 
@@ -318,6 +346,7 @@ public class CareTaskServiceImpl implements CareTaskService {
                 .taskCode(taskCode)
                 .rentalId(entity.getRentalId())
                 .stepId(entity.getStepId())
+                .stepOrder(stepOrder)
                 .serviceRequestId(entity.getServiceRequestId())
                 .taskAssignedTo(entity.getTaskAssignedTo())
                 .workerName(workerName)
