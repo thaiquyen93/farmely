@@ -229,6 +229,496 @@ export const CROP_STANDARDS = {
         inspectionCriteria: 'Dưa baby thon đều, ruột đặc ít hạt, giòn tan.'
       }
     ]
+  },
+
+  'water_spinach': {
+    cropName: 'Rau muống cạn lá tre F1',
+    totalDays: 30,
+    expectedYield: '15 - 20 kg/thửa',
+    optimalConditions: {
+      tempRange: '25 - 32°C',
+      soilMoistureRange: '75 - 85%',
+      airHumidityRange: '70 - 90%',
+      lightRequirement: '40.000 - 60.000 Lux (ưa nắng nhiệt đới)'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Gieo hạt & Hồi xanh rễ',
+        dayStart: 1,
+        dayEnd: 6,
+        label: 'Ngày 1 - 6',
+        statusDesc: 'Hạt nảy mầm đều, rễ bám sâu giá thể',
+        waterRegime: 'Tưới phun sương 2 lần/ngày (07:00 và 16:30), độ ẩm 75-85%',
+        nutrition: 'Bón lót trùn quế vi sinh ủ hoai mục',
+        guide: 'Giữ ẩm mặt luống liên tục, phủ rơm rạ hoặc lưới lan che nắng 2 ngày đầu.',
+        pestAlert: 'Bọ nhảy cắn thủng mầm, ốc bươu vàng cắn gốc con ban đêm.',
+        inspectionCriteria: 'Tỷ lệ nảy mầm > 95%, mầm cây đồng đều, thân thẳng mập.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Phát triển thân cành & Đẻ nhánh',
+        dayStart: 7,
+        dayEnd: 18,
+        label: 'Ngày 7 - 18',
+        statusDesc: 'Sinh trưởng sinh dưỡng mạnh, bung nhánh non',
+        waterRegime: 'Tưới rãnh ngập 1/3 luống hoặc tưới đẫm 2.5 - 3.0 L/m²/ngày',
+        nutrition: 'Bón thúc đạm cá hữu cơ lên men vi sinh pha loãng 1:500',
+        guide: 'Xới nhẹ phá váng mặt luống, làm sạch cỏ dại cạnh tranh dinh dưỡng.',
+        pestAlert: 'Sâu khoang ăn lá, bệnh rỉ trắng mặt dưới lá non.',
+        inspectionCriteria: 'Thân vươn cao 15-20cm, lóng dài vừa phải, màu xanh bóng.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Chăm sóc sinh khối & Cách ly an toàn',
+        dayStart: 19,
+        dayEnd: 27,
+        label: 'Ngày 19 - 27',
+        statusDesc: 'Đọt non phát triển rộ, lá vươn đều, tích lũy khoáng',
+        waterRegime: 'Duy trì độ ẩm 75-80%, ngừng tưới phân bón',
+        nutrition: 'Thời gian cách ly dinh dưỡng theo tiêu chuẩn VietGAP',
+        guide: 'Ngừng bón tất cả các loại phân bón và thuốc BVTV sinh học.',
+        pestAlert: 'Bệnh đốm mắt cua do đọng sương, tưới rửa sương sớm nếu trời mù.',
+        inspectionCriteria: 'Rau đồng đều, ngọn mập non, bẹ lá xanh non giòn ngọt.'
+      },
+      {
+        id: 'STAGE-4',
+        stepOrder: 4,
+        name: 'Thu hoạch lứa 1 đạt chuẩn VietGAP',
+        dayStart: 28,
+        dayEnd: 30,
+        label: 'Ngày 28 - 30',
+        statusDesc: 'Thu hoạch cắt cách gốc 3-5cm để tái sinh lứa 2',
+        waterRegime: 'Ngừng tưới 24h trước khi cắt thu hoạch',
+        nutrition: 'Thời gian cách ly an toàn 100%',
+        guide: 'Cắt rau bằng liềm/kéo sắc bén vào sáng sớm khi sương vừa tan. Xếp ráo nước, phân loại và đóng gói túi thông khí.',
+        pestAlert: 'Không có sâu bệnh.',
+        inspectionCriteria: 'Chiều dài ngọn 25-30cm, lá bóng mướt, không dập gãy.'
+      }
+    ]
+  },
+
+  'mustard_greens': {
+    cropName: 'Cải ngọt & Cải ăn lá cao sản F1',
+    totalDays: 35,
+    expectedYield: '12 - 15 kg/thửa',
+    optimalConditions: {
+      tempRange: '18 - 28°C',
+      soilMoistureRange: '65 - 75%',
+      airHumidityRange: '65 - 80%',
+      lightRequirement: '30.000 - 50.000 Lux'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Gieo hạt & Hồi xanh cây non',
+        dayStart: 1,
+        dayEnd: 7,
+        label: 'Ngày 1 - 7',
+        statusDesc: 'Cây mọc 2 lá mầm đến 2 lá thật đầu tiên',
+        waterRegime: 'Tưới phun sương nhẹ 2 lần/ngày, giữ ẩm đất 70-75%',
+        nutrition: 'Bón lót phân trùn quế + Nấm đối kháng Trichoderma',
+        guide: 'Tỉa định cây giữ khoảng cách 10-12cm giữa các cây.',
+        pestAlert: 'Bọ nhảy họ bọ cánh cứng cắn lủng lỗ lá non.',
+        inspectionCriteria: 'Cây con đứng vững, lá xanh bóng, rễ trắng khỏe.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Phát triển bẹ lá & Tán cây',
+        dayStart: 8,
+        dayEnd: 22,
+        label: 'Ngày 8 - 22',
+        statusDesc: 'Bẹ cuống dày lên, lá xòe rộng màu xanh mỡ',
+        waterRegime: 'Tưới nhỏ giọt hoặc phun sương 2.0 L/m²/ngày',
+        nutrition: 'Bón thúc đạm hữu cơ vi sinh và dịch rong biển kích rễ',
+        guide: 'Vun gốc nhẹ giữ thân đứng thẳng, nhổ sạch cỏ dại quanh gốc.',
+        pestAlert: 'Sâu tơ, sâu xanh da láng hại rau chữ thập.',
+        inspectionCriteria: 'Lá dày bóng, cuống bẹ trắng nõn hoặc xanh non, tán rộng.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Tích lũy sinh khối & Cách ly PHI',
+        dayStart: 23,
+        dayEnd: 31,
+        label: 'Ngày 23 - 31',
+        statusDesc: 'Bẹ lá đầy đặn, cây đạt độ giòn và trọng lượng chuẩn',
+        waterRegime: 'Tưới nước sạch khử clo, giữ ẩm đất 65-70%',
+        nutrition: 'Tuyệt đối ngưng bón phân hóa học và đạm, thực hiện cách ly',
+        guide: 'Kiểm tra dư lượng nitrate và kiểm dịch an toàn thực phẩm.',
+        pestAlert: 'Thối nhũn vi khuẩn nếu mưa nhiều hoặc úng trũng.',
+        inspectionCriteria: 'Cây cải cứng cáp, bẹ giòn ngọt, không vết châm chích.'
+      },
+      {
+        id: 'STAGE-4',
+        stepOrder: 4,
+        name: 'Thu hoạch nhổ nguyên cây VietGAP',
+        dayStart: 32,
+        dayEnd: 35,
+        label: 'Ngày 32 - 35',
+        statusDesc: 'Thu hoạch đóng thùng chuyển khách hàng',
+        waterRegime: 'Ngừng tưới 12-24h trước khi thu hái',
+        nutrition: 'Thời gian cách ly hoàn tất 100%',
+        guide: 'Thu hoạch lúc sáng sớm, nhổ hoặc cắt sát gốc, tỉa lá già chân gốc, rửa sạch bằng nước RO và làm mát sơ bộ.',
+        pestAlert: 'Không sâu bệnh.',
+        inspectionCriteria: 'Trọng lượng 150-250g/cây, bẹ giòn ngọt, lá nguyên vẹn.'
+      }
+    ]
+  },
+
+  'french_bean': {
+    cropName: 'Đậu cô ve leo xanh giòn F1',
+    totalDays: 55,
+    expectedYield: '18 - 22 kg/thửa',
+    optimalConditions: {
+      tempRange: '20 - 28°C',
+      soilMoistureRange: '65 - 75%',
+      airHumidityRange: '60 - 80%',
+      lightRequirement: '35.000 - 55.000 Lux'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Gieo hạt & Cây con bén rễ',
+        dayStart: 1,
+        dayEnd: 10,
+        label: 'Ngày 1 - 10',
+        statusDesc: 'Hạt nảy mầm khỏe, xuất hiện lá thật kép đầu tiên',
+        waterRegime: 'Tưới ẩm nhẹ, tránh tưới úng làm thối hạt đậu giống',
+        nutrition: 'Bón lót phân hữu cơ vi sinh ủ hoai',
+        guide: 'Cắm chà giàn sớm khi cây nhú tua cuốn đầu tiên ở ngày thứ 8-10.',
+        pestAlert: 'Ruồi đục lá và bọ trĩ phá mầm.',
+        inspectionCriteria: 'Cây con mập khỏe, tua cuốn vươn cao bám cọc.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Leo giàn & Phân cành hoa',
+        dayStart: 11,
+        dayEnd: 30,
+        label: 'Ngày 11 - 30',
+        statusDesc: 'Thân leo phủ kín giàn chữ A, ra nụ hoa nách',
+        waterRegime: 'Tưới nhỏ giọt duy trì 2.0 L/m²/ngày',
+        nutrition: 'Bón thúc lân và kali hữu cơ kích thích bật mầm hoa',
+        guide: 'Cố định thân dây đều trên lưới giàn, vặt bỏ lá già chân gốc.',
+        pestAlert: 'Rệp muội đen bu bám chùm hoa, nhện đỏ mặt dưới lá.',
+        inspectionCriteria: 'Dây leo xanh tốt, đốt mắt đều, chùm hoa phân bổ dày.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Nở hoa rộ & Đậu quả non',
+        dayStart: 31,
+        dayEnd: 45,
+        label: 'Ngày 31 - 45',
+        statusDesc: 'Hoa trắng tím nở rộ, quả non hình thành dày đặc',
+        waterRegime: 'Tưới đủ ẩm đều đặn, không để khô hạn làm rụng quả non',
+        nutrition: 'Bổ sung Canxi-Bo sinh học chống rụng hoa và lép quả',
+        guide: 'Rung nhẹ giàn buổi sáng hỗ trợ thụ phấn, giữ đất ẩm 70%.',
+        pestAlert: 'Sâu đục quả non bám cuống đậu.',
+        inspectionCriteria: 'Tỷ lệ đậu quả cao, quả non suôn thẳng, không sần sùi.'
+      },
+      {
+        id: 'STAGE-4',
+        stepOrder: 4,
+        name: 'Nuôi quả thẳng & Thu hái từng đợt',
+        dayStart: 46,
+        dayEnd: 55,
+        label: 'Ngày 46 - 55',
+        statusDesc: 'Quả tròn hạt chưa nổi gồ, độ giòn ngọt tối đa',
+        waterRegime: 'Tưới nhẹ sau mỗi đợt hái',
+        nutrition: 'Ngừng bón phân, cách ly an toàn',
+        guide: 'Thu hái liên tục cách ngày 1 lần vào buổi sáng sớm, quả dài 15-18cm cuống xanh.',
+        pestAlert: 'Không có sâu bệnh.',
+        inspectionCriteria: 'Quả xanh bóng, bẻ đôi nghe tiếng giòn rụm, hạt nhỏ.'
+      }
+    ]
+  },
+
+  'luffa': {
+    cropName: 'Mướp hương cao sản F1',
+    totalDays: 65,
+    expectedYield: '25 - 35 kg/thửa',
+    optimalConditions: {
+      tempRange: '24 - 32°C',
+      soilMoistureRange: '70 - 80%',
+      airHumidityRange: '65 - 85%',
+      lightRequirement: '40.000 - 60.000 Lux (ưa nắng mạnh)'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Ươm mầm & Cây con hồi xanh',
+        dayStart: 1,
+        dayEnd: 10,
+        label: 'Ngày 1 - 10',
+        statusDesc: 'Nảy mầm và phát triển rễ non khỏe mạnh',
+        waterRegime: 'Tưới giữ ẩm 1.5 L/m²/ngày',
+        nutrition: 'Bón lót phân trùn quế đáy hố',
+        guide: 'Làm giàn lưới cao 2m hình mái bằng hoặc chữ U thoáng đãng.',
+        pestAlert: 'Dế cắn đứt thân con, bọ cánh cứng ăn lá mầm.',
+        inspectionCriteria: 'Cây con xanh mướt, thân mập, 3 lá thật.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Leo giàn giăng tán & Phân cành',
+        dayStart: 11,
+        dayEnd: 32,
+        label: 'Ngày 11 - 32',
+        statusDesc: 'Ngọn vươn lên giàn cao, phát triển nhiều nhánh cấp 1',
+        waterRegime: 'Tưới ẩm 2.5 L/m²/ngày',
+        nutrition: 'Bón thúc NPK hữu cơ nguồn cá biển',
+        guide: 'Dẫn dây leo lên giàn, bấm ngọn chính ở độ cao 1.8m để kích nhánh ngang.',
+        pestAlert: 'Bọ trĩ, rầy phấn trắng, sương mai lá già.',
+        inspectionCriteria: 'Giàn phủ kín lá xanh thẫm, tua cuốn bám chặt.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Ra hoa rộ & Thụ phấn nuôi quả',
+        dayStart: 33,
+        dayEnd: 52,
+        label: 'Ngày 33 - 52',
+        statusDesc: 'Hoa vàng nở rộ khắp giàn, quả lớn nhanh',
+        waterRegime: 'Tưới đủ nước đều đặn, cây cần nước nuôi quả',
+        nutrition: 'Bổ sung dịch chuối ủ Kali hữu cơ giúp quả thơm ngọt',
+        guide: 'Bọc túi bao trái sinh học chống ruồi vàng chích quả non.',
+        pestAlert: 'Ruồi vàng đục quả (Bactrocera cucurbitae).',
+        inspectionCriteria: 'Quả suôn thẳng thon dài, mùi thơm ngát đặc trưng.'
+      },
+      {
+        id: 'STAGE-4',
+        stepOrder: 4,
+        name: 'Thu hái quả non rộ đợt 1',
+        dayStart: 53,
+        dayEnd: 65,
+        label: 'Ngày 53 - 65',
+        statusDesc: 'Thu hái quả non dài 25-30cm vỏ mềm thơm',
+        waterRegime: 'Duy trì tưới sau mỗi đợt hái để nuôi lứa tiếp',
+        nutrition: 'Cách ly an toàn VietGAP',
+        guide: 'Cắt cuống quả bằng kéo chuyên dụng, bọc xốp lưới bảo vệ vỏ mướp.',
+        pestAlert: 'Không có sâu bệnh.',
+        inspectionCriteria: 'Quả suôn dài, vỏ xanh non, ấn tay nhẹ còn độ đàn hồi.'
+      }
+    ]
+  },
+
+  'malabar_spinach': {
+    cropName: 'Rau mồng tơi lá to F1',
+    totalDays: 35,
+    expectedYield: '14 - 18 kg/thửa',
+    optimalConditions: {
+      tempRange: '25 - 33°C',
+      soilMoistureRange: '70 - 80%',
+      airHumidityRange: '70 - 85%',
+      lightRequirement: '35.000 - 50.000 Lux'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Gieo hạt & Bén rễ cây con',
+        dayStart: 1,
+        dayEnd: 8,
+        label: 'Ngày 1 - 8',
+        statusDesc: 'Cây mọc lá mầm dày mọng nước',
+        waterRegime: 'Tưới phun sương nhẹ 2 lần/ngày',
+        nutrition: 'Bón lót vi sinh hữu cơ hoai mục',
+        guide: 'Giữ ẩm mặt luống liên tục ở mức 75%.',
+        pestAlert: 'Ốc sên cắn lá mầm non.',
+        inspectionCriteria: 'Cây con cứng cáp, lá mầm dày xanh đậm.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Phát triển thân lá sinh dưỡng',
+        dayStart: 9,
+        dayEnd: 24,
+        label: 'Ngày 9 - 24',
+        statusDesc: 'Thân mập tím hoặc xanh bóng, lá to dày mọng',
+        waterRegime: 'Tưới đẫm 2.0 L/m²/ngày',
+        nutrition: 'Bón thúc đạm cá vi sinh hòa loãng',
+        guide: 'Bấm ngọn khi thân cao 25cm để kích thích đẻ nhiều nhánh nách.',
+        pestAlert: 'Đốm mắt cua và rầy mềm hại lá non.',
+        inspectionCriteria: 'Lá phiến to tròn, xanh bóng mỡ màng, thân mập.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Tích lũy chất nhầy & Cách ly PHI',
+        dayStart: 25,
+        dayEnd: 31,
+        label: 'Ngày 25 - 31',
+        statusDesc: 'Đọt non vươn đều, búp lá dày giòn mọng nước',
+        waterRegime: 'Tưới nước sạch khử clo',
+        nutrition: 'Cách ly dinh dưỡng VietGAP',
+        guide: 'Không bón phân trong 7 ngày trước thu hoạch.',
+        pestAlert: 'Thối gốc do mưa nhiều.',
+        inspectionCriteria: 'Đọt non mập, lá bóng khỏe, không dư lượng nitrat.'
+      },
+      {
+        id: 'STAGE-4',
+        stepOrder: 4,
+        name: 'Thu hái ngọn non đợt 1',
+        dayStart: 32,
+        dayEnd: 35,
+        label: 'Ngày 32 - 35',
+        statusDesc: 'Thu hoạch cắt ngọn dài 20cm',
+        waterRegime: 'Ngừng tưới 12h trước hái',
+        nutrition: 'Thời gian cách ly hoàn tất',
+        guide: 'Hái ngọn non bằng kéo bấm, bó thành từng bó 500g ráo nước.',
+        pestAlert: 'Không có sâu bệnh.',
+        inspectionCriteria: 'Đọt non búp to tròn, mọng nước, không xước lá.'
+      }
+    ]
+  },
+
+  'chili': {
+    cropName: 'Ớt cay / Ớt chỉ thiên F1',
+    totalDays: 85,
+    expectedYield: '10 - 15 kg/thửa',
+    optimalConditions: {
+      tempRange: '22 - 30°C',
+      soilMoistureRange: '60 - 70%',
+      airHumidityRange: '60 - 75%',
+      lightRequirement: '40.000 - 65.000 Lux (ưa nắng ráo)'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Ươm cây con & Hồi xanh rễ',
+        dayStart: 1,
+        dayEnd: 15,
+        label: 'Ngày 1 - 15',
+        statusDesc: 'Cây con bén rễ thích nghi luống trồng',
+        waterRegime: 'Tưới ẩm vừa phải 1.2 L/m²/ngày',
+        nutrition: 'Bón lót trùn quế + Lân vi sinh',
+        guide: 'Tránh tưới đọng gốc gây thối rễ non, cắm que đỡ thân con.',
+        pestAlert: 'Lở cổ rễ cây con, bọ trĩ xoăn ngọn.',
+        inspectionCriteria: 'Cây con có 5-6 lá thật xanh đậm, rễ đâm khỏe.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Phát triển tán cây & Phân nhánh chữ Y',
+        dayStart: 16,
+        dayEnd: 42,
+        label: 'Ngày 16 - 42',
+        statusDesc: 'Hình thành chạc ba chữ Y đầu tiên, tán xòe tròn',
+        waterRegime: 'Tưới nhỏ giọt ẩm 65%',
+        nutrition: 'Bón thúc NPK hữu cơ cân đối',
+        guide: 'Tỉa bỏ chồi nách dưới điểm phân cành đầu tiên để thông thoáng gốc.',
+        pestAlert: 'Rầy mềm, nhện trắng cắn phá mặt dưới lá.',
+        inspectionCriteria: 'Thân gốc hóa gỗ cứng cáp, tán tròn đều, lá xanh bóng.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Ra hoa rộ & Đậu quả chỉ thiên',
+        dayStart: 43,
+        dayEnd: 68,
+        label: 'Ngày 43 - 68',
+        statusDesc: 'Hoa trắng nở rộ ở các nách lá, quả non chĩa thẳng lên trời',
+        waterRegime: 'Duy trì ẩm ổn định, không tưới đẫm vào hoa',
+        nutrition: 'Bổ sung Canxi-Bo sinh học chống rụng hoa và nứt đuôi quả',
+        guide: 'Chống đổ ngã bằng dây căng dọc luống hai bên tán cây.',
+        pestAlert: 'Bệnh thán thư (Colletotrichum) đốm mắt cua trên quả non.',
+        inspectionCriteria: 'Quả chỉ thiên mọc đều hướng lên trên, da bóng láng.'
+      },
+      {
+        id: 'STAGE-4',
+        stepOrder: 4,
+        name: 'Quả chín đỏ rộ & Thu hoạch đợt 1',
+        dayStart: 69,
+        dayEnd: 85,
+        label: 'Ngày 69 - 85',
+        statusDesc: 'Quả chuyển màu đỏ tươi đồng đều, độ cay thơm tối đa',
+        waterRegime: 'Giảm tưới 30% để quả cay đậm và giữ được lâu',
+        nutrition: 'Cách ly dinh dưỡng 100%',
+        guide: 'Hái quả chín đỏ nguyên cuống vào buổi sáng ráo sương, phân loại đóng hộp.',
+        pestAlert: 'Không có sâu bệnh.',
+        inspectionCriteria: 'Màu đỏ tươi bóng, cuống quả xanh tươi dính chặt.'
+      }
+    ]
+  },
+
+  'amaranth': {
+    cropName: 'Rau dền đỏ / dền cơm VietGAP',
+    totalDays: 30,
+    expectedYield: '12 - 16 kg/thửa',
+    optimalConditions: {
+      tempRange: '23 - 32°C',
+      soilMoistureRange: '70 - 80%',
+      airHumidityRange: '65 - 80%',
+      lightRequirement: '35.000 - 50.000 Lux'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Gieo hạt & Cây con bén rễ',
+        dayStart: 1,
+        dayEnd: 6,
+        label: 'Ngày 1 - 6',
+        statusDesc: 'Cây con mọc lá mầm đỏ tía hoặc xanh non',
+        waterRegime: 'Tưới phun sương nhẹ 2 lần/ngày sáng sớm và chiều mát',
+        nutrition: 'Bón lót phân trùn quế hoai mục',
+        guide: 'Gieo vãi đều hạt trộn tro trấu để tránh cây mọc quá dày.',
+        pestAlert: 'Sâu khoang ăn lá con, bọ nhảy cắn mầm.',
+        inspectionCriteria: 'Cây mầm mọc đều khắp luống, màu sắc tươi tắn.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Tỉa định khoảng cách & Bón thúc',
+        dayStart: 7,
+        dayEnd: 18,
+        label: 'Ngày 7 - 18',
+        statusDesc: 'Cây con lớn nhanh, phiến lá to rộng',
+        waterRegime: 'Tưới đều 2.0 L/m²/ngày',
+        nutrition: 'Bón thúc đạm cá vi sinh pha loãng 1:600',
+        guide: 'Tỉa bớt cây con ăn sớm (tỉa dặm), giữ khoảng cách 10x10cm.',
+        pestAlert: 'Sâu cuốn lá, sâu xanh ăn đọt.',
+        inspectionCriteria: 'Thân mập giòn, màu sắc lá rực rỡ, phiến lá dày.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Phát triển sinh khối & Cách ly PHI',
+        dayStart: 19,
+        dayEnd: 26,
+        label: 'Ngày 19 - 26',
+        statusDesc: 'Cây đạt chiều cao 25-30cm, lá mướt giòn ngọt',
+        waterRegime: 'Tưới nước sạch đã khử clo',
+        nutrition: 'Thời gian cách ly an toàn VietGAP',
+        guide: 'Ngừng bón phân, giữ ẩm đất ổn định.',
+        pestAlert: 'Đốm lá do sương đọng.',
+        inspectionCriteria: 'Lá nguyên vẹn không thủng lỗ, thân non mềm giòn.'
+      },
+      {
+        id: 'STAGE-4',
+        stepOrder: 4,
+        name: 'Thu hoạch nhổ tỉa hoặc cắt ngọn',
+        dayStart: 27,
+        dayEnd: 30,
+        label: 'Ngày 27 - 30',
+        statusDesc: 'Nhổ cả cây hoặc cắt ngọn cách gốc 5cm',
+        waterRegime: 'Ngừng tưới 12h trước khi thu hái',
+        nutrition: 'Hoàn tất cách ly 100%',
+        guide: 'Thu hoạch sáng sớm, rửa sạch đất rễ bằng nước RO, bó thành từng bó 300-500g.',
+        pestAlert: 'Không có sâu bệnh.',
+        inspectionCriteria: 'Rau dền tươi rói, không dập nát, thân mềm giòn ngọt.'
+      }
+    ]
   }
 };
 
@@ -236,22 +726,60 @@ export const CROP_STANDARDS = {
  * Phân tích và sinh quy trình chuẩn theo ngày dựa trên thông tin thửa đất
  */
 export function resolveStandardCropProcess(plot, dbStages = []) {
-  if (!plot) return { cropName: 'Cây trồng', totalDays: 45, currentDay: 1, stages: [] };
+  if (!plot) return { cropName: 'Cây trồng', totalDays: 45, currentDay: 0, stages: [], isNotStarted: true };
 
   const cropKey = detectCropKey(plot.crop || plot.name || '');
   const standardTemplate = CROP_STANDARDS[cropKey] || CROP_STANDARDS.tomato;
 
-  const totalDays = plot.totalDays || standardTemplate.totalDays;
-  const currentDay = Math.min(totalDays, Math.max(1, Number(plot.currentDay || Math.round(totalDays * 0.58))));
-  const progressPercent = Math.min(100, Math.round((currentDay / totalDays) * 100));
+  const totalDays = Number(plot.totalDays) || standardTemplate.totalDays || 45;
 
-  // Tính toán trạng thái các giai đoạn
-  const computedStages = standardTemplate.stages.map((st) => {
+  // Kiểm tra vụ mùa đã bắt đầu hay chưa (currentDay = 0 hoặc status = 'SCHEDULED' hoặc isScheduled)
+  const isNotStarted = plot.seasonStatus === 'SCHEDULED' || Number(plot.currentDay) === 0 || Boolean(plot.isScheduled);
+
+  let currentDay = 0;
+  let progressPercent = 0;
+
+  if (isNotStarted) {
+    currentDay = 0;
+    progressPercent = 0;
+  } else {
+    // Nếu có giá trị currentDay hợp lệ (> 0): dùng giá trị đó, ngược lại mới fallback
+    const rawDay = plot.currentDay !== undefined && plot.currentDay !== null && !isNaN(Number(plot.currentDay))
+      ? Number(plot.currentDay)
+      : Math.round(totalDays * 0.58);
+    currentDay = Math.min(totalDays, Math.max(1, rawDay));
+    progressPercent = Math.min(100, Math.round((currentDay / totalDays) * 100));
+  }
+
+  const baseTotal = standardTemplate.totalDays || 45;
+  const scale = totalDays > 0 ? totalDays / baseTotal : 1;
+  const shouldScale = Math.abs(scale - 1) > 0.05 && (!dbStages || dbStages.length === 0);
+
+  let currentCursor = 1;
+  // Tính toán trạng thái các giai đoạn (tự động co giãn theo tổng ngày chu kỳ)
+  const computedStages = standardTemplate.stages.map((st, sIdx) => {
+    let dayStart = st.dayStart;
+    let dayEnd = st.dayEnd;
+
+    if (shouldScale) {
+      dayStart = currentCursor;
+      if (sIdx === standardTemplate.stages.length - 1) {
+        dayEnd = totalDays;
+      } else {
+        const rawDur = Math.max(1, st.dayEnd - st.dayStart + 1);
+        const scaledDur = Math.max(2, Math.round(rawDur * scale));
+        dayEnd = Math.min(totalDays - (standardTemplate.stages.length - 1 - sIdx), currentCursor + scaledDur - 1);
+      }
+      currentCursor = dayEnd + 1;
+    }
+
     let status = 'PENDING';
-    if (currentDay > st.dayEnd) {
-      status = 'COMPLETED';
-    } else if (currentDay >= st.dayStart && currentDay <= st.dayEnd) {
-      status = 'IN_PROGRESS';
+    if (!isNotStarted) {
+      if (currentDay > dayEnd) {
+        status = 'COMPLETED';
+      } else if (currentDay >= dayStart && currentDay <= dayEnd) {
+        status = 'IN_PROGRESS';
+      }
     }
 
     // Nếu có dữ liệu từ DB (template_steps), merge thông tin
@@ -262,16 +790,26 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
 
     return {
       ...st,
+      dayStart,
+      dayEnd,
+      label: `Ngày ${dayStart} - ${dayEnd}`,
       status: matchingDb?.status || status,
       guide: matchingDb?.guide || st.guide,
       materials: matchingDb?.materials || st.nutrition,
-      isCurrent: status === 'IN_PROGRESS',
-      daysUntil: currentDay < st.dayStart ? st.dayStart - currentDay : 0,
-      daysElapsed: currentDay > st.dayEnd ? (st.dayEnd - st.dayStart + 1) : Math.max(0, currentDay - st.dayStart + 1)
+      isCurrent: !isNotStarted && status === 'IN_PROGRESS',
+      daysUntil: currentDay < dayStart ? dayStart - currentDay : 0,
+      daysElapsed: currentDay > dayEnd ? (dayEnd - dayStart + 1) : Math.max(0, currentDay - dayStart + 1)
     };
   });
 
-  const currentStageObj = computedStages.find((s) => s.isCurrent) || computedStages[computedStages.length - 1];
+  const currentStageObj = isNotStarted
+    ? {
+        ...computedStages[0],
+        name: `Chuẩn bị: ${computedStages[0].name}`,
+        statusDesc: 'Vụ mùa chưa bắt đầu. Đất đang trong giai đoạn nghỉ hoặc chuẩn bị xuống giống theo lịch canh tác.',
+        isCurrent: false
+      }
+    : (computedStages.find((s) => s.isCurrent) || computedStages[computedStages.length - 1]);
 
   return {
     cropKey,
@@ -280,12 +818,13 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
     plotCode: plot.plotCode || plot.id,
     totalDays,
     currentDay,
-    daysLeft: Math.max(0, totalDays - currentDay),
+    daysLeft: isNotStarted ? totalDays : Math.max(0, totalDays - currentDay),
     progressPercent,
     currentStage: currentStageObj,
     stages: computedStages,
     optimalConditions: standardTemplate.optimalConditions,
-    expectedYield: plot.expectedYield || standardTemplate.expectedYield
+    expectedYield: plot.expectedYield || standardTemplate.expectedYield,
+    isNotStarted
   };
 }
 
@@ -293,6 +832,14 @@ function detectCropKey(cropText) {
   const t = String(cropText).toLowerCase();
   if (t.includes('xà lách') || t.includes('lettuce') || t.includes('lô lô') || t.includes('romaine')) return 'lettuce';
   if (t.includes('dưa') || t.includes('cucumber') || t.includes('baby')) return 'cucumber';
+  if (t.includes('muống') || t.includes('water spinach')) return 'water_spinach';
+  if (t.includes('cải') || t.includes('mustard') || t.includes('ngọt') || t.includes('thìa') || t.includes('chíp')) return 'mustard_greens';
+  if (t.includes('đậu') || t.includes('cô ve') || t.includes('french bean')) return 'french_bean';
+  if (t.includes('mướp') || t.includes('luffa')) return 'luffa';
+  if (t.includes('mồng tơi') || t.includes('malabar')) return 'malabar_spinach';
+  if (t.includes('ớt') || t.includes('chili') || t.includes('cay')) return 'chili';
+  if (t.includes('dền') || t.includes('amaranth')) return 'amaranth';
+  if (t.includes('cà chua') || t.includes('cherry') || t.includes('tomato')) return 'tomato';
   return 'tomato';
 }
 
@@ -470,4 +1017,192 @@ export function recordStaffActivity(activity) {
 
   saveStaffActivities(next);
   return next;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   QUY TRÌNH NGHỈ ĐẤT & CẢI TẠO ĐẤT VIETGAP (FALLOW & SOIL REMEDIATION PROTOCOL)
+   ────────────────────────────────────────────────────────────────────────── */
+
+export const FALLOW_PROTOCOL_STEPS = [
+  {
+    step: 1,
+    title: 'Thu dọn tàn dư vụ cũ & Vệ sinh mặt luống',
+    desc: 'Nhổ bỏ gốc rễ cũ, thu gom toàn bộ thân lá tàn dư để ngăn ngừa mầm bệnh ủ trong lòng đất.',
+    duration: 'Ngày 1',
+    status: 'COMPLETED',
+    worker: 'Trần Văn Lực (CVLĐ)',
+    image: '/images/Mucangchai3.jpg'
+  },
+  {
+    step: 2,
+    title: 'Rải vôi nông nghiệp khử trùng & Cân bằng pH',
+    desc: 'Rải vôi bột nông nghiệp (15 - 20 kg/100m²) để diệt khuẩn, hạ phèn và nâng pH đất lên mức tối ưu 6.0 - 6.5.',
+    duration: 'Ngày 2',
+    status: 'COMPLETED',
+    worker: 'Trần Văn Lực (CVLĐ)',
+    image: '/images/Mucangchai1.jpg'
+  },
+  {
+    step: 3,
+    title: 'Cày xới sâu & Phơi ải diệt nấm bệnh tự nhiên',
+    desc: 'Xới sâu 20 - 25cm, phơi ải dưới ánh nắng mặt trời giúp diệt nấm hại, tuyến trùng và ấu trùng sâu bọ.',
+    duration: 'Ngày 3 - 4',
+    status: 'IN_PROGRESS',
+    worker: 'Nguyễn Văn Hùng (KTV)',
+    image: '/images/Mucangchai2.jpg'
+  },
+  {
+    step: 4,
+    title: 'Bón lót phân trùn quế & Bổ sung vi sinh Trichoderma',
+    desc: 'Bổ sung nguồn hữu cơ hoai mục và hệ vi sinh đối kháng để tái tạo độ phì nhiêu màu mỡ cho vụ mùa mới.',
+    duration: 'Ngày 5 (Sáng)',
+    status: 'PENDING',
+    worker: 'Đội ngũ Kỹ thuật Farmely'
+  },
+  {
+    step: 5,
+    title: 'Lên luống mới & Cân chỉnh hệ thống tưới nhỏ giọt',
+    desc: 'Tạo luống cao ráo thoát nước, phủ màng giữ ẩm và chạy thử hệ thống tưới tự động sẵn sàng đón cây giống.',
+    duration: 'Ngày 5 (Chiều)',
+    status: 'PENDING',
+    worker: 'Đội ngũ Kỹ thuật Farmely'
+  }
+];
+
+/**
+ * Phân tích và sinh danh sách các Vụ mùa (Seasons) cho một thửa đất
+ * Hỗ trợ chuyển đổi mượt mà giữa các vụ và hiển thị thời gian nghỉ đất 5 ngày.
+ */
+export function resolvePlotSeasons(plot, allRentals = []) {
+  if (!plot) return [];
+
+  const plotKey = String(plot.plotCode || plot.mapPlotId || plot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+  const storageKey = `farmely_plot_seasons_${plotKey}`;
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+
+  const matchingRentals = (allRentals || []).filter((r) => {
+    const rCode = String(r.plotCode || r.plotId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+    return rCode === plotKey || r.rentalId === plot.rentalId;
+  });
+
+  if (matchingRentals.length > 1) {
+    matchingRentals.sort((a, b) => new Date(a.startDate || 0) - new Date(b.startDate || 0));
+    return matchingRentals.map((r, idx) => {
+      const sNumber = idx + 1;
+      const isPast = new Date(r.endDate) < new Date();
+      const isActive = !isPast;
+      const cropKey = detectCropKey(r.varietyName || plot.crop || 'lettuce');
+      const standard = CROP_STANDARDS[cropKey] || CROP_STANDARDS['lettuce'];
+      return {
+        seasonNumber: sNumber,
+        id: `SEASON-${sNumber}`,
+        seasonName: `Vụ ${sNumber}: ${r.varietyName || standard.cropName}`,
+        cropKey,
+        cropName: r.varietyName || standard.cropName,
+        varietyId: r.varietyId,
+        status: isPast ? 'COMPLETED' : 'ACTIVE',
+        totalDays: r.durationDays || standard.totalDays,
+        currentDay: isPast ? (r.durationDays || standard.totalDays) : Math.min(plot.currentDay || 12, r.durationDays || standard.totalDays),
+        startDate: r.startDate,
+        endDate: r.endDate,
+        fallowDays: 5,
+        rentalId: r.rentalId,
+        cultivationMode: r.cultivationMode || plot.mode || 'ASSISTED',
+        isCurrent: isActive
+      };
+    });
+  }
+
+  const rawTotalDays = Number(plot.totalDays || 32);
+  const rawCurrentDay = Number(plot.currentDay || 1);
+  const primaryCropKey = detectCropKey(plot.crop || 'lettuce');
+  const primaryStandard = CROP_STANDARDS[primaryCropKey] || CROP_STANDARDS['lettuce'];
+  const cropDisplayName = plot.crop || primaryStandard.cropName;
+  const s1Total = primaryStandard.totalDays || 32;
+
+  // Nếu khách hàng thuê từ 2 vụ trở lên (hoặc thời gian hợp đồng bao gồm >= 2 vụ, ví dụ rawTotalDays > 45 ngày):
+  // Hiển thị đầy đủ cả 2 vụ với CÙNG GIỐNG CÂY KHÁCH ĐÃ THUÊ (cropDisplayName).
+  // Vụ 2 nếu chưa tới ngày gieo trồng sẽ có trạng thái là 'SCHEDULED' (Chưa bắt đầu, N0/ngày).
+  if (rawTotalDays > 45 || Number(plot.seasonsCount) >= 2 || Number(plot.termMonths) >= 2) {
+    const fallowDays = 5;
+    const s2Total = primaryStandard.totalDays || 32;
+
+    const s1Completed = rawCurrentDay > s1Total;
+    const inFallow = rawCurrentDay > s1Total && rawCurrentDay <= s1Total + fallowDays;
+    const s2Active = rawCurrentDay > s1Total + fallowDays;
+
+    const s1Start = plot.startDate ? new Date(plot.startDate) : new Date();
+    const s1End = new Date(s1Start);
+    s1End.setDate(s1End.getDate() + s1Total);
+
+    const s2Start = new Date(s1End);
+    s2Start.setDate(s2Start.getDate() + fallowDays);
+    const s2End = new Date(s2Start);
+    s2End.setDate(s2End.getDate() + s2Total);
+
+    return [
+      {
+        seasonNumber: 1,
+        id: 'SEASON-1',
+        seasonName: `Vụ 1: ${cropDisplayName}`,
+        cropKey: primaryCropKey,
+        cropName: cropDisplayName,
+        status: s1Completed ? 'COMPLETED' : 'ACTIVE',
+        totalDays: s1Total,
+        currentDay: s1Completed ? s1Total : rawCurrentDay,
+        startDate: s1Start.toISOString().slice(0, 10),
+        endDate: s1End.toISOString().slice(0, 10),
+        fallowDays: 5,
+        rentalId: plot.rentalId || 1,
+        cultivationMode: plot.mode || 'ASSISTED',
+        isCurrent: !s1Completed,
+        yieldKgActual: s1Completed ? 12.5 : null
+      },
+      {
+        seasonNumber: 2,
+        id: 'SEASON-2',
+        seasonName: `Vụ 2: ${cropDisplayName}`, // CÙNG GIỐNG CÂY ĐÃ THUÊ!
+        cropKey: primaryCropKey,
+        cropName: cropDisplayName,
+        status: inFallow ? 'SOIL_PREP' : s2Active ? 'ACTIVE' : 'SCHEDULED', // Chưa tới ngày -> 'SCHEDULED'
+        totalDays: s2Total,
+        currentDay: s2Active ? Math.max(1, rawCurrentDay - s1Total - fallowDays) : 0,
+        startDate: s2Start.toISOString().slice(0, 10),
+        endDate: s2End.toISOString().slice(0, 10),
+        fallowDays: 5,
+        rentalId: (plot.rentalId || 1) + 1,
+        cultivationMode: plot.mode || 'ASSISTED',
+        isCurrent: inFallow || s2Active,
+        inFallow
+      }
+    ];
+  }
+
+  // Khách hàng thuê 1 vụ:
+  return [
+    {
+      seasonNumber: 1,
+      id: 'SEASON-1',
+      seasonName: `Vụ 1: ${cropDisplayName}`,
+      cropKey: primaryCropKey,
+      cropName: cropDisplayName,
+      status: rawCurrentDay >= s1Total ? 'COMPLETED' : 'ACTIVE',
+      totalDays: s1Total,
+      currentDay: Math.min(rawCurrentDay, s1Total),
+      startDate: plot.startDate || new Date().toISOString().slice(0, 10),
+      endDate: plot.expectedHarvestDate || plot.endDate || '2026-11-30',
+      fallowDays: 5,
+      rentalId: plot.rentalId || 1,
+      cultivationMode: plot.mode || 'ASSISTED',
+      isCurrent: true
+    }
+  ];
 }

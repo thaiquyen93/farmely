@@ -35,3 +35,5 @@ Thumbs.db
 .agents/
 capture_*.py
 /docs/screenshots_srs/
+frontend/public/uploads/
+!frontend/public/uploads/.gitkeep

@@ -31,6 +31,8 @@ import {
   Calendar
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
+import { ContractDocument } from '../../components/customer/CustomerContractCenter';
+import { RENTAL_TERMS, RENTAL_TERMS_VERSION } from '../../data/rentalTerms';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import {
@@ -163,6 +165,10 @@ export default function BookPlot() {
   const [contractCode, setContractCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVnPayModal, setShowVnPayModal] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showContractModal, setShowContractModal] = useState(false);
+  const [contractModalTab, setContractModalTab] = useState('document'); // 'document' | 'terms'
+  const [termsError, setTermsError] = useState('');
 
   // BR03: nạp danh sách giống tương thích (plot_variety_compatibility) cho từng thửa trong hợp đồng
   useEffect(() => {
@@ -489,8 +495,39 @@ export default function BookPlot() {
     };
   };
 
+  const draftContractData = React.useMemo(() => {
+    return {
+      contractId: createdContractId || 'DRAFT',
+      contractNumber: contractCode || `HD-DRAFT-${selectedPlots.map((p) => p.code).join('-') || 'FARMELY'}`,
+      createdAt: new Date().toISOString(),
+      renterName: user?.name || user?.fullName || 'KHÁCH HÀNG FARMELY',
+      renterPhone: user?.phone || user?.phoneNumber || '0987 654 321',
+      renterEmail: user?.email || 'khachhang@farmely.vn',
+      totalAmount: totalAmount,
+      status: 'CONFIRMED',
+      displayStatus: 'Dự thảo trước thanh toán',
+      rentals: selectedPlots.map((p) => {
+        const crop = getPlotSelectedCrop(p);
+        const cfg = getPlotConfig(p);
+        const priceObj = getPlotPrice(p);
+        const endStr = getRentalEndDate(startDate, cfg.termMonths, crop);
+        return {
+          plotId: p.plotId || p.id,
+          plotCode: p.code,
+          plotArea: p.area,
+          varietyName: crop?.variety || crop?.name || 'Giống theo chuẩn VietGAP',
+          cultivationMode: cfg.cultivationMode === 'SELF' ? 'SELF_GROWING' : 'ASSISTED',
+          startDate: startDate,
+          endDate: endStr,
+          totalPrice: priceObj.total
+        };
+      })
+    };
+  }, [user, selectedPlots, contractCode, createdContractId, totalAmount, startDate, getPlotSelectedCrop, getPlotConfig, getPlotPrice]);
+
   const handleConfirmBooking = async () => {
     setBookingError('');
+    setTermsError('');
 
     if (!selectedPlots || selectedPlots.length === 0) {
       setBookingError('Chưa có thửa đất nào được chọn trong hợp đồng. Vui lòng quay lại Marketplace hoặc bấm "+ Chọn nhanh" để chọn thửa đất!');
@@ -509,6 +546,12 @@ export default function BookPlot() {
       setBookingError(`Thửa đất ${firstInvalidPlot.code}: ${err}`);
       const el = document.getElementById(`plot-card-${firstInvalidPlot.id}`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    if (!acceptedTerms) {
+      setTermsError('Vui lòng xem và chấp thuận Dự thảo Hợp đồng thuê đất trước khi thanh toán.');
+      setShowContractModal(true);
       return;
     }
 
@@ -1283,16 +1326,49 @@ export default function BookPlot() {
                   </div>
                 )}
 
-                {/* Error Banner if any */}
-                {bookingError && (
-                  <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2 animate-fadeIn">
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <strong className="block font-bold">Lỗi xử lý hợp đồng:</strong>
-                      <span>{bookingError}</span>
+                {/* Xác nhận & Xem dự thảo Hợp đồng thuê đất */}
+                <div className="space-y-2 pt-2 border-t border-brand-border/60">
+                  <button
+                    type="button"
+                    onClick={() => setShowContractModal(true)}
+                    className={`flex w-full items-start gap-3 rounded-2xl border p-3.5 text-left text-xs transition cursor-pointer ${
+                      acceptedTerms
+                        ? 'border-emerald-300 bg-emerald-50/80 text-emerald-950 shadow-xs'
+                        : 'border-brand-border bg-white text-stone-700 hover:border-emerald-400 hover:bg-emerald-50/30'
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                        acceptedTerms
+                          ? 'border-emerald-700 bg-emerald-700 text-white'
+                          : 'border-stone-400 bg-white'
+                      }`}
+                    >
+                      {acceptedTerms && <CheckCircle2 className="h-3.5 w-3.5" />}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold">
+                          {acceptedTerms ? 'Đã xem và chấp thuận' : 'Xem dự thảo và chấp thuận'}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline">
+                          <FileText className="w-3.5 h-3.5" />
+                          Xem hợp đồng A4
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-stone-500">
+                        Dự thảo Hợp đồng điện tử thuê {selectedPlots.length} thửa đất & điều khoản dịch vụ canh tác VietGAP.
+                      </p>
                     </div>
-                  </div>
-                )}
+                  </button>
+
+                  {termsError && (
+                    <p role="alert" className="text-xs font-semibold text-rose-600 flex items-center gap-1 animate-fadeIn">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {termsError}
+                    </p>
+                  )}
+                </div>
 
                 <Button
                   variant="secondary"
@@ -1402,6 +1478,146 @@ export default function BookPlot() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* MODAL: DỰ THẢO HỢP ĐỒNG THUÊ ĐẤT VÀ CANH TÁC TRƯỚC KHI THANH TOÁN */}
+      {showContractModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-stone-950/75 p-3 backdrop-blur-sm sm:p-6 animate-fadeIn">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rental-terms-title"
+            className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl"
+          >
+            {/* Header */}
+            <header className="flex items-start justify-between gap-4 border-b border-brand-border bg-[#f4f7f1] px-5 py-4 sm:px-7">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                    Dự thảo Hợp đồng Farmely
+                  </span>
+                  <span className="text-xs text-stone-500">
+                    Phiên bản {RENTAL_TERMS_VERSION}
+                  </span>
+                </div>
+                <h2 id="rental-terms-title" className="mt-1 font-heading text-lg sm:text-xl font-black text-brand-dark">
+                  Hợp đồng Thuê thửa đất & Dịch vụ Canh tác VietGAP
+                </h2>
+                <p className="mt-0.5 text-xs text-stone-500">
+                  Vui lòng kiểm tra kỹ danh sách {selectedPlots.length} thửa đất, giống cây, thời hạn và các cam kết trước khi tiến hành thanh toán.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="hidden sm:flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-50 transition cursor-pointer"
+                  title="In bản dự thảo hợp đồng"
+                >
+                  <FileText className="h-4 w-4 text-stone-500" />
+                  <span>In / Lưu PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowContractModal(false)}
+                  aria-label="Đóng hợp đồng"
+                  className="rounded-xl p-2 text-stone-500 hover:bg-stone-200 hover:text-stone-800 transition cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </header>
+
+            {/* Sub-header navigation: 2 tabs */}
+            <div className="flex items-center gap-2 border-b border-stone-200 bg-stone-50/80 px-5 sm:px-7 py-2">
+              <button
+                type="button"
+                onClick={() => setContractModalTab('document')}
+                className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  contractModalTab === 'document'
+                    ? 'bg-emerald-800 text-white shadow-xs'
+                    : 'text-stone-600 hover:bg-stone-200/60'
+                }`}
+              >
+                📄 Văn bản Hợp đồng A4
+              </button>
+              <button
+                type="button"
+                onClick={() => setContractModalTab('terms')}
+                className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  contractModalTab === 'terms'
+                    ? 'bg-emerald-800 text-white shadow-xs'
+                    : 'text-stone-600 hover:bg-stone-200/60'
+                }`}
+              >
+                ⚖️ Điều khoản canh tác VietGAP & Hoàn hủy (9 Điều)
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto bg-stone-100/70 p-4 sm:p-6">
+              {contractModalTab === 'document' ? (
+                <div className="flex justify-center">
+                  <ContractDocument contract={draftContractData} />
+                </div>
+              ) : (
+                <div className="mx-auto max-w-3xl space-y-5 rounded-2xl bg-white p-6 sm:p-8 shadow-sm">
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-900">
+                    Đây là nội dung các điều khoản sẽ được ghi nhận cùng hợp đồng điện tử. Vui lòng kiểm tra đặc biệt các điều về thời hạn, thanh toán, hoàn tiền, rủi ro mùa vụ và dữ liệu trước khi đồng ý.
+                  </div>
+                  <div className="space-y-6">
+                    {RENTAL_TERMS.map(({ title, content }) => (
+                      <article key={title} className="border-b border-stone-100 pb-5 last:border-none">
+                        <h3 className="font-heading text-sm font-black text-brand-dark">{title}</h3>
+                        <p className="mt-1.5 text-xs sm:text-sm leading-6 text-stone-600 text-justify">{content}</p>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs leading-6 text-emerald-900">
+                    Khi chọn “Tôi đã đọc và đồng ý”, hệ thống ghi nhận sự chấp thuận đối với đúng phiên bản hợp đồng này.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <footer className="flex flex-col-reverse gap-3 border-t border-brand-border bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+              <div className="text-xs text-stone-500">
+                {acceptedTerms ? (
+                  <span className="inline-flex items-center gap-1.5 font-bold text-emerald-700">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Đã chấp thuận dự thảo hợp đồng
+                  </span>
+                ) : (
+                  <span>Bấm xác nhận bên dưới để hoàn tất chấp thuận hợp đồng</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowContractModal(false)}
+                  className="rounded-xl border border-brand-border px-4 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-50 transition cursor-pointer"
+                >
+                  Để tôi xem lại đơn
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAcceptedTerms(true);
+                    setTermsError('');
+                    setShowContractModal(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-800 px-5 py-2.5 text-xs font-black text-white hover:bg-emerald-900 shadow-md transition cursor-pointer"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Tôi đã đọc và đồng ý với Hợp đồng</span>
+                </button>
+              </div>
+            </footer>
+          </section>
         </div>
       )}
 

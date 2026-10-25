@@ -13,6 +13,7 @@ import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
 import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
+import PlotRenewalModal from '../../components/customer/PlotRenewalModal';
 import ContractCancellationModal from '../../components/customer/ContractCancellationModal';
 import CustomerContractCenter from '../../components/customer/CustomerContractCenter';
 import CustomerMobileNav from '../../components/customer/CustomerMobileNav';
@@ -73,8 +74,6 @@ import {
   Wallet,
   LayoutDashboard,
   MessageCircle,
-  PanelLeftClose,
-  PanelLeftOpen,
   Star,
   ShieldAlert,
   Eye,
@@ -1949,41 +1948,11 @@ export default function CustomerDashboard() {
 
   return (
     <div className="dashboard-readable min-h-screen bg-brand-cream flex flex-col font-sans overflow-x-hidden">
-      <aside className={`fixed inset-y-0 left-0 z-[60] hidden flex-col bg-[#063d2b] text-white shadow-2xl transition-[width] duration-200 lg:flex ${sidebarCollapsed ? 'w-16' : 'w-72'}`}>
-        <div className={`flex items-center border-b border-white/10 ${sidebarCollapsed ? 'flex-col justify-center gap-3 p-3' : 'gap-3 px-5 py-5'}`}>
-          <Link to="/" className="flex shrink-0 items-center gap-2 text-xl font-black tracking-wide"><Sprout className="h-8 w-8 text-lime-400" />{!sidebarCollapsed && 'FARMELY'}</Link>
-          <button type="button" onClick={() => setSidebarCollapsed((value) => !value)} className={`${sidebarCollapsed ? '' : 'ml-auto'} flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white`} aria-label={sidebarCollapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'} title={sidebarCollapsed ? 'Mở rộng' : 'Thu gọn'}>
-            {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-          </button>
-        </div>
-        <div className="flex-1 space-y-2 px-3 py-6">
-          {!sidebarCollapsed && <p className="px-3 pb-2 text-xs font-bold uppercase tracking-widest text-white/55">Quản lý nông trại</p>}
-          {[
-            ['Tổng quan', LayoutDashboard, 'overview'],
-            ['Kế hoạch thu hoạch & nghiệm thu', Apple, 'harvest']
-          ].map(([label, Icon, id]) => {
-            const isActive = id === 'overview' ? (activeTab === 'yards' || Boolean(selectedPlotId)) : (!selectedPlotId && activeTab === id);
-            return (
-              <button key={id} type="button" onClick={() => {
-                setSelectedPlotId(null);
-                setPlotScopeId(null);
-                const nextTab = id === 'overview' ? 'yards' : id;
-                setActiveTab(nextTab);
-                navigate(nextTab === 'yards' ? '/customer/dashboard' : `/customer/dashboard?view=${nextTab}`);
-              }} className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-0' : ''} ${isActive ? 'bg-white text-[#063d2b] shadow-md' : 'text-white hover:bg-white/10'}`} title={sidebarCollapsed ? label : undefined}>
-                <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-emerald-700' : 'text-white/85'}`} />
-                {!sidebarCollapsed && <span className="truncate">{label}</span>}
-                {sidebarCollapsed && <span className="pointer-events-none absolute left-full ml-3 hidden whitespace-nowrap rounded-lg bg-[#063d2b] px-3 py-2 text-xs font-bold text-white shadow-lg group-hover:block">{label}</span>}
-              </button>
-            );
-          })}
-        </div>
-      </aside>
-      {/* 1. Top Navbar giữ nguyên theo toàn bộ website */}
-      <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} hideBrand />
+      {/* 1. Top Navbar tiêu chuẩn toàn website */}
+      <PublicNavbar />
 
-      {/* 2. Main Page Container luôn co giãn theo phần màn hình còn lại */}
-      <div className={`box-border min-w-0 flex-1 w-full ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'} ${selectedPlotId ? 'px-3 pb-16 pt-20 sm:px-5 lg:px-8' : activeTab === 'yards' ? 'pt-20' : 'space-y-6 px-4 pb-16 pt-24 sm:px-8 sm:pt-28 lg:px-10'}`}>
+      {/* 2. Main Page Container tràn đều màn hình */}
+      <div className={`box-border min-w-0 flex-1 w-full ${selectedPlotId ? 'px-3 pb-16 pt-20 sm:px-5 lg:px-8' : activeTab === 'yards' ? 'pt-20' : 'space-y-6 px-4 pb-16 pt-24 sm:px-8 sm:pt-28 lg:px-10'}`}>
         
         {/* 3. Layout with Left Sidebar + Right Content */}
         <div className={`flex min-w-0 flex-col items-start ${selectedPlotId ? '' : 'gap-6'}`}>
@@ -4636,111 +4605,18 @@ export default function CustomerDashboard() {
         </form>
       </Modal>
 
-      {/* Modal: Renew Contract (UC07 / BR11 / BR12) */}
-      <Modal
+      {/* Modal: Renew Contract theo Vụ Mùa (BR12) */}
+      <PlotRenewalModal
         isOpen={showRenewContractModal}
         onClose={() => setShowRenewContractModal(false)}
-        title="Gia Hạn Hợp Đồng Thuê Thửa Đất (Renewal)"
-        subtitle={selectedPlotForRenew ? `${selectedPlotForRenew.name || selectedPlotForRenew.mapPlotId} (${selectedPlotForRenew.mapPlotId || selectedPlotForRenew.id})` : "Gia hạn quyền canh tác"}
-      >
-        <form onSubmit={handleConfirmRenewContract} className="space-y-4 text-left text-xs">
-          {selectedPlotForRenew && (
-            <div className="p-3.5 rounded-xl bg-brand-cream/70 border border-brand-border space-y-1">
-              <p><strong>Thửa đất:</strong> {selectedPlotForRenew.name || selectedPlotForRenew.mapPlotId} ({selectedPlotForRenew.mapPlotId || selectedPlotForRenew.id})</p>
-              <p><strong>Cây trồng:</strong> {selectedPlotForRenew.crop || 'Rau hữu cơ VietGAP'}</p>
-              <p><strong>Hình thức:</strong> {selectedPlotForRenew.mode === 'Assisted-Growing' ? 'Farmely hỗ trợ toàn diện' : 'Tự canh tác'}</p>
-            </div>
-          )}
-
-          {customerPlots.length > 1 && (
-            <div>
-              <label className="block font-bold text-brand-dark mb-1">Chọn Thửa Đất Cần Gia Hạn:</label>
-              <select
-                value={selectedPlotForRenew?.id || ''}
-                onChange={(e) => {
-                  const target = customerPlots.find(p => p.id === e.target.value);
-                  if (target) setSelectedPlotForRenew(target);
-                }}
-                className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs font-bold"
-              >
-                {customerPlots.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.mapPlotId || p.id})</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Gói Thời Gian Gia Hạn Kế Tiếp:</label>
-            <select
-              value={renewMonths}
-              onChange={(e) => setRenewMonths(Number(e.target.value))}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs font-bold"
-            >
-              <option value={1}>Gia hạn thêm 01 Tháng (Đơn giá tiêu chuẩn)</option>
-              <option value={3}>Gia hạn thêm 03 Tháng (Ưu đãi giảm 5%)</option>
-              <option value={6}>Gia hạn thêm 06 Tháng (Ưu đãi giảm 10%)</option>
-              <option value={12}>Gia hạn thêm 12 Tháng (Ưu đãi giảm 15%)</option>
-            </select>
-          </div>
-
-          {/* Pricing summary */}
-          {(() => {
-            const monthlyPrice = 1200000;
-            const discountPct = renewMonths === 12 ? 0.15 : renewMonths === 6 ? 0.10 : renewMonths === 3 ? 0.05 : 0;
-            const subtotal = monthlyPrice * renewMonths;
-            const discountAmount = subtotal * discountPct;
-            const total = subtotal - discountAmount;
-
-            const futureDate = new Date();
-            futureDate.setMonth(futureDate.getMonth() + renewMonths);
-            const formattedDate = `${String(futureDate.getDate()).padStart(2, '0')}/${String(futureDate.getMonth() + 1).padStart(2, '0')}/${futureDate.getFullYear()}`;
-
-            return (
-              <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-1.5">
-                <div className="flex justify-between text-stone-600">
-                  <span>Thời hạn hiệu lực mới đến:</span>
-                  <span className="font-bold text-brand-dark">{formattedDate}</span>
-                </div>
-                <div className="flex justify-between text-stone-600">
-                  <span>Đơn giá định mức:</span>
-                  <span>{monthlyPrice.toLocaleString('vi-VN')} đ/tháng × {renewMonths} tháng</span>
-                </div>
-                {discountPct > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-semibold">
-                    <span>Ưu đãi gia hạn ({discountPct * 100}%):</span>
-                    <span>-{discountAmount.toLocaleString('vi-VN')} đ</span>
-                  </div>
-                )}
-                <div className="flex justify-between border-t border-stone-200 pt-1.5 font-bold text-sm text-brand-green">
-                  <span>Tổng tiền thanh toán:</span>
-                  <span>{total.toLocaleString('vi-VN')} đ</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          <div className="p-3 rounded-xl bg-brand-cream/60 border border-brand-border text-stone-600 space-y-1 text-[11px]">
-            <p>• <strong>BR12:</strong> Thửa đất được kế thừa toàn bộ lịch sử dinh dưỡng, camera IoT và nhật ký vụ trước.</p>
-            <p>• <strong>Tặng kèm:</strong> 01 chu kỳ phân bón vi sinh VietGAP và kiểm tra mẫu đất miễn phí.</p>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setShowRenewContractModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={isRenewingContract}
-              className="bg-brand-green hover:bg-[#203c2c] text-white font-bold"
-            >
-              {isRenewingContract ? 'Đang kích hoạt...' : 'XÁC NHẬN GIA HẠN'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        plot={selectedPlotForRenew || customerPlots[0]}
+        onRenewSuccess={() => {
+          setRenewSuccessToast('Gia hạn vụ mùa cho thửa đất thành công!');
+          setShowRenewContractModal(false);
+          setTimeout(() => setRenewSuccessToast(''), 4500);
+          if (typeof fetchCustomerPlots === 'function') fetchCustomerPlots(false);
+        }}
+      />
 
       {/* Cultivation Service VNPay Pop-up Modal */}
       <VnPayModal

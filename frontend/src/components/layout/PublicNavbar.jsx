@@ -213,42 +213,42 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
           </div>
 
           {/* CENTER: Navigation Links (Tách biệt nghiêm ngặt theo vai trò / RBAC) */}
-          <div className="hidden min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden whitespace-nowrap px-2 xl:flex 2xl:gap-5 2xl:px-4">
+          <div className="hidden min-w-0 flex-1 items-center justify-center gap-5 overflow-hidden whitespace-nowrap px-4 xl:flex xl:gap-7 2xl:gap-9">
             {/* 1. KHÁCH HÀNG & KHÁCH VÃNG LAI (CUSTOMER / GUEST) */}
             {isCustomerOrGuest && (
               <>
                 <Link
                   to="/"
-                  className={`whitespace-nowrap text-xs 2xl:text-sm font-semibold transition-colors hover:text-brand-yellow ${
+                  className={`whitespace-nowrap text-sm xl:text-[15px] 2xl:text-base font-semibold transition-colors hover:text-brand-yellow py-1 ${
                     location.pathname === '/' ? 'text-brand-yellow font-bold' : 'text-white/95'
                   }`}
                 >
-                  <span className="flex items-center gap-1.5"><Home className="h-3.5 w-3.5" />Trang chủ</span>
+                  <span className="flex items-center gap-2"><Home className="h-4 w-4" />Trang chủ</span>
                 </Link>
 
                 <Link
                   to="/marketplace"
-                  className={`whitespace-nowrap text-xs 2xl:text-sm font-semibold transition-colors hover:text-brand-yellow ${
+                  className={`whitespace-nowrap text-sm xl:text-[15px] 2xl:text-base font-semibold transition-colors hover:text-brand-yellow py-1 ${
                     location.pathname.startsWith('/marketplace') ? 'text-brand-yellow font-bold' : 'text-white/95'
                   }`}
                 >
-                  <span className="flex items-center gap-1.5"><ShoppingCart className="h-3.5 w-3.5" />Marketplace</span>
+                  <span className="flex items-center gap-2"><ShoppingCart className="h-4 w-4" />Marketplace</span>
                 </Link>
 
                 <Link
                   to="/site-visit/book"
-                  className={`flex items-center gap-1.5 whitespace-nowrap text-xs 2xl:text-sm font-semibold transition-colors hover:text-brand-yellow ${
+                  className={`flex items-center gap-2 whitespace-nowrap text-sm xl:text-[15px] 2xl:text-base font-semibold transition-colors hover:text-brand-yellow py-1 ${
                     location.pathname.startsWith('/site-visit') ? 'text-brand-yellow font-bold' : 'text-white/95'
                   }`}
                 >
-                  <Calendar className="w-3.5 h-3.5 text-brand-yellow" />
+                  <Calendar className="w-4 h-4 text-brand-yellow" />
                   <span>Đặt lịch tham quan</span>
                 </Link>
 
                 {isAuthenticated && !location.pathname.startsWith('/marketplace') && (
                   <Link
                     to="/customer/dashboard"
-                    className={`flex items-center gap-1.5 whitespace-nowrap text-xs 2xl:text-sm font-semibold transition-colors hover:text-brand-yellow ${
+                    className={`flex items-center gap-2 whitespace-nowrap text-sm xl:text-[15px] 2xl:text-base font-semibold transition-colors hover:text-brand-yellow py-1 ${
                       location.pathname.includes('/customer/dashboard') ? 'text-brand-yellow font-bold' : 'text-white/95'
                     }`}
                   >
@@ -265,14 +265,14 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                 >
                   <Link
                     to="/about"
-                    className={`flex items-center gap-1.5 whitespace-nowrap text-xs 2xl:text-sm font-semibold hover:text-brand-yellow transition-colors ${
+                    className={`flex items-center gap-2 whitespace-nowrap text-sm xl:text-[15px] 2xl:text-base font-semibold hover:text-brand-yellow transition-colors py-1 ${
                       location.pathname === '/about' ? 'text-brand-yellow font-bold' : 'text-white/95'
                     }`}
                   >
-                    <Info className="h-3.5 w-3.5" />
+                    <Info className="h-4 w-4" />
                     <span>Về Farmely</span>
                     <ChevronDown
-                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      className={`w-4 h-4 transition-transform duration-200 ${
                         aboutDropdownOpen ? 'rotate-180 text-brand-yellow' : 'text-white/70'
                       }`}
                     />
