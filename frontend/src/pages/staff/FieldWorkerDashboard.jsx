@@ -867,6 +867,183 @@ export default function FieldWorkerDashboard() {
     setSelectedHarvestTask((current) => harvestWorkItems.find((item) => item.id === current?.id) || harvestWorkItems.find((item) => item.status !== 'COMPLETED') || harvestWorkItems[0]);
   }, [tasks, harvestTasks]);
 
+  // Render task card helper for clean, polished and uncluttered visual hierarchy
+  const renderTaskCard = (task, isGroupView = false) => {
+    const isDone = task.status === 'COMPLETED';
+    const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(`${task.title} ${task.instructions}`);
+    const isEmergency = task.priority === 'EMERGENCY' || /\[(KHẨN CẤP|LÀM NGAY)\]/i.test(`${task.title} ${task.instructions}`);
+    const isHigh = task.priority === 'HIGH' || /\[ƯU TIÊN CAO\]/i.test(`${task.title} ${task.instructions}`) || Boolean(task.serviceRequestId);
+
+    // Clean raw title
+    let cleanTitle = (task.title || '')
+      .replace(/\[(KHẨN CẤP|LÀM NGAY|ƯU TIÊN CAO|BÌNH THƯỜNG|CHỈ ĐẠO CHUYÊN GIA)\]/gi, '')
+      .replace(/\[ISS-[^\]]+\]/gi, '')
+      .replace(/-?\s*Test auto assign Zone [A-Z]/gi, '')
+      .trim();
+
+    // Clean instructions
+    let cleanInstructions = (task.instructions || '')
+      .replace(/\[(KHẨN CẤP|LÀM NGAY|ƯU TIÊN CAO|BÌNH THƯỜNG)\]/gi, '')
+      .replace(/\[CHỈ ĐẠO CHUYÊN GIA\]/gi, '')
+      .replace(/-?\s*Test auto assign Zone [A-Z]/gi, '')
+      .trim();
+
+    // Avoid title duplication in instructions
+    if (cleanInstructions.startsWith(cleanTitle)) {
+      cleanInstructions = cleanInstructions.slice(cleanTitle.length).replace(/^[\s\-:]+/, '').trim();
+    }
+    if (!cleanInstructions) {
+      cleanInstructions = 'Tuân thủ định mức và kỹ thuật VietGAP, chụp ảnh hiện trường khi hoàn thành.';
+    }
+
+    return (
+      <div
+        key={task.id}
+        className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+          isDone
+            ? 'border-emerald-200/80 bg-emerald-50/30'
+            : isEmergency
+            ? 'border-rose-400 bg-rose-50/60 shadow-xs ring-1 ring-rose-300/60'
+            : 'border-stone-200/90 bg-white hover:border-emerald-400 hover:shadow-xs'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="flex items-start gap-3.5 min-w-0 flex-1">
+            {/* Status Icon */}
+            <div className="shrink-0 mt-0.5">
+              {isDone ? (
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <Check className="w-4 h-4 stroke-[2.5]" />
+                </div>
+              ) : isEmergency ? (
+                <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center animate-pulse">
+                  <Flame className="w-4 h-4 fill-rose-600 text-rose-600" />
+                </div>
+              ) : isHarvestTask ? (
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                  <Scale className="w-4 h-4" />
+                </div>
+              ) : (
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5 min-w-0 flex-1">
+              {/* Badges bar */}
+              <div className="flex flex-wrap items-center gap-2">
+                {isDone ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                    ✓ Đã hoàn thành
+                  </span>
+                ) : isEmergency ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shadow-2xs flex items-center gap-1">
+                    ⚡ LÀM NGAY
+                  </span>
+                ) : isHigh ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                    🔥 Ưu tiên cao
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    🌿 Chuẩn VietGAP
+                  </span>
+                )}
+
+                <span className="text-[11px] font-mono text-stone-500 font-semibold">
+                  ⏰ {task.deadline || '08:30 AM'}
+                </span>
+
+                {isGroupView && task.plotCode && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-stone-100 text-stone-700">
+                    Thửa {task.plotCode}
+                  </span>
+                )}
+
+                <span className="text-[10px] font-mono text-stone-400">
+                  #{task.id}
+                </span>
+              </div>
+
+              {/* Title */}
+              <h5 className={`font-heading font-black text-sm sm:text-base leading-snug tracking-tight ${
+                isDone ? 'text-stone-500 line-through' : 'text-stone-900'
+              }`}>
+                {cleanTitle}
+              </h5>
+
+              {/* Instructions box */}
+              <div className={`p-2.5 sm:p-3 rounded-xl border text-xs leading-relaxed flex items-start gap-2.5 ${
+                isDone
+                  ? 'bg-stone-50/80 border-stone-200/60 text-stone-500'
+                  : isEmergency
+                  ? 'bg-rose-100/70 border-rose-200 text-rose-950 font-medium'
+                  : 'bg-stone-50 border-stone-200/70 text-stone-700'
+              }`}>
+                <BookOpen className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+                  isDone ? 'text-stone-400' : isEmergency ? 'text-rose-700' : 'text-emerald-700'
+                }`} />
+                <div className="min-w-0 flex-1">
+                  <span className="font-bold mr-1">
+                    {isEmergency ? 'Chỉ đạo khẩn cấp từ CGNN:' : 'Hướng dẫn kỹ thuật VietGAP:'}
+                  </span>
+                  <span>{cleanInstructions}</span>
+                </div>
+              </div>
+
+              {/* If done, show proof info */}
+              {isDone && (
+                <div className="pt-1 flex flex-wrap items-center gap-2 text-[11px] text-emerald-800 font-semibold">
+                  <span>👷 Đã thực hiện xong</span>
+                  {task.completedAt && <span className="font-mono text-stone-500">• {task.completedAt}</span>}
+                  {task.proofPhoto && (
+                    <button
+                      type="button"
+                      onClick={() => window.open(task.proofPhoto, '_blank')}
+                      className="text-emerald-700 underline hover:text-emerald-900 ml-2 font-bold"
+                    >
+                      📷 Xem ảnh minh chứng thực địa
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action Button */}
+          {!isDone && (
+            <div className="shrink-0 self-end sm:self-center pt-1 sm:pt-0">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  if (isHarvestTask) {
+                    const harvest = harvestWorkItems.find((item) => item.plotCode === task.plotCode);
+                    if (harvest) openHarvestWorkspace(harvest);
+                    else handleTaskAction(task);
+                  } else {
+                    handleTaskAction(task);
+                  }
+                }}
+                className={`gap-1.5 font-bold text-xs px-4 py-2.5 rounded-xl text-white shadow-2xs hover:shadow-xs transition ${
+                  isEmergency
+                    ? 'bg-rose-600 hover:bg-rose-700 ring-2 ring-rose-300'
+                    : isHarvestTask
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-[#07533d] hover:bg-[#053d2d]'
+                }`}
+              >
+                {isHarvestTask ? <Scale className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+                {isHarvestTask ? 'Cân thu hoạch' : (isEmergency ? 'Xử lý ngay & Gửi ảnh' : 'Báo cáo hoàn thành (Kèm ảnh)')}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
       <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
