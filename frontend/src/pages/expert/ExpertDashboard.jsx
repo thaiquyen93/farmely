@@ -1103,59 +1103,67 @@ export default function ExpertDashboard() {
       <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
         
         {/* Top Agronomy Metrics */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Thửa Đất Giám Sát
-            </span>
-            <div className="text-2xl font-heading font-black text-brand-dark">
-              16 Thửa
-            </div>
-            <span className="text-[10px] text-emerald-700 font-bold block">100% đạt chuẩn VietGAP</span>
-          </div>
+        {(() => {
+          const pendingIssuesCount = fieldIssues.filter(i => i.status === 'PENDING').length;
+          const pendingChatCount = chatThreads.filter(c => c.status === 'PENDING').length;
+          return (
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
+                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
+                  Thửa Đất Giám Sát
+                </span>
+                <div className="text-2xl font-heading font-black text-brand-dark">
+                  {assignedPlots.length > 0 ? assignedPlots.length : 16} Thửa
+                </div>
+                <span className="text-[10px] text-emerald-700 font-bold block">100% chuẩn VietGAP</span>
+              </div>
 
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Hộp Thư Cần Phản Hồi
-            </span>
-            <div className="text-2xl font-heading font-black text-amber-600">
-              {chatThreads.filter(c => c.status === 'PENDING').length} Tin nhắn
-            </div>
-            <span className="text-xs text-amber-700 font-bold block">
-              {preRentalCount} khách chưa thuê
-            </span>
-          </div>
+              <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
+                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
+                  Hộp Thư Chờ Xử Lý
+                </span>
+                <div className={`text-2xl font-heading font-black ${pendingChatCount > 0 ? 'text-amber-700' : 'text-brand-dark'}`}>
+                  {pendingChatCount} Tin nhắn
+                </div>
+                <span className="text-[10px] text-stone-500 font-semibold block">
+                  {preRentalCount > 0 ? `${preRentalCount} khách chưa thuê` : 'Cần phản hồi'}
+                </span>
+              </div>
 
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Sự Cố Hiện Trường
-            </span>
-            <div className="text-2xl font-heading font-black text-rose-600">
-              {fieldIssues.filter(i => i.status === 'PENDING').length} Cần chỉ đạo
-            </div>
-            <span className="text-[10px] text-rose-700 font-bold block">Báo cáo từ công nhân</span>
-          </div>
+              <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
+                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
+                  Sự Cố Hiện Trường
+                </span>
+                <div className={`text-2xl font-heading font-black ${pendingIssuesCount > 0 ? 'text-rose-600' : 'text-brand-dark'}`}>
+                  {pendingIssuesCount} Cần chỉ đạo
+                </div>
+                <span className={`text-[10px] font-bold block ${pendingIssuesCount > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                  {pendingIssuesCount > 0 ? 'Cần phát lệnh xử lý' : '● Hiện trường ổn định'}
+                </span>
+              </div>
 
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Quy Trình Chuẩn
-            </span>
-            <div className="text-2xl font-heading font-black text-emerald-600">
-              0{processTemplates.length} Phác Đồ
-            </div>
-            <span className="text-[10px] text-emerald-700 font-bold block">Đang áp dụng thực địa</span>
-          </div>
+              <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
+                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
+                  Quy Trình Chuẩn
+                </span>
+                <div className="text-2xl font-heading font-black text-brand-dark">
+                  0{processTemplates.length} Phác Đồ
+                </div>
+                <span className="text-[10px] text-stone-500 font-semibold block">Đang áp dụng thực địa</span>
+              </div>
 
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm text-center space-y-0.5 col-span-2 lg:col-span-1">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Kho Tri Thức & AI
-            </span>
-            <div className="text-2xl font-heading font-black text-sky-600">
-              0{knowledgeDocs.length} Tài Liệu
+              <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5 col-span-2 lg:col-span-1">
+                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
+                  Kho Tri Thức & AI
+                </span>
+                <div className="text-2xl font-heading font-black text-brand-dark">
+                  0{knowledgeDocs.length} Tài Liệu
+                </div>
+                <span className="text-[10px] text-stone-500 font-semibold block">Đã nạp RAG AI</span>
+              </div>
             </div>
-            <span className="text-[10px] text-sky-700 font-bold block">Đã nạp RAG AI</span>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Layout Left Sidebar + Content */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -1344,16 +1352,16 @@ export default function ExpertDashboard() {
                               key={thread.id}
                               onClick={() => handleSelectThread(thread.id)}
                               aria-pressed={isSelected}
-                              className={`relative flex h-[116px] w-full items-start gap-3 overflow-hidden border-l-4 p-3.5 text-left cursor-pointer transition-all duration-200 ${
+                              className={`relative flex w-full items-start gap-3 p-3 text-left cursor-pointer transition-all duration-150 border-l-4 ${
                                 isSelected
                                   ? 'bg-white border-l-[#294C38] shadow-sm'
                                   : thread.unread
-                                    ? 'bg-emerald-50/70 hover:bg-emerald-50 border-l-rose-500 shadow-2xs'
+                                    ? 'bg-emerald-50/70 hover:bg-emerald-50 border-l-rose-500'
                                     : 'border-l-transparent hover:bg-white/80'
                               }`}
                             >
                               {/* Avatar with Online Status */}
-                              <div className="relative shrink-0">
+                              <div className="relative shrink-0 mt-0.5">
                                 <img
                                   src={getSafeAvatar(thread.customerAvatar, thread.role)}
                                   alt={thread.customerName}
@@ -1361,50 +1369,44 @@ export default function ExpertDashboard() {
                                     e.currentTarget.onerror = null;
                                     e.currentTarget.src = getSafeAvatar(null, thread.role);
                                   }}
-                                  className="w-12 h-12 rounded-full object-cover border border-brand-border"
+                                  className="w-10 h-10 rounded-full object-cover border border-brand-border"
                                 />
                                 {thread.isOnline ? (
-                                  <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white" />
+                                  <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" />
                                 ) : (
-                                  <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-stone-300 border-2 border-white" />
+                                  <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-stone-300 border-2 border-white" />
                                 )}
                               </div>
 
                               {/* Thread Summary Info */}
                               <div className="flex-1 min-w-0 space-y-1">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className={`text-xs truncate ${
-                                      thread.unread ? 'font-black text-brand-dark' : 'font-bold text-stone-800'
-                                    }`}>
-                                      {thread.customerName}
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] text-stone-400 shrink-0 ml-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className={`text-xs truncate font-bold ${
+                                    thread.unread ? 'text-brand-dark font-black' : 'text-stone-800'
+                                  }`}>
+                                    {thread.customerName}
+                                  </span>
+                                  <span className="text-[10px] text-stone-400 shrink-0">
                                     {thread.lastTime}
                                   </span>
                                 </div>
 
-                                {/* Rental status & current plot */}
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className={`dashboard-compact px-2 py-1 rounded-full text-xs font-bold border ${
-                                    thread.role === 'worker'
-                                      ? 'bg-amber-100 text-amber-900 border-amber-300'
-                                      : isPreRentalThread(thread)
-                                        ? 'bg-sky-50 text-sky-800 border-sky-200'
-                                        : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                                {/* Clean metadata line (Role & Plot) */}
+                                <div className="flex items-center gap-1.5 text-[11px] text-stone-500 truncate">
+                                  <span className={`font-semibold shrink-0 ${
+                                    thread.role === 'worker' ? 'text-amber-800' : 'text-emerald-700'
                                   }`}>
-                                    {thread.role === 'worker' ? 'Nhân viên' : isPreRentalThread(thread) ? 'Chưa thuê' : 'Đã thuê'}
+                                    {thread.role === 'worker' ? 'Nhân viên' : (thread.plotCode ? `Plot ${thread.plotCode}` : 'Chưa thuê')}
                                   </span>
-                                  {!isPreRentalThread(thread) && (
-                                    <span className="dashboard-compact max-w-[170px] truncate rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-brand-green">
-                                      {thread.plotName || `Thửa ${thread.plotCode}`} ({thread.plotCode})
+                                  {thread.crop && (
+                                    <span className="truncate text-stone-400">
+                                      • {thread.crop}
                                     </span>
                                   )}
                                 </div>
 
                                 {/* Last message snippet */}
-                                <div className="flex items-center justify-between gap-2 pt-0.5">
+                                <div className="flex items-center justify-between gap-2">
                                   <p className={`text-[11px] truncate leading-tight ${
                                     thread.unread ? 'font-bold text-stone-900' : 'text-stone-500'
                                   }`}>
@@ -1417,7 +1419,7 @@ export default function ExpertDashboard() {
                                       MỚI
                                     </span>
                                   ) : thread.status === 'PENDING' ? (
-                                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" title="Chờ phản hồi" />
+                                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Chờ phản hồi" />
                                   ) : null}
                                 </div>
                               </div>
@@ -1479,41 +1481,29 @@ export default function ExpertDashboard() {
                                   {activeThread.status === 'PENDING' ? 'Chưa phản hồi' : 'Đã phản hồi'}
                                 </span>
                               </div>
-                              <p className="text-xs text-stone-500 truncate flex items-center gap-1.5 mt-1">
-                                <span className="text-emerald-700 font-semibold">
+                              <p className="text-xs text-stone-500 truncate mt-1">
+                                <span className="text-emerald-800 font-medium">
                                   {activeThread.role === 'worker'
-                                    ? `Nhân viên hiện trường • ${activeThread.plotName || 'Thửa Củ Chi'} (${activeThread.plotCode || 'P-01'})`
+                                    ? `Nhân viên hiện trường • Thửa ${activeThread.plotCode || 'P-01'}`
                                     : isPreRentalThread(activeThread)
-                                      ? `Khách quan tâm • ${activeThread.crop || 'Tư vấn trước khi thuê'}`
-                                      : `Khách thuê đất • ${activeThread.crop || 'VietGAP'} • ${activeThread.plotName || 'Thửa canh tác'} (${activeThread.plotCode || 'P-01'})`}
+                                      ? `Khách quan tâm • ${activeThread.crop || 'Tư vấn nông học'}`
+                                      : `Khách thuê • Giống: ${activeThread.crop || 'Chuẩn VietGAP'} • Thửa ${activeThread.plotCode || 'P-01'}`}
                                 </span>
                               </p>
                             </div>
                           </div>
 
-                          {/* Right Badge Status & Action */}
-                          <div className="flex flex-wrap items-center gap-2 xl:justify-end shrink-0 w-full xl:w-auto pl-12 xl:pl-0">
-                            {activeThread.role === 'customer' && (
-                              <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black border ${
-                                isPreRentalThread(activeThread)
-                                  ? 'bg-sky-50 text-sky-900 border-sky-200'
-                                  : 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                              }`}>
-                                <span className={`w-2 h-2 rounded-full ${isPreRentalThread(activeThread) ? 'bg-sky-500' : 'bg-emerald-500'}`} />
-                                {isPreRentalThread(activeThread) ? 'Chưa thuê đất' : `Đang thuê ${activeThread.plotCode}`}
-                              </span>
-                            )}
-
-                            {/* Nút sinh task giao việc cho CVLĐ trực tiếp từ hội thoại */}
+                          {/* Right Action: Single SSOT Button */}
+                          <div className="flex items-center gap-2 xl:justify-end shrink-0 pl-12 xl:pl-0">
                             <Button
                               type="button"
                               size="sm"
                               onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText)}
-                              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1.5 shadow-xs py-2 px-3.5"
+                              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1.5 shadow-xs py-2 px-3.5 shrink-0"
                               title="Tạo lệnh giao nhiệm vụ hiện trường cho CVLĐ phụ trách thửa đất này"
                             >
                               <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-                              <span>Giao task cho CVLĐ</span>
+                              <span>Giao việc cho CVLĐ</span>
                             </Button>
                           </div>
                         </div>
@@ -1633,48 +1623,23 @@ export default function ExpertDashboard() {
 
                         </div>
 
-                        {/* Quick Prescriptions Suggestion Bar with Direct Task Generation */}
-                        <div className="px-3.5 sm:px-4 py-2 bg-stone-50 border-t border-brand-border/70 flex items-center justify-between gap-2 text-xs">
-                          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1">
-                            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
-                              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                              Gợi ý chỉ đạo:
-                            </span>
-                            {quickPrescriptions.map((item, idx) => (
-                              <div
-                                key={idx}
-                                className="inline-flex items-center rounded-full bg-white border border-brand-border text-[11px] font-medium text-stone-700 shadow-2xs shrink-0 overflow-hidden hover:border-emerald-400 transition"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => setChatInputText(item.text)}
-                                  className="px-2.5 py-1 hover:bg-emerald-50 hover:text-emerald-900 transition-colors cursor-pointer"
-                                  title="Chèn nội dung hướng dẫn vào khung chat"
-                                >
-                                  {item.label}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenDirectTaskModal(activeThread, item)}
-                                  className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border-l border-brand-border/60 transition-colors flex items-center gap-0.5 cursor-pointer font-bold text-[10px]"
-                                  title={`Tạo lệnh giao task cho CVLĐ: ${item.taskTitle}`}
-                                >
-                                  <Zap className="w-2.5 h-2.5 fill-amber-600 text-amber-600" />
-                                  <span>Task</span>
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText)}
-                            className="px-3 py-1 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer transition-all"
-                            title="Mở form tạo lệnh giao task cho CVLĐ phụ trách"
-                          >
-                            <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-                            <span>Sinh task cho CVLĐ</span>
-                          </button>
+                        {/* Quick Prescriptions Suggestion Bar (1-Click to insert advice template) */}
+                        <div className="px-3.5 sm:px-4 py-2 bg-stone-50 border-t border-brand-border/70 flex items-center gap-2 overflow-x-auto text-xs no-scrollbar">
+                          <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                            Gợi ý chỉ đạo:
+                          </span>
+                          {quickPrescriptions.map((item, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setChatInputText(item.text)}
+                              className="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 hover:text-emerald-900 border border-brand-border text-[11px] font-medium text-stone-700 transition-colors shrink-0 shadow-2xs cursor-pointer"
+                              title="Chèn nội dung hướng dẫn vào khung chat"
+                            >
+                              {item.label}
+                            </button>
+                          ))}
                         </div>
 
                         {/* Messenger Chat Input Footer */}
