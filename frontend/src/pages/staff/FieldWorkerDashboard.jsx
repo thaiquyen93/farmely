@@ -242,6 +242,7 @@ export default function FieldWorkerDashboard() {
 
   const [assignedPlots, setAssignedPlots] = useState([]);
   const [selectedPlotCode, setSelectedPlotCode] = useState('P-01');
+  const [plotFilterMode, setPlotFilterMode] = useState('ACTIONABLE'); // 'ACTIONABLE' | 'ALL'
 
   const loadPlots = () => {
     apiFetch('/api/rentals')
@@ -757,14 +758,28 @@ export default function FieldWorkerDashboard() {
 
     const list = Array.from(map.values());
     const withTasks = list.filter((p) => p.tasks && p.tasks.length > 0);
-    const result = withTasks.length > 0 ? withTasks : list;
-
-    return result.sort((a, b) => {
+    const sorted = [...list].sort((a, b) => {
       const aPending = (a.tasks || []).filter((t) => t.status !== 'COMPLETED').length;
       const bPending = (b.tasks || []).filter((t) => t.status !== 'COMPLETED').length;
-      return bPending - aPending;
+      if (bPending !== aPending) return bPending - aPending;
+      return (b.tasks || []).length - (a.tasks || []).length;
     });
-  }, [assignedPlots, orderedTasks]);
+
+    if (plotFilterMode === 'ALL') {
+      return sorted;
+    }
+    return withTasks.length > 0 ? withTasks : sorted;
+  }, [assignedPlots, orderedTasks, plotFilterMode]);
+
+  useEffect(() => {
+    if (selectedPlotCode === 'ALL') return;
+    if (plotSummaryList && plotSummaryList.length > 0) {
+      const exists = plotSummaryList.some((p) => p.plotCode === selectedPlotCode);
+      if (!exists) {
+        setSelectedPlotCode(plotSummaryList[0].plotCode);
+      }
+    }
+  }, [plotSummaryList, selectedPlotCode]);
   const currentSession = new Date().getHours() < 12 ? 'MORNING' : 'AFTERNOON';
   const currentSessionTasks = tasks.filter((task) => task.session === currentSession);
   const harvestedWeight = harvestTasks.reduce((sum, item) => sum + (Number.parseFloat(item.actualWeight) || 0), 0);
@@ -938,52 +953,86 @@ export default function FieldWorkerDashboard() {
 
             {/* Assigned care tasks */}
             {activeTab === 'tasks' && (
-              <div className="space-y-6">
-                {/* 1. BỘ CHỌN THỬA ĐẤT PHỤ TRÁCH (CHIA Ô PLOTS RIÊNG BIỆT NHƯ CUSTOMER) */}
-                <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex flex-col lg:flex-row gap-6 items-start">
+                {/* ========================================================================= */}
+                {/* 1. CỘT TRÁI (MASTER): DANH SÁCH THỬA ĐẤT (BÊN CẠNH TRÊN DESKTOP, LƯỚT GỌN TRÊN MOBILE) */}
+                {/* ========================================================================= */}
+                <div className="w-full lg:w-[340px] xl:w-[380px] shrink-0 space-y-3.5 lg:sticky lg:top-4">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="font-heading text-lg font-black text-brand-dark flex items-center gap-2">
+                      <h3 className="font-heading text-base font-black text-brand-dark flex items-center gap-2">
                         <Layers className="h-5 w-5 text-emerald-800" />
-                        <span>Thửa đất phụ trách ca trực</span>
+                        <span>Thửa đất ca trực</span>
                       </h3>
-                      <p className="text-xs text-stone-500">
-                        Chọn từng thửa đất có nhiệm vụ hôm nay để thao tác nghiệm thu (BR15) hoặc báo sự cố (BR16).
+                      <p className="text-[11px] text-stone-500">
+                        Bấm thửa để xem & xử lý việc ngay bên cạnh
                       </p>
                     </div>
-                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">
-                      {plotSummaryList.length} Thửa đất có việc
-                    </span>
+
+                    {/* Filter tabs */}
+                    <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-xl text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={() => setPlotFilterMode('ACTIONABLE')}
+                        className={`px-2.5 py-1 rounded-lg transition ${
+                          plotFilterMode === 'ACTIONABLE'
+                            ? 'bg-white text-emerald-800 shadow-2xs'
+                            : 'text-stone-500 hover:text-stone-800'
+                        }`}
+                        title="Chỉ hiện các thửa có nhiệm vụ trong ca"
+                      >
+                        Có việc
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPlotFilterMode('ALL')}
+                        className={`px-2.5 py-1 rounded-lg transition ${
+                          plotFilterMode === 'ALL'
+                            ? 'bg-white text-emerald-800 shadow-2xs'
+                            : 'text-stone-500 hover:text-stone-800'
+                        }`}
+                        title="Hiện toàn bộ thửa đất phụ trách"
+                      >
+                        Tất cả
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Grid 3 cột cân đối tuyệt đối */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                    {/* Ô Tất cả các thửa */}
+                  {/* Danh sách thẻ thửa đất: Trên mobile scroll ngang, trên desktop scroll dọc */}
+                  <div className="flex lg:flex-col gap-2.5 overflow-x-auto lg:overflow-y-auto pb-2 lg:pb-0 lg:max-h-[calc(100vh-140px)] pr-0.5 scrollbar-thin">
+                    {/* Thẻ Tất cả các thửa */}
                     <button
                       type="button"
-                      onClick={() => setSelectedPlotCode('ALL')}
-                      className={`flex flex-col justify-between p-4 sm:p-5 rounded-2xl border text-left transition-all ${
+                      onClick={() => {
+                        setSelectedPlotCode('ALL');
+                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                          document.getElementById('plot-workspace-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }}
+                      className={`min-w-[260px] sm:min-w-[280px] lg:min-w-0 lg:w-full text-left p-3.5 rounded-2xl border transition-all shrink-0 ${
                         selectedPlotCode === 'ALL'
-                          ? 'border-emerald-600 bg-emerald-50/80 shadow-sm ring-2 ring-emerald-600/30'
-                          : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/50'
+                          ? 'border-emerald-600 bg-emerald-50/90 shadow-2xs ring-2 ring-emerald-600/30'
+                          : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/60'
                       }`}
                     >
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-heading font-black text-sm text-brand-dark">Tất cả các thửa</span>
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-black text-emerald-800">
-                            {tasks.length} việc
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1 rounded-lg bg-emerald-100 text-emerald-800">
+                            <Layers className="w-3.5 h-3.5" />
                           </span>
+                          <span className="font-heading font-black text-sm text-brand-dark">Tất cả các thửa</span>
                         </div>
-                        <p className="mt-2 text-xs text-stone-500">Toàn bộ nhiệm vụ trong ca trực trên các thửa đất</p>
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-black text-emerald-800">
+                          {tasks.length} việc
+                        </span>
                       </div>
-                      <div className="mt-4 flex items-center justify-between border-t border-stone-200/60 pt-2.5 text-xs">
+                      <div className="mt-2.5 flex items-center justify-between border-t border-stone-200/60 pt-2 text-xs">
                         <span className="font-bold text-amber-700">{pendingCount} việc cần làm</span>
                         <span className="text-stone-400 font-medium">{completedCount} đã xong</span>
                       </div>
                     </button>
 
-                    {/* Từng ô Thửa đất cụ thể */}
+                    {/* Danh sách từng thửa đất */}
                     {plotSummaryList.map((plot) => {
                       const isSelected = selectedPlotCode === plot.plotCode;
                       const pending = plot.tasks.filter((t) => t.status !== 'COMPLETED').length;
@@ -995,48 +1044,56 @@ export default function FieldWorkerDashboard() {
                         <button
                           key={plot.plotCode}
                           type="button"
-                          onClick={() => setSelectedPlotCode(plot.plotCode)}
-                          className={`flex flex-col justify-between p-4 sm:p-5 rounded-2xl border text-left transition-all ${
+                          onClick={() => {
+                            setSelectedPlotCode(plot.plotCode);
+                            if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                              document.getElementById('plot-workspace-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                          }}
+                          className={`min-w-[260px] sm:min-w-[280px] lg:min-w-0 lg:w-full text-left p-3.5 rounded-2xl border transition-all shrink-0 relative ${
                             isSelected
-                              ? 'border-emerald-600 bg-emerald-50/80 shadow-sm ring-2 ring-emerald-600/40'
-                              : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/50'
+                              ? 'border-emerald-600 bg-emerald-50/90 shadow-2xs ring-2 ring-emerald-600/40'
+                              : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/60'
                           }`}
                         >
-                          <div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="px-2.5 py-0.5 rounded-md font-mono font-black text-xs bg-emerald-800 text-white">
-                                  {plot.plotCode}
-                                </span>
-                                <span className="font-heading font-black text-sm text-brand-dark truncate">
-                                  {plot.plotName}
-                                </span>
-                              </div>
-                              {pending > 0 ? (
-                                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
-                                  {pending} cần làm
-                                </span>
-                              ) : (
-                                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 flex items-center gap-1">
-                                  <Check className="h-3 w-3" /> Xong ca
-                                </span>
-                              )}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="px-2 py-0.5 rounded-md font-mono font-black text-xs bg-emerald-800 text-white shrink-0">
+                                {plot.plotCode}
+                              </span>
+                              <span className="font-heading font-black text-sm text-brand-dark truncate">
+                                {plot.plotName}
+                              </span>
                             </div>
 
-                            <div className="mt-2.5 text-xs space-y-1">
-                              <p className="font-bold text-emerald-900 truncate">🌱 {plot.crop}</p>
-                              <p className="text-stone-500 truncate">👤 Khách hàng: <strong className="text-stone-800">{plot.customerName}</strong></p>
-                            </div>
+                            {pending > 0 ? (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 shrink-0">
+                                {pending} cần làm
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800 shrink-0 flex items-center gap-1">
+                                <Check className="h-3 w-3" /> Xong ca
+                              </span>
+                            )}
                           </div>
 
-                          <div className="mt-4 border-t border-stone-200/60 pt-2.5">
-                            <div className="flex items-center justify-between text-xs text-stone-500 mb-1.5">
-                              <span>Tiến độ ca trực</span>
-                              <span className="font-bold text-stone-700">{done}/{total} việc</span>
-                            </div>
-                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
-                              <div className="h-full bg-emerald-600 rounded-full transition-all" style={{ width: `${progress}%` }} />
-                            </div>
+                          <div className="mt-2 text-xs space-y-0.5">
+                            <p className="font-bold text-emerald-950 truncate">🌱 {plot.crop}</p>
+                            <p className="text-stone-500 truncate">👤 {plot.customerName}</p>
+                          </div>
+
+                          <div className="mt-3 border-t border-stone-200/60 pt-2 flex items-center justify-between text-[11px]">
+                            <span className="text-stone-400">Tiến độ: <strong className="text-stone-700">{done}/{total} việc</strong></span>
+                            {isSelected ? (
+                              <span className="text-emerald-700 font-bold flex items-center gap-1">
+                                Đang mở <ArrowRight className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                              </span>
+                            ) : (
+                              <span className="text-stone-400 font-mono">{progress}%</span>
+                            )}
+                          </div>
+                          <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-stone-100">
+                            <div className="h-full bg-emerald-600 rounded-full transition-all" style={{ width: `${progress}%` }} />
                           </div>
                         </button>
                       );
@@ -1044,8 +1101,10 @@ export default function FieldWorkerDashboard() {
                   </div>
                 </div>
 
-                {/* 2. KHU VỰC CHI TIẾT NHIỆM VỤ THEO THỬA ĐÃ CHỌN (PLOT WORKSPACE FULL WIDTH) */}
-                <div className="space-y-5 rounded-3xl border border-brand-border bg-white p-5 sm:p-7 shadow-sm">
+                {/* ========================================================================= */}
+                {/* 2. CỘT PHẢI (DETAIL): KHU VỰC CHI TIẾT NHIỆM VỤ HIỂN THỊ NGAY BÊN CẠNH */}
+                {/* ========================================================================= */}
+                <div id="plot-workspace-detail" className="flex-1 min-w-0 w-full space-y-5 rounded-3xl border border-brand-border bg-white p-5 sm:p-7 shadow-sm">
                   {selectedPlotCode !== 'ALL' ? (() => {
                     const activePlot = (plotSummaryList && plotSummaryList.length > 0
                       ? plotSummaryList.find((p) => p.plotCode === selectedPlotCode) || plotSummaryList[0]
