@@ -619,7 +619,7 @@ export default function CustomerDashboard() {
 
   const fetchCustomerPlots = useCallback(async (isInitial = false) => {
     try {
-      if (isInitial && !dbPlots) setIsLoadingPlots(true);
+      if (isInitial) setIsLoadingPlots(true);
       const userId = user?.userId || user?.id;
       const email = user?.email;
       if (!userId && !email) {
@@ -637,15 +637,15 @@ export default function CustomerDashboard() {
         const data = await res.json();
         setDbPlots(Array.isArray(data) ? data : []);
       } else {
-        if (!dbPlots) setDbPlots([]);
+        setDbPlots((prev) => prev || []);
       }
     } catch (err) {
       console.error('Failed to load customer plots from DB:', err);
-      if (!dbPlots) setDbPlots([]);
+      setDbPlots((prev) => prev || []);
     } finally {
       if (isInitial) setIsLoadingPlots(false);
     }
-  }, [user, dbPlots]);
+  }, [user?.userId, user?.id, user?.email]);
 
   useEffect(() => {
     fetchCustomerPlots(true);
