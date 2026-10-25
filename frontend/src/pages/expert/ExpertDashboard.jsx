@@ -1530,7 +1530,7 @@ export default function ExpertDashboard() {
                     </div>
 
                     {/* Thread List (Scrollable) */}
-                    <div className="flex-1 overflow-y-auto divide-y divide-brand-border/40">
+                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
                       {chatThreads
                         .filter((thread) => {
                           const q = chatSearchQuery.toLowerCase();
@@ -1549,6 +1549,8 @@ export default function ExpertDashboard() {
                           const isSelected = thread.id === selectedThreadId;
                           const lastMsg = thread.messages[thread.messages.length - 1];
                           const hasPhoto = thread.messages.some(m => m.photoUrl);
+                          const isAdmin = thread.role === 'admin' || /Ban Quản Trị|Admin/i.test(thread.customerName || '');
+                          const isWorker = thread.role === 'worker';
 
                           return (
                             <button
@@ -1556,12 +1558,12 @@ export default function ExpertDashboard() {
                               key={thread.id}
                               onClick={() => handleSelectThread(thread.id)}
                               aria-pressed={isSelected}
-                              className={`relative flex w-full items-start gap-3 p-3 text-left cursor-pointer transition-all duration-150 border-l-4 ${
+                              className={`relative flex w-full items-start gap-3 p-3 rounded-xl text-left cursor-pointer transition-all duration-150 ${
                                 isSelected
-                                  ? 'bg-white border-l-[#294C38] shadow-sm'
+                                  ? 'bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-stone-900/5'
                                   : thread.unread
-                                    ? 'bg-emerald-50/70 hover:bg-emerald-50 border-l-rose-500'
-                                    : 'border-l-transparent hover:bg-white/80'
+                                    ? 'bg-emerald-50/50 hover:bg-emerald-50/80 ring-1 ring-emerald-600/10'
+                                    : 'hover:bg-white/70 text-stone-700'
                               }`}
                             >
                               {/* Avatar with Online Status */}
@@ -1573,44 +1575,42 @@ export default function ExpertDashboard() {
                                     e.currentTarget.onerror = null;
                                     e.currentTarget.src = getSafeAvatar(null, thread.role);
                                   }}
-                                  className="w-10 h-10 rounded-full object-cover border border-brand-border"
+                                  className="w-10 h-10 rounded-full object-cover ring-1 ring-stone-900/10"
                                 />
-                                {thread.isOnline ? (
-                                  <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" />
-                                ) : (
-                                  <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-stone-300 border-2 border-white" />
+                                {thread.isOnline && (
+                                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
                                 )}
                               </div>
 
                               {/* Thread Summary Info */}
-                              <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex-1 min-w-0">
                                 <div className="flex items-center justify-between gap-1">
-                                  <span className={`text-xs truncate font-bold ${
-                                    thread.unread ? 'text-brand-dark font-black' : 'text-stone-800'
+                                  <span className={`text-xs truncate font-semibold ${
+                                    isSelected ? 'text-stone-900 font-bold' : thread.unread ? 'text-stone-900 font-bold' : 'text-stone-800'
                                   }`}>
                                     {thread.customerName}
                                   </span>
-                                  <span className="text-[10px] text-stone-400 shrink-0">
+                                  <span className="text-[11px] text-stone-400 shrink-0 font-normal">
                                     {thread.lastTime}
                                   </span>
                                 </div>
 
                                 {/* Clean metadata line (Role & Plot) */}
-                                <div className="flex items-center gap-1.5 text-[11px] text-stone-500 truncate">
-                                  <span className={`font-semibold shrink-0 ${
-                                    thread.role === 'admin' || /Ban Quản Trị|Admin/i.test(thread.customerName || '')
+                                <div className="flex items-center gap-1.5 text-[11px] text-stone-500 truncate mt-0.5">
+                                  <span className={`font-medium shrink-0 ${
+                                    isAdmin
                                       ? 'text-purple-700'
-                                      : thread.role === 'worker'
+                                      : isWorker
                                         ? 'text-amber-800'
                                         : 'text-emerald-700'
                                   }`}>
-                                    {thread.role === 'admin' || /Ban Quản Trị|Admin/i.test(thread.customerName || '')
+                                    {isAdmin
                                       ? 'Ban Quản Trị'
-                                      : thread.role === 'worker'
-                                        ? 'Chuyên viên lao động'
+                                      : isWorker
+                                        ? 'CVLĐ Hiện Trường'
                                         : (thread.plotCode ? `Thửa ${formatPlotCode(thread.plotCode)}` : 'Chưa thuê')}
                                   </span>
-                                  {thread.crop && thread.role !== 'admin' && !/Ban Quản Trị|Admin/i.test(thread.customerName || '') && (
+                                  {thread.crop && !isAdmin && (
                                     <span className="truncate text-stone-400">
                                       • {thread.crop}
                                     </span>
@@ -1618,20 +1618,18 @@ export default function ExpertDashboard() {
                                 </div>
 
                                 {/* Last message snippet */}
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center justify-between gap-2 mt-1">
                                   <p className={`text-[11px] truncate leading-tight ${
-                                    thread.unread ? 'font-bold text-stone-900' : 'text-stone-500'
+                                    thread.unread ? 'font-semibold text-stone-900' : 'text-stone-500'
                                   }`}>
                                     {lastMsg?.sender === 'expert' ? 'Bạn: ' : ''}
                                     {lastMsg?.text || (hasPhoto ? '[Đã gửi ảnh hiện trường]' : '')}
                                   </p>
 
                                   {thread.unread ? (
-                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-rose-500 text-white shrink-0 animate-pulse">
-                                      MỚI
-                                    </span>
+                                    <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="Tin mới" />
                                   ) : thread.status === 'PENDING' ? (
-                                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Chờ phản hồi" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 shrink-0" title="Chờ phản hồi" />
                                   ) : null}
                                 </div>
                               </div>
@@ -1659,8 +1657,8 @@ export default function ExpertDashboard() {
                       }`}>
                         
                         {/* Messenger Top Header */}
-                        <div className="p-3.5 sm:p-4 border-b border-brand-border bg-white flex flex-col xl:flex-row xl:items-center justify-between gap-3 shrink-0 shadow-2xs">
-                          <div className="flex items-center gap-3 min-w-0 w-full">
+                        <div className="px-5 py-3.5 border-b border-stone-200/80 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                          <div className="flex items-center gap-3 min-w-0">
                             {/* Back button for mobile */}
                             <button
                               onClick={() => setMobileShowChat(false)}
@@ -1677,73 +1675,70 @@ export default function ExpertDashboard() {
                                   e.currentTarget.onerror = null;
                                   e.currentTarget.src = getSafeAvatar(null, activeThread.role);
                                 }}
-                                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border border-brand-border"
+                                className="w-10 h-10 rounded-full object-cover ring-1 ring-stone-900/10"
                               />
                               {activeThread.isOnline && (
-                                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" />
+                                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
                               )}
                             </div>
 
                             <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <h4 className="font-bold text-brand-dark text-sm sm:text-base truncate">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-semibold text-stone-900 text-sm tracking-tight truncate">
                                   {activeThread.customerName}
                                 </h4>
                                 {isAdminThread ? (
-                                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 ring-1 ring-purple-600/20">
                                     Ban Quản Trị
                                   </span>
                                 ) : isWorkerThread ? (
-                                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 ring-1 ring-amber-600/20">
                                     CVLĐ Hiện Trường
                                   </span>
                                 ) : (
-                                  <span className={`text-xs font-bold px-2 py-1 rounded-full border ${
+                                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ring-1 ${
                                     activeThread.status === 'PENDING'
-                                      ? 'bg-rose-50 text-rose-800 border-rose-200'
-                                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                      ? 'bg-rose-50 text-rose-700 ring-rose-600/20'
+                                      : 'bg-emerald-50 text-emerald-800 ring-emerald-600/20'
                                   }`}>
                                     {activeThread.status === 'PENDING' ? 'Chưa phản hồi' : 'Đã phản hồi'}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-stone-500 truncate mt-1">
-                                <span className="text-emerald-800 font-medium">
-                                  {isAdminThread
-                                    ? 'Ban Quản Trị Hệ Thống • Trao đổi nghiệp vụ & Điều phối nội bộ'
-                                    : isWorkerThread
-                                      ? `Nhân viên hiện trường • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`
-                                      : isPreRental
-                                        ? `Khách quan tâm • ${activeThread.crop || 'Tư vấn nông học'}`
-                                        : `Khách thuê • Giống: ${activeThread.crop || 'Chuẩn VietGAP'} • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`}
-                                </span>
+                              <p className="text-xs text-stone-500 truncate mt-0.5 font-normal">
+                                {isAdminThread
+                                  ? 'Ban Quản Trị Hệ Thống • Trao đổi nghiệp vụ & Điều phối nội bộ'
+                                  : isWorkerThread
+                                    ? `Nhân viên hiện trường • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`
+                                    : isPreRental
+                                      ? `Khách quan tâm • ${activeThread.crop || 'Tư vấn nông học'}`
+                                      : `Khách thuê • Giống: ${activeThread.crop || 'Chuẩn VietGAP'} • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`}
                               </p>
                             </div>
                           </div>
 
                           {/* Right Action: Single SSOT Button (Không hiển thị khi chat với Ban Quản Trị) */}
                           {!isAdminThread && (
-                            <div className="flex items-center gap-2 xl:justify-end shrink-0 pl-12 xl:pl-0">
-                              <Button
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
                                 type="button"
-                                size="sm"
                                 onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText)}
-                                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1.5 shadow-xs py-2 px-3.5 shrink-0"
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
                                 title={isWorkerThread ? `Giao nhiệm vụ trực tiếp cho ${activeThread.customerName}` : "Tạo lệnh giao nhiệm vụ hiện trường cho CVLĐ phụ trách thửa đất này"}
                               >
                                 <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
                                 <span>{isWorkerThread ? `Giao việc cho ${activeThread.customerName.replace(/\s*\(.*\)/, '').trim().split(' ').slice(-1)[0] || 'CVLĐ'}` : 'Giao việc cho CVLĐ'}</span>
-                              </Button>
+                              </button>
                             </div>
                           )}
                         </div>
 
                         {/* Messenger Chat History Viewport */}
-                        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-[#F8F9FA]">
+                        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-[#FAF9F6]">
                           
                           {/* Date separator */}
-                          <div className="flex items-center justify-center my-2">
-                            <span className="text-[11px] font-semibold text-stone-400 bg-white px-3 py-1 rounded-full border border-stone-200/80 shadow-2xs">
+                          <div className="flex items-center justify-center my-1">
+                            <span className="text-[10px] font-medium text-stone-400 bg-white/90 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-stone-200/60 shadow-2xs">
                               Hôm nay • Trao đổi với {activeThread.customerName}
                             </span>
                           </div>
@@ -1759,33 +1754,28 @@ export default function ExpertDashboard() {
 
                             if (isExpert) {
                               return (
-                                <div key={msg.id} className="flex flex-col items-end space-y-1 max-w-[85%] sm:max-w-[75%] ml-auto">
-                                  <div className="text-[10px] text-stone-400 font-medium px-1 flex items-center gap-1.5">
-                                    <span className="font-bold text-emerald-800">ThS. Nguyễn Hoàng Nam</span>
-                                    <span>• {msg.time}</span>
-                                  </div>
-
+                                <div key={msg.id} className="flex flex-col items-end space-y-1 max-w-[85%] sm:max-w-[72%] ml-auto">
                                   {msg.prescriptionTag && (
-                                    <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2.5 py-0.5 rounded-full border border-emerald-200 self-end shadow-2xs">
-                                      <ShieldCheck className="w-3 h-3 text-brand-green" />
-                                      <span>{msg.prescriptionTag}</span>
-                                    </div>
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                                      <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                                      {msg.prescriptionTag}
+                                    </span>
                                   )}
 
-                                  <div className="p-3.5 sm:p-4 rounded-2xl rounded-tr-xs bg-[#294C38] text-white text-xs sm:text-sm leading-relaxed shadow-sm">
+                                  <div className="px-4 py-2.5 rounded-2xl rounded-tr-xs bg-emerald-800 text-white text-xs sm:text-sm leading-relaxed shadow-xs">
                                     {msg.text}
                                   </div>
 
-                                  <div className="text-[10px] flex items-center justify-end px-1 text-stone-400">
-                                    <span>{msg.time}</span>
-                                  </div>
+                                  <span className="text-[10px] text-stone-400 px-1 font-mono">
+                                    {msg.time}
+                                  </span>
                                 </div>
                               );
                             }
 
                             // Customer or Worker message
                             return (
-                              <div key={msg.id} className="flex items-start gap-2.5 max-w-[88%] sm:max-w-[78%]">
+                              <div key={msg.id} className="flex items-start gap-2.5 max-w-[88%] sm:max-w-[75%]">
                                 <img
                                   src={getSafeAvatar(msg.senderAvatar || activeThread.customerAvatar, activeThread.role)}
                                   alt={msg.senderName || activeThread.customerName}
@@ -1793,15 +1783,15 @@ export default function ExpertDashboard() {
                                     e.currentTarget.onerror = null;
                                     e.currentTarget.src = getSafeAvatar(null, activeThread.role);
                                   }}
-                                  className="mt-5 h-8 w-8 shrink-0 rounded-full border border-stone-200 object-cover"
+                                  className="mt-0.5 h-7 w-7 shrink-0 rounded-full ring-1 ring-stone-900/10 object-cover"
                                 />
 
-                                <div className="space-y-1.5 flex-1">
-                                  <div className="text-[10px] text-stone-400 font-medium px-1">
-                                    <span className="font-bold text-stone-700">
+                                <div className="space-y-1 flex-1">
+                                  <div className="text-[11px] text-stone-500 font-medium px-0.5 flex items-center gap-1.5">
+                                    <span className="text-stone-800 font-semibold">
                                       {msg.senderName && msg.senderName !== 'Người dùng Farmely' ? msg.senderName : activeThread.customerName}
                                     </span>
-                                    <span> • {msg.time}</span>
+                                    <span className="text-stone-400 font-mono text-[10px]">({msg.time})</span>
                                   </div>
 
                                   {/* Attached Plant Photo (Clickable Lightbox) */}
@@ -1815,7 +1805,7 @@ export default function ExpertDashboard() {
                                           plotName: activeThread.plotName
                                         })
                                       }
-                                      className="relative group cursor-pointer overflow-hidden rounded-2xl border-2 border-stone-200/90 shadow-sm max-w-xs sm:max-w-sm bg-black/5 hover:border-brand-green transition-all"
+                                      className="relative group cursor-pointer overflow-hidden rounded-xl border border-stone-200 shadow-xs max-w-xs sm:max-w-sm bg-black/5 hover:border-emerald-600 transition-all"
                                     >
                                       <img
                                         src={msg.photoUrl}
@@ -1824,24 +1814,18 @@ export default function ExpertDashboard() {
                                           e.currentTarget.onerror = null;
                                           e.currentTarget.src = 'https://images.unsplash.com/photo-1591857177580-dc82b9ac4e1e?auto=format&fit=crop&w=800&q=80';
                                         }}
-                                        className="w-full h-44 sm:h-52 object-cover transition-transform duration-300 group-hover:scale-105"
+                                        className="w-full h-40 sm:h-48 object-cover transition-transform duration-300 group-hover:scale-102"
                                       />
-                                      <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5">
+                                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-medium gap-1.5">
                                         <ZoomIn className="w-4 h-4" />
-                                        <span>Xem Kính Lúp Phân Tích Hiện Trường</span>
+                                        <span>Phóng to phân tích</span>
                                       </div>
-                                      {msg.photoCaption && (
-                                        <div className="p-2 bg-white/95 backdrop-blur-xs text-[11px] font-medium text-stone-700 border-t border-stone-100 flex items-center justify-between">
-                                          <span className="truncate">{msg.photoCaption}</span>
-                                          <span className="text-[10px] text-brand-green font-bold shrink-0 ml-1">Phóng to</span>
-                                        </div>
-                                      )}
                                     </div>
                                   )}
 
                                   {/* Text Bubble */}
                                   {msg.text && (
-                                    <div className="p-3.5 sm:p-4 rounded-2xl rounded-tl-xs bg-white text-stone-800 text-xs sm:text-sm leading-relaxed border border-stone-200 shadow-2xs">
+                                    <div className="px-4 py-2.5 rounded-2xl rounded-tl-xs bg-white text-stone-800 text-xs sm:text-sm leading-relaxed border border-stone-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
                                       {msg.text}
                                     </div>
                                   )}
@@ -1849,23 +1833,21 @@ export default function ExpertDashboard() {
                               </div>
                             );
                           })}
-
-
                         </div>
 
                         {/* Quick Prescriptions Suggestion Bar (Chỉ hiển thị cho Khách thuê hoặc CVLĐ, ẩn khi chat với Admin) */}
                         {!isAdminThread && !isPreRental && (
-                          <div className="px-3.5 sm:px-4 py-2 bg-stone-50 border-t border-brand-border/70 flex items-center gap-2 overflow-x-auto text-xs no-scrollbar">
-                            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                          <div className="px-4 py-2 bg-stone-50/70 border-t border-stone-200/70 flex items-center gap-1.5 overflow-x-auto text-xs no-scrollbar">
+                            <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
                               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                              {isWorkerThread ? 'Chỉ đạo kỹ thuật:' : 'Gợi ý chỉ đạo:'}
+                              {isWorkerThread ? 'Chỉ đạo:' : 'Gợi ý:'}
                             </span>
                             {quickPrescriptions.map((item, idx) => (
                               <button
                                 key={idx}
                                 type="button"
                                 onClick={() => setChatInputText(item.text)}
-                                className="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 hover:text-emerald-900 border border-brand-border text-[11px] font-medium text-stone-700 transition-colors shrink-0 shadow-2xs cursor-pointer"
+                                className="px-2.5 py-1 rounded-md bg-white hover:bg-emerald-50/80 hover:text-emerald-900 border border-stone-200 text-[11px] font-medium text-stone-700 transition-colors shrink-0 shadow-2xs cursor-pointer"
                                 title="Chèn nội dung hướng dẫn vào khung chat"
                               >
                                 {item.label}
@@ -1877,9 +1859,9 @@ export default function ExpertDashboard() {
                         {/* Messenger Chat Input Footer */}
                         <form
                           onSubmit={handleSendCustomerMessage}
-                          className="p-3 sm:p-4 bg-white border-t border-brand-border flex items-end gap-2.5 shrink-0"
+                          className="p-3 sm:p-4 bg-white border-t border-stone-200/70 flex items-end gap-2 shrink-0"
                         >
-                          <div className="flex-1 bg-stone-50 rounded-2xl border border-brand-border focus-within:border-brand-green/40 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-green/10 transition-all p-2 flex flex-col gap-1.5">
+                          <div className="flex-1 bg-stone-50/80 rounded-xl border border-stone-200 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-600/10 transition-all p-2 flex flex-col gap-1">
                             <textarea
                               ref={chatInputRef}
                               rows={2}
@@ -1896,36 +1878,36 @@ export default function ExpertDashboard() {
                                   ? `Soạn trao đổi công việc với Ban Quản Trị Farmely... (Enter để gửi)`
                                   : isWorkerThread
                                     ? `Soạn chỉ đạo kỹ thuật cho ${activeThread.customerName}... (Enter để gửi)`
-                                    : `Soạn tư vấn kỹ thuật hoặc chỉ đạo cho ${activeThread.customerName}... (Enter để gửi, Shift+Enter để xuống dòng)`
+                                    : `Soạn tư vấn kỹ thuật hoặc chỉ đạo cho ${activeThread.customerName}... (Enter để gửi)`
                               }
                               className="w-full bg-transparent border-0 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none resize-none px-1"
                             />
                             
-                            <div className="flex items-center justify-between pt-1 border-t border-stone-200/50 px-1 text-stone-400">
-                              <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-between pt-1 border-t border-stone-200/40 px-1 text-stone-400">
+                              <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setChatInputText(prev => prev + ' 🌿 [Kèm tài liệu hướng dẫn kỹ thuật chuẩn VietGAP]');
                                   }}
-                                  className="text-stone-400 hover:text-brand-green transition-colors cursor-pointer"
+                                  className="text-stone-400 hover:text-emerald-700 transition-colors cursor-pointer p-1 rounded hover:bg-stone-100"
                                   title="Đính kèm tài liệu quy trình"
                                 >
-                                  <Paperclip className="w-4 h-4" />
+                                  <Paperclip className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setChatInputText(prev => prev + ' 🌱 [Chứng nhận VietGAP số 2026-VGAP-01]');
                                   }}
-                                  className="text-stone-400 hover:text-brand-green transition-colors cursor-pointer"
+                                  className="text-stone-400 hover:text-emerald-700 transition-colors cursor-pointer p-1 rounded hover:bg-stone-100"
                                   title="Chứng nhận VietGAP"
                                 >
-                                  <ShieldCheck className="w-4 h-4" />
+                                  <ShieldCheck className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-                              <span className="text-[10px] hidden sm:inline">
-                                Nhấn <strong>Enter</strong> để gửi nhanh
+                              <span className="text-[10px] text-stone-400 hidden sm:inline">
+                                Nhấn <strong>Enter</strong> để gửi
                               </span>
                             </div>
                           </div>
@@ -1935,9 +1917,9 @@ export default function ExpertDashboard() {
                             variant="primary"
                             size="md"
                             disabled={!chatInputText.trim()}
-                            className="font-bold h-[72px] px-5 rounded-2xl shadow-sm shrink-0"
+                            className="font-semibold h-[64px] px-4 rounded-xl shadow-xs shrink-0 bg-emerald-700 hover:bg-emerald-800"
                           >
-                            <Send className="w-4 h-4 mr-1.5" />
+                            <Send className="w-4 h-4 mr-1" />
                             <span>Gửi</span>
                           </Button>
                         </form>
@@ -2860,7 +2842,7 @@ export default function ExpertDashboard() {
 
             {/* Chọn Chuyên viên lao động (CVLĐ) phụ trách */}
             <div>
-              <label className="mb-1.5 block font-bold text-brand-dark">
+              <label className="mb-1.5 block font-semibold text-stone-900 text-xs">
                 {directTaskModal.isWorkerThread ? 'Chuyên viên lao động (CVLĐ) tiếp nhận lệnh này *' : 'Chuyên viên lao động (CVLĐ) tiếp nhận lệnh *'}
               </label>
               <select
@@ -2874,7 +2856,7 @@ export default function ExpertDashboard() {
                     workerName: found ? found.name : c.workerName
                   }));
                 }}
-                className="w-full rounded-xl border border-brand-border bg-white px-3 py-2.5 font-bold text-stone-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-medium text-stone-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10"
               >
                 {availableFieldWorkers.map((w) => (
                   <option key={w.id} value={w.id}>
@@ -2882,7 +2864,7 @@ export default function ExpertDashboard() {
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-stone-500 mt-1">
+              <p className="text-[11px] text-stone-400 mt-1">
                 {directTaskModal.isWorkerThread
                   ? `Đang giao nhiệm vụ trực tiếp cho đồng chí ${directTaskModal.workerName}.`
                   : 'Tự động ưu tiên nhân viên hiện trường được phân công phụ trách thửa đất của khách hàng này.'}
@@ -2891,96 +2873,96 @@ export default function ExpertDashboard() {
 
             {/* Mức độ ưu tiên giao việc */}
             <div>
-              <label className="mb-1.5 block font-bold text-brand-dark">
+              <label className="mb-1.5 block font-semibold text-stone-900 text-xs">
                 Mức độ ưu tiên giao việc *
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setDirectTaskModal((c) => ({ ...c, priority: 'EMERGENCY' }))}
-                  className={`p-2.5 rounded-xl border text-center font-bold transition flex flex-col items-center gap-1 cursor-pointer ${
+                  className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center gap-0.5 cursor-pointer ${
                     directTaskModal.priority === 'EMERGENCY'
-                      ? 'border-rose-600 bg-rose-50 text-rose-800 ring-2 ring-rose-500/30'
+                      ? 'border-rose-500 bg-rose-50/80 text-rose-800 shadow-xs ring-1 ring-rose-500/20'
                       : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                   }`}
                 >
-                  <span className="text-xs font-black text-rose-700">⚡ LÀM NGAY</span>
-                  <span className="text-[10px] text-rose-600 font-semibold">Khẩn cấp trong 2h</span>
+                  <span className="text-xs font-bold text-rose-700">⚡ LÀM NGAY</span>
+                  <span className="text-[10px] text-rose-600 font-medium">Khẩn cấp trong 2h</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setDirectTaskModal((c) => ({ ...c, priority: 'HIGH' }))}
-                  className={`p-2.5 rounded-xl border text-center font-bold transition flex flex-col items-center gap-1 cursor-pointer ${
+                  className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center gap-0.5 cursor-pointer ${
                     directTaskModal.priority === 'HIGH'
-                      ? 'border-amber-600 bg-amber-50 text-amber-800 ring-2 ring-amber-500/30'
+                      ? 'border-amber-500 bg-amber-50/80 text-amber-900 shadow-xs ring-1 ring-amber-500/20'
                       : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                   }`}
                 >
-                  <span className="text-xs font-black text-amber-800">🔥 ƯU TIÊN CAO</span>
-                  <span className="text-[10px] text-amber-700 font-semibold">Xử lý trong ngày</span>
+                  <span className="text-xs font-bold text-amber-800">🔥 ƯU TIÊN CAO</span>
+                  <span className="text-[10px] text-amber-700 font-medium">Xử lý trong ngày</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setDirectTaskModal((c) => ({ ...c, priority: 'NORMAL' }))}
-                  className={`p-2.5 rounded-xl border text-center font-bold transition flex flex-col items-center gap-1 cursor-pointer ${
+                  className={`p-2.5 rounded-xl border text-center transition-all flex flex-col items-center gap-0.5 cursor-pointer ${
                     directTaskModal.priority === 'NORMAL'
-                      ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-500/30'
+                      ? 'border-emerald-600 bg-emerald-50/80 text-emerald-900 shadow-xs ring-1 ring-emerald-600/20'
                       : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
                   }`}
                 >
-                  <span className="text-xs font-black text-emerald-800">🌱 BÌNH THƯỜNG</span>
-                  <span className="text-[10px] text-emerald-700 font-semibold">Theo ca tới</span>
+                  <span className="text-xs font-bold text-emerald-800">🌱 BÌNH THƯỜNG</span>
+                  <span className="text-[10px] text-emerald-700 font-medium">Theo ca tới</span>
                 </button>
               </div>
             </div>
 
             {/* Tiêu đề nhiệm vụ */}
             <label className="block">
-              <span className="mb-1.5 block font-bold text-brand-dark">Tiêu đề nhiệm vụ thực địa *</span>
+              <span className="mb-1.5 block font-semibold text-stone-900 text-xs">Tiêu đề nhiệm vụ thực địa *</span>
               <input
                 required
                 value={directTaskModal.title}
                 onChange={(e) => setDirectTaskModal((c) => ({ ...c, title: e.target.value }))}
                 placeholder="VD: Phun thảo mộc gừng ớt 1:200 phòng bọ trĩ"
-                className="w-full rounded-xl border border-brand-border px-3 py-2.5 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs text-stone-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10"
               />
             </label>
 
             {/* Hạn hoàn thành */}
             <label className="block">
-              <span className="mb-1.5 block font-bold text-brand-dark">Hạn hoàn thành *</span>
+              <span className="mb-1.5 block font-semibold text-stone-900 text-xs">Hạn hoàn thành *</span>
               <input
                 type="date"
                 required
                 min={new Date().toISOString().slice(0, 10)}
                 value={directTaskModal.dueDate}
                 onChange={(e) => setDirectTaskModal((c) => ({ ...c, dueDate: e.target.value }))}
-                className="w-full rounded-xl border border-brand-border px-3 py-2.5 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs text-stone-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10"
               />
             </label>
 
             {/* Hướng dẫn kỹ thuật */}
             <label className="block">
-              <span className="mb-1.5 block font-bold text-brand-dark">Hướng dẫn kỹ thuật & Chỉ đạo thao tác *</span>
+              <span className="mb-1.5 block font-semibold text-stone-900 text-xs">Hướng dẫn kỹ thuật & Chỉ đạo thao tác *</span>
               <textarea
                 rows={3}
                 required
                 value={directTaskModal.instructions}
                 onChange={(e) => setDirectTaskModal((c) => ({ ...c, instructions: e.target.value }))}
                 placeholder="Ghi rõ liều lượng, vị trí xử lý, yêu cầu chụp ảnh nghiệm thu hiện trường..."
-                className="w-full rounded-xl border border-brand-border px-3 py-2.5 leading-relaxed outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs text-stone-800 leading-relaxed outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10"
               />
             </label>
 
             {/* Quy trình VietGAP tham chiếu */}
             <label className="block">
-              <span className="mb-1.5 block font-bold text-brand-dark">
+              <span className="mb-1.5 block font-semibold text-stone-900 text-xs">
                 Quy trình tham chiếu <span className="font-normal text-stone-400">(không bắt buộc)</span>
               </span>
               <select
                 value={directTaskModal.templateId}
                 onChange={(e) => setDirectTaskModal((c) => ({ ...c, templateId: e.target.value }))}
-                className="w-full rounded-xl border border-brand-border bg-white px-3 py-2.5 outline-none focus:border-emerald-600"
+                className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs text-stone-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10"
               >
                 <option value="">Không gắn quy trình</option>
                 {processTemplates.map((template) => (
@@ -2992,7 +2974,7 @@ export default function ExpertDashboard() {
             </label>
 
             {/* Checkbox gửi tin nhắn vào hội thoại */}
-            <label className="flex items-start gap-2.5 p-3 rounded-xl bg-stone-50 border border-stone-200 cursor-pointer">
+            <label className="flex items-start gap-2.5 p-3 rounded-xl bg-stone-50 border border-stone-200/80 cursor-pointer">
               <input
                 type="checkbox"
                 checked={directTaskModal.notifyCustomerInChat}
@@ -3000,7 +2982,7 @@ export default function ExpertDashboard() {
                 className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
               />
               <span className="text-stone-700 leading-snug">
-                <strong>
+                <strong className="text-xs">
                   {directTaskModal.isWorkerThread
                     ? 'Gửi thông báo xác nhận nhiệm vụ vào cuộc trò chuyện này'
                     : 'Đồng thời thông báo lệnh giao việc này vào khung chat với khách hàng'}
@@ -3014,7 +2996,7 @@ export default function ExpertDashboard() {
             </label>
 
             {/* Actions */}
-            <div className="flex flex-col-reverse gap-2 border-t border-brand-border/60 pt-4 sm:flex-row sm:justify-end">
+            <div className="flex flex-col-reverse gap-2 border-t border-stone-200/80 pt-4 sm:flex-row sm:justify-end">
               <Button
                 type="button"
                 variant="outline"
@@ -3027,7 +3009,7 @@ export default function ExpertDashboard() {
                 type="submit"
                 variant="primary"
                 disabled={isSubmittingDirectTask || !directTaskModal.title.trim() || !directTaskModal.dueDate}
-                className="font-bold bg-emerald-700 hover:bg-emerald-800"
+                className="font-semibold px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800"
               >
                 <Zap className="mr-1.5 h-4 w-4" />
                 {isSubmittingDirectTask ? 'Đang phát lệnh...' : directTaskModal.isWorkerThread ? `Giao nhiệm vụ cho ${directTaskModal.workerName}` : 'Phát lệnh công việc'}
