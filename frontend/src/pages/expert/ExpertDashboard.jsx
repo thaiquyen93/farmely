@@ -28,6 +28,7 @@ import {
   Activity,
   ShieldCheck,
   UserCheck,
+  Zap,
   Bot,
   Camera,
   Flame,
@@ -176,27 +177,37 @@ export default function ExpertDashboard() {
   const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
   const preRentalCount = chatThreads.filter(isPreRentalThread).length;
 
-  // Quick advice recommendations pills
+  // Quick advice recommendations pills with actionable task mappings
   const quickPrescriptions = [
     {
       label: '💧 Giảm 30% tưới ẩm',
-      text: 'Độ ẩm đất 72% đang hơi cao. Nên giảm 30% thời lượng tưới béc phun sương mỗi sáng để bộ rễ thông thoáng, tránh ngập úng gây vàng lá sinh lý.'
+      taskTitle: 'Điều chỉnh giảm 30% thời lượng tưới béc phun sương',
+      text: 'Độ ẩm đất 72% đang hơi cao. Nên giảm 30% thời lượng tưới béc phun sương mỗi sáng để bộ rễ thông thoáng, tránh ngập úng gây vàng lá sinh lý.',
+      priority: 'HIGH'
     },
     {
       label: '🍅 Tỉa lá già sát gốc',
-      text: 'Hiện tượng vàng lá ở tầng chân là sinh lý tự nhiên khi cây tập trung dinh dưỡng nuôi chùm hoa. Bấm tỉa các lá già cách gốc 15-20cm để tạo độ thông thoáng.'
+      taskTitle: 'Bấm tỉa lá già, lá vàng cách gốc 15-20cm tạo thông thoáng',
+      text: 'Hiện tượng vàng lá ở tầng chân là sinh lý tự nhiên khi cây tập trung dinh dưỡng nuôi chùm hoa. Bấm tỉa các lá già cách gốc 15-20cm để tạo độ thông thoáng.',
+      priority: 'NORMAL'
     },
     {
-      label: '🌿 Cách ly VietGAP 5 ngày',
-      text: 'Đúng chuẩn quy trình VietGAP, ngưng bón phân dinh dưỡng từ hôm nay (cách ngày hái 5 ngày). Chỉ duy trì tưới nước sạch buổi sáng để rau giòn ngọt tự nhiên.'
+      label: '🌾 Cách ly VietGAP 5 ngày',
+      taskTitle: 'Thiết lập cách ly VietGAP 5 ngày trước thu hoạch (ngưng bón phân)',
+      text: 'Đúng chuẩn quy trình VietGAP, ngưng bón phân dinh dưỡng từ hôm nay (cách ngày hái 5 ngày). Chỉ duy trì tưới nước sạch buổi sáng để rau giòn ngọt tự nhiên.',
+      priority: 'HIGH'
     },
     {
       label: '🌶️ Phun gừng ớt tỉ lệ 1:200',
-      text: 'Pha chế phẩm sinh học thảo mộc gừng ớt tỉ lệ 1:200, phun sương đều 2 mặt lá sau 16:30 lúc trời dịu nắng để phòng ngừa bọ trĩ và rầy mềm.'
+      taskTitle: 'Phun chế phẩm thảo mộc gừng ớt 1:200 phòng bọ trĩ rầy mềm sau 16:30',
+      text: 'Pha chế phẩm sinh học thảo mộc gừng ớt tỉ lệ 1:200, phun sương đều 2 mặt lá sau 16:30 lúc trời dịu nắng để phòng ngừa bọ trĩ và rầy mềm.',
+      priority: 'EMERGENCY'
     },
     {
       label: '🪱 Bổ sung phân trùn quế',
-      text: 'Bón rải 400g phân trùn quế vi sinh quanh gốc (cách gốc 10cm), tưới ẩm nhẹ để kích thích vi sinh vật cố định đạm tự nhiên.'
+      taskTitle: 'Rải 400g phân trùn quế vi sinh quanh gốc cách 10cm và tưới ẩm nhẹ',
+      text: 'Bón rải 400g phân trùn quế vi sinh quanh gốc (cách gốc 10cm), tưới ẩm nhẹ để kích thích vi sinh vật cố định đạm tự nhiên.',
+      priority: 'NORMAL'
     }
   ];
 
@@ -276,6 +287,15 @@ export default function ExpertDashboard() {
   const [selectedIssueToAssign, setSelectedIssueToAssign] = useState(null);
   const [taskAssignment, setTaskAssignment] = useState({ title: '', dueDate: '', priority: 'EMERGENCY', instructions: '', templateId: '' });
   const [isAssigningTask, setIsAssigningTask] = useState(false);
+
+  // Direct task dispatching from chat/directives workspace
+  const [directTaskModal, setDirectTaskModal] = useState(null);
+  const [isSubmittingDirectTask, setIsSubmittingDirectTask] = useState(false);
+  const availableFieldWorkers = [
+    { id: 8, name: 'Trần Văn Lực', role: 'Tổ trưởng CVLĐ (Khu A & B)', email: 'worker@farmely.vn' },
+    { id: 9, name: 'Nguyễn Văn Đạt', role: 'Kỹ thuật viên tưới & thổ nhưỡng', email: 'dat.nguyen@farmely.vn' },
+    { id: 10, name: 'Hoàng Thanh Hải', role: 'CVLĐ phụ trách thu hoạch', email: 'hai.hoang@farmely.vn' }
+  ];
 
   const loadFieldIssues = () => {
     fetch('/api/issue-reports')
@@ -646,6 +666,119 @@ export default function ExpertDashboard() {
       setDataError(error.message || 'Không thể giao nhiệm vụ cho nhân viên.');
     } finally {
       setIsAssigningTask(false);
+    }
+  };
+
+  // Mở modal sinh task chỉ đạo trực tiếp từ hội thoại chat
+  const handleOpenDirectTaskModal = (thread, prefilled = null) => {
+    const matchedPlot = assignedPlots.find((p) =>
+      (thread?.plotCode && (p.plotCode === thread.plotCode || String(thread.plotCode).includes(p.plotCode))) ||
+      (thread?.rentalId && p.rentalId === thread.rentalId) ||
+      (thread?.customerName && p.renterName && String(thread.customerName).toLowerCase().includes(String(p.renterName).toLowerCase()))
+    ) || assignedPlots[0] || {
+      rentalId: 2,
+      plotCode: thread?.plotCode || 'P-08',
+      name: thread?.plotName || 'Thửa P-08',
+      crop: thread?.crop || 'Đậu xanh cải tạo đất',
+      staffId: 8,
+      staffName: 'Trần Văn Lực'
+    };
+
+    const targetWorkerId = matchedPlot.staffId || 8;
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    let title = '';
+    let instructions = '';
+    let priority = 'HIGH';
+
+    if (prefilled) {
+      if (typeof prefilled === 'object') {
+        title = prefilled.taskTitle || prefilled.label || '';
+        instructions = prefilled.text || '';
+        priority = prefilled.priority || 'HIGH';
+      } else if (typeof prefilled === 'string' && prefilled.trim()) {
+        instructions = prefilled.trim();
+        title = prefilled.trim().length > 45 ? prefilled.trim().slice(0, 42) + '...' : prefilled.trim();
+      }
+    }
+
+    setDirectTaskModal({
+      rentalId: matchedPlot.rentalId || 2,
+      plotCode: matchedPlot.plotCode || thread?.plotCode || 'P-08',
+      plotName: matchedPlot.name || `Thửa ${matchedPlot.plotCode || 'P-08'}`,
+      crop: matchedPlot.crop || 'Chuẩn VietGAP',
+      customerName: thread?.customerName || matchedPlot.renterName || 'Khách thuê đất',
+      workerId: targetWorkerId,
+      workerName: availableFieldWorkers.find((w) => w.id === targetWorkerId)?.name || matchedPlot.staffName || 'Trần Văn Lực',
+      title: title || 'Kiểm tra hiện trường & xử lý theo tư vấn chuyên gia',
+      instructions: instructions || 'Tiến hành kiểm tra thực địa theo hướng dẫn chuyên gia nông nghiệp, xử lý và chụp ảnh kết quả tải lên hệ thống.',
+      dueDate: todayStr,
+      priority,
+      templateId: '',
+      notifyCustomerInChat: true
+    });
+  };
+
+  // Xác nhận phát lệnh tạo task chuyển xuống CSDL PostgreSQL cho CVLĐ
+  const handleConfirmDirectTask = async (e) => {
+    if (e) e.preventDefault();
+    if (!directTaskModal || !directTaskModal.title.trim() || !directTaskModal.dueDate) return;
+
+    setIsSubmittingDirectTask(true);
+    const priorityTag = directTaskModal.priority === 'EMERGENCY'
+      ? '[LÀM NGAY]'
+      : directTaskModal.priority === 'HIGH'
+        ? '[ƯU TIÊN CAO]'
+        : '[BÌNH THƯỜNG]';
+
+    const selectedTemplate = processTemplates.find((t) => String(t.id) === String(directTaskModal.templateId));
+    const targetWorker = availableFieldWorkers.find((w) => w.id === Number(directTaskModal.workerId)) || { name: directTaskModal.workerName };
+
+    const notes = [
+      `${priorityTag} [CHỈ ĐẠO CHUYÊN GIA] ${directTaskModal.title.trim()}`,
+      directTaskModal.instructions.trim(),
+      selectedTemplate ? `Quy trình tham chiếu: ${selectedTemplate.name} (${selectedTemplate.version})` : '',
+      `Chuyên gia phát lệnh: ${expertSenderName} • Thửa đất: ${directTaskModal.plotCode}`
+    ].filter(Boolean).join('\n');
+
+    try {
+      // 1. Gửi request tạo task vào bảng care_tasks
+      const taskRes = unwrapData(await apiFetch('/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          rentalId: directTaskModal.rentalId,
+          taskAssignedTo: Number(directTaskModal.workerId),
+          dueDate: directTaskModal.dueDate,
+          priority: directTaskModal.priority,
+          title: `${priorityTag} ${directTaskModal.title.trim()}`,
+          status: 'PENDING',
+          notes
+        })
+      }));
+
+      // 2. Gửi tin nhắn thông báo vào cuộc trò chuyện với khách hàng
+      if (directTaskModal.notifyCustomerInChat && selectedThreadId) {
+        const sysNotice = `📋 [LỆNH ĐIỀU PHỐI HIỆN TRƯỜNG]\nChuyên gia ${expertSenderName} đã phát lệnh công việc ${priorityTag} tới CVLĐ ${targetWorker.name}:\n👉 "${directTaskModal.title.trim()}"\n⏳ Hạn xử lý: ${directTaskModal.dueDate}. Nhân viên sẽ kiểm tra thực địa và chụp ảnh báo cáo sau khi xử lý.`;
+        sendExpertMessage(sysNotice, expertSenderName, { prescriptionTag: 'LỆNH GIAO VIỆC CVLĐ' });
+      }
+
+      // 3. Đồng bộ BroadcastChannel & localStorage cho màn hình Staff
+      try {
+        localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const staffBc = new BroadcastChannel('farmely_staff_tasks');
+          staffBc.postMessage({ type: 'TASK_ASSIGNED', taskId: taskRes?.taskId, priority: directTaskModal.priority });
+          staffBc.close();
+        }
+      } catch {}
+
+      triggerSuccessToast(`Đã phát lệnh thành công! Nhiệm vụ ${priorityTag} đã chuyển tới CVLĐ ${targetWorker.name}.`);
+      setDirectTaskModal(null);
+    } catch (err) {
+      console.error('Lỗi khi phát lệnh giao task cho staff:', err);
+      setDataError('Không thể tạo nhiệm vụ cho nhân viên hiện trường. Vui lòng thử lại.');
+    } finally {
+      setIsSubmittingDirectTask(false);
     }
   };
 
@@ -1358,7 +1491,7 @@ export default function ExpertDashboard() {
                             </div>
                           </div>
 
-                          {/* Right Badge Status */}
+                          {/* Right Badge Status & Action */}
                           <div className="flex flex-wrap items-center gap-2 xl:justify-end shrink-0 w-full xl:w-auto pl-12 xl:pl-0">
                             {activeThread.role === 'customer' && (
                               <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black border ${
@@ -1370,6 +1503,18 @@ export default function ExpertDashboard() {
                                 {isPreRentalThread(activeThread) ? 'Chưa thuê đất' : `Đang thuê ${activeThread.plotCode}`}
                               </span>
                             )}
+
+                            {/* Nút sinh task giao việc cho CVLĐ trực tiếp từ hội thoại */}
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText)}
+                              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1.5 shadow-xs py-2 px-3.5"
+                              title="Tạo lệnh giao nhiệm vụ hiện trường cho CVLĐ phụ trách thửa đất này"
+                            >
+                              <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                              <span>Giao task cho CVLĐ</span>
+                            </Button>
                           </div>
                         </div>
 
@@ -1488,23 +1633,48 @@ export default function ExpertDashboard() {
 
                         </div>
 
-                        {/* Quick Prescriptions Suggestion Bar */}
-                        <div className="px-3.5 sm:px-4 py-2 bg-stone-50 border-t border-brand-border/70 flex items-center gap-2 overflow-x-auto text-xs no-scrollbar">
-                          <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                            Gợi ý chỉ đạo:
-                          </span>
-                          {quickPrescriptions.map((item, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                setChatInputText(item.text);
-                              }}
-                              className="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 hover:text-emerald-900 border border-brand-border text-[11px] font-medium text-stone-700 transition-colors shrink-0 shadow-2xs cursor-pointer"
-                            >
-                              {item.label}
-                            </button>
-                          ))}
+                        {/* Quick Prescriptions Suggestion Bar with Direct Task Generation */}
+                        <div className="px-3.5 sm:px-4 py-2 bg-stone-50 border-t border-brand-border/70 flex items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1">
+                            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                              Gợi ý chỉ đạo:
+                            </span>
+                            {quickPrescriptions.map((item, idx) => (
+                              <div
+                                key={idx}
+                                className="inline-flex items-center rounded-full bg-white border border-brand-border text-[11px] font-medium text-stone-700 shadow-2xs shrink-0 overflow-hidden hover:border-emerald-400 transition"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setChatInputText(item.text)}
+                                  className="px-2.5 py-1 hover:bg-emerald-50 hover:text-emerald-900 transition-colors cursor-pointer"
+                                  title="Chèn nội dung hướng dẫn vào khung chat"
+                                >
+                                  {item.label}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDirectTaskModal(activeThread, item)}
+                                  className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border-l border-brand-border/60 transition-colors flex items-center gap-0.5 cursor-pointer font-bold text-[10px]"
+                                  title={`Tạo lệnh giao task cho CVLĐ: ${item.taskTitle}`}
+                                >
+                                  <Zap className="w-2.5 h-2.5 fill-amber-600 text-amber-600" />
+                                  <span>Task</span>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText)}
+                            className="px-3 py-1 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer transition-all"
+                            title="Mở form tạo lệnh giao task cho CVLĐ phụ trách"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                            <span>Sinh task cho CVLĐ</span>
+                          </button>
                         </div>
 
                         {/* Messenger Chat Input Footer */}
@@ -2409,7 +2579,205 @@ export default function ExpertDashboard() {
         )}
       </Modal>
 
-      {/* Modal Diagnose Field Issue */}
+      {/* Modal: Chuyên gia sinh task riêng trực tiếp cho Staff từ Hộp thư tư vấn */}
+      <Modal
+        isOpen={Boolean(directTaskModal)}
+        onClose={() => !isSubmittingDirectTask && setDirectTaskModal(null)}
+        title="⚡ Phát Lệnh Chỉ Đạo & Giao Task Hiện Trường"
+        subtitle={directTaskModal ? `Chỉ đạo kỹ thuật từ ${expertSenderName} • ${directTaskModal.plotName} (${directTaskModal.plotCode})` : ''}
+      >
+        {directTaskModal && (
+          <form onSubmit={handleConfirmDirectTask} className="space-y-4 text-left text-xs">
+            {/* Box thông tin Thửa đất & Khách thuê */}
+            <div className="grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5 sm:grid-cols-2">
+              <div>
+                <span className="text-stone-500 font-semibold block text-[11px]">Thửa đất & Cây trồng:</span>
+                <strong className="mt-0.5 block text-sm text-emerald-950 font-bold">
+                  {directTaskModal.plotName} ({directTaskModal.plotCode})
+                </strong>
+                <span className="text-[11px] text-emerald-700 font-medium">🌱 Giống: {directTaskModal.crop}</span>
+              </div>
+              <div>
+                <span className="text-stone-500 font-semibold block text-[11px]">Khách hàng trao đổi:</span>
+                <strong className="mt-0.5 block text-sm text-brand-dark font-bold">
+                  {directTaskModal.customerName}
+                </strong>
+                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                  <ShieldCheck className="w-3 h-3 text-emerald-700" /> Chuẩn VietGAP
+                </span>
+              </div>
+            </div>
+
+            {/* Chọn Chuyên viên lao động (CVLĐ) phụ trách */}
+            <div>
+              <label className="mb-1.5 block font-bold text-brand-dark">
+                Chuyên viên lao động (CVLĐ) tiếp nhận lệnh *
+              </label>
+              <select
+                value={directTaskModal.workerId}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  const found = availableFieldWorkers.find((w) => w.id === val);
+                  setDirectTaskModal((c) => ({
+                    ...c,
+                    workerId: val,
+                    workerName: found ? found.name : c.workerName
+                  }));
+                }}
+                className="w-full rounded-xl border border-brand-border bg-white px-3 py-2.5 font-bold text-stone-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              >
+                {availableFieldWorkers.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    👷 {w.name} - {w.role}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-stone-500 mt-1">
+                Tự động ưu tiên nhân viên hiện trường được phân công trực tiếp tại thửa đất này.
+              </p>
+            </div>
+
+            {/* Mức độ ưu tiên giao việc */}
+            <div>
+              <label className="mb-1.5 block font-bold text-brand-dark">
+                Mức độ ưu tiên giao việc *
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDirectTaskModal((c) => ({ ...c, priority: 'EMERGENCY' }))}
+                  className={`p-2.5 rounded-xl border text-center font-bold transition flex flex-col items-center gap-1 cursor-pointer ${
+                    directTaskModal.priority === 'EMERGENCY'
+                      ? 'border-rose-600 bg-rose-50 text-rose-800 ring-2 ring-rose-500/30'
+                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  <span className="text-xs font-black text-rose-700">⚡ LÀM NGAY</span>
+                  <span className="text-[10px] text-rose-600 font-semibold">Khẩn cấp trong 2h</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDirectTaskModal((c) => ({ ...c, priority: 'HIGH' }))}
+                  className={`p-2.5 rounded-xl border text-center font-bold transition flex flex-col items-center gap-1 cursor-pointer ${
+                    directTaskModal.priority === 'HIGH'
+                      ? 'border-amber-600 bg-amber-50 text-amber-800 ring-2 ring-amber-500/30'
+                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  <span className="text-xs font-black text-amber-800">🔥 ƯU TIÊN CAO</span>
+                  <span className="text-[10px] text-amber-700 font-semibold">Xử lý trong ngày</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDirectTaskModal((c) => ({ ...c, priority: 'NORMAL' }))}
+                  className={`p-2.5 rounded-xl border text-center font-bold transition flex flex-col items-center gap-1 cursor-pointer ${
+                    directTaskModal.priority === 'NORMAL'
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-500/30'
+                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  <span className="text-xs font-black text-emerald-800">🌱 BÌNH THƯỜNG</span>
+                  <span className="text-[10px] text-emerald-700 font-semibold">Theo ca tới</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tiêu đề nhiệm vụ */}
+            <label className="block">
+              <span className="mb-1.5 block font-bold text-brand-dark">Tiêu đề nhiệm vụ thực địa *</span>
+              <input
+                required
+                value={directTaskModal.title}
+                onChange={(e) => setDirectTaskModal((c) => ({ ...c, title: e.target.value }))}
+                placeholder="VD: Phun thảo mộc gừng ớt 1:200 phòng bọ trĩ"
+                className="w-full rounded-xl border border-brand-border px-3 py-2.5 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              />
+            </label>
+
+            {/* Hạn hoàn thành */}
+            <label className="block">
+              <span className="mb-1.5 block font-bold text-brand-dark">Hạn hoàn thành *</span>
+              <input
+                type="date"
+                required
+                min={new Date().toISOString().slice(0, 10)}
+                value={directTaskModal.dueDate}
+                onChange={(e) => setDirectTaskModal((c) => ({ ...c, dueDate: e.target.value }))}
+                className="w-full rounded-xl border border-brand-border px-3 py-2.5 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              />
+            </label>
+
+            {/* Hướng dẫn kỹ thuật */}
+            <label className="block">
+              <span className="mb-1.5 block font-bold text-brand-dark">Hướng dẫn kỹ thuật & Chỉ đạo thao tác *</span>
+              <textarea
+                rows={3}
+                required
+                value={directTaskModal.instructions}
+                onChange={(e) => setDirectTaskModal((c) => ({ ...c, instructions: e.target.value }))}
+                placeholder="Ghi rõ liều lượng, vị trí xử lý, yêu cầu chụp ảnh nghiệm thu hiện trường..."
+                className="w-full rounded-xl border border-brand-border px-3 py-2.5 leading-relaxed outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              />
+            </label>
+
+            {/* Quy trình VietGAP tham chiếu */}
+            <label className="block">
+              <span className="mb-1.5 block font-bold text-brand-dark">
+                Quy trình tham chiếu <span className="font-normal text-stone-400">(không bắt buộc)</span>
+              </span>
+              <select
+                value={directTaskModal.templateId}
+                onChange={(e) => setDirectTaskModal((c) => ({ ...c, templateId: e.target.value }))}
+                className="w-full rounded-xl border border-brand-border bg-white px-3 py-2.5 outline-none focus:border-emerald-600"
+              >
+                <option value="">Không gắn quy trình</option>
+                {processTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name} · {template.version}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Checkbox gửi tin nhắn cho khách */}
+            <label className="flex items-start gap-2.5 p-3 rounded-xl bg-stone-50 border border-stone-200 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={directTaskModal.notifyCustomerInChat}
+                onChange={(e) => setDirectTaskModal((c) => ({ ...c, notifyCustomerInChat: e.target.checked }))}
+                className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+              <span className="text-stone-700 leading-snug">
+                <strong>Đồng thời thông báo lệnh giao việc này vào khung chat với khách hàng</strong>
+                <span className="block text-[11px] text-stone-500 mt-0.5">
+                  Khách hàng ({directTaskModal.customerName}) sẽ thấy thông báo nhiệm vụ đã được giao cho CVLĐ phụ trách thửa đất.
+                </span>
+              </span>
+            </label>
+
+            {/* Actions */}
+            <div className="flex flex-col-reverse gap-2 border-t border-brand-border/60 pt-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDirectTaskModal(null)}
+                disabled={isSubmittingDirectTask}
+              >
+                Hủy
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={isSubmittingDirectTask || !directTaskModal.title.trim() || !directTaskModal.dueDate}
+                className="font-bold bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5"
+              >
+                <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
+                {isSubmittingDirectTask ? 'Đang phát lệnh...' : 'Phát Lệnh & Giao Task Cho CVLĐ'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
       <Modal
         isOpen={Boolean(selectedIssueToDiagnose)}
         onClose={() => setSelectedIssueToDiagnose(null)}
