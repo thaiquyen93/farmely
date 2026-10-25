@@ -220,19 +220,24 @@ COMMENT ON TABLE process_templates IS 'Standard cultivation process template per
 
 
 CREATE TABLE template_steps (
-    step_id       SERIAL        PRIMARY KEY,
-    template_id   INT           NOT NULL REFERENCES process_templates(template_id) ON DELETE CASCADE,
-    step_order    INT           NOT NULL DEFAULT 1,
-    step_name     VARCHAR(150)  NOT NULL,
-    description   TEXT,
-    materials_needed TEXT,
-    day_offset    INT           NOT NULL,
-    duration_days INT           NOT NULL DEFAULT 1,
-    task_type     VARCHAR(50),
-    min_temp      DECIMAL(5,2),
-    max_temp      DECIMAL(5,2),
-    min_humidity  DECIMAL(5,2),
-    max_humidity  DECIMAL(5,2)
+    step_id              SERIAL        PRIMARY KEY,
+    template_id          INT           NOT NULL REFERENCES process_templates(template_id) ON DELETE CASCADE,
+    step_order           INT           NOT NULL DEFAULT 1,
+    step_name            VARCHAR(150)  NOT NULL,
+    task_type            VARCHAR(50),
+    duration_days        INT           NOT NULL DEFAULT 1,
+    day_offset           INT           NOT NULL,
+    description          TEXT,
+    water_regime         TEXT,
+    nutrition_regime     TEXT,
+    pest_warning         TEXT,
+    materials_needed     TEXT,
+    evidence_requirement TEXT,
+    inspection_criteria  TEXT,
+    min_temp             DECIMAL(5,2),
+    max_temp             DECIMAL(5,2),
+    min_humidity         DECIMAL(5,2),
+    max_humidity         DECIMAL(5,2)
 );
 COMMENT ON TABLE  template_steps            IS 'Ordered steps within a cultivation process template';
 COMMENT ON COLUMN template_steps.day_offset  IS 'Days from rental start_date when this step begins';
@@ -325,7 +330,7 @@ COMMENT ON COLUMN payment_transactions.cancellation_request_id IS 'Populated onl
 CREATE TABLE care_tasks (
     task_id            SERIAL           PRIMARY KEY,
     rental_id          INT              NOT NULL REFERENCES rentals(rental_id),
-    step_id            INT              REFERENCES template_steps(step_id),
+    step_id            INT              REFERENCES template_steps(step_id) ON DELETE SET NULL,
     service_request_id INT              REFERENCES service_requests(request_id),
     task_assigned_to   INT              REFERENCES users(user_id),
     due_date           DATE,

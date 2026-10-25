@@ -410,7 +410,7 @@ export default function Marketplace() {
       {/* ─────────────────────────────────────────────────────────────────────────────
           2. THANH ĐIỀU HƯỚNG CAPSULE LƠ LỬNG (FLOATING ISLAND CAPSULE NAVBAR)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <header className="absolute left-2 right-2 top-3 z-30 mx-auto flex max-w-4xl items-center justify-between gap-2 rounded-2xl border border-white/80 bg-white/95 px-2.5 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl pointer-events-auto sm:left-4 sm:right-4 sm:rounded-full sm:px-4">
+      <header className="absolute left-2 right-2 top-3 z-30 mx-auto flex w-fit max-w-[95vw] lg:max-w-5xl xl:max-w-6xl items-center justify-between gap-3 sm:gap-4 rounded-2xl border border-white/80 bg-white/95 px-3 py-2 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl pointer-events-auto sm:left-4 sm:right-4 sm:rounded-full sm:px-5">
         {/* Logo Farmely */}
         <Link to="/" className="flex items-center gap-2 group pr-1 shrink-0">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white text-sm shadow-md shadow-emerald-600/25 group-hover:scale-105 transition-transform">
@@ -426,8 +426,8 @@ export default function Marketplace() {
           </div>
         </Link>
 
-        {/* Badge Live DB Indicator */}
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50/90 border border-emerald-200/90 rounded-full shadow-2xs shrink-0">
+        {/* Badge Live DB Indicator (Hiển thị trên màn hình rộng để không chiếm chỗ menu) */}
+        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50/90 border border-emerald-200/90 rounded-full shadow-2xs shrink-0">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           <span>
             PostgreSQL: {allPlots.length === dbPlots.length ? `${dbPlots.length} Thửa` : `${allPlots.length}/${dbPlots.length} Thửa`} {lands.length > 0 ? `· ${lands.length} Khu đất` : ''}
@@ -435,19 +435,19 @@ export default function Marketplace() {
         </div>
 
         {/* Phân cách mờ */}
-        <div className="h-4 w-[1px] bg-slate-200/80 shrink-0" />
+        <div className="hidden xl:block h-4 w-[1px] bg-slate-200/80 shrink-0" />
 
         {/* Menu liên kết phong cách Pill */}
-        <nav className="hidden min-w-0 items-center gap-1 text-xs font-semibold text-slate-600 sm:flex">
+        <nav className="hidden sm:flex shrink-0 items-center gap-1.5 sm:gap-2 text-xs font-semibold text-slate-600">
           <Link
             to="/"
-            className="whitespace-nowrap px-2.5 py-1.5 rounded-full hover:text-slate-900 hover:bg-slate-100/70 transition-all"
+            className="whitespace-nowrap px-3 py-1.5 rounded-full hover:text-slate-900 hover:bg-slate-100/70 transition-all"
           >
             Trang chủ
           </Link>
           <Link
             to="/marketplace"
-            className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-200/60 bg-emerald-50 px-2.5 py-1.5 font-bold text-emerald-700 shadow-2xs transition-all"
+            className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-200/60 bg-emerald-50 px-3 py-1.5 font-bold text-emerald-700 shadow-2xs transition-all"
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             Marketplace
@@ -455,7 +455,7 @@ export default function Marketplace() {
           <button
             type="button"
             onClick={() => handleOpenSiteVisit(selectedPlot || null)}
-            className="hidden whitespace-nowrap rounded-full border border-emerald-300/80 bg-white/95 px-3 py-1.5 text-xs font-bold text-emerald-800 shadow-2xs transition-all hover:bg-emerald-50 hover:border-emerald-400 cursor-pointer lg:flex items-center gap-1.5"
+            className="whitespace-nowrap rounded-full border border-emerald-300/80 bg-white/95 px-3 py-1.5 text-xs font-bold text-emerald-800 shadow-2xs transition-all hover:bg-emerald-50 hover:border-emerald-400 cursor-pointer flex items-center gap-1.5"
           >
             <Calendar className="w-3.5 h-3.5 text-emerald-700" />
             <span>Đặt lịch tham quan</span>
@@ -463,7 +463,7 @@ export default function Marketplace() {
           {isAuthenticated && user?.role === 'CUSTOMER' && (
             <Link
               to="/customer/dashboard"
-              className="hidden whitespace-nowrap rounded-full px-2.5 py-1.5 font-semibold text-emerald-700 transition-all hover:bg-emerald-50 lg:block"
+              className="whitespace-nowrap rounded-full px-3 py-1.5 font-semibold text-emerald-700 transition-all hover:bg-emerald-50"
             >
               Vườn của tôi
             </Link>
@@ -471,7 +471,7 @@ export default function Marketplace() {
           {isAuthenticated && user?.role === 'ADMIN' && (
             <Link
               to="/admin/master-data/lands"
-              className="hidden whitespace-nowrap rounded-full px-2.5 py-1.5 font-semibold text-emerald-700 transition-all hover:bg-emerald-50 lg:block"
+              className="whitespace-nowrap rounded-full px-3 py-1.5 font-semibold text-emerald-700 transition-all hover:bg-emerald-50"
             >
               Quản lý Đất & Thửa
             </Link>
@@ -483,16 +483,16 @@ export default function Marketplace() {
 
         {/* Nút Đăng nhập / Tài khoản */}
         {!isAuthenticated ? (
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <Link
               to="/login"
-              className="whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100/70 hover:text-slate-900"
+              className="whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100/70 hover:text-slate-900"
             >
               Đăng nhập
             </Link>
             <Link
               to="/register"
-              className="whitespace-nowrap rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-1.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-all hover:from-emerald-500 hover:to-teal-500 active:scale-95"
+              className="whitespace-nowrap rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-all hover:from-emerald-500 hover:to-teal-500 active:scale-95"
             >
               Đăng ký
             </Link>
@@ -500,10 +500,10 @@ export default function Marketplace() {
         ) : (
           <Link
             to={user?.role === 'ADMIN' ? '/admin/dashboard' : '/customer/dashboard'}
-            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-200/80 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800 shadow-2xs transition-all hover:bg-emerald-100/80 active:scale-95"
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-200/80 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 shadow-2xs transition-all hover:bg-emerald-100/80 active:scale-95"
           >
             <span className="text-sm">🌿</span>
-            <span>{user?.name ? user.name.split(' ')[0] : 'Trang chủ'}</span>
+            <span>{user?.name ? user.name.split(' ').slice(-1)[0] : 'Tài khoản'}</span>
           </Link>
         )}
       </header>

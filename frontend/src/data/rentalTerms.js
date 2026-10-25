@@ -1,6 +1,22 @@
 export const RENTAL_TERMS_VERSION = 'FARMELY-LEASE-2026-10-15-DRAFT';
 
-// Dự thảo nghiệp vụ để người phụ trách pháp lý duyệt trước khi áp dụng chính thức.
+/**
+ * THÔNG TIN PHÁP LÝ & ĐẠI DIỆN BÊN CHO THUÊ (BÊN A) - CÔNG TY TNHH FARMELY
+ * Bạn có thể trực tiếp chỉnh sửa thông tin công ty, trụ sở, mã số thuế, hotline,
+ * người đại diện tại đây để hiển thị trên toàn bộ các hợp đồng điện tử của hệ thống.
+ */
+export const FARMELY_COMPANY_INFO = {
+  companyName: 'CÔNG TY TNHH FARMELY',
+  headquarters: 'Khu Công nghệ cao TP.HCM, Phường Long Thạnh Mỹ, TP. Thủ Đức, TP. Hồ Chí Minh',
+  farmAddress: 'Trang trại Farmely Củ Chi, Đường Bến Than, Xã Hòa Phú, Huyện Củ Chi, TP. Hồ Chí Minh',
+  taxCode: '0318998899',
+  phone: '1900 688 889',
+  hotline: '0988 123 456',
+  email: 'support@farmely.vn',
+  website: 'https://farmely.vn',
+  representative: 'Lương Văn Hoàng',
+  position: 'Giám đốc Điều hành (CEO)'
+};
 export const RENTAL_TERMS = [
   {
     title: 'Điều 1. Phạm vi và đối tượng giao dịch',

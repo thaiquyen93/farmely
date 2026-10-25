@@ -22,7 +22,17 @@ public class CreateTemplateStepRequest {
     @NotNull(message = "Số ngày kể từ gieo trồng (dayOffset) không được để trống")
     private Integer dayOffset;
 
+    private Integer durationDays;
+    private String taskType;
     private String description;
-
+    private String waterRegime;
+    private String nutritionRegime;
+    private String pestWarning;
     private String materialsNeeded;
+    private String evidenceRequirement;
+    private String inspectionCriteria;
+    private Double minTemp;
+    private Double maxTemp;
+    private Double minHumidity;
+    private Double maxHumidity;
 }

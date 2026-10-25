@@ -93,5 +93,12 @@ export const rentalApi = {
    * Lấy danh sách hợp đồng (lọc theo khách hàng hoặc trạng thái)
    * @param {{ renterId?: number, status?: string }} params
    */
-  listContracts: (params) => request('GET', `/api/contracts${qs(params)}`)
+  listContracts: (params) => request('GET', `/api/contracts${qs(params)}`),
+
+  /**
+   * Gia hạn hợp đồng/lượt thuê thửa đất theo vụ mùa (BR12)
+   * @param {number} rentalId
+   * @param {{ newEndDate: string, newVarietyId?: number, newServiceId?: number }} payload
+   */
+  renewRental: (rentalId, payload) => request('POST', `/api/rentals/${rentalId}/renew`, payload)
 };
