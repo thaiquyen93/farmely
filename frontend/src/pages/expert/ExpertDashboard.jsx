@@ -178,6 +178,17 @@ export default function ExpertDashboard() {
   const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
   const preRentalCount = chatThreads.filter(isPreRentalThread).length;
 
+  const formatPlotCode = (raw) => {
+    if (!raw) return '';
+    return String(raw)
+      .replace(/\bPlot\s+Plot\b/gi, 'Plot')
+      .replace(/\bThửa\s+Thửa\b/gi, 'Thửa')
+      .split(',')
+      .map((s) => s.trim().replace(/^(plot|thửa)\s+/i, ''))
+      .filter(Boolean)
+      .join(', ');
+  };
+
   // Quick advice recommendations pills with actionable task mappings
   const quickPrescriptions = [
     {
@@ -832,20 +843,42 @@ export default function ExpertDashboard() {
 
   // Mở modal sinh task chỉ đạo trực tiếp từ hội thoại chat
   const handleOpenDirectTaskModal = (thread, prefilled = null) => {
+    if (!thread) return;
+
+    // Phân định rõ vai trò
+    const isWorker = thread.role === 'worker' || thread.category === 'worker';
+    const isAdmin = thread.role === 'admin' || /Ban Quản Trị|Admin/i.test(thread.customerName || '');
+    if (isAdmin) return; // Không phát lệnh từ kênh trao đổi với Ban Quản Trị
+
+    // Nếu là nhân sự hiện trường (CVLĐ), tự động chọn chính nhân sự đó là người tiếp nhận lệnh
+    let targetWorker = null;
+    if (isWorker) {
+      targetWorker = availableFieldWorkers.find(
+        (w) => (thread.workerId && w.id === thread.workerId) ||
+               (thread.customerName && w.name.toLowerCase().includes(thread.customerName.replace(/\s*\(.*\)/, '').trim().toLowerCase()))
+      ) || (thread.customerName?.includes('Đạt') ? availableFieldWorkers.find((w) => w.id === 9) : null)
+        || (thread.customerName?.includes('Hải') ? availableFieldWorkers.find((w) => w.id === 10) : null)
+        || availableFieldWorkers[0];
+    }
+
     const matchedPlot = assignedPlots.find((p) =>
       (thread?.plotCode && (p.plotCode === thread.plotCode || String(thread.plotCode).includes(p.plotCode))) ||
       (thread?.rentalId && p.rentalId === thread.rentalId) ||
-      (thread?.customerName && p.renterName && String(thread.customerName).toLowerCase().includes(String(p.renterName).toLowerCase()))
+      (!isWorker && thread?.customerName && p.renterName && String(thread.customerName).toLowerCase().includes(String(p.renterName).toLowerCase()))
     ) || assignedPlots[0] || {
       rentalId: 2,
-      plotCode: thread?.plotCode || 'P-08',
-      name: thread?.plotName || 'Thửa P-08',
-      crop: thread?.crop || 'Đậu xanh cải tạo đất',
+      plotCode: thread?.plotCode || 'P-01',
+      name: thread?.plotName || 'Thửa P-01',
+      crop: thread?.crop || 'Cải ngọt chuẩn VietGAP',
       staffId: 8,
       staffName: 'Trần Văn Lực'
     };
 
-    const targetWorkerId = matchedPlot.staffId || 8;
+    const targetWorkerId = isWorker && targetWorker ? targetWorker.id : (matchedPlot.staffId || 8);
+    const resolvedWorkerName = isWorker && targetWorker
+      ? targetWorker.name
+      : (availableFieldWorkers.find((w) => w.id === targetWorkerId)?.name || matchedPlot.staffName || 'Trần Văn Lực');
+
     const todayStr = new Date().toISOString().slice(0, 10);
 
     let title = '';
@@ -863,15 +896,19 @@ export default function ExpertDashboard() {
       }
     }
 
+    const cleanPlotCode = (matchedPlot.plotCode || thread?.plotCode || 'P-01').replace(/^(plot|thửa)\s+/i, '');
+
     setDirectTaskModal({
       rentalId: matchedPlot.rentalId || 2,
-      plotCode: matchedPlot.plotCode || thread?.plotCode || 'P-08',
-      plotName: matchedPlot.name || `Thửa ${matchedPlot.plotCode || 'P-08'}`,
-      crop: matchedPlot.crop || 'Chuẩn VietGAP',
-      customerName: thread?.customerName || matchedPlot.renterName || 'Khách thuê đất',
+      plotCode: cleanPlotCode,
+      plotName: `Thửa ${cleanPlotCode}`,
+      crop: matchedPlot.crop || thread?.crop || 'Chuẩn VietGAP',
+      isWorkerThread: isWorker,
+      partnerName: thread.customerName,
+      customerName: isWorker ? (matchedPlot.renterName || 'Khách thuê thửa đất') : thread.customerName,
       workerId: targetWorkerId,
-      workerName: availableFieldWorkers.find((w) => w.id === targetWorkerId)?.name || matchedPlot.staffName || 'Trần Văn Lực',
-      title: title || 'Kiểm tra hiện trường & xử lý theo tư vấn chuyên gia',
+      workerName: resolvedWorkerName,
+      title: title || (isWorker ? `[Chỉ đạo] Nhiệm vụ hiện trường Thửa ${cleanPlotCode}` : 'Kiểm tra hiện trường & xử lý theo tư vấn chuyên gia'),
       instructions: instructions || 'Tiến hành kiểm tra thực địa theo hướng dẫn chuyên gia nông nghiệp, xử lý và chụp ảnh kết quả tải lên hệ thống.',
       dueDate: todayStr,
       priority,
@@ -917,9 +954,11 @@ export default function ExpertDashboard() {
         })
       }));
 
-      // 2. Gửi tin nhắn thông báo vào cuộc trò chuyện với khách hàng
+      // 2. Gửi tin nhắn thông báo vào cuộc trò chuyện
       if (directTaskModal.notifyCustomerInChat && selectedThreadId) {
-        const sysNotice = `📋 [LỆNH ĐIỀU PHỐI HIỆN TRƯỜNG]\nChuyên gia ${expertSenderName} đã phát lệnh công việc ${priorityTag} tới CVLĐ ${targetWorker.name}:\n👉 "${directTaskModal.title.trim()}"\n⏳ Hạn xử lý: ${directTaskModal.dueDate}. Nhân viên sẽ kiểm tra thực địa và chụp ảnh báo cáo sau khi xử lý.`;
+        const sysNotice = directTaskModal.isWorkerThread
+          ? `📋 [LỆNH NHIỆM VỤ HIỆN TRƯỜNG]\nChuyên gia ${expertSenderName} đã giao nhiệm vụ ${priorityTag}:\n👉 "${directTaskModal.title.trim()}"\n⏳ Hạn xử lý: ${directTaskModal.dueDate}. Đề nghị đồng chí ${targetWorker.name} thực hiện và chụp ảnh báo cáo nghiệm thu qua hệ thống.`
+          : `📋 [LỆNH ĐIỀU PHỐI HIỆN TRƯỜNG]\nChuyên gia ${expertSenderName} đã phát lệnh công việc ${priorityTag} tới CVLĐ ${targetWorker.name}:\n👉 "${directTaskModal.title.trim()}"\n⏳ Hạn xử lý: ${directTaskModal.dueDate}. Nhân viên sẽ kiểm tra thực địa và chụp ảnh báo cáo sau khi xử lý.`;
         sendExpertMessage(sysNotice, expertSenderName, { prescriptionTag: 'LỆNH GIAO VIỆC CVLĐ' });
       }
 
@@ -1455,7 +1494,7 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          Đã thuê ({chatThreads.filter(c => c.role === 'customer' && !isPreRentalThread(c)).length})
+                          Đã thuê ({chatThreads.filter(c => c.role === 'customer' && !isPreRentalThread(c) && !/Ban Quản Trị|Admin/i.test(c.customerName || '')).length})
                         </button>
                         <button
                           onClick={() => setChatFilter('pre_rental')}
@@ -1475,7 +1514,7 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          Công nhân ({chatThreads.filter(c => c.role === 'worker').length})
+                          CVLĐ ({chatThreads.filter(c => c.role === 'worker').length})
                         </button>
                         <button
                           onClick={() => setChatFilter('pending')}
@@ -1496,11 +1535,11 @@ export default function ExpertDashboard() {
                         .filter((thread) => {
                           const q = chatSearchQuery.toLowerCase();
                           const matchesQuery =
-                            thread.customerName.toLowerCase().includes(q) ||
-                            thread.plotName.toLowerCase().includes(q) ||
-                            thread.crop.toLowerCase().includes(q) ||
-                            thread.roleLabel.toLowerCase().includes(q);
-                          if (chatFilter === 'customer') return matchesQuery && thread.role === 'customer' && !isPreRentalThread(thread);
+                            (thread.customerName || '').toLowerCase().includes(q) ||
+                            (thread.plotName || '').toLowerCase().includes(q) ||
+                            (thread.crop || '').toLowerCase().includes(q) ||
+                            (thread.roleLabel || '').toLowerCase().includes(q);
+                          if (chatFilter === 'customer') return matchesQuery && thread.role === 'customer' && !isPreRentalThread(thread) && !/Ban Quản Trị|Admin/i.test(thread.customerName || '');
                           if (chatFilter === 'pre_rental') return matchesQuery && isPreRentalThread(thread);
                           if (chatFilter === 'worker') return matchesQuery && thread.role === 'worker';
                           if (chatFilter === 'pending') return matchesQuery && thread.status === 'PENDING';
@@ -1559,11 +1598,19 @@ export default function ExpertDashboard() {
                                 {/* Clean metadata line (Role & Plot) */}
                                 <div className="flex items-center gap-1.5 text-[11px] text-stone-500 truncate">
                                   <span className={`font-semibold shrink-0 ${
-                                    thread.role === 'worker' ? 'text-amber-800' : 'text-emerald-700'
+                                    thread.role === 'admin' || /Ban Quản Trị|Admin/i.test(thread.customerName || '')
+                                      ? 'text-purple-700'
+                                      : thread.role === 'worker'
+                                        ? 'text-amber-800'
+                                        : 'text-emerald-700'
                                   }`}>
-                                    {thread.role === 'worker' ? 'Nhân viên' : (thread.plotCode ? `Plot ${thread.plotCode}` : 'Chưa thuê')}
+                                    {thread.role === 'admin' || /Ban Quản Trị|Admin/i.test(thread.customerName || '')
+                                      ? 'Ban Quản Trị'
+                                      : thread.role === 'worker'
+                                        ? 'Chuyên viên lao động'
+                                        : (thread.plotCode ? `Thửa ${formatPlotCode(thread.plotCode)}` : 'Chưa thuê')}
                                   </span>
-                                  {thread.crop && (
+                                  {thread.crop && thread.role !== 'admin' && !/Ban Quản Trị|Admin/i.test(thread.customerName || '') && (
                                     <span className="truncate text-stone-400">
                                       • {thread.crop}
                                     </span>
@@ -1602,6 +1649,10 @@ export default function ExpertDashboard() {
 
                     if (!activeThread) return null;
 
+                    const isAdminThread = activeThread.role === 'admin' || activeThread.category === 'admin' || /Ban Quản Trị|Admin/i.test(activeThread.customerName || '');
+                    const isWorkerThread = activeThread.role === 'worker' || activeThread.category === 'worker';
+                    const isPreRental = isPreRentalThread(activeThread);
+
                     return (
                       <div className={`flex-1 flex flex-col bg-white min-w-0 ${
                         !mobileShowChat ? 'hidden md:flex' : 'flex'
@@ -1638,39 +1689,53 @@ export default function ExpertDashboard() {
                                 <h4 className="font-bold text-brand-dark text-sm sm:text-base truncate">
                                   {activeThread.customerName}
                                 </h4>
-                                <span className={`text-xs font-bold px-2 py-1 rounded-full border ${
-                                  activeThread.status === 'PENDING'
-                                    ? 'bg-rose-50 text-rose-800 border-rose-200'
-                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                }`}>
-                                  {activeThread.status === 'PENDING' ? 'Chưa phản hồi' : 'Đã phản hồi'}
-                                </span>
+                                {isAdminThread ? (
+                                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
+                                    Ban Quản Trị
+                                  </span>
+                                ) : isWorkerThread ? (
+                                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                                    CVLĐ Hiện Trường
+                                  </span>
+                                ) : (
+                                  <span className={`text-xs font-bold px-2 py-1 rounded-full border ${
+                                    activeThread.status === 'PENDING'
+                                      ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  }`}>
+                                    {activeThread.status === 'PENDING' ? 'Chưa phản hồi' : 'Đã phản hồi'}
+                                  </span>
+                                )}
                               </div>
                               <p className="text-xs text-stone-500 truncate mt-1">
                                 <span className="text-emerald-800 font-medium">
-                                  {activeThread.role === 'worker'
-                                    ? `Nhân viên hiện trường • Thửa ${activeThread.plotCode || 'P-01'}`
-                                    : isPreRentalThread(activeThread)
-                                      ? `Khách quan tâm • ${activeThread.crop || 'Tư vấn nông học'}`
-                                      : `Khách thuê • Giống: ${activeThread.crop || 'Chuẩn VietGAP'} • Thửa ${activeThread.plotCode || 'P-01'}`}
+                                  {isAdminThread
+                                    ? 'Ban Quản Trị Hệ Thống • Trao đổi nghiệp vụ & Điều phối nội bộ'
+                                    : isWorkerThread
+                                      ? `Nhân viên hiện trường • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`
+                                      : isPreRental
+                                        ? `Khách quan tâm • ${activeThread.crop || 'Tư vấn nông học'}`
+                                        : `Khách thuê • Giống: ${activeThread.crop || 'Chuẩn VietGAP'} • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`}
                                 </span>
                               </p>
                             </div>
                           </div>
 
-                          {/* Right Action: Single SSOT Button */}
-                          <div className="flex items-center gap-2 xl:justify-end shrink-0 pl-12 xl:pl-0">
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText)}
-                              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1.5 shadow-xs py-2 px-3.5 shrink-0"
-                              title="Tạo lệnh giao nhiệm vụ hiện trường cho CVLĐ phụ trách thửa đất này"
-                            >
-                              <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-                              <span>Giao việc cho CVLĐ</span>
-                            </Button>
-                          </div>
+                          {/* Right Action: Single SSOT Button (Không hiển thị khi chat với Ban Quản Trị) */}
+                          {!isAdminThread && (
+                            <div className="flex items-center gap-2 xl:justify-end shrink-0 pl-12 xl:pl-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText)}
+                                className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1.5 shadow-xs py-2 px-3.5 shrink-0"
+                                title={isWorkerThread ? `Giao nhiệm vụ trực tiếp cho ${activeThread.customerName}` : "Tạo lệnh giao nhiệm vụ hiện trường cho CVLĐ phụ trách thửa đất này"}
+                              >
+                                <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                                <span>{isWorkerThread ? `Giao việc cho ${activeThread.customerName.replace(/\s*\(.*\)/, '').trim().split(' ').slice(-1)[0] || 'CVLĐ'}` : 'Giao việc cho CVLĐ'}</span>
+                              </Button>
+                            </div>
+                          )}
                         </div>
 
                         {/* Messenger Chat History Viewport */}
@@ -1788,24 +1853,26 @@ export default function ExpertDashboard() {
 
                         </div>
 
-                        {/* Quick Prescriptions Suggestion Bar (1-Click to insert advice template) */}
-                        <div className="px-3.5 sm:px-4 py-2 bg-stone-50 border-t border-brand-border/70 flex items-center gap-2 overflow-x-auto text-xs no-scrollbar">
-                          <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                            Gợi ý chỉ đạo:
-                          </span>
-                          {quickPrescriptions.map((item, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => setChatInputText(item.text)}
-                              className="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 hover:text-emerald-900 border border-brand-border text-[11px] font-medium text-stone-700 transition-colors shrink-0 shadow-2xs cursor-pointer"
-                              title="Chèn nội dung hướng dẫn vào khung chat"
-                            >
-                              {item.label}
-                            </button>
-                          ))}
-                        </div>
+                        {/* Quick Prescriptions Suggestion Bar (Chỉ hiển thị cho Khách thuê hoặc CVLĐ, ẩn khi chat với Admin) */}
+                        {!isAdminThread && !isPreRental && (
+                          <div className="px-3.5 sm:px-4 py-2 bg-stone-50 border-t border-brand-border/70 flex items-center gap-2 overflow-x-auto text-xs no-scrollbar">
+                            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                              {isWorkerThread ? 'Chỉ đạo kỹ thuật:' : 'Gợi ý chỉ đạo:'}
+                            </span>
+                            {quickPrescriptions.map((item, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setChatInputText(item.text)}
+                                className="px-2.5 py-1 rounded-full bg-white hover:bg-emerald-50 hover:text-emerald-900 border border-brand-border text-[11px] font-medium text-stone-700 transition-colors shrink-0 shadow-2xs cursor-pointer"
+                                title="Chèn nội dung hướng dẫn vào khung chat"
+                              >
+                                {item.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
 
                         {/* Messenger Chat Input Footer */}
                         <form
@@ -1824,7 +1891,13 @@ export default function ExpertDashboard() {
                                   handleSendCustomerMessage();
                                 }
                               }}
-                              placeholder={`Soạn tư vấn kỹ thuật hoặc chỉ đạo cho ${activeThread.customerName}... (Enter để gửi, Shift+Enter để xuống dòng)`}
+                              placeholder={
+                                isAdminThread
+                                  ? `Soạn trao đổi công việc với Ban Quản Trị Farmely... (Enter để gửi)`
+                                  : isWorkerThread
+                                    ? `Soạn chỉ đạo kỹ thuật cho ${activeThread.customerName}... (Enter để gửi)`
+                                    : `Soạn tư vấn kỹ thuật hoặc chỉ đạo cho ${activeThread.customerName}... (Enter để gửi, Shift+Enter để xuống dòng)`
+                              }
                               className="w-full bg-transparent border-0 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none resize-none px-1"
                             />
                             
@@ -2758,27 +2831,29 @@ export default function ExpertDashboard() {
       <Modal
         isOpen={Boolean(directTaskModal)}
         onClose={() => !isSubmittingDirectTask && setDirectTaskModal(null)}
-        title="⚡ Phát Lệnh Chỉ Đạo & Giao Task Hiện Trường"
-        subtitle={directTaskModal ? `Chỉ đạo kỹ thuật từ ${expertSenderName} • ${directTaskModal.plotName} (${directTaskModal.plotCode})` : ''}
+        title={directTaskModal?.isWorkerThread ? `⚡ Chỉ Đạo & Giao Nhiệm Vụ Cho CVLĐ` : `⚡ Phát Lệnh Chỉ Đạo & Giao Task Hiện Trường`}
+        subtitle={directTaskModal ? `Chỉ đạo kỹ thuật từ ${expertSenderName} • ${directTaskModal.plotName}` : ''}
       >
         {directTaskModal && (
           <form onSubmit={handleConfirmDirectTask} className="space-y-4 text-left text-xs">
-            {/* Box thông tin Thửa đất & Khách thuê */}
+            {/* Box thông tin Thửa đất & Đối tượng trao đổi */}
             <div className="grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5 sm:grid-cols-2">
               <div>
                 <span className="text-stone-500 font-semibold block text-[11px]">Thửa đất & Cây trồng:</span>
                 <strong className="mt-0.5 block text-sm text-emerald-950 font-bold">
-                  {directTaskModal.plotName} ({directTaskModal.plotCode})
+                  {directTaskModal.plotName} (Plot {formatPlotCode(directTaskModal.plotCode)})
                 </strong>
                 <span className="text-[11px] text-emerald-700 font-medium">🌱 Giống: {directTaskModal.crop}</span>
               </div>
               <div>
-                <span className="text-stone-500 font-semibold block text-[11px]">Khách hàng trao đổi:</span>
+                <span className="text-stone-500 font-semibold block text-[11px]">
+                  {directTaskModal.isWorkerThread ? 'Chuyên viên trao đổi trực tiếp:' : 'Khách hàng trao đổi:'}
+                </span>
                 <strong className="mt-0.5 block text-sm text-brand-dark font-bold">
-                  {directTaskModal.customerName}
+                  {directTaskModal.partnerName || directTaskModal.customerName}
                 </strong>
                 <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                  <ShieldCheck className="w-3 h-3 text-emerald-700" /> Chuẩn VietGAP
+                  <ShieldCheck className="w-3 h-3 text-emerald-700" /> {directTaskModal.isWorkerThread ? 'CVLĐ Hiện Trường' : 'Khách Thuê Đất'}
                 </span>
               </div>
             </div>
@@ -2786,7 +2861,7 @@ export default function ExpertDashboard() {
             {/* Chọn Chuyên viên lao động (CVLĐ) phụ trách */}
             <div>
               <label className="mb-1.5 block font-bold text-brand-dark">
-                Chuyên viên lao động (CVLĐ) tiếp nhận lệnh *
+                {directTaskModal.isWorkerThread ? 'Chuyên viên lao động (CVLĐ) tiếp nhận lệnh này *' : 'Chuyên viên lao động (CVLĐ) tiếp nhận lệnh *'}
               </label>
               <select
                 value={directTaskModal.workerId}
@@ -2808,7 +2883,9 @@ export default function ExpertDashboard() {
                 ))}
               </select>
               <p className="text-[11px] text-stone-500 mt-1">
-                Tự động ưu tiên nhân viên hiện trường được phân công trực tiếp tại thửa đất này.
+                {directTaskModal.isWorkerThread
+                  ? `Đang giao nhiệm vụ trực tiếp cho đồng chí ${directTaskModal.workerName}.`
+                  : 'Tự động ưu tiên nhân viên hiện trường được phân công phụ trách thửa đất của khách hàng này.'}
               </p>
             </div>
 
@@ -2914,7 +2991,7 @@ export default function ExpertDashboard() {
               </select>
             </label>
 
-            {/* Checkbox gửi tin nhắn cho khách */}
+            {/* Checkbox gửi tin nhắn vào hội thoại */}
             <label className="flex items-start gap-2.5 p-3 rounded-xl bg-stone-50 border border-stone-200 cursor-pointer">
               <input
                 type="checkbox"
@@ -2923,9 +3000,15 @@ export default function ExpertDashboard() {
                 className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500"
               />
               <span className="text-stone-700 leading-snug">
-                <strong>Đồng thời thông báo lệnh giao việc này vào khung chat với khách hàng</strong>
+                <strong>
+                  {directTaskModal.isWorkerThread
+                    ? 'Gửi thông báo xác nhận nhiệm vụ vào cuộc trò chuyện này'
+                    : 'Đồng thời thông báo lệnh giao việc này vào khung chat với khách hàng'}
+                </strong>
                 <span className="block text-[11px] text-stone-500 mt-0.5">
-                  Khách hàng ({directTaskModal.customerName}) sẽ thấy thông báo nhiệm vụ đã được giao cho CVLĐ phụ trách thửa đất.
+                  {directTaskModal.isWorkerThread
+                    ? `Nhân viên ${directTaskModal.workerName} sẽ nhận được tin nhắn tóm tắt lệnh nhiệm vụ và hạn hoàn thành.`
+                    : `Khách hàng (${directTaskModal.customerName}) sẽ thấy thông báo nhiệm vụ đã được giao cho CVLĐ phụ trách thửa đất.`}
                 </span>
               </span>
             </label>
@@ -2944,10 +3027,10 @@ export default function ExpertDashboard() {
                 type="submit"
                 variant="primary"
                 disabled={isSubmittingDirectTask || !directTaskModal.title.trim() || !directTaskModal.dueDate}
-                className="font-bold bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5"
+                className="font-bold bg-emerald-700 hover:bg-emerald-800"
               >
-                <Zap className="w-4 h-4 fill-amber-300 text-amber-300" />
-                {isSubmittingDirectTask ? 'Đang phát lệnh...' : 'Phát Lệnh & Giao Task Cho CVLĐ'}
+                <Zap className="mr-1.5 h-4 w-4" />
+                {isSubmittingDirectTask ? 'Đang phát lệnh...' : directTaskModal.isWorkerThread ? `Giao nhiệm vụ cho ${directTaskModal.workerName}` : 'Phát lệnh công việc'}
               </Button>
             </div>
           </form>

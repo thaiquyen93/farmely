@@ -444,13 +444,52 @@ export const INITIAL_THREADS = [
         seen: false
       }
     ]
+  },
+  // 9. Quản Trị Viên: Ban Quản Trị Farmely
+  {
+    id: 'ADMIN-01',
+    role: 'admin',
+    roleLabel: 'Ban Quản Trị',
+    category: 'admin',
+    customerName: 'Ban Quản Trị Farmely',
+    customerAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80',
+    plotCode: '',
+    plotName: 'Hội đồng Quản trị Farmely',
+    crop: '',
+    stage: 'Điều phối & Giám sát vận hành toàn trang trại',
+    expertName: 'ThS. Nguyễn Hoàng Nam',
+    isOnline: true,
+    lastTime: '15 phút trước',
+    status: 'REPLIED',
+    unread: false,
+    messages: [
+      {
+        id: 1,
+        sender: 'admin',
+        senderName: 'Ban Quản Trị Farmely',
+        text: 'ThS. Nam lưu ý tuần này trang trại đón đoàn thanh tra VietGAP đợt 2, nhờ chuyên gia tổng hợp lại nhật ký và chỉ đạo kỹ thuật các thửa khu A và B.',
+        time: '08:00',
+        seen: true,
+        seenAt: '08:05'
+      },
+      {
+        id: 2,
+        sender: 'expert',
+        senderName: 'ThS. Nguyễn Hoàng Nam',
+        text: 'Dạ vâng, tôi đã rà soát và đôn đốc các bạn CVLĐ chụp ảnh nghiệm thu đầy đủ trên hệ thống rồi ạ.',
+        time: '08:10',
+        seen: true,
+        seenAt: '08:12'
+      }
+    ]
   }
 ];
 
 export const DEFAULT_AVATARS = {
   customer: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
   worker: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-  expert: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
+  expert: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+  admin: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80'
 };
 
 export const getSafeAvatar = (url, role = 'customer') => {
@@ -483,6 +522,46 @@ export function getStoredThreads() {
     // Auto-heal any threads that might have been corrupted with "Người dùng #" or missing avatars
     const sanitized = parsed.map((thread) => {
       let t = { ...thread };
+
+      // 1. Phục hồi vai trò Admin nếu bị biến dạng thành khách thuê
+      if (/Ban Quản Trị|Admin/i.test(t.customerName || '') || String(t.id || '').toLowerCase().includes('admin')) {
+        if (t.role !== 'admin' || t.plotCode || t.crop) {
+          t.role = 'admin';
+          t.roleLabel = 'Ban Quản Trị';
+          t.category = 'admin';
+          t.plotCode = '';
+          t.plotName = 'Hội đồng Quản trị Farmely';
+          t.crop = '';
+          t.stage = 'Điều phối & Giám sát vận hành toàn trang trại';
+          needsUpdate = true;
+        }
+      }
+
+      // 2. Chuẩn hóa vai trò Nhân viên hiện trường (CVLĐ)
+      if (t.role === 'worker' || /Trần Văn Lực|Nguyễn Văn Đạt|Lê Thị Hoa|Hoàng Văn Nam/i.test(t.customerName || '')) {
+        if (t.role !== 'worker' || !t.workerId) {
+          t.role = 'worker';
+          t.roleLabel = 'CVLĐ Hiện Trường';
+          t.category = 'worker';
+          if (t.customerName?.includes('Đạt')) t.workerId = 9;
+          else if (t.customerName?.includes('Lực')) t.workerId = 8;
+          else if (t.customerName?.includes('Hải')) t.workerId = 10;
+          needsUpdate = true;
+        }
+      }
+
+      // 3. Chuẩn hóa plotCode tránh lặp "Plot Plot" hoặc "Thửa Thửa"
+      if (t.plotCode) {
+        const cleaned = String(t.plotCode)
+          .replace(/\bPlot\s+Plot\b/gi, 'Plot')
+          .replace(/\bThửa\s+Thửa\b/gi, 'Thửa')
+          .trim();
+        if (cleaned !== t.plotCode) {
+          t.plotCode = cleaned;
+          needsUpdate = true;
+        }
+      }
+
       if (!t.customerName || t.customerName.startsWith('Người dùng #')) {
         const seed = INITIAL_THREADS.find((s) => s.id === t.id || s.plotCode === t.plotCode);
         if (seed) {
@@ -650,8 +729,20 @@ export function markThreadAsReadInStorage(threadId) {
 
 export function updateThreadRentalInStorage({ threadId, customerName, customerAvatar, plotCode, plotName, crop }) {
   const threads = getStoredThreads();
+
+  // Không bao giờ gán đè Ban Quản Trị thành Khách Thuê Đất
+  if (/Ban Quản Trị|Admin/i.test(customerName || '') || String(threadId || '').toLowerCase().includes('admin')) {
+    return { thread: null, threads };
+  }
+
   const existingIndex = threads.findIndex((thread) => thread.id === threadId);
   const existing = existingIndex >= 0 ? threads[existingIndex] : null;
+
+  const cleanPlotCode = (plotCode || '')
+    .replace(/\bPlot\s+Plot\b/gi, 'Plot')
+    .replace(/\bThửa\s+Thửa\b/gi, 'Thửa')
+    .trim();
+
   const thread = {
     ...(existing || {}),
     id: threadId,
@@ -660,7 +751,7 @@ export function updateThreadRentalInStorage({ threadId, customerName, customerAv
     rentalStatus: 'RENTED',
     customerName: customerName || existing?.customerName || 'Khách hàng Farmely',
     customerAvatar: customerAvatar || existing?.customerAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-    plotCode,
+    plotCode: cleanPlotCode,
     plotName,
     crop: crop || 'Cây trồng VietGAP',
     stage: 'Đã xác nhận thuê thửa',

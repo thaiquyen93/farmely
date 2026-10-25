@@ -83,8 +83,8 @@ export default function VnPayReturn() {
 
       window.dispatchEvent(new CustomEvent('farmely_plot_booked', { detail: pending.plots }));
 
-      // Đồng bộ thông tin hợp đồng vào Chat hỗ trợ
-      if (pending.customerName) {
+      // Đồng bộ thông tin hợp đồng vào Chat hỗ trợ (bỏ qua tài khoản Admin / Nội bộ)
+      if (pending.customerName && !/Admin|Ban Quản Trị/i.test(pending.customerName) && !pending.customerEmail?.includes('admin')) {
         chatService.updateRentalContext({
           customerName: pending.customerName,
           plotCode: (pending.plots || []).map((p) => p.code).join(', '),

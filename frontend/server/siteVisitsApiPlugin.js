@@ -49,6 +49,13 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Dọn dẹp dữ liệu test thừa và chuẩn hóa chuỗi mô tả
+DELETE FROM care_tasks WHERE task_id = 12;
+UPDATE care_tasks SET notes = 'Bón thúc đợt 2 phân trùn quế quanh vùng rễ' WHERE notes LIKE '%Test auto assign Zone B%';
+UPDATE care_tasks SET notes = '[LÀM NGAY] Phun thảo mộc diệt rệp sáp khẩn cấp - Pha tỷ lệ 1:200, phun sương kỹ 2 mặt lá trước 10:00 sáng. Chụp ảnh nghiệm thu sau phun.' WHERE task_id = 11;
+UPDATE care_tasks SET notes = '[LÀM NGAY] Phun chế phẩm thảo mộc gừng ớt 1:200 - Pha chế phẩm sinh học thảo mộc gừng ớt tỉ lệ 1:200, phun sương đều 2 mặt lá sau 16:30 lúc trời dịu nắng để phòng ngừa bọ trĩ và rầy mềm.' WHERE task_id = 14;
+UPDATE care_tasks SET notes = '[LÀM NGAY] Xử lý rệp sáp bùng phát mặt dưới lá - Pha chế phẩm sinh học thảo mộc tỏi ớt 1:200, phun đều 2 mặt lá sau 16:30.' WHERE task_id = 15;
 `);
     rentalLeaseColumnsEnsured = true;
   } catch (err) {
@@ -3470,6 +3477,7 @@ ON CONFLICT DO NOTHING;
         // 18. CARE TASKS API (GET, POST, PATCH /api/care-tasks)
         if (req.method === 'GET' && (url === '/api/care-tasks' || url === '/api/v1/care-tasks' || url === '/api/tasks' || url.startsWith('/api/care-tasks?') || url.startsWith('/api/v1/care-tasks?') || url.startsWith('/api/tasks?'))) {
           try {
+            await ensureRentalLeaseColumns();
             const sql = `
 SELECT json_build_object(
   'success', true,
@@ -3484,7 +3492,13 @@ SELECT json_build_object(
         rent.plot_id AS "plotId",
         p.plot_code AS "plotCode",
         'Thửa ' || p.plot_code AS "plotName",
-        COALESCE(ts.step_name, s.service_name, ct.notes, 'Chăm sóc vi sinh tiêu chuẩn') AS title,
+        CASE
+          WHEN ts.step_name IS NOT NULL THEN ts.step_name
+          WHEN s.service_name IS NOT NULL THEN s.service_name
+          WHEN ct.notes LIKE '% - %' THEN SPLIT_PART(ct.notes, ' - ', 1)
+          WHEN ct.notes LIKE '%' || CHR(10) || '%' THEN SPLIT_PART(ct.notes, CHR(10), 1)
+          ELSE COALESCE(ct.notes, 'Chăm sóc vi sinh tiêu chuẩn')
+        END AS title,
         COALESCE(v.variety_name, 'Cà chua bi Cherry F1') AS crop,
         COALESCE(u_renter.full_name, 'Khách hàng') AS "customerName",
         COALESCE(u_worker.full_name, 'Chưa chỉ định nhân viên') AS "assignedTo",
@@ -3505,7 +3519,11 @@ SELECT json_build_object(
         '08:30 AM' AS deadline,
         'MORNING' AS session,
         COALESCE(ct.evidence_image_url, '/images/Mucangchai3.jpg') AS "proofPhoto",
-        COALESCE(ct.notes, 'Kiểm tra độ ẩm trạm IoT trước khi tưới. Ghi chép nhật ký đầy đủ.') AS instructions,
+        CASE
+          WHEN ct.notes LIKE '% - %' THEN SUBSTRING(ct.notes FROM POSITION(' - ' IN ct.notes) + 3)
+          WHEN ct.notes LIKE '%' || CHR(10) || '%' THEN SUBSTRING(ct.notes FROM POSITION(CHR(10) IN ct.notes) + 1)
+          ELSE COALESCE(ct.notes, 'Kiểm tra độ ẩm trạm IoT trước khi tưới. Ghi chép nhật ký đầy đủ.')
+        END AS instructions,
         TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') AS "completedAt"
       FROM care_tasks ct
       JOIN rentals rent ON ct.rental_id = rent.rental_id
@@ -3722,6 +3740,160 @@ SELECT json_build_object(
             }
           });
           return;
+        }
+
+        // 19c. CONVERSATIONS & MESSAGES API (GET, POST /api/conversations & /api/v1/conversations)
+        if (req.method === 'GET' && (url === '/api/conversations' || url === '/api/v1/conversations' || url.startsWith('/api/conversations?') || url.startsWith('/api/v1/conversations?'))) {
+          try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const expertIdParam = parseInt(urlObj.searchParams.get('expertId') || '0', 10);
+            const userIdParam = parseInt(urlObj.searchParams.get('userId') || '0', 10);
+            let whereClause = '';
+            if (expertIdParam > 0) {
+              whereClause = `WHERE c.participant_two = ${expertIdParam}`;
+            } else if (userIdParam > 0) {
+              whereClause = `WHERE c.participant_one = ${userIdParam} OR c.participant_two = ${userIdParam}`;
+            }
+
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh sách hội thoại thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(c_list)), '[]'::json) FROM (
+      SELECT 
+        c.conversation_id AS "conversationId",
+        'CONS-' || c.conversation_id AS id,
+        c.type,
+        c.status,
+        c.rental_id AS "rentalId",
+        c.plot_id AS "plotId",
+        COALESCE(p.plot_code, 'P-01') AS "plotCode",
+        'Thửa ' || COALESCE(p.plot_code, 'P-01') AS "plotName",
+        COALESCE(v.variety_name, 'Rau củ chuẩn VietGAP') AS crop,
+        c.participant_one AS "participantOneId",
+        u1.full_name AS "customerName",
+        COALESCE(u1.email, '') AS "customerEmail",
+        r1.role_name AS "partnerRole",
+        c.participant_two AS "participantTwoId",
+        u2.full_name AS "expertName",
+        u2.email AS "expertEmail",
+        CASE 
+          WHEN r1.role_name = 'ADMIN' THEN 'admin'
+          WHEN r1.role_name IN ('STAFF', 'FIELD_WORKER') THEN 'worker'
+          ELSE 'customer'
+        END AS role,
+        CASE 
+          WHEN r1.role_name = 'ADMIN' THEN 'Ban Quản Trị'
+          WHEN r1.role_name IN ('STAFF', 'FIELD_WORKER') THEN 'CVLĐ Hiện Trường'
+          ELSE 'Khách Thuê Đất'
+        END AS "roleLabel",
+        COALESCE((
+          SELECT json_agg(json_build_object(
+            'id', m.message_id,
+            'sender', CASE WHEN m.sender_id = c.participant_two THEN 'expert' WHEN r1.role_name IN ('STAFF', 'FIELD_WORKER') THEN 'worker' ELSE 'customer' END,
+            'senderId', m.sender_id,
+            'senderName', COALESCE(sm.full_name, 'Người dùng'),
+            'text', m.content,
+            'time', TO_CHAR(m.created_at, 'HH24:MI'),
+            'seen', true
+          ) ORDER BY m.created_at ASC)
+          FROM messages m
+          LEFT JOIN users sm ON m.sender_id = sm.user_id
+          WHERE m.conversation_id = c.conversation_id
+        ), '[]'::json) AS messages
+      FROM conversations c
+      LEFT JOIN users u1 ON c.participant_one = u1.user_id
+      LEFT JOIN roles r1 ON u1.role_id = r1.role_id
+      LEFT JOIN users u2 ON c.participant_two = u2.user_id
+      LEFT JOIN rentals r ON c.rental_id = r.rental_id
+      LEFT JOIN plots p ON COALESCE(c.plot_id, r.plot_id) = p.plot_id
+      LEFT JOIN varieties v ON r.variety_id = v.variety_id
+      ${whereClause}
+      ORDER BY c.conversation_id DESC
+    ) c_list
+  )
+) as result;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(typeof data === 'string' ? data : JSON.stringify(data));
+          } catch (err) {
+            console.error('Error fetching conversations:', err);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 19d. CONVERSATION MESSAGES API (/api/conversations/:id/messages)
+        const convMsgMatch = url.match(/^\/api\/(?:v1\/)?conversations\/(\d+)\/messages(?:\?.*)?$/);
+        if (convMsgMatch) {
+          const convId = parseInt(convMsgMatch[1], 10);
+          if (req.method === 'GET') {
+            try {
+              const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy tin nhắn hội thoại thành công',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(m_list)), '[]'::json) FROM (
+      SELECT 
+        m.message_id AS "messageId",
+        m.message_id AS id,
+        m.conversation_id AS "conversationId",
+        m.sender_id AS "senderId",
+        COALESCE(u.full_name, 'Người dùng') AS "senderName",
+        m.content,
+        m.content AS text,
+        m.attachment_url AS "attachmentUrl",
+        m.attachment_url AS "photoUrl",
+        TO_CHAR(m.created_at, 'HH24:MI') AS time,
+        m.created_at AS "createdAt"
+      FROM messages m
+      LEFT JOIN users u ON m.sender_id = u.user_id
+      WHERE m.conversation_id = ${convId}
+      ORDER BY m.created_at ASC
+    ) m_list
+  )
+) as result;
+`;
+              const data = await runPostgreSql(sql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(typeof data === 'string' ? data : JSON.stringify(data));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+            return;
+          }
+
+          if (req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => body += chunk);
+            req.on('end', async () => {
+              try {
+                const payload = JSON.parse(body || '{}');
+                const senderId = parseInt(payload.senderId || payload.sender_id || 5, 10);
+                const content = (payload.content || payload.text || '').replace(/'/g, "''");
+                const attachmentUrl = (payload.attachmentUrl || payload.photoUrl || '').replace(/'/g, "''");
+
+                const sql = `
+INSERT INTO messages (conversation_id, sender_id, content, attachment_url, created_at)
+VALUES (${convId}, ${senderId}, '${content}', ${attachmentUrl ? `'${attachmentUrl}'` : 'NULL'}, NOW())
+RETURNING message_id, conversation_id, sender_id, content, created_at;
+`;
+                const result = await runPostgreSql(sql);
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: true, message: 'Gửi tin nhắn thành công', data: result[0] }));
+              } catch (err) {
+                console.error('Error inserting message:', err);
+                res.statusCode = 500;
+                res.end(JSON.stringify({ success: false, error: String(err) }));
+              }
+            });
+            return;
+          }
         }
 
         // 19b. FILE UPLOAD API (/api/files/upload, /api/upload)

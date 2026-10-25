@@ -347,6 +347,9 @@ export default function BookPlot() {
 
   const syncRentalToChat = () => {
     if (!user) return;
+    // Không đồng bộ tài khoản Quản trị viên / Nội bộ thành khách thuê trong chat
+    if (user.role === 'ADMIN' || user.role === 'EXPERT' || user.role === 'STAFF' || user.email?.includes('admin')) return;
+
     const demoProfile = DEMO_CUSTOMERS.find(
       (customer) => customer.email?.toLowerCase() === user.email?.toLowerCase()
     );
