@@ -51,11 +51,22 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Dọn dẹp dữ liệu test thừa và chuẩn hóa chuỗi mô tả
-DELETE FROM care_tasks WHERE task_id = 12;
+DELETE FROM care_tasks WHERE task_id IN (11, 12, 14);
 UPDATE care_tasks SET notes = 'Bón thúc đợt 2 phân trùn quế quanh vùng rễ' WHERE notes LIKE '%Test auto assign Zone B%';
-UPDATE care_tasks SET notes = '[LÀM NGAY] Phun thảo mộc diệt rệp sáp khẩn cấp - Pha tỷ lệ 1:200, phun sương kỹ 2 mặt lá trước 10:00 sáng. Chụp ảnh nghiệm thu sau phun.' WHERE task_id = 11;
-UPDATE care_tasks SET notes = '[LÀM NGAY] Phun chế phẩm thảo mộc gừng ớt 1:200 - Pha chế phẩm sinh học thảo mộc gừng ớt tỉ lệ 1:200, phun sương đều 2 mặt lá sau 16:30 lúc trời dịu nắng để phòng ngừa bọ trĩ và rầy mềm.' WHERE task_id = 14;
 UPDATE care_tasks SET notes = '[LÀM NGAY] Xử lý rệp sáp bùng phát mặt dưới lá - Pha chế phẩm sinh học thảo mộc tỏi ớt 1:200, phun đều 2 mặt lá sau 16:30.' WHERE task_id = 15;
+
+-- Chuẩn hóa chỉ đạo chuyên gia cho sự cố
+UPDATE issue_reports 
+SET resolution_notes = 'Pha chế phẩm sinh học thảo mộc tỏi ớt 1:200, phun sương đều 2 mặt lá sau 16:30. Đã phát lệnh giao việc #TSK-15 cho CVLĐ.',
+    handled_by = 5,
+    status = 'OPEN'
+WHERE issue_id = 3;
+
+UPDATE issue_reports 
+SET resolution_notes = 'Kích hoạt van tưới nhỏ giọt 20 phút để nâng độ ẩm đất từ 52% về ngưỡng an toàn 65-70%.',
+    handled_by = 5,
+    status = 'OPEN'
+WHERE issue_id = 2;
 `);
     rentalLeaseColumnsEnsured = true;
   } catch (err) {
@@ -4046,6 +4057,7 @@ SELECT json_build_object(
         COALESCE(ir.image_url, '/images/moc-chau-2811.jpg') AS "photoUrl",
         ir.status,
         COALESCE(ir.resolution_notes, '') AS diagnosis,
+        COALESCE(ir.resolution_notes, '') AS "resolutionNotes",
         TO_CHAR(ir.created_at, 'HH24:MI - DD/MM/YYYY') AS "reportedTime",
         ir.created_at AS "createdAt",
         CASE 

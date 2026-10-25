@@ -352,7 +352,9 @@ export default function FieldWorkerDashboard() {
           urgency: issue.urgency || 'NORMAL',
           sentTime: issue.createdAt ? new Date(issue.createdAt).toLocaleString('vi-VN') : 'Chưa có thời gian',
           status: issue.displayStatus || issue.status || 'OPEN',
-          expertAdvice: issue.resolutionNotes || 'Đang chờ chuyên gia phản hồi.',
+          expertAdvice: issue.diagnosis || issue.resolutionNotes || 'Đang chờ chuyên gia phản hồi.',
+          assignedTaskCode: issue.assignedTaskCode || null,
+          assignedDueDate: issue.assignedDueDate || null,
           description: issue.description || '',
           imageUrl: issue.imageUrl || '',
           reporterName: issue.reporterName || user?.fullName || 'Nhân viên hiện trường',
@@ -1392,17 +1394,31 @@ export default function FieldWorkerDashboard() {
                                   <div key={issue.id} className="p-3 bg-white rounded-xl border border-amber-200/80 text-xs space-y-1.5 shadow-2xs">
                                     <div className="flex items-center justify-between gap-2">
                                       <span className="font-bold text-stone-900">{issue.issueType}</span>
-                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                        issue.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                        issue.status === 'RESOLVED'
+                                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                          : (issue.assignedTaskCode || (issue.expertAdvice && !issue.expertAdvice.startsWith('Đang chờ')))
+                                          ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                                          : 'bg-amber-100 text-amber-800 border border-amber-300'
                                       }`}>
-                                        {issue.status === 'RESOLVED' ? 'Đã giải quyết' : (issue.expertAdvice && !issue.expertAdvice.startsWith('Đang chờ') ? 'Đã có chỉ đạo' : 'Đang chờ chuyên gia')}
+                                        {issue.status === 'RESOLVED'
+                                          ? '✓ Đã giải quyết'
+                                          : issue.assignedTaskCode
+                                          ? `⚡ Đã giao ${issue.assignedTaskCode}`
+                                          : (issue.expertAdvice && !issue.expertAdvice.startsWith('Đang chờ'))
+                                          ? '⚡ Đã có chỉ đạo'
+                                          : '⏳ Chờ chuyên gia'}
                                       </span>
                                     </div>
                                     <p className="text-stone-600 text-[11px]">"{issue.description}"</p>
-                                    {issue.expertAdvice && (
-                                      <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] flex items-start gap-1.5">
+                                    {issue.expertAdvice && !issue.expertAdvice.startsWith('Đang chờ') ? (
+                                      <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-1.5">
                                         <span className="font-bold shrink-0">🔬 Chỉ đạo CGNN:</span>
                                         <span>{issue.expertAdvice}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="p-2 rounded-lg bg-stone-50 border border-stone-200 text-stone-500 text-[11px] italic flex items-center gap-1.5">
+                                        <span>⏳ Đang chờ chuyên gia nông nghiệp tiếp nhận và ban hành phác đồ.</span>
                                       </div>
                                     )}
                                   </div>
