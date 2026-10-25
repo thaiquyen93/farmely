@@ -1,0 +1,2756 @@
+﻿CAPSTONE PROJECT REPORT
+Report 3 – Software Requirement Specification
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+– Ho Chi Minh, September 2026–
+Table of Contents
+I. Project Report        3
+1. Status Report        3
+2. Team Involvements        3
+3. Issues/Suggestions        3
+II. Software Requirement Specification        4
+1. Overall Description        4
+1.1 Product Overview        4
+1.2 Business Rules        5
+2. User Requirements        6
+2.1 System Actors        6
+2.2 Use Cases        6
+3. Functional Requirements        8
+3.1 System Functional Overview        8
+3.2 <<Feature Name 1>>        10
+3.3 Marketplace and Lease Contracts        10
+4. Non-Functional Requirements        11
+4.1 External Interfaces        11
+4.2 Quality Attributes        12
+5. Other Requirements        14
+5.1 Appendix1 - Messages List        14
+5.2 Appendix2 - …        14
+5.3 …        14
+
+
+________________
+
+
+I. Record of Changes
+Date
+	A*
+M, D
+	In charge
+	Change Description
+	30/9
+	A
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	*A - Added M - Modified D - Deleted
+________________
+
+
+II. Software Requirement Specification
+1. Product Overview
+The Farmely Urban Farming Management System is a new software platform that digitizes and replaces the traditional manual, fragmented processes for leasing agricultural plots, managing cultivation services, and tracking crop progress in owner-operated urban farms. The context diagram below illustrates the external entities and system interfaces for Release 1.0. The system is expected to evolve over several releases, ultimately connecting to physical IoT automated irrigation systems, real-time banking payment gateways, and agricultural e-commerce logistics services.
+  
+
+
+
+2. User Requirements
+2.1 Actors
+An actor represents a role played by a human user, an external software system, or a hardware device that interacts directly with the Farmely platform. Based on the system boundaries, the identified actors are categorized below:
+* Who is notified when events occur: Customers (IoT alerts, task sync), Field Workers (new task dispatches), Agricultural Experts (field issues), Administrators (cancellations, overdue tasks).
+* Who provides information or services: Agricultural Experts (agronomic templates), Field Workers (yield measurements, photo evidence), IoT Stations (telemetry), Weather API (forecasts), Payment Gateway (transaction callbacks).
+* Who helps respond to and complete tasks: Field Workers (on-site farming execution), Payment Gateway (financial settlement), AI Service (informational farming Q&A).
+
+
+
+
+#
+	Actor
+	Type
+	Description
+	1
+	Customer
+	Primary (Human)
+	Authenticated urban tenant who selects and rents farm plots via Master Lease Agreements, chooses crop varieties, monitors plant growth through IoT telemetry and webcams, purchases care packages, and accepts harvested produce.
+	2
+	Agricultural Expert
+	Primary (Human)
+	Agronomy specialist who formulates standard crop cultivation processes, configures safe environmental thresholds, answers pre-rental and active tenant consultations, and provides technical guidance during field issues.
+	3
+	Field Worker
+	Primary (Human)
+	On-site farm technician who receives daily care tasks, performs physical cultivation (watering, fertilizing, weeding), uploads mandatory on-site photo evidence, and weighs/records final harvest yields.
+	4
+	Administrator
+	Primary (Human)
+	Operational manager responsible for managing system users, land sectors, plot configurations, IoT device bindings, pricing rules, and reviewing contract cancellations/refunds.
+	5
+	Guest / Visitor
+	Secondary (Human)
+	Unauthenticated visitor exploring the public marketplace, reviewing plot specifications, and scheduling physical farm inspection tours.
+	6
+	Payment Gateway
+	External System
+	Third-party financial gateway (VietQR / Banking Mock) that processes 100% upfront lease payments, collects service fees, and executes authorized refunds.
+	7
+	IoT Sensor Station
+	Hardware Device
+	On-plot hardware microclimate station providing real-time soil moisture, ambient temperature, and air humidity readings every 10–180 minutes.
+	8
+	Weather Service
+	External System
+	External meteorological service (OpenWeatherMap API) providing local weather forecasts to trigger automatic watering task postponements during rainfall.
+	9
+	AI Knowledge Service
+	External System
+	External LLM engine that powers the 24/7 informational agricultural assistant using Retrieval-Augmented Generation (RAG) over farm knowledge documents.
+	2.2 Use Cases
+All use case names strictly adhere to the standard [Verb] + [Object] naming convention, clearly reflecting direct, measurable value delivered to the system actors.
+2.2.1 Diagram(s)
+The Farmely system use cases are decomposed into two focused architectural views:
+* Figure 2.2.1-1: Customer & Master Lease Subsystem Use Case Diagram: Illustrates the tenant lifecycle: farmland discovery, site tour booking, multi-plot Master Lease configuration with a 10-minute Grace Period, independent plot monitoring, automated farm diaries, and harvest handover
+  
+
+
+
+* Figure 2.2.1-2: Farm Operations, Agronomy & Administration Subsystem Use Case Diagram: Illustrates the back-office and on-site workflows: Agricultural Experts formulating standard process templates, Field Workers executing prioritized care tasks with mandatory photo evidence (without material tracking), scale-photo harvest logging, and automatic 4-day soil fallow governance. 
+  
+
+* 2.2.2 Descriptions
+ID
+	Use Case
+	Actors
+	Use Case Description
+	UC01
+	Register Customer Account
+	Guest
+	Allows visitors to sign up for a customer account by verifying email and phone uniqueness and securely hashing passwords.
+	UC02
+	Authenticate User Login
+	All Users
+	Authenticates credentials, validates active account status, issues JWT session tokens, and redirects users to role dashboards.
+	UC03
+	Book On-Site Inspection Tour
+	Guest, Customer
+	Enables visitors to schedule a physical farm visit (morning or afternoon slot) with basic contact details before committing to a lease.
+	UC04
+	Browse Farmland Marketplace
+	Guest, Customer
+	Allows users to view, search, and filter available plots by sector, area, compatible crop types, and monthly rental price ceilings.
+	UC05
+	Configure Master Lease Agreement
+	Customer
+	Enables tenants to select multiple plots, pick compatible certified crop varieties and cultivation modes per plot, apply a 15-minute lock, and generate a unified lease agreement.
+	UC06
+	Process Upfront Lease Payment
+	Customer, Payment Gateway
+	Collects 100% upfront lease balance through VietQR/gateway with an automatic 10-minute Grace Period extension upon checkout load.
+	UC07
+	Renew Active Lease Contract
+	Customer, Payment Gateway
+	Allows tenants to extend an active lease for 1–3 months before the 3-day deadline without disrupting soil history or garden diaries.
+	UC08
+	Request Contract Cancellation and Refund
+	Customer, Administrator, Payment Gateway
+	Processes early termination requests, applies tiered deduction rates (20% or 50% prior to start), and submits refund tickets for administrative disbursement.
+	UC09
+	Formulate Standard Agronomy Process
+	Agricultural Expert
+	Allows specialists to establish standardized cultivation workflows with milestone day offsets, care instructions, and safe environmental boundaries.
+	UC10
+	Track Cultivation Roadmap
+	Customer, Agricultural Expert
+	Displays real-time crop growth roadmap, including task completion milestones and field worker verification photos.
+	UC11
+	Execute Daily Care Task
+	Field Worker
+	Displays assigned daily care tasks, allows workers to view technical instructions, upload on-site photo proof, and mark tasks as completed.
+	UC12
+	Submit Field Issue Report
+	Field Worker
+	Allows field technicians to log crop anomalies (pests, disease, irrigation failure) with photos directly to the assigned expert.
+	UC13
+	Monitor Microclimate Telemetry
+	Customer, Expert, IoT Station
+	Displays near-real-time sensor readings (temperature, humidity, soil moisture) and 24-hour historical trend charts for leased plots.
+	UC14
+	Synchronize Automated Farm Diary
+	Customer, Field Worker
+	Automatically creates diary entries with photos when assisted care tasks are completed; allows self-growing tenants to write manual posts.
+	UC15
+	Record Harvest Yield Weight
+	Field Worker
+	Records actual crop weight using an electronic scale, uploads digital scale readout photos, and logs the worker's staff ID.
+	UC16
+	Inspect and Accept Harvest Produce
+	Customer
+	Allows tenants to verify harvest photos and yields, confirm acceptance, and select on-farm pickup or home delivery options.
+	UC17
+	Consult Agricultural Expert
+	Customer, Agricultural Expert
+	Provides a 1-on-1 communication channel for tenants to ask questions, share plant photos, and receive agronomic guidance.
+	UC18
+	Query Farming Knowledge Assistant
+	Customer, AI Service
+	Provides 24/7 informational answers to general agricultural inquiries using RAG over the farm's indexed technical document library.
+	UC19
+	Purchase Delegated Care Package
+	Customer, Payment Gateway
+	Allows self-growing tenants to order à-la-carte services or purchase temporary 30-day full-care packages during busy periods.
+	UC20
+	Manage Farmland Plots and Maintenance
+	Administrator
+	Manages land sectors, plot dimensions, IoT station bindings, and oversees the automatic 4-day soil fallow cycle before plots reopen.
+	UC21
+	Administer Users and Access Permissions
+	Administrator
+	Manages user accounts, assigns internal staff roles, and reviews system audit logs.
+	3. Functional Requirements[a]
+3.1 System Functional Overview
+3.1.1 Screens Flow
+ Shows public navigation from the landing page to the Plot marketplace and Plot details, optional site-visit booking, and the login, registration, and password-recovery paths before booking a Plot. 
+
+Figure 3.1.1-1: Overall Functionalities Screens Flow For Guest
+
+
+  
+
+
+
+
+
+Figure 3.1.1-2: Overall Functionalities Screens Flow For Customer
+
+
+ Shows assigned tasks and technical instructions, task execution with materials and photo evidence, completion, issue reporting, harvest recording, expert communication, and profile access. 
+
+Figure 3.1.1-4: Overall Functionalities Screens Flow For Field Worker
+
+
+ Shows administration of users and roles, land and Plots, marketplace publication, pricing, services, visits, reservations and contracts, payments, task dispatch, IoT alerts, and audit records. Yellow dialogs support focused creation, editing, and assignment actions. 
+
+Figure 3.1.1-1: Overall Functionalities Screens Flow For Administrator
+
+
+ Shows management of crops and varieties, Plot compatibility, standard processes and versions, IoT thresholds, and knowledge documents, together with customer consultation, issue handling, technical interventions, and communication with Field Workers. 
+
+Figure 3.1.1-1: Overall Functionalities Screens Flow For Agricultural Expert
+
+
+3.1.2 Screen Descriptions
+#
+	Feature
+	Screen
+	Description
+	1
+	Public Access
+	Landing Page
+	Introduces the platform and provides access to the Marketplace, registration, and login.
+	2
+	Public Access
+	Plot Marketplace
+	Lists published plots and allows visitors to search and filter available rental options.
+	3
+	Public Access
+	Plot Details
+	Displays plot information, compatible varieties, rental prices, availability, IoT readings, and weather.
+	4
+	Public Access
+	Book Site Visit
+	Provides a popup for visitors to enter contact information and select a visit date and session.
+	5
+	Authentication
+	Sign In Required
+	Prompts guests to register or log in before renting a plot.
+	6
+	Authentication
+	Register
+	Provides a form for visitors to create a customer account.
+	7
+	Authentication
+	Login
+	Authenticates users and redirects them to their role-specific dashboard or pending booking.
+	8
+	Authentication
+	Forgot Password
+	Allows users to request an email verification link and reset their password.
+	9
+	Account Management
+	Profile
+	Displays personal information and allows users to update their profile and password.
+	10
+	Account Management
+	Notification Center
+	Displays personal notifications and provides access to related records.
+	11
+	Customer Dashboard
+	Customer Dashboard
+	Displays contract summaries, cultivation progress, plot conditions, diary updates, and harvest information.
+	12
+	Plot Rental
+	Book Plot
+	Allows customers to select a compatible variety, rental dates, and cultivation mode.
+	13
+	Plot Rental
+	Reservation
+	Displays booking information, the price summary, and the remaining reservation time.
+	14
+	Plot Rental
+	Contract Payment
+	Allows customers to pay the full rental amount through mock payment.
+	15
+	Contract Management
+	Contract Details
+	Displays contract information and provides renewal and cancellation popups when eligible.
+	16
+	Contract Management
+	Contract History
+	Lists previous contracts and provides read-only access to completed rental records.
+	17
+	Expert Consultation
+	Pre-rental Consultation
+	Provides a chat popup for customers to consult an expert before renting a plot.
+	18
+	Cultivation Monitoring
+	Standard Process
+	Displays read-only cultivation stages, technical instructions..
+	19
+	Cultivation Monitoring
+	Farm Diary Timeline
+	Displays cultivation records and provides a new-entry popup for Self-growing customers.
+	20
+	Additional Services
+	Service Requests
+	Allows Self-growing customers to select additional services or a Temporary Full-care Month Pass.
+	21
+	Additional Services
+	Service Payment
+	Provides a popup for customers to review and pay the selected service charge.
+	22
+	Additional Services
+	Service Request Status
+	Displays a service request’s payment status, processing progress, and completion information.
+	23
+	Cultivation Monitoring
+	IoT Alerts
+	Displays plot alerts and provides a rapid-care request popup for Self-growing customers.
+	24
+	Communication
+	Expert Chat
+	Provides a popup for customers to exchange messages and photos with an agricultural expert.
+	25
+	Communication
+	AI Chatbot
+	Provides a popup for AI-assisted questions about cultivation knowledge and plant problems.
+	26
+	Harvest Management
+	Harvest Results
+	Displays harvest weight and evidence photos and provides a customer acceptance popup.
+	27
+	Administration
+	Admin Dashboard
+	Displays revenue, plot occupancy, pending assignments, overdue tasks, and operational alerts.
+	28
+	User Management
+	Users & RBAC
+	Lists user accounts and provides user details, role editing, and account access controls.
+	29
+	Land Management
+	Land Management
+	Lists land records and provides popups for adding or editing land information.
+	30
+	Plot Management
+	Plot & Marketplace Management
+	Lists plots and provides plot details, editing, IoT information, and publication controls.
+	31
+	Pricing Management
+	Rental Pricing
+	Displays rental rates and provides a popup for configuring rental and care charges.
+	32
+	Service Management
+	Service Catalog
+	Lists additional services and provides popups for adding or editing service information and prices.
+	33
+	Site Visit Management
+	Site Visit Bookings
+	Lists visit requests and provides their contact details, schedules, and handling status.
+	34
+	Contract Administration
+	Reservations & Contracts
+	Lists reservations and contracts and provides access to details and cancellation/refund handling.
+	35
+	Payment Monitoring
+	Payment Transactions
+	Lists payment transactions and provides their amounts, statuses, and related records.
+	36
+	Service Administration
+	Service Requests
+	Lists paid customer service requests and provides details for operational coordination.
+	37
+	Task Dispatch
+	Care Task Dispatch
+	Lists care tasks and provides task details and worker assignment or reassignment popups.
+	38
+	Alert Monitoring
+	IoT Alerts
+	Displays farm-wide alerts, invalid sensor warnings, and related operational details.
+	39
+	System Monitoring
+	Audit Log & Reports
+	Displays system activities, audit entry details, revenue reports, and plot occupancy statistics.
+	40
+	Expert Dashboard
+	Expert Dashboard
+	Displays consultation requests, technical issues, conversations, and activities concerning assigned plots.
+	41
+	Crop Management
+	Crops & Varieties
+	Allows experts to manage crop information and add or edit varieties.
+	42
+	Compatibility Management
+	Plot–Crop Compatibility
+	Displays plot suitability and provides a popup for configuring crop or variety compatibility.
+	43
+	Process Management
+	Standard Process & Versions
+	Displays process templates and versions, with access to template details and step
+	44
+	Threshold Management
+	IoT Stage Thresholds
+	Displays cultivation-stage thresholds and provides a popup for editing their values.
+	45
+	Knowledge Management
+	Knowledge Library
+	Lists technical documents and provides document details and an upload popup.
+	46
+	Expert Consultation
+	Pre-rental Consultation
+	Lists customer consultation requests and provides a popup for responding to customers.
+	47
+	Communication
+	Customer Conversations
+	Lists customer conversations and provides a customer chat popup.
+	48
+	Technical Support
+	Issue Reports
+	Displays reported issues and their details and provides a technical guidance popup.
+	49
+	Technical Support
+	Technical Interventions & Plan Revisions
+	Displays technical changes and provides a popup for proposing interventions for affected plots.
+	50
+	Communication
+	Field Worker Chat
+	Lists worker conversations and provides a popup for technical communication.
+	51
+	Worker Dashboard
+	Field Worker Dashboard
+	Displays today’s assigned tasks, overdue work, completed activities, and assignment notifications.
+	52
+	Task Execution
+	Assigned Care Tasks
+	Lists assigned tasks and provides instructions and popups for starting, recording photos, and completing work.
+	53
+	Field Reporting
+	Issue Reports
+	Lists the worker’s relevant issue reports and provides a popup for submitting a new report.
+	54
+	Harvest Recording
+	Harvest Tasks & Results
+	Displays assigned harvest activities and provides a popup for recording weight and evidence photos.
+	55
+	Communication
+	Chat with Expert
+	Provides a popup for workers to request technical advice and exchange messages or photos with experts.
+	
+
+3.1.3 Screen Authorization
+
+
+Screen
+	Guest
+	Customer
+	Administrator
+	Agricultural Expert
+	Field Worker
+	Landing Page
+	X
+	X
+	X
+	X
+	X
+	Plot Marketplace
+	X
+	X
+	X
+	X
+	X
+	Plot Details
+	X
+	X
+	X
+	X
+	X
+	Book Site Visit
+	X
+	X
+	—
+	—
+	—
+	Sign In Required
+	X
+	—
+	—
+	—
+	—
+	Register
+	X
+	—
+	—
+	—
+	—
+	Login
+	X
+	X
+	X
+	X
+	X
+	Forgot Password
+	X
+	X
+	X
+	X
+	X
+	Profile
+	—
+	X
+	X
+	X
+	X
+	Notification Center
+	—
+	X
+	X
+	X
+	X
+	Customer Dashboard
+	—
+	X
+	—
+	—
+	—
+	Book Plot
+	—
+	X
+	—
+	—
+	—
+	Reservation
+	—
+	X
+	—
+	—
+	—
+	Contract Payment
+	—
+	X
+	—
+	—
+	—
+	Contract Details — Customer
+	—
+	X
+	—
+	—
+	—
+	Contract History
+	—
+	X
+	—
+	—
+	—
+	Pre-rental Consultation — Customer
+	—
+	X
+	—
+	—
+	—
+	Standard Process — Customer
+	—
+	X
+	—
+	—
+	—
+	Farm Diary Timeline — Customer
+	—
+	X
+	—
+	—
+	—
+	Service Requests — Customer
+	—
+	X
+	—
+	—
+	—
+	Service Payment
+	—
+	X
+	—
+	—
+	—
+	Service Request Status
+	—
+	X
+	—
+	—
+	—
+	IoT Alerts — Customer
+	—
+	X
+	—
+	—
+	—
+	Expert Chat
+	—
+	X
+	—
+	—
+	—
+	AI Chatbot
+	—
+	X
+	—
+	—
+	—
+	Harvest Results — Customer
+	—
+	X
+	—
+	—
+	—
+	Admin Dashboard
+	—
+	—
+	X
+	—
+	—
+	Users & RBAC
+	—
+	—
+	X
+	—
+	—
+	Land Management
+	—
+	—
+	X
+	—
+	—
+	Plot & Marketplace Management
+	—
+	—
+	X
+	—
+	—
+	Rental Pricing
+	—
+	—
+	X
+	—
+	—
+	Service Catalog
+	—
+	—
+	X
+	—
+	—
+	Site Visit Bookings
+	—
+	—
+	X
+	—
+	—
+	Reservations & Contracts
+	—
+	—
+	X
+	—
+	—
+	Payment Transactions
+	—
+	—
+	X
+	—
+	—
+	Service Requests — Admin
+	—
+	—
+	X
+	—
+	—
+	Care Task Dispatch
+	—
+	—
+	X
+	—
+	—
+	IoT Alerts — Admin
+	—
+	—
+	X
+	—
+	—
+	Audit Log & Reports
+	—
+	—
+	X
+	—
+	—
+	Expert Dashboard
+	—
+	—
+	—
+	X
+	—
+	Crops & Varieties
+	—
+	—
+	—
+	X
+	—
+	Plot–Crop Compatibility
+	—
+	—
+	—
+	X
+	—
+	Standard Process & Versions
+	—
+	—
+	—
+	X
+	—
+	IoT Stage Thresholds
+	—
+	—
+	—
+	X
+	—
+	Knowledge Library
+	—
+	—
+	—
+	X
+	—
+	Pre-rental Consultation — Expert
+	—
+	—
+	—
+	X
+	—
+	Customer Conversations
+	—
+	—
+	—
+	X
+	—
+	Issue Reports — Expert
+	—
+	—
+	—
+	X
+	—
+	Technical Interventions & Plan Revisions
+	—
+	—
+	—
+	X
+	—
+	Field Worker Chat
+	—
+	—
+	—
+	X
+	—
+	Field Worker Dashboard
+	—
+	—
+	—
+	—
+	X
+	Assigned Care Tasks
+	—
+	—
+	—
+	—
+	X
+	Issue Reports — Worker
+	—
+	—
+	—
+	—
+	X
+	Harvest Tasks & Results
+	—
+	—
+	—
+	—
+	X
+	Chat with Expert
+	—
+	—
+	—
+	—
+	X
+	
+
+Role Legend:
+- Customer: Rents plots, participates in cultivation, and monitors progress remotely.
+- Agricultural Expert: Provides technical expertise, designs cultivation processes, and offers consultation.
+- Field Worker: Performs on-site cultivation and care activities.
+- Administrator: Manages the system and its administrative functions.
+3.1.4 Non-Screen Functions
+#
+	Feature
+	System Functions
+	Description
+	1
+	Authentication
+	Authentication and Access Control
+	Verifies credentials, account status, role permissions, and access to requested records.
+	2
+	Authentication
+	Password Reset Email
+	Generates a time-limited reset link and sends it to the registered email address.
+	3
+	Plot Rental
+	Booking Validation
+	Checks variety compatibility, minimum cultivation duration, plot availability, and conflicting rental schedules.
+	4
+	Plot Rental
+	Price Calculation
+	Calculates rental and care charges, additional service prices.
+	5
+	Plot Rental
+	Reservation Expiration
+	Releases unpaid reservations after 15 minutes, with a ten -minute grace period for PAYMENT_PENDING.
+	6
+	Payment
+	Mock Payment Processing
+	Records mock payment results and updates the related contract or service request without duplicate processing.
+	7
+	Contract Management
+	Contract Lifecycle Processing
+	Confirms paid contracts, activates them on the start date, and completes unrenewed contracts on the end date.
+	8
+	Contract Management
+	Renewal Processing
+	Validates the seven-day renewal deadline and availability, then creates a linked continuation contract.
+	9
+	Contract Management
+	Refund Calculation
+	Calculates an 80% or 50% refund before the start date according to the cancellation policy.
+	10
+	Plot Management
+	Maintenance Scheduling
+	Blocks the plot for four days after an unrenewed contract ends before reopening its availability.
+	11
+	Care Management
+	Automatic Task Generation
+	Generates care tasks from standard processes for Assisted-growing contracts and successfully paid care services.
+	12
+	IoT Monitoring
+	Sensor Simulation and Validation
+	Generates readings every three hours, filters invalid temperature values, and records administrator warnings.
+	13
+	Weather Integration
+	Weather Data Retrieval
+	Retrieves local forecasts and returns an unavailable status when the weather service cannot respond.
+	14
+	Alert Management
+	Alert Evaluation and Routing
+	Detects prolonged threshold breaches and routes alerts or emergency tasks according to cultivation mode and operating hours.
+	15
+	Care Management
+	Watering Task Postponement
+	Postpones watering when heavy rain is forecast or soil humidity reaches at least 80%.
+	16
+	Task Management
+	Overdue Task Detection
+	Marks unfinished tasks as overdue after 23:59 and notifies the administrator the following morning.
+	17
+	Task Management
+	Completion Validation and Diary Synchronization
+	Requires task evidence before completion and automatically adds completed care activities to the Farm Diary.
+	18
+	Technical Support
+	Intervention Application
+	Associates expert-issued technical interventions with affected plots and their operational activities.
+	19
+	Communication
+	Message Polling
+	Retrieves authorized customer–expert and worker–expert messages through five-second HTTP polling.
+	20
+	AI Assistance
+	Knowledge Indexing and Response Generation
+	Indexes expert documents, retrieves relevant knowledge, and generates chatbot answers without memory between sessions.
+	21
+	Notification
+	Notification Generation
+	Creates in-app notifications for payments, contracts, assignments, alerts, services, and harvest events.
+	22
+	File Management
+	Upload Validation
+	Validates uploaded attachments and enforces image limits of 5 MB per file and ten photos per task.
+	23
+	System Monitoring
+	Audit Logging
+	Records relevant user and system actions with their actor, timestamp, and affected record.
+	24
+	Reporting
+	Summary Aggregation
+	Calculates dashboard summaries and reports from data accessible to the requesting user.
+	3.1.5 Entity Relationship Diagram
+The Conceptual Entity Relationship Diagram of the Farmely ecosystem is standardized to encompass the entire closed-loop business lifecycle with 26 entities and 31 operational action relationships. The data architecture is clearly partitioned into 5 independent yet tightly integrated functional subsystems through operational actions across the farming lifecycle, from initial land plot leasing to final produce harvesting:
+  
+
+Figure 3.1.5-1: Overall Conceptual Entity Relationship Diagram - Farmely Platform
+Entities Description
+#
+	Entity
+	Description
+	1
+	User
+	System user account within the platform ecosystem, encompassing 4 primary roles: Land Renter (Customer), Agronomist (Expert), Field Technician (Technician), and System Administrator (Admin).
+	2
+	Role
+	User role within the system (RBAC) defining access permissions, user interface views, and functional authority.
+	3
+	Audit Log
+	Automated audit log capturing timestamp, action type, user identity, and affected entities for security monitoring and transparent auditability.
+	4
+	Notification
+	Real-time push notification automatically delivered to users based on system events (task reminders, contract updates, adverse weather alerts).
+	5
+	Conversation
+	Direct 1-on-1 communication channel between Customer and Agronomist (expert advice) or between Technician and Agronomist (field issue reporting).
+	6
+	Message
+	Individual message content (text and attached images, such as pest symptoms) exchanged within a conversation session.
+	7
+	Land
+	Master farm property managed by the platform operator, serving as the basis for zoning layout and plot subdivision.
+	8
+	Plot
+	Smallest independent cultivable land parcel available for lease, configured with geographic location, area, rental pricing per period, soil specifications, and availability status.
+	9
+	Site Visit
+	Field visit appointment scheduled by a prospective customer to survey land plots before finalizing a rental contract.
+	10
+	Sensor Reading
+	Time-series environmental data (ambient temperature, air humidity, soil moisture) periodically collected by IoT sensor stations deployed on each plot.
+	11
+	Crop
+	General agricultural plant category classification (leafy greens, fruit-bearing vegetables, root vegetables, medicinal herbs).
+	12
+	Variety
+	Specific plant variety under a crop category, storing standard expected cultivation duration and allowable buffer time before harvest.
+	13
+	Plot Variety Compatibility
+	Agronomic compatibility matrix between plots and crop varieties, determining which plant varieties can adapt and are permitted to be cultivated on a specific plot.
+	14
+	Process Template
+	Standard technical farming process template standards for each crop variety, compiled and versioned by agronomists.
+	15
+	Template Step
+	Sequential technical execution step scheduled by growth day offset within a process template (soil preparation, seeding, fertilization, irrigation, pest management).
+	16
+	Knowledge Document
+	Comprehensive agronomic guide and technical manual linked to crop varieties, providing detailed care instructions and technical reference for renters.
+	17
+	Contract
+	Master land lease agreement executed when a customer completes the rental procedure, establishing legal terms, duration, and contractual obligations.
+	18
+	Rental
+	Specific leased plot allocation activated under a contract, binding rental duration, cultivated variety, and selected service package (self-growing or full management).
+	19
+	Contract Cancellation
+	Formal contract cancellation request submitted by a customer prior to or during the rental period, recording cancellation reason and refund processing based on policy.
+	20
+	Service
+	Catalog of add-on agricultural utility service packages (automated irrigation, biological pest control, harvesting and preservation packaging).
+	21
+	Service Request
+	Ad-hoc on-demand service request created by a customer during plot rental, billed and paid separately prior to field execution.
+	22
+	Payment Transaction
+	Immutable financial payment transaction recording full contract payment or add-on service fee via electronic payment gateway for settlement and auditing.
+	23
+	Care Task
+	Specific field task assigned to a technician for outdoor execution, requiring proof photos upon task completion.
+	24
+	Farm Diary
+	Electronic farm diary entry recording visual crop growth progress, allowing customers to monitor farming milestones transparently on the application.
+	25
+	Harvest Result
+	Final harvest yield record upon seasonal completion, logging harvest date, actual produce yield weight, and quality grading inspection.
+	26
+	Issue Report
+	Abnormal field incident report (pest outbreak, waterlogging, equipment failure) filed by customers or technicians for agronomist diagnosis and resolution.
+	
+
+3.2 Account Management and Public Services
+3.2.1 Customer Registration (SCR-PUB-02)
+Screen ID: SCR-PUB-02
+Actor: Guest / Unauthenticated Visitor
+Function Trigger: An unauthenticated visitor clicks "Register" on the top navigation bar or selects "Sign up" on the login page. Routes to /register.
+Function Description: Enables prospective customers to register a personal account. Validates inputs, verifies identity uniqueness, creates a record in users with ROLE_CUSTOMER, and activates the account. Internal roles (Admin, Agricultural Expert, Field Staff) are provisioned directly by Administrators.
+Screen Layout
+Figure 3.2.1-1: Customer Registration Screen Mockup (SCR-PUB-02)
+  
+
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	Default Value
+	DB Mapping
+	1
+	Full Name
+	Text
+	Yes
+	2–100 characters. Trim whitespace
+	None
+	users.full_name
+	2
+	Email Address
+	Email
+	Yes
+	Valid RFC 5322 format, unique
+	None
+	users.email
+	3
+	Phone Number
+	Tel
+	Yes
+	10 digits starting with 0 (^0[0-9]{9}$), unique
+	None
+	users.phone_number
+	4
+	Password
+	Password
+	Yes
+	Min 8 chars, >= 1 uppercase, >= 1 lowercase, >= 1 digit
+	None
+	users.password_hash
+	5
+	Confirm Password
+	Password
+	Yes
+	Must match Password field value exactly
+	None
+	Client/Server only
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V1.1
+	Full Name
+	Required. 2 to 100 characters. Trim leading/trailing whitespace.
+	V1.2
+	Email Address
+	Required. Valid email regex (RFC 5322). Must not exist in users.email.
+	V1.3
+	Phone Number
+	Required. Must match regex ^0[0-9]{9}$ (10 digits starting with 0). Must not exist in users.phone_number.
+	V1.4
+	Password
+	Required. Minimum 8 characters with at least one uppercase, one lowercase, and one numeric character.
+	V1.5
+	Confirm Password
+	Required. Must match Password field value exactly.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M1.1
+	Duplicate email detected
+	"This email address is already registered."
+	Inline Error
+	M1.2
+	Duplicate phone detected
+	"This phone number is already registered."
+	Inline Error
+	M1.3
+	Password policy failed
+	"Password must contain at least 8 characters with uppercase, lowercase, and numbers."
+	Inline Error
+	M1.4
+	Passwords mismatch
+	"Passwords do not match."
+	Inline Error
+	M1.5
+	Registration complete
+	"Account created successfully. Please sign in."
+	Toast (Success)
+	Business Rules & Processing Logic:
+Main Operational Flow:
+* Visitor accesses /register via navigation link or login screen prompt.
+* System presents registration form.
+* Visitor submits Full Name, Email, Phone Number, Password, and Confirm Password.
+* System validates syntax and database uniqueness (V1.1 to V1.5).
+* Server hashes the password with bcrypt (work factor 12).
+* System inserts a new user record with role_id = 1 (ROLE_CUSTOMER) and status = 'ACTIVE'.
+* System displays success toast M1.5 and redirects to /login.
+Alternative / Exception Flow:
+* If validation fails or duplicate credentials exist, display corresponding inline error messages (M1.1–M1.4) without clearing valid inputs.
+Business Rules:
+* Passwords are encrypted server-side using bcrypt (work factor 12) before database insertion.
+* New accounts default to role_id = 1 (ROLE_CUSTOMER) and status = 'ACTIVE'.
+* Successful registration redirects the user to /login.
+3.2.2 User Login (SCR-PUB-03)
+Screen ID: SCR-PUB-03
+Actor: All System Users (Guest, Customer, Agricultural Expert, Field Staff, Administrator)
+Function Trigger: A user clicks "Log In" on the navigation bar or is redirected by a protected route guard. Routes to /login.
+Function Description: Authenticates user credentials across all system roles. Verifies the password hash, issues an HTTP-only JWT cookie, and routes to role-specific dashboards.
+Screen Layout
+Figure 3.2.2-1: User Login Screen Mockup (SCR-PUB-03)
+  
+
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	Default Value
+	Notes
+	1
+	Email Address
+	Email
+	Yes
+	Valid email format
+	None
+	Login identity (users.email)
+	2
+	Password
+	Password
+	Yes
+	Non-empty string
+	None
+	Checked against bcrypt hash
+	3
+	Remember Me
+	Checkbox
+	No
+	Boolean
+	False
+	Extends session validity from 2 hours to 14 days
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V2.1
+	Email Address
+	Required. Must be formatted as a valid email address.
+	V2.2
+	Password
+	Required. Non-empty string.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M2.1
+	Authentication failure
+	"Incorrect email or password."
+	Inline Error
+	M2.2
+	Inactive or suspended account
+	"Your account is deactivated. Please contact the administrator."
+	Modal Alert
+	M2.3
+	Login success
+	"Welcome back, {full_name}."
+	Toast (Success)
+	Business Rules & Processing Logic:
+Main Operational Flow:
+* User navigates to /login.
+* User inputs Email Address and Password, optionally selects Remember Me, and clicks "Log In".
+* System verifies non-empty input and checks credentials against users table via bcrypt verification.
+* System confirms account status == 'ACTIVE'.
+* System generates an HTTP-only JWT token with expiration (2h default, 14d with Remember Me).
+* System shows toast M2.3 and redirects based on user role:
+   * ROLE_CUSTOMER -> /customer/dashboard
+   * ROLE_EXPERT -> /expert/dashboard
+   * ROLE_STAFF -> /staff/dashboard
+   * ROLE_ADMIN -> /admin/dashboard
+Alternative / Exception Flow:
+* If email not found or password incorrect, return generic message M2.1 to prevent account enumeration.
+* If account is SUSPENDED or INACTIVE, display modal alert M2.2 and deny access.
+Business Rules:
+* Failed attempts return a generic message to prevent account enumeration.
+* Accounts marked SUSPENDED or INACTIVE cannot authenticate.
+* Role redirection: ROLE_CUSTOMER -> /customer/dashboard, ROLE_EXPERT -> /expert/dashboard, ROLE_STAFF -> /staff/dashboard, ROLE_ADMIN -> /admin/dashboard.
+3.2.3 On-Site Inspection Booking (SCR-PUB-05)
+Screen ID: SCR-PUB-05
+Actor: Guest / Unauthenticated Visitor, Authenticated Customer
+Function Trigger: An unauthenticated visitor or customer clicks "Book Farm Tour" on the marketplace or plot details view. Routes to /site-visit/book.
+Function Description: Captures pre-lease marketing leads by allowing visitors to schedule physical plot visits. If authenticated, customer_id is linked automatically; otherwise, guest contact details are stored for staff dispatch.
+Screen Layout
+Figure 3.2.3-1: On-Site Inspection Booking Screen Mockup (SCR-PUB-05)
+  
+
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	Default Value
+	DB Mapping
+	1
+	Visitor Name
+	Text
+	Yes
+	2–100 characters
+	Logged user name
+	site_visits.guest_name
+	2
+	Phone Number
+	Tel
+	Yes
+	10 digits starting with 0
+	Logged user phone
+	site_visits.guest_phone
+	3
+	Email Address
+	Email
+	No
+	Valid email syntax
+	Logged user email
+	site_visits.guest_email
+	4
+	Selected Plot
+	Dropdown
+	Yes
+	Active plot ID
+	Pre-selected
+	site_visits.plot_id
+	5
+	Visit Date
+	Date
+	Yes
+	Current date + 1d to + 30d (>= 24h advance)
+	Tomorrow
+	site_visits.visit_date
+	6
+	Time Slot
+	Radio
+	Yes
+	MORNING or AFTERNOON
+	MORNING
+	site_visits.time_slot
+	7
+	Group Size
+	Number
+	Yes
+	1 to 5 persons
+	1
+	site_visits.number_of_visitors
+	8
+	Visitor Notes
+	Textarea
+	No
+	Max 500 characters
+	Empty
+	site_visits.note
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V3.1
+	Phone Number
+	Required. Must conform to Vietnamese format: ^0[0-9]{9}$.
+	V3.2
+	Visit Date
+	Required. Must be at least 24 hours in advance (up to +30 days).
+	V3.3
+	Group Size
+	Required. Integer between 1 and 5 persons.
+	V3.4
+	Visitor Notes
+	Optional. Maximum 500 characters.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M3.1
+	Past or < 24h date selected
+	"Inspection dates must be scheduled at least 24 hours in advance."
+	Inline Error
+	M3.2
+	Booking confirmed
+	"Inspection scheduled. Farm staff will confirm your booking within 2 hours."
+	Modal (Success)
+	Business Rules & Processing Logic:
+Main Operational Flow:
+* Visitor or customer clicks "Book Farm Tour" on marketplace or plot details view.
+* System routes to /site-visit/book. If user is logged in, auto-fills Name, Phone, and Email.
+* User selects Plot, Visit Date, Time Slot (Morning/Afternoon), Group Size (1–5), enters optional Notes, and submits form.
+* System validates inputs (V3.1–V3.4).
+* System stores record in site_visits with customer_id (logged-in ID or NULL) and status = 'PENDING_CONFIRMATION'.
+* System displays success modal M3.2.
+Alternative / Exception Flow:
+* If date is within 24 hours or in the past, show inline error M3.1 and prevent submission.
+Business Rules (BR06):
+* If unauthenticated, customer_id is stored as NULL.
+* Operating tour sessions: Morning (08:30–10:30) and Afternoon (14:30–16:30).
+* Booking status initializes to PENDING_CONFIRMATION.
+* Farm visit is optional and not a prerequisite for renting a plot.
+3.3 Marketplace and Lease Contracts
+3.3.1 Marketplace Plot Directory (SCR-Customer-02)
+Screen ID: SCR-Customer-02
+Actor: Guest / Unauthenticated Visitor, Authenticated Customer
+Function Trigger: A user clicks "Marketplace" on the main navigation bar. Routes to /marketplace.
+Function Description: Displays all plots with status = 'AVAILABLE'. Users can filter by sector, area, price range, and compatible crop types.
+Screen Layout
+Figure 3.3.1-1: Marketplace Plot Directory Screen Mockup (SCR-Customer-02)
+  
+
+Function Details
+Filter Controls:
+#
+	Filter Control
+	Control Type
+	Options / Constraints
+	Default Value
+	Notes
+	1
+	Sector
+	Dropdown
+	Active sectors from lands
+	All Sectors
+	Filter plots by geographic sector
+	2
+	Plot Area
+	Dropdown
+	< 25m2, 25–50m2, > 50m2
+	All Areas
+	Filter by plot surface area
+	3
+	Compatible Crop
+	Dropdown
+	Active records from crops
+	All Crops
+	Filter by certified plantable crops
+	4
+	Price Ceiling
+	Dropdown
+	< 1.5M, 1.5M–3M, > 3M VND
+	All Prices
+	Filter by monthly lease rate
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V4.1
+	Filter Values
+	Parameters must match system enum keys. Invalid parameters are ignored.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M4.1
+	No results found
+	"No available plots match your criteria. Try adjusting your filters."
+	Content Block
+	Business Rules & Processing Logic:
+Main Operational Flow:
+* User navigates to /marketplace.
+* System queries plots where status = 'AVAILABLE' and is_published = TRUE.
+* User selects one or more filters (Sector, Area, Crop, Price).
+* System re-filters the plot list dynamically without page reload.
+* User selects a plot to view details or proceed to agreement.
+Alternative / Exception Flow:
+* If no plots match the filter criteria, show message M4.1.
+Business Rules (BR02, BR07, BR21):
+* Only plots where status = 'AVAILABLE' and is_published = TRUE are returned.
+* Plots undergoing 4-day soil fallow (status = 'MAINTENANCE') are strictly excluded from marketplace listing.
+3.3.2 Master Lease Agreement Configuration (SCR-Customer-04)
+Screen ID: SCR-Customer-04
+Actor: Authenticated Customer
+Function Trigger: An authenticated customer selects one or more plots from the marketplace and clicks "Proceed to Agreement". Routes to /contracts/create.
+Function Description: Configures a Master Lease Agreement across multiple plots. For each plot, the user selects a certified crop variety and cultivation mode. Checks duration bounds, applies a 15-minute reservation lock, and totals upfront fees.
+Screen Layout
+Figure 3.3.2-1: Master Lease Agreement Configuration Mockup (SCR-Customer-04)
+  
+
+  
+
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	Default Value
+	DB Mapping
+	1
+	Leased Plots
+	Multi-select
+	Yes
+	Minimum 1 plot in AVAILABLE state
+	Selected plots
+	contract_plots.plot_id
+	2
+	Start Date
+	Date
+	Yes
+	>= Today + 3 days (prep buffer)
+	Today + 10d
+	contracts.start_date
+	3
+	End Date
+	Date
+	Yes
+	>= Start Date + maturity duration + buffer
+	Computed
+	contracts.end_date
+	4
+	Variety per Plot
+	Dropdown
+	Yes
+	Must exist in plot_crop_compatibility
+	None
+	contract_plots.variety_id
+	5
+	Cultivation Mode
+	Radio
+	Yes
+	SELF_GROWING or ASSISTED_GROWING
+	SELF_GROWING
+	contract_plots.cultivation_mode
+	6
+	Service Package
+	Dropdown
+	Conditional
+	Required if mode is ASSISTED_GROWING
+	Standard Care
+	contract_plots.service_id
+	7
+	Terms Acceptance
+	Checkbox
+	Yes
+	Must be checked
+	False
+	System gate
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V5.1
+	Compatibility
+	Variety must exist in plot_crop_compatibility for that specific plot.
+	V5.2
+	Lease Duration
+	Must satisfy: (end_date - start_date) >= (varieties.expected_duration + varieties.buffer_time).
+	V5.3
+	Overlap Check
+	Target plots must have no active leases or unexpired reservations in the requested window.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M5.1
+	Duration too short
+	"Lease period must be at least {days} days for {variety_name}."
+	Inline Error
+	M5.2
+	Collision lock
+	"Plot {plot_code} was just reserved by another customer. Please choose an alternate plot."
+	Modal Alert
+	M5.3
+	Lock confirmed
+	"Plots held for 15 minutes. Proceeding to checkout."
+	Toast (Info)
+	Business Rules & Processing Logic:
+Main Operational Flow:
+* Customer selects plots and configures variety, cultivation mode, and dates for each plot.
+* Customer checks Terms Acceptance and clicks "Submit Agreement".
+* System validates constraints V5.1–V5.3.
+* System creates agreement in contracts and line items in contract_plots.
+* Plots are placed in status = 'RESERVED' with 15-minute lock expiration.
+* System shows toast M5.3 and redirects to /checkout/{contractId}.
+Alternative / Exception Flow:
+* If any plot was reserved by another user in the interim, display collision alert M5.2.
+Business Rules (BR03, BR04, BR05, BR08, BR09):
+* A single agreement (contracts) covers multiple physical plots via contract_plots.
+* Customer signs once and pays once for the combined balance.
+* Plots enter RESERVED status for 15 minutes.
+* Baseline seeds and potting soil are bundled into lease rates;3.3.3 Contract Payment and Grace Period Processing (SCR-Customer-05)
+Screen ID: SCR-Customer-05
+Actor: Authenticated Customer
+Function Trigger: Arrives automatically from SCR-Customer-04 upon contract submission. Routes to /checkout/{contractId}.
+Function Description: Collects the 100% upfront lease balance through the payment gateway. Adds a 15-minute Grace Period extension to the reservation timer when checkout loads.
+Screen Layout
+Figure 3.3.3-1: Contract Payment Screen Mockup (SCR-Customer-05)
+  
+
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	DB Mapping
+	1
+	Contract ID
+	Integer
+	Yes
+	Valid contract reference
+	contracts.contract_id
+	2
+	Total Payable
+	Decimal
+	Yes
+	Extracted from contract total
+	contracts.total_price
+	3
+	Payment Method
+	Radio
+	Yes
+	VIETQR, CARD, MOCK_BANKING
+	Stored in payment transaction
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V6.1
+	Channel Selection
+	Must select an active payment gateway channel.
+	V6.2
+	Active Window
+	Payment confirmation must occur before the grace countdown expires.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M6.1
+	Timer expired
+	"Reservation window expired. Plots have been released."
+	Modal Alert
+	M6.2
+	Payment successful
+	"Payment confirmed. Contract is active."
+	Toast (Success)
+	Business Rules & Processing Logic:
+Main Operational Flow:
+* On page load, contracts.status becomes PAYMENT_PENDING, extending reservation timer by 10 minutes (Grace Period).
+* Customer selects payment method and executes payment.
+* Payment gateway returns success callback.
+* System creates record in payment_transactions, sets contracts.status = 'CONFIRMED', and moves plots to RENTED.
+* On contracts.start_date, status automatically switches to ACTIVE.
+* System displays toast M6.2 and redirects to Customer Dashboard.
+Alternative / Exception Flow:
+* If timer expires before payment, plots revert to AVAILABLE and contract is marked CANCELLED (M6.1).
+Business Rules (BR08, BR09):
+* 100% upfront payment required; no deposit. 10-minute grace period applies once per reservation.
+3.3.4 Contract Renewal (SCR-Customer-15)
+Screen ID: SCR-Customer-15
+Actor: Authenticated Customer (Tenant)
+Function Trigger: A tenant clicks "Renew Contract" on an active lease at least 3 days before expiry. Routes to /contracts/{contractId}/renew.
+Function Description: Extends the lease tenure on current plots without resetting soil history or diary feeds. Generates a linked successor contract via parent_contract_id.
+Screen Layout
+Figure 3.3.4-1: Contract Renewal Screen Mockup (SCR-Customer-15)
+  
+
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	DB Mapping
+	1
+	Contract ID
+	Integer
+	Yes
+	Active contract reference
+	contracts.contract_id
+	2
+	Extension Term
+	Dropdown
+	Yes
+	1, 2, or 3 months
+	Configuration input
+	3
+	New End Date
+	Date
+	Yes
+	current_end_date + Extension Term
+	contracts.end_date
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V7.1
+	Advance Notice
+	Must be submitted at least 3 days before contracts.end_date.
+	V7.2
+	Availability
+	Current plots must have no forward bookings in the extended period.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M7.1
+	Deadline missed
+	"Renewals must be requested at least 3 days before lease expiration."
+	Inline Error
+	M7.2
+	Plot conflict
+	"Cannot renew: this plot has a future booking scheduled."
+	Modal Alert
+	Business Rules & Processing Logic:
+Main Operational Flow:
+* Tenant navigates to renewal screen >= 3 days before expiry.
+* Tenant selects Extension Term (1, 2, or 3 months) and submits.
+* System checks future plot reservations (V7.2).
+* System creates successor contract with parent_contract_id = original_contract.contract_id.
+* Successor contract enters payment checkout flow.
+Business Rules (BR11b):
+* The current contract remains ACTIVE until expiry, then transitions to RENEWED while the successor activates.
+3.3.5 Lease Cancellation and Refund Audit (SCR-Customer-16)
+Screen ID: SCR-Customer-16
+Actor: Authenticated Customer (Tenant)
+Function Trigger: A tenant clicks "Cancel Contract" on an active or confirmed lease. Routes to /contracts/{contractId}/cancel.
+Function Description: Processes lease termination requests. Calculates refund deductions based on advance notice, logs the request in cancellation_requests, and queues it for admin approval.Upon submission, the contract is cancelled, the plot immediately transitions to a 4-day soil maintenance period (BR23), and the refund request is queued for financial disbursemen
+
+
+Screen Layout
+Figure 3.3.5-1: Lease Cancellation Screen Mockup (SCR-Customer-16)
+  
+
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	DB Mapping
+	1
+	Contract ID
+	Integer
+	Yes
+	Valid contract reference
+	cancellation_requests.contract_id
+	2
+	Cancellation Reason
+	Textarea
+	Yes
+	10 to 500 characters
+	cancellation_requests.reason
+	3
+	Deduction Rate
+	Percent
+	Auto
+	20%, 50%, or 100%
+	cancellation_requests.deduction_rate
+	4
+	Refund Amount
+	Currency
+	Auto
+	total_price * (1 - deduction_rate)
+	cancellation_requests.refund_amount
+	5
+	Bank Details
+	Text
+	Yes
+	Bank name, account number, account holder
+	Stored in refund record
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V8.1
+	Cancellation Reason
+	Must not be empty. Minimum length 10 characters.
+	V8.2
+	Bank Details
+	Must provide complete account information.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M8.1
+	Reason too short
+	"Please provide a reason of at least 10 characters."
+	Inline Error
+	M8.2
+	Ticket created
+	"Cancellation request submitted for administrative review."
+	Modal (Success)
+	Business Rules & Processing Logic:
+Main Operational Flow:
+* Tenant opens cancellation form, reviews calculated deduction rate and refund amount.
+* Tenant enters reason (>= 10 chars) and bank disbursement details, then submits.
+* System validates inputs (V8.1, V8.2) and logs record in cancellation_requests.
+* System displays confirmation modal M8.2 and alerts Administrator.
+* Upon Admin approval, refund transaction is logged in payment_transactions, contract is terminated, and plots enter 4-day soil maintenance.
+Business Rules (BR10):
+* Notice >= 3 days before start: 20% penalty deduction, 80% refund.
+* Notice < 3 days before start: 50% penalty deduction, 50% refund.
+* Notice on or after start date: 100% deduction, 0% refund.
+* Terminated plots transition to 4-day maintenance before reopening.
+3.4 Agronomy Processes and Cultivation Tracking
+3.4.1 Standard Process Template Formulation (SCR-Agricultural Expert-04)
+Screen ID: SCR-Agricultural Expert-04
+Actor: Agricultural Expert
+Function Trigger: An Agricultural Expert clicks "Create Template" in the agronomy section. Routes to /expert/process-templates/new.
+Function Description: Enables specialists to publish standardized agronomy workflows (process_templates and template_steps) for each vegetable variety. Defines day offsets, care tasks (irrigation, feeding, pruning), and safe temperature/moisture boundaries.
+Screen Layout
+Figure 3.4.1-1: Standard Process Template Formulation Mockup (SCR-Agricultural Expert-04)
+  
+
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	DB Mapping
+	1
+	Target Variety
+	Dropdown
+	Yes
+	Active record from varieties
+	process_templates.variety_id
+	2
+	Version Code
+	Text
+	Yes
+	Semantic format (e.g., v2.0)
+	process_templates.version
+	3
+	Safe Temp Range
+	Number
+	Yes
+	min_temp < max_temp
+	process_templates.min_temp, max_temp
+	4
+	Safe Moisture Range
+	Number
+	Yes
+	min_hum < max_hum
+	process_templates.min_humidity, max_humidity
+	5
+	Step Offset
+	Integer
+	Yes
+	Days from start (>= 0)
+	template_steps.day_offset
+	6
+	Task Category
+	Dropdown
+	Yes
+	WATERING, FERTILIZING, PEST_CONTROL, HARVESTING
+	template_steps.task_type
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V9.1
+	Temperature Bounds
+	Minimum temperature must be strictly lower than maximum temperature.
+	V9.2
+	Step Sequence
+	At least 1 care step must be defined before publishing.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M9.1
+	Invalid threshold
+	"Minimum threshold must be lower than maximum threshold."
+	Inline Error
+	M9.2
+	Template published
+	"Standard process template published successfully."
+	Toast (Success)
+	Business Rules & Processing Logic:
+Main Operational Flow:
+* Specialist inputs variety, version code, environmental thresholds, and step milestones, then clicks "Publish Template". System validates V9.1–V9.2 and saves template.
+Business Rules (BR12, BR12b):
+* Templates are standardized per variety and apply uniformly across Assisted-growing contracts. Self-growing tenants view these steps as an optional reference.
+3.4.2 Cultivation Progress Monitoring (SCR-Customer-07)
+Screen ID: SCR-Customer-07
+Actor: Authenticated Customer, Agricultural Expert
+Function Trigger: A customer opens an active plot from their garden dashboard. Routes to /customer/plots/{contractPlotId}/progress.
+Function Description: Displays the plot's growth roadmap. Assisted-growing tenants see upcoming, in-progress, and completed field tasks along with worker photo proof. Self-growing tenants see the recommended milestone roadmap.
+Screen Layout
+Figure 3.4.2-1: Cultivation Progress Monitoring Mockup (SCR-Customer-07)
+  
+
+  
+
+Function Details
+Display Elements:
+#
+	Display Element
+	Control Type
+	Description / Constraints
+	Notes
+	1
+	Cycle Day Counter
+	Text
+	Days elapsed vs. expected duration
+	Tracking growth progress
+	2
+	Progress Bar
+	Graphic
+	Percent of completed cultivation steps
+	Visual milestone status
+	3
+	Task Milestone Cards
+	List
+	Card list showing step status and attached photos
+	Interactive task breakdown
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V10.1
+	Tenancy Check
+	User must be the verified contract owner or an authorized specialist.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M10.1
+	Unauthorized access
+	"You do not have permission to view this plot."
+	Alert Modal
+	Business Rules & Processing Logic:
+Business Rules (BR12, BR15):
+* For Assisted plots, clicking a completed task opens the high-resolution photo proof submitted by field staff. For Self-growing plots, milestones are marked as informational guidance; tasks do not require sign-off.
+3.5 Field Operations and Task Execution
+3.5.1 Daily Task Execution and Verification (SCR-Field Worker-01 & SCR-Field Worker-04)
+Screen ID: SCR-Field Worker-01 & SCR-Field Worker-04
+Actor: Field Worker
+Function Trigger: A field worker logs in on a mobile browser at /staff/tasks.
+Function Description: Displays daily assignments organized by priority (IoT alerts first, routine care second) and sector. Workers start tasks, review instructions, take on-site photos, and confirm completion.
+Screen Layout
+Figure 3.5.1-1: Daily Task Execution Screen Mockup (SCR-Field Worker-01)
+  
+
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	DB Mapping
+	1
+	Task ID
+	Integer
+	Auto
+	Active record in care_tasks
+	care_tasks.task_id
+	2
+	Task Status
+	Status
+	Yes
+	IN_PROGRESS, COMPLETED
+	care_tasks.status
+	3
+	Verification Photo
+	File/URL
+	Yes
+	Image capture from plot
+	care_tasks.photo_urls
+	4
+	Worker Field Notes
+	Textarea
+	No
+	Max 500 characters
+	care_tasks.notes
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V11.1
+	Evidence Photo
+	At least one photo is required before setting status to COMPLETED.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M11.1
+	Missing photo proof
+	"Upload at least one on-site photo before completing this task."
+	Inline Error
+	M11.2
+	Task completed
+	"Task marked complete. Farm diary synced."
+	Toast (Success)
+	Business Rules & Processing Logic:
+Main Operational Flow:
+* Worker selects task, moves to IN_PROGRESS, executes physical care, uploads evidence photo, and marks COMPLETED.
+Business Rules (BR13, BR14, BR15):
+* Workers must move tasks to IN_PROGRESS before completing them. Marking a task COMPLETED requires uploading at least one photo. No material inventory tracking is required. Tasks remaining unfinished by 23:59 are flagged as OVERDUE by a nightly job, alerting the Administrator.
+3.5.2 Field Issue Reporting (SCR-Field Worker-05)
+Screen ID: SCR-Field Worker-05
+Actor: Field Worker
+Function Trigger: A field worker clicks "Report Problem" on an active task or plot overview. Routes to /staff/issues/create.
+Function Description: Allows workers to report pests, disease, or equipment issues. The ticket routes directly to the assigned Agricultural Expert for technical guidance.
+Screen Layout
+Figure 3.5.2-1: Field Issue Reporting Screen Mockup (SCR-Field Worker-05)
+  
+
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	DB Mapping
+	1
+	Plot Code
+	Dropdown
+	Yes
+	Active plot ID
+	issue_reports.plot_id
+	2
+	Issue Type
+	Dropdown
+	Yes
+	PEST, DISEASE, IRRIGATION_FAULT, OTHER
+	issue_reports.issue_type
+	3
+	Description
+	Textarea
+	Yes
+	10 to 1000 characters
+	issue_reports.description
+	4
+	Anomaly Photo
+	File/URL
+	Yes
+	Image file (max 5MB)
+	issue_reports.photo_url
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V12.1
+	Description
+	Required. Minimum length 10 characters.
+	V12.2
+	Anomaly Photo
+	Required image file.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M12.1
+	Ticket dispatched
+	"Issue report submitted to Agricultural Expert."
+	Toast (Success)
+	Business Rules & Processing Logic:
+Business Rules (BR23):
+* Issue tickets route directly between field staff and specialists; customers are not involved in internal operational handoffs.
+3.6 Microclimate Telemetry and Monitoring
+3.6.1 Live Plot Telemetry and Trend Analysis (SCR-Customer-10)
+Screen ID: SCR-Customer-10Self-growing customers may follow the expert's standard process or apply their own customized routine for reference without requiring approval from an Agricultural Expert.
+
+
+Actor: Authenticated Customer
+Function Trigger: A customer clicks "Sensors" on their plot dashboard. Routes to /customer/plots/{plotId}/telemetry.
+Function Description: Displays near-real-time sensor readings (air temperature, humidity, soil moisture) alongside safe agronomic thresholds and 24-hour historical trend charts.
+Screen Layout
+Figure 3.6.1-1: Live Plot Telemetry and Trend Analysis Mockup (SCR-Customer-10)
+  
+
+  
+
+Function Details
+Sensor Telemetry Fields:
+#
+	Telemetry Metric
+	Display Type
+	Measurement Unit
+	DB Mapping
+	1
+	Soil Moisture
+	Gauge / Line Chart
+	Percent (%)
+	sensor_readings.soil_moisture
+	2
+	Ambient Air Temp
+	Gauge / Line Chart
+	Celsius (°C)
+	sensor_readings.temperature
+	3
+	Air Humidity
+	Gauge / Line Chart
+	Percent (%)
+	sensor_readings.humidity
+	4
+	Timestamp
+	Date/Time
+	UTC+7
+	sensor_readings.recorded_at
+	Validation Rules:
+Rule ID
+	Metric Name
+	Validation Rule
+	V13.1
+	Telemetry Integrity
+	Ingestion drops anomalous values (e.g., temp < 0°C or > 60°C).
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M13.1
+	Critical moisture alert
+	"Soil moisture is critically low. Staff intervention required."
+	Toast Alert
+	Business Rules & Processing Logic:
+Business Rules (BR02, BR16):
+* Telemetry is linked directly to the physical plot (plots.plot_id), independent of tenant lease history.
+* If soil moisture exceeds 80% or heavy rain is forecast, scheduled watering tasks are automatically paused.
+* If soil moisture stays critically low for over 30 minutes:
+   * For Assisted plots: System creates an Emergency Care Task for on-duty staff.
+   * For Self-growing plots: An alert notification is sent to the customer with an on-demand care service button.
+3.7 Farm Diary and Produce Harvesting
+3.7.1 Automated Farm Diary Feed (SCR-Customer-08)
+Screen ID: SCR-Customer-08
+Actor: Authenticated Customer
+Function Trigger: A customer opens the "Farm Diary" tab on their garden dashboard. Routes to /customer/plots/{plotId}/diary.
+Function Description: Presents a chronological growth journal. For Assisted-growing plots, the diary updates automatically with photos and notes whenever staff complete a care task. Self-growing tenants create manual entries using form SCR-Customer-09.
+Screen Layout
+Figure 3.7.1-1: Farm Diary Feed Mockup (SCR-Customer-08)
+  
+
+Function Details
+Feed Item Descriptions:
+#
+	Feed Item
+	Control Type
+	Description
+	DB Mapping
+	1
+	Entry Title
+	Text
+	Title of care activity or manual post
+	farm_diaries.title
+	2
+	Activity Notes
+	Textarea
+	Detailed observations or worker notes
+	farm_diaries.content
+	3
+	Evidence Image
+	Image/URL
+	On-site photo uploaded by staff or tenant
+	farm_diaries.photo_urls
+	4
+	Logged At
+	Timestamp
+	Date and time entry was created
+	farm_diaries.created_at
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V14.1
+	Post Integrity
+	Manual posts by self-growers require a title and at least one image.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M14.1
+	Post published
+	"Diary entry added to your garden timeline."
+	Toast (Success)
+	Business Rules & Processing Logic:
+Business Rules (BR15):
+* Marking a task COMPLETED automatically creates a corresponding post in farm_diaries with the worker's photos. Field staff do not write diary entries manually.
+3.7.2 Field Harvest Logging and Customer Inspection (SCR-Field Worker-07 & SCR-Customer-14)
+Screen ID: SCR-Field Worker-07 & SCR-Customer-14
+Actor: Field Worker, Authenticated Customer
+Function Trigger: Worker clicks "Record Harvest" at /staff/harvest/{plotId}; Customer clicks "Inspect Harvest" from an alert link at /customer/harvest/{harvestId}.
+Function Description: Records the final vegetable harvest. The worker weighs produce on a digital scale, photographs the display, and submits weight under their staff ID. Customer reviews evidence, approves yield, and selects delivery method.
+Screen Layout
+Figure 3.7.2-1: Harvest Logging and Inspection Mockup (SCR-Field Worker-07 & SCR-Customer-14)
+Customer:
+  
+  
+  
+(Screen layout placeholder - To be inserted from design)
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	DB Mapping
+	1
+	Measured Weight
+	Decimal
+	Yes
+	Positive decimal > 0.00 kg
+	harvest_results.actual_yield
+	2
+	Staff Member
+	Integer
+	Yes
+	Auto-bound to logged-in user
+	harvest_results.staff_id
+	3
+	Scale Photo
+	File/URL
+	Yes
+	Image of digital scale readout
+	harvest_results.photo_url
+	4
+	Delivery Method
+	Radio
+	Yes
+	FARM_PICKUP or HOME_DELIVERY
+	harvest_results.delivery_option
+	5
+	Tenant Approval
+	Boolean
+	Yes
+	Checked upon client sign-off
+	harvest_results.customer_confirmed
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V15.1
+	Measured Weight
+	Must be a positive decimal greater than 0.00 kg.
+	V15.2
+	Scale Photo
+	Photo file must clearly show the weight display on the scale.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M15.1
+	Yield submitted
+	"Harvest weight logged. Notification dispatched to customer."
+	Toast (Success)
+	M15.2
+	Yield approved
+	"Harvest approved. Prepare for pickup or delivery."
+	Toast (Success)
+	Business Rules & Processing Logic:
+Business Rules (BR18, BR19, BR20, BR21):
+* Every harvest record must store staff_id of the worker who weighed the batch.
+* Once accepted and the lease term ends, the plot automatically enters status = 'MAINTENANCE' for a fixed 4-day soil turnaround before reopening as AVAILABLE.
+3.8 Advisory and System Communication
+3.8.1 Specialist Advisory Chat (SCR-Customer-12 / SCR-Agricultural Expert-09)
+Screen ID: SCR-Customer-12 / SCR-Agricultural Expert-09
+Actor: Customer, Agricultural Expert
+Function Trigger: A tenant clicks "Consult Specialist" from their garden view. Routes to /customer/messages/expert/{contractId}.
+Function Description: Enables 1-on-1 messaging between the customer and their assigned Agricultural Expert. Customers can ask questions and attach plant photos. Specialists reference plot telemetry to provide guidance.
+Screen Layout
+Figure 3.8.1-1: Specialist Advisory Chat Mockup (SCR-Customer-12 / SCR-Agricultural Expert-09)
+(Screen layout placeholder - To be inserted from design)
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	DB Mapping
+	1
+	Message Body
+	Textarea
+	Yes
+	1 to 2000 characters
+	messages.content
+	2
+	Image Attachment
+	File/URL
+	No
+	Image file (max 5MB)
+	messages.attachment_url
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V16.1
+	Message Body
+	Must not be empty.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M16.1
+	Message delivered
+	"Message sent to Agricultural Expert."
+	Chat Bubble
+	Business Rules & Processing Logic:
+Business Rules (BR23):
+* Direct messaging between customers and field workers is blocked to avoid conflicting operational instructions on the farm.
+3.8.2 Informational AI Farming Assistant (SCR-Customer-13)
+Screen ID: SCR-Customer-13
+Actor: All System Users (Guest, Customer, Public)
+Function Trigger: A user clicks the floating "AI Assistant" button in the bottom-right corner.
+Function Description: Provides 24/7 answers to general farming questions using Retrieval-Augmented Generation (RAG) over the platform's knowledge base (knowledge_documents).
+Screen Layout
+Figure 3.8.2-1: Informational AI Assistant Mockup (SCR-Customer-13)
+(Screen layout placeholder - To be inserted from design)
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	Notes
+	1
+	Inquiry Prompt
+	Text
+	Yes
+	3 to 500 characters
+	Question input
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V17.1
+	Prompt Length
+	Question must be between 3 and 500 characters.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M17.1
+	Disclaimer note
+	"AI answers are for informational reference only. Consult your specialist for active crop disease."
+	System Footer
+	Business Rules & Processing Logic:
+Business Rules (BR17):
+* The AI serves strictly as an informational reference. It does not issue binding farm orders, adjust contracts, or diagnose critical crop diseases. Responses include a reminder to contact a farm specialist for active field problems.
+3.9 System Administration and Master Catalogs
+3.9.1 Master Services Catalog Management (SCR-Administrator-06)
+Screen ID: SCR-Administrator-06
+Actor: Administrator
+Function Trigger: An Administrator selects "Services Master" from the admin sidebar. Routes to /admin/services.
+Function Description: Maintains the list of available services (services), including à-la-carte tasks and temporary 30-day care packages for Self-growing tenants.
+Screen Layout
+Figure 3.9.1-1: Master Services Catalog Management Mockup (SCR-Administrator-06)
+(Screen layout placeholder - To be inserted from design)
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	DB Mapping
+	1
+	Service Code
+	Text
+	Yes
+	Unique alphanumeric code
+	services.service_code
+	2
+	Service Name
+	Text
+	Yes
+	2 to 100 characters
+	services.service_name
+	3
+	Service Type
+	Dropdown
+	Yes
+	A_LA_CARTE, TEMPORARY_FULL_CARE
+	services.service_type
+	4
+	Base Price
+	Currency
+	Yes
+	Positive decimal >= 0 VND
+	services.base_price
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V18.1
+	Service Code
+	Must be unique across active service definitions.
+	V18.2
+	Price Constraint
+	Price must be zero or a positive decimal.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M18.1
+	Duplicate code
+	"Service code already exists."
+	Inline Error
+	M18.2
+	Service saved
+	"Service catalog updated successfully."
+	Toast (Success)
+	Business Rules & Processing Logic:
+Business Rules (BR25):
+* À-la-carte: Purchasing a single service creates one scheduled care_tasks record for the plot.
+* 30-Day Care Package: Price formula: Package Rate = Standard Monthly Care Rate * 1.2 (the 20% surcharge covers short-term staff scheduling). The system queries active template_steps within the 30-day window and generates matching care tasks. When 30 days elapse, the plot returns to self-growing mode automatically.
+3.9.2 Plot Inventory & Fallow Governance (SCR-Administrator-03 & SCR-Administrator-04)
+Screen ID: SCR-Administrator-03 & SCR-Administrator-04
+Actor: Administrator
+Function Trigger: An Administrator clicks "Plot Management" on the admin dashboard. Routes to /admin/plots.
+Function Description: Manages farm sectors (lands) and plot subdivisions (plots), including plot dimensions, base rates, IoT sensor bindings, and certified crop pairings.
+Screen Layout
+Figure 3.9.2-1: Plot Inventory & Management Mockup (SCR-Administrator-03 & SCR-Administrator-04)
+(Screen layout placeholder - To be inserted from design)
+Function Details
+Field Descriptions:
+#
+	Field Name
+	Control Type
+	Required
+	Constraints & Format
+	DB Mapping
+	1
+	Plot Code
+	Text
+	Yes
+	Unique identifier (e.g., A01)
+	plots.plot_code
+	2
+	Sector
+	Dropdown
+	Yes
+	Active record from lands
+	plots.land_id
+	3
+	Area
+	Decimal
+	Yes
+	Square meters > 0
+	plots.area
+	4
+	Monthly Rate
+	Currency
+	Yes
+	>= 0 VND
+	plots.price_per_period
+	5
+	IoT Station ID
+	Text
+	Yes
+	Registered hardware sensor code
+	plots.iot_device_code
+	6
+	Plot Status
+	Status
+	Yes
+	AVAILABLE, RESERVED, RENTED, MAINTENANCE
+	plots.status
+	Validation Rules:
+Rule ID
+	Field Name
+	Validation Rule
+	V19.1
+	Plot Code
+	Must be unique within the platform.
+	V19.2
+	Area
+	Must be greater than 0.00 square meters.
+	System Messages:
+Message ID
+	Condition
+	Content
+	Message Type
+	M19.1
+	Duplicate code
+	"Plot code already in use."
+	Inline Error
+	M19.2
+	Plot saved
+	"Plot updated successfully."
+	Toast (Success)
+	Business Rules & Processing Logic:
+Business Rules (BR01, BR02, BR21):
+* After harvest or lease completion, plots enter status = 'MAINTENANCE' for a fixed 4-day soil recovery period. A daily background job resets them to AVAILABLE once the 4 days pass.
+* Sensor hardware codes (plots.iot_device_code) are bound directly to the physical plot record, decoupled from tenant lease agreements.
+4. Non-Functional Requirements
+4.1 External Interfaces
+This section describes how the Farmely system communicates with its users and with external hardware or software elements.
+User Interfaces
+* Customer Web Application: A responsive web application built with ReactJS and TailwindCSS, accessible via modern browsers (Chrome, Firefox, Edge, Safari). The interface supports desktop viewports (1280 px and above) and mobile viewports (375 px and above). The default display language is Vietnamese.
+* Agricultural Expert Dashboard: A web-based dashboard that allows Agricultural Experts to manage Crop and Variety catalogs, configure Standard Process Templates, handle pre-rental consultation requests, and communicate with Customers and Field Staff through in-app chat channels.
+*  Field Staff Mobile View: A mobile-responsive web interface optimized for smartphone use at the farm. It displays the daily task list, task details with step-by-step instructions, a photo upload form for task evidence, and a chat channel to communicate with Agricultural Experts.
+*  Administrator Dashboard: A web-based back-office panel that provides Administrators with tools for user account and role management, Plot and Land configuration, Rental and Reservation monitoring, Care Task dispatching, IoT alert configuration, and Audit Log review.
+Hardware Interfaces
+*  IoT Sensor Service (Mock): Simulated environmental sensors that provide Temperature (in degrees Celsius), Air Humidity (percentage), and Soil Moisture (percentage) readings every 3 hours for each Plot. In the prototype phase, all sensor data is generated programmatically. No physical IoT hardware is connected to the system.
+* Smartphone Camera: Field Staff use the built-in camera on their smartphones to capture photographic evidence of task completion. Each photo must not exceed 5 MB in size, and a maximum of 10 photos may be attached per task.
+Software Interfaces
+* OpenWeatherMap API (HTTPS REST / JSON): Provides 3-to-5-day weather forecast data based on the geographic coordinates of each Plot. The system calls this API when the Plot Detail page loads and when the Customer Dashboard is refreshed.
+* Payment Gateway – Mock (HTTPS REST / JSON): Simulates payment transactions with three possible statuses: Pending, Success, and Failed. It handles the full upfront rental payment (100 percent of the total, with no deposit required), Service Request fees, and Temporary Full-care Month Pass purchases.
+* AI / LLM API with RAG (HTTPS REST / JSON): Powers the AI Chatbot assistant that answers agricultural questions from Customers. The service accepts user prompts along with contextual data retrieved from the Knowledge Document library managed by Agricultural Experts.
+* PostgreSQL Database (TCP/IP, port 5432): The primary relational data store for all system entities, including Users, Plots, Rentals, Care Tasks, and Audit Logs. The database is administered through pgAdmin 4.
+Communication Interfaces
+* RESTful API (HTTPS, TLS 1.2 or higher): All communication between the client applications and the server uses JSON payloads over HTTPS RESTful endpoints. The backend is implemented with Java Spring Boot.
+* Chat Polling (HTTP GET, 5-second interval): The in-app messaging feature between Customers and Agricultural Experts, as well as between Field Staff and Agricultural Experts, uses HTTP polling at a 5-second interval. Real-time WebSocket communication is deferred to a future release.
+* Email Service (SMTP or third-party Email API): Used for sending account registration verification emails, password reset links, and critical system notifications such as Reservation expiry warnings and Payment confirmation receipts.
+4.2 Quality Attributes
+4.2.1 Usability
+* Learnability: A new Customer with no prior training shall be able to browse the Marketplace, select a Plot, and complete a Reservation within 10 minutes on their first use.
+* Task Efficiency: A returning Customer who has previously used the system shall be able to complete the entire flow from Reservation to Payment in under 5 minutes.
+* Field Staff Onboarding: A newly onboarded Field Staff member shall be able to view assigned tasks, upload photographic evidence, and mark a task as Completed within 3 minutes of basic hands-on training.
+* Error Guidance: All form validation errors shall be displayed inline next to the relevant input field, with context-specific messages that clearly indicate the problem and the corrective action required.
+* Accessibility: The web application shall meet a minimum of WCAG 2.1 Level A compliance, including sufficient color contrast ratios (at least 4.5 to 1 for normal text), full keyboard navigability for all interactive elements, and appropriate ARIA labels for screen readers.
+* Responsive Design: All Customer-facing pages shall render correctly on screen widths ranging from 375 pixels (mobile) to 2560 pixels (ultrawide desktop) without requiring horizontal scrolling or causing content overlap.
+* Consistent User Interface: The application shall follow a unified design system using TailwindCSS utility classes and a shared component library to ensure visual consistency across all dashboards for every user role.
+4.2.2 Reliability[b]
+* Availability: The system shall maintain at least 99.0 percent uptime during operating hours (06:00 to 23:00, GMT+7, daily). Scheduled maintenance is permitted between 02:00 and 05:00 GMT+7, provided that users receive at least 24 hours of advance notification.
+* Mean Time Between Failures (MTBF): The system shall achieve an MTBF of at least 720 hours (equivalent to 30 days) for all critical functions, including Reservation creation, Payment processing, and Rental activation.
+* Mean Time To Repair (MTTR): In the event of a system failure during operating hours, the development and operations team shall restore normal service within a maximum of 2 hours.
+*  Data Integrity for Concurrent Reservations: The system shall use PostgreSQL SERIALIZABLE isolation level combined with SELECT FOR UPDATE locking to prevent double-booking of the same Plot when multiple Customers attempt to create Reservations simultaneously.
+* Reservation Expiry Accuracy: The automatic expiry of a Reservation (after 15 minutes) and the Grace Period extension (an additional 10  minutes while the payment status is Pending) shall execute with a timing tolerance of no more than 30 seconds.
+*  Automatic Task Overdue Detection: Any Care Task that has not been marked as Completed by 23:59 GMT+7 on its scheduled date shall automatically transition to Overdue status. An alert notification shall be sent to the Administrator within 1 minute of the deadline.
+*  IoT Data Validation: Sensor readings that fall outside the plausible environmental range (Temperature below 0 degrees Celsius or above 50 degrees Celsius) shall be automatically filtered out from dashboard displays and logged as data anomalies for Administrator review.
+* Graceful Degradation for External Services: If the Weather API or the Payment Gateway becomes temporarily unavailable, the system shall display a user-friendly fallback message and continue operating all other features without data loss.
+* Defect Rate: At the time of release, the number of critical defects (defined as complete data loss or a complete inability to use core features such as Rental creation or Payment processing) shall not exceed 0.5 defects per thousand lines of code. Any critical defect discovered after release shall be resolved within 48 hours.
+4.2.3 Performance
+Page Load Time: The Marketplace listing page and the Customer Dashboard shall fully load and become interactive within 3 seconds when accessed over a standard 4G mobile connection (approximately 10 Mbps).
+API Response Time: At least 95 percent of all RESTful API requests shall return a complete response within 500 milliseconds under normal operating load. The maximum acceptable response time for any single API call is 2 seconds.
+Payment Processing Time: The end-to-end payment flow, from the moment the Customer submits the payment request to the moment the system receives the gateway callback and activates the Rental, shall complete within 10 seconds.
+Photo Upload Time: Uploading a single image file (up to 5 MB in size) shall complete within 5 seconds over a 4G connection. A visual progress indicator shall be displayed to the user during the upload.
+Chat Message Delivery Latency: Messages sent through the in-app chat channels shall become visible to the recipient within 5 seconds, corresponding to one polling cycle.
+Concurrent Users: The system shall support at least 100 concurrent active users across all roles (Customer, Agricultural Expert, Field Staff, Administrator) without any degradation in response time beyond the targets stated above.
+Database Capacity: The system shall support up to 50 active Plots, 500 active Rental contracts, and 10,000 Care Task records simultaneously, with all list and search queries returning results in under 1 second.
+IoT Data Throughput: The system shall handle the ingestion of simulated sensor readings for all 50 Plots at a 3-hour cycle (approximately 400 readings per day in total) without any processing backlog or data loss.
+4.2.4 Security
+Authentication: All users shall authenticate using their registered email address and password. Passwords shall be stored as salted hashes using the BCrypt algorithm with a cost factor of at least 10. User sessions shall be managed using JSON Web Tokens (JWT) with a configurable expiry period (default: 24 hours).
+Role-Based Access Control: The system shall enforce role-based access control with four distinct roles: Customer, Agricultural Expert, Field Staff, and Administrator. Every API endpoint shall validate the requesting user's role before processing the request. Any unauthorized access attempt shall be rejected with an HTTP 403 Forbidden response.
+Transport Layer Security: All communication between client applications and the server shall be encrypted using HTTPS with TLS version 1.2 or higher. Any incoming HTTP request shall be automatically redirected to HTTPS.
+Input Validation and Attack Prevention: All user-submitted data shall be validated on the server side to prevent common web application attacks, including SQL Injection, Cross-Site Scripting (XSS), and Cross-Site Request Forgery (CSRF). Spring Security CSRF protection shall be enabled for all state-changing API operations.
+ Data Access Isolation: Agricultural Experts shall only be able to access Plot data and consultations within their assigned scope. Field Staff shall only be able to view and update Tasks that have been assigned to them. Customers shall only be able to view their own Rental contracts, Payment transactions, Farm Diary entries, and Conversation threads.
+Secure Password Recovery: The password reset process shall generate a unique, time-limited token (valid for 15 minutes) that is sent to the user's registered email address. The token shall become invalid after a single use or upon expiry.
+Audit Trail: All critical system operations shall be recorded in the Audit Log. Logged operations include Rental creation, Payment transactions, Care Task status changes, User role modifications, and Plot configuration updates. Each log entry shall contain a timestamp, the identity of the actor, the action performed, and the affected entity.
+File Upload Security: All uploaded image files shall be validated for permitted MIME types (JPEG and PNG only) and maximum file size (5 MB per file). The system shall reject files that do not meet these criteria and shall scan accepted files for embedded malicious content before storing them on the server.
+4.2.5 Supportability and Maintainability
+ Layered Code Architecture: The backend application shall follow a layered architecture pattern with clearly separated Controller, Service, and Repository layers to ensure maintainability and testability.
+API Documentation: All RESTful API endpoints shall be documented using the Swagger / OpenAPI 3.0 specification. The interactive API documentation shall be accessible at the /api-docs endpoint in development and staging environments.
+Structured Logging: The system shall implement structured logging using SLF4J with the Logback framework. Log messages shall be categorized by severity level (DEBUG, INFO, WARN, ERROR). All API errors shall be logged with the full request context and stack trace.
+ Externalized Configuration: All environment-specific settings, including the database connection URL, third-party API keys, JWT signing secret, and email service credentials, shall be stored in external configuration files and shall never be hard-coded in the source code.
+ Database Schema Migration: All database schema changes shall be managed through versioned migration scripts using Flyway or Liquibase to ensure that changes are reproducible, traceable, and consistent across all environments.
+
+
+
+
+5. Requirement Appendix
+5.1 Business Rules
+ID
+	Rule Definition
+	BR01
+	Farm Ownership and Operation. The platform directly owns and operates the farm. Plots are planned and configured before being published for rental. The system does not support customers or external landowners listing land for rent (C2C).
+	BR02
+	Plot Unit. A Plot is the smallest unit of farmland managed and rented through the system. Each Plot has location, area, technical conditions, an availability calendar, a list of compatible varieties, and IoT data.
+	BR03
+	Approved Varieties and Compatibility. Customers must select a farm-approved variety compatible with the selected Plot. Customers may not independently bring varieties outside the approved catalog into the farm for cultivation.
+	BR04
+	Minimum Rental Duration. The rental duration must be equal to or longer than the expected growth duration of the selected variety plus its buffer time.
+	BR05
+	Contract Scope and Per-Plot Configuration. A contract may include one or more Plots selected by the customer. Each Plot in the contract is configured independently with a compatible variety, start date, end date, and cultivation mode. Plots in the same contract do not have to share the same variety, rental period, or cultivation mode.
+	BR06
+	Site Visits and Pre-rental Consultation. Guests and prospective customers may book a morning or afternoon farm visit by providing their full name and phone number. Online pre-rental consultation with an Agricultural Expert is optional and is not a prerequisite for booking a Plot.
+	BR07
+	Reservations and Schedule Conflicts. Only Plots published for rental and available throughout the selected period may be reserved. The rental period must not overlap a confirmed or active contract, an unexpired reservation, or the Plot’s soil-rest period.
+	BR08
+	Reservation Duration and Grace Period. Each reservation lasts 15 minutes. When the customer proceeds to payment, the reservation changes to pending payment and receives an additional 10-minute grace period. The grace period may be added only once per reservation.
+	BR09
+	Contract Payment. Customers must pay 100% of the total contract value upfront, including Plot rental charges and care fees applicable to the selected cultivation mode. No deposit is required.
+	BR10
+	Contract Cancellation and Refunds. Customers must submit a contract cancellation and refund request before the rental start date. The refund depends on the request time:
+• At least 3 days before the start date: deduct 20% and refund 80% of the amount paid.
+• Less than 3 days before the start date: deduct 50% and refund 50% of the amount paid.
+• On or after the rental start date: no refund.
+	BR11
+	Cultivation Modes and Daily Care Packages. The system supports Self-growing, where customers care for the plants themselves, and Assisted-growing, where the farm provides comprehensive care. Self-growing customers may purchase delegated-care packages for a selected number of days when they cannot care for the plants themselves.
+	BR11b
+	Contract Renewal. Customers may renew a contract if the Plots to be renewed are available during the following period. Renewal must be completed at least 3 days before the contract end date. The current contract remains Active until the end of its rental term, then changes to Renewed after a successful renewal.
+	BR12
+	Standard Cultivation Process by Variety. Each variety has a standard cultivation process established by an Agricultural Expert. Assisted-growing Plots must fully follow this process; customer-specific process customization is not supported.
+	BR12b
+	Guidance for Self-growing Customers. Self-growing customers may consult the expert’s standard process or choose their own care approach. Self-growing customers may follow the expert's standard process or apply their own customized routine for reference without requiring approval from an Agricultural Expert.
+
+
+	BR14
+	Care Task Assignment and Execution. Scheduled care tasks and tasks generated from service requests may only be assigned to Field Workers. Tasks not completed by 23:59 on their scheduled date automatically change to Overdue.
+	BR15
+	Task Completion Evidence. Field Workers must provide at least one actual photograph taken at the Plot before a task can be confirmed as Completed.
+	BR17
+	Farm Diary Synchronization. When a care task is completed, the system automatically records the performed work and its evidence in the farm diary for the Plot under the corresponding contract.
+	BR18
+	Environmental Data and Action Alerts. When an environmental alert persists for more than 30 minutes, the system responds according to the cultivation mode:
+• Assisted-growing: automatically create an urgent care task during 08:00–17:00.
+• Self-growing: notify the customer and offer an option to request rapid care.
+When heavy rain is forecast or soil moisture reaches 80% or higher, the system automatically postpones the related watering tasks.
+	BR19
+	AI Assistant. The AI chatbot helps customers look up general cultivation knowledge, learn about plant diseases, and consult possible treatment methods.
+	BR20
+	Harvest Execution and Recording. Field Workers harvest the crops, weigh the yield using an electronic scale, take evidence photographs, and upload the results. Customers view and confirm acceptance of the harvest results.
+	BR21
+	Harvest Time and Location. Harvesting takes place at the farm at the end of the cultivation season.
+	BR22
+	Contract Completion. Each Plot rental ends on its own end date. Once a Plot rental ends, the system stops generating new cultivation tasks for that Plot but still permits outstanding requests to be handled. Other Plots in the same contract continue according to their respective rental periods. The contract changes to Completed only after all Plot rentals under it have ended.
+	BR23
+	Plot Release and Soil Rest. After a rental ends without renewal, the Plot changes to Maintenance for cleanup, tilling, and soil drying. The farm decides when soil rest is complete and the Plot can be reopened for rental.
+	BR24
+	Data Access Scope. Agricultural Experts may access operational data only for their assigned Plots. Field Workers may access only their assigned tasks and the related information needed to carry them out.
+	BR25
+	Communication Channels. The system supports customer–Agricultural Expert communication for consultation and Field Worker–Agricultural Expert communication for reporting and technical guidance. Customers do not directly assign work to or instruct Field Workers through the system.
+	BR26
+	Purpose of Cultivation Data. Cultivation data supports monitoring, traceability, and transparency of farm operations. It does not replace legal certification of food safety or organic production.
+	BR27
+	Service Catalog and Care Task Generation. The farm manages a catalog of per-visit care services and comprehensive delegated-care packages for a customer-selected number of days. After successful service payment, the system automatically creates the corresponding care tasks for assignment to Field Workers. Service prices follow the farm’s configured pricing policy.
+	
+
+5.2 Common Requirements
+[Fill all the common requirements here..]
+5.3 Application Messages List
+[c]
+
+
+#
+	Message Code
+	Message Type
+	Context
+	Content
+	1
+	MSG01
+	Inline Error
+	Empty search or filter query
+	No matching plots found for the selected criteria.
+	2
+	MSG02
+	Inline Error
+	Required field missing
+	This field is required.
+	3
+	MSG03
+	Inline Error
+	Invalid email format
+	Please enter a valid email address.
+	4
+	MSG04
+	Inline Error
+	Invalid phone format
+	Phone number must be 10 digits starting with 0.
+	5
+	MSG05
+	Inline Error
+	Password policy violation
+	Password must contain at least 8 characters with uppercase, lowercase, and numbers.
+	6
+	MSG06
+	Inline Error
+	Password confirmation mismatch
+	Passwords do not match.
+	7
+	MSG07
+	Modal Alert
+	Plot reservation collision
+	This plot was just reserved by another customer. Please select an alternate plot.
+	8
+	MSG08
+	Modal Alert
+	Reservation timer expired
+	Reservation window expired. The selected plots have been released.
+	9
+	MSG09
+	Toast (Success)
+	Payment verified
+	Payment confirmed successfully. Your lease contract is now active.
+	10
+	MSG10
+	Inline Error
+	Renewal deadline missed
+	Contract renewal must be submitted at least 3 days prior to expiration.
+	11
+	MSG11
+	Inline Error
+	Task photo proof missing
+	Please upload at least one on-site photo before completing this task.
+	12
+	MSG12
+	Toast (Success)
+	Task completed & synced
+	Task completed successfully. Farm diary updated.
+	13
+	MSG13
+	Toast (Alert)
+	Soil moisture critical
+	Soil moisture dropped below critical threshold. Emergency inspection dispatched.
+	14
+	MSG14
+	Toast (Success)
+	Harvest yield confirmed
+	Harvest acceptance confirmed. Produce is scheduled for delivery.
+	
+
+5.4 Other Requirements…
+ | Page
+
+
+[a]hoanfg
+[b].
+[c]CHƯA XONG

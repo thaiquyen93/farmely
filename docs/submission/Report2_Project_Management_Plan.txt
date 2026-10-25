@@ -1,0 +1,513 @@
+﻿CAPSTONE PROJECT REPORT
+Report 2 – Project Management Plan
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+September 2026
+
+
+Table of Contents
+I. Record of Changes        3
+II. Project Management Plan        4
+1. Overview        4
+1.1 Scope & Estimation        4
+1.2 Project Objectives        5
+1.3 Project Risks        6
+2. Management Approach        6
+2.1 Project Process        6
+2.2 Quality Management        6
+2.3 Training Plan        7
+3. Project Deliverables        7
+4. Responsibility Assignments        7
+5. Project Communications        8
+6. Configuration Management        8
+6.1 Document Management        8
+6.2 Source Code Management        8
+6.3 Tools & Infrastructures        8
+
+
+________________
+
+
+I. Record of Changes
+Date
+	A* / M / D
+	In charge
+	Change Description
+	Week 1
+	A
+	Project team
+	Initial management plan adapted to the approved project scope and business requirements; schedule and assignments are proposed.
+	*A - Added M - Modified D - Deleted
+
+
+II. Project Management Plan
+1. Overview
+1.1 Scope & Estimation
+The prototype uses prepared plots operated by the platform. Customers select one plot, one crop/variety, and a rental period; optional expert consultation, two cultivation modes, 100% upfront mock payment, sensor data, and plot turnover/reopening complete the workflow. The WBS below estimates 70 person-days of implementation within an eight-week, four-member plan. Estimates are planning assumptions, not completed work.
+#
+	WBS Item
+	Complexity
+	Est. Effort (person-days)
+	1
+	Accounts and role-based access
+	Medium
+	7
+	1.1
+	Registration, login, profile
+	Simple
+	3
+	1.2
+	Four roles and resource-level authorization
+	Medium
+	4
+	2
+	Plot catalog and crop rules
+	Medium
+	9
+	2.1
+	Marketplace and plot detail
+	Medium
+	4
+	2.2
+	Crop/variety compatibility and duration checks
+	Medium
+	3
+	2.3
+	Admin listing and plot management
+	Simple
+	2
+	3
+	Consultation and contextual messaging
+	Medium
+	8
+	3.1
+	Optional pre-rental consultation
+	Simple
+	3
+	3.2
+	Customer–expert and expert–worker conversations
+	Medium
+	5
+	3.3
+	AI Chatbot Assistant & RAG knowledge integration 
+	Complex
+	10
+	4
+	Reservation, mock payment, rental
+	Complex
+	14
+	4.1
+	Interval availability and concurrency checks
+	Complex
+	5
+	4.2
+	Reservation expiry & 3-minute payment grace period handling
+	Medium
+	3
+	4.3
+	100% upfront fee calculation & mock payment gateway integration
+	Medium
+	3
+	4.4
+	Confirmed, active, completed transitions & cancellation/refund policy
+	Medium
+	3
+	5
+	Cultivation plan 
+	Complex
+	12
+	5.1
+	Standard template and source references
+	Simple
+	2
+	5.2
+	Expert review, customer approval & T-24h auto-approve mechanism (with 72h advance preparation)
+	Medium
+	3
+	5.3
+	Versioning and future task update
+	Medium
+	2
+	5.4
+	Self-growing / assisted-growing rules
+	Simple
+	2
+	6
+	Tasks, diary, services
+	Complex
+	10
+	6.1
+	Assignment
+	Simple
+	2
+	6.2
+	Execution evidence and issue report
+	Medium
+	3
+	6.3
+	Farm diary and harvest record
+	Simple
+	2
+	6.4
+	Paid service requests
+	Medium
+	3
+	7
+	Monitoring and dashboards
+	Medium
+	6
+	7.1
+	Mock sensor readings and alerts
+	Simple
+	2
+	7.2
+	Four role dashboards
+	Medium
+	3
+	7.3
+	Weather display
+	Simple
+	1
+	8
+	Post-rental operation and audit
+	Medium
+	4
+	8.1
+	Plot turnover & internal cleanup management
+	Simple
+	2
+	8.2
+	Maintenance and reopening
+	Simple
+	1
+	8.3
+	Key action audit trail
+	Simple
+	1
+	
+
+	Total implementation effort
+	
+
+	70
+	1.2 Project Objectives
+Deliver a demonstrable web prototype of the Agricultural Plot Rental and Cultivation Monitoring Platform that supports core workflows for customers, agricultural experts, field workers, and platform administrators. A rental is confirmed after successful initial mock payment and becomes active at its start date.Availability is computed for a requested interval based on crop growth duration, buffer time, and live overlapping reservations/rentals. The eight-week capacity assumption is four members × four project days per week = 128 person-days; no external cash budget or production infrastructure is assumed.
+
+
+#
+	Testing Stage
+	Coverage Target
+	Open Blocking Defects
+	Exit Criterion
+	Notes
+	1
+	Requirements review
+	All critical business rules and four actor flows
+	0
+	Conflicts resolved or logged
+	Check project requirement document and SRS.
+	2
+	Unit test
+	≥70% of core service logic
+	0
+	All critical rule tests pass
+	Dates, payment, authorization, states.
+	3
+	Integration test
+	≥10 cross-module scenarios
+	0
+	All critical flows pass
+	Include retries and duplicate requests.
+	4
+	System test
+	≥20 end-to-end scenarios
+	0
+	No critical/high open defects
+	Record defects in Issues Report.
+	5
+	Acceptance test
+	8 agreed demo scenarios
+	0
+	All 8 pass on release build
+	One representative per major workflow.
+	
+
+
+
+1.3 Project Risks
+
+
+#
+	Risk Description
+	Impact
+	Possibility
+	ePlans
+	1
+	Eight-week scope exceeds available team capacity
+	High
+	High
+	Freeze an MVP path in Week 2, review burn-down weekly, defer low-priority polish before core flows.
+	2
+	Overlapping holds or rentals on the same plot
+	High
+	Medium
+	Use interval checks in a transaction, DB constraints where suitable, and concurrent-request integration tests.
+	3
+	Payment gateway integration timeout (Grace period) and payment idempotency issues
+	High
+	Medium
+	Define state and idempotency rules in SRS before coding; test failed and repeated payments.
+	4
+	AI output or source guidance is inaccurate
+	High
+	Medium
+	Constrain proposal to managed templates; require expert review and customer approval; keep version/source trace.
+	5
+	Permission leakage in messages, tasks, or history
+	High
+	Medium
+	Enforce role plus rental/task membership in backend; test cross-user access.
+	6
+	Mock sensor data is mistaken for live field evidence
+	Medium
+	Medium
+	Label mock source and timestamp on dashboards; test stale/missing data states.
+	7
+	Late integration between React and Spring modules
+	Medium
+	High
+	Agree API contracts in Week 2; merge vertical slices weekly and maintain shared seed data.
+	8
+	Team availability or skill gaps
+	Medium
+	Medium
+	Pair on high-risk features, keep handover notes, and use short training exercises.
+	
+
+
+
+
+
+2. Management Approach
+2.1 Project Process
+Agricultural Plot Rental and Cultivation Monitoring Platform is developed based on the Scrum framework - an Agile software development process. Therefore, it follows the three core Scrum values: transparency, inspection, and adaptation. Our team chose Scrum to develop this project for the following reasons:        
+  
+
+* Scrum is a management and process framework that solves complex problems while ensuring efficiency.
+* Scrum itself is a simple framework that enables the most effective coordination among development team members when implementing products. This helps our team connect in the working process. At the same time, everyone knows each other's progress so they can work it out together as soon as possible if someone on the team has a problem.
+* Because our product will be applied in a practical environment. Changing to match based on user requirements is frequent. Therefore, a flexible framework such as Scrum is suited for our team project.
+* Our product built by Scrum is based on a series of short, iterative processes called sprints. It helps our team's project time to be utilised and optimised as much as possible.
+
+For this project, each sprint spans 7 days and the duration of our product backlog is 8 weeks.
+2.2 Quality Management
+To maximise the project quality, our team will apply the following tactics to improve the project quality:
+– Team policy:
+* Define team policy: Working hours, meeting minutes, process,...
+
+– Reviewing:
+* Cross review between each member.
+
+– Code convention:
+* Define coding conventions for the Development Team to follow.
+
+– Testing:
+* Team members must do testing for their functions in the development environment before pushing it to production.
+* Team members must do integration testing with other functions.
+* Team members must record bugs and update them.
+
+
+2.3 Training Plan
+Short, task-based sessions in Week 1 and just before the relevant feature starts. A member may waive a session by demonstrating the equivalent task in the repository; otherwise they complete a paired exercise.
+
+
+Training Area
+	Participants
+	When, Duration
+	Waiver Criteria
+	Spring Boot API and security
+	Backend contributors
+	Week 1, two 90-minute sessions
+	Working authenticated endpoint with review
+	React and API integration
+	Frontend contributors
+	Week 1, two 90-minute sessions
+	Working typed API screen with review
+	Git, GitHub, pull-request review
+	All members
+	Week 1, 90 minutes
+	Merged reviewed practice PR
+	SQL migrations and interval availability
+	Backend + test owners
+	Week 2, 90 minutes
+	Passing overlap/transaction exercise
+	Test design and issue recording
+	All members
+	Week 5, 60 minutes
+	Reviewed test case and defect entry
+	
+
+3. Project Deliverables
+Dates are relative to the agreed project start. The team will update exact calendar dates in the project tracker upon kickoff.
+
+
+
+
+#
+	Deliverable
+	Due Date
+	Notes
+	1
+	Report 1 (Project Introduction Document)
+	Week 1
+	Project Introduction
+	2
+	Report 2 (Project Management Plan)
+	Week 2
+	Project Management Plan
+	3
+	Report 3 (Software Requirement Specification)
+	Week 3
+	Software Requirement Specification (SRS)
+	4
+	Report 4 (Software Design Document)
+	Week 4
+	Software Design Document (SDS/SDD)
+	5
+	Report 5 (Test Documentation)
+	Week 7
+	Test Documentation and defect reports
+	6
+	Report 6 (Software User Guides)
+	Week 8
+	Software User Guides for all roles
+	7
+	Report 7 (Final Project Report)
+	Week 8
+	Final Project Report and release demonstration
+	
+
+4. Responsibility Assignments
+Proposed assignment; confirm individual ownership at kickoff. Table names: Quyền = Lô Thái Quyền; Duy Anh = Đào Duy Anh; Hoàng = Nguyễn Văn Hoàng; Khôi Nguyên = Tạ Nguyễn Khôi Nguyên. Each deliverable has one primary owner.
+D = Do; R = Review; S = Support; I = Informed; blank = not assigned.
+Responsibility
+	Quyền
+	Duy Anh
+	Hoàng
+	Khôi Nguyên
+	Project planning and tracking
+	R
+	S
+	D
+	S
+	SRS and business rules
+	D
+	S
+	R
+	S
+	SDS, ERD, API design
+	R
+	D
+	S
+	S
+	Accounts, plot, rental, payment
+	S
+	D
+	R
+	S
+	Cultivation plan, tasks
+	D
+	S
+	R
+	S
+	React screens and role dashboards
+	S
+	R
+	S
+	D
+	System and acceptance testing
+	R
+	S
+	D
+	S
+	Final release and demo
+	S
+	S
+	D
+	R
+	
+
+5. Project Communications
+Communication Item
+	Who / Target
+	Purpose
+	When / Frequency
+	Type, Tool, Method(s)
+	Weekly planning and review
+	All members
+	Confirm work, dependencies, risks, and acceptance
+	Weekly, 45 minutes
+	Meeting; Project Tracking and Notion notes
+	Daily progress update
+	All members
+	Surface blockers and merge needs
+	Working days, asynchronous
+	GitHub issue/PR and group channel
+	Design decision review
+	Owner + reviewer
+	Approve schema, API, and rule changes
+	Before coding
+	SRS/SDS and PR review
+	Defect triage
+	Project lead + feature owner
+	Prioritize and verify fixes
+	Twice weekly in Weeks 7–8
+	Issues Report and GitHub issue
+	Milestone/demo review
+	All members and course advisor if available
+	Show accepted increment and feedback
+	Weeks 2, 4, 6, 8
+	Demo and recorded action items
+	
+
+6. Configuration Management
+6.1 Document Management
+Keep the project context, SRS, SDS, management plan, tracking sheet, issues report, test evidence, and final release document in the shared project workspace. Name approved baselines by document version, maintain a change log with editor/date/summary, link decisions to the affected requirement or business rule, and review changes before publishing a new baseline. Preserve prior versions for traceability.
+6.2 Source Code Management
+Use GitHub with a protected main branch and short-lived feature branches. Link each pull request to a tracked task, require a peer review and successful build/tests, and use tagged demo baselines. Keep environment secrets out of the repository; use sample configuration and seeded mock data. Record database migrations with the code and prohibit direct schema edits in the shared database.
+6.3 Tools & Infrastructures
+Category
+	Tools / Infrastructure
+	Frontend
+	React web application
+	Backend
+	Java and Spring Boot REST API
+	Database
+	Relational database; PostgreSQL proposed, confirm in SDS
+	Mock services
+	Payment and IoT simulator; weather sample or adapter
+	Editors
+	IDE of contributor choice; shared formatting and build scripts
+	Diagramming
+	draw.io or equivalent; diagrams versioned with SDS
+	Documentation
+	Google Docs/Drive; provided SRS, SDS, tracking, issues and release templates
+	Version control
+	GitHub repository, pull requests, tagged demo build
+	Deployment
+	Local or team-hosted demo environment; target recorded in release document
+	Project management
+	GitHub issues and Project Tracking workbook; Notion for decisions

@@ -1,0 +1,919 @@
+﻿CAPSTONE PROJECT REPORT
+Report 4 – Software Design Document
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+– Ho Chi Minh City, October 2026 –
+________________
+
+
+Table of Contents
+I. Record of Changes        3
+II. Software Design Document        3
+1. System Design        3
+1.1 System Architecture        3
+1.2 Package Diagram        5
+2. Database Design        6
+2.1 Storage and naming conventions        6
+2.2 Database relationships        7
+2.3 Table descriptions and principal fields        9
+2.4 Integrity, availability and indexes        15
+3. Detailed Design        15
+3.1 Account, Authorization and Master Data        16
+3.2 Marketplace, Availability and Reservation        17
+3.3 Payment, Contracts, Renewal and Cancellation        19
+3.4 Cultivation Plans, Care Tasks and Farm Diary        22
+3.5 Additional Care Service Requests        24
+3.6 Monitoring, Weather and Environmental Alerts        26
+3.7 Consultation, Technical Issues and AI Assistant        28
+3.8 Harvest, Contract Completion and Administration        30
+3.9 API and Transaction Summary        32
+3.10 Non-Functional Design        33
+3.11 Design Traceability and Verification Scenarios        33
+
+
+________________
+
+
+I. Record of Changes
+Date
+	A/M/D
+	In charge
+	Change description
+	15/10/2026
+	A
+	Project team
+	Software design for Farmely; architecture, packages, database and detailed feature designs aligned with Reports 1–3 and RP392.
+	*A - Added M - Modified D - Deleted
+II. Software Design Document
+Project: Farmely – Agricultural Farming Experience and Management Support System (ISP392).
+Member
+	Student ID
+	Lô Thái Quyền (Leader)
+	SE203449
+	Đào Duy Anh
+	SE205116
+	Nguyễn Văn Hoàng
+	SE203342
+	Tạ Nguyễn Khôi Nguyên
+	SE200935
+	Design baseline: RP392 (NEW), version 2.1, particularly BR01–BR25. This document specifies the proposed software design for a single farm with up to 50 plots and four internal roles: Customer, Agricultural Expert, Field Worker and Administrator.
+1. System Design
+1.1 System Architecture
+The system uses a modular monolith: a responsive React client accesses a Spring Boot REST API; PostgreSQL stores transactional and operational data. Domain services enforce business rules centrally. External adapters isolate weather, AI, simulated IoT and mock payment dependencies.
+  
+
+Figure 1 System architecture
+Component
+	Responsibility / interface
+	React web client
+	Public Marketplace; role dashboards; responsive task execution forms. Chat polls every 5 seconds in the prototype.
+	API and security
+	Validate DTOs; authenticate JWT; enforce role and resource ownership; return consistent errors and pagination. Registration verification and password reset use the Email Service.
+	Domain services
+	Availability, reservation, contract, payment, cultivation, monitoring, communication and harvest rules.
+	PostgreSQL
+	Atomic bookings, foreign keys, immutable payment references, versioned processes and audit history.
+	File storage
+	Store image bytes outside business tables; retain metadata and authorized access references. Limit 5 MB per file and 10 images per task.
+	Schedulers
+	Expire holds, activate/end rental items, mark overdue tasks and evaluate environmental alerts. Jobs are idempotent.
+	External adapters
+	Mock payment only; simulated IoT every three hours; weather forecast API; LLM with approved knowledge retrieval; SMTP or email API for verification, password reset and critical notices.
+	All server timestamps are stored as timezone-aware timestamps and displayed in Asia/Ho_Chi_Minh (GMT+7). Scheduling and policy decisions use server time. Clients cannot set prices, payment outcomes or effective contract status.
+Security: Spring Security validates JWT and current account status. RBAC is combined with ownership checks: customers see their own contracts; experts see assigned plots; workers see assigned tasks and necessary plot information. Uploaded files require authentication and ownership checks. Passwords are stored as hashes. Secrets remain in server configuration.
+Failure handling: reject invalid input before mutation; rollback failed database transactions; return 409 for unavailable intervals or stale updates. If weather is unavailable, show an unavailable indicator and do not automatically postpone watering. AI or weather failures must not block rental/payment transactions. Notifications are dispatched after commit with retry tracking.
+1.2 Package Diagram
+[Provide the package diagram for each sub-system. The content of this section includes overall package diagram(s) and the explanation for each package (or namespace). Please see the sample and description table format below]
+  
+
+Figure 2 Package dependencies
+No
+	Package
+	Description
+	1
+	com.farmely.security
+	JWT filters, password hashing, RBAC and resource authorization.
+	2
+	com.farmely.account
+	Users, roles, profile, password reset and notifications.
+	3
+	com.farmely.catalog
+	Lands, plots, crop/variety compatibility, publication and service catalog.
+	4
+	com.farmely.booking
+	Site visits, availability intervals, reservations and expiry.
+	5
+	com.farmely.contract
+	Contract header/items, renewal and cancellation policy.
+	6
+	com.farmely.payment
+	Mock gateway adapter, transaction ledger, callbacks and refunds.
+	7
+	com.farmely.cultivation
+	Versioned processes, plans, care tasks, evidence and farm diary.
+	8
+	com.farmely.monitoring
+	Sensor simulation, thresholds, forecasts, alert evaluation and emergency tasks.
+	9
+	com.farmely.communication
+	Conversations, polling messages, technical issues and RAG assistant.
+	10
+	com.farmely.harvest
+	Harvest measurements, evidence and customer acceptance.
+	11
+	com.farmely.reporting
+	Revenue, occupancy and task completion aggregates.
+	12
+	com.farmely.common
+	Error responses, pagination, clock, file validation and audit helpers.
+	Each domain package contains controller, service, repository, entity and DTO subpackages as needed. Controllers do not access repositories directly. Integration adapters implement service-facing interfaces so simulated dependencies can later be replaced without changing business rules. Shared CRUD features reuse the controller → service → repository structure in Section 3.1.
+2. Database Design
+[Provide the files description, database table relationship & table descriptions like example below]
+2.1 Storage and naming conventions
+PostgreSQL is the relational store. Proposed identifiers use BIGINT generated primary keys; foreign keys use the same type. Monetary values use NUMERIC(14,2), never floating point. Status values are constrained strings. Dates describe local farming dates; timestamps describe precise actions. Referenced financial and cultivation records are retained rather than physically deleted.
+Contract is the aggregate header; contract_items represent individual plot rentals (the Rental concept). Every item has its own plot, variety, dates, mode, price snapshot and lifecycle. This supports BR05 and BR22 without forcing all plots to share a crop or period. There is no intermediate Order and no deposit entity.
+2.2 Database relationships
+  
+
+Figure 3 Rental relationships
+  
+
+Figure 4 Cultivation relationships
+Parent (one)
+	Child (many)
+	Constraint / optionality
+	roles
+	users
+	Each user has one operational role in the prototype.
+	lands
+	plots
+	Each plot belongs to exactly one land.
+	crops
+	varieties
+	Each variety belongs to one crop.
+	plots / varieties
+	plot_crop_compatibility
+	N:M resolved by unique plot_id + variety_id.
+	contracts
+	contract_items
+	A contract contains at least one item; item belongs to one contract.
+	reservations
+	reservation_items
+	A hold contains one or more independently configured plot intervals.
+	contract_items
+	care_tasks / farm_diaries / harvest_results
+	Each child belongs to exactly one rented plot item.
+	process_templates
+	process_versions
+	Published version is immutable; new edits produce a new version.
+	process_versions
+	template_steps
+	Each step belongs to one version.
+	care_tasks
+	task_evidence / material_usages
+	A completed task requires at least one evidence image.
+	care_tasks
+	farm_diaries
+	Task has zero or one generated diary entry; unique task_id prevents duplicates.
+	contracts
+	payment_transactions / cancellation_requests
+	Payments and cancellation requests retain contract linkage.
+	payment_transactions
+	refund_transactions
+	A payment can have multiple refund attempts with aggregate amount checks.
+	conversations
+	messages
+	Each message belongs to one conversation and one sender.
+	users / plots
+	expert_plot_assignments
+	N:M assignment limits expert access.
+	2.3 Table descriptions and principal fields
+1. roles
+Property
+	Specification
+	Purpose
+	Role catalog.
+	Primary key
+	role_id
+	Foreign keys
+	—
+	Principal fields / constraints
+	code UNIQUE, name
+	2. users
+Property
+	Specification
+	Purpose
+	Accounts for the four roles.
+	Primary key
+	user_id
+	Foreign keys
+	role_id → roles
+	Principal fields / constraints
+	email UNIQUE, password_hash, full_name, phone, status
+	3. lands
+Property
+	Specification
+	Purpose
+	Farm areas managed by Admin.
+	Primary key
+	land_id
+	Foreign keys
+	—
+	Principal fields / constraints
+	name, location, description
+	4. plots
+Property
+	Specification
+	Purpose
+	Smallest rentable unit; publication separate from availability.
+	Primary key
+	plot_id
+	Foreign keys
+	land_id → lands
+	Principal fields / constraints
+	code UNIQUE, area, water_source, technical_info, listing_status, daily_rate, monthly_rate
+	5. crops
+Property
+	Specification
+	Purpose
+	Approved crop families.
+	Primary key
+	crop_id
+	Foreign keys
+	—
+	Principal fields / constraints
+	name, description, active
+	6. varieties
+Property
+	Specification
+	Purpose
+	Approved varieties and biological durations.
+	Primary key
+	variety_id
+	Foreign keys
+	crop_id → crops
+	Principal fields / constraints
+	name, expected_duration_days, buffer_days, active
+	7. plot_crop_compatibility
+Property
+	Specification
+	Purpose
+	Allowed plot–variety combinations.
+	Primary key
+	compatibility_id
+	Foreign keys
+	plot_id → plots; variety_id → varieties
+	Principal fields / constraints
+	UNIQUE(plot_id,variety_id), approved_by → users, approved_at
+	8. site_visits
+Property
+	Specification
+	Purpose
+	Guest/customer farm visits by morning/afternoon slot.
+	Primary key
+	site_visit_id
+	Foreign keys
+	customer_id → users (nullable); plot_id → plots
+	Principal fields / constraints
+	visitor_name, phone, email, visit_date, slot, group_size, note, status
+	9. services
+Property
+	Specification
+	Purpose
+	Daily care delegation and other supported service definitions.
+	Primary key
+	service_id
+	Foreign keys
+	—
+	Principal fields / constraints
+	name, unit, unit_price, active
+	10. reservations
+Property
+	Specification
+	Purpose
+	Timed customer hold and payment grace.
+	Primary key
+	reservation_id
+	Foreign keys
+	customer_id → users
+	Principal fields / constraints
+	created_at, hold_expires_at, payment_deadline, grace_applied, status
+	11. reservation_items
+Property
+	Specification
+	Purpose
+	Independent plot configuration within a hold.
+	Primary key
+	reservation_item_id
+	Foreign keys
+	reservation_id → reservations; plot_id → plots; variety_id → varieties
+	Principal fields / constraints
+	start_date, end_date, mode, rent_amount, care_amount, starter_kit_included
+	12. contracts
+Property
+	Specification
+	Purpose
+	Paid agreement header covering one or more plot rentals.
+	Primary key
+	contract_id
+	Foreign keys
+	customer_id → users; reservation_id → reservations UNIQUE
+	Principal fields / constraints
+	code UNIQUE, signed_at, status, total_paid, terms_snapshot
+	13. contract_items
+Property
+	Specification
+	Purpose
+	Per-plot Rental lifecycle and configuration.
+	Primary key
+	contract_item_id
+	Foreign keys
+	contract_id → contracts; plot_id → plots; variety_id → varieties; process_version_id → process_versions (nullable)
+	Principal fields / constraints
+	start_date, end_date, mode, rent_amount, care_amount, status, previous_item_id → contract_items (nullable)
+	14. plot_occupancies
+Property
+	Specification
+	Purpose
+	Authoritative intervals blocking plot availability.
+	Primary key
+	occupancy_id
+	Foreign keys
+	plot_id → plots; reservation_item_id → reservation_items (nullable); contract_item_id → contract_items (nullable)
+	Principal fields / constraints
+	starts_at, ends_at, kind, status; CHECK starts_at < ends_at
+	15. payment_transactions
+Property
+	Specification
+	Purpose
+	Immutable financial attempts directly linked to a contract or service request.
+	Primary key
+	payment_id
+	Foreign keys
+	contract_id → contracts (nullable); service_request_id → service_requests (nullable); reservation_id → reservations (nullable)
+	Principal fields / constraints
+	reference UNIQUE, amount, currency, purpose, status, callback_key UNIQUE, paid_at
+	16. cancellation_requests
+Property
+	Specification
+	Purpose
+	Cancellation request and server-time refund basis.
+	Primary key
+	cancellation_request_id
+	Foreign keys
+	contract_id → contracts; requested_by → users
+	Principal fields / constraints
+	requested_at, reason, status, approved_by → users (nullable), refund_rate, eligible_amount
+	17. refund_transactions
+Property
+	Specification
+	Purpose
+	Refund attempts and confirmed results.
+	Primary key
+	refund_id
+	Foreign keys
+	payment_id → payment_transactions; cancellation_request_id → cancellation_requests
+	Principal fields / constraints
+	reference UNIQUE, amount, status, processed_at
+	18. process_templates
+Property
+	Specification
+	Purpose
+	Standard cultivation process for a variety.
+	Primary key
+	template_id
+	Foreign keys
+	variety_id → varieties; created_by → users
+	Principal fields / constraints
+	name, status
+	19. process_versions
+Property
+	Specification
+	Purpose
+	Immutable published process versions.
+	Primary key
+	process_version_id
+	Foreign keys
+	template_id → process_templates; published_by → users (nullable)
+	Principal fields / constraints
+	version_number, status, published_at; UNIQUE(template_id,version_number)
+	20. template_steps
+Property
+	Specification
+	Purpose
+	Relative-day care instructions.
+	Primary key
+	step_id
+	Foreign keys
+	process_version_id → process_versions
+	Principal fields / constraints
+	day_offset, task_type, title, instructions, sequence_no
+	21. materials
+Property
+	Specification
+	Purpose
+	Approved materials and units.
+	Primary key
+	material_id
+	Foreign keys
+	—
+	Principal fields / constraints
+	name, unit, active
+	22. template_materials
+Property
+	Specification
+	Purpose
+	Material norms per standard step.
+	Primary key
+	template_material_id
+	Foreign keys
+	step_id → template_steps; material_id → materials
+	Principal fields / constraints
+	quantity, unit; UNIQUE(step_id,material_id)
+	23. cultivation_plans
+Property
+	Specification
+	Purpose
+	Version-bound application of process to a rented plot.
+	Primary key
+	plan_id
+	Foreign keys
+	contract_item_id → contract_items; process_version_id → process_versions
+	Principal fields / constraints
+	version_number, effective_from, status, approved_by → users
+	24. care_tasks
+Property
+	Specification
+	Purpose
+	Scheduled, service or emergency work.
+	Primary key
+	task_id
+	Foreign keys
+	contract_item_id → contract_items; plan_id → cultivation_plans (nullable); step_id → template_steps (nullable); assigned_worker_id → users (nullable); service_request_id → service_requests (nullable)
+	Principal fields / constraints
+	scheduled_at, type, instructions_snapshot, status, started_at, completed_at, generation_key UNIQUE
+	25. task_evidence
+Property
+	Specification
+	Purpose
+	Task completion image references.
+	Primary key
+	evidence_id
+	Foreign keys
+	task_id → care_tasks; uploaded_by → users
+	Principal fields / constraints
+	file_path, mime_type, size_bytes, captured_at
+	26. material_usages
+Property
+	Specification
+	Purpose
+	Actual consumption reported by workers.
+	Primary key
+	usage_id
+	Foreign keys
+	task_id → care_tasks; material_id → materials
+	Principal fields / constraints
+	quantity CHECK > 0, note
+	27. farm_diaries
+Property
+	Specification
+	Purpose
+	Customer-authored or task-generated cultivation timeline.
+	Primary key
+	diary_id
+	Foreign keys
+	contract_item_id → contract_items; author_id → users; task_id → care_tasks (nullable, UNIQUE)
+	Principal fields / constraints
+	source, content, image_refs, created_at
+	28. service_requests
+Property
+	Specification
+	Purpose
+	Paid temporary care for a chosen day range.
+	Primary key
+	service_request_id
+	Foreign keys
+	contract_item_id → contract_items; service_id → services; requested_by → users
+	Principal fields / constraints
+	start_date, end_date, quantity_days, unit_price_snapshot, amount, status
+	29. harvest_results
+Property
+	Specification
+	Purpose
+	Measured produce and customer acceptance.
+	Primary key
+	harvest_id
+	Foreign keys
+	contract_item_id → contract_items; recorded_by → users
+	Principal fields / constraints
+	harvested_at, weight_kg, evidence_refs, delivery_option, status, accepted_at
+	30. sensor_readings
+Property
+	Specification
+	Purpose
+	Simulated plot microclimate observations.
+	Primary key
+	reading_id
+	Foreign keys
+	plot_id → plots
+	Principal fields / constraints
+	observed_at, temperature, air_humidity, soil_moisture, quality_status
+	31. environment_thresholds
+Property
+	Specification
+	Purpose
+	Expert-approved bounds per variety growth stage.
+	Primary key
+	threshold_id
+	Foreign keys
+	variety_id → varieties; configured_by → users
+	Principal fields / constraints
+	stage, metric, min_value, max_value
+	32. environment_alerts
+Property
+	Specification
+	Purpose
+	Persistent alert episode and deduplication state.
+	Primary key
+	alert_id
+	Foreign keys
+	contract_item_id → contract_items; task_id → care_tasks (nullable)
+	Principal fields / constraints
+	metric, started_at, last_observed_at, status, action_key UNIQUE
+	33. expert_plot_assignments
+Property
+	Specification
+	Purpose
+	Resource scope for expert access.
+	Primary key
+	assignment_id
+	Foreign keys
+	expert_id → users; plot_id → plots
+	Principal fields / constraints
+	assigned_at, ended_at
+	34. issue_reports
+Property
+	Specification
+	Purpose
+	Customer/worker reports and expert guidance.
+	Primary key
+	issue_id
+	Foreign keys
+	contract_item_id → contract_items; reported_by → users; assigned_expert_id → users (nullable)
+	Principal fields / constraints
+	description, severity, evidence_refs, status, resolution
+	35. conversations
+Property
+	Specification
+	Purpose
+	Customer–expert or worker–expert channel.
+	Primary key
+	conversation_id
+	Foreign keys
+	customer_id → users (nullable); worker_id → users (nullable); expert_id → users; contract_item_id → contract_items (nullable)
+	Principal fields / constraints
+	channel_type, created_at; participant type CHECK
+	36. messages
+Property
+	Specification
+	Purpose
+	Polling-compatible conversation messages.
+	Primary key
+	message_id
+	Foreign keys
+	conversation_id → conversations; sender_id → users
+	Principal fields / constraints
+	content, image_refs, sent_at, read_at
+	37. knowledge_documents
+Property
+	Specification
+	Purpose
+	Expert-managed RAG source documents.
+	Primary key
+	document_id
+	Foreign keys
+	uploaded_by → users
+	Principal fields / constraints
+	title, storage_ref, version, approval_status, indexed_at
+	38. notifications
+Property
+	Specification
+	Purpose
+	In-app delivery and read state.
+	Primary key
+	notification_id
+	Foreign keys
+	recipient_id → users
+	Principal fields / constraints
+	type, content, related_type, related_id, created_at, read_at
+	39. audit_logs
+Property
+	Specification
+	Purpose
+	Append-only privileged and financial action history.
+	Primary key
+	audit_id
+	Foreign keys
+	actor_id → users (nullable for system jobs)
+	Principal fields / constraints
+	action, entity_type, entity_id, old_value, new_value, occurred_at
+	2.4 Integrity, availability and indexes
+Availability is computed from effective plot_occupancies and publication status; plots do not store AVAILABLE/RENTED/RESERVED flags. Maintenance is an occupancy interval, initially open-ended until Admin records completion. BR23 therefore does not impose automatic release after four days. A booking interval uses [start, end) boundaries; date-only end dates are converted to the next local midnight so the final farming day is included.
+Within a SERIALIZABLE transaction, lock candidate plots in ascending plot_id order, expire elapsed holds, validate all requested intervals and insert occupancy rows atomically. A conflicting item rolls back the whole reservation. A PostgreSQL exclusion constraint on plot_id + timestamp range for blocking rows is a second guard. Expired rows are explicitly released; time-dependent NOW() is not used in an index predicate.
+Only one grace extension is allowed. Entering payment sets PAYMENT_PENDING and a deadline ten minutes after the original hold expiry. Callback handling locks the same reservation/occupancy rows, uses a unique provider reference and checks the effective deadline before confirming. Duplicate callbacks return the existing result; late success is logged for reconciliation/refund and cannot overwrite a newer booking.
+Payment attempts may link to a pending contract created from the reservation; only a successful timely payment confirms it. Pending contracts do not independently block intervals. The confirmed contract retains the selected item and price snapshots; there is no Order table. Total paid is derived/reconciled from successful payment transactions. Refunds lock the source payment and enforce successful plus pending refunds ≤ amount actually paid.
+Indexes: users(email); plots(land_id,listing_status); occupancies(plot_id,starts_at,ends_at); contract_items(contract_id,status,start_date,end_date); care_tasks(assigned_worker_id,scheduled_at,status); sensor_readings(plot_id,observed_at DESC); messages(conversation_id,message_id); notifications(recipient_id,read_at); audit_logs(entity_type,entity_id,occurred_at). Use unique generation keys for recurring jobs, callback references and task-generated diary entries.
+3. Detailed Design
+The designs below cover all principal modules. Names identify planned Java classes and API contracts, rather than asserting that implementation already exists. Common DTO validation, authorization, auditing and transaction handling apply to every feature.
+3.1 Account, Authorization and Master Data
+Actors: all authenticated users; Admin manages accounts and operational catalogs; Expert manages approved crops, compatibility and cultivation knowledge. Guests can browse published plots and submit farm visit requests with name and phone.
+3.1.1 Class Diagram and Class Specifications
+  
+
+Figure 5 Common class structure
+Class / method
+	Input → output
+	Responsibility
+	AuthController.login
+	LoginRequest → TokenResponse
+	Validate credentials DTO; never return password hash.
+	AccountService.authenticate
+	email, password → principal
+	Verify hash and active account; issue JWT with role.
+	ResourcePolicy.checkAccess
+	principal, resource → allow/deny
+	Combine role with ownership or assignment.
+	CatalogService.publishPlot
+	plotId → PlotDTO
+	Admin only; require complete technical data and compatible varieties.
+	ExpertCatalogService.publishProcess
+	versionId → PublishedVersion
+	Expert only; validate steps and preserve immutable publication.
+	SiteVisitService.create
+	name, phone, date, slot → visitId
+	Accept guest or customer visit for a published plot; require name, phone, group size 1–5 and booking at least 24 hours in advance (maximum 30 days); email and note are optional.
+	3.1.2 Login Sequence
+  
+
+Figure 6 Login sequence
+3.1.3 Shared CRUD Sequence
+For crop, variety, service, land and plot management: client sends DTO → JWT/RBAC check → service validates business constraints → repository saves inside a transaction → audit record → response. Updating master data never rewrites historical price or process snapshots. Concurrent edits use an entity version or updated_at guard; stale changes return 409.
+3.2 Marketplace, Availability and Reservation
+Rules: BR02–BR08. Each reservation item independently identifies plot, variety, period and mode. The server rejects unpublished plots, unapproved varieties, incompatible combinations, start date earlier than Today + 3 days, insufficient duration, duplicate plot intervals or overlaps. First-month pricing includes one starter kit; calculated amounts are server snapshots.
+  
+
+Figure 7 Reservation classes
+Class / method
+	Contract / invariant
+	AvailabilityService.isAvailable(plotId,range)
+	Return computed availability; include confirmed/active rental, effective holds and maintenance.
+	ReservationService.create(customer,items)
+	Atomic hold of all items; set original expiry = server time + 15 minutes.
+	ReservationService.startPayment(id)
+	Owner only; apply grace once; return server-calculated total and deadline.
+	ReservationExpiryJob.releaseExpired()
+	Lock rows; release only expired unconfirmed holds; safe on repeated execution.
+	  
+
+Figure 8 Reservation sequence
+Alternative: any invalid or conflicting item causes rollback and a clear item-specific error. Starting payment after the deadline returns an expired result and does not create a new hold implicitly.
+3.3 Payment, Contracts, Renewal and Cancellation
+Rules: BR05, BR08–BR12 and BR22–BR23. Payment is mocked in the prototype. A contract header contains independent rented plot items; each item moves Confirmed → Active → Completed, or Cancelled before its start. The contract becomes Completed only when all current items have ended. A successfully extended predecessor becomes Renewed at its former period end while linked successor items preserve history.
+  
+
+Figure 9 Contract classes
+Class / method
+	Specification
+	PaymentService.initiate(reservationId)
+	Create/reuse pending contract and reference; return mock gateway request with exact amount and deadline.
+	PaymentService.handleCallback(payload)
+	Verify reference, amount, currency and mock signature/token; lock hold; deduplicate callback; confirm once if timely.
+	ContractLifecycleJob.run(now)
+	Activate/end each item by its own dates; stop new work after end; leave outstanding requests accessible.
+	RenewalService.renew(contractId,items)
+	Require request ≥3 days before relevant end; reserve successor intervals and collect payment; link previous_item_id; avoid maintenance between continuous rentals.
+	CancellationService.quote(request)
+	Use server-recorded request time; ≥3 days before start → 80%; less than 3 days → 50%; on/after start → 0%.
+	RefundService.execute(requestId)
+	Lock original payments; cap successful + pending refunds; keep unique attempt references and reconciliation status.
+	  
+
+Figure 10 Payment confirmation
+Failure paths: payment failure leaves an expiring hold; repeated callback returns the recorded outcome; late success creates a reconciliation case and no new rental. Cancellation versus activation is serialized under the same item lock and uses server time. Reject cancellation at or after the earliest affected item start under BR10. Mixed-start or partially active contract cancellation requires an agreed item-level policy before enabling that extension; the baseline does not refund active rentals.
+  
+
+Figure 11 Cancellation refund
+3.4 Cultivation Plans, Care Tasks and Farm Diary
+Rules: BR11 and BR13–BR17. Expert publishes the standard process for each variety. Assisted-growing binds to a published version and generates dated care tasks. Self-growing receives read-only guidance and may create diary entries. The customer cannot assign work directly to a worker. Admin assigns execution; a worker cannot rewrite the standard process.
+  
+
+Figure 12 Cultivation classes
+Class / method
+	Input / invariant
+	PlanService.initialize(itemId)
+	Bind published process version; relative step dates derive from the item start.
+	TaskGenerationService.generate(planId)
+	Unique item + plan version + step + scheduled occurrence; never duplicate on retry.
+	TaskService.start(taskId,worker)
+	Only assigned worker; Scheduled → In Progress; record server time.
+	TaskService.complete(taskId,evidence,materials)
+	At least one valid image; max 10 images/task and 5 MB/file; nonnegative quantities; atomically complete and generate diary.
+	TaskOverdueJob.run()
+	At local 23:59 unfinished tasks become Overdue; alert Admin; preserve work history.
+	PlanRevisionService.apply(itemId,newVersion)
+	Expert-approved future revision; preserve completed tasks; supersede future tasks with audit history.
+	  
+
+Figure 13 Task completion
+State transitions: Scheduled → In Progress → Completed; Scheduled/In Progress → Overdue when due date passes. Completed is terminal. Postponed watering retains a reason and revised schedule. An Overdue task may be resumed by an authorized worker; completion still requires evidence. Invalid evidence or a failed diary write rolls back the completion transaction.
+3.5 Additional Care Service Requests
+Self-growing customers may request delegated care for a chosen number of days within their active rental item. Price is calculated from the approved daily service rate and frozen on the request. Payment success is required before work is generated and assigned. A request outside the rented period is rejected.
+  
+
+Figure 14 Service request classes
+Method
+	Behaviour
+	create(itemId,serviceId,start,end)
+	Owner + Self-growing access; date range inside item; server quantity and price calculation.
+	onPaymentSuccess(requestId,paymentId)
+	Mark paid exactly once; generate only missing tasks under unique generation keys.
+	assign(taskId,workerId)
+	Admin only; worker must have field-worker role and active account.
+	complete(requestId)
+	Aggregate completed tasks; retain overdue/unresolved requests after item end for resolution.
+	  
+
+Figure 15 Paid care request
+3.6 Monitoring, Weather and Environmental Alerts
+Rule: BR18. Customers view sensor data read-only. The simulator produces observations every three hours, while the alert evaluator uses observed episodes and recorded freshness. An alert exceeding 30 minutes can be acted on only when sufficient observations establish persistence. A single three-hour reading cannot prove continuous danger for 30 minutes; the demo must either supply a time-stamped alert test sequence or clearly show that persistence is unconfirmed.
+  
+
+Figure 16 Monitoring classes
+Class / method
+	Specification
+	MonitoringService.ingest(reading)
+	Reject impossible temperature (<0°C or >50°C); validate humidity 0–100; store quality and observation time.
+	AlertEvaluator.evaluate(item,history)
+	Use growth-stage threshold; track start and continuity; deduplicate an active episode.
+	CareActionService.onPersistentDanger(alert)
+	Assisted: create emergency task only 08:00–17:00 and route to duty assignment; Self: send alert with service-request action.
+	WeatherTaskPolicy.review(task,forecast,reading)
+	Postpone watering when heavy rain is forecast or soil moisture ≥80%; do not invent a forecast on API failure.
+	MonitoringQueryService.dashboard(itemId)
+	Authorize access; return latest readings, timestamps, forecast, timeline and growth progress.
+	  
+
+Figure 17 Environmental alert
+Outside the 08:00–17:00 window, record and notify the alert without creating an emergency task; reevaluate eligibility in the next service window. Missing or stale observations are displayed explicitly. Thresholds belong to Expert-owned agronomic configuration; Admin manages simulator and operational alert delivery.
+3.7 Consultation, Technical Issues and AI Assistant
+Rules: BR06, BR19, BR24 and BR25. Customer–Expert consultation may start before rental and never reserves a plot. Worker–Expert channels support technical issues for assigned work. Customers cannot direct field workers through the system. The chatbot retrieves approved knowledge and gives general cultivation information; Expert remains responsible for technical guidance and process changes.
+  
+
+Figure 18 Communication classes
+Class / method
+	Contract
+	ConversationService.send(id,sender,payload)
+	Require valid participant and allowed channel; validate image access and size; store chronological message.
+	ConversationService.poll(id,afterId)
+	Authorized participant only; return new messages after cursor; client polls every 5 seconds.
+	IssueService.create(itemId,report)
+	Customer owner or assigned worker; route only to an expert assigned to that plot.
+	IssueService.resolve(id,guidance)
+	Assigned expert records guidance; a plan change requires explicit approved revision.
+	RagService.ask(question)
+	Retrieve only approved knowledge; return answer with source references; no cross-session memory or direct task/payment mutation.
+	  
+
+Figure 19 AI question
+If retrieval has no relevant approved source, return a limited response and suggest Expert consultation. Model responses never update contracts, approve diagnoses or issue legal safety/organic certification. Failures leave human consultation and core farm operations available.
+3.8 Harvest, Contract Completion and Administration
+Rules: BR20–BR24. Assigned field workers record harvest weight from an electronic scale and upload evidence; the customer accepts the result. Harvest acceptance records the customer's pickup or home-delivery choice and is separate from rental expiry. Each item ends on its own date, and unresolved acceptance or service requests remain visible for resolution. The choice is handed to farm operations; no automated logistics integration is included.
+  
+
+Figure 20 Harvest classes
+Class / method
+	Specification
+	HarvestService.record(itemId,weight,evidence)
+	Assigned worker only; positive measured weight; required scale photo and harvest time; record FARM_PICKUP or HOME_DELIVERY selection.
+	HarvestService.accept(harvestId,customer)
+	Owner only; idempotent acceptance; retain original measurement and audit.
+	ContractLifecycleService.endItem(itemId)
+	Stop generating new care work; preserve pending issues/services; open maintenance if no successful renewal.
+	MaintenanceService.complete(occupancyId,admin)
+	Admin confirms real-world soil rest completion; release interval and recompute availability.
+	ReportingService.revenue(period)
+	Successful payments less successful refunds; show pending amounts separately.
+	ReportingService.occupancy(period)
+	Occupied plot-days divided by eligible published plot-days; report maintenance separately.
+	  
+
+Figure 21 Harvest and completion
+3.9 API and Transaction Summary
+Area
+	Representative API
+	Access / transaction boundary
+	Accounts
+	POST /auth/login; PATCH /me
+	Public login; authenticated profile.
+	Catalog
+	GET /plots; POST /admin/plots
+	Public published data; Admin writes.
+	Agronomy
+	POST /expert/process-versions/{id}/publish
+	Expert-owned immutable publication.
+	Visits
+	POST /site-visits
+	Guest/customer; validated contact information.
+	Reservations
+	POST /reservations; POST /reservations/{id}/payment
+	Customer owner; all plot intervals in one transaction.
+	Payments
+	POST /payments/mock-callback
+	Validated callback reference; one locked confirmation transaction.
+	Contracts
+	GET /contracts/{id}; POST /contracts/{id}/renewals
+	Owner or authorized operations; renewal interval transaction.
+	Cancellation
+	POST /contracts/{id}/cancellation-requests
+	Owner request; Admin decision and refund ledger.
+	Work
+	POST /tasks/{id}/start; POST /tasks/{id}/complete
+	Assigned worker; task + diary atomic.
+	Service
+	POST /contract-items/{id}/service-requests
+	Owner; payment before task creation.
+	Monitoring
+	GET /contract-items/{id}/monitoring
+	Owner/assigned expert/authorized operations.
+	Chat
+	GET /conversations/{id}/messages?afterId=...
+	Participant authorization; cursor polling.
+	Harvest
+	POST /contract-items/{id}/harvests; POST /harvests/{id}/accept
+	Assigned worker / customer owner.
+	Maintenance
+	POST /admin/maintenance/{id}/complete
+	Admin only; release occupancy and audit.
+	3.10 Non-Functional Design
+The design converts the SRS quality targets into measurable implementation constraints. Performance values are verified on the agreed demo environment with representative seed data; production-grade uptime and MTBF remain acceptance targets for the prototype baseline.
+Quality area
+	Design response / acceptance target
+	Usability
+	A returning Customer completes Reservation through Payment in under 5 minutes; show the server countdown and item-level validation without losing selections.
+	Operating availability
+	Target 99.0% availability during 06:00–23:00 GMT+7. Schedule maintenance during 02:00–05:00 and provide at least 24 hours advance notice.
+	Reliability
+	Target MTBF of 720 hours for reservation, payment and rental activation. Reservation/grace expiry jobs operate within 30 seconds and remain idempotent.
+	Performance
+	Payment callback to confirmation completes within 10 seconds. Chat polling makes a new message visible within one 5-second cycle.
+	Capacity
+	Support up to 50 active plots, 500 active rental items/contracts and 10,000 care tasks; indexed list/search queries return within 1 second in the target environment.
+	Security
+	bcrypt work factor 12 for passwords; JWT session policy; backend role plus ownership/assignment checks; externalized secrets; authenticated file access.
+	Auditability
+	Append actor, timestamp, action and affected entity for contract creation, payments/refunds, task changes, role changes and plot configuration.
+	Maintainability
+	Controller–Service–Repository separation; external adapters behind interfaces; schema changes managed by versioned Flyway or Liquibase migrations.
+	External failure
+	Weather, AI or Email failure returns a clear unavailable/pending state without losing core transactions. Payment unavailability preserves only the valid server-timed hold.
+	3.11 Design Traceability and Verification Scenarios
+Requirement
+	Design section
+	Critical verification
+	BR01–BR03
+	1.1; 2.2; 3.1–3.2
+	No external landowner posting; only published compatible plots bookable.
+	BR04–BR09
+	2.4; 3.2–3.3
+	Minimum growing period; simultaneous hold conflict; grace applied once; full payment.
+	BR05 / BR22
+	2.1; 3.3; 3.8
+	Two items with different dates/modes; one ends while other stays active.
+	BR10 / BR12
+	3.3
+	80/50/0% boundary by server time; reject late renewal and duplicate refund.
+	BR11 / BR13–BR17
+	3.4–3.5
+	Paid daily delegation; immutable process; no completion without photo; one generated diary.
+	BR18
+	3.6
+	Persistent danger, hours boundary, duplicate readings, wet soil and weather outage.
+	BR19 / BR24–BR25
+	1.1; 3.7
+	RAG sources restricted; unauthorized expert/worker access denied; no customer–worker dispatch.
+	BR20–BR23
+	3.8
+	Harvest acceptance; independent expiry; open-ended soil rest until Admin release.
+	Prototype boundaries: Vietnamese user interface; responsive mobile web for workers; simulated sensors; mock payment; polling chat; no physical IoT installation, live bank payment, payroll or automated logistics. Technical verification must distinguish intended design behaviour from measured implementation results.

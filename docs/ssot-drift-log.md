@@ -1,0 +1,86 @@
+# Farmely SSoT Drift Log (Hồ Sơ Sai Lệch & Đối Soát 4 Tài Liệu Nộp)
+
+> **Bộ 4 tài liệu nộp chính thức (Baseline SSoT):**
+> 1. **Report 1 – Project Introduction:** `docs/submission/Report1_Project_Introduction.docx` (Google Doc ID: `17_eVwBlRE8u5-G24BVdT6BePRqJcmDU1`)
+> 2. **Report 2 – Project Management Plan:** `docs/submission/Report2_Project_Management_Plan.docx` (Google Doc ID: `1IeaarZOqmJnU0zRvWr2IcQiAMxcVcpe4`)
+> 3. **Report 3 – Software Requirement Specification:** `docs/submission/Report3_Software_Requirement_Specification.docx` (Google Doc ID: `18TXs_r9G1GHJ6ERDNaF_IT8pLk6RcU2W`)
+> 4. **Report 4 – Software Design Document:** `docs/submission/Report4_Software_Design_Document.docx` (Google Doc ID: `1z4xND1aggWK8DOUsjjDa5JSo_HGzZnN3`)
+
+---
+
+## Danh Sách Đối Soát & Drift Cần Quản Lý
+
+### [DRIFT-001] Danh xưng Bảng Database: `rentals` vs `contract_items`
+- **Ngày:** 2026-10-25
+- **File:** `Database/farmely_full_database.sql`, `Database/seed_lands_and_plots.sql`
+- **Docs nói (Report 4 §2.1 & §2.3):** Bảng phụ lục hợp đồng từng thửa là `contract_items`. Header hợp đồng là `contracts`. Không dùng trung gian Order. Mỗi `contract_item` đại diện cho một Rental lifecycle.
+- **Code làm:** Code SQL và Backend hiện tại đang đặt tên bảng là `rentals` (khóa ngoại `contract_id`).
+- **Lý do lệch:** Code khởi tạo ban đầu dùng thuật ngữ ngắn `rentals`. Report 4 quy chuẩn hóa theo quan hệ thực thể Master-Detail `contracts` $\rightarrow$ `contract_items`.
+- **Cần cập nhật:** ERD, DDL SQL hoặc Mapper/Entity alias trong backend.
+- **Cách sửa:** Giữ alias / view hoặc migration hỗ trợ song song cả hai tên, bảo đảm báo cáo bảo vệ và DDL mapping 1:1 với Report 4.
+- **Trạng thái:** ❌ Chưa sửa (Đang ánh xạ qua alias trong backend)
+
+---
+
+### [DRIFT-002] Cơ chế Giữ Chỗ & Khóa Trùng Lịch: `plot_occupancies` & `reservations`
+- **Ngày:** 2026-10-25
+- **File:** `Database/farmely_full_database.sql`, `backend/rental-service/`
+- **Docs nói (Report 4 §2.1 & §2.4):** Tính toán availability dựa trên khoảng thời gian `plot_occupancies` (`starts_at`, `ends_at`, `kind`, `status`), tách biệt với publication status. Bảng `reservations` và `reservation_items` lưu hold 15 phút + 10 phút grace period.
+- **Code làm:** Trong DDL 26 bảng ban đầu, `contracts` quản lý trạng thái `PENDING` trực tiếp kèm `reservation_expires_at` và `grace_applied`. Chưa có bảng riêng `plot_occupancies`.
+- **Lý do lệch:** Tối giản hóa Ponytail để chạy nhanh demo ban đầu, chưa tạo bảng trung gian `plot_occupancies`.
+- **Cần cập nhật:** SDS/SDD, DDL database.
+- **Cách sửa:** Bổ sung DDL table `plot_occupancies` hoặc migration script trong PostgreSQL để khớp 100% với DDL 39 bảng của Report 4 khi bảo vệ Final.
+- **Trạng thái:** ❌ Chưa sửa (Logic chạy trên contract PENDING)
+
+---
+
+### [DRIFT-003] Tên bảng Khả năng tương thích & Hủy hợp đồng: `plot_crop_compatibility` vs `plot_variety_compatibility`
+- **Ngày:** 2026-10-25
+- **File:** `Database/farmely_full_database.sql`
+- **Docs nói (Report 4 §2.3 #7 & #16):**
+  - Tên bảng tương thích: `plot_crop_compatibility` (liên kết `plot_id` và `variety_id`).
+  - Tên bảng hủy hợp đồng: `cancellation_requests` (liên kết `contract_id`).
+- **Code làm:**
+  - SQL đặt tên là `plot_variety_compatibility`.
+  - Bảng hủy hợp đồng đặt tên là `contract_cancellations`.
+- **Lý do lệch:** Lệch về naming convention giữa bản thảo ban đầu và bản hoàn thiện nộp của Report 4.
+- **Cần cập nhật:** DDL migration, entity class.
+- **Cách sửa:** Khai báo synonym/view hoặc migrate rename cột/bảng trong DB.
+- **Trạng thái:** ❌ Chưa sửa
+
+---
+
+### [DRIFT-004] Quản lý Vật tư tiêu hao (Materials)
+- **Ngày:** 2026-10-25
+- **File:** `CLAUDE.md`, `Database/farmely_full_database.sql`, Report 4 §2.3 (#21, #22, #26)
+- **Docs nói (Report 4 §2.3):** Có 3 bảng `materials`, `template_materials`, `material_usages` để ghi nhận định mức và lượng tiêu hao thực tế của công nhân tại hiện trường.
+- **Code làm:** Theo `CLAUDE.md` triết lý Ponytail: "KHÔNG TRACKING VẬT TƯ (Bỏ hẳn Material): Chi phí dịch vụ/gói là trọn gói (Lump-sum), không trừ kho vật tư tiêu hao." Do đó DDL 26 bảng đã bỏ 3 bảng này.
+- **Lý do lệch:** Giảm tải phạm vi lập trình kho vật tư phức tạp (ERP inventory) cho đồ án môn học.
+- **Cần cập nhật:** Giữ nguyên quy định nghiệp vụ: không tính giá tiền/trừ tồn kho vật tư thương mại, nhưng nếu hội đồng yêu cầu đúng 39 bảng Report 4 thì DDL cần tạo 3 bảng này dưới dạng định mức kỹ thuật ghi chú (technical notes).
+- **Cách sửa:** Thêm DDL cho 3 bảng `materials`, `template_materials`, `material_usages` vào schema hoàn chỉnh để khớp tài liệu SDD Report 4.
+- **Trạng thái:** ❌ Chưa sửa
+
+---
+
+### [DRIFT-005] Thời lượng Grace Period trong WBS Report 2 vs BR08 (Report 1, 3, 4)
+- **Ngày:** 2026-10-25
+- **File:** `docs/submission/Report2_Project_Management_Plan.txt` mục 4.2
+- **Docs nói (Report 2 WBS item 4.2):** Ghi "3-minute payment grace period".
+- **Docs nói (Report 1 §5, Report 3 BR08, Report 4 §2.4, Code):** Ghi chuẩn xác: "15 minutes hold + additional 10-minute grace period".
+- **Code làm:** `BookPlot.jsx` đếm ngược 15:00 và nút gia hạn thêm 10 phút (+600s). Khớp chuẩn BR08.
+- **Lý do lệch:** Typo nhỏ trong bảng WBS của Report 2 (thành viên soạn ghi nhầm 3 phút thay vì 10 phút).
+- **Cần cập nhật:** Report 2 WBS table khi có dịp chỉnh sửa docs.
+- **Cách sửa:** Code giữ nguyên 15 phút + 10 phút theo SSoT BR08.
+- **Trạng thái:** ✅ Đã align về logic nghiệp vụ chuẩn (10 phút grace).
+
+---
+
+### [DRIFT-006] Tiêu chuẩn 55 Màn hình (SCR-xxx) và Danh sách Thông báo (MSG01 - MSG14)
+- **Ngày:** 2026-10-25
+- **File:** `frontend/src/pages/`
+- **Docs nói (Report 3 §3.1.2 & §5.3):** Quy định chính xác 55 màn hình (SCR-PUB-01..05, SCR-Customer-01..16, SCR-Agricultural Expert-01..10, SCR-Field Worker-01..07, SCR-Administrator-01..11) và 14 mã thông báo hệ thống (MSG01 đến MSG14).
+- **Code làm:** Frontend chia thành các trang tổng hợp / Tab dashboard (`CustomerDashboard.jsx`, `ExpertDashboard.jsx`, `FieldWorkerDashboard.jsx`, `AdminDashboard.jsx`, `MasterDataDashboard.jsx`) chứa đầy đủ các tính năng con qua popups/drawers. Một số thông báo toast/alert dùng text trực tiếp chưa đồng bộ mã MSG01-MSG14.
+- **Lý do lệch:** Kiến trúc SPA hiện đại nhóm các modal/tab trong dashboard để tối ưu trải nghiệm người dùng, trong khi tài liệu SRS phân tách từng modal/popup thành 1 Screen ID riêng rẽ.
+- **Cần cập nhật:** Gắn comment mã màn hình `SCR-xxx` và mã thông báo `MSG-xx` trực tiếp vào từng Component / Modal / Toast tương ứng trong React.
+- **Cách sửa:** Thực hiện rà soát và đánh dấu mã màn hình + mã MSG vào JSX code.
+- **Trạng thái:** ❌ Đang tiến hành chuẩn hóa.

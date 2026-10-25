@@ -1,0 +1,306 @@
+﻿INFORMATION SYSTEM PROGRAMING PROJECT REPORT
+Report 1 – Project Introduction
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+– Ho Chi Minh, September 2026 –        
+Table of Contents
+I. Record of Changes        3
+II. Project Introduction        4
+1. Overview        4
+1.1 Project Information        4
+1.2 Project Team        4
+2. Product Background        4
+3. Existing Systems        4
+3.1 AcreShare         4
+3.2 Garden365        4
+3.3 Nextfarm         4
+3.4 Farmly – BeFarmly         4
+4. Business Opportunity        4
+5. Software Product Vision        5
+6. Project Scope & Limitations        5
+6.1 Major Features        5
+6.2 Limitations & Exclusions        6
+
+
+________________
+
+
+I. Record of Changes
+Date
+	A*
+M, D
+	In charge
+	Change Description
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	
+
+	*A - Added M - Modified D - Deleted
+
+
+________________
+
+
+II. Project Introduction
+1. Overview
+1.1 Project Information
+* English:  Agricultural Farming Experience and Management Support System
+* Vietnamese: Hệ thống hỗ trợ trải nghiệm và quản lý quá trình canh tác nông nghiệp 
+* Abbreviation: Farmely
+* Group name: Group 1 - ISP392
+* Software type: Web application
+1.2 Project Team
+Full Name
+	Student ID
+	Role
+	Email / Mobile
+	Lô Thái Quyền
+	SE203449
+	Leader
+	
+
+	Đào Duy Anh
+	SE205116
+	Member
+	
+
+	Nguyễn Văn Hoàng
+	SE203342
+	Member
+	
+
+	Tạ Nguyễn Khôi Nguyên
+	SE200935
+	Member
+	
+
+	
+
+2. Product Background
+Urban residents in Ho Chi Minh City increasingly demand safe vegetables and transparent food sources, seeking to know where, how, and by whom their food is produced. While growing crops directly provides trust and peace of mind, urban dwellers frequently face barriers such as a lack of arable land, limited time, and insufficient agricultural knowledge.  
+Farmely addresses this challenge by functioning as an owner-operated urban farming platform. The farm pre-surveys, zones, and equips physical plots with IoT monitoring infrastructure and soil suitability profiles before publishing them to a Marketplace. Customers can browse available plots, select compatible crops, reserve rental durations, and choose between self-gardening or fully managed cultivation services supported by agricultural experts. 
+3. Existing Systems
+The team studied existing systems related to agricultural land rental, farm management, and farming support. These systems provide useful references for identifying relevant features and designing the proposed system. 
+3.1 AcreShare  
+System Description: AcreShare is a platform that connects landowners and farmers for agricultural land rental. Users can search for available farmland, view land information, and proceed with the rental process.
+Link: https://acreshare.co/
+Actors:
+* Landowner
+* Farmer/Renter
+* Platform
+Key Features:
+* Land listing
+* Land search
+* Rental request
+* Lease agreement
+* Payment
+Advantages: Focuses clearly on the farmland rental process and the Landowner–Renter relationship
+Disadvantages: Mainly focuses on land rental and provides limited support for farming activities after rental
+Reference: The team can refer to its land listing and rental workflow
+3.2 Garden365 
+System Description: Garden365 provides a Rent a Farm model that allows users to rent a farming area and participate in growing crops without owning land.
+Link: https://play.google.com/store/apps/details?id=com.garden365app
+Actors:
+* Customer/Gardener
+* Farm/Producer
+* Platform
+Key Features:
+* Rent a Farm
+* Mini farm plots
+* Gardening support
+* Harvest subscription
+Advantages: Closely matches the needs of users who do not own land but want to participate in farming
+Disadvantages: Does not focus on detailed rental management, crop suitability assessment, or IoT monitoring
+Reference: The team can refer to its rent-a-farm and subscription model
+
+
+3.3 Nextfarm 
+System Description: Nextfarm is a smart agriculture platform that focuses on farm management and the digitalization of farming activities.
+Link: https://nextfarm.vn/
+Actors:
+* Farm Owner
+* Farmer/Staff
+* IoT Devices
+* AI Services
+Key Features:
+* GIS/plot management
+* Farming records
+* IoT monitoring
+* Weather information
+* Crop management
+* AI services
+Advantages: Combines farm data, IoT, and AI to support farming activities
+Disadvantages: Does not focus on agricultural land rental or a rental marketplace
+Reference: The team can refer to its plot management, monitoring, and IoT/AI integration
+3.4 Farmly – BeFarmly 
+System Description: Farmly is a platform that helps users manage and record their gardening activities through journals, photos, and an AI gardening assistant.
+Link: https://befarmly.com/welcome
+Actors:
+* Gardener/User
+* Community/Mentor
+* AI Assistant
+Key Features:
+* Garden management
+* Gardening journal
+* Photo/video records
+* AI gardening assistance
+Advantages: Focuses on user experience and tracking the progress of growing plants
+Disadvantages: Does not provide land rental or IoT monitoring features
+Reference: The team can refer to its farming journal, progress tracking, and AI assistant
+4. Business Opportunity
+Demand for safe food and urban farming experiences is expanding rapidly. However, existing solutions leave significant operational gaps:  
+* Land-leasing platforms like AcreShare rely on unverified C2C listings without on-site quality control or post-rental cultivation support. 
+* Smart farm systems like Nextfarm target industrial-scale operations rather than individual retail renters.   
+* Apps like Garden365 and BeFarmly provide basic journaling or fixed packages without dynamic plot reservations, crop-soil compatibility validation, or IoT integration.  
+Farmely captures this opportunity by digitizing an end-to-end journey covering: Marketplace, Pre-rental Consultation, Reservation, Payment, Cultivation (Self-growing or Assisted-growing), IoT and Diary Monitoring, and final Harvest. By directly managing the land, Farmely standardizes agricultural quality and creates a scalable service model for urban agriculture. 
+5. Software Product Vision
+For urban residents seeking transparent, hands-on vegetable cultivation without owning farmland, and farm managers needing automated operational tools;   
+Farmely is a web and mobile management platform supporting the full agricultural plot rental and crop lifecycle.   Unlike generic C2C land directories or standalone gardening diaries, Farmely:   
+* Offers standardized, IoT-monitored plots with biological crop-compatibility checks.   
+* Enforces a 15-minute temporary reservation lock preventing double-booking and schedule collisions.   
+* Supports Self-growing and Assisted-growing modes with automated Care Task generation and mandatory photo proof.   
+* Provides transparent tracking via 3-hour IoT sensor telemetry, weather forecasts, electronic Farm Diaries, and real-time expert consultation.
+
+
+6. Project Scope & Limitations
+Farmely covers the end-to-end urban farming lifecycle: plot discovery, reservation, and payment, cultivation management (Self-growing or Assisted-growing), Care Task dispatching with photo proofs, periodic IoT and diary monitoring, and harvest logging. The system operates on a single owner-operated farm and serves four actors: Customer, Agricultural Expert, Field Staff, and Administrator. 
+ As an academic prototype (ISP 392), environmental IoT data is simulated via a 3-hour mock service, and payments are handled via a sandbox gateway. The system explicitly excludes peer-to-peer (C2C) land listings, physical IoT hardware installation, produce e-commerce, and home delivery logistics. Post-harvest plot cleaning and soil rehabilitation are managed internally by the farm offline.  
+6.1 Major Features
+FR-01: Plot & Land Management: Admins manage land zones, plot parameters, base prices and listing visibility (Published or Hidden).   
+FR-02: Plot Marketplace: Customers search and filter plots by location, area, price, available dates, and compatible crop varieties. 
+FR-03: Reservation, Rental & Payment: Validates crop compatibility and growth buffer times, holds plots via 15-minute reservation locks, and processes 100% upfront package payments via simulated gateways.  
+FR-04: Agricultural Knowledge Management: Experts configure crop catalogs, plot-soil compatibility matrices, and IoT safety threshold ranges.  
+FR-05: Cultivation Plans & Templates: Experts maintain versioned Standard Process Templates; the system generates Cultivation Plans for customer approval.  
+FR-06: Field Care Tasks: Admins dispatch tasks; Field Staff receive mobile task lists, record material consumption, and upload mandatory on-site photo proofs.   
+FR-07: Monitoring, Farm Diary & Issues: Auto-syncs completed tasks into customer Farm Diaries, ingests 3-hour IoT telemetry, generates threshold alerts, and manages issue reporting.  
+FR-08: Consultation & AI Assistant: Features optional pre-rental consultations, 1-on-1 WebSocket chats (Customer with Expert, Staff with Expert), and an LLM/RAG AI chatbot for farming queries.
+FR-09: Harvest & Rental Completion: Records verified harvest metrics (date, weight, photos), locks completed rentals into read-only mode, and resets plots for internal turnover.  
+  
+
+Figure 1: Functional Decomposition Mindmap of Farmely
+
+6.2 Limitations & Exclusions
+LI-01 (Ownership Model): The platform exclusively manages its own farmland and does not support C2C peer-to-peer listings or external third-party landowners.   
+LI-02 (IoT Telemetry): Sensor data (temperature, soil/air humidity) is generated via a simulated mock service on a 3-hour cycle, with no physical microcontrollers deployed.   
+LI-03 (Payment Gateway): Payment processing is limited to sandbox/mock simulation and does not handle actual commercial banking transactions.   
+LI-04 (E-commerce & Logistics): The scope ends at logging harvest results; it excludes secondary produce marketplaces, post-harvest packaging, and home-delivery logistics.   
+LI-05 (Certification Authority): Telemetry, photos, and diary records ensure operational transparency only and do not constitute legal organic or VietGAP certifications.   
+LI-06 (Post-Harvest Maintenance): Post-harvest soil clearing and rehabilitation are handled internally by farm operations outside the software interface.
