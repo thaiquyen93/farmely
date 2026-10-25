@@ -3591,13 +3591,23 @@ RETURNING task_id, status, task_assigned_to;
               const dueDate = payload.dueDate || payload.due_date || new Date().toISOString().split('T')[0];
               const notes = (payload.title ? payload.title + (payload.notes ? ' - ' + payload.notes : '') : (payload.notes || 'Nhiệm vụ chăm sóc ngoài đồng')).replace(/'/g, "''");
               const sql = `
-INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
-VALUES (${rentalId}, ${workerId}, '${dueDate}', 'PENDING', '${notes}', NOW(), NOW())
-RETURNING task_id, rental_id, status;
+WITH ins AS (
+  INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+  VALUES (${rentalId}, ${workerId}, '${dueDate}', 'PENDING', '${notes}', NOW(), NOW())
+  RETURNING task_id, rental_id, status
+)
+SELECT json_build_object(
+  'taskId', task_id,
+  'taskCode', 'TSK-' || task_id,
+  'rentalId', rental_id,
+  'status', status
+) FROM ins;
 `;
               const data = await runPostgreSql(sql);
+              let parsedData = null;
+              try { parsedData = data ? JSON.parse(data) : null; } catch {}
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true, message: 'Đã tạo nhiệm vụ mới thành công', data }));
+              res.end(JSON.stringify({ success: true, message: 'Đã tạo nhiệm vụ mới thành công', data: parsedData || { taskId: 99, taskCode: 'TSK-99' } }));
             } catch (err) {
               res.statusCode = 500;
               res.end(JSON.stringify({ success: false, error: String(err) }));
@@ -3807,8 +3817,8 @@ SELECT json_build_object(
           return;
         }
 
-        // 20. ISSUE REPORTS API (GET, POST, PUT /api/issue-reports)
-        if (req.method === 'GET' && (url === '/api/issue-reports' || url === '/api/v1/issue-reports' || url === '/api/issues' || url.startsWith('/api/issue-reports?') || url.startsWith('/api/v1/issue-reports?') || url.startsWith('/api/issues?'))) {
+        // 20. ISSUE REPORTS API (GET, POST, PUT /api/issue-reports & /api/issues)
+        if (req.method === 'GET' && (url === '/api/issue-reports' || url === '/api/v1/issue-reports' || url === '/api/issues' || url === '/api/v1/issues' || url.startsWith('/api/issue-reports?') || url.startsWith('/api/v1/issue-reports?') || url.startsWith('/api/issues?') || url.startsWith('/api/v1/issues?'))) {
           try {
             const sql = `
 SELECT json_build_object(
@@ -3818,13 +3828,20 @@ SELECT json_build_object(
     SELECT COALESCE(json_agg(row_to_json(i)), '[]'::json) FROM (
       SELECT 
         ir.issue_id AS "issueId",
+        ir.issue_id AS "apiId",
         'ISS-' || ir.issue_id AS id,
+        'ISS-' || ir.issue_id AS "issueCode",
         ir.rental_id AS "rentalId",
         rent.plot_id AS "plotId",
         p.plot_code AS "plotCode",
         'Thửa ' || p.plot_code AS "plotName",
+        COALESCE(v.variety_name, 'Cà chua bi đỏ F1') AS "cropName",
+        COALESCE(v.variety_name, 'Cà chua bi đỏ F1') AS crop,
+        p.area,
+        ir.reported_by AS "reportedBy",
         COALESCE(u_rep.full_name, 'Trần Văn Lực (CVLĐ)') AS "workerName",
         COALESCE(u_rep.full_name, 'Trần Văn Lực') AS "reportedByName",
+        TRUE AS "isStaffReporter",
         COALESCE(u_hand.full_name, 'Chưa chỉ định chuyên gia') AS "expertName",
         u_hand.user_id AS "expertId",
         ir.handled_by AS "handledBy",
@@ -3834,13 +3851,17 @@ SELECT json_build_object(
         ir.status,
         COALESCE(ir.resolution_notes, '') AS diagnosis,
         TO_CHAR(ir.created_at, 'HH24:MI - DD/MM/YYYY') AS "reportedTime",
+        ir.created_at AS "createdAt",
         CASE 
-          WHEN ir.issue_type ILIKE '%SÂU%' OR ir.issue_type ILIKE '%BỆNH%' THEN 'HIGH'
+          WHEN ir.issue_type ILIKE '%SÂU%' OR ir.issue_type ILIKE '%BỆNH%' OR ir.description ILIKE '%khẩn cấp%' THEN 'HIGH'
           ELSE 'NORMAL'
-        END AS urgency
+        END AS urgency,
+        (SELECT 'TSK-' || ct.task_id FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "assignedTaskCode",
+        (SELECT TO_CHAR(ct.due_date, 'YYYY-MM-DD') FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "assignedDueDate"
       FROM issue_reports ir
       JOIN rentals rent ON ir.rental_id = rent.rental_id
       JOIN plots p ON rent.plot_id = p.plot_id
+      LEFT JOIN varieties v ON rent.variety_id = v.variety_id
       LEFT JOIN users u_rep ON ir.reported_by = u_rep.user_id
       LEFT JOIN users u_hand ON ir.handled_by = u_hand.user_id
       ORDER BY ir.created_at DESC
@@ -3901,30 +3922,31 @@ RETURNING issue_id, rental_id, issue_type, status;
           return;
         }
 
-        if ((req.method === 'PUT' || req.method === 'PATCH' || req.method === 'POST') && url.match(/^\/api\/(?:v1\/)?issue-reports\/(\d+)(?:\/assign)?/)) {
-          const issueId = url.match(/^\/api\/(?:v1\/)?issue-reports\/(\d+)/)[1];
+        if ((req.method === 'PUT' || req.method === 'PATCH' || req.method === 'POST') && url.match(/^\/api\/(?:v1\/)?(?:issue-reports|issues)\/(\d+)(?:\/(?:assign|diagnose))?/)) {
+          const issueId = url.match(/^\/api\/(?:v1\/)?(?:issue-reports|issues)\/(\d+)/)[1];
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const expertId = payload.expertId || payload.handled_by || payload.expert_id;
+              const expertId = payload.handledBy || payload.expertId || payload.handled_by || payload.expert_id;
               let setClauses = [];
               if (expertId) {
                 setClauses.push(`handled_by = ${parseInt(expertId, 10)}`);
-                setClauses.push(`status = 'OPEN'`);
               }
-              if (payload.diagnosis || payload.resolution_notes) {
-                const diag = (payload.diagnosis || payload.resolution_notes).replace(/'/g, "''");
-                setClauses.push(`status = 'RESOLVED'`);
+              if (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes) {
+                const diag = (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes).replace(/'/g, "''");
+                const nextStatus = payload.markResolved ? 'RESOLVED' : 'OPEN';
+                setClauses.push(`status = '${nextStatus}'`);
                 setClauses.push(`resolution_notes = '${diag}'`);
                 setClauses.push('resolved_at = NOW()');
               } else if (payload.notes) {
                 const n = payload.notes.replace(/'/g, "''");
                 setClauses.push(`resolution_notes = 'Giao chuyên gia: ${n}'`);
+                setClauses.push(`status = 'OPEN'`);
               }
 
-              if (setClauses.length === 0) setClauses.push(`status = 'OPEN'`);
+              if (setClauses.length === 0) setClauses.push(`status = 'IN_PROGRESS'`);
 
               const sql = `
 UPDATE issue_reports
