@@ -274,7 +274,7 @@ export default function ExpertDashboard() {
   const [selectedIssueToDiagnose, setSelectedIssueToDiagnose] = useState(null);
   const [diagnosisAdvice, setDiagnosisAdvice] = useState('');
   const [selectedIssueToAssign, setSelectedIssueToAssign] = useState(null);
-  const [taskAssignment, setTaskAssignment] = useState({ title: '', dueDate: '', instructions: '', templateId: '' });
+  const [taskAssignment, setTaskAssignment] = useState({ title: '', dueDate: '', priority: 'EMERGENCY', instructions: '', templateId: '' });
   const [isAssigningTask, setIsAssigningTask] = useState(false);
 
   const loadFieldIssues = () => {
@@ -589,6 +589,7 @@ export default function ExpertDashboard() {
     setTaskAssignment({
       title: `Xử lý ${String(issue.issueType || 'sự cố hiện trường').toLowerCase()}`,
       dueDate: dueDate.toISOString().slice(0, 10),
+      priority: issue.urgency === 'HIGH' || issue.urgency === 'CRITICAL' ? 'EMERGENCY' : 'HIGH',
       instructions: issue.description || '',
       templateId: ''
     });
@@ -603,8 +604,9 @@ export default function ExpertDashboard() {
     }
 
     const selectedTemplate = processTemplates.find((template) => String(template.id) === String(taskAssignment.templateId));
+    const priorityTag = taskAssignment.priority === 'EMERGENCY' ? '[LÀM NGAY]' : taskAssignment.priority === 'HIGH' ? '[ƯU TIÊN CAO]' : '[BÌNH THƯỜNG]';
     const notes = [
-      `[KHẨN CẤP] [${selectedIssueToAssign.issueCode || selectedIssueToAssign.id}] ${taskAssignment.title.trim()}`,
+      `${priorityTag} [${selectedIssueToAssign.issueCode || selectedIssueToAssign.id}] ${taskAssignment.title.trim()}`,
       taskAssignment.instructions.trim(),
       selectedTemplate ? `Quy trình tham chiếu: ${selectedTemplate.name} (${selectedTemplate.version})` : ''
     ].filter(Boolean).join('\n');
@@ -617,6 +619,8 @@ export default function ExpertDashboard() {
           rentalId: selectedIssueToAssign.rentalId,
           taskAssignedTo: selectedIssueToAssign.reportedBy,
           dueDate: taskAssignment.dueDate,
+          priority: taskAssignment.priority || 'EMERGENCY',
+          title: `${priorityTag} ${taskAssignment.title.trim()}`,
           status: 'PENDING',
           notes
         })
@@ -627,16 +631,17 @@ export default function ExpertDashboard() {
           method: 'PUT',
           body: JSON.stringify({
             handledBy: expertId,
-            resolutionNotes: `Đã giao nhiệm vụ ${task?.taskCode || ''} cho ${selectedIssueToAssign.workerName}.`,
+            resolutionNotes: `${priorityTag} Đã giao nhiệm vụ ${task?.taskCode || ''} cho ${selectedIssueToAssign.workerName}.`,
             markResolved: false
           })
         });
       }
       setFieldIssues((current) => current.map((issue) => issue.id === selectedIssueToAssign.id
-        ? { ...issue, assignedTaskCode: task?.taskCode || `TSK-${task?.taskId}`, assignedDueDate: taskAssignment.dueDate, diagnosis: `Đã giao nhiệm vụ cho ${issue.workerName}.` }
+        ? { ...issue, assignedTaskCode: task?.taskCode || `TSK-${task?.taskId}`, assignedDueDate: taskAssignment.dueDate, diagnosis: `${priorityTag} Đã giao nhiệm vụ cho ${issue.workerName}.` }
         : issue));
       setSelectedIssueToAssign(null);
       setDataError('');
+      triggerSuccessToast(`Đã giao nhiệm vụ ${priorityTag} cho chuyên viên hiện trường!`);
     } catch (error) {
       setDataError(error.message || 'Không thể giao nhiệm vụ cho nhân viên.');
     } finally {
@@ -2345,7 +2350,50 @@ export default function ExpertDashboard() {
           <form onSubmit={handleAssignIssueTask} className="space-y-4 text-left text-xs">
             <div className="grid gap-3 rounded-2xl border border-rose-100 bg-rose-50 p-4 sm:grid-cols-2">
               <div><span className="text-stone-500">Người thực hiện</span><strong className="mt-1 block text-sm text-brand-dark">{selectedIssueToAssign.workerName}</strong><span className="text-[11px] text-stone-500">Người gửi báo cáo</span></div>
-              <div><span className="text-stone-500">Thửa đất</span><strong className="mt-1 block text-sm text-brand-dark">{selectedIssueToAssign.plotName} ({selectedIssueToAssign.plotCode})</strong><span className="mt-1 inline-flex rounded-full bg-rose-100 px-2 py-1 text-[10px] font-black text-rose-700">Khẩn cấp</span></div>
+              <div><span className="text-stone-500">Thửa đất</span><strong className="mt-1 block text-sm text-brand-dark">{selectedIssueToAssign.plotName} ({selectedIssueToAssign.plotCode})</strong><span className="mt-1 inline-flex rounded-full bg-rose-100 px-2 py-1 text-[10px] font-black text-rose-700">Sự cố hiện trường</span></div>
+            </div>
+
+            {/* Mức độ ưu tiên xử lý */}
+            <div>
+              <label className="mb-1.5 block font-bold text-brand-dark">Mức độ ưu tiên giao việc *</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTaskAssignment((c) => ({ ...c, priority: 'EMERGENCY' }))}
+                  className={`p-2.5 rounded-xl border text-center font-bold transition flex flex-col items-center gap-1 ${
+                    taskAssignment.priority === 'EMERGENCY'
+                      ? 'border-rose-600 bg-rose-50 text-rose-800 ring-2 ring-rose-500/30'
+                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  <span className="text-xs font-black text-rose-700">⚡ LÀM NGAY</span>
+                  <span className="text-[10px] text-rose-600 font-semibold">Khẩn cấp trong 2h</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTaskAssignment((c) => ({ ...c, priority: 'HIGH' }))}
+                  className={`p-2.5 rounded-xl border text-center font-bold transition flex flex-col items-center gap-1 ${
+                    taskAssignment.priority === 'HIGH'
+                      ? 'border-amber-600 bg-amber-50 text-amber-800 ring-2 ring-amber-500/30'
+                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  <span className="text-xs font-black text-amber-800">🔥 ƯU TIÊN CAO</span>
+                  <span className="text-[10px] text-amber-700 font-semibold">Xử lý trong ngày</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTaskAssignment((c) => ({ ...c, priority: 'NORMAL' }))}
+                  className={`p-2.5 rounded-xl border text-center font-bold transition flex flex-col items-center gap-1 ${
+                    taskAssignment.priority === 'NORMAL'
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-500/30'
+                      : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  <span className="text-xs font-black text-emerald-800">🌱 BÌNH THƯỜNG</span>
+                  <span className="text-[10px] text-emerald-700 font-semibold">Theo ca tới</span>
+                </button>
+              </div>
             </div>
 
             <label className="block"><span className="mb-1.5 block font-bold text-brand-dark">Tên nhiệm vụ *</span><input required value={taskAssignment.title} onChange={(event) => setTaskAssignment((current) => ({ ...current, title: event.target.value }))} className="w-full rounded-xl border border-brand-border px-3 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" /></label>

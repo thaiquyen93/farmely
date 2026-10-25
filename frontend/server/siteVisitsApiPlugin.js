@@ -12,6 +12,42 @@ async function ensureRentalLeaseColumns() {
     await runPostgreSql(`
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS cultivation_mode VARCHAR(20);
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS term_months INTEGER;
+
+CREATE OR REPLACE FUNCTION fn_resolve_expert_for_variety(p_variety_id INT)
+RETURNS INT AS $$
+BEGIN
+  IF p_variety_id IN (4, 5, 7, 9) THEN
+    RETURN 5; -- ThS. Nguyễn Hoàng Nam (Cây ăn quả: Cà chua, Dưa baby, Mướp, Ớt)
+  ELSIF p_variety_id IN (1, 2, 3, 8, 10) THEN
+    RETURN 6; -- ThS. Trần Phương Thảo (Rau ăn lá VietGAP)
+  ELSE
+    RETURN 7; -- TS. Lê Hoàng Đức (Cây đặc thù / Họ đậu)
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION fn_resolve_staff_for_plot(p_plot_id INT)
+RETURNS INT AS $$
+DECLARE
+  v_code TEXT;
+  v_clean TEXT;
+  v_num INT := 1;
+BEGIN
+  SELECT plot_code INTO v_code FROM plots WHERE plot_id = p_plot_id;
+  v_clean := regexp_replace(COALESCE(v_code, '1'), '[^0-9]', '', 'g');
+  IF v_clean <> '' THEN
+    v_num := v_clean::INT;
+  END IF;
+  
+  IF v_num <= 5 THEN
+    RETURN 8; -- Trần Văn Lực (Zone A: P-01 -> P-05)
+  ELSIF v_num <= 10 THEN
+    RETURN 9; -- Nguyễn Văn Đạt (Zone B: P-06 -> P-10)
+  ELSE
+    RETURN 10; -- Hoàng Thanh Hải (Zone C: P-11 -> P-20)
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
 `);
     rentalLeaseColumnsEnsured = true;
   } catch (err) {
@@ -696,9 +732,9 @@ BEGIN
         RETURNING plot_id INTO v_plot_id;
     END IF;
 
-    -- Thêm bản ghi rental với ngày bắt đầu do khách chọn
-    INSERT INTO rentals (contract_id, plot_id, variety_id, service_id, cultivation_mode, term_months, start_date, end_date, total_price, status, created_at, updated_at)
-    VALUES (v_contract_id, v_plot_id, ${varietyId}, ${itemServiceId ? itemServiceId : 'NULL'}, '${itemMode}', ${itemTerm}, '${startDate}', '${startDate}'::date + INTERVAL '${itemTerm} months', ${itemPrice}, 'ACTIVE', NOW(), NOW())
+    -- Thêm bản ghi rental với ngày bắt đầu do khách chọn (Tự động gán Expert & Staff theo giống & zone)
+    INSERT INTO rentals (contract_id, plot_id, variety_id, service_id, cultivation_mode, term_months, start_date, end_date, total_price, status, expert_id, staff_id, created_at, updated_at)
+    VALUES (v_contract_id, v_plot_id, ${varietyId}, ${itemServiceId ? itemServiceId : 'NULL'}, '${itemMode}', ${itemTerm}, '${startDate}', '${startDate}'::date + INTERVAL '${itemTerm} months', ${itemPrice}, 'ACTIVE', fn_resolve_expert_for_variety(${varietyId}), fn_resolve_staff_for_plot(v_plot_id), NOW(), NOW())
     RETURNING rental_id INTO v_rental_id;
 
     -- CẬP NHẬT TRẠNG THÁI THỬA ĐẤT SANG 'RENT' (ĐÃ THUÊ)
@@ -709,7 +745,7 @@ BEGIN
     SELECT 
         v_rental_id,
         ts.step_id,
-        8, -- Kỹ thuật viên Trần Văn Lực (CVLĐ)
+        fn_resolve_staff_for_plot(v_plot_id), -- Tự động gán CVLĐ theo Zone của thửa
         CURRENT_DATE + (ts.day_offset || ' days')::interval,
         CASE WHEN ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
         ts.step_name || ' - ' || ts.description,
@@ -719,6 +755,11 @@ BEGIN
     JOIN template_steps ts ON pt.template_id = ts.template_id
     WHERE pt.variety_id = ${varietyId}
     ORDER BY ts.step_order;
+
+    -- Tự động mở kênh chat CUST_EXP
+    INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
+    VALUES (v_renter_id, fn_resolve_expert_for_variety(${varietyId}), v_rental_id, v_plot_id, 'CUST_EXP', 'OPEN', NOW())
+    ON CONFLICT DO NOTHING;
 
     -- 2. TỰ ĐỘNG KHỞI TẠO BẢN GHI NHẬT KÝ NÔNG TRẠI (FARM DIARY)
     INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
@@ -1236,8 +1277,8 @@ BEGIN
 `;
               for (const rit of resolvedItems) {
                 insertSql += `
-    INSERT INTO rentals (contract_id, plot_id, variety_id, service_id, cultivation_mode, term_months, start_date, end_date, total_price, status, created_at, updated_at)
-    VALUES (v_cid, ${rit.plotId}, ${rit.varietyId}, ${rit.serviceId ? rit.serviceId : 'NULL'}, '${rit.cultivationMode}', ${rit.termMonths}, '${rit.startDate}', '${rit.endDate}', ${rit.totalPrice}, 'PENDING', NOW(), NOW());
+    INSERT INTO rentals (contract_id, plot_id, variety_id, service_id, cultivation_mode, term_months, start_date, end_date, total_price, status, expert_id, staff_id, created_at, updated_at)
+    VALUES (v_cid, ${rit.plotId}, ${rit.varietyId}, ${rit.serviceId ? rit.serviceId : 'NULL'}, '${rit.cultivationMode}', ${rit.termMonths}, '${rit.startDate}', '${rit.endDate}', ${rit.totalPrice}, 'PENDING', fn_resolve_expert_for_variety(${rit.varietyId}), fn_resolve_staff_for_plot(${rit.plotId}), NOW(), NOW());
 `;
               }
               insertSql += `END $$;`;
@@ -1325,9 +1366,42 @@ WHERE contract_id = ${contractId};
 DO $$
 BEGIN
     UPDATE contracts SET status = 'ACTIVE', updated_at = NOW() WHERE contract_id = ${contractId};
-    UPDATE rentals SET status = 'ACTIVE', updated_at = NOW() WHERE contract_id = ${contractId};
+    UPDATE rentals 
+    SET 
+      status = 'ACTIVE', 
+      expert_id = COALESCE(expert_id, fn_resolve_expert_for_variety(variety_id)),
+      staff_id = COALESCE(staff_id, fn_resolve_staff_for_plot(plot_id)),
+      updated_at = NOW() 
+    WHERE contract_id = ${contractId};
+    
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
     
+    -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa trong hợp đồng nếu chưa có
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+    SELECT 
+        r.rental_id,
+        ts.step_id,
+        r.staff_id,
+        CURRENT_DATE + (ts.day_offset || ' days')::interval,
+        CASE WHEN ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        ts.step_name || ' - ' || ts.description,
+        NOW(),
+        NOW()
+    FROM rentals r
+    JOIN process_templates pt ON pt.variety_id = r.variety_id
+    JOIN template_steps ts ON pt.template_id = ts.template_id
+    WHERE r.contract_id = ${contractId}
+      AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id)
+    ORDER BY ts.step_order;
+
+    -- Tự động mở kênh chat CUST_EXP
+    INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
+    SELECT c.renter_id, r.expert_id, r.rental_id, r.plot_id, 'CUST_EXP', 'OPEN', NOW()
+    FROM rentals r
+    JOIN contracts c ON r.contract_id = c.contract_id
+    WHERE r.contract_id = ${contractId} AND r.expert_id IS NOT NULL
+    ON CONFLICT DO NOTHING;
+
     INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status, created_at)
     SELECT contract_id, 'PAYMENT', total_amount, 'VNPAY', 'VNP-' || TO_CHAR(NOW(), 'YYYYMMDDHH24MISS'), 'SUCCESS', NOW()
     FROM contracts WHERE contract_id = ${contractId};
@@ -3386,6 +3460,11 @@ SELECT json_build_object(
           WHEN ct.status = 'IN_PROG' THEN 'IN_PROGRESS'
           ELSE 'PENDING'
         END AS status,
+        CASE 
+          WHEN ct.notes ILIKE '%[LÀM NGAY]%' OR ct.notes ILIKE '%[KHẨN CẤP]%' THEN 'EMERGENCY'
+          WHEN ct.service_request_id IS NOT NULL OR ct.notes ILIKE '%[ƯU TIÊN CAO]%' THEN 'HIGH'
+          ELSE 'NORMAL'
+        END AS priority,
         TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS "dueDate",
         '08:30 AM' AS deadline,
         'MORNING' AS session,
@@ -3612,6 +3691,49 @@ SELECT json_build_object(
             res.statusCode = 500;
             res.end(JSON.stringify({ success: false, error: String(err) }));
           }
+          return;
+        }
+
+        if (req.method === 'POST' && (url === '/api/issue-reports' || url === '/api/v1/issue-reports' || url === '/api/issues' || url === '/api/v1/issues')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const rentalId = parseInt(payload.rentalId || payload.rental_id || 1, 10);
+              const reportedBy = parseInt(payload.reportedBy || payload.reported_by || 8, 10);
+              const issueType = (payload.issueType || payload.issue_type || 'Sự cố hiện trường').replace(/'/g, "''");
+              const description = (payload.description || 'Báo cáo sự cố từ nhân sự hiện trường').replace(/'/g, "''");
+              const imageUrl = (payload.imageUrl || payload.image_url || '/images/moc-chau-2811.jpg').replace(/'/g, "''");
+
+              const sql = `
+INSERT INTO issue_reports (rental_id, reported_by, issue_type, description, image_url, status, created_at)
+VALUES (${rentalId}, ${reportedBy}, '${issueType}', '${description}', '${imageUrl}', 'OPEN', NOW())
+RETURNING issue_id, rental_id, issue_type, status;
+`;
+              const result = await runPostgreSql(sql);
+              let createdIssueId = 99;
+              if (typeof result === 'string') {
+                const match = result.match(/(\d+)/);
+                if (match) createdIssueId = parseInt(match[1], 10);
+              } else if (result && result.issue_id) {
+                createdIssueId = result.issue_id;
+              }
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Đã gửi báo cáo sự cố thành công lên hệ thống',
+                data: {
+                  issueId: createdIssueId,
+                  issueCode: `ISS-${createdIssueId}`,
+                  status: 'PENDING'
+                }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
           return;
         }
 
@@ -3864,7 +3986,7 @@ DO $$
 DECLARE
   v_req_id INT := ${existingReqId};
   v_rental_id INT := ${rawRentalId || 'NULL'};
-  v_worker_id INT := 8;
+  v_worker_id INT;
   v_sched_date DATE := '${scheduledDate}'::date;
   v_notes TEXT := '${notes}';
   v_svc_name TEXT := '${serviceName}';
@@ -3888,6 +4010,12 @@ BEGIN
     IF v_rental_id IS NULL THEN
       SELECT rental_id INTO v_rental_id FROM rentals WHERE status = 'ACTIVE' LIMIT 1;
     END IF;
+
+    -- Tự động lấy nhân viên phụ trách của thửa đất hoặc theo Zone của thửa
+    SELECT COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8) INTO v_worker_id 
+    FROM rentals r WHERE r.rental_id = v_rental_id;
+    IF v_worker_id IS NULL THEN v_worker_id := 8; END IF;
+
     INSERT INTO care_tasks (rental_id, service_request_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
     VALUES (
       v_rental_id,
@@ -3942,13 +4070,14 @@ ins_task AS (
   SELECT 
     ins_req.rental_id, 
     ins_req.request_id, 
-    8, 
+    COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8), 
     ins_req.scheduled_date, 
     'PENDING'::task_status_enum, 
     CASE WHEN '${notes}' <> '' THEN '${serviceName}' || ' - ' || '${notes}' ELSE '${serviceName}' END, 
     NOW(), 
     NOW()
   FROM ins_req
+  JOIN rentals r ON r.rental_id = ins_req.rental_id
   RETURNING task_id, status
 )
 SELECT json_build_object(

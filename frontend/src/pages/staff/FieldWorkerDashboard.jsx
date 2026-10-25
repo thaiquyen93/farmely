@@ -110,7 +110,8 @@ const normalizeTaskStatus = (status) => {
 
 const getTaskTimingMeta = (task) => {
   if (task.status === 'COMPLETED') return { key: 'COMPLETED', label: 'Hoàn thành', tone: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500', row: 'border-l-emerald-200 bg-emerald-50/30' };
-  if (task.priority === 'HIGH') return { key: 'URGENT', label: 'Khẩn cấp', tone: 'bg-rose-100 text-rose-800', dot: 'bg-rose-500', row: 'border-l-rose-500 bg-rose-50/80' };
+  if (task.priority === 'EMERGENCY') return { key: 'EMERGENCY', label: '⚡ LÀM NGAY', tone: 'bg-rose-600 text-white font-black animate-pulse shadow-xs', dot: 'bg-white', row: 'border-l-rose-600 bg-rose-50/90 ring-1 ring-rose-400' };
+  if (task.priority === 'HIGH') return { key: 'URGENT', label: '🔥 Ưu tiên cao', tone: 'bg-amber-100 text-amber-800 font-bold', dot: 'bg-amber-500', row: 'border-l-amber-500 bg-amber-50/80' };
   if (task.status === 'OVERDUE') return { key: 'OVERDUE', label: 'Quá hạn', tone: 'bg-rose-100 text-rose-800', dot: 'bg-rose-500', row: 'border-l-rose-400 bg-rose-50/70' };
   if (task.status === 'IN_PROGRESS') return { key: 'DUE_SOON', label: 'Cần làm', tone: 'bg-sky-100 text-sky-800', dot: 'bg-sky-500', row: 'border-l-sky-400 bg-sky-50/70' };
 
@@ -185,7 +186,7 @@ export default function FieldWorkerDashboard() {
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('tab');
-      if (['tasks', 'issues', 'harvest', 'chat'].includes(p)) return p;
+      if (['tasks', 'harvest', 'chat'].includes(p)) return p;
     }
     return 'tasks';
   });
@@ -316,25 +317,32 @@ export default function FieldWorkerDashboard() {
         const taskData = unwrapData(taskBody) || [];
         const issueData = unwrapData(issueBody) || [];
         const harvestData = unwrapData(harvestBody) || [];
-        setTasks(taskData.map((task) => ({
-          id: task.taskCode || `TASK-${task.taskId}`,
-          apiId: task.taskId,
-          serviceRequestId: task.serviceRequestId,
-          rentalId: task.rentalId,
-          session: task.session || 'MORNING',
-          title: task.title || 'Nhiệm vụ chăm sóc',
-          plotCode: task.plotCode || 'Chưa có mã thửa',
-          plotName: task.plotName || task.plotCode || 'Chưa có tên thửa',
-          crop: task.cropName || task.varietyName || DEFAULT_PLOT_CROPS[task.plotCode] || 'Rau củ chuẩn VietGAP',
-          customerName: task.customerName || 'Khách hàng Farmely',
-          plotImage: task.plotImageUrl || (task.plotCode === 'P-04' ? '/images/moc-chau-2811.jpg' : '/images/Mucangchai3.jpg'),
-          deadline: task.dueDate || 'Chưa có hạn thực hiện',
-          instructions: task.instructions || task.notes || 'Chưa có hướng dẫn từ hệ thống.',
-          status: normalizeTaskStatus(task.displayStatus || task.status),
-          priority: task.serviceRequestId ? 'HIGH' : (task.isOverdue ? 'OVERDUE' : 'NORMAL'),
-          completedAt: task.updatedAt ? new Date(task.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
-          proofPhoto: task.evidenceImageUrl || null
-        })));
+        setTasks(taskData.map((task) => {
+          const isEmergency = /\[(KHẨN CẤP|LÀM NGAY)\]/i.test(`${task.title || ''} ${task.notes || ''} ${task.instructions || ''}`) || task.priority === 'EMERGENCY' || task.priority === 'CRITICAL' || task.priority === 'URGENT';
+          const isHigh = /\[ƯU TIÊN CAO\]/i.test(`${task.title || ''} ${task.notes || ''}`) || Boolean(task.serviceRequestId) || task.priority === 'HIGH';
+          const priority = isEmergency ? 'EMERGENCY' : (isHigh ? 'HIGH' : (task.isOverdue ? 'OVERDUE' : 'NORMAL'));
+
+          return {
+            id: task.taskCode || `TASK-${task.taskId}`,
+            apiId: task.taskId,
+            serviceRequestId: task.serviceRequestId,
+            rentalId: task.rentalId,
+            session: task.session || 'MORNING',
+            title: task.title || 'Nhiệm vụ chăm sóc',
+            plotCode: task.plotCode || 'Chưa có mã thửa',
+            plotName: task.plotName || task.plotCode || 'Chưa có tên thửa',
+            crop: task.cropName || task.varietyName || DEFAULT_PLOT_CROPS[task.plotCode] || 'Rau củ chuẩn VietGAP',
+            customerName: task.customerName || 'Khách hàng Farmely',
+            plotImage: task.plotImageUrl || (task.plotCode === 'P-04' ? '/images/moc-chau-2811.jpg' : '/images/Mucangchai3.jpg'),
+            deadline: task.dueDate || 'Chưa có hạn thực hiện',
+            dueDate: task.dueDate || null,
+            instructions: task.instructions || task.notes || 'Chưa có hướng dẫn từ hệ thống.',
+            status: normalizeTaskStatus(task.displayStatus || task.status),
+            priority,
+            completedAt: task.updatedAt ? new Date(task.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null,
+            proofPhoto: task.evidenceImageUrl || null
+          };
+        }));
         setMyIssues(issueData.map((issue) => ({
           id: issue.issueCode || `ISSUE-${issue.issueId}`,
           apiId: issue.issueId,
@@ -705,7 +713,12 @@ export default function FieldWorkerDashboard() {
   const actionableCount = overdueCount + dueSoonCount;
   const nextTask = tasks.find((task) => task.status === 'IN_PROGRESS') || tasks.find((task) => task.status === 'OVERDUE') || tasks.find((task) => task.status === 'PENDING');
   const focusedTask = tasks.find((task) => task.id === focusedTaskId) || nextTask || tasks[0] || null;
-  const taskRank = (task) => task.status === 'COMPLETED' ? 4 : task.priority === 'HIGH' ? 0 : task.status === 'OVERDUE' ? 1 : task.status === 'IN_PROGRESS' ? 2 : 3;
+  const taskRank = (task) =>
+    task.status === 'COMPLETED' ? 5 :
+    task.priority === 'EMERGENCY' ? 0 :
+    task.priority === 'HIGH' ? 1 :
+    task.status === 'OVERDUE' ? 2 :
+    task.status === 'IN_PROGRESS' ? 3 : 4;
   const orderedTasks = [...tasks].sort((first, second) => taskRank(first) - taskRank(second));
   const tasksByPlot = orderedTasks.reduce((groups, task) => {
     const key = task.plotCode || task.plotName || 'Chưa xác định';
@@ -759,6 +772,9 @@ export default function FieldWorkerDashboard() {
     const list = Array.from(map.values());
     const withTasks = list.filter((p) => p.tasks && p.tasks.length > 0);
     const sorted = [...list].sort((a, b) => {
+      const aEmergency = (a.tasks || []).some((t) => t.priority === 'EMERGENCY' && t.status !== 'COMPLETED');
+      const bEmergency = (b.tasks || []).some((t) => t.priority === 'EMERGENCY' && t.status !== 'COMPLETED');
+      if (aEmergency !== bEmergency) return aEmergency ? -1 : 1;
       const aPending = (a.tasks || []).filter((t) => t.status !== 'COMPLETED').length;
       const bPending = (b.tasks || []).filter((t) => t.status !== 'COMPLETED').length;
       if (bPending !== aPending) return bPending - aPending;
@@ -860,8 +876,8 @@ export default function FieldWorkerDashboard() {
         <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />Ca trực hiện trường</div>
-            <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">{activeTab === 'tasks' ? 'Việc hôm nay' : activeTab === 'harvest' ? 'Thu hoạch & đóng gói' : 'Báo cáo sự cố'}</h1>
-            <p className="mt-1 text-xs text-brand-muted">{activeTab === 'tasks' ? `${tasks.length} nhiệm vụ tại ${Object.keys(tasksByPlot).length} thửa đất` : activeTab === 'harvest' ? 'Chụp ảnh, nhập số cân và xác nhận kết quả thu hoạch tại thửa.' : 'Theo dõi các sự cố đã gửi và tiến độ xử lý từ chuyên gia.'}</p>
+            <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">{activeTab === 'tasks' ? 'Việc hôm nay & Thửa phụ trách' : 'Thu hoạch & đóng gói'}</h1>
+            <p className="mt-1 text-xs text-brand-muted">{activeTab === 'tasks' ? `${tasks.length} nhiệm vụ tại ${Object.keys(tasksByPlot).length} thửa đất · Báo sự cố trực tiếp tại từng thửa` : 'Chụp ảnh, nhập số cân và xác nhận kết quả thu hoạch tại thửa.'}</p>
           </div>
           {activeTab === 'tasks' && <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs shadow-sm"><span className="font-bold text-stone-500">{currentSession === 'MORNING' ? 'Ca sáng' : 'Ca chiều'} · </span><strong className="text-emerald-800">{completedCount}/{tasks.length} nhiệm vụ hoàn thành</strong></div>}
         </section>
@@ -912,8 +928,7 @@ export default function FieldWorkerDashboard() {
 
             {[
               { id: 'tasks', label: 'Việc hôm nay', icon: CheckCircle2, count: pendingCount },
-              { id: 'harvest', label: 'Thu hoạch & đóng gói', icon: PackageCheck, count: harvestWorkItems.filter(h => h.status !== 'COMPLETED').length },
-              { id: 'issues', label: 'Báo cáo sự cố', icon: AlertTriangle, count: myIssues.length }
+              { id: 'harvest', label: 'Thu hoạch & đóng gói', icon: PackageCheck, count: harvestWorkItems.filter(h => h.status !== 'COMPLETED').length }
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1034,6 +1049,7 @@ export default function FieldWorkerDashboard() {
                     {/* Danh sách từng thửa đất */}
                     {plotSummaryList.map((plot) => {
                       const isSelected = selectedPlotCode === plot.plotCode;
+                      const hasEmergency = (plot.tasks || []).some((t) => t.priority === 'EMERGENCY' && t.status !== 'COMPLETED');
                       const pending = plot.tasks.filter((t) => t.status !== 'COMPLETED').length;
                       const done = plot.tasks.filter((t) => t.status === 'COMPLETED').length;
                       const total = plot.tasks.length;
@@ -1051,13 +1067,13 @@ export default function FieldWorkerDashboard() {
                           }}
                           className={`min-w-[260px] sm:min-w-[280px] lg:min-w-0 lg:w-full text-left p-3.5 rounded-2xl border transition-all shrink-0 relative ${
                             isSelected
-                              ? 'border-emerald-600 bg-emerald-50/90 shadow-2xs ring-2 ring-emerald-600/40'
-                              : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/60'
+                              ? (hasEmergency ? 'border-rose-600 bg-rose-50/90 shadow-2xs ring-2 ring-rose-500/40' : 'border-emerald-600 bg-emerald-50/90 shadow-2xs ring-2 ring-emerald-600/40')
+                              : (hasEmergency ? 'border-rose-300 bg-rose-50/40 hover:border-rose-500' : 'border-stone-200 bg-white hover:border-emerald-300 hover:bg-stone-50/60')
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className="px-2 py-0.5 rounded-md font-mono font-black text-xs bg-emerald-800 text-white shrink-0">
+                              <span className={`px-2 py-0.5 rounded-md font-mono font-black text-xs text-white shrink-0 ${hasEmergency ? 'bg-rose-700' : 'bg-emerald-800'}`}>
                                 {plot.plotCode}
                               </span>
                               <span className="font-heading font-black text-sm text-brand-dark truncate">
@@ -1065,7 +1081,11 @@ export default function FieldWorkerDashboard() {
                               </span>
                             </div>
 
-                            {pending > 0 ? (
+                            {hasEmergency ? (
+                              <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-black text-white shrink-0 animate-pulse flex items-center gap-1 shadow-2xs">
+                                ⚡ LÀM NGAY
+                              </span>
+                            ) : pending > 0 ? (
                               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800 shrink-0">
                                 {pending} cần làm
                               </span>
@@ -1175,6 +1195,46 @@ export default function FieldWorkerDashboard() {
                           </div>
                         </div>
 
+                        {/* Sự cố tại thửa đất này (nếu có) */}
+                        {(() => {
+                          const plotIssues = myIssues.filter(
+                            (i) => i.plotCode === activePlot.plotCode || (i.plotName && i.plotName.includes(activePlot.plotCode))
+                          );
+                          if (plotIssues.length === 0) return null;
+                          return (
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <h5 className="font-heading font-black text-xs text-amber-900 flex items-center gap-1.5 uppercase tracking-wide">
+                                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                                  <span>Sự cố ghi nhận tại thửa ({plotIssues.length})</span>
+                                </h5>
+                                <span className="text-[11px] text-amber-800 font-semibold">Chuyên gia đang đồng hành giám sát</span>
+                              </div>
+                              <div className="space-y-2">
+                                {plotIssues.map((issue) => (
+                                  <div key={issue.id} className="p-3 bg-white rounded-xl border border-amber-200/80 text-xs space-y-1.5 shadow-2xs">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-bold text-stone-900">{issue.issueType}</span>
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                        issue.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                      }`}>
+                                        {issue.status === 'RESOLVED' ? 'Đã giải quyết' : (issue.expertAdvice && !issue.expertAdvice.startsWith('Đang chờ') ? 'Đã có chỉ đạo' : 'Đang chờ chuyên gia')}
+                                      </span>
+                                    </div>
+                                    <p className="text-stone-600 text-[11px]">"{issue.description}"</p>
+                                    {issue.expertAdvice && (
+                                      <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] flex items-start gap-1.5">
+                                        <span className="font-bold shrink-0">🔬 Chỉ đạo CGNN:</span>
+                                        <span>{issue.expertAdvice}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {/* Danh sách việc cần làm hôm nay */}
                         <div className="space-y-4">
                           <div className="flex items-center justify-between border-b border-stone-200/80 pb-3">
@@ -1200,11 +1260,16 @@ export default function FieldWorkerDashboard() {
                               {pendingTasks.map((task) => {
                                 const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(task.title);
                                 const timing = getTaskTimingMeta(task);
+                                const isEmergency = task.priority === 'EMERGENCY';
 
                                 return (
                                   <div
                                     key={task.id}
-                                    className="p-5 rounded-2xl border border-stone-200 bg-white hover:border-emerald-400 hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                                    className={`p-5 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                                      isEmergency
+                                        ? 'border-rose-500 bg-rose-50/70 shadow-md ring-2 ring-rose-400/40'
+                                        : 'border-stone-200 bg-white hover:border-emerald-400 hover:shadow-xs'
+                                    }`}
                                   >
                                     <div className="space-y-2 min-w-0 flex-1">
                                       <div className="flex flex-wrap items-center gap-2">
@@ -1226,10 +1291,16 @@ export default function FieldWorkerDashboard() {
                                         {task.title}
                                       </h5>
 
-                                      <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100 text-xs text-stone-700 leading-relaxed flex items-start gap-2.5">
-                                        <BookOpen className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                                      <div className={`p-3.5 rounded-xl border text-xs leading-relaxed flex items-start gap-2.5 ${
+                                        isEmergency
+                                          ? 'bg-rose-100/70 border-rose-200 text-rose-950 font-medium'
+                                          : 'bg-emerald-50/70 border-emerald-100 text-stone-700'
+                                      }`}>
+                                        <BookOpen className={`w-4 h-4 shrink-0 mt-0.5 ${isEmergency ? 'text-rose-700' : 'text-emerald-700'}`} />
                                         <div>
-                                          <span className="font-bold text-emerald-950">Hướng dẫn kỹ thuật VietGAP: </span>
+                                          <span className={`font-bold ${isEmergency ? 'text-rose-950' : 'text-emerald-950'}`}>
+                                            {isEmergency ? 'Chỉ đạo khẩn cấp từ Chuyên gia: ' : 'Hướng dẫn kỹ thuật VietGAP: '}
+                                          </span>
                                           <span>{task.instructions}</span>
                                         </div>
                                       </div>
@@ -1248,10 +1319,14 @@ export default function FieldWorkerDashboard() {
                                             handleTaskAction(task);
                                           }
                                         }}
-                                        className="gap-2 font-bold px-4 py-2.5 bg-[#07533d] hover:bg-[#053d2d] text-white shadow-xs"
+                                        className={`gap-2 font-bold px-4 py-2.5 text-white shadow-xs ${
+                                          isEmergency
+                                            ? 'bg-rose-600 hover:bg-rose-700 ring-2 ring-rose-300'
+                                            : 'bg-[#07533d] hover:bg-[#053d2d]'
+                                        }`}
                                       >
                                         {isHarvestTask ? <Scale className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
-                                        {isHarvestTask ? 'Thu hoạch' : 'Báo cáo hoàn thành (Kèm ảnh)'}
+                                        {isHarvestTask ? 'Thu hoạch' : (isEmergency ? 'Xử lý ngay & Chụp ảnh minh chứng' : 'Báo cáo hoàn thành (Kèm ảnh)')}
                                       </Button>
                                     </div>
                                   </div>
@@ -1337,13 +1412,22 @@ export default function FieldWorkerDashboard() {
                               <span className="text-xs text-stone-500">• {plot.crop}</span>
                               <span className="text-xs text-stone-500">• Khách hàng: <strong>{plot.customerName}</strong></span>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedPlotCode(plot.plotCode)}
-                              className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1.5"
-                            >
-                              Vào thửa này <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { setNewIssuePlot(plot.plotCode); setShowNewIssueModal(true); }}
+                                className="text-xs font-bold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-xl border border-amber-300 flex items-center gap-1 transition"
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" /> Báo sự cố
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPlotCode(plot.plotCode)}
+                                className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-emerald-50 transition"
+                              >
+                                Vào thửa này <ArrowRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
 
                           <div className="p-4 divide-y divide-stone-100">
@@ -1384,24 +1468,6 @@ export default function FieldWorkerDashboard() {
                   )}
                 </div>
               </div>
-            )}
-
-            {/* Field issues */}
-            {activeTab === 'issues' && (
-              <IssueHistory
-                issues={myIssues}
-                filter={issueFilter}
-                onFilter={setIssueFilter}
-                search={issueSearch}
-                onSearch={setIssueSearch}
-                selectedIssue={selectedIssue}
-                onSelect={setSelectedIssue}
-                onOpenTask={(issue) => {
-                  const linked = tasks.find((task) => task.plotCode === issue.plotCode && task.status !== 'COMPLETED');
-                  if (linked) setFocusedTaskId(linked.id);
-                  setActiveTab('tasks');
-                }}
-              />
             )}
 
             {activeTab === 'harvest' && (
@@ -1680,11 +1746,10 @@ export default function FieldWorkerDashboard() {
         </form>
       </Modal>
 
-      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
+      <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-3 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
         {[
           { id: 'tasks', label: 'Công việc', icon: ListTodo },
-          { id: 'harvest', label: 'Thu hoạch', icon: Camera },
-          { id: 'issues', label: 'Sự cố', icon: FileText }
+          { id: 'harvest', label: 'Thu hoạch', icon: Camera }
         ].map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
