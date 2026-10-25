@@ -552,14 +552,15 @@ export default function BookPlot() {
     }
   };
 
-  const handlePaymentSuccess = async () => {
+  const handlePaymentSuccess = async (optContractId) => {
     setShowVnPayModal(false);
     setIsProcessing(true);
     setBookingError('');
 
+    const targetContractId = optContractId || createdContractId;
     try {
-      if (createdContractId) {
-        await rentalApi.activateContract(createdContractId);
+      if (targetContractId) {
+        await rentalApi.activateContract(targetContractId);
       }
 
       // Đảm bảo cập nhật trạng thái RENT trên PostgreSQL cho các thửa đất đã thuê

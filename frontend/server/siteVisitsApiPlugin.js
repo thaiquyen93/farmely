@@ -3,6 +3,7 @@ import { spawn, execFile } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
+const { Pool } = pg;
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
 
 let rentalLeaseColumnsEnsured = false;
@@ -106,113 +107,66 @@ const PSQL_PATH = PSQL_CANDIDATES.find(p => {
   try { return fs.existsSync(p); } catch { return false; }
 }) || 'psql';
 
-let activePgConfig = null;
-
 function getPgConfig() {
-  if (activePgConfig) return activePgConfig;
   return {
     host: process.env.PGHOST || process.env.DB_HOST || rootEnv.DB_HOST || 'localhost',
-    port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5432',
+    port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5433',
     database: process.env.PGDATABASE || process.env.DB_NAME || rootEnv.DB_NAME || 'farmely',
     user: process.env.PGUSER || process.env.DB_USER || rootEnv.DB_USER || 'postgres',
-    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '@Bin054206'
+    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '12345'
   };
 }
 
 let cachedPlotsData = null;
 let cachedPlotsTime = 0;
-const CACHE_TTL_MS = 20000; // 20s in-memory cache
+const CACHE_TTL_MS = 20000;
 
 function invalidatePlotsCache() {
   cachedPlotsData = null;
   cachedPlotsTime = 0;
 }
 
-function runPostgreSqlAttempt(cfg, sqlQuery) {
-  return new Promise((resolve, reject) => {
-    try {
-      const env = { ...process.env, PGPASSWORD: cfg.password, PGCLIENTENCODING: 'UTF8' };
-      const child = spawn(
-        PSQL_PATH,
-        ['-U', cfg.user, '-h', cfg.host, '-p', String(cfg.port), '-d', cfg.database, '-t', '-A', '-q', '-v', 'ON_ERROR_STOP=1'],
-        { env, windowsHide: true, timeout: 8000 }
-      );
-      let stdout = '';
-      let stderr = '';
-      let hasError = false;
+let pgPool = null;
 
-      child.on('error', err => {
-        hasError = true;
-        reject(err);
-      });
-
-      child.stdout.on('data', d => stdout += d.toString('utf8'));
-      child.stderr.on('data', d => stderr += d.toString('utf8'));
-
-      child.on('close', code => {
-        if (hasError) return;
-        if (code !== 0) reject(new Error(stderr || 'Exit ' + code));
-        else resolve(stdout.trim());
-      });
-
-      child.stdin.on('error', err => {
-        hasError = true;
-        reject(err);
-      });
-
-      child.stdin.write(sqlQuery, 'utf8');
-      child.stdin.end();
-    } catch (e) {
-      reject(e);
-    }
-  });
-}
-
-let pgPoolInstance = null;
 function getPgPool() {
-  if (!pgPoolInstance) {
-    const base = getPgConfig();
-    pgPoolInstance = new pg.Pool({
-      host: base.host || 'localhost',
-      port: parseInt(base.port || '5432', 10),
-      database: base.database || 'farmely',
-      user: base.user || 'postgres',
-      password: base.password || 'postgres',
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000
-    });
-    pgPoolInstance.on('error', (err) => {
-      console.warn('[Postgres Pool Error]', err?.message);
-    });
-  }
-  return pgPoolInstance;
+  if (pgPool) return pgPool;
+  const cfg = getPgConfig();
+  pgPool = new Pool({
+    host: cfg.host,
+    port: parseInt(String(cfg.port), 10) || 5433,
+    user: cfg.user,
+    password: String(cfg.password),
+    database: cfg.database,
+    max: 10,
+    idleTimeoutMillis: 30000
+  });
+  pgPool.on('error', (err) => {
+    console.warn('[PostgreSQL Pool] Warning:', err.message);
+  });
+  return pgPool;
 }
 
-async function runPostgreSql(sqlQuery) {
+async function runPostgreSql(sqlQuery, params = []) {
   try {
     const pool = getPgPool();
-    const res = await pool.query(sqlQuery);
-    if (!res || !res.rows || res.rows.length === 0) {
-      return '';
-    }
-    const firstRow = res.rows[0];
-    const firstKey = Object.keys(firstRow)[0];
-    const val = firstRow[firstKey];
-    if (typeof val === 'object' && val !== null) {
-      return JSON.stringify(val);
-    }
-    return String(val ?? '');
-  } catch (poolErr) {
-    if (activePgConfig) {
-      try {
-        return await runPostgreSqlAttempt(activePgConfig, sqlQuery);
-      } catch {
-        activePgConfig = null;
+    const result = (params && params.length > 0) ? await pool.query(sqlQuery, params) : await pool.query(sqlQuery);
+    if (!result || !result.rows || result.rows.length === 0) return '';
+    const firstRow = result.rows[0];
+    const keys = Object.keys(firstRow);
+    if (keys.length === 1) {
+      const val = firstRow[keys[0]];
+      if (typeof val === 'object' && val !== null) {
+        return JSON.stringify(val);
       }
+      return String(val ?? '');
     }
-    const base = getPgConfig();
-    return await runPostgreSqlAttempt({ ...base, port: '5432', password: 'postgres' }, sqlQuery);
+    return result.rows.map(r => Object.values(r).map(v => v === null ? '' : v).join('|')).join('\n');
+  } catch (err) {
+    if (err.code === 'ECONNREFUSED' && pgPool) {
+      try { await pgPool.end(); } catch {}
+      pgPool = null;
+    }
+    throw err;
   }
 }
 
@@ -236,6 +190,54 @@ export function siteVisitsApiPlugin() {
     configureServer(server) {
       if (!global.__farmelySseClients) {
         global.__farmelySseClients = [];
+      }
+
+      // Helper tính diện tích m² theo toạ độ ring [lng, lat]
+      const EARTH_RADIUS_M = 6378137;
+      function calculateAreaM2(ring) {
+        if (!ring || !Array.isArray(ring) || ring.length < 3) return 0;
+        const rad = (d) => (d * Math.PI) / 180;
+        let total = 0;
+        const n = ring.length;
+        for (let i = 0; i < n; i++) {
+          const p1 = ring[i];
+          const p2 = ring[(i + 1) % n];
+          total += rad(p2[0] - p1[0]) * (2 + Math.sin(rad(p1[1])) + Math.sin(rad(p2[1])));
+        }
+        return Math.round(Math.abs((total * EARTH_RADIUS_M * EARTH_RADIUS_M) / 2) * 100) / 100;
+      }
+
+      function extractRing(geojson) {
+        if (!geojson) return null;
+        try {
+          const obj = typeof geojson === 'string' ? JSON.parse(geojson) : geojson;
+          if (Array.isArray(obj)) {
+            return Array.isArray(obj[0]) && typeof obj[0][0] === 'number' ? obj : (Array.isArray(obj[0]) ? obj[0] : null);
+          }
+          if (obj && obj.coordinates && Array.isArray(obj.coordinates)) {
+            return Array.isArray(obj.coordinates[0]) ? (Array.isArray(obj.coordinates[0][0]) ? obj.coordinates[0][0] : obj.coordinates[0]) : null;
+          }
+        } catch {}
+        return null;
+      }
+
+      function calculateCentroid(ring) {
+        if (!ring || !Array.isArray(ring) || ring.length === 0) return null;
+        let sumLng = 0;
+        let sumLat = 0;
+        let count = 0;
+        for (const pt of ring) {
+          if (Array.isArray(pt) && pt.length >= 2 && !isNaN(pt[0]) && !isNaN(pt[1])) {
+            sumLng += Number(pt[0]);
+            sumLat += Number(pt[1]);
+            count++;
+          }
+        }
+        if (count === 0) return null;
+        return {
+          latitude: Math.round((sumLat / count) * 100000) / 100000,
+          longitude: Math.round((sumLng / count) * 100000) / 100000
+        };
       }
 
       async function triggerBulkTelemetryInsert(scenario = null) {
@@ -1858,7 +1860,9 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     TO_CHAR(r.end_date, 'YYYY-MM-DD') AS end_date, 
     r.total_price, r.status AS rental_status,
     p.plot_id, p.plot_code, p.area AS raw_area, p.status AS plot_status, p.image_url,
+    p.boundary_geojson AS plot_boundary_geojson,
     l.land_id, l.land_name, l.address,
+    l.boundary_geojson AS land_boundary_geojson,
     v.variety_id, v.variety_name,
     s.service_name, s.service_type
   FROM contracts c
@@ -1873,8 +1877,37 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
 ) p_row;
 `;
             const data = await runPostgreSql(sql);
+            let parsed = [];
+            try {
+              parsed = JSON.parse(data || '[]');
+              parsed.forEach(item => {
+                const ring = extractRing(item.plot_boundary_geojson || item.land_boundary_geojson);
+                if (ring) {
+                  const c = calculateCentroid(ring);
+                  if (c) {
+                    item.latitude = c.latitude;
+                    item.longitude = c.longitude;
+                  }
+                }
+                // Nếu chưa có boundary, fallback theo địa chỉ lưu trong DB
+                if (!item.latitude && item.address) {
+                  const addr = String(item.address).toLowerCase();
+                  if (addr.includes('củ chi') || addr.includes('cu chi')) {
+                    item.latitude = 10.6877; item.longitude = 106.3503;
+                  } else if (addr.includes('long an') || addr.includes('đức hòa') || addr.includes('duc hoa')) {
+                    item.latitude = 10.7025; item.longitude = 106.4011;
+                  } else if (addr.includes('đà lạt') || addr.includes('da lat') || addr.includes('lâm đồng')) {
+                    item.latitude = 11.9404; item.longitude = 108.4583;
+                  } else if (addr.includes('mộc châu') || addr.includes('sơn la')) {
+                    item.latitude = 20.8443; item.longitude = 104.6838;
+                  }
+                }
+              });
+            } catch (pErr) {
+              console.warn('Plot centroid computation error:', pErr);
+            }
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(data || '[]');
+            res.end(JSON.stringify(parsed));
           } catch (err) {
             console.error('Error on /api/customer/rented-plots:', err);
             res.statusCode = 500;
@@ -2126,21 +2159,6 @@ RETURNING harvest_id, rental_id, customer_confirmed, delivery_type;
           return;
         }
 
-        // Helper tính diện tích m² theo toạ độ ring [lng, lat]
-        const EARTH_RADIUS_M = 6378137;
-        function calculateAreaM2(ring) {
-          if (!ring || !Array.isArray(ring) || ring.length < 3) return 0;
-          const rad = (d) => (d * Math.PI) / 180;
-          let total = 0;
-          const n = ring.length;
-          for (let i = 0; i < n; i++) {
-            const p1 = ring[i];
-            const p2 = ring[(i + 1) % n];
-            total += rad(p2[0] - p1[0]) * (2 + Math.sin(rad(p1[1])) + Math.sin(rad(p2[1])));
-          }
-          return Math.round(Math.abs((total * EARTH_RADIUS_M * EARTH_RADIUS_M) / 2) * 100) / 100;
-        }
-
         // 8.1 GET /api/lands & /api/v1/lands (List all lands / farm zones)
         if (req.method === 'GET' && (url === '/api/lands' || url === '/api/v1/lands' || url.startsWith('/api/lands?') || url.startsWith('/api/v1/lands?'))) {
           try {
@@ -2185,6 +2203,9 @@ SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
             const landsList = JSON.parse(rawData || '[]');
             landsList.forEach(l => {
               l.boundaryAreaM2 = l.boundary ? calculateAreaM2(l.boundary) : null;
+              const c = l.boundary ? calculateCentroid(l.boundary) : null;
+              l.latitude = c ? c.latitude : null;
+              l.longitude = c ? c.longitude : null;
             });
 
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -2271,6 +2292,16 @@ SELECT row_to_json(l) FROM (
             } else {
               const landObj = JSON.parse(rawData);
               landObj.boundaryAreaM2 = landObj.boundary ? calculateAreaM2(landObj.boundary) : null;
+              const c = landObj.boundary ? calculateCentroid(landObj.boundary) : null;
+              landObj.latitude = c ? c.latitude : null;
+              landObj.longitude = c ? c.longitude : null;
+              if (Array.isArray(landObj.plots)) {
+                landObj.plots.forEach(p => {
+                  const pc = p.boundary ? calculateCentroid(p.boundary) : null;
+                  p.latitude = pc ? pc.latitude : landObj.latitude;
+                  p.longitude = pc ? pc.longitude : landObj.longitude;
+                });
+              }
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
@@ -2545,6 +2576,11 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
 `;
             const data = await runPostgreSql(sql);
             const plotsList = JSON.parse(data || '[]');
+            plotsList.forEach(p => {
+              const c = p.boundary ? calculateCentroid(p.boundary) : null;
+              p.latitude = c ? c.latitude : null;
+              p.longitude = c ? c.longitude : null;
+            });
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
@@ -3594,12 +3630,14 @@ SELECT json_build_object(
         TO_CHAR(fd.created_at, 'YYYY-MM-DD') AS date,
         TO_CHAR(fd.created_at, 'HH24:MI') AS time,
         TO_CHAR(fd.created_at, 'DD/MM/YYYY HH24:MI') AS "dateFormatted",
-        COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS author,
-        COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS "authorName",
+        COALESCE(u_worker.full_name, u_cust.full_name, 'Chủ vườn') AS author,
+        COALESCE(u_worker.full_name, u_cust.full_name, 'Chủ vườn') AS "authorName",
         'Chăm sóc & theo dõi' AS stage
       FROM farm_diaries fd
       JOIN rentals rent ON fd.rental_id = rent.rental_id
       JOIN plots p ON rent.plot_id = p.plot_id
+      LEFT JOIN contracts c ON rent.contract_id = c.contract_id
+      LEFT JOIN users u_cust ON c.renter_id = u_cust.user_id
       LEFT JOIN varieties v ON rent.variety_id = v.variety_id
       LEFT JOIN care_tasks ct ON fd.task_id = ct.task_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
@@ -3624,17 +3662,143 @@ SELECT json_build_object(
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const rentalId = payload.rentalId || payload.rental_id || 1;
-              const content = (payload.content || payload.note || 'Cập nhật nhật ký hiện trường').replace(/'/g, "''");
-              const imageUrl = (payload.imageUrl || payload.photo || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80').replace(/'/g, "''");
-              const sql = `
-INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
-VALUES (${rentalId}, '${content}', '${imageUrl}', NOW())
-RETURNING diary_id;
-`;
-              await runPostgreSql(sql);
+              let rentalId = payload.rentalId || payload.rental_id;
+              const pool = getPgPool();
+
+              if (!rentalId && (payload.plotId || payload.plotCode)) {
+                const code = String(payload.plotCode || payload.plotId).replace(/^PLOT-/i, '').trim();
+                const findRes = await pool.query(`
+                  SELECT r.rental_id 
+                  FROM rentals r 
+                  JOIN plots p ON r.plot_id = p.plot_id 
+                  WHERE p.plot_code = $1 OR p.plot_code = $2 
+                  ORDER BY r.rental_id DESC LIMIT 1
+                `, [code, `PLOT-${code}`]);
+                if (findRes && findRes.rows && findRes.rows[0]) {
+                  rentalId = findRes.rows[0].rental_id;
+                }
+              }
+              if (!rentalId) {
+                rentalId = 24;
+              }
+
+              const content = (payload.content || payload.note || 'Cập nhật tiến độ canh tác tại vườn').trim();
+              const imageUrl = (payload.imageUrl || payload.photo || '').trim();
+
+              const insertResult = await pool.query(`
+                INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
+                VALUES ($1, $2, $3, NOW())
+                RETURNING diary_id, rental_id, content, image_url, created_at;
+              `, [rentalId, content, imageUrl]);
+
+              const row = insertResult.rows[0];
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true, message: 'Thêm nhật ký canh tác thành công' }));
+              res.end(JSON.stringify({ 
+                success: true, 
+                message: 'Thêm nhật ký canh tác thành công',
+                data: {
+                  id: `DIR-${row.diary_id}`,
+                  diaryId: row.diary_id,
+                  rentalId: row.rental_id,
+                  content: row.content,
+                  imageUrl: row.image_url,
+                  created_at: row.created_at
+                }
+              }));
+            } catch (err) {
+              console.error('Error inserting farm diary:', err);
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 19b. FILE UPLOAD API (/api/files/upload, /api/upload)
+        if (req.method === 'POST' && (url === '/api/files/upload' || url === '/api/upload')) {
+          const contentType = req.headers['content-type'] || '';
+          const uploadDir = path.resolve(process.cwd(), 'public', 'uploads');
+          if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+          if (contentType.includes('application/json')) {
+            let body = '';
+            req.on('data', chunk => body += chunk);
+            req.on('end', async () => {
+              try {
+                const payload = JSON.parse(body || '{}');
+                const fileData = payload.file || payload.dataUrl || payload.base64 || '';
+                if (!fileData.startsWith('data:image/')) {
+                  res.statusCode = 400;
+                  res.end(JSON.stringify({ success: false, message: 'Invalid image data' }));
+                  return;
+                }
+                const match = fileData.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+                const ext = match ? (match[1] === 'jpeg' ? 'jpg' : match[1]) : 'jpg';
+                const base64Data = match ? match[2] : fileData;
+                const buffer = Buffer.from(base64Data, 'base64');
+                const fileName = `diary_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+                fs.writeFileSync(path.join(uploadDir, fileName), buffer);
+                const fileUrl = `/uploads/${fileName}`;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({
+                  success: true,
+                  message: 'Tải tệp tin lên thành công',
+                  data: { fileName, fileUrl }
+                }));
+              } catch (err) {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ success: false, error: String(err) }));
+              }
+            });
+            return;
+          }
+
+          const chunks = [];
+          req.on('data', chunk => chunks.push(chunk));
+          req.on('end', async () => {
+            try {
+              const fullBuffer = Buffer.concat(chunks);
+              let fileBuffer = null;
+              let fileExt = 'jpg';
+              const boundaryMatch = contentType.match(/boundary=([^;]+)/i);
+
+              if (boundaryMatch) {
+                const boundary = boundaryMatch[1].trim();
+                const boundaryBuffer = Buffer.from(`--${boundary}`);
+                const headerDelimiter = Buffer.from('\r\n\r\n');
+                
+                let startPos = fullBuffer.indexOf(boundaryBuffer);
+                if (startPos !== -1) {
+                  const headerStart = startPos + boundaryBuffer.length + 2;
+                  const headerEnd = fullBuffer.indexOf(headerDelimiter, headerStart);
+                  if (headerEnd !== -1) {
+                    const headerText = fullBuffer.subarray(headerStart, headerEnd).toString('utf8');
+                    const nameMatch = headerText.match(/filename="([^"]+)"/);
+                    if (nameMatch) {
+                      fileExt = path.extname(nameMatch[1]).replace('.', '') || 'jpg';
+                    }
+                    const dataStart = headerEnd + 4;
+                    const nextBoundary = fullBuffer.indexOf(boundaryBuffer, dataStart);
+                    const dataEnd = nextBoundary !== -1 ? nextBoundary - 2 : fullBuffer.length;
+                    fileBuffer = fullBuffer.subarray(dataStart, dataEnd);
+                  }
+                }
+              }
+
+              if (!fileBuffer || fileBuffer.length === 0) {
+                fileBuffer = fullBuffer;
+              }
+
+              const fileName = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
+              fs.writeFileSync(path.join(uploadDir, fileName), fileBuffer);
+              const fileUrl = `/uploads/${fileName}`;
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Tải tệp tin lên thành công',
+                data: { fileName, fileUrl }
+              }));
             } catch (err) {
               res.statusCode = 500;
               res.end(JSON.stringify({ success: false, error: String(err) }));
@@ -4115,7 +4279,7 @@ SELECT json_build_object(
       'paymentStatus', pt.status,
       'taskId', ct.task_id,
       'taskStatus', ct.status,
-      'worker', 'Trần Văn Lực (CVLĐ)'
+      'worker', COALESCE(u.full_name || ' (CVLĐ)', 'Chuyên viên lao động')
     )
     FROM service_requests sr
     JOIN services s ON sr.service_id = s.service_id
@@ -4123,6 +4287,7 @@ SELECT json_build_object(
     JOIN plots p ON rent.plot_id = p.plot_id
     LEFT JOIN payment_transactions pt ON sr.request_id = pt.service_request_id
     LEFT JOIN care_tasks ct ON sr.request_id = ct.service_request_id
+    LEFT JOIN users u ON ct.task_assigned_to = u.user_id
     ORDER BY sr.request_id DESC
     LIMIT 1
   )

@@ -80,7 +80,11 @@ import {
   Eye,
   Wheat,
   Truck,
-  CalendarCheck
+  CalendarCheck,
+  UploadCloud,
+  Image as ImageIcon,
+  X,
+  Lock
 } from 'lucide-react';
 
 export default function CustomerDashboard() {
@@ -240,8 +244,14 @@ export default function CustomerDashboard() {
 
   // Modals for Other Screen Flows
   const [showNewDiaryModal, setShowNewDiaryModal] = useState(false);
-  const [diaryPlotId, setDiaryPlotId] = useState('PLOT-MC-02');
+  const [diaryPlotId, setDiaryPlotId] = useState('');
   const [diaryFocusPlotId, setDiaryFocusPlotId] = useState('PLOT-CC-01');
+
+  useEffect(() => {
+    if (selectedPlotId) {
+      setDiaryPlotId(selectedPlotId);
+    }
+  }, [selectedPlotId]);
   const [showHarvestAcceptModal, setShowHarvestAcceptModal] = useState(false);
   const [harvestDeliveryMethod, setHarvestDeliveryMethod] = useState('DELIVERY');
   const [harvestAcceptance, setHarvestAcceptance] = useState({ status: 'PENDING', confirmedAt: null, deliveryMethod: null, rating: null, feedback: '' });
@@ -485,8 +495,104 @@ export default function CustomerDashboard() {
     setShowCancellationModal(true);
   };
 
-  // Form states
+  // Form states - Farm Diary
   const [diaryNote, setDiaryNote] = useState('');
+  const [diaryPhotoPreview, setDiaryPhotoPreview] = useState('');
+  const [diaryPhotoFile, setDiaryPhotoFile] = useState(null);
+  const [diaryPhotoMeta, setDiaryPhotoMeta] = useState(null);
+  const [isProcessingDiaryPhoto, setIsProcessingDiaryPhoto] = useState(false);
+  const [isSubmittingDiary, setIsSubmittingDiary] = useState(false);
+  const [isDragOverDiary, setIsDragOverDiary] = useState(false);
+  const [diarySuccessToast, setDiarySuccessToast] = useState('');
+  const [diaryFormError, setDiaryFormError] = useState('');
+  const diaryFileInputRef = useRef(null);
+  const diaryCameraInputRef = useRef(null);
+
+  const handleProcessDiaryFile = useCallback((file) => {
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+      setDiaryFormError('Vui lòng chọn tệp định dạng hình ảnh (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setDiaryFormError('Kích thước ảnh quá lớn (tối đa 15MB). Vui lòng chọn ảnh khác.');
+      return;
+    }
+    setDiaryFormError('');
+
+    setIsProcessingDiaryPhoto(true);
+    const sizeInMb = (file.size / (1024 * 1024)).toFixed(1);
+    const sizeFormatted = file.size >= 1024 * 1024 ? `${sizeInMb} MB` : `${Math.round(file.size / 1024)} KB`;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      const img = new window.Image();
+      img.onload = () => {
+        try {
+          const MAX_WIDTH = 1600;
+          const MAX_HEIGHT = 1600;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+            if (width > height) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            } else {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+          setDiaryPhotoPreview(optimizedDataUrl);
+          setDiaryPhotoFile(file);
+          setDiaryPhotoMeta({
+            name: file.name || 'anh_hien_truong.jpg',
+            sizeFormatted
+          });
+        } catch (err) {
+          console.warn('Canvas resize fallback:', err);
+          setDiaryPhotoPreview(dataUrl);
+          setDiaryPhotoFile(file);
+          setDiaryPhotoMeta({
+            name: file.name || 'anh_hien_truong.jpg',
+            sizeFormatted
+          });
+        } finally {
+          setIsProcessingDiaryPhoto(false);
+        }
+      };
+      img.onerror = () => {
+        setDiaryPhotoPreview(dataUrl);
+        setDiaryPhotoFile(file);
+        setDiaryPhotoMeta({ name: file.name, sizeFormatted });
+        setIsProcessingDiaryPhoto(false);
+      };
+      img.src = dataUrl;
+    };
+    reader.onerror = () => {
+      setDiaryFormError('Không thể đọc file ảnh. Vui lòng thử lại.');
+      setIsProcessingDiaryPhoto(false);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleClearDiaryPhoto = () => {
+    setDiaryPhotoPreview('');
+    setDiaryPhotoFile(null);
+    setDiaryPhotoMeta(null);
+    setDiaryFormError('');
+    if (diaryFileInputRef.current) diaryFileInputRef.current.value = '';
+    if (diaryCameraInputRef.current) diaryCameraInputRef.current.value = '';
+  };
 
   // AI Chatbot state
   const [chatMessages, setChatMessages] = useState([
@@ -511,9 +617,9 @@ export default function CustomerDashboard() {
   const [dbPlots, setDbPlots] = useState(null);
   const [isLoadingPlots, setIsLoadingPlots] = useState(true);
 
-  const fetchCustomerPlots = useCallback(async () => {
+  const fetchCustomerPlots = useCallback(async (isInitial = false) => {
     try {
-      setIsLoadingPlots(true);
+      if (isInitial && !dbPlots) setIsLoadingPlots(true);
       const userId = user?.userId || user?.id;
       const email = user?.email;
       if (!userId && !email) {
@@ -531,27 +637,27 @@ export default function CustomerDashboard() {
         const data = await res.json();
         setDbPlots(Array.isArray(data) ? data : []);
       } else {
-        setDbPlots([]);
+        if (!dbPlots) setDbPlots([]);
       }
     } catch (err) {
       console.error('Failed to load customer plots from DB:', err);
-      setDbPlots([]);
+      if (!dbPlots) setDbPlots([]);
     } finally {
-      setIsLoadingPlots(false);
+      if (isInitial) setIsLoadingPlots(false);
     }
-  }, [user]);
+  }, [user, dbPlots]);
 
   useEffect(() => {
-    fetchCustomerPlots();
+    fetchCustomerPlots(true);
 
-    // Lắng nghe đồng bộ tức thì từ Admin qua BroadcastChannel & Storage Event
+    // Lắng nghe cập nhật tức thì từ Admin qua BroadcastChannel & Storage Event
     let bc = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         bc = new BroadcastChannel('farmely_iot_telemetry');
         bc.onmessage = (msg) => {
           if (msg.data?.type === 'TELEMETRY_UPDATED') {
-            fetchCustomerPlots();
+            fetchCustomerPlots(false);
           }
         };
       }
@@ -559,20 +665,20 @@ export default function CustomerDashboard() {
 
     const handleStorage = (e) => {
       if (e.key === 'farmely_iot_sync_ping') {
-        fetchCustomerPlots();
+        fetchCustomerPlots(false);
       }
     };
     window.addEventListener('storage', handleStorage);
 
-    // Chu kỳ đồng bộ 10 giây tự động cập nhật số liệu mới nhất từ PostgreSQL
-    const pollTimer = setInterval(fetchCustomerPlots, 10000);
+    // Cập nhật ngầm định kỳ 30 giây (không hiện loading che màn hình)
+    const pollTimer = setInterval(() => fetchCustomerPlots(false), 30000);
 
     return () => { 
       clearInterval(pollTimer);
       if (bc) { try { bc.close(); } catch {} }
       window.removeEventListener('storage', handleStorage);
     };
-  }, [user?.id, user?.userId, user?.email]);
+  }, [fetchCustomerPlots]);
 
   const customerPlots = useMemo(() => {
     const list = Array.isArray(dbPlots) ? [...dbPlots] : [];
@@ -1555,10 +1661,12 @@ export default function CustomerDashboard() {
 
             const formattedDiary = {
               id: d.id,
-              time: d.dateFormatted || 'Hôm nay',
-              title: d.content ? d.content.slice(0, 40) : 'Cập nhật hiện trường',
+              time: d.dateFormatted || (d.date && d.time ? `${d.date} ${d.time}` : 'Hôm nay'),
+              title: d.content ? d.content.slice(0, 45) : 'Cập nhật hiện trường',
               note: d.content,
-              author: d.authorName || 'Trần Văn Lực (CVLĐ)'
+              author: d.authorName || d.author || 'Chủ vườn',
+              image: d.imageUrl || d.image_url || d.photo || '',
+              imageUrl: d.imageUrl || d.image_url || d.photo || ''
             };
 
             targetKeys.forEach((key) => {
@@ -2223,12 +2331,15 @@ export default function CustomerDashboard() {
                     </span>
                   </div>
 
-                  {isLoadingPlots ? (
-                    <div className="flex h-48 items-center justify-center rounded-2xl border border-stone-200 bg-white shadow-sm">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-stone-500">
-                        <RefreshCw className="h-5 w-5 animate-spin text-emerald-600" />
-                        Đang đồng bộ danh sách thửa đất từ cơ sở dữ liệu...
-                      </div>
+                  {isLoadingPlots && (!dbPlots || dbPlots.length === 0) ? (
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {[1, 2, 3].map((n) => (
+                        <div key={n} className="animate-pulse rounded-3xl border border-stone-200/80 bg-white p-4 shadow-sm h-64">
+                          <div className="h-36 rounded-2xl bg-stone-200/60 mb-3" />
+                          <div className="h-4 w-3/4 rounded bg-stone-200/60 mb-2" />
+                          <div className="h-3 w-1/2 rounded bg-stone-100" />
+                        </div>
+                      ))}
                     </div>
                   ) : displayedPlots.length === 0 ? (
                     plotStatusFilter === 'CANCELLED' ? (
@@ -2262,6 +2373,7 @@ export default function CustomerDashboard() {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {displayedPlots.map((plot) => {
                         const isCancelled = isPlotCancelled(plot);
+                        const isPendingPayment = !isCancelled && String(plot.contract_status || plot.rental_status || plot.status || '').toUpperCase() === 'PENDING_PAYMENT';
                         const tasks = plotOperations[plot.id]?.tasks || defaultOperationsForPlot(plot).tasks || [];
                         const nextTask = tasks.find((t) => t.status === 'IN_PROGRESS') || tasks.find((t) => t.status === 'PENDING');
                         const openCount = tasks.filter((t) => t.status !== 'COMPLETED').length;
@@ -2274,6 +2386,8 @@ export default function CustomerDashboard() {
                             className={`group flex flex-col overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 hover:shadow-lg ${
                               isCancelled
                                 ? 'border-rose-200/90 bg-stone-50/50 shadow-2xs'
+                                : isPendingPayment
+                                ? 'border-amber-300 bg-amber-50/20 shadow-sm'
                                 : 'border-stone-200/80 bg-white shadow-sm'
                             }`}
                           >
@@ -2296,6 +2410,10 @@ export default function CustomerDashboard() {
                               {isCancelled ? (
                                 <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
                                   🛑 Đã hủy
+                                </span>
+                              ) : isPendingPayment ? (
+                                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
+                                  ⏳ Chờ thanh toán
                                 </span>
                               ) : (
                                 <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-[11px] font-semibold text-[#18352b]">
@@ -2376,37 +2494,62 @@ export default function CustomerDashboard() {
                               )}
 
                               {/* Hàng nút bấm hành động */}
-                              <div className="mt-auto flex items-center gap-2 pt-1">
-                                {isCancelled ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenCancelModal(plot)}
-                                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-800 transition hover:bg-rose-100 cursor-pointer"
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                    Xem chi tiết hợp đồng đã hủy
-                                  </button>
-                                ) : (
-                                  <>
-                                    <button type="button" onClick={() => openPlot(plot.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
-                                      Mở thửa<ChevronRight className="h-4 w-4" />
+                              <div className="mt-auto flex flex-col gap-2 pt-1">
+                                {isPendingPayment && (
+                                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                                    <span className="font-semibold text-[11px]">Chờ thanh toán (15 phút)</span>
+                                    <button
+                                      type="button"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (plot.contract_id) {
+                                          try {
+                                            await fetch(`/api/contracts/${plot.contract_id}/activate`, { method: 'POST' });
+                                            fetchCustomerPlots(false);
+                                          } catch (err) {
+                                            console.error(err);
+                                          }
+                                        }
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold text-[11px] hover:bg-amber-700 transition cursor-pointer shadow-xs"
+                                    >
+                                      Kích hoạt ngay
                                     </button>
-                                    {[['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
-                                      <button key={tab} type="button" onClick={() => openPlot(plot.id, tab)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
-                                        <Icon className="h-4 w-4" />
-                                      </button>
-                                    ))}
+                                  </div>
+                                )}
+
+                                <div className="flex items-center gap-2">
+                                  {isCancelled ? (
                                     <button
                                       type="button"
                                       onClick={() => handleOpenCancelModal(plot)}
-                                      aria-label={`Hợp đồng & hủy ${plot.name}`}
-                                      title="Quản lý Hợp đồng & Hủy theo BR10"
-                                      className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700"
+                                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-800 transition hover:bg-rose-100 cursor-pointer"
                                     >
                                       <FileText className="h-4 w-4" />
+                                      Xem chi tiết hợp đồng đã hủy
                                     </button>
-                                  </>
-                                )}
+                                  ) : (
+                                    <>
+                                      <button type="button" onClick={() => openPlot(plot.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
+                                        Mở thửa<ChevronRight className="h-4 w-4" />
+                                      </button>
+                                      {[['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
+                                        <button key={tab} type="button" onClick={() => openPlot(plot.id, tab)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
+                                          <Icon className="h-4 w-4" />
+                                        </button>
+                                      ))}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenCancelModal(plot)}
+                                        aria-label={`Hợp đồng & hủy ${plot.name}`}
+                                        title="Quản lý Hợp đồng & Hủy theo BR10"
+                                        className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-stone-400 hover:bg-stone-50"
+                                      >
+                                        <FileText className="h-4 w-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </article>
@@ -2941,7 +3084,18 @@ export default function CustomerDashboard() {
                               <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800">{entry.author}</span>
                             </div>
                             <h5 className="mt-2 text-xs font-black text-brand-dark">{entry.title}</h5>
-                            <p className="mt-1 text-xs leading-relaxed text-stone-600">{entry.note}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-stone-600 whitespace-pre-line">{entry.note}</p>
+                            {(entry.image || entry.imageUrl || entry.photo) && (
+                              <div className="mt-2 overflow-hidden rounded-lg border border-stone-200">
+                                <img
+                                  src={entry.image || entry.imageUrl || entry.photo}
+                                  alt={entry.title || 'Ảnh nhật ký'}
+                                  className="max-h-48 w-full object-cover cursor-pointer hover:opacity-95 transition"
+                                  onClick={() => window.open(entry.image || entry.imageUrl || entry.photo, '_blank')}
+                                  loading="lazy"
+                                />
+                              </div>
+                            )}
                           </article>
                         ))}
                       </div>
@@ -4024,84 +4178,332 @@ export default function CustomerDashboard() {
       </Modal>
 
       {/* Modal: New Diary Entry */}
-      <Modal
-        isOpen={showNewDiaryModal}
-        onClose={() => setShowNewDiaryModal(false)}
-        title="Thêm Nhật Ký Canh Tác Mới"
-        subtitle="Cập nhật tiến độ hoặc ảnh tham quan vườn của bạn"
-      >
-        <div className="space-y-4 text-left text-xs">
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Chọn Thửa Đất:</label>
-            <select
-              value={diaryPlotId}
-              onChange={(e) => setDiaryPlotId(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs"
-            >
-              {customerPlots.length === 0 ? (
-                <option value="">Chưa có thửa đất nào</option>
-              ) : (
-                customerPlots.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.id}) • {p.crop}
-                  </option>
-                ))
+      {(() => {
+        const activeDiaryTargetPlot = customerPlots.find((p) => p.id === diaryPlotId) || currentSelectedPlot || scopedPlot || customerPlots[0];
+        return (
+          <Modal
+            isOpen={showNewDiaryModal}
+            onClose={() => {
+              setShowNewDiaryModal(false);
+              handleClearDiaryPhoto();
+            }}
+            title="Thêm Nhật Ký Canh Tác Mới"
+            subtitle="Cập nhật tiến độ hoặc ảnh tham quan vườn của bạn"
+          >
+            <div className="space-y-4 text-left text-xs">
+              {/* 1. KHÓA CỐ ĐỊNH THỬA ĐẤT - KHÔNG CHO CHỌN THỬA KHÁC */}
+              <div>
+                <label className="block font-bold text-stone-700 mb-1.5 flex items-center justify-between">
+                  <span>Thửa đất áp dụng:</span>
+                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" />
+                    Cố định theo dashboard hiện tại
+                  </span>
+                </label>
+                <div className="rounded-2xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50/70 via-stone-50 to-emerald-50/40 p-3.5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow">
+                      <Sprout className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-extrabold text-sm text-stone-900">
+                          {activeDiaryTargetPlot?.name || `Thửa ${activeDiaryTargetPlot?.id || 'P-06'}`}
+                        </span>
+                        <span className="rounded-md bg-emerald-700 text-white px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                          {activeDiaryTargetPlot?.id || activeDiaryTargetPlot?.plotCode || 'PLOT-P-06'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-600 font-medium mt-0.5 truncate">
+                        🌱 Giống cây: <strong className="text-emerald-800 font-bold">{activeDiaryTargetPlot?.crop || 'Rau muống lá tre F1'}</strong>
+                        {activeDiaryTargetPlot?.location ? ` • ${activeDiaryTargetPlot.location}` : ' • Happy Valley Củ Chi'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. GHI CHÚ NỘI DUNG NHẬT KÝ */}
+              <div>
+                <label className="block font-bold text-stone-700 mb-1.5">
+                  Ghi Chú Nhật Ký / Tình Hình Vườn:
+                </label>
+                <textarea
+                  rows={3}
+                  value={diaryNote}
+                  onChange={(e) => {
+                    setDiaryNote(e.target.value);
+                    if (diaryFormError) setDiaryFormError('');
+                  }}
+                  placeholder="Ví dụ: Hôm nay ra thăm vườn, mầm đã nảy xanh đều, đất tơi xốp, lá non xanh mướt..."
+                  className="w-full p-3 rounded-xl border border-brand-border text-xs leading-relaxed focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green transition"
+                />
+              </div>
+
+              {/* Thông báo lỗi nếu có */}
+              {diaryFormError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-xs font-semibold text-rose-700 flex items-center gap-1.5">
+                  <span>⚠️</span>
+                  <span>{diaryFormError}</span>
+                </div>
               )}
-            </select>
-          </div>
 
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Ghi Chú Nhật Ký:</label>
-            <textarea
-              rows={3}
-              value={diaryNote}
-              onChange={(e) => setDiaryNote(e.target.value)}
-              placeholder="Ví dụ: Cây phát triển rất đều, đất tơi xốp, lá xanh mướt..."
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
+              {/* 3. UPLOAD ẢNH (HỖ TRỢ ĐIỆN THOẠI & LAPTOP) */}
+              <div>
+                <label className="block font-bold text-stone-700 mb-1.5 flex items-center justify-between">
+                  <span>Đính kèm hình ảnh hiện trường:</span>
+                  <span className="text-[10px] text-stone-400">Điện thoại hoặc Laptop</span>
+                </label>
 
-          <div className="p-4 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-1">
-            <Camera className="w-6 h-6 text-stone-400 mx-auto" />
-            <p className="font-bold text-stone-600">Đính kèm ảnh hiện trường thực tế</p>
-            <p className="text-[10px] text-stone-400">Hỗ trợ PNG, JPG tối đa 5MB</p>
-          </div>
+                {/* Input ẩn cho Laptop / Thư viện ảnh */}
+                <input
+                  ref={diaryFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleProcessDiaryFile(file);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowNewDiaryModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={async () => {
-                if (!diaryNote.trim()) return;
-                try {
-                  const targetPlot = customerPlots.find((p) => p.id === diaryPlotId) || customerPlots[0];
-                  const targetRental = targetPlot?.rentalId || 1;
-                  await fetch('/api/farm-diaries', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      rentalId: targetRental,
-                      content: diaryNote.trim(),
-                      imageUrl: targetPlot?.image || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80'
-                    })
-                  });
-                  loadOperationsFromDb();
-                } catch (err) {
-                  console.warn('Could not post diary to DB:', err);
-                }
-                alert('Đã lưu nhật ký Farm Diary thành công vào cơ sở dữ liệu!');
-                setShowNewDiaryModal(false);
-                setDiaryNote('');
-              }}
-            >
-              LƯU NHẬT KÝ
-            </Button>
-          </div>
-        </div>
-      </Modal>
+                {/* Input ẩn cho Camera điện thoại */}
+                <input
+                  ref={diaryCameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleProcessDiaryFile(file);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
+
+                {!diaryPhotoPreview ? (
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDragOverDiary(true); }}
+                    onDragLeave={() => setIsDragOverDiary(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragOverDiary(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleProcessDiaryFile(file);
+                    }}
+                    className={`relative rounded-2xl border-2 border-dashed p-4 text-center transition ${
+                      isDragOverDiary
+                        ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-200'
+                        : 'border-stone-300 bg-stone-50/70 hover:border-emerald-400 hover:bg-emerald-50/20'
+                    }`}
+                  >
+                    {isProcessingDiaryPhoto ? (
+                      <div className="py-4 space-y-2">
+                        <RefreshCw className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
+                        <p className="text-xs font-bold text-stone-600">Đang tối ưu & nén ảnh...</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm border border-stone-200 text-stone-600">
+                            <Camera className="w-5 h-5 text-emerald-600" />
+                          </div>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm border border-stone-200 text-stone-600">
+                            <UploadCloud className="w-5 h-5 text-sky-600" />
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="font-bold text-stone-700 text-xs">
+                            Đính kèm ảnh hiện trường thực tế
+                          </p>
+                          <p className="text-[10px] text-stone-400 mt-0.5">
+                            Kéo thả ảnh vào đây hoặc chọn chụp bằng điện thoại / duyệt từ máy tính
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => diaryCameraInputRef.current?.click()}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            📱 Chụp ảnh (Camera)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => diaryFileInputRef.current?.click()}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs font-bold text-stone-700 shadow-sm hover:bg-stone-50 transition"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5 text-stone-500" />
+                            💻 Chọn từ máy tính / Thư viện
+                          </button>
+                        </div>
+
+                        <p className="text-[9px] text-stone-400 pt-1">
+                          Hỗ trợ PNG, JPG, JPEG, WEBP (Tự động nén chất lượng cao)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-3 space-y-2.5">
+                    <div className="relative overflow-hidden rounded-xl border border-emerald-200 bg-stone-900/5 max-h-56 flex items-center justify-center">
+                      <img
+                        src={diaryPhotoPreview}
+                        alt="Xem trước ảnh nhật ký"
+                        className="max-h-56 w-full object-contain rounded-xl"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleClearDiaryPhoto}
+                        className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-stone-900/80 text-white hover:bg-rose-600 transition shadow"
+                        title="Xóa ảnh này"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-1.5 text-emerald-800 font-semibold truncate max-w-[220px]">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="truncate">{diaryPhotoMeta?.name || 'Ảnh minh chứng'}</span>
+                        {diaryPhotoMeta?.sizeFormatted && (
+                          <span className="text-[10px] text-stone-500 shrink-0">({diaryPhotoMeta.sizeFormatted})</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => diaryFileInputRef.current?.click()}
+                        className="text-[11px] font-bold text-emerald-700 hover:underline"
+                      >
+                        Đổi ảnh khác
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. HÀNH ĐỘNG */}
+              <div className="flex justify-end gap-2 pt-2 border-t border-stone-100">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSubmittingDiary}
+                  onClick={() => {
+                    setShowNewDiaryModal(false);
+                    handleClearDiaryPhoto();
+                    setDiaryFormError('');
+                  }}
+                >
+                  HỦY
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={isSubmittingDiary || (!diaryNote.trim() && !diaryPhotoPreview)}
+                  onClick={async () => {
+                    if (!diaryNote.trim() && !diaryPhotoPreview) {
+                      setDiaryFormError('Vui lòng nhập ghi chú hoặc đính kèm ảnh hiện trường.');
+                      return;
+                    }
+
+                    const targetPlot = activeDiaryTargetPlot;
+                    const targetRental = targetPlot?.rentalId || targetPlot?.rental_id || 1;
+                    const authorName = user?.fullName || user?.name || 'Lô Thái Quyền (Chủ vườn)';
+
+                    setIsSubmittingDiary(true);
+                    setDiaryFormError('');
+                    let finalImageUrl = diaryPhotoPreview || '';
+
+                    // Nếu có tệp ảnh gốc, thử tải lên API lưu trữ
+                    if (diaryPhotoFile) {
+                      try {
+                        const formData = new FormData();
+                        formData.append('file', diaryPhotoFile);
+                        const uploadRes = await fetch('/api/files/upload', {
+                          method: 'POST',
+                          body: formData
+                        });
+                        if (uploadRes.ok) {
+                          const uploadData = await uploadRes.json();
+                          if (uploadData?.data?.fileUrl) {
+                            finalImageUrl = uploadData.data.fileUrl;
+                          }
+                        }
+                      } catch (uploadErr) {
+                        console.warn('API upload fallback to data URL:', uploadErr);
+                      }
+                    }
+
+                    try {
+                      await fetch('/api/farm-diaries', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          rentalId: targetRental,
+                          plotId: targetPlot?.id,
+                          plotCode: targetPlot?.plotCode || targetPlot?.mapPlotId || targetPlot?.id,
+                          content: diaryNote.trim() || 'Cập nhật ảnh minh chứng tại thửa vườn',
+                          imageUrl: finalImageUrl,
+                          authorName
+                        })
+                      });
+
+                      // Cập nhật ngay tức thì vào state để người dùng thấy nhật ký xuất hiện ngay
+                      const newEntry = {
+                        id: `DIR-LOCAL-${Date.now()}`,
+                        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' • Hôm nay',
+                        title: diaryNote.trim() ? (diaryNote.trim().slice(0, 45) + (diaryNote.trim().length > 45 ? '...' : '')) : 'Ảnh hiện trường tham quan vườn',
+                        note: diaryNote.trim() || 'Ảnh chụp hiện trường tham quan vườn của chủ sở hữu.',
+                        author: authorName,
+                        image: finalImageUrl || diaryPhotoPreview,
+                        imageUrl: finalImageUrl || diaryPhotoPreview
+                      };
+
+                      setPlotOperations((prev) => {
+                        const next = { ...prev };
+                        const targetKeys = [targetPlot?.id, targetPlot?.mapPlotId, targetPlot?.plotCode, `RENTAL-${targetRental}`].filter(Boolean);
+                        targetKeys.forEach((key) => {
+                          if (!next[key]) next[key] = { tasks: [], diary: [] };
+                          next[key] = {
+                            ...next[key],
+                            diary: [newEntry, ...(next[key].diary || [])]
+                          };
+                        });
+                        return next;
+                      });
+
+                      loadOperationsFromDb();
+                      setShowNewDiaryModal(false);
+                      setDiaryNote('');
+                      handleClearDiaryPhoto();
+                      setDiarySuccessToast(`Đã lưu nhật ký và tải ảnh hiện trường thành công cho ${targetPlot?.name || 'thửa vườn'}!`);
+                      setTimeout(() => setDiarySuccessToast(''), 4500);
+                    } catch (err) {
+                      console.warn('Could not post diary to DB:', err);
+                      setDiaryFormError('Có lỗi khi lưu nhật ký. Vui lòng kiểm tra kết nối và thử lại.');
+                    } finally {
+                      setIsSubmittingDiary(false);
+                    }
+                  }}
+                >
+                  {isSubmittingDiary ? (
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ĐANG LƯU...
+                    </span>
+                  ) : (
+                    'LƯU NHẬT KÝ'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {/* Modal: Chuẩn bị thu hoạch cho RIÊNG 1 thửa */}
       <PlotHarvestModal
@@ -4485,6 +4887,28 @@ export default function CustomerDashboard() {
           </div>
         </form>
       </Modal>
+
+      {/* Floating Toast Notification for Farm Diary */}
+      {diarySuccessToast && (
+        <div className="fixed top-20 right-6 z-50 max-w-md animate-in slide-in-from-top-3 fade-in duration-300">
+          <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/40 bg-[#18352b] px-4 py-3 text-white shadow-2xl backdrop-blur-md">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow">
+              <CheckCircle2 className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1 text-xs">
+              <p className="font-extrabold text-emerald-300">Nhật Ký Canh Tác</p>
+              <p className="text-stone-200 mt-0.5 leading-snug">{diarySuccessToast}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDiarySuccessToast('')}
+              className="ml-2 rounded-lg p-1.5 text-stone-400 hover:bg-white/10 hover:text-white transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <CustomerMobileNav activeView={activeTab} />
     </div>
