@@ -69,7 +69,7 @@ export default function ContractCancellationModal({
         refundAmount: totalAmount * 0.80,
         badgeLabel: `Hủy trước ngày bắt đầu ${diffDays} ngày (Hoàn 80%)`,
         badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-        note: 'Theo chính sách hoàn hủy: Thông báo trước ngày bắt đầu ≥ 3 ngày, hệ thống khấu trừ 20% phí giữ chỗ và quản trị, hoàn trả 80% số tiền đã thanh toán.',
+        note: 'Theo điều khoản BR10: Thông báo trước ngày bắt đầu ≥ 3 ngày, hệ thống khấu trừ 20% phí giữ chỗ và quản trị, hoàn trả 80% số tiền đã thanh toán.',
         canRefund: true
       };
     }
@@ -85,7 +85,7 @@ export default function ContractCancellationModal({
         refundAmount: totalAmount * 0.50,
         badgeLabel: `Hủy sát ngày bắt đầu (${diffDays} ngày trước) (Hoàn 50%)`,
         badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
-        note: 'Theo chính sách hoàn hủy: Thông báo sát ngày (< 3 ngày), nông trại đã chuẩn bị giống và phân bón ban đầu; khấu trừ 50% chi phí chuẩn bị, hoàn trả 50% số tiền.',
+        note: 'Theo điều khoản BR10: Thông báo sát ngày (< 3 ngày), nông trại đã chuẩn bị giống và phân bón ban đầu; khấu trừ 50% chi phí chuẩn bị, hoàn trả 50% số tiền.',
         canRefund: true
       };
     }
@@ -100,7 +100,7 @@ export default function ContractCancellationModal({
       refundAmount: 0,
       badgeLabel: 'Đã bước vào giai đoạn canh tác (Khấu trừ 100% - Không hoàn tiền)',
       badgeColor: 'bg-rose-100 text-rose-800 border-rose-200',
-      note: 'Theo chính sách: Thửa đất đã bước vào vụ canh tác thực địa (cây giống đã gieo trồng, nhân sự đã thi công làm đất và chăm sóc). Chấm dứt hợp đồng sớm sẽ không được hoàn tiền thuê. Thửa đất sẽ chuyển sang quy trình bảo dưỡng phơi ải 4 ngày.',
+      note: 'Theo điều khoản BR10: Thửa đất đã bước vào vụ canh tác thực địa (cây giống đã gieo trồng, công nhân đã thi công làm đất và chăm sóc). Chấm dứt hợp đồng sớm sẽ không được hoàn tiền thuê. Thửa đất sẽ chuyển sang quy trình bảo dưỡng 4 ngày (BR23).',
       canRefund: false
     };
   }, [contract]);
@@ -187,9 +187,10 @@ export default function ContractCancellationModal({
         <div className="flex items-start justify-between border-b border-brand-border/70 pb-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 border border-rose-200">
-                Chính sách hoàn tiền
+              <span className="rounded-full bg-rose-100 px-2.5 py-0.5 font-mono text-[11px] font-bold text-rose-800 border border-rose-200">
+                SSoT BR10 & BR23
               </span>
+              <span className="text-xs font-semibold text-stone-500">Mã màn hình: SCR-KH-08 / SCR-AD-10</span>
             </div>
             <h2 className="font-heading text-xl font-black text-brand-dark flex items-center gap-2">
               <Ban className="h-5 w-5 text-rose-600" />
@@ -220,7 +221,7 @@ export default function ContractCancellationModal({
               </h3>
               <p className="mx-auto max-w-md text-xs text-stone-600">
                 Mã phiếu yêu cầu: <strong className="font-mono text-brand-green">{successData.ticketId}</strong>. 
-                Ban quản trị Farmely đã nhận thông tin và sẽ xử lý hoàn tất theo đúng chính sách hoàn tiền.
+                Ban quản trị Farmely đã nhận thông tin và sẽ xử lý hoàn tất theo đúng điều khoản <strong>BR10</strong>.
               </p>
             </div>
 
@@ -242,7 +243,7 @@ export default function ContractCancellationModal({
               </div>
               <div className="flex justify-between pt-1">
                 <span className="text-stone-500">Trạng thái giải phóng thửa:</span>
-                <span className="font-semibold text-amber-700">Chuyển nghỉ đất phơi ải 4 ngày</span>
+                <span className="font-semibold text-amber-700">Chuyển nghỉ đất 4 ngày (BR23)</span>
               </div>
             </div>
 
@@ -290,11 +291,11 @@ export default function ContractCancellationModal({
               </div>
             </div>
 
-            {/* 2. Bảng tính toán hoàn tiền */}
+            {/* 2. Bảng tính toán hoàn tiền theo BR10 */}
             <div className="rounded-2xl border border-stone-200 bg-white p-4 text-xs space-y-3">
               <h4 className="font-bold text-stone-900 flex items-center gap-1.5">
                 <DollarSign className="h-4 w-4 text-brand-green" />
-                Dự Toán Khấu Trừ & Tiền Hoàn Trả
+                Dự Toán Khấu Trừ & Tiền Hoàn Trả (Công thức chuẩn BR10)
               </h4>
 
               <div className="divide-y divide-stone-100 rounded-xl border border-stone-100 bg-stone-50/60 p-3 space-y-2">
@@ -438,7 +439,7 @@ export default function ContractCancellationModal({
                 ) : (
                   <>
                     <Ban className="h-4 w-4" />
-                    <span>Xác Nhận Gửi Yêu Cầu Hủy</span>
+                    <span>Xác Nhận Gửi Yêu Cầu Hủy (BR10)</span>
                   </>
                 )}
               </button>

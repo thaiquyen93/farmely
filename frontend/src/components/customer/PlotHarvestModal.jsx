@@ -83,9 +83,6 @@ export default function PlotHarvestModal({ plot, isOpen, onClose, existingPlan =
     }
     onConfirm?.({
       plotId: plot.id,
-      plotCode: plot.plotCode || plot.id,
-      plotName: plot.name,
-      crop: plot.crop,
       method: selectedMethod.id,
       methodLabel: selectedMethod.label,
       date,

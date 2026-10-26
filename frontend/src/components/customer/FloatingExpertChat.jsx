@@ -11,7 +11,6 @@ export default function FloatingExpertChat({
   senderName,
   ownSenderRole = 'customer',
   bottomOffset = 24,
-  avoidMobileNav = false,
   input,
   setInput,
   onSubmit,
@@ -20,32 +19,12 @@ export default function FloatingExpertChat({
   scrollRef
 }) {
   const [launcherPosition, setLauncherPosition] = useState(null);
-  const [isMobileViewport, setIsMobileViewport] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1024);
-  const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const dragRef = useRef(null);
   const panelRef = useRef(null);
   const isAi = mode === 'ai';
   const LauncherIcon = isAi ? Bot : MessageSquare;
   const title = isAi ? 'Trợ lý nông nghiệp AI' : (thread?.expertName || 'ThS. Nguyễn Hoàng Nam');
   const visibleMessages = messages ?? thread?.messages ?? [];
-  const effectiveBottomOffset = bottomOffset + (avoidMobileNav && isMobileViewport ? 72 : 0);
-
-  useEffect(() => {
-    const onResize = () => setIsMobileViewport(window.innerWidth < 1024);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  useEffect(() => {
-    const check = () => {
-      const panel = document.querySelector('[data-plot-detail-panel="open"]');
-      setIsDetailPanelOpen(Boolean(panel));
-    };
-    check();
-    const obs = new MutationObserver(check);
-    obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-plot-detail-panel'] });
-    return () => obs.disconnect();
-  }, []);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -88,10 +67,33 @@ export default function FloatingExpertChat({
         left: launcherPosition.x >= 390 ? launcherPosition.x - 382 : launcherPosition.x + 68,
         top: clamp(launcherPosition.y - 450, 84, Math.max(84, window.innerHeight - 532))
       }
-    : { right: isDetailPanelOpen && !isMobileViewport ? 364 : 92, bottom: effectiveBottomOffset };
+    : { right: 92, bottom: bottomOffset };
 
   if (!isOpen) {
-    return null;
+    return (
+      <div
+        data-draggable
+        className="fixed z-[60] block"
+        style={launcherPosition ? { left: launcherPosition.x, top: launcherPosition.y } : { right: 24, bottom: bottomOffset }}
+      >
+        <button
+          type="button"
+          onPointerDown={(event) => beginDrag(event, 'launcher')}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={() => { dragRef.current = null; }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') onOpen();
+          }}
+          className="group relative flex h-14 w-14 touch-none items-center justify-center rounded-2xl bg-brand-green text-white shadow-elevated transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-green/25"
+          aria-label={`${isAi ? 'Mở trợ lý nông nghiệp AI' : 'Mở chat với chuyên gia'}; có thể kéo để di chuyển`}
+        >
+          <LauncherIcon className="h-6 w-6" />
+          <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-400" />
+          <span className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs font-bold text-white shadow-lg group-hover:block">{isAi ? 'Trợ lý AI' : 'Chat chuyên gia'} • kéo để di chuyển</span>
+        </button>
+      </div>
+    );
   }
 
   return (
