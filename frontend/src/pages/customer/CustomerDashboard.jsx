@@ -643,19 +643,33 @@ export default function CustomerDashboard() {
   const [activeServiceOrders, setActiveServiceOrders] = useState([]);
 
   const serviceIconMap = { calendar: Calendar, layers: Layers, droplets: Droplets, sprout: Sprout };
-  const customerServiceCatalog = masterServices.map((service) => ({
+  const customerServiceCatalog = masterServices.map((service) => {
+    const rawPrice = Number(service?.price) || 0;
+    const resolvedName = service?.name || service?.serviceName || 'Dịch vụ canh tác';
+    return {
       ...service,
-      category: service.customerCategory,
-      formattedPrice: `${service.price.toLocaleString('vi-VN')} đ`,
-      icon: serviceIconMap[service.iconKey] || Sprout,
-      color: service.customerCategory === 'SINGLE'
+      name: resolvedName,
+      category: service?.customerCategory || 'SINGLE',
+      price: rawPrice,
+      formattedPrice: `${rawPrice.toLocaleString('vi-VN')} đ`,
+      icon: serviceIconMap[service?.iconKey] || Sprout,
+      color: service?.customerCategory === 'SINGLE'
         ? 'bg-purple-50 text-purple-800 border-purple-200'
         : 'bg-emerald-50 text-emerald-800 border-emerald-200',
-      features: service.tasks.map((task) => task.title)
-    }));
+      features: Array.isArray(service?.tasks) ? service.tasks.map((task) => task?.title || String(task)) : []
+    };
+  });
   const filteredServices = (serviceCategoryFilter === 'ALL'
     ? customerServiceCatalog
-    : customerServiceCatalog.filter(s => s.category === serviceCategoryFilter)).sort((a, b) => serviceSort === 'price' ? a.price - b.price : a.name.localeCompare(b.name, 'vi'));
+    : customerServiceCatalog.filter(s => s.category === serviceCategoryFilter)
+  ).sort((a, b) => {
+    if (serviceSort === 'price') {
+      return (Number(a?.price) || 0) - (Number(b?.price) || 0);
+    }
+    const nameA = String(a?.name || a?.serviceName || '');
+    const nameB = String(b?.name || b?.serviceName || '');
+    return nameA.localeCompare(nameB, 'vi');
+  });
 
   // Handle buy service
   const handleOpenBuyServiceModal = (svc) => {
