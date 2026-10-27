@@ -82,7 +82,7 @@ public class RentalServiceImpl implements RentalService {
                     .requestedDays(requestedDays)
                     .startDate(request.getStartDate())
                     .endDate(request.getEndDate())
-                    .message("Thửa đất '" + plot.getPlotCode() + "' hiện đang bảo dưỡng (Theo BR23)")
+                    .message("Thửa đất '" + plot.getPlotCode() + "' hiện đang bảo dưỡng")
                     .build();
         }
 

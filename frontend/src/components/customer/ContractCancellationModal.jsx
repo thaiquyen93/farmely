@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertCircle, AlertTriangle, ArrowRight, Ban, CheckCircle2, DollarSign, FileText, Landmark, ShieldAlert, Sparkles, X } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
+import { rentalApi } from '../../api/rental/rentalApi';
 
 const BANK_OPTIONS = [
   'Vietcombank (VCB)',
@@ -48,7 +49,8 @@ export default function ContractCancellationModal({
   const calculation = useMemo(() => {
     if (!contract) return null;
 
-    const totalAmount = Number(contract.totalAmount || contract.price || 3000000);
+    const totalAmount = Number(contract.totalAmount);
+    if (!contract.startDate || !Number.isFinite(totalAmount) || totalAmount <= 0) return null;
     const startDateObj = parseDateFlexible(contract.startDate || contract.start_date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -69,7 +71,7 @@ export default function ContractCancellationModal({
         refundAmount: totalAmount * 0.80,
         badgeLabel: `Hủy trước ngày bắt đầu ${diffDays} ngày (Hoàn 80%)`,
         badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-        note: 'Theo điều khoản BR10: Thông báo trước ngày bắt đầu ≥ 3 ngày, hệ thống khấu trừ 20% phí giữ chỗ và quản trị, hoàn trả 80% số tiền đã thanh toán.',
+        note: 'Theo chính sách hoàn hủy: Thông báo trước ngày bắt đầu ≥ 3 ngày, hệ thống khấu trừ 20% phí giữ chỗ và quản trị, hoàn trả 80% số tiền đã thanh toán.',
         canRefund: true
       };
     }
@@ -85,7 +87,7 @@ export default function ContractCancellationModal({
         refundAmount: totalAmount * 0.50,
         badgeLabel: `Hủy sát ngày bắt đầu (${diffDays} ngày trước) (Hoàn 50%)`,
         badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
-        note: 'Theo điều khoản BR10: Thông báo sát ngày (< 3 ngày), nông trại đã chuẩn bị giống và phân bón ban đầu; khấu trừ 50% chi phí chuẩn bị, hoàn trả 50% số tiền.',
+        note: 'Theo chính sách hoàn hủy: Thông báo sát ngày (< 3 ngày), nông trại đã chuẩn bị giống và phân bón ban đầu; khấu trừ 50% chi phí chuẩn bị, hoàn trả 50% số tiền.',
         canRefund: true
       };
     }
@@ -100,12 +102,16 @@ export default function ContractCancellationModal({
       refundAmount: 0,
       badgeLabel: 'Đã bước vào giai đoạn canh tác (Khấu trừ 100% - Không hoàn tiền)',
       badgeColor: 'bg-rose-100 text-rose-800 border-rose-200',
-      note: 'Theo điều khoản BR10: Thửa đất đã bước vào vụ canh tác thực địa (cây giống đã gieo trồng, công nhân đã thi công làm đất và chăm sóc). Chấm dứt hợp đồng sớm sẽ không được hoàn tiền thuê. Thửa đất sẽ chuyển sang quy trình bảo dưỡng 4 ngày (BR23).',
+      note: 'Theo chính sách: Thửa đất đã bước vào vụ canh tác thực địa (cây giống đã gieo trồng, nhân sự đã thi công làm đất và chăm sóc). Chấm dứt hợp đồng sớm sẽ không được hoàn tiền thuê. Thửa đất sẽ chuyển sang quy trình bảo dưỡng phơi ải 4 ngày.',
       canRefund: false
     };
   }, [contract]);
 
   if (!isOpen || !contract) return null;
+
+  if (!calculation) {
+    return <Modal isOpen={isOpen} onClose={onClose} size="lg"><div className="p-6 text-sm text-rose-700">Chưa có đủ ngày bắt đầu hoặc số tiền hợp đồng để tính hoàn tiền. Vui lòng tải lại trang và thử lại.</div></Modal>;
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -125,47 +131,29 @@ export default function ContractCancellationModal({
 
     setIsSubmitting(true);
     try {
-      const contractId = contract.contractId || contract.id || 1;
+      const contractId = Number(contract.contractId);
+      const cancelledBy = Number(contract.cancelledBy);
+      if (!Number.isInteger(contractId) || contractId <= 0 || !Number.isInteger(cancelledBy) || cancelledBy <= 0) {
+        throw new Error('Thiếu mã hợp đồng hoặc thông tin người yêu cầu. Vui lòng tải lại trang.');
+      }
       const payload = {
-        contractId: typeof contractId === 'string' && contractId.includes('-') ? 1 : Number(contractId) || 1,
-        contractNumber: contract.contractCode || contract.contract_number || `CTR-2026-FARM-${contractId}`,
+        contractId,
+        cancelledBy,
         reason: reason.trim(),
-        deductionRate: calculation.deductionRate,
-        refundAmount: calculation.refundAmount,
         bankName: calculation.canRefund ? bankName : null,
         bankAccountNumber: calculation.canRefund ? bankAccountNumber.trim() : null,
         bankAccountName: calculation.canRefund ? bankAccountName.trim() : null
       };
-
-      const res = await fetch(`/api/contracts/${contractId}/cancellation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      const data = await rentalApi.requestCancellation(payload);
+      setSuccessData({
+        ...data,
+        ticketId: `CNC-${String(data.cancellationId).padStart(3, '0')}`,
+        refundAmount: Number(data.refundAmount ?? calculation.refundAmount),
+        deductionRate: 1 - Number(data.refundPercentage ?? calculation.refundRate * 100) / 100
       });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setSuccessData({
-          ticketId: data.data?.cancellationId ? `CNC-2026-${String(data.data.cancellationId).padStart(3, '0')}` : 'CNC-2026-001',
-          ...data.data,
-          refundAmount: calculation.refundAmount,
-          deductionRate: calculation.deductionRate
-        });
-        if (onSuccess) onSuccess(data.data);
-      } else {
-        setErrorMsg(data.message || 'Không thể gửi yêu cầu hủy hợp đồng.');
-      }
+      if (onSuccess) onSuccess(data);
     } catch (err) {
-      console.error('Lỗi gửi yêu cầu hủy hợp đồng:', err);
-      // Fallback thành công cho môi trường Demo
-      const mockResult = {
-        ticketId: `CNC-2026-${Math.floor(100 + Math.random() * 900)}`,
-        status: 'PENDING',
-        refundAmount: calculation.refundAmount,
-        deductionRate: calculation.deductionRate
-      };
-      setSuccessData(mockResult);
-      if (onSuccess) onSuccess(mockResult);
+      setErrorMsg(err.message || 'Không thể gửi yêu cầu hủy hợp đồng.');
     } finally {
       setIsSubmitting(false);
     }
@@ -187,10 +175,9 @@ export default function ContractCancellationModal({
         <div className="flex items-start justify-between border-b border-brand-border/70 pb-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="rounded-full bg-rose-100 px-2.5 py-0.5 font-mono text-[11px] font-bold text-rose-800 border border-rose-200">
-                SSoT BR10 & BR23
+              <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 border border-rose-200">
+                Chính sách hoàn tiền
               </span>
-              <span className="text-xs font-semibold text-stone-500">Mã màn hình: SCR-KH-08 / SCR-AD-10</span>
             </div>
             <h2 className="font-heading text-xl font-black text-brand-dark flex items-center gap-2">
               <Ban className="h-5 w-5 text-rose-600" />
@@ -221,7 +208,7 @@ export default function ContractCancellationModal({
               </h3>
               <p className="mx-auto max-w-md text-xs text-stone-600">
                 Mã phiếu yêu cầu: <strong className="font-mono text-brand-green">{successData.ticketId}</strong>. 
-                Ban quản trị Farmely đã nhận thông tin và sẽ xử lý hoàn tất theo đúng điều khoản <strong>BR10</strong>.
+                Ban quản trị Farmely đã nhận thông tin và sẽ xử lý hoàn tất theo đúng chính sách hoàn tiền.
               </p>
             </div>
 
@@ -243,7 +230,7 @@ export default function ContractCancellationModal({
               </div>
               <div className="flex justify-between pt-1">
                 <span className="text-stone-500">Trạng thái giải phóng thửa:</span>
-                <span className="font-semibold text-amber-700">Chuyển nghỉ đất 4 ngày (BR23)</span>
+                <span className="font-semibold text-amber-700">Chờ quản trị viên duyệt</span>
               </div>
             </div>
 
@@ -279,30 +266,30 @@ export default function ContractCancellationModal({
                 <div>
                   <span className="text-stone-400 block text-[10px]">TỔNG GIÁ TRỊ HỢP ĐỒNG</span>
                   <strong className="text-stone-800 font-mono">
-                    {Number(contract.totalAmount || contract.price || 3000000).toLocaleString('vi-VN')} đ
+                    {Number(contract.totalAmount).toLocaleString('vi-VN')} đ
                   </strong>
                 </div>
                 <div>
                   <span className="text-stone-400 block text-[10px]">NGÀY BẮT ĐẦU CANH TÁC</span>
                   <strong className="text-stone-800">
-                    {contract.startDate || contract.start_date || '18/10/2026'}
+                    {contract.startDate}
                   </strong>
                 </div>
               </div>
             </div>
 
-            {/* 2. Bảng tính toán hoàn tiền theo BR10 */}
+            {/* 2. Bảng tính toán hoàn tiền */}
             <div className="rounded-2xl border border-stone-200 bg-white p-4 text-xs space-y-3">
               <h4 className="font-bold text-stone-900 flex items-center gap-1.5">
                 <DollarSign className="h-4 w-4 text-brand-green" />
-                Dự Toán Khấu Trừ & Tiền Hoàn Trả (Công thức chuẩn BR10)
+                Dự Toán Khấu Trừ & Tiền Hoàn Trả
               </h4>
 
               <div className="divide-y divide-stone-100 rounded-xl border border-stone-100 bg-stone-50/60 p-3 space-y-2">
                 <div className="flex justify-between items-center text-stone-600 pb-1">
                   <span>Tổng tiền đã thanh toán trước (Lump-sum 100%):</span>
                   <span className="font-mono font-bold text-stone-900">
-                    {Number(contract.totalAmount || contract.price || 3000000).toLocaleString('vi-VN')} đ
+                    {Number(contract.totalAmount).toLocaleString('vi-VN')} đ
                   </span>
                 </div>
 
@@ -439,7 +426,7 @@ export default function ContractCancellationModal({
                 ) : (
                   <>
                     <Ban className="h-4 w-4" />
-                    <span>Xác Nhận Gửi Yêu Cầu Hủy (BR10)</span>
+                    <span>Xác Nhận Gửi Yêu Cầu Hủy</span>
                   </>
                 )}
               </button>

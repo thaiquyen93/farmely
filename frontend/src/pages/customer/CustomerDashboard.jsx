@@ -196,20 +196,20 @@ export default function CustomerDashboard() {
   const [showRenewContractModal, setShowRenewContractModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedContractForCancel, setSelectedContractForCancel] = useState(null);
-  const [cancelledContracts, setCancelledContracts] = useState({});
+  const [pendingCancellations, setPendingCancellations] = useState({});
   const [emergencyRequests, setEmergencyRequests] = useState({});
 
   const handleOpenCancelModal = (item) => {
-    const isNew = item.isPendingHandover || item.contractCode === 'CTR-2026-FARM-NEW';
     const contractData = {
-      contractId: item.contractId || (item.id === 'PLOT-CC-01' ? 1 : item.id === 'PLOT-MC-02' ? 2 : 3),
-      contractCode: item.contractCode || item.contractNumber || 'CTR-2026-FARM-9912',
-      plotName: item.plotName || item.name || 'Thửa Sen Vàng A1',
-      plotCode: item.mapPlotId || item.plotCode || 'P-01',
-      totalAmount: item.totalAmount || (item.area === '160m²' ? 3900000 : 3600000),
-      startDate: item.startDate || (isNew ? '20/10/2026' : '12/08/2026'),
-      endDate: item.endDate || '18/11/2026',
-      status: cancelledContracts[item.contractCode] ? 'CANCELLED' : (isNew ? 'CONFIRMED' : 'ACTIVE')
+      contractId: Number(item.contractId ?? item.contract_id ?? item.rentalId ?? 1),
+      contractCode: item.contractCode || item.contractNumber || item.contract_number || `CTR-${item.plotCode || item.id}`,
+      plotName: item.plotName || item.name,
+      plotCode: item.mapPlotId || item.plotCode || item.plot_code,
+      totalAmount: Number(item.contractTotalAmount ?? item.totalAmount ?? item.contract_total_amount ?? item.total_price ?? 3000000),
+      startDate: item.startDate || item.start_date,
+      endDate: item.endDate || item.end_date,
+      status: item.contract_status || item.status,
+      cancelledBy: Number(user?.userId || user?.id || 1)
     };
     setSelectedContractForCancel(contractData);
     setShowCancellationModal(true);
@@ -2258,15 +2258,7 @@ export default function CustomerDashboard() {
                               </Button>
                               <button
                                 type="button"
-                                onClick={() => handleOpenCancelModal({
-                                  contractCode: plot.contractCode || `CTR-${plot.id}`,
-                                  name: plot.name,
-                                  area: plot.area,
-                                  crop: plot.crop,
-                                  totalAmount: 3600000,
-                                  startDate: '12/08/2026',
-                                  stage: plot.stage
-                                })}
+                                onClick={() => handleOpenCancelModal(plot)}
                                 className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-bold self-center cursor-pointer px-2"
                               >
                                 Chấm dứt hợp đồng sớm (BR10)
@@ -3106,7 +3098,7 @@ export default function CustomerDashboard() {
         onClose={() => setShowCancellationModal(false)}
         onSuccess={(result) => {
           if (selectedContractForCancel?.contractCode) {
-            setCancelledContracts((prev) => ({
+            setPendingCancellations((prev) => ({
               ...prev,
               [selectedContractForCancel.contractCode]: result
             }));
