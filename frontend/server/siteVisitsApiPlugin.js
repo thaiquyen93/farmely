@@ -3839,7 +3839,8 @@ SELECT json_build_object(
           return;
         }
 
-        // 16. KNOWLEDGE DOCUMENTS API (GET /api/v1/knowledge-documents & /api/knowledge-documents)
+        // 16. KNOWLEDGE DOCUMENTS API (GET, POST, PUT, DELETE, UPLOAD, RAG)
+        // 16.1 GET /api/v1/knowledge-documents & /api/knowledge-documents
         if (req.method === 'GET' && (url === '/api/v1/knowledge-documents' || url === '/api/knowledge-documents' || url.startsWith('/api/v1/knowledge-documents?') || url.startsWith('/api/knowledge-documents?'))) {
           try {
             const sql = `
@@ -3853,27 +3854,255 @@ SELECT json_build_object(
         kd.document_id AS "document_id",
         'DOC-00' || kd.document_id AS id,
         kd.title,
-        kd.content AS description,
+        COALESCE(kd.content, 'Tài liệu hướng dẫn kỹ thuật nông nghiệp') AS description,
+        COALESCE(kd.content, 'Tài liệu hướng dẫn kỹ thuật nông nghiệp') AS content,
         kd.file_url AS "fileUrl",
         kd.file_url AS "file_url",
-        '3.5 MB (PDF)' AS "fileSize",
-        '3.5 MB (PDF)' AS "file_size",
-        COALESCE(u.full_name, 'Chuyên gia Nông nghiệp') AS "authorName",
-        COALESCE(u.full_name, 'Chuyên gia Nông nghiệp') AS "author_name",
-        'Áp dụng chung toàn trang trại' AS "varietyName",
-        'Áp dụng chung toàn trang trại' AS "variety_name",
-        'Tiêu Chuẩn VietGAP' AS "cropName",
-        'Tiêu Chuẩn VietGAP' AS "crop_name",
-        'CULTIVATION_GUIDE' AS "documentType",
-        'CULTIVATION_GUIDE' AS "document_type",
-        'v2.0' AS version,
-        'PUBLISHED' AS status,
-        true AS "isIndexedForRAG",
-        true AS "is_indexed_for_rag",
+        COALESCE(kd.file_size, '3.5 MB (PDF)') AS "fileSize",
+        COALESCE(kd.file_size, '3.5 MB (PDF)') AS "file_size",
+        COALESCE(kd.author_name, u.full_name, 'Chuyên gia Nông nghiệp') AS "authorName",
+        COALESCE(kd.author_name, u.full_name, 'Chuyên gia Nông nghiệp') AS "author_name",
+        COALESCE(v.variety_name, 'Áp dụng chung toàn trang trại') AS "varietyName",
+        COALESCE(v.variety_name, 'Áp dụng chung toàn trang trại') AS "variety_name",
+        COALESCE(c.crop_name, 'Tiêu Chuẩn VietGAP') AS "cropName",
+        COALESCE(c.crop_name, 'Tiêu Chuẩn VietGAP') AS "crop_name",
+        COALESCE(kd.document_type, 'CULTIVATION_GUIDE') AS "documentType",
+        COALESCE(kd.document_type, 'CULTIVATION_GUIDE') AS "document_type",
+        COALESCE(kd.version, 'v2.0') AS version,
+        COALESCE(kd.status, 'PUBLISHED') AS status,
+        COALESCE(kd.is_indexed_for_rag, true) AS "isIndexedForRAG",
+        COALESCE(kd.is_indexed_for_rag, true) AS "is_indexed_for_rag",
+        COALESCE(kd.sections_count, 5) AS "sectionsCount",
         TO_CHAR(kd.created_at, 'YYYY-MM-DD') AS "uploadedDate",
         TO_CHAR(kd.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "created_at"
       FROM knowledge_documents kd
       LEFT JOIN users u ON kd.kd_created_by = u.user_id
+      LEFT JOIN varieties v ON kd.variety_id = v.variety_id
+      LEFT JOIN crops c ON v.crop_id = c.crop_id
+      ORDER BY kd.document_id ASC
+    ) d
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 16.2 POST /api/v1/knowledge-documents/upload (Upload File PDF / DOCX / TXT)
+        if (req.method === 'POST' && (url === '/api/v1/knowledge-documents/upload' || url === '/api/knowledge-documents/upload')) {
+          const contentType = req.headers['content-type'] || '';
+          const chunks = [];
+          req.on('data', chunk => chunks.push(chunk));
+          req.on('end', async () => {
+            try {
+              const fullBuffer = Buffer.concat(chunks);
+              let savedFilename = `doc_${Date.now()}.pdf`;
+              let fileBuffer = fullBuffer;
+
+              const boundaryMatch = contentType.match(/boundary=([^\s;]+)/i);
+              if (boundaryMatch) {
+                const boundary = boundaryMatch[1];
+                const boundaryBuffer = Buffer.from('--' + boundary);
+                let start = fullBuffer.indexOf(boundaryBuffer);
+                if (start !== -1) {
+                  start += boundaryBuffer.length;
+                  const next = fullBuffer.indexOf(boundaryBuffer, start);
+                  if (next !== -1) {
+                    const partBuffer = fullBuffer.slice(start, next);
+                    const headerEnd = partBuffer.indexOf(Buffer.from([13, 10, 13, 10]));
+                    if (headerEnd !== -1) {
+                      const headerStr = partBuffer.slice(0, headerEnd).toString('utf8');
+                      let body = partBuffer.slice(headerEnd + 4);
+                      if (body.length >= 2 && body.slice(-2).equals(Buffer.from([13, 10]))) {
+                        body = body.slice(0, -2);
+                      }
+                      fileBuffer = body;
+                      const fnMatch = headerStr.match(/filename=\"([^\"]+)\"/i);
+                      if (fnMatch) {
+                        savedFilename = `${Date.now()}_${fnMatch[1].replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                      }
+                    }
+                  }
+                }
+              }
+
+              const docsDir = path.join(process.cwd(), 'public', 'docs');
+              if (!fs.existsSync(docsDir)) {
+                fs.mkdirSync(docsDir, { recursive: true });
+              }
+              const targetPath = path.join(docsDir, savedFilename);
+              fs.writeFileSync(targetPath, fileBuffer);
+
+              const sizeMB = (fileBuffer.length / (1024 * 1024)).toFixed(1);
+              const sizeStr = sizeMB > 0.1 ? `${sizeMB} MB` : `${Math.max(1, Math.round(fileBuffer.length / 1024))} KB`;
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Tải tệp tài liệu thành công',
+                data: {
+                  fileUrl: `/docs/${savedFilename}`,
+                  filename: savedFilename,
+                  size: sizeStr
+                }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 16.3 POST /api/v1/knowledge-documents (Create Document Record)
+        if (req.method === 'POST' && (url === '/api/v1/knowledge-documents' || url === '/api/knowledge-documents')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const title = (payload.title || 'Tài liệu hướng dẫn mới').replace(/'/g, "''");
+              const content = (payload.content || payload.description || '').replace(/'/g, "''");
+              const author = (payload.authorName || payload.author || 'Chuyên gia Nông nghiệp Farmely').replace(/'/g, "''");
+              const version = (payload.version || 'v2.0').replace(/'/g, "''");
+              const docType = (payload.documentType || 'CULTIVATION_GUIDE').replace(/'/g, "''");
+              const fileSize = (payload.fileSize || '3.5 MB (PDF)').replace(/'/g, "''");
+              const fileUrl = (payload.fileUrl || '/docs/rau_an_toan_vietgap_huyen.pdf').replace(/'/g, "''");
+              const isIndexed = payload.isIndexedForRAG !== false;
+              const sectionsCount = parseInt(payload.sectionsCount || 5, 10) || 5;
+              const createdBy = parseInt(payload.createdBy || 5, 10) || 5;
+              const varietyId = payload.varietyId ? parseInt(payload.varietyId, 10) : 'NULL';
+
+              const insertSql = `
+INSERT INTO knowledge_documents (
+  title, content, author_name, version, document_type, file_size, 
+  file_url, is_indexed_for_rag, sections_count, status, variety_id, kd_created_by, created_at
+)
+VALUES (
+  '${title}', '${content}', '${author}', '${version}', '${docType}', '${fileSize}',
+  '${fileUrl}', ${isIndexed}, ${sectionsCount}, 'PUBLISHED', ${varietyId}, ${createdBy}, NOW()
+)
+RETURNING document_id;
+`;
+              const insertRes = await runPostgreSql(insertSql);
+              const docId = parseInt(String(insertRes).replace(/\D/g, ''), 10) || 1;
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Khởi tạo tài liệu tri thức RAG thành công',
+                data: {
+                  documentId: docId,
+                  document_id: docId,
+                  id: `DOC-00${docId}`,
+                  title,
+                  content,
+                  description: content,
+                  authorName: author,
+                  fileUrl,
+                  fileSize,
+                  documentType: docType,
+                  version,
+                  status: 'PUBLISHED',
+                  isIndexedForRAG: isIndexed,
+                  sectionsCount
+                }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 16.4 PUT /api/v1/knowledge-documents/:id (Update Document)
+        if (req.method === 'PUT' && url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)$/)) {
+          const docId = parseInt(url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)$/)[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const setClauses = [];
+              if (payload.title) setClauses.push(`title = '${payload.title.replace(/'/g, "''")}'`);
+              if (payload.content !== undefined || payload.description !== undefined) {
+                setClauses.push(`content = '${(payload.content || payload.description || '').replace(/'/g, "''")}'`);
+              }
+              if (payload.authorName || payload.author) {
+                setClauses.push(`author_name = '${(payload.authorName || payload.author).replace(/'/g, "''")}'`);
+              }
+              if (payload.version) setClauses.push(`version = '${payload.version.replace(/'/g, "''")}'`);
+              if (payload.documentType) setClauses.push(`document_type = '${payload.documentType.replace(/'/g, "''")}'`);
+              if (payload.fileUrl) setClauses.push(`file_url = '${payload.fileUrl.replace(/'/g, "''")}'`);
+              if (payload.fileSize) setClauses.push(`file_size = '${payload.fileSize.replace(/'/g, "''")}'`);
+              if (payload.isIndexedForRAG !== undefined) setClauses.push(`is_indexed_for_rag = ${Boolean(payload.isIndexedForRAG)}`);
+              if (payload.varietyId) setClauses.push(`variety_id = ${parseInt(payload.varietyId, 10)}`);
+
+              if (setClauses.length > 0) {
+                await runPostgreSql(`UPDATE knowledge_documents SET ${setClauses.join(', ')} WHERE document_id = ${docId};`);
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: `Cập nhật tài liệu #${docId} thành công` }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 16.5 DELETE /api/v1/knowledge-documents/:id
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)$/)) {
+          const docId = parseInt(url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)$/)[1], 10);
+          try {
+            await runPostgreSql(`DELETE FROM knowledge_documents WHERE document_id = ${docId};`);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, message: `Đã xóa tài liệu #${docId} khỏi cơ sở dữ liệu` }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 16.6 POST /api/v1/knowledge-documents/:id/toggle-rag
+        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)\/toggle-rag$/)) {
+          const docId = parseInt(url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)\/toggle-rag$/)[1], 10);
+          try {
+            await runPostgreSql(`UPDATE knowledge_documents SET is_indexed_for_rag = NOT COALESCE(is_indexed_for_rag, false) WHERE document_id = ${docId};`);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, message: `Đã thay đổi trạng thái index RAG cho tài liệu #${docId}` }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 16.7 GET /api/v1/knowledge-documents/rag-context
+        if (req.method === 'GET' && (url === '/api/v1/knowledge-documents/rag-context' || url === '/api/knowledge-documents/rag-context')) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(d)), '[]'::json) FROM (
+      SELECT 
+        kd.document_id,
+        kd.title,
+        kd.content,
+        kd.file_url,
+        kd.author_name
+      FROM knowledge_documents kd
+      WHERE COALESCE(kd.is_indexed_for_rag, true) = true
       ORDER BY kd.document_id ASC
     ) d
   )
@@ -5700,7 +5929,7 @@ GROUP BY p.plot_id, p.plot_code;
         if (url.startsWith('/api/ai/chat') && req.method === 'POST') {
           let body = '';
           req.on('data', chunk => { body += chunk; });
-          req.on('end', () => {
+          req.on('end', async () => {
             let payload = {};
             try { payload = JSON.parse(body); } catch {}
             const userMsg = (payload.message || '').trim();
@@ -5710,32 +5939,71 @@ GROUP BY p.plot_id, p.plot_code;
             let reply = '';
             let docs = [];
 
+            // Truy vấn động các tài liệu RAG từ bảng knowledge_documents trong PostgreSQL
+            let liveRagDocs = [];
+            try {
+              const rawRag = await runPostgreSql(`
+                SELECT json_agg(t) FROM (
+                  SELECT kd.document_id, kd.title, COALESCE(kd.file_url, '/docs/rau_an_toan_vietgap_huyen.pdf') AS file_url, 
+                         kd.content, COALESCE(kd.author_name, u.full_name, 'Chuyên gia Nông nghiệp') AS author_name
+                  FROM knowledge_documents kd
+                  LEFT JOIN users u ON kd.kd_created_by = u.user_id
+                  WHERE COALESCE(kd.is_indexed_for_rag, true) = true
+                  ORDER BY kd.document_id ASC
+                ) t;
+              `);
+              liveRagDocs = typeof rawRag === 'string' && rawRag ? JSON.parse(rawRag) : (Array.isArray(rawRag) ? rawRag : []);
+            } catch (e) {
+              liveRagDocs = [];
+            }
+
             if (lower.match(/^(chào|chao|hello|hi|xin chào|alo|farmely ai|ai|bot)(\s+bạn|\s+ạ)?/i) || (lower.includes('chào') && lower.length <= 15)) {
               reply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Tôi có thể hỗ trợ bạn về kỹ thuật gieo trồng chuẩn VietGAP, theo dõi độ ẩm vi khí hậu IoT và thủ tục thuê thửa đất. Bạn cần tôi giải đáp nội dung nào?';
-              docs.push({ docTitle: 'Cẩm nang Hướng dẫn Khách hàng Farmely 2026', source: 'Farmely General Guide', similarityScore: 0.95 });
+              const d = liveRagDocs.find(item => item.title.includes('VietGAP')) || liveRagDocs[0];
+              if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Hệ sinh thái Farmely RAG', similarityScore: 0.95, fileUrl: d.file_url });
             } else if (lower.includes('cảm ơn') || lower.includes('thank') || lower.includes('tks')) {
               reply = 'Rất vui được hỗ trợ bạn! Chúc bạn có những vụ mùa bội thu, rau sạch chuẩn VietGAP và trải nghiệm canh tác tuyệt vời trên Farmely. Cần hỗ trợ thêm, bạn cứ nhắn cho Farmely AI nhé!';
             } else if (lower.includes('tạm biệt') || lower.includes('bye') || lower.includes('hẹn gặp lại')) {
               reply = 'Tạm biệt bạn nhé! Chúc bạn một ngày làm việc hiệu quả. Khi nào cần tra cứu số liệu thửa đất hay kỹ thuật chăm sóc, Farmely AI luôn sẵn sàng hỗ trợ!';
             } else if (lower.includes('xà lách') || lower.includes('xa lach')) {
               reply = 'Rau xà lách tại Farmely phát triển tốt nhất ở nhiệt độ 18°C – 25°C, độ ẩm đất 65% – 75%. Nên tưới phun mưa mịn vào sáng sớm (6h30 - 7h30) và chiều mát (16h - 17h). Tránh tưới đẫm vào ban đêm để hạn chế nấm thối nhũn bẹ lá nhé!';
-              docs.push({ docTitle: 'Kỹ thuật Canh tác Rau Xà lách Thủy Canh & Thổ Canh', source: 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94 });
+              const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('xà lách') || item.title.toLowerCase().includes('rau')) || liveRagDocs[0];
+              if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94, fileUrl: d.file_url });
             } else if (lower.includes('độ ẩm') || lower.includes('ẩm đất') || lower.includes('tưới nước') || lower.includes('tưới bù') || lower.includes('mưa')) {
               reply = 'Theo quy tắc vi khí hậu BR18 của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
-              docs.push({ docTitle: 'Quy chuẩn Điều tiết Tưới & Vi khí hậu Thông minh (BR18)', source: 'Tài liệu Vận hành Trạm IoT Farmely', similarityScore: 0.96 });
+              const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('vi khí hậu') || item.title.toLowerCase().includes('tbkt')) || liveRagDocs[1] || liveRagDocs[0];
+              if (d) docs.push({ docTitle: d.title, source: 'Tài liệu Vận hành Trạm IoT Farmely (BR18)', similarityScore: 0.96, fileUrl: d ? d.file_url : '/docs/rau_an_toan_vietgap_huyen.pdf' });
             } else if (lower.includes('sâu') || lower.includes('rầy') || lower.includes('bọ trĩ') || lower.includes('ốc sên') || lower.includes('bệnh')) {
               reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Đối với bọ trĩ và rầy mềm thì phun dung dịch tỏi ớt gừng lên men vi sinh hoặc dầu khoáng sinh học SK Enspray 99EC. Đối với ốc sên thì rải vỏ trứng vụn hoặc bẫy sinh học men bia quanh gốc cây.';
-              docs.push({ docTitle: 'Phòng trừ Dịch hại Cây trồng Bằng Biện pháp Sinh học', source: 'Sổ tay Nông nghiệp Hữu cơ', similarityScore: 0.91 });
+              const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('ipm') || item.title.toLowerCase().includes('qlsb') || item.title.toLowerCase().includes('sâu')) || liveRagDocs[2] || liveRagDocs[0];
+              if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Sổ tay Nông nghiệp Hữu cơ', similarityScore: 0.92, fileUrl: d.file_url });
             } else if (lower.includes('thuê') || lower.includes('hợp đồng') || lower.includes('giá') || lower.includes('gia hạn')) {
               reply = 'Quy trình thuê đất tại Farmely: Bạn chọn thửa đất ưng ý trên Marketplace bản đồ vệ tinh, chọn giống rau và gói chăm sóc, thanh toán trực tuyến 100% qua VNPay/VietQR. Hợp đồng điện tử có hiệu lực ngay và bạn có thể gia hạn trước 3 ngày với chiết khấu từ 5% – 15%.';
-              docs.push({ docTitle: 'Quy chế Hợp đồng Thuê đất Nông nghiệp Công nghệ cao (BR11, BR12)', source: 'Trung tâm Pháp lý Farmely', similarityScore: 0.93 });
+              const d = liveRagDocs.find(item => item.title.includes('VietGAP')) || liveRagDocs[0];
+              if (d) docs.push({ docTitle: d.title, source: 'Trung tâm Pháp lý & Hợp đồng Farmely (BR11, BR12)', similarityScore: 0.93, fileUrl: d.file_url });
             } else {
-              if (userMsg.length <= 8) {
-                reply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm vi khí hậu hay muốn tìm hiểu thủ tục thuê đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi với ThS. Hoàng Nam nha.';
+              // Tìm kiếm theo từ khóa trong các tài liệu RAG
+              const matched = liveRagDocs.filter(item => {
+                const text = (item.title + ' ' + (item.content || '')).toLowerCase();
+                const words = lower.split(/\s+/).filter(w => w.length > 2);
+                return words.some(w => text.includes(w));
+              });
+
+              if (matched.length > 0) {
+                const top = matched[0];
+                reply = `Dựa trên tài liệu chuẩn "${top.title}": ${top.content ? top.content.slice(0, 220) + '...' : 'Tài liệu hướng dẫn kỹ thuật canh tác chuẩn của nông trại Farmely.'}\n\nBạn có thể tải hoặc mở xem trực tiếp tài liệu chi tiết ở phần nguồn tham chiếu bên dưới!`;
+                docs.push({ docTitle: top.title, source: top.author_name || 'Cơ sở tri thức Farmely RAG', similarityScore: 0.89, fileUrl: top.file_url });
               } else {
-                reply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+                if (userMsg.length <= 8) {
+                  reply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm vi khí hậu hay muốn tìm hiểu thủ tục thuê đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi với ThS. Hoàng Nam nha.';
+                } else {
+                  reply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+                }
+                const fallbackDoc = liveRagDocs[0];
+                if (fallbackDoc) {
+                  docs.push({ docTitle: fallbackDoc.title, source: fallbackDoc.author_name || 'Hệ sinh thái Nông nghiệp Thông minh', similarityScore: 0.88, fileUrl: fallbackDoc.file_url });
+                }
               }
-              docs.push({ docTitle: 'Cẩm nang Hướng dẫn Canh tác Toàn diện Farmely', source: 'Hệ sinh thái Nông nghiệp Thông minh', similarityScore: 0.88 });
             }
 
             res.setHeader('Content-Type', 'application/json; charset=utf-8');

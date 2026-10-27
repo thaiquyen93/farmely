@@ -45,6 +45,7 @@ import {
   ArrowRight,
   ArrowLeft,
   ShieldCheck,
+  ShieldAlert,
   Activity,
   FileText,
   CreditCard,
