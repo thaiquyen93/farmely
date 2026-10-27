@@ -1239,6 +1239,42 @@ LIMIT 1;
                 const growthDays = parseInt(growthDaysStr, 10) || 0;
 
                 const startDate = it.startDate || new Date().toISOString().split('T')[0];
+
+                // Ràng buộc thời gian bắt đầu canh tác: tối thiểu 5 ngày, tối đa 14 ngày kể từ ngày đặt
+                const toIsoLocalDate = (d) => {
+                  const local = new Date(d);
+                  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+                  return local.toISOString().slice(0, 10);
+                };
+                const addDaysHelper = (d, n) => {
+                  const target = new Date(d);
+                  target.setHours(12, 0, 0, 0);
+                  target.setDate(target.getDate() + n);
+                  return toIsoLocalDate(target);
+                };
+                const minAllowedDate = addDaysHelper(new Date(), 5);
+                const maxAllowedDate = addDaysHelper(new Date(), 14);
+
+                if (startDate < minAllowedDate) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.end(JSON.stringify({
+                    success: false,
+                    message: `Ngày bắt đầu canh tác cho thửa '${plotCode}' phải cách ngày đặt tối thiểu 5 ngày (sớm nhất là ${minAllowedDate}) để trang trại chuẩn bị làm đất và giống cây VietGAP.`
+                  }));
+                  return;
+                }
+
+                if (startDate > maxAllowedDate) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.end(JSON.stringify({
+                    success: false,
+                    message: `Ngày bắt đầu canh tác cho thửa '${plotCode}' tối đa trong vòng 14 ngày kể từ ngày đặt (muộn nhất là ${maxAllowedDate}) để đảm bảo tính khả dụng của đất.`
+                  }));
+                  return;
+                }
+
                 let termMonths = it.termMonths !== undefined && it.termMonths !== null ? parseInt(it.termMonths, 10) : null;
                 if (termMonths !== null) {
                   const termErr = getLeaseTermError({ termMonths, cultivationMode, growthDays, varietyName });

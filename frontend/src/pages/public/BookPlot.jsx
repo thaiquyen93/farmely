@@ -54,7 +54,9 @@ const PLOT_COMPATIBLE_VARIETIES = {
   22: [2, 3, 8, 10]        // P-16
 };
 
-export const BOOKING_START_LEAD_DAYS = 10;
+export const BOOKING_MIN_LEAD_DAYS = 5;
+export const BOOKING_MAX_LEAD_DAYS = 14;
+export const BOOKING_START_LEAD_DAYS = BOOKING_MIN_LEAD_DAYS;
 
 export const toLocalIsoDate = (date) => {
   const local = new Date(date);
@@ -79,7 +81,21 @@ export const addMonths = (isoDate, months) => {
   return toLocalIsoDate(source);
 };
 
-export const getEarliestCultivationDate = (now = new Date()) => addDays(now, BOOKING_START_LEAD_DAYS);
+export const getEarliestCultivationDate = (now = new Date()) => addDays(now, BOOKING_MIN_LEAD_DAYS);
+export const getLatestCultivationDate = (now = new Date()) => addDays(now, BOOKING_MAX_LEAD_DAYS);
+
+export const validateCultivationStartDate = (startDate, now = new Date()) => {
+  if (!startDate) return 'Vui lòng chọn ngày bắt đầu canh tác.';
+  const earliest = getEarliestCultivationDate(now);
+  const latest = getLatestCultivationDate(now);
+  if (startDate < earliest) {
+    return `Ngày bắt đầu canh tác phải cách ngày đặt tối thiểu ${BOOKING_MIN_LEAD_DAYS} ngày (sớm nhất là ${earliest}) để nông trại chuẩn bị đất, phân bón hữu cơ vi sinh và giống cây theo chuẩn VietGAP.`;
+  }
+  if (startDate > latest) {
+    return `Ngày bắt đầu canh tác tối đa trong vòng ${BOOKING_MAX_LEAD_DAYS} ngày (muộn nhất là ${latest}) để đảm bảo kế hoạch luân canh và khả dụng của thửa đất.`;
+  }
+  return '';
+};
 
 export const getRentalEndDate = (startDate, months, crop) => {
   const monthEnd = addMonths(startDate, months);
@@ -145,11 +161,7 @@ export default function BookPlot() {
     }
   });
   const [cropValidationError, setCropValidationError] = useState(false);
-  const [startDate, setStartDate] = useState(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
-  });
+  const [startDate, setStartDate] = useState(() => getEarliestCultivationDate());
 
   // 15-minute reservation timer (BR08) & checkout settings
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
@@ -622,6 +634,12 @@ export default function BookPlot() {
 
     if (!startDate) {
       setBookingError('Vui lòng chọn ngày bắt đầu canh tác.');
+      return;
+    }
+
+    const dateValidationError = validateCultivationStartDate(startDate);
+    if (dateValidationError) {
+      setBookingError(dateValidationError);
       return;
     }
 
@@ -1154,16 +1172,25 @@ export default function BookPlot() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                      Chọn ngày bắt đầu canh tác:
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-stone-700">
+                        Chọn ngày bắt đầu canh tác:
+                      </label>
+                      <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Từ 5 đến 14 ngày tới
+                      </span>
+                    </div>
                     <input
                       type="date"
                       value={startDate}
-                      min={new Date().toISOString().split('T')[0]}
+                      min={getEarliestCultivationDate()}
+                      max={getLatestCultivationDate()}
                       onChange={(e) => setStartDate(e.target.value)}
                       className="w-full py-2.5 px-3.5 rounded-xl border border-brand-border text-sm font-semibold text-brand-dark focus:border-brand-green focus:ring-2 focus:ring-brand-green/20 outline-hidden bg-white shadow-2xs cursor-pointer"
                     />
+                    <p className="text-[11px] text-stone-500 mt-1">
+                      Nông trại cần tối thiểu 5 ngày chuẩn bị cày ải, ủ phân hữu cơ vi sinh và giống cây VietGAP trước ngày bàn giao.
+                    </p>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-brand-cream/60 border border-brand-border flex flex-col justify-center">

@@ -4,8 +4,10 @@ import {
   dedupeSelectedPlots,
   getBookingValidationError,
   getEarliestCultivationDate,
+  getLatestCultivationDate,
   getPlotSelectionKey,
-  getRentalEndDate
+  getRentalEndDate,
+  validateCultivationStartDate
 } from './BookPlot';
 
 describe('BookPlot booking rules', () => {
@@ -42,8 +44,13 @@ describe('BookPlot booking rules', () => {
     })).toBe('');
   });
 
-  it('defaults cultivation to ten days after checkout', () => {
-    expect(getEarliestCultivationDate(new Date('2026-10-15T09:00:00+07:00'))).toBe('2026-10-25');
+  it('enforces 5-day minimum lead time and 14-day maximum booking window', () => {
+    const fixedNow = new Date('2026-10-15T09:00:00+07:00');
+    expect(getEarliestCultivationDate(fixedNow)).toBe('2026-10-20');
+    expect(getLatestCultivationDate(fixedNow)).toBe('2026-10-29');
+    expect(validateCultivationStartDate('2026-10-19', fixedNow)).toContain('tối thiểu 5 ngày');
+    expect(validateCultivationStartDate('2026-10-30', fixedNow)).toContain('tối đa trong vòng 14 ngày');
+    expect(validateCultivationStartDate('2026-10-22', fixedNow)).toBe('');
   });
 
   it('calculates a separate contract period from each plot start date', () => {

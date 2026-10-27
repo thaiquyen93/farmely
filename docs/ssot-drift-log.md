@@ -84,3 +84,17 @@
 - **Cần cập nhật:** Gắn comment mã màn hình `SCR-xxx` và mã thông báo `MSG-xx` trực tiếp vào từng Component / Modal / Toast tương ứng trong React.
 - **Cách sửa:** Thực hiện rà soát và đánh dấu mã màn hình + mã MSG vào JSX code.
 - **Trạng thái:** ❌ Đang tiến hành chuẩn hóa.
+
+---
+
+### [DRIFT-007] Cửa sổ Ngày bắt đầu canh tác (Lead Time Window: Min 5 ngày, Max 14 ngày)
+- **Ngày:** 2026-10-27
+- **File:** `frontend/src/pages/public/BookPlot.jsx`, `frontend/server/siteVisitsApiPlugin.js`
+- **Docs nói (Report 3 SCR-KH-04 Field 2 & Report 4 §2.4):** Quy định `Start Date >= Today + 3 days` (prep buffer). Chưa có giới hạn chặn trên (`Max Date`), dẫn đến việc khách có thể chọn ngày bắt đầu quá xa trong tương lai (ví dụ đặt tháng 10 cho tháng 12 làm khóa trạng thái thửa đất quá lâu).
+- **Code làm:** 
+  - Nâng mốc tối thiểu lên `Today + 5 ngày` (đảm bảo nông trại có đủ thời gian phơi ải, làm đất, ủ phân vi sinh và chuẩn bị hạt giống).
+  - Giới hạn mốc tối đa là `Today + 14 ngày` (không cho chọn ngày bắt đầu vượt quá 2 tuần để tối ưu hóa tỷ lệ lấp đầy thửa đất Occupancy Rate).
+- **Lý do lệch:** Chuẩn hóa nghiệp vụ thực tế trang trại: tránh tình trạng "giam đất" ảo hàng tháng trời trước ngày canh tác.
+- **Cần cập nhật:** Report 3 (SCR-KH-04 Field 2: đổi constraint thành `Today + 5d <= Start Date <= Today + 14d`) và Report 4 §2.4.
+- **Cách sửa:** Code đã enforce cả ở UI (`min`, `max`, validation) và Backend API (`/api/contracts/reservations`).
+- **Trạng thái:** ✅ Đã align nghiệp vụ thực tế (chờ cập nhật văn bản Report 3/4).
