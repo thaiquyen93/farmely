@@ -1003,13 +1003,14 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
     cn.reason,
     cn.status::text AS "status",
     COALESCE(c.total_amount, 0) AS "totalPaidAmount",
-    80 AS "refundPercentage",
-    COALESCE(c.total_amount * 0.8, 0) AS "refundAmount",
-    'Khấu trừ 20% chi phí chuẩn bị theo chính sách BR10' AS "refundPolicyNote",
+    CASE WHEN dates.start_date - cn.created_at::date >= 3 THEN 80 WHEN dates.start_date > cn.created_at::date THEN 50 ELSE 0 END AS "refundPercentage",
+    ROUND(COALESCE(c.total_amount, 0) * (CASE WHEN dates.start_date - cn.created_at::date >= 3 THEN 0.8 WHEN dates.start_date > cn.created_at::date THEN 0.5 ELSE 0 END), 2) AS "refundAmount",
+    'Dự tính theo ngày bắt đầu canh tác' AS "refundPolicyNote",
     TO_CHAR(cn.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt"
   FROM contract_cancellations cn
   LEFT JOIN contracts c ON cn.contract_id = c.contract_id
   LEFT JOIN users u ON cn.cancelled_by = u.user_id
+  LEFT JOIN LATERAL (SELECT MIN(start_date) AS start_date FROM rentals WHERE contract_id = cn.contract_id) dates ON true
   ORDER BY cn.cancellation_id DESC
 ) c;
 `;
@@ -1024,8 +1025,8 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
           return;
         }
 
-        // 4.6. POST /api/contracts/:id/cancellation & /api/contracts/cancellation (BR10 Contract Cancellation & BR23 Maintenance)
-        if (req.method === 'POST' && (url.includes('/cancellation') || url.includes('/cancel'))) {
+        // 4.6. Gửi yêu cầu hủy; chỉ đổi trạng thái hợp đồng sau khi được duyệt.
+        if (req.method === 'POST' && /^\/api\/(?:v1\/)?contracts\/cancellations\/?$/.test(url)) {
           const chunks = [];
           req.on('data', chunk => chunks.push(chunk));
           req.on('end', async () => {
@@ -1033,21 +1034,20 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
               const body = Buffer.concat(chunks).toString('utf8');
               const payload = JSON.parse(body || '{}');
               
-              // Extract contract ID from URL or body
-              let contractId = payload.contractId;
-              if (!contractId) {
-                const match = url.match(/\/api\/(?:v1\/)?contracts\/(\d+)/);
-                if (match) contractId = parseInt(match[1], 10);
-              }
-              contractId = parseInt(contractId, 10) || 1;
+              const contractId = Number(payload.contractId);
 
               const reason = (payload.reason || '').trim().replace(/'/g, "''");
               const bankName = (payload.bankName || '').trim().replace(/'/g, "''");
               const bankAccountNumber = (payload.bankAccountNumber || '').trim().replace(/'/g, "''");
               const bankAccountName = (payload.bankAccountName || '').trim().replace(/'/g, "''");
-              const deductionRate = parseFloat(payload.deductionRate) || 0.20;
-              const refundAmount = parseFloat(payload.refundAmount) || 0;
-              const userId = parseInt(payload.cancelledBy, 10) || 1;
+              const userId = Number(payload.cancelledBy);
+
+              if (!Number.isInteger(contractId) || contractId <= 0 || !Number.isInteger(userId) || userId <= 0) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Thiếu mã hợp đồng hoặc người yêu cầu hợp lệ.' }));
+                return;
+              }
 
               if (reason.length < 10) {
                 res.statusCode = 400;
@@ -1055,6 +1055,23 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
                 res.end(JSON.stringify({ success: false, message: 'Lý do hủy hợp đồng phải có tối thiểu 10 ký tự (SRS V8.1)' }));
                 return;
               }
+
+              const contractSql = `SELECT json_build_object('renterId', c.renter_id, 'status', c.status::text, 'totalAmount', c.total_amount, 'startDate', (SELECT MIN(start_date) FROM rentals WHERE contract_id = c.contract_id)::text, 'pending', EXISTS(SELECT 1 FROM contract_cancellations cc WHERE cc.contract_id = c.contract_id AND cc.status = 'PENDING')) FROM contracts c WHERE c.contract_id = ${contractId};`;
+              const contractOut = await runPostgreSql(contractSql);
+              const contractInfo = contractOut?.trim() ? JSON.parse(contractOut.trim().split('\n')[0]) : null;
+              if (!contractInfo || Number(contractInfo.renterId) !== userId || contractInfo.pending || ['CANCELLED', 'COMPLETED'].includes(contractInfo.status)) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Hợp đồng không hợp lệ hoặc đã có yêu cầu hủy đang chờ duyệt.' }));
+                return;
+              }
+              if (!contractInfo.startDate) throw new Error('Hợp đồng chưa có ngày bắt đầu canh tác.');
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const daysBeforeStart = Math.round((new Date(`${contractInfo.startDate}T00:00:00`) - today) / 86400000);
+              const refundPercentage = daysBeforeStart >= 3 ? 80 : daysBeforeStart > 0 ? 50 : 0;
+              const refundAmount = Number(contractInfo.totalAmount) * refundPercentage / 100;
+              if (!Number.isFinite(refundAmount)) throw new Error('Không tính được số tiền hoàn trả.');
 
               // Build combined reason with disbursement details
               let fullReason = reason;
@@ -1072,24 +1089,6 @@ BEGIN
     VALUES (${contractId}, ${userId}, '${fullReason}', 'PENDING', NOW())
     RETURNING cancellation_id INTO v_cancellation_id;
 
-    -- 2. Cập nhật hợp đồng sang trạng thái CANCELLED
-    UPDATE contracts 
-    SET status = 'CANCELLED', updated_at = NOW() 
-    WHERE contract_id = ${contractId};
-
-    -- 3. Cập nhật các thửa đất thuê sang trạng thái CANCELLED
-    UPDATE rentals 
-    SET status = 'CANCELLED', updated_at = NOW() 
-    WHERE contract_id = ${contractId};
-
-    -- 4. Giải phóng thửa đất và chuyển sang bảo dưỡng & phơi ải 4 ngày (BR23)
-    UPDATE plots 
-    SET status = 'MAINT', updated_at = NOW() 
-    WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
-
-    -- 5. Ghi log kiểm toán vận hành
-    INSERT INTO audit_logs (user_id, action, entity_name, entity_id, details, ip_address, created_at)
-    VALUES (${userId}, 'CANCEL_REQUEST', 'contracts', '${contractId}', '{"reason": "${reason}", "deductionRate": ${deductionRate}, "refundAmount": ${refundAmount}}'::jsonb, '127.0.0.1', NOW());
 END $$;
 `;
               await runPostgreSql(sqlCancel);
@@ -1109,15 +1108,16 @@ ORDER BY cancellation_id DESC
 LIMIT 1;
 `;
               const cancelOut = await runPostgreSql(fetchCancelSql);
-              const cancelData = cancelOut && cancelOut.trim() ? JSON.parse(cancelOut.trim().split('\n')[0]) : { cancellationId: 1, contractId, status: 'PENDING' };
+              const cancelData = cancelOut && cancelOut.trim() ? JSON.parse(cancelOut.trim().split('\n')[0]) : null;
+              if (!cancelData) throw new Error('Không lấy được yêu cầu hủy vừa tạo.');
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: 'Yêu cầu hủy hợp đồng và hoàn tiền đã được ghi nhận thành công theo quy định BR10. Thửa đất chuyển bảo dưỡng 4 ngày (BR23).',
+                message: 'Đã nhận yêu cầu hủy hợp đồng, đang chờ quản trị viên duyệt.',
                 data: {
                   ...cancelData,
-                  deductionRate,
+                  refundPercentage,
                   refundAmount
                 }
               }));
@@ -1856,6 +1856,8 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     'HEALTHY' AS status,
     'Trần Văn Lực (CVLĐ)' AS worker,
     c.contract_number AS "contractCode",
+    c.total_amount AS "contractTotalAmount",
+    (SELECT TO_CHAR(MIN(r2.start_date), 'YYYY-MM-DD') FROM rentals r2 WHERE r2.contract_id = c.contract_id) AS "startDate",
     TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "expectedHarvestDate",
     ROUND(p.area * 0.25)::text || ' - ' || ROUND(p.area * 0.35)::text || ' kg' AS "expectedYield",
     (SELECT COUNT(*) FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND ct.status != 'DONE') AS "openTasksCount",

@@ -423,7 +423,7 @@ export default function CustomerDashboard() {
   const [showRenewContractModal, setShowRenewContractModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedContractForCancel, setSelectedContractForCancel] = useState(null);
-  const [cancelledContracts, setCancelledContracts] = useState({});
+  const [pendingCancellations, setPendingCancellations] = useState({});
   const [emergencyRequests, setEmergencyRequests] = useState({});
 
   // Subsystem 3: Contracts & Renewal Management (UC07 / BR11)
@@ -479,16 +479,16 @@ export default function CustomerDashboard() {
   }, []);
 
   const handleOpenCancelModal = (item) => {
-    const isNew = item.isPendingHandover || item.contractCode === 'CTR-2026-FARM-NEW';
     const contractData = {
-      contractId: item.contractId || (item.id === 'PLOT-CC-01' ? 1 : item.id === 'PLOT-MC-02' ? 2 : 3),
-      contractCode: item.contractCode || item.contractNumber || 'CTR-2026-FARM-9912',
-      plotName: item.plotName || item.name || 'Thửa Sen Vàng A1',
-      plotCode: item.mapPlotId || item.plotCode || 'P-01',
-      totalAmount: item.totalAmount || (item.area === '160m²' ? 3900000 : 3600000),
-      startDate: item.startDate || (isNew ? '20/10/2026' : '12/08/2026'),
-      endDate: item.endDate || '18/11/2026',
-      status: cancelledContracts[item.contractCode] ? 'CANCELLED' : (isNew ? 'CONFIRMED' : 'ACTIVE')
+      contractId: item.contractId ?? item.contract_id,
+      contractCode: item.contractCode || item.contractNumber || item.contract_number,
+      plotName: item.plotName || item.name,
+      plotCode: item.mapPlotId || item.plotCode || item.plot_code,
+      totalAmount: item.contractTotalAmount ?? item.totalAmount ?? item.contract_total_amount ?? item.total_price,
+      startDate: item.startDate || item.start_date,
+      endDate: item.endDate || item.end_date,
+      status: item.contract_status || item.status,
+      cancelledBy: user?.userId
     };
     setSelectedContractForCancel(contractData);
     setShowCancellationModal(true);
@@ -717,6 +717,8 @@ export default function CustomerDashboard() {
               status: 'HEALTHY',
               worker: 'Trần Văn Lực (CVLĐ)',
               contractCode: pendingBooking.contractCode || `HD-${Date.now()}`,
+              contractId: pendingBooking.contractId,
+              contractTotalAmount: pendingBooking.totalAmount,
               startDate: pendingBooking.startDate || new Date().toISOString().split('T')[0],
               expectedHarvestDate: '2026-12-16'
             });
@@ -2086,7 +2088,6 @@ export default function CustomerDashboard() {
               // Kiểm tra thửa đất đã hủy / hết hạn
               const isPlotCancelled = (plot) => {
                 if (!plot) return false;
-                if (plot.contractCode && cancelledContracts[plot.contractCode]) return true;
                 const rs = String(
                   plot.rental_status ||
                   plot.rentalStatus ||
@@ -2511,7 +2512,7 @@ export default function CustomerDashboard() {
                                         type="button"
                                         onClick={() => handleOpenCancelModal(plot)}
                                         aria-label={`Hợp đồng & hủy ${plot.name}`}
-                                        title="Quản lý Hợp đồng & Hủy theo BR10"
+                                        title="Quản lý Hợp đồng & Hủy"
                                         className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-stone-400 hover:bg-stone-50"
                                       >
                                         <FileText className="h-4 w-4" />
@@ -3366,7 +3367,7 @@ export default function CustomerDashboard() {
                         </div>
                         <h3 className="font-heading font-black text-xl text-brand-dark mt-1 flex items-center gap-2">
                           <FileText className="w-5 h-5 text-brand-green" />
-                          Hợp Đồng Thuê Thửa Đất & Chính Sách Hoàn Hủy (BR10)
+                          Hợp Đồng Thuê Thửa Đất & Chính Sách Hoàn Hủy
                         </h3>
                         <p className="text-xs text-brand-muted mt-0.5">
                           Quản lý các kỳ thuê đất, theo dõi ngày bàn giao thực tế và gửi yêu cầu hủy hợp đồng theo đúng tỷ lệ khấu trừ.
@@ -3378,13 +3379,13 @@ export default function CustomerDashboard() {
                     <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 space-y-1.5">
                       <div className="font-bold flex items-center gap-1.5 text-blue-950">
                         <ShieldAlert className="w-4 h-4 text-blue-700" />
-                        Chính Sách Hoàn Tiền Khi Hủy Hợp Đồng (Quy định SSoT BR10):
+                        Chính Sách Hoàn Tiền Khi Hủy Hợp Đồng:
                       </div>
                       <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-blue-900/90 leading-relaxed">
                         <li><strong>Trước ngày bắt đầu ≥ 3 ngày:</strong> Khấu trừ 20% phí quản trị & giữ chỗ, <strong>hoàn trả 80%</strong> số tiền đã đóng.</li>
                         <li><strong>Trước ngày bắt đầu &lt; 3 ngày:</strong> Khấu trừ 50% chi phí giống & chuẩn bị đất, <strong>hoàn trả 50%</strong> số tiền đã đóng.</li>
                         <li><strong>Khi đã đến hoặc sau ngày bắt đầu canh tác:</strong> Khấu trừ 100%, <strong>không hoàn tiền</strong> vì cây giống đã trồng và công nhân đã triển khai.</li>
-                        <li><strong>Bảo trì thửa đất (BR23):</strong> Mọi thửa đất sau khi hủy đều chuyển sang trạng thái <strong>Bảo dưỡng phơi ải 4 ngày (MAINT)</strong> trước khi mở lại trên sàn.</li>
+                        <li><strong>Bảo trì thửa đất:</strong> Sau khi yêu cầu hủy được duyệt, thửa đất chuyển sang <strong>bảo dưỡng phơi ải 4 ngày</strong> trước khi mở lại trên sàn.</li>
                       </ul>
                     </div>
 
@@ -3408,7 +3409,7 @@ export default function CustomerDashboard() {
                               <div className="flex items-center gap-2">
                                 <span className="font-mono font-bold text-brand-green text-sm">{plot.contractCode || `CTR-${plot.id}`}</span>
                                 <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                  Đang hiệu lực ({plot.mode === 'Assisted-Growing' ? 'Farmely chăm sóc' : 'Tự canh tác'})
+                                  {String(plot.contract_status || plot.rental_status || '').toUpperCase() === 'CANCELLED' ? 'Đã hủy' : pendingCancellations[plot.contractCode] ? 'Chờ duyệt yêu cầu hủy' : `Đang hiệu lực (${plot.mode === 'Assisted-Growing' ? 'Farmely chăm sóc' : 'Tự canh tác'})`}
                                 </span>
                               </div>
                               <span className="text-[11px] text-stone-500">
@@ -3435,15 +3436,19 @@ export default function CustomerDashboard() {
                               </div>
                             </div>
 
-                            {cancelledContracts[plot.contractCode || `CTR-${plot.id}`] ? (
+                            {String(plot.contract_status || '').toUpperCase() !== 'CANCELLED' && pendingCancellations[plot.contractCode || `CTR-${plot.id}`] ? (
+                              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 font-bold">
+                                Đã gửi yêu cầu hủy, đang chờ quản trị viên duyệt.
+                              </div>
+                            ) : String(plot.contract_status || plot.rental_status || '').toUpperCase() === 'CANCELLED' ? (
                               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
-                                <span>✓ Đã gửi yêu cầu chấm dứt hợp đồng sớm (Thửa đất chuyển bảo dưỡng 4 ngày BR23)</span>
+                                <span>✓ Hợp đồng đã hủy; thửa đất chuyển sang bảo dưỡng 4 ngày.</span>
                                 <span className="text-[11px] bg-rose-200 px-2 py-0.5 rounded">ĐÃ HỦY NGANG</span>
                               </div>
                             ) : (
                               <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-brand-border/40">
                                 <span className="text-[11px] text-stone-400">
-                                  Gia hạn trước tối thiểu 3 ngày theo quy định BR11b.
+                                  Gia hạn trước ngày kết thúc tối thiểu 3 ngày.
                                 </span>
                                 <div className="flex flex-wrap gap-2">
                                   <Button
@@ -3466,18 +3471,10 @@ export default function CustomerDashboard() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenCancelModal({
-                                      contractCode: plot.contractCode || `CTR-${plot.id}`,
-                                      name: plot.name,
-                                      area: plot.area,
-                                      crop: plot.crop,
-                                      totalAmount: 3600000,
-                                      startDate: '12/08/2026',
-                                      stage: plot.stage
-                                    })}
+                                    onClick={() => handleOpenCancelModal(plot)}
                                     className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-bold self-center cursor-pointer px-2"
                                   >
-                                    Chấm dứt hợp đồng sớm (BR10)
+                                    Chấm dứt hợp đồng sớm
                                   </button>
                                 </div>
                               </div>
@@ -4663,11 +4660,12 @@ export default function CustomerDashboard() {
         onClose={() => setShowCancellationModal(false)}
         onSuccess={(result) => {
           if (selectedContractForCancel?.contractCode) {
-            setCancelledContracts((prev) => ({
+            setPendingCancellations((prev) => ({
               ...prev,
               [selectedContractForCancel.contractCode]: result
             }));
           }
+          fetchCustomerPlots(false);
         }}
       />
 
@@ -4741,7 +4739,7 @@ export default function CustomerDashboard() {
           </div>
 
           <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-900 space-y-1 text-[11px]">
-            <p className="font-bold">Quy trình xử lý theo quy định BR13:</p>
+            <p className="font-bold">Quy trình xử lý:</p>
             <p>1. Ban Quản Trị tiếp nhận và phân công Chuyên Gia khảo sát tính khả thi nông học.</p>
             <p>2. Chuyên gia gửi báo giá và phương án kỹ thuật qua tin nhắn / thông báo trong 2 giờ.</p>
             <p>3. Bạn duyệt báo giá để công nhân tiến hành thực hiện ngoài ruộng.</p>

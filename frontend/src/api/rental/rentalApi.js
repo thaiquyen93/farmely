@@ -77,6 +77,8 @@ export const rentalApi = {
    */
   cancelContract: (contractId) => request('POST', `/api/contracts/${contractId}/cancel`),
 
+  requestCancellation: (payload) => request('POST', '/api/contracts/cancellations', payload),
+
   /**
    * Xem chi tiết hợp đồng theo ID kèm danh sách thửa đất
    * @param {number} contractId

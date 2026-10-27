@@ -8,6 +8,7 @@ import com.farmely.rental.exception.ResourceNotFoundException;
 import com.farmely.rental.mapper.RentalEntityMapper;
 import com.farmely.rental.repository.ContractCancellationRepository;
 import com.farmely.rental.repository.ContractRepository;
+import com.farmely.rental.repository.PlotReferenceRepository;
 import com.farmely.rental.repository.RentalRepository;
 import com.farmely.rental.repository.UserReferenceRepository;
 import com.farmely.rental.service.ContractCancellationService;
@@ -28,6 +29,7 @@ public class ContractCancellationServiceImpl implements ContractCancellationServ
     private final ContractCancellationRepository cancellationRepository;
     private final ContractRepository contractRepository;
     private final RentalRepository rentalRepository;
+    private final PlotReferenceRepository plotRepository;
     private final UserReferenceRepository userRepository;
     private final RentalEntityMapper mapper;
 
@@ -95,6 +97,12 @@ public class ContractCancellationServiceImpl implements ContractCancellationServ
         List<RentalEntity> rentals = rentalRepository.findByContractId(contract.getContractId());
         for (RentalEntity rental : rentals) {
             rental.setStatus(RentalStatus.CANCELLED);
+            if (rental.getPlotId() != null) {
+                plotRepository.findById(rental.getPlotId()).ifPresent(plot -> {
+                    plot.setStatus("MAINT");
+                    plotRepository.save(plot);
+                });
+            }
         }
         rentalRepository.saveAll(rentals);
 
