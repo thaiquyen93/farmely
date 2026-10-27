@@ -3179,7 +3179,7 @@ SELECT json_build_object(
         'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80' AS "imageUrl",
         TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "createdAt"
       FROM crops c
-      ORDER BY c.crop_id ASC
+      ORDER BY c.crop_id DESC -- ponytail: newest first so newly created crops appear immediately on top
     ) c
   )
 );
@@ -3209,10 +3209,10 @@ SELECT json_build_object(
               const sql = `INSERT INTO crops (crop_name) VALUES ('${name.replace(/'/g, "''")}') RETURNING crop_id, crop_name;`;
               const raw = await runPostgreSql(sql);
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true, message: 'Tạo mới danh mục cây thành công', data: { name } }));
+              res.end(JSON.stringify({ success: true, message: `Tạo mới danh mục cây "${name}" thành công`, data: { name } }));
             } catch (err) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ success: false, error: String(err) }));
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, message: 'Tên nhóm cây này đã tồn tại hoặc không hợp lệ', error: String(err) }));
             }
           });
           return;
@@ -3236,8 +3236,8 @@ SELECT json_build_object(
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: true, message: 'Cập nhật danh mục cây thành công' }));
             } catch (err) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ success: false, error: String(err) }));
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, message: 'Lỗi cập nhật hoặc tên đã tồn tại', error: String(err) }));
             }
           });
           return;
@@ -3251,8 +3251,8 @@ SELECT json_build_object(
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ success: true, message: `Đã xóa danh mục cây #${cropId}` }));
           } catch (err) {
-            res.statusCode = 500;
-            res.end(JSON.stringify({ success: false, error: String(err) }));
+            res.statusCode = 400;
+            res.end(JSON.stringify({ success: false, message: 'Không thể xóa nhóm cây này vì đang có giống cây liên kết. Vui lòng xóa các giống cây trước.', error: String(err) }));
           }
           return;
         }
@@ -3286,7 +3286,7 @@ SELECT json_build_object(
         TO_CHAR(v.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "createdAt"
       FROM varieties v
       JOIN crops c ON v.crop_id = c.crop_id
-      ORDER BY v.variety_id ASC
+      ORDER BY v.variety_id DESC -- ponytail: newest first so newly created varieties appear immediately on top
     ) v
   )
 );
@@ -3319,10 +3319,10 @@ SELECT json_build_object(
               const sql = `INSERT INTO varieties (crop_id, variety_name, expected_duration, buffer_time) VALUES (${cropId}, '${name.replace(/'/g, "''")}', ${duration}, ${buffer}) RETURNING variety_id;`;
               await runPostgreSql(sql);
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true, message: 'Tạo mới giống cây thành công' }));
+              res.end(JSON.stringify({ success: true, message: `Tạo mới giống cây "${name}" thành công` }));
             } catch (err) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ success: false, error: String(err) }));
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, message: 'Lỗi tạo giống cây hoặc tên đã tồn tại', error: String(err) }));
             }
           });
           return;
