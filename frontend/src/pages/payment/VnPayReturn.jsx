@@ -130,10 +130,10 @@ export default function VnPayReturn() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             serviceRequestId: verifyData?.serviceRequestId || null,
-            rentalId: pendingService?.rentalId || 1,
+            rentalId: pendingService?.rentalId || null,
             serviceId: pendingService?.serviceId || 1,
             serviceName: pendingService?.serviceName || 'Dịch vụ canh tác',
-            plotCode: pendingService?.plotCode || 'P-01',
+            plotCode: pendingService?.plotCode || null,
             scheduledDate: pendingService?.scheduledDate || new Date().toISOString().slice(0, 10),
             amount: rawAmount || pendingService?.amount || 0,
             notes: pendingService?.notes || '',

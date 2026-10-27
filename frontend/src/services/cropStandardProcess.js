@@ -163,8 +163,8 @@ export const CROP_STANDARDS = {
 
   'cucumber': {
     cropName: 'Dưa leo Baby F1 Giòn Ngọt',
-    totalDays: 40,
-    expectedYield: '20 - 25 kg/thửa',
+    totalDays: 55,
+    expectedYield: '35 - 45 kg/thửa',
     optimalConditions: {
       tempRange: '22 - 32°C',
       soilMoistureRange: '65 - 75%',
@@ -177,8 +177,8 @@ export const CROP_STANDARDS = {
         stepOrder: 1,
         name: 'Gieo hạt & Bén rễ hồi xanh',
         dayStart: 1,
-        dayEnd: 6,
-        label: 'Ngày 1 - 6',
+        dayEnd: 7,
+        label: 'Ngày 1 - 7',
         statusDesc: 'Cây con mọc 2 lá mầm và nhú lá thật thứ nhất',
         waterRegime: 'Tưới ẩm gốc nhẹ nhàng vào sáng sớm',
         nutrition: 'Phân hữu cơ vi sinh ủ hoai mục lót đáy luống',
@@ -190,9 +190,9 @@ export const CROP_STANDARDS = {
         id: 'STAGE-2',
         stepOrder: 2,
         name: 'Leo giàn & Phân cành nhánh',
-        dayStart: 7,
-        dayEnd: 20,
-        label: 'Ngày 7 - 20',
+        dayStart: 8,
+        dayEnd: 25,
+        label: 'Ngày 8 - 25',
         statusDesc: 'Thân leo phát triển nhanh 10-15cm mỗi ngày',
         waterRegime: 'Tưới nhỏ giọt duy trì ẩm 70%',
         nutrition: 'Bón thúc NPK hữu cơ nguồn gốc tảo biển',
@@ -204,9 +204,9 @@ export const CROP_STANDARDS = {
         id: 'STAGE-3',
         stepOrder: 3,
         name: 'Ra hoa rộ & Đậu quả liên tục',
-        dayStart: 21,
-        dayEnd: 32,
-        label: 'Ngày 21 - 32',
+        dayStart: 26,
+        dayEnd: 42,
+        label: 'Ngày 26 - 42',
         statusDesc: 'Hoa cái nở rộ ở mỗi nách lá, quả lớn nhanh',
         waterRegime: 'Tưới nước đều đặn mỗi ngày, dưa leo rất háo nước',
         nutrition: 'Bổ sung dịch trùn quế và Kali hữu cơ tăng độ giòn ngọt',
@@ -217,10 +217,10 @@ export const CROP_STANDARDS = {
       {
         id: 'STAGE-4',
         stepOrder: 4,
-        name: 'Thu hái rộ đợt 1 & Đóng gói',
-        dayStart: 33,
-        dayEnd: 40,
-        label: 'Ngày 33 - 40',
+        name: 'Thu hái rộ & Đóng gói',
+        dayStart: 43,
+        dayEnd: 55,
+        label: 'Ngày 43 - 55',
         statusDesc: 'Thu hái hàng ngày quả baby dài 10-12cm giòn ngọt',
         waterRegime: 'Tưới bù ẩm sau mỗi lượt hái',
         nutrition: 'Duy trì nước tưới vi sinh sạch',
@@ -733,8 +733,11 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
 
   const totalDays = Number(plot.totalDays) || standardTemplate.totalDays || 45;
 
-  // Kiểm tra vụ mùa đã bắt đầu hay chưa (currentDay = 0 hoặc status = 'SCHEDULED' hoặc isScheduled)
-  const isNotStarted = plot.seasonStatus === 'SCHEDULED' || Number(plot.currentDay) === 0 || Boolean(plot.isScheduled);
+  // Kiểm tra vụ mùa đã bắt đầu hay chưa (currentDay = 0 hoặc status = 'SCHEDULED' hoặc isScheduled hoặc startDate trong tương lai)
+  const isFutureStartDate = Boolean(
+    plot.startDate && new Date(plot.startDate).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0)
+  );
+  const isNotStarted = plot.seasonStatus === 'SCHEDULED' || Number(plot.currentDay) === 0 || Boolean(plot.isScheduled) || isFutureStartDate;
 
   let currentDay = 0;
   let progressPercent = 0;
@@ -805,8 +808,8 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
   const currentStageObj = isNotStarted
     ? {
         ...computedStages[0],
-        name: `Chuẩn bị: ${computedStages[0].name}`,
-        statusDesc: 'Vụ mùa chưa bắt đầu. Đất đang trong giai đoạn nghỉ hoặc chuẩn bị xuống giống theo lịch canh tác.',
+        name: `Sắp tới: ${computedStages[0].name}`,
+        statusDesc: `Vụ mùa sắp tới (Khởi động ngày ${plot.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'Kỳ tới'}). Đất đang trong giai đoạn nghỉ hoặc hoàn thiện chuẩn bị xuống giống theo lịch canh tác.`,
         isCurrent: false
       }
     : (computedStages.find((s) => s.isCurrent) || computedStages[computedStages.length - 1]);
@@ -828,7 +831,7 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
   };
 }
 
-function detectCropKey(cropText) {
+export function detectCropKey(cropText) {
   const t = String(cropText).toLowerCase();
   if (t.includes('xà lách') || t.includes('lettuce') || t.includes('lô lô') || t.includes('romaine')) return 'lettuce';
   if (t.includes('dưa') || t.includes('cucumber') || t.includes('baby')) return 'cucumber';
@@ -956,11 +959,10 @@ export const DEFAULT_STAFF_ACTIVITIES = [
 export function getPersistedStaffActivities(plotId = null) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    let list = raw ? JSON.parse(raw) : DEFAULT_STAFF_ACTIVITIES;
+    let list = raw ? JSON.parse(raw) : [];
 
-    if (!Array.isArray(list) || list.length === 0) {
-      list = DEFAULT_STAFF_ACTIVITIES;
-      saveStaffActivities(list);
+    if (!Array.isArray(list)) {
+      list = [];
     }
 
     if (!plotId) return list;
@@ -973,7 +975,7 @@ export function getPersistedStaffActivities(plotId = null) {
     });
   } catch (e) {
     console.warn('[StaffActivities] Không thể đọc từ localStorage:', e);
-    return DEFAULT_STAFF_ACTIVITIES;
+    return [];
   }
 }
 
@@ -1077,13 +1079,19 @@ export function resolvePlotSeasons(plot, allRentals = []) {
   if (!plot) return [];
 
   const plotKey = String(plot.plotCode || plot.mapPlotId || plot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
-  const storageKey = `farmely_plot_seasons_${plotKey}`;
+  const rentalIdSuffix = plot.rentalId ? `_${plot.rentalId}` : '';
+  const storageKey = `farmely_plot_seasons_${plotKey}${rentalIdSuffix}`;
   try {
-    const saved = localStorage.getItem(storageKey);
+    const saved = localStorage.getItem(storageKey) || localStorage.getItem(`farmely_plot_seasons_${plotKey}`);
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        const firstSeason = parsed[0];
+        const isMatchingRental = !plot.rentalId || !firstSeason.rentalId || String(firstSeason.rentalId) === String(plot.rentalId);
+        const isMatchingCrop = !plot.crop || !firstSeason.cropName || firstSeason.cropName.toLowerCase().includes(plot.crop.toLowerCase()) || plot.crop.toLowerCase().includes(firstSeason.cropName.toLowerCase());
+        if (isMatchingRental && isMatchingCrop) {
+          return parsed;
+        }
       }
     }
   } catch {}
@@ -1121,19 +1129,23 @@ export function resolvePlotSeasons(plot, allRentals = []) {
     });
   }
 
-  const rawTotalDays = Number(plot.totalDays || 32);
-  const rawCurrentDay = Number(plot.currentDay || 1);
   const primaryCropKey = detectCropKey(plot.crop || 'lettuce');
   const primaryStandard = CROP_STANDARDS[primaryCropKey] || CROP_STANDARDS['lettuce'];
   const cropDisplayName = plot.crop || primaryStandard.cropName;
-  const s1Total = primaryStandard.totalDays || 32;
 
-  // Nếu khách hàng thuê từ 2 vụ trở lên (hoặc thời gian hợp đồng bao gồm >= 2 vụ, ví dụ rawTotalDays > 45 ngày):
-  // Hiển thị đầy đủ cả 2 vụ với CÙNG GIỐNG CÂY KHÁCH ĐÃ THUÊ (cropDisplayName).
-  // Vụ 2 nếu chưa tới ngày gieo trồng sẽ có trạng thái là 'SCHEDULED' (Chưa bắt đầu, N0/ngày).
-  if (rawTotalDays > 45 || Number(plot.seasonsCount) >= 2 || Number(plot.termMonths) >= 2) {
+  // SSoT: Số ngày chuẩn của 1 vụ mùa (cycleDays / expected_duration từ DB, fallback standard)
+  const cycleDays = Number(plot.cycleDays || (plot.termDays ? plot.totalDays : null)) || Number(plot.totalDays) || primaryStandard.totalDays || 55;
+  const rawCurrentDay = Number(plot.currentDay !== undefined && plot.currentDay !== null ? plot.currentDay : 1);
+  const termDays = Number(plot.termDays) || 0;
+  const s1Total = cycleDays;
+
+  // Tính số vụ mùa: Chỉ chia nhiều vụ khi khách thuê >= 2 vụ (seasonsCount, termMonths >= 2 hoặc thời hạn hợp đồng termDays đủ >= 2 chu kỳ)
+  const calculatedSeasons = termDays > 0 ? Math.floor((termDays + 5) / (s1Total + 5)) : 1;
+  const shouldSplitSeasons = Number(plot.seasonsCount) >= 2 || Number(plot.termMonths) >= 2 || calculatedSeasons >= 2;
+
+  if (shouldSplitSeasons) {
     const fallowDays = 5;
-    const s2Total = primaryStandard.totalDays || 32;
+    const s2Total = cycleDays;
 
     const s1Completed = rawCurrentDay > s1Total;
     const inFallow = rawCurrentDay > s1Total && rawCurrentDay <= s1Total + fallowDays;
@@ -1157,7 +1169,7 @@ export function resolvePlotSeasons(plot, allRentals = []) {
         cropName: cropDisplayName,
         status: s1Completed ? 'COMPLETED' : 'ACTIVE',
         totalDays: s1Total,
-        currentDay: s1Completed ? s1Total : rawCurrentDay,
+        currentDay: s1Completed ? s1Total : Math.min(rawCurrentDay, s1Total),
         startDate: s1Start.toISOString().slice(0, 10),
         endDate: s1End.toISOString().slice(0, 10),
         fallowDays: 5,

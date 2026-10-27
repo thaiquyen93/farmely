@@ -13,6 +13,8 @@ async function ensureRentalLeaseColumns() {
     await runPostgreSql(`
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS cultivation_mode VARCHAR(20);
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS term_months INTEGER;
+ALTER TABLE rentals ADD COLUMN IF NOT EXISTS expert_id INT;
+ALTER TABLE rentals ADD COLUMN IF NOT EXISTS staff_id INT;
 
 CREATE OR REPLACE FUNCTION fn_resolve_expert_for_variety(p_variety_id INT)
 RETURNS INT AS $$
@@ -755,8 +757,8 @@ BEGIN
         v_rental_id,
         ts.step_id,
         fn_resolve_staff_for_plot(v_plot_id), -- Tự động gán CVLĐ theo Zone của thửa
-        CURRENT_DATE + (ts.day_offset || ' days')::interval,
-        CASE WHEN ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        '${startDate}'::date + (ts.day_offset || ' days')::interval,
+        CASE WHEN '${startDate}'::date <= CURRENT_DATE AND ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
         ts.step_name || ' - ' || ts.description,
         NOW(),
         NOW()
@@ -1385,14 +1387,14 @@ BEGIN
     
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
     
-    -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa trong hợp đồng nếu chưa có
+    -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa trong hợp đồng nếu chưa có (tính ngày theo start_date)
     INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
     SELECT 
         r.rental_id,
         ts.step_id,
         r.staff_id,
-        CURRENT_DATE + (ts.day_offset || ' days')::interval,
-        CASE WHEN ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        r.start_date + (ts.day_offset || ' days')::interval,
+        CASE WHEN r.start_date <= CURRENT_DATE AND ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
         ts.step_name || ' - ' || ts.description,
         NOW(),
         NOW()
@@ -1843,9 +1845,17 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
       ORDER BY ct.due_date ASC, ct.task_id ASC 
       LIMIT 1
     ), 'Chăm sóc sinh trưởng VietGAP') AS stage,
-    GREATEST(1, CURRENT_DATE - r.start_date + 1) AS "currentDay",
-    GREATEST(1, r.end_date - r.start_date) AS "totalDays",
-    LEAST(100, GREATEST(1, ROUND((CURRENT_DATE - r.start_date)::numeric / GREATEST(1, r.end_date - r.start_date) * 100))) AS "progressPercent",
+    CASE 
+      WHEN CURRENT_DATE < r.start_date THEN 0
+      ELSE (CURRENT_DATE - r.start_date) + 1
+    END AS "currentDay",
+    COALESCE(v.expected_duration, GREATEST(1, r.end_date - r.start_date)) AS "totalDays",
+    COALESCE(v.expected_duration, GREATEST(1, r.end_date - r.start_date)) AS "cycleDays",
+    GREATEST(1, r.end_date - r.start_date) AS "termDays",
+    CASE
+      WHEN CURRENT_DATE < r.start_date THEN 0
+      ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - r.start_date + 1)::numeric / GREATEST(1, COALESCE(v.expected_duration, r.end_date - r.start_date))::numeric) * 100)))
+    END AS "progressPercent",
     COALESCE(p.image_url, '/images/Mucangchai3.jpg') AS image,
     COALESCE((SELECT sr.temperature || '°C' FROM sensor_readings sr WHERE sr.plot_id = p.plot_id ORDER BY sr.recorded_at DESC LIMIT 1), '28.5°C') AS temp,
     COALESCE((SELECT sr.soil_humidity || '%' FROM sensor_readings sr WHERE sr.plot_id = p.plot_id ORDER BY sr.recorded_at DESC LIMIT 1), '68%') AS "soilMoisture",
@@ -1857,7 +1867,7 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     'Trần Văn Lực (CVLĐ)' AS worker,
     c.contract_number AS "contractCode",
     c.total_amount AS "contractTotalAmount",
-    (SELECT TO_CHAR(MIN(r2.start_date), 'YYYY-MM-DD') FROM rentals r2 WHERE r2.contract_id = c.contract_id) AS "startDate",
+    TO_CHAR(r.start_date, 'YYYY-MM-DD') AS "startDate",
     TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "expectedHarvestDate",
     ROUND(p.area * 0.25)::text || ' - ' || ROUND(p.area * 0.35)::text || ' kg' AS "expectedYield",
     (SELECT COUNT(*) FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND ct.status != 'DONE') AS "openTasksCount",
@@ -1882,7 +1892,9 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
   LEFT JOIN varieties v ON r.variety_id = v.variety_id
   LEFT JOIN services s ON r.service_id = s.service_id
   WHERE ${userClause}
-  ORDER BY r.rental_id ASC
+  ORDER BY 
+    CASE WHEN c.status = 'ACTIVE' OR r.status = 'ACTIVE' THEN 0 ELSE 1 END ASC,
+    r.rental_id DESC
 ) p_row;
 `;
             const data = await runPostgreSql(sql);
@@ -3358,7 +3370,8 @@ SELECT json_build_object(
         'Thửa ' || COALESCE(p.plot_code, 'P-0' || rent.plot_id) AS name,
         COALESCE(l.land_name, 'Trang trại Happy Valley Củ Chi') AS location,
         p.area || 'm²' AS area,
-        'Assisted-Growing' AS mode,
+        CASE WHEN rent.cultivation_mode = 'SELF' THEN 'Self-Growing' ELSE 'Assisted-Growing' END AS mode,
+        rent.cultivation_mode AS "cultivationMode",
         COALESCE(v.variety_name, 'Cà chua bi Cherry F1') AS crop,
         'Sinh trưởng & phát triển' AS stage,
         p.image_url AS image,
@@ -3385,7 +3398,6 @@ SELECT json_build_object(
         '45.000 Lux' AS light,
         '6.5' AS ph,
         'HEALTHY' AS "healthStatus",
-        'Trần Văn Lực (CVLĐ)' AS worker,
         '35 - 45 kg' AS "expectedYield",
         'Đất phù sa bồi lắng giàu mùn (pH 6.5)' AS "soilType",
         'Hệ thống nước tưới ngầm lọc cát + UV' AS "waterSource",
@@ -3394,6 +3406,8 @@ SELECT json_build_object(
           ELSE (CURRENT_DATE - rent.start_date) + 1
         END AS "currentDay",
         COALESCE(v.expected_duration, 60) AS "totalDays",
+        COALESCE(v.expected_duration, 60) AS "cycleDays",
+        GREATEST(1, rent.end_date - rent.start_date) AS "termDays",
         CASE
           WHEN CURRENT_DATE < rent.start_date THEN 0
           ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - rent.start_date + 1)::numeric / NULLIF(COALESCE(v.expected_duration, 60), 0)::numeric) * 100)))
@@ -3480,6 +3494,18 @@ ON CONFLICT DO NOTHING;
         if (req.method === 'GET' && (url === '/api/care-tasks' || url === '/api/v1/care-tasks' || url === '/api/tasks' || url.startsWith('/api/care-tasks?') || url.startsWith('/api/v1/care-tasks?') || url.startsWith('/api/tasks?'))) {
           try {
             await ensureRentalLeaseColumns();
+            const urlObj = new URL(url, 'http://localhost');
+            const workerIdParam = urlObj.searchParams.get('workerId');
+            const rentalIdParam = urlObj.searchParams.get('rentalId');
+            let taskWhere = [];
+            if (workerIdParam && parseInt(workerIdParam, 10)) {
+              taskWhere.push(`ct.task_assigned_to = ${parseInt(workerIdParam, 10)}`);
+            }
+            if (rentalIdParam && parseInt(rentalIdParam, 10)) {
+              taskWhere.push(`ct.rental_id = ${parseInt(rentalIdParam, 10)}`);
+            }
+            const taskWhereSql = taskWhere.length > 0 ? `WHERE ${taskWhere.join(' AND ')}` : '';
+
             const sql = `
 SELECT json_build_object(
   'success', true,
@@ -3495,14 +3521,15 @@ SELECT json_build_object(
         p.plot_code AS "plotCode",
         'Thửa ' || p.plot_code AS "plotName",
         CASE
+          WHEN ct.title IS NOT NULL AND ct.title <> '' THEN ct.title
           WHEN ts.step_name IS NOT NULL THEN ts.step_name
           WHEN s.service_name IS NOT NULL THEN s.service_name
           WHEN ct.notes LIKE '% - %' THEN SPLIT_PART(ct.notes, ' - ', 1)
           WHEN ct.notes LIKE '%' || CHR(10) || '%' THEN SPLIT_PART(ct.notes, CHR(10), 1)
           ELSE COALESCE(ct.notes, 'Chăm sóc vi sinh tiêu chuẩn')
         END AS title,
-        COALESCE(v.variety_name, 'Cà chua bi Cherry F1') AS crop,
-        COALESCE(u_renter.full_name, 'Khách hàng') AS "customerName",
+        COALESCE(v.variety_name, 'Đang canh tác') AS crop,
+        COALESCE(u_renter.full_name, 'Khách thuê') AS "customerName",
         COALESCE(u_worker.full_name, 'Chưa chỉ định nhân viên') AS "assignedTo",
         COALESCE(u_worker.full_name, 'Chưa chỉ định nhân viên') AS "workerName",
         u_worker.user_id AS "workerId",
@@ -3518,13 +3545,25 @@ SELECT json_build_object(
           ELSE 'NORMAL'
         END AS priority,
         TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS "dueDate",
+        TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS date,
+        COALESCE(ts.day_offset, 0) AS "dayOffset",
+        CASE
+          WHEN ts.day_offset IS NOT NULL AND ts.day_offset > 0 THEN ts.day_offset
+          WHEN ts.day_offset = 0 THEN 1
+          WHEN rent.start_date IS NOT NULL AND ct.due_date IS NOT NULL THEN GREATEST(1, DATE(ct.due_date) - DATE(rent.start_date) + 1)
+          ELSE 1
+        END AS "cropDay",
+        COALESCE(ct.step_order, ts.step_order, 1) AS "stepOrder",
+        ts.duration_days AS "durationDays",
         '08:30 AM' AS deadline,
         'MORNING' AS session,
-        COALESCE(ct.evidence_image_url, '/images/Mucangchai3.jpg') AS "proofPhoto",
+        ct.evidence_image_url AS "proofPhoto",
+        ct.evidence_image_url AS "evidenceImageUrl",
         CASE
+          WHEN ts.description IS NOT NULL AND ts.description <> '' THEN ts.description
           WHEN ct.notes LIKE '% - %' THEN SUBSTRING(ct.notes FROM POSITION(' - ' IN ct.notes) + 3)
           WHEN ct.notes LIKE '%' || CHR(10) || '%' THEN SUBSTRING(ct.notes FROM POSITION(CHR(10) IN ct.notes) + 1)
-          ELSE COALESCE(ct.notes, 'Kiểm tra độ ẩm trạm IoT trước khi tưới. Ghi chép nhật ký đầy đủ.')
+          ELSE COALESCE(ct.notes, ts.description, 'Kiểm tra độ ẩm trạm IoT trước khi tưới. Ghi chép nhật ký đầy đủ.')
         END AS instructions,
         TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') AS "completedAt"
       FROM care_tasks ct
@@ -3537,6 +3576,7 @@ SELECT json_build_object(
       LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
       LEFT JOIN service_requests sr ON ct.service_request_id = sr.request_id
       LEFT JOIN services s ON sr.service_id = s.service_id
+      ${taskWhereSql}
       ORDER BY ct.due_date ASC, ct.task_id ASC
     ) t
   )
@@ -3552,16 +3592,19 @@ SELECT json_build_object(
           return;
         }
 
-        if ((req.method === 'PATCH' || req.method === 'PUT') && url.match(/^\/api\/(?:v1\/)?care-tasks\/(\d+)/)) {
-          const taskId = url.match(/^\/api\/(?:v1\/)?care-tasks\/(\d+)/)[1];
+        if ((req.method === 'PATCH' || req.method === 'PUT') && url.match(/^\/api\/(?:v1\/)?(?:care-tasks|tasks)\/(\d+)/)) {
+          const taskId = url.match(/^\/api\/(?:v1\/)?(?:care-tasks|tasks)\/(\d+)/)[1];
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
+              const isComplete = url.includes('/complete') || payload.status === 'COMPLETED' || payload.status === 'DONE';
               const workerId = payload.workerId || payload.taskAssignedTo || payload.assignedWorkerId;
               let setClauses = [];
-              if (payload.status) {
+              if (isComplete) {
+                setClauses.push(`status = 'DONE'`);
+              } else if (payload.status) {
                 const dbStatus = payload.status === 'COMPLETED' || payload.status === 'DONE' ? 'DONE' : payload.status === 'IN_PROGRESS' || payload.status === 'IN_PROG' ? 'IN_PROG' : 'PENDING';
                 setClauses.push(`status = '${dbStatus}'`);
               } else if (workerId) {
@@ -3570,13 +3613,24 @@ SELECT json_build_object(
               if (workerId) {
                 setClauses.push(`task_assigned_to = ${parseInt(workerId, 10)}`);
               }
-              if (payload.proofPhoto || payload.evidence_image_url) {
-                const proof = (payload.proofPhoto || payload.evidence_image_url).replace(/'/g, "''");
+              const proof = (payload.evidenceImageUrl || payload.proofPhoto || payload.evidence_image_url || '').replace(/'/g, "''");
+              if (proof) {
                 setClauses.push(`evidence_image_url = '${proof}'`);
               }
-              if (payload.instructions || payload.notes) {
-                const notes = (payload.instructions || payload.notes).replace(/'/g, "''");
+              if (payload.title !== undefined) {
+                const t = String(payload.title).replace(/'/g, "''");
+                setClauses.push(`title = '${t}'`);
+              }
+              if (payload.notes !== undefined || payload.taskProofNote !== undefined) {
+                const n = String(payload.notes !== undefined ? payload.notes : payload.taskProofNote).replace(/'/g, "''");
+                setClauses.push(`notes = '${n}'`);
+              }
+              if (payload.instructions || payload.description) {
+                const notes = (payload.instructions || payload.description).replace(/'/g, "''");
                 setClauses.push(`notes = '${notes}'`);
+              }
+              if (payload.stepOrder || payload.stepNumber) {
+                setClauses.push(`step_order = ${parseInt(payload.stepOrder || payload.stepNumber, 10)}`);
               }
               if (payload.dueDate || payload.due_date) {
                 setClauses.push(`due_date = '${payload.dueDate || payload.due_date}'`);
@@ -3587,16 +3641,87 @@ SELECT json_build_object(
 UPDATE care_tasks
 SET ${setClauses.join(', ')}
 WHERE task_id = ${taskId}
-RETURNING task_id, status, task_assigned_to;
+RETURNING task_id, rental_id, status, step_order, title, notes, evidence_image_url, task_assigned_to;
 `;
-              await runPostgreSql(sql);
+              const updateRes = await runPostgreSql(sql);
+              let taskRow = null;
+              try { taskRow = Array.isArray(updateRes) ? updateRes[0] : (typeof updateRes === 'string' ? JSON.parse(updateRes) : updateRes); } catch {}
+
+              // TỰ ĐỘNG ĐỒNG BỘ VÀO NHẬT KÝ NÔNG TRẠI (farm_diaries) KHI NGHIỆM THU HOÀN THÀNH (BR17)
+              if (isComplete) {
+                const detailSql = `
+SELECT 
+  ct.task_id,
+  ct.rental_id,
+  COALESCE(ct.step_order, ts.step_order, 1) AS step_order,
+  COALESCE(ct.title, ts.step_name, ct.notes, 'Nhiệm vụ chăm sóc hiện trường') AS title,
+  COALESCE(ct.notes, ts.description, 'Đã hoàn tất nghiệm thu đạt chuẩn VietGAP') AS notes,
+  COALESCE(ct.evidence_image_url, '${proof ? proof.replace(/'/g, "''") : ''}') AS evidence_image_url
+FROM care_tasks ct
+LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+WHERE ct.task_id = ${taskId}
+LIMIT 1;
+`;
+                const detailRes = await runPostgreSql(detailSql);
+                let taskDetail = null;
+                try { taskDetail = Array.isArray(detailRes) ? detailRes[0] : (typeof detailRes === 'string' ? JSON.parse(detailRes) : detailRes); } catch {}
+
+                const rId = taskDetail?.rental_id || taskRow?.rental_id || payload.rentalId || 1;
+                const sOrder = taskDetail?.step_order || taskRow?.step_order || payload.stepOrder || 1;
+                const taskTitle = (taskDetail?.title || taskRow?.title || payload.title || 'Nhiệm vụ chăm sóc hiện trường').replace(/'/g, "''");
+                const taskContent = (payload.notes || payload.taskProofNote || taskDetail?.notes || 'Nhiệm vụ đã được hoàn tất và nghiệm thu đạt tiêu chuẩn VietGAP.').replace(/'/g, "''");
+                const diaryImg = (proof || taskDetail?.evidence_image_url || taskRow?.evidence_image_url || '').replace(/'/g, "''");
+
+                const syncDiarySql = `
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM farm_diaries WHERE task_id = ${taskId}) THEN
+    UPDATE farm_diaries
+    SET image_url = ${diaryImg ? `'${diaryImg}'` : 'NULL'},
+        content = '${taskContent}',
+        title = '${taskTitle}',
+        step_order = ${sOrder}
+    WHERE task_id = ${taskId};
+  ELSE
+    INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
+    VALUES (${rId}, ${taskId}, '${taskTitle}', '${taskContent}', ${sOrder}, ${diaryImg ? `'${diaryImg}'` : 'NULL'}, NOW());
+  END IF;
+
+  UPDATE service_requests
+  SET status = 'DONE'
+  WHERE request_id = (SELECT service_request_id FROM care_tasks WHERE task_id = ${taskId});
+END $$;
+`;
+                await runPostgreSql(syncDiarySql);
+              }
+
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true, message: `Cập nhật nhiệm vụ #${taskId} thành công` }));
+              res.end(JSON.stringify({ 
+                success: true, 
+                message: isComplete 
+                  ? `Nghiệm thu nhiệm vụ #${taskId} thành công và đã tự động đồng bộ vào nhật ký nông trại`
+                  : `Cập nhật nhiệm vụ #${taskId} thành công`,
+                data: taskRow 
+              }));
             } catch (err) {
               res.statusCode = 500;
               res.end(JSON.stringify({ success: false, error: String(err) }));
             }
           });
+          return;
+        }
+
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?(?:care-tasks|tasks)\/(\d+)/)) {
+          const taskId = url.match(/^\/api\/(?:v1\/)?(?:care-tasks|tasks)\/(\d+)/)[1];
+          try {
+            await runPostgreSql(`DELETE FROM farm_diaries WHERE task_id = ${taskId};`);
+            await runPostgreSql(`DELETE FROM care_tasks WHERE task_id = ${taskId};`);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, message: `Đã xóa nhiệm vụ #${taskId}` }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
           return;
         }
 
@@ -3639,6 +3764,16 @@ SELECT json_build_object(
         // 19. FARM DIARIES API (GET, POST /api/farm-diaries)
         if (req.method === 'GET' && (url === '/api/farm-diaries' || url === '/api/v1/farm-diaries' || url === '/api/diaries' || url.startsWith('/api/farm-diaries?') || url.startsWith('/api/v1/farm-diaries?') || url.startsWith('/api/diaries?'))) {
           try {
+            const parsedUrl = new URL(url, 'http://localhost');
+            const rentalParam = parsedUrl.searchParams.get('rentalId') || parsedUrl.searchParams.get('rental_id');
+            const plotParam = parsedUrl.searchParams.get('plotId') || parsedUrl.searchParams.get('plot_id');
+            let whereClause = '';
+            if (rentalParam) {
+              whereClause = `WHERE fd.rental_id = ${parseInt(rentalParam, 10)}`;
+            } else if (plotParam) {
+              whereClause = `WHERE rent.plot_id = ${parseInt(plotParam, 10)}`;
+            }
+
             const sql = `
 SELECT json_build_object(
   'success', true,
@@ -3653,10 +3788,20 @@ SELECT json_build_object(
         p.plot_code AS "plotCode",
         'Thửa ' || p.plot_code AS "plotName",
         COALESCE(v.variety_name, 'Cà chua bi') AS crop,
+        COALESCE(fd.title, ct.title, ts.step_name, 'Nhật ký canh tác') AS title,
         fd.content,
         fd.content AS note,
         fd.image_url AS "imageUrl",
         fd.image_url AS photo,
+        fd.image_url AS image,
+        COALESCE(fd.step_order, ct.step_order, ts.step_order, 1) AS "stepOrder",
+        COALESCE(ts.day_offset, 0) AS "dayOffset",
+        CASE
+          WHEN ts.day_offset IS NOT NULL AND ts.day_offset > 0 THEN ts.day_offset
+          WHEN ts.day_offset = 0 THEN 1
+          WHEN rent.start_date IS NOT NULL THEN GREATEST(1, DATE(fd.created_at) - DATE(rent.start_date) + 1)
+          ELSE 1
+        END AS "cropDay",
         TO_CHAR(fd.created_at, 'YYYY-MM-DD') AS date,
         TO_CHAR(fd.created_at, 'HH24:MI') AS time,
         TO_CHAR(fd.created_at, 'DD/MM/YYYY HH24:MI') AS "dateFormatted",
@@ -3670,7 +3815,9 @@ SELECT json_build_object(
       LEFT JOIN users u_cust ON c.renter_id = u_cust.user_id
       LEFT JOIN varieties v ON rent.variety_id = v.variety_id
       LEFT JOIN care_tasks ct ON fd.task_id = ct.task_id
+      LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
+      ${whereClause}
       ORDER BY fd.created_at DESC
     ) d
   )
@@ -4021,7 +4168,7 @@ SELECT json_build_object(
         ir.handled_by AS "handledBy",
         ir.issue_type AS "issueType",
         ir.description,
-        COALESCE(ir.image_url, '/images/moc-chau-2811.jpg') AS "photoUrl",
+        ir.image_url AS "photoUrl",
         ir.status,
         COALESCE(ir.resolution_notes, '') AS diagnosis,
         TO_CHAR(ir.created_at, 'HH24:MI - DD/MM/YYYY') AS "reportedTime",
@@ -4063,11 +4210,11 @@ SELECT json_build_object(
               const reportedBy = parseInt(payload.reportedBy || payload.reported_by || 8, 10);
               const issueType = (payload.issueType || payload.issue_type || 'Sự cố hiện trường').replace(/'/g, "''");
               const description = (payload.description || 'Báo cáo sự cố từ nhân sự hiện trường').replace(/'/g, "''");
-              const imageUrl = (payload.imageUrl || payload.image_url || '/images/moc-chau-2811.jpg').replace(/'/g, "''");
+              const imageUrl = (payload.imageUrl || payload.image_url || '').replace(/'/g, "''");
 
               const sql = `
 INSERT INTO issue_reports (rental_id, reported_by, issue_type, description, image_url, status, created_at)
-VALUES (${rentalId}, ${reportedBy}, '${issueType}', '${description}', '${imageUrl}', 'OPEN', NOW())
+VALUES (${rentalId}, ${reportedBy}, '${issueType}', '${description}', ${imageUrl ? `'${imageUrl}'` : 'NULL'}, 'OPEN', NOW())
 RETURNING issue_id, rental_id, issue_type, status;
 `;
               const result = await runPostgreSql(sql);
@@ -4266,6 +4413,43 @@ END $$;
           return;
         }
 
+        // 20C. UPDATE SERVICE REQUEST STATUS / DETAILS
+        if ((req.method === 'PATCH' || req.method === 'PUT') && url.match(/^\/api\/(?:v1\/)?services\/requests\/(\d+)(?:\/status)?$/)) {
+          const reqId = url.match(/^\/api\/(?:v1\/)?services\/requests\/(\d+)/)[1];
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const status = payload.status || 'IN_PROG';
+              const notes = payload.notes ? payload.notes.replace(/'/g, "''") : null;
+              const workerId = payload.workerId ? parseInt(payload.workerId, 10) : null;
+              
+              await runPostgreSql(`
+DO $$
+BEGIN
+  UPDATE service_requests 
+  SET status = '${status}' 
+  WHERE request_id = ${reqId};
+
+  UPDATE care_tasks 
+  SET status = '${status === 'DONE' || status === 'COMPLETED' ? 'DONE' : status === 'IN_PROG' ? 'IN_PROG' : 'PENDING'}'
+      ${notes ? `, notes = '${notes}'` : ''}
+      ${workerId ? `, task_assigned_to = ${workerId}` : ''}
+      , updated_at = NOW()
+  WHERE service_request_id = ${reqId};
+END $$;
+              `);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: `Cập nhật trạng thái yêu cầu dịch vụ #${reqId} thành công` }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
         // 21. SERVICES API (GET /api/services)
         if (req.method === 'GET' && (url === '/api/services' || url === '/api/v1/services' || url.startsWith('/api/services?') || url.startsWith('/api/v1/services?'))) {
           try {
@@ -4331,6 +4515,14 @@ SELECT json_build_object(
               let rawRentalId = parseInt(String(payload.rentalId || '').replace(/\D/g, ''), 10) || null;
               const rawPlotCode = String(payload.plotCode || payload.plotId || '').replace(/^PLOT-/i, '').trim();
               const scheduledDate = (payload.scheduledDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10)).replace(/'/g, "''");
+              // Resolve the target rental: explicit rentalId (when it belongs to the given plot) > latest ACTIVE rental of the plot > rentalId alone
+              const safePlot = rawPlotCode.replace(/'/g, "''");
+              const plotMatchSql = rawPlotCode ? `(UPPER(REPLACE(p.plot_code, '-', '')) = UPPER(REPLACE('${safePlot}', '-', '')))` : 'TRUE';
+              const rentalResolveExpr = `COALESCE(
+    ${rawRentalId ? `(SELECT r.rental_id FROM rentals r JOIN plots p ON r.plot_id = p.plot_id WHERE r.rental_id = ${rawRentalId} AND ${plotMatchSql} LIMIT 1),` : ''}
+    ${rawPlotCode ? `(SELECT r.rental_id FROM rentals r JOIN plots p ON r.plot_id = p.plot_id WHERE ${plotMatchSql} ORDER BY (r.status = 'ACTIVE') DESC, r.rental_id DESC LIMIT 1),` : ''}
+    ${rawRentalId ? `(SELECT rental_id FROM rentals WHERE rental_id = ${rawRentalId}),` : ''}
+    NULL::int)`;
               const notes = (payload.notes || '').replace(/'/g, "''");
               const paymentMethod = (payload.paymentMethod || 'VNPAY').replace(/'/g, "''");
               const amount = parseFloat(payload.amount || 0) || 50000;
@@ -4346,6 +4538,7 @@ DO $$
 DECLARE
   v_req_id INT := ${existingReqId};
   v_rental_id INT := ${rawRentalId || 'NULL'};
+  v_resolved INT;
   v_worker_id INT;
   v_sched_date DATE := '${scheduledDate}'::date;
   v_notes TEXT := '${notes}';
@@ -4362,10 +4555,14 @@ BEGIN
   WHERE service_request_id = v_req_id;
 
   -- 3. If care_task does not exist, insert into care_tasks for cultivation schedule
+  v_resolved := ${rentalResolveExpr};
+  IF v_resolved IS NOT NULL THEN
+    UPDATE service_requests SET rental_id = v_resolved WHERE request_id = v_req_id;
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM care_tasks WHERE service_request_id = v_req_id) THEN
     SELECT rental_id INTO v_rental_id FROM service_requests WHERE request_id = v_req_id;
     IF v_rental_id IS NULL AND '${rawPlotCode}' <> '' THEN
-      SELECT r.rental_id INTO v_rental_id FROM rentals r JOIN plots p ON r.plot_id = p.plot_id WHERE UPPER(p.plot_code) = UPPER('${rawPlotCode.replace(/'/g, "''")}') ORDER BY r.rental_id DESC LIMIT 1;
+      SELECT r.rental_id INTO v_rental_id FROM rentals r JOIN plots p ON r.plot_id = p.plot_id WHERE UPPER(REPLACE(p.plot_code, '-', '')) = UPPER(REPLACE('${rawPlotCode.replace(/'/g, "''")}', '-', '')) OR UPPER(p.plot_code) = UPPER('${rawPlotCode.replace(/'/g, "''")}') ORDER BY r.rental_id DESC LIMIT 1;
     END IF;
     IF v_rental_id IS NULL THEN
       SELECT rental_id INTO v_rental_id FROM rentals WHERE status = 'ACTIVE' LIMIT 1;
@@ -4376,14 +4573,15 @@ BEGIN
     FROM rentals r WHERE r.rental_id = v_rental_id;
     IF v_worker_id IS NULL THEN v_worker_id := 8; END IF;
 
-    INSERT INTO care_tasks (rental_id, service_request_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+    INSERT INTO care_tasks (rental_id, service_request_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
     VALUES (
       v_rental_id,
       v_req_id,
       v_worker_id,
       v_sched_date,
       'PENDING'::task_status_enum,
-      CASE WHEN v_notes <> '' THEN v_svc_name || ' - ' || v_notes ELSE v_svc_name END,
+      v_svc_name,
+      CASE WHEN v_notes <> '' THEN '[DỊCH VỤ KHÁCH YÊU CẦU] ' || v_svc_name || ' - ' || v_notes ELSE '[DỊCH VỤ KHÁCH YÊU CẦU] ' || v_svc_name END,
       NOW(),
       NOW()
     );
@@ -4395,8 +4593,7 @@ END $$;
                 sql = `
 WITH resolved_rental AS (
   SELECT COALESCE(
-    ${rawPlotCode ? `(SELECT r.rental_id FROM rentals r JOIN plots p ON r.plot_id = p.plot_id WHERE UPPER(p.plot_code) = UPPER('${rawPlotCode.replace(/'/g, "''")}') ORDER BY r.rental_id DESC LIMIT 1),` : ''}
-    ${rawRentalId ? `(SELECT rental_id FROM rentals WHERE rental_id = ${rawRentalId} LIMIT 1),` : ''}
+    ${rentalResolveExpr},
     (SELECT rental_id FROM rentals WHERE status = 'ACTIVE' LIMIT 1),
     (SELECT rental_id FROM rentals LIMIT 1)
   ) AS id
@@ -4426,14 +4623,15 @@ ins_tx AS (
   RETURNING transaction_id, gateway_ref, status
 ),
 ins_task AS (
-  INSERT INTO care_tasks (rental_id, service_request_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+  INSERT INTO care_tasks (rental_id, service_request_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
   SELECT 
     ins_req.rental_id, 
     ins_req.request_id, 
     COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8), 
     ins_req.scheduled_date, 
     'PENDING'::task_status_enum, 
-    CASE WHEN '${notes}' <> '' THEN '${serviceName}' || ' - ' || '${notes}' ELSE '${serviceName}' END, 
+    '${serviceName}',
+    CASE WHEN '${notes}' <> '' THEN '[DỊCH VỤ KHÁCH YÊU CẦU] ' || '${serviceName}' || ' - ' || '${notes}' ELSE '[DỊCH VỤ KHÁCH YÊU CẦU] ' || '${serviceName}' END, 
     NOW(), 
     NOW()
   FROM ins_req

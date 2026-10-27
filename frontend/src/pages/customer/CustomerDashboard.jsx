@@ -798,6 +798,7 @@ export default function CustomerDashboard() {
         temp: '—', soilMoisture: '—', airHumidity: '—', light: '—', ph: '—',
         stationId: '—', status: r.status || 'ACTIVE', worker: 'Farmely điều phối',
         contractCode: r.contractId ? `CTR-${r.contractId}` : '—',
+        startDate: r.startDate || r.start_date || '—',
         expectedHarvestDate: r.endDate || '—', expectedYield: 'Chưa có dữ liệu'
       })));
       setActiveServiceOrders(unwrap(requestsBody).map((request) => ({
@@ -1368,56 +1369,169 @@ export default function CustomerDashboard() {
     await handleDirectServicePayment();
   };
 
-  const handleServicePaymentSuccess = (paidResult) => {
+  const handleServicePaymentSuccess = async (paidResult) => {
     setShowServiceQrModal(false);
     setShowServiceCardModal(false);
     setShowServiceVnPayModal(false);
+
+    const targetPlot = customerPlots.find((p) => p.id === checkoutPlotId) || selectedCheckoutPlot || customerPlots[0];
+    const targetPlotCode = targetPlot?.mapPlotId || targetPlot?.plotCode || (targetPlot?.id ? targetPlot.id.replace(/^PLOT-/i, '') : 'P-01');
+    const targetRentalId = targetPlot?.rentalId || targetPlot?.rental_id || 1;
+    const targetServiceId = typeof selectedServiceToBuy?.serviceId === 'number'
+      ? selectedServiceToBuy.serviceId
+      : (parseInt(String(selectedServiceToBuy?.serviceId || selectedServiceToBuy?.id || 1).replace(/\D/g, ''), 10) || 1);
+    const scheduledDate = checkoutDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const gatewayRef = paidResult?.gatewayRef || `TXN_SVC_${Date.now().toString().slice(-8)}`;
+
+    let serverData = null;
+    try {
+      const res = await fetch('/api/v1/payments/service/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serviceRequestId: paidResult?.serviceRequestId || paidResult?.requestId || null,
+          rentalId: targetRentalId,
+          serviceId: targetServiceId,
+          serviceName: selectedServiceToBuy?.name || 'Dịch vụ nông nghiệp',
+          plotCode: targetPlotCode,
+          scheduledDate: scheduledDate,
+          amount: Number(paidResult?.amount || selectedServiceToBuy?.price || 0),
+          notes: checkoutNotes || '',
+          paymentMethod: paidResult?.paymentMethod || (checkoutPaymentMethod === 'CARD' ? 'CARD' : 'VNPAY'),
+          gatewayRef: gatewayRef
+        })
+      });
+      const json = await res.json();
+      serverData = json?.data || json;
+    } catch (e) {
+      console.warn('Sync service checkout to server failed:', e);
+    }
+
     fetchServiceOrders();
     if (typeof loadOperationsFromDb === 'function') {
       loadOperationsFromDb();
     }
-    const targetPlot = customerPlots.find(p => p.id === checkoutPlotId) || selectedCheckoutPlot || customerPlots[0];
-    const targetPlotCode = targetPlot?.mapPlotId || targetPlot?.plotCode || (targetPlot?.id ? targetPlot.id.replace(/^PLOT-/i, '') : 'P-01');
+
+    const resolvedRequestId = serverData?.requestId || paidResult?.serviceRequestId || paidResult?.requestId;
+    const resolvedTxnId = serverData?.transactionId || paidResult?.transactionId || gatewayRef;
+
     const newOrder = {
-      id: paidResult?.requestId ? `REQ-${paidResult.requestId}` : `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      requestId: paidResult?.requestId,
-      transactionId: paidResult?.transactionId || `TXN-SVC-${Date.now().toString().slice(-6)}`,
+      id: resolvedRequestId ? `REQ-${resolvedRequestId}` : `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      requestId: resolvedRequestId,
+      transactionId: resolvedTxnId,
       serviceName: selectedServiceToBuy?.name || 'Dịch vụ canh tác',
       plotName: targetPlot ? targetPlot.name : 'Thửa đất đã chọn',
       plotCode: targetPlotCode,
       plotId: targetPlot?.id,
-      rentalId: targetPlot?.rentalId || targetPlot?.rental_id || 1,
+      rentalId: targetRentalId,
       price: selectedServiceToBuy ? selectedServiceToBuy.formattedPrice : `${(paidResult?.amount || 0).toLocaleString('vi-VN')} đ`,
       amount: Number(paidResult?.amount || selectedServiceToBuy?.price || 0),
-      date: `${checkoutDate || new Date().toISOString().slice(0, 10)} • Mới kích hoạt`,
-      scheduledDate: checkoutDate || new Date().toISOString().slice(0, 10),
+      date: `${scheduledDate} • Hôm nay`,
+      scheduledDate: scheduledDate,
       status: 'IN_PROGRESS',
       statusLabel: 'Đang thực hiện (Đã phân công CVLĐ)',
       worker: 'Trần Văn Lực (CVLĐ)',
       paymentMethod: paidResult?.paymentMethod || (checkoutPaymentMethod === 'VNPAY' ? 'Cổng VNPAY Sandbox' : checkoutPaymentMethod === 'CARD' ? 'Thẻ Quốc tế / Nội địa' : 'Ví Farmely'),
       paymentStatus: 'SUCCESS',
-      gatewayRef: paidResult?.gatewayRef || `TXN_SVC_${Date.now().toString().slice(-8)}`,
+      gatewayRef: gatewayRef,
       proofPhoto: null,
       proofNotes: checkoutNotes || ''
     };
 
-    setActiveServiceOrders(prev => {
-      const next = [newOrder, ...prev.filter(p => p.id !== newOrder.id)];
+    setActiveServiceOrders((prev) => {
+      const next = [newOrder, ...prev.filter((p) => p.id !== newOrder.id)];
       try {
         localStorage.setItem('farmely_customer_service_orders', JSON.stringify(next));
       } catch {}
       return next;
     });
-    if (paidResult) {
-      setLastPaymentResult(paidResult);
-    }
+
+    const resultInfo = {
+      transactionId: resolvedTxnId,
+      requestId: resolvedRequestId,
+      taskId: serverData?.taskId,
+      serviceName: selectedServiceToBuy?.name,
+      plotName: targetPlot ? targetPlot.name : `Thửa ${targetPlotCode}`,
+      plotCode: targetPlotCode,
+      plotId: targetPlot?.id,
+      amount: selectedServiceToBuy?.price,
+      formattedAmount: selectedServiceToBuy?.formattedPrice,
+      scheduledDate: scheduledDate,
+      paymentMethod: newOrder.paymentMethod,
+      gatewayRef: gatewayRef
+    };
+
+    setLastPaymentResult(resultInfo);
+    window.dispatchEvent(new CustomEvent('farmely_service_paid', { detail: resultInfo }));
     setSelectedServiceToBuy(null);
     setShowCheckoutSuccessModal(true);
   };
 
-  const currentSelectedPlot = customerPlots.find((p) => p.id === selectedPlotId);
-  const diaryFocusPlot = customerPlots.find((p) => p.id === diaryFocusPlotId) || customerPlots[0];
-  const scopedPlot = customerPlots.find((p) => p.id === plotScopeId) || null;
+  // Kiểm tra thửa đất đã hủy / hết hạn
+  const isPlotCancelled = (plot) => {
+    if (!plot) return false;
+    const rs = String(
+      plot.rental_status ||
+      plot.rentalStatus ||
+      plot.contract_status ||
+      plot.contractStatus ||
+      plot.displayStatus ||
+      plot.status ||
+      ''
+    ).toUpperCase();
+    return (
+      rs === 'CANCELLED' ||
+      rs === 'CANCELED' ||
+      rs.includes('HỦY') ||
+      rs === 'ĐÃ HỦY'
+    );
+  };
+
+  const resolvePlotFromCollection = (targetId, collection = customerPlots) => {
+    if (!targetId || !collection?.length) return null;
+    const cleanTarget = String(targetId).trim();
+    const isRentalTarget = cleanTarget.startsWith('RENTAL-') || /^\d+$/.test(cleanTarget);
+    const targetRentalId = isRentalTarget ? Number(cleanTarget.replace(/^RENTAL-/i, '')) : null;
+
+    if (targetRentalId) {
+      const match = collection.find((p) => Number(p.rentalId || p.rental_id) === targetRentalId);
+      if (match) return match;
+    }
+
+    const cleanCode = cleanTarget.replace(/^PLOT-/i, '').toUpperCase();
+    const matches = collection.filter((p) => {
+      const pCode = String(p.plotCode || p.mapPlotId || p.id || '').replace(/^PLOT-/i, '').toUpperCase();
+      return (
+        p.id === cleanTarget ||
+        p.plotCode === cleanTarget ||
+        p.mapPlotId === cleanTarget ||
+        pCode === cleanCode ||
+        (p.rentalId && `RENTAL-${p.rentalId}` === cleanTarget)
+      );
+    });
+
+    if (!matches.length) return null;
+
+    // Ưu tiên thửa ĐANG ACTIVE (chưa bị hủy) và có rentalId mới nhất
+    const activeMatches = matches.filter((p) => !isPlotCancelled(p));
+    if (activeMatches.length > 0) {
+      return activeMatches.sort((a, b) => (Number(b.rentalId || b.rental_id || 0) - Number(a.rentalId || a.rental_id || 0)))[0];
+    }
+    return matches.sort((a, b) => (Number(b.rentalId || b.rental_id || 0) - Number(a.rentalId || a.rental_id || 0)))[0];
+  };
+
+  const currentSelectedPlot = useMemo(() => {
+    return resolvePlotFromCollection(selectedPlotId, customerPlots);
+  }, [customerPlots, selectedPlotId]);
+
+  const diaryFocusPlot = useMemo(() => {
+    return resolvePlotFromCollection(diaryFocusPlotId, customerPlots) || customerPlots[0];
+  }, [customerPlots, diaryFocusPlotId]);
+
+  const scopedPlot = useMemo(() => {
+    return resolvePlotFromCollection(plotScopeId, customerPlots) || null;
+  }, [customerPlots, plotScopeId]);
+
   const scopedPlots = scopedPlot ? [scopedPlot] : customerPlots;
   const scopedServiceOrders = scopedPlot
     ? activeServiceOrders.filter((ord) =>
@@ -1429,7 +1543,7 @@ export default function CustomerDashboard() {
         ord.rentalId === scopedPlot.rentalId
       )
     : activeServiceOrders;
-  const harvestModalPlot = customerPlots.find((p) => p.id === harvestModalPlotId || p.plotCode === harvestModalPlotId) || null;
+  const harvestModalPlot = resolvePlotFromCollection(harvestModalPlotId, customerPlots) || null;
 
   /** Từ trang 1 thửa sang trang chức năng: giữ nguyên ngữ cảnh thửa đó */
   const openPlotScopedTab = (tab, plotId) => {
@@ -1507,27 +1621,19 @@ export default function CustomerDashboard() {
     const requestedPlotCode = query.get('plotCode');
     const requestedView = query.get('view') || query.get('tab');
     const fromPlotId = query.get('fromPlot');
-    const requestedPlot = (requestedPlotId || requestedPlotCode) && customerPlots.find((plot) =>
-      plot.id === requestedPlotId ||
-      plot.mapPlotId === requestedPlotId ||
-      String(plot.plotId) === requestedPlotId ||
-      plot.plotCode === requestedPlotCode ||
-      plot.mapPlotId === requestedPlotCode ||
-      plot.id === `PLOT-${requestedPlotCode}` ||
-      (requestedPlotId && (plot.id === `PLOT-${requestedPlotId}` || plot.plotCode === requestedPlotId))
-    );
+    const requestedPlot = (requestedPlotId || requestedPlotCode) && resolvePlotFromCollection(requestedPlotId || requestedPlotCode, customerPlots);
 
     if (requestedView === 'tasks') {
       setActiveTab('yards');
       if (requestedPlot) {
-        setSelectedPlotId(requestedPlot.id);
+        setSelectedPlotId(requestedPlot.rentalId ? `RENTAL-${requestedPlot.rentalId}` : requestedPlot.id);
         setCheckoutPlotId(requestedPlot.id);
       } else {
         setSelectedPlotId(null);
       }
     } else if (requestedPlot) {
       setActiveTab('yards');
-      setSelectedPlotId(requestedPlot.id);
+      setSelectedPlotId(requestedPlot.rentalId ? `RENTAL-${requestedPlot.rentalId}` : requestedPlot.id);
       setCheckoutPlotId(requestedPlot.id);
     } else if (['contracts', 'harvest', 'process', 'iot', 'diary', 'services'].includes(requestedView)) {
       setSelectedPlotId(null);
@@ -1538,7 +1644,7 @@ export default function CustomerDashboard() {
       setActiveTab('yards');
       setIotReturnPlotId(null);
     }
-  }, [location.search]);
+  }, [location.search, customerPlots]);
 
   const defaultPlotOperations = {
     'PLOT-CC-01': {
@@ -1610,16 +1716,29 @@ export default function CustomerDashboard() {
               }
             }
 
+            const resolvedTaskDay = (t.cropDay !== undefined && t.cropDay !== null)
+              ? Math.max(1, Number(t.cropDay))
+              : (t.dayOffset !== undefined && t.dayOffset !== null)
+              ? (Number(t.dayOffset) === 0 ? 1 : Math.max(1, Number(t.dayOffset)))
+              : (t.day !== undefined && t.day !== null)
+              ? Math.max(1, Number(t.day))
+              : null;
+
             const formattedTask = {
               id: t.id || `TSK-${t.taskId}`,
               taskId: t.taskId,
               title: t.title,
               time: t.dueDate ? `${t.dueDate} (08:30)` : 'Hôm nay',
+              date: t.date || t.dueDate,
+              day: resolvedTaskDay,
+              cropDay: resolvedTaskDay,
+              dayOffset: t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null,
+              stepOrder: t.stepOrder || 1,
               status: t.status,
-              owner: t.workerName || t.assignedTo || 'Trần Văn Lực (CVLĐ)',
+              owner: t.workerName || t.assignedTo || 'Kỹ thuật viên hiện trường',
               crop: t.crop,
               instructions: t.instructions,
-              proofPhoto: t.proofPhoto,
+              proofPhoto: t.proofPhoto || t.evidenceImageUrl || null,
               completedAt: t.completedAt
             };
 
@@ -1660,14 +1779,26 @@ export default function CustomerDashboard() {
               }
             }
 
+            const resolvedDiaryDay = (d.cropDay !== undefined && d.cropDay !== null)
+              ? Math.max(1, Number(d.cropDay))
+              : (d.dayOffset !== undefined && d.dayOffset !== null)
+              ? (Number(d.dayOffset) === 0 ? 1 : Math.max(1, Number(d.dayOffset)))
+              : (d.day !== undefined && d.day !== null)
+              ? Math.max(1, Number(d.day))
+              : null;
+
             const formattedDiary = {
               id: d.id,
+              date: d.date,
               time: d.dateFormatted || (d.date && d.time ? `${d.date} ${d.time}` : 'Hôm nay'),
-              title: d.content ? d.content.slice(0, 45) : 'Cập nhật hiện trường',
-              note: d.content,
+              title: d.title || (d.content ? d.content.slice(0, 45) : 'Cập nhật hiện trường'),
+              note: d.content || d.note,
               author: d.authorName || d.author || 'Chủ vườn',
               image: d.imageUrl || d.image_url || d.photo || '',
-              imageUrl: d.imageUrl || d.image_url || d.photo || ''
+              imageUrl: d.imageUrl || d.image_url || d.photo || '',
+              cropDay: resolvedDiaryDay,
+              dayOffset: d.dayOffset !== undefined && d.dayOffset !== null ? Number(d.dayOffset) : null,
+              day: resolvedDiaryDay
             };
 
             targetKeys.forEach((key) => {
@@ -1812,7 +1943,10 @@ export default function CustomerDashboard() {
     { level: 'LOW', title: 'Nhiệt độ & ẩm độ tối ưu', metric: `${plot?.temp || '28°C'} · Ẩm đất ${plot?.soilMoisture || '68%'}`, time: '10 phút trước' }
   ];
 
-  const currentPlotOperations = plotOperations[selectedPlotId] || (currentSelectedPlot ? defaultOperationsForPlot(currentSelectedPlot) : { tasks: [], diary: [] });
+  const currentPlotOperations = (currentSelectedPlot?.rentalId && plotOperations[`RENTAL-${currentSelectedPlot.rentalId}`]) ||
+    plotOperations[selectedPlotId] ||
+    (currentSelectedPlot?.id && plotOperations[currentSelectedPlot.id]) ||
+    (currentSelectedPlot ? defaultOperationsForPlot(currentSelectedPlot) : { tasks: [], diary: [] });
   const plotTabFromUrl = new URLSearchParams(location.search).get('tab') || 'overview';
 
   const handleSendMessage = async (textToSend) => {
@@ -1990,7 +2124,7 @@ export default function CustomerDashboard() {
                 })}
                 harvestPlan={harvestPlans[currentSelectedPlot.id] || dbHarvestResults.find(h => h.plotScopeId === currentSelectedPlot.id || h.plotCode === currentSelectedPlot.plotCode || h.rentalId === currentSelectedPlot.rentalId) || null}
                 activeTab={plotTabFromUrl}
-                onTabChange={(tab) => navigate(`/customer/dashboard?plot=${currentSelectedPlot.id}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
+                onTabChange={(tab) => navigate(`/customer/dashboard?plot=${selectedPlotId || (currentSelectedPlot.rentalId ? `RENTAL-${currentSelectedPlot.rentalId}` : currentSelectedPlot.id)}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
                 onBack={() => navigate('/customer/dashboard')}
                 onOpenHarvest={(plot) => setHarvestModalPlotId(plot.id)}
                 onSelectPlot={(plotId) => navigate(`/customer/dashboard?plot=${plotId}${plotTabFromUrl !== 'overview' ? `&tab=${plotTabFromUrl}` : ''}`)}
@@ -2149,7 +2283,10 @@ export default function CustomerDashboard() {
                 (n, p) => n + (iotAlerts[p.id] || defaultAlertsForPlot(p) || []).filter((a) => a.level === 'HIGH').length,
                 0
               );
-              const openPlot = (plotId, tab) => navigate(`/customer/dashboard?plot=${plotId}${tab ? `&tab=${tab}` : ''}`);
+              const openPlot = (plotId, tab, rentalId) => {
+                const targetParam = rentalId ? `RENTAL-${rentalId}` : plotId;
+                navigate(`/customer/dashboard?plot=${targetParam}${tab ? `&tab=${tab}` : ''}`);
+              };
 
               return (
               <div className="mx-auto max-w-[1400px] space-y-6 px-4 pb-16 pt-5 sm:px-6 lg:px-10 lg:pt-8">
@@ -2344,11 +2481,20 @@ export default function CustomerDashboard() {
                       {displayedPlots.map((plot) => {
                         const isCancelled = isPlotCancelled(plot);
                         const isPendingPayment = !isCancelled && String(plot.contract_status || plot.rental_status || plot.status || '').toUpperCase() === 'PENDING_PAYMENT';
-                        const tasks = plotOperations[plot.id]?.tasks || defaultOperationsForPlot(plot).tasks || [];
+                        const tasks = (plot.rentalId && plotOperations[`RENTAL-${plot.rentalId}`]?.tasks) || plotOperations[plot.id]?.tasks || defaultOperationsForPlot(plot).tasks || [];
                         const nextTask = tasks.find((t) => t.status === 'IN_PROGRESS') || tasks.find((t) => t.status === 'PENDING');
                         const openCount = tasks.filter((t) => t.status !== 'COMPLETED').length;
                         const topAlert = (iotAlerts[plot.id] || defaultAlertsForPlot(plot) || []).find((a) => a.level === 'HIGH');
                         const daysLeft = Math.max(plot.totalDays - plot.currentDay, 0);
+
+                        // Kiểm tra ngày bắt đầu (Requirement #1 & #2)
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const plotStartDateStr = plot.startDate || plot.start_date;
+                        const startDateObj = plotStartDateStr ? new Date(plotStartDateStr) : null;
+                        if (startDateObj) startDateObj.setHours(0, 0, 0, 0);
+                        const isNotStarted = !isCancelled && !isPendingPayment && Boolean(startDateObj && startDateObj > today);
+                        const daysUntilStart = isNotStarted ? Math.ceil((startDateObj - today) / (1000 * 60 * 60 * 24)) : 0;
 
                         return (
                           <article
@@ -2363,7 +2509,7 @@ export default function CustomerDashboard() {
                           >
                             <button
                               type="button"
-                              onClick={() => (isCancelled ? handleOpenCancelModal(plot) : openPlot(plot.id))}
+                              onClick={() => (isCancelled ? handleOpenCancelModal(plot) : openPlot(plot.id, null, plot.rentalId))}
                               className="relative block h-40 w-full overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400 cursor-pointer"
                               aria-label={`Mở ${plot.name}`}
                             >
@@ -2385,6 +2531,15 @@ export default function CustomerDashboard() {
                                 <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
                                   ⏳ Chờ thanh toán
                                 </span>
+                              ) : isNotStarted ? (
+                                <div className="absolute left-3 top-3 flex items-center gap-1.5">
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
+                                    ⏳ Sắp tới
+                                  </span>
+                                  <span className="rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-[#18352b]">
+                                    {plot.mode === 'Self-Growing' ? 'Tự canh tác' : 'Farmely chăm sóc'}
+                                  </span>
+                                </div>
                               ) : (
                                 <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-[11px] font-semibold text-[#18352b]">
                                   {plot.mode === 'Self-Growing' ? 'Tự canh tác' : 'Farmely chăm sóc'}
@@ -2413,16 +2568,43 @@ export default function CustomerDashboard() {
                                     <Sprout className={`h-4 w-4 shrink-0 ${isCancelled ? 'text-stone-400' : 'text-emerald-600'}`} />
                                     <span className="truncate">{plot.crop}</span>
                                   </span>
-                                  <span className="shrink-0 text-xs text-stone-500">
-                                    {isCancelled ? 'Hợp đồng kết thúc' : daysLeft > 0 ? `Còn ${daysLeft} ngày` : 'Đến vụ'}
+                                  <span className="shrink-0 text-xs text-stone-500 font-semibold">
+                                    {isCancelled
+                                      ? 'Hợp đồng kết thúc'
+                                      : isNotStarted
+                                      ? `Bắt đầu sau ${daysUntilStart} ngày`
+                                      : daysLeft > 0
+                                      ? `Còn ${daysLeft} ngày`
+                                      : 'Đến vụ'}
                                   </span>
                                 </div>
+
+                                {/* Hiển thị ngày bắt đầu plot (Requirement #1) */}
+                                <div className="mt-1 flex items-center justify-between text-xs text-stone-500">
+                                  <span className="inline-flex items-center gap-1">
+                                    <Calendar className="h-3.5 w-3.5 text-stone-400" />
+                                    <span>Bắt đầu: <strong className="text-stone-700">{plotStartDateStr ? new Date(plotStartDateStr).toLocaleDateString('vi-VN') : 'Chưa định'}</strong></span>
+                                  </span>
+                                  {isNotStarted && (
+                                    <span className="font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 text-[11px]">
+                                      Sắp tới
+                                    </span>
+                                  )}
+                                </div>
+
                                 {!isCancelled && (
                                   <>
                                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100">
-                                      <div className="h-full rounded-full bg-emerald-500" style={{ width: `${plot.progressPercent}%` }} />
+                                      <div
+                                        className={`h-full rounded-full transition-all ${isNotStarted ? 'bg-sky-400' : 'bg-emerald-500'}`}
+                                        style={{ width: `${isNotStarted ? 0 : plot.progressPercent}%` }}
+                                      />
                                     </div>
-                                    <p className="mt-1 text-xs text-stone-500">{plot.stage}</p>
+                                    <p className="mt-1 text-xs text-stone-500 truncate">
+                                      {isNotStarted
+                                        ? `Sắp tới: Bắt đầu gieo trồng từ ngày ${plotStartDateStr ? new Date(plotStartDateStr).toLocaleDateString('vi-VN') : 'dự kiến'}`
+                                        : plot.stage}
+                                    </p>
                                   </>
                                 )}
                               </div>
@@ -2452,12 +2634,24 @@ export default function CustomerDashboard() {
                                   </div>
 
                                   {topAlert ? (
-                                    <button type="button" onClick={() => openPlot(plot.id, 'iot')} className="flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2 text-left text-xs text-rose-800 hover:bg-rose-100">
+                                    <button type="button" onClick={() => openPlot(plot.id, 'iot', plot.rentalId)} className="flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2 text-left text-xs text-rose-800 hover:bg-rose-100">
                                       <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block font-semibold">{topAlert.title}</span><span className="opacity-80">{topAlert.time}</span></span>
                                     </button>
                                   ) : nextTask ? (
-                                    <button type="button" onClick={() => openPlot(plot.id)} className="flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-left text-xs text-amber-900 hover:bg-amber-100">
-                                      <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block truncate font-semibold">{nextTask.title}</span><span className="opacity-80">{nextTask.time}</span></span>
+                                    <button
+                                      type="button"
+                                      onClick={() => openPlot(plot.id, null, plot.rentalId)}
+                                      className={`flex items-start gap-2 rounded-xl px-3 py-2 text-left text-xs transition ${
+                                        isNotStarted
+                                          ? 'border border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100'
+                                          : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+                                      }`}
+                                    >
+                                      <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                      <span className="min-w-0">
+                                        <span className="block truncate font-semibold">{nextTask.title}</span>
+                                        <span className="opacity-80">{isNotStarted ? `Dự kiến: ${nextTask.time}` : nextTask.time}</span>
+                                      </span>
                                     </button>
                                   ) : null}
                                 </>
@@ -2500,11 +2694,11 @@ export default function CustomerDashboard() {
                                     </button>
                                   ) : (
                                     <>
-                                      <button type="button" onClick={() => openPlot(plot.id)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
+                                      <button type="button" onClick={() => openPlot(plot.id, null, plot.rentalId)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
                                         Mở thửa<ChevronRight className="h-4 w-4" />
                                       </button>
                                       {[['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
-                                        <button key={tab} type="button" onClick={() => openPlot(plot.id, tab)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
+                                        <button key={tab} type="button" onClick={() => openPlot(plot.id, tab, plot.rentalId)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
                                           <Icon className="h-4 w-4" />
                                         </button>
                                       ))}
@@ -3413,7 +3607,7 @@ export default function CustomerDashboard() {
                                 </span>
                               </div>
                               <span className="text-[11px] text-stone-500">
-                                Thời hạn: {plot.totalDays || 90} Ngày · Còn {Math.max((plot.totalDays || 90) - (plot.currentDay || 0), 0)} ngày
+                                Thời hạn: {plot.termDays || plot.totalDays || 90} Ngày · Còn {Math.max((plot.termDays || plot.totalDays || 90) - (plot.currentDay || 0), 0)} ngày
                               </span>
                             </div>
 
@@ -4645,9 +4839,9 @@ export default function CustomerDashboard() {
         chargeEndpoint="http://localhost:8085/api/v1/payments/service/card/charge"
         additionalPayload={{
           serviceName: selectedServiceToBuy?.name,
-          rentalId: 1,
-          plotCode: checkoutPlotId,
-          scheduledDate: checkoutDate,
+          rentalId: customerPlots.find(p => p.id === checkoutPlotId)?.rentalId || customerPlots.find(p => p.id === checkoutPlotId)?.rental_id || 1,
+          plotCode: customerPlots.find(p => p.id === checkoutPlotId)?.mapPlotId || customerPlots.find(p => p.id === checkoutPlotId)?.plotCode || (checkoutPlotId ? checkoutPlotId.replace(/^PLOT-/i, '') : 'P-01'),
+          scheduledDate: checkoutDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10),
           notes: checkoutNotes
         }}
         onPaymentSuccess={handleServicePaymentSuccess}
