@@ -490,6 +490,106 @@ SELECT json_build_object(
           return;
         }
 
+        // 0.3 GET /api/admin/analytics or /api/v1/admin/analytics (SCR-AD-01: Thống Kê Tổng Hợp Doanh Thu & Vận Hành)
+        if (req.method === 'GET' && (url === '/api/admin/analytics' || url === '/api/v1/admin/analytics' || url.startsWith('/api/admin/analytics?') || url.startsWith('/api/v1/admin/analytics?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy dữ liệu thống kê doanh thu và vận hành thành công từ PostgreSQL',
+  'data', json_build_object(
+    'kpi', json_build_object(
+      'totalRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS'), 0),
+      'leaseRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND contract_id IS NOT NULL), 0),
+      'serviceRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND service_request_id IS NOT NULL), 0),
+      'pendingRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'PENDING'), 0),
+      'monthlyRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND created_at >= DATE_TRUNC('month', CURRENT_DATE)), 0),
+      'totalPlots', (SELECT count(*)::int FROM plots),
+      'rentedPlots', (SELECT count(*)::int FROM plots WHERE status = 'RENT'),
+      'availablePlots', (SELECT count(*)::int FROM plots WHERE status = 'AVAIL'),
+      'maintenancePlots', (SELECT count(*)::int FROM plots WHERE status = 'MAINT'),
+      'occupancyRate', ROUND(
+        ((SELECT count(*) FILTER (WHERE status = 'RENT')::numeric FROM plots) / 
+        NULLIF((SELECT count(*)::numeric FROM plots), 0)) * 100, 1
+      ),
+      'totalRentals', (SELECT count(*)::int FROM rentals),
+      'selfGrowingCount', (SELECT count(*)::int FROM rentals WHERE COALESCE(cultivation_mode, 'SELF') = 'SELF'),
+      'assistedGrowingCount', (SELECT count(*)::int FROM rentals WHERE cultivation_mode = 'ASSISTED'),
+      'selfGrowingPct', ROUND(
+        ((SELECT count(*) FILTER (WHERE COALESCE(cultivation_mode, 'SELF') = 'SELF')::numeric FROM rentals) / 
+        NULLIF((SELECT count(*)::numeric FROM rentals), 0)) * 100, 1
+      ),
+      'assistedGrowingPct', ROUND(
+        ((SELECT count(*) FILTER (WHERE cultivation_mode = 'ASSISTED')::numeric FROM rentals) / 
+        NULLIF((SELECT count(*)::numeric FROM rentals), 0)) * 100, 1
+      ),
+      'totalTasks', (SELECT count(*)::int FROM care_tasks),
+      'completedTasks', (SELECT count(*) FILTER (WHERE status = 'DONE')::int FROM care_tasks),
+      'inProgressTasks', (SELECT count(*) FILTER (WHERE status = 'IN_PROG')::int FROM care_tasks),
+      'pendingTasks', (SELECT count(*) FILTER (WHERE status = 'PENDING')::int FROM care_tasks),
+      'taskCompletionRate', ROUND(
+        ((SELECT count(*) FILTER (WHERE status = 'DONE')::numeric FROM care_tasks) / 
+        NULLIF((SELECT count(*)::numeric FROM care_tasks), 0)) * 100, 1
+      )
+    ),
+    'monthlyRevenue', (
+      SELECT COALESCE(json_agg(row_to_json(m)), '[]'::json) FROM (
+        SELECT 
+          TO_CHAR(pt.created_at, 'MM/YYYY') AS "month",
+          'Tháng ' || TO_CHAR(pt.created_at, 'MM') AS "monthLabel",
+          SUM(CASE WHEN pt.contract_id IS NOT NULL THEN pt.amount ELSE 0 END) AS "leaseRevenue",
+          SUM(CASE WHEN pt.service_request_id IS NOT NULL THEN pt.amount ELSE 0 END) AS "serviceRevenue",
+          SUM(pt.amount) AS "totalRevenue"
+        FROM payment_transactions pt
+        WHERE pt.status = 'SUCCESS'
+        GROUP BY TO_CHAR(pt.created_at, 'MM/YYYY'), 'Tháng ' || TO_CHAR(pt.created_at, 'MM')
+        ORDER BY "month" ASC
+      ) m
+    ),
+    'recentTransactions', (
+      SELECT COALESCE(json_agg(row_to_json(tx)), '[]'::json) FROM (
+        SELECT 
+          pt.transaction_id AS id,
+          '#TXN-' || LPAD(pt.transaction_id::text, 4, '0') AS code,
+          pt.type,
+          pt.amount,
+          pt.payment_method AS "paymentMethod",
+          COALESCE(pt.gateway_ref, 'VNPAY_SANDBOX') AS "gatewayRef",
+          pt.status,
+          TO_CHAR(pt.created_at, 'HH24:MI - DD/MM/YYYY') AS "createdAt",
+          COALESCE(c.contract_number, 'Dịch vụ phát sinh') AS "referenceCode",
+          COALESCE(u.full_name, 'Khách vãng lai') AS "customerName"
+        FROM payment_transactions pt
+        LEFT JOIN contracts c ON pt.contract_id = c.contract_id
+        LEFT JOIN users u ON c.renter_id = u.user_id
+        ORDER BY pt.created_at DESC
+        LIMIT 8
+      ) tx
+    ),
+    'cultivationBreakdown', (
+      SELECT COALESCE(json_agg(row_to_json(cb)), '[]'::json) FROM (
+        SELECT 
+          CASE WHEN COALESCE(cultivation_mode, 'SELF') = 'SELF' THEN 'Tự canh tác (Self-growing)' ELSE 'Ủy thác trọn gói (Assisted-growing)' END AS label,
+          count(*)::int AS count,
+          ROUND((count(*)::numeric / NULLIF((SELECT count(*)::numeric FROM rentals), 0)) * 100, 1) AS percentage
+        FROM rentals
+        GROUP BY COALESCE(cultivation_mode, 'SELF')
+      ) cb
+    )
+  )
+);
+`;
+            const pgResult = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(pgResult || '{}');
+          } catch (err) {
+            console.error('PostgreSQL error on admin analytics:', err);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
         // 1. GET /api/site-visits
         if (req.method === 'GET' && (url === '/api/site-visits' || url.startsWith('/api/site-visits?'))) {
           try {

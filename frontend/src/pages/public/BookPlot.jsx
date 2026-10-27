@@ -1172,13 +1172,10 @@ export default function BookPlot() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
+                    <div className="mb-1.5">
                       <label className="block text-xs font-bold text-stone-700">
                         Chọn ngày bắt đầu canh tác:
                       </label>
-                      <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                        Từ 5 đến 14 ngày tới
-                      </span>
                     </div>
                     <input
                       type="date"
