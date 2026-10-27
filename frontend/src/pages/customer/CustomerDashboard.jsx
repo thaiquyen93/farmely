@@ -2257,10 +2257,10 @@ export default function CustomerDashboard() {
                           </div>
                         </div>
 
-                        {cancelledContracts[plot.contractCode || `CTR-${plot.id}`] ? (
-                          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
-                            <span>✓ Đã gửi yêu cầu chấm dứt hợp đồng sớm (Thửa đất chuyển bảo dưỡng 4 ngày BR23)</span>
-                            <span className="text-[11px] bg-rose-200 px-2 py-0.5 rounded">ĐÃ HỦY NGANG</span>
+                        {(pendingCancellations[plot.contractCode || `CTR-${plot.id}`] || plot.status === 'CANCELLED' || plot.contract_status === 'CANCELLED') ? (
+                          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 font-bold flex items-center justify-between">
+                            <span>✓ Đã gửi yêu cầu hủy hợp đồng (Đang chờ Quản trị viên duyệt theo BR10)</span>
+                            <span className="text-[11px] bg-amber-200 px-2 py-0.5 rounded text-amber-900">CHỜ DUYỆT HỦY</span>
                           </div>
                         ) : (
                           <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-brand-border/40">
