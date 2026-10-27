@@ -40,8 +40,7 @@ export default function ProcessTemplates() {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Modal Mode: 'upload' (default for quick demo) | 'manual'
-  const [creationMode, setCreationMode] = useState('upload');
+  // Modal State
   const [uploadFileName, setUploadFileName] = useState('');
   const [parsedSteps, setParsedSteps] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -276,7 +275,6 @@ export default function ProcessTemplates() {
         </div>
 
         <Button variant="primary" size="md" icon={Plus} onClick={() => {
-          setCreationMode('upload');
           setShowModal(true);
         }}>
           Tạo Quy Trình Chuẩn Mới
@@ -295,167 +293,134 @@ export default function ProcessTemplates() {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         title="Tạo Mẫu Quy Trình Canh Tác Mới"
-        subtitle="Hỗ trợ nạp nhanh từ tài liệu kỹ thuật chuẩn VietGAP hoặc nhập thủ công"
+        subtitle="Nạp và phân tích tự động từ tài liệu kỹ thuật chuẩn VietGAP (.txt / .json)"
         maxWidth="max-w-3xl"
       >
         <div className="space-y-5">
-          {/* Tabs chuyển đổi giữa Upload Tài Liệu và Nhập Thủ Công */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100 rounded-xl border border-stone-200 text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => setCreationMode('upload')}
-              className={`flex items-center justify-center gap-2 py-2 rounded-lg transition-all ${
-                creationMode === 'upload'
-                  ? 'bg-white text-brand-dark shadow-xs border border-stone-200'
-                  : 'text-stone-500 hover:text-stone-800'
+          <div className="space-y-4">
+            {/* Dropzone Container */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  handleFileChange(e.dataTransfer.files[0]);
+                }
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`p-6 border-2 border-dashed rounded-2xl text-center cursor-pointer transition-all ${
+                isDragging
+                  ? 'border-brand-green bg-emerald-50/70 scale-[1.01]'
+                  : uploadFileName
+                  ? 'border-emerald-400 bg-emerald-50/40'
+                  : 'border-stone-300 bg-stone-50/50 hover:bg-stone-50 hover:border-brand-green/60'
               }`}
             >
-              <Sparkles className="w-4 h-4 text-amber-600" />
-              <span>⚡ Upload Tài Liệu Chuẩn (.txt / .json)</span>
-              <span className="px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded text-[10px]">Demo Nhanh</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setCreationMode('manual')}
-              className={`flex items-center justify-center gap-2 py-2 rounded-lg transition-all ${
-                creationMode === 'manual'
-                  ? 'bg-white text-brand-dark shadow-xs border border-stone-200'
-                  : 'text-stone-500 hover:text-stone-800'
-              }`}
-            >
-              <Edit className="w-4 h-4 text-brand-green" />
-              <span>✍️ Nhập Thủ Công Từng Mục</span>
-            </button>
-          </div>
-
-          {/* TAB 1: UPLOAD TÀI LIỆU CHUẨN */}
-          {creationMode === 'upload' && (
-            <div className="space-y-4">
-              {/* Dropzone Container */}
-              <div
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    handleFileChange(e.dataTransfer.files[0]);
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.json,.md"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    handleFileChange(e.target.files[0]);
                   }
                 }}
-                onClick={() => fileInputRef.current?.click()}
-                className={`p-6 border-2 border-dashed rounded-2xl text-center cursor-pointer transition-all ${
-                  isDragging
-                    ? 'border-brand-green bg-emerald-50/70 scale-[1.01]'
-                    : uploadFileName
-                    ? 'border-emerald-400 bg-emerald-50/40'
-                    : 'border-stone-300 bg-stone-50/50 hover:bg-stone-50 hover:border-brand-green/60'
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".txt,.json,.md"
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files[0]) {
-                      handleFileChange(e.target.files[0]);
-                    }
-                  }}
-                />
+              />
 
-                <div className="max-w-md mx-auto space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-white border border-brand-border flex items-center justify-center mx-auto text-brand-green shadow-xs">
-                    {uploadFileName ? <CheckCircle2 className="w-6 h-6 text-emerald-600" /> : <UploadCloud className="w-6 h-6 text-brand-green" />}
-                  </div>
-
-                  <div>
-                    <h4 className="font-heading font-bold text-sm text-brand-dark">
-                      {uploadFileName ? (
-                        <span className="text-emerald-700 flex items-center justify-center gap-1.5">
-                          <span>Đã nạp file:</span> <strong>{uploadFileName}</strong>
-                        </span>
-                      ) : (
-                        'Kéo thả file tài liệu quy trình chuẩn vào đây'
-                      )}
-                    </h4>
-                    <p className="text-xs text-stone-500 mt-0.5">
-                      Định dạng hỗ trợ: <strong className="text-stone-700">.txt</strong> (Văn bản VietGAP có cấu trúc) hoặc <strong className="text-stone-700">.json</strong>
-                    </p>
-                  </div>
-
-                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
-                    <span className="px-3 py-1 bg-white border border-stone-200 text-stone-700 rounded-xl text-xs font-semibold hover:border-brand-green">
-                      Duyệt file từ máy tính
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sample Actions & Demo Presets */}
-              <div className="p-3 bg-brand-cream/60 rounded-xl border border-brand-border flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-brand-green shrink-0" />
-                  <span className="text-stone-700 font-medium">Tài liệu mẫu chuẩn bị sẵn:</span>
-                  <strong className="text-brand-dark font-mono text-[11px]">Dưa leo baby F1 (8 bước)</strong>
+              <div className="max-w-md mx-auto space-y-2">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-brand-border flex items-center justify-center mx-auto text-brand-green shadow-xs">
+                  {uploadFileName ? <CheckCircle2 className="w-6 h-6 text-emerald-600" /> : <UploadCloud className="w-6 h-6 text-brand-green" />}
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleLoadSampleDocument}
-                    className="px-3 py-1.5 bg-brand-green text-white rounded-lg font-bold hover:bg-emerald-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>⚡ Nạp Mẫu Demo Nhanh</span>
-                  </button>
-
-                  <a
-                    href="/templates/quy-trinh-chuan-vietgap-dua-leo-baby.txt"
-                    download="quy-trinh-chuan-vietgap-dua-leo-baby.txt"
-                    className="px-3 py-1.5 bg-white border border-brand-border text-brand-dark rounded-lg font-semibold hover:bg-stone-50 transition-colors flex items-center gap-1.5"
-                  >
-                    <Download className="w-3.5 h-3.5 text-stone-500" />
-                    <span>Tải File Mẫu (.txt)</span>
-                  </a>
-                </div>
-              </div>
-
-              {/* Parsed Results Preview Card */}
-              {parsedSteps.length > 0 && (
-                <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200 space-y-3">
-                  <div className="flex items-center justify-between border-b border-emerald-200/80 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span className="font-heading font-black text-xs text-emerald-900 uppercase tracking-wider">
-                        Đã Phân Tích Thành Công: {parsedSteps.length} Bước Kỹ Thuật (Day Offset)
+                <div>
+                  <h4 className="font-heading font-bold text-sm text-brand-dark">
+                    {uploadFileName ? (
+                      <span className="text-emerald-700 flex items-center justify-center gap-1.5">
+                        <span>Đã nạp file:</span> <strong>{uploadFileName}</strong>
                       </span>
-                    </div>
-                    <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-0.5 rounded-full border border-emerald-200">
-                      Chu kỳ: {Math.max(...parsedSteps.map(s => s.dayOffset)) + 7} ngày
+                    ) : (
+                      'Kéo thả file tài liệu quy trình chuẩn vào đây'
+                    )}
+                  </h4>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    Định dạng hỗ trợ: <strong className="text-stone-700">.txt</strong> (Văn bản VietGAP có cấu trúc) hoặc <strong className="text-stone-700">.json</strong>
+                  </p>
+                </div>
+
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                  <span className="px-3 py-1 bg-white border border-stone-200 text-stone-700 rounded-xl text-xs font-semibold hover:border-brand-green">
+                    Duyệt file từ máy tính
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Technical Document Quick Preset */}
+            <div className="p-3 bg-brand-cream/60 rounded-xl border border-brand-border flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-brand-green shrink-0" />
+                <span className="text-stone-700 font-medium">Tài liệu kỹ thuật chuẩn:</span>
+                <strong className="text-brand-dark font-mono text-[11px]">Dưa leo baby F1 (8 bước)</strong>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleLoadSampleDocument}
+                  className="px-3 py-1.5 bg-brand-green text-white rounded-lg font-bold hover:bg-emerald-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Nạp Tài Liệu Chuẩn VietGAP</span>
+                </button>
+
+                <a
+                  href="/templates/quy-trinh-chuan-vietgap-dua-leo-baby.txt"
+                  download="quy-trinh-chuan-vietgap-dua-leo-baby.txt"
+                  className="px-3 py-1.5 bg-white border border-brand-border text-brand-dark rounded-lg font-semibold hover:bg-stone-50 transition-colors flex items-center gap-1.5"
+                >
+                  <Download className="w-3.5 h-3.5 text-stone-500" />
+                  <span>Tải File Mẫu (.txt)</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Parsed Results Preview Card */}
+            {parsedSteps.length > 0 && (
+              <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200 space-y-3">
+                <div className="flex items-center justify-between border-b border-emerald-200/80 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span className="font-heading font-black text-xs text-emerald-900 uppercase tracking-wider">
+                      Đã Phân Tích Thành Công: {parsedSteps.length} Bước Kỹ Thuật (Day Offset)
                     </span>
                   </div>
-
-                  {/* Quick Timeline Preview Chips */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                    {parsedSteps.map((s, idx) => (
-                      <div key={idx} className="p-2 bg-white rounded-xl border border-emerald-100 flex items-start gap-2 text-xs">
-                        <span className="px-2 py-0.5 rounded bg-brand-yellow font-black text-[10px] text-brand-dark shrink-0">
-                          D+{s.dayOffset}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-bold text-brand-dark truncate">{s.stepName}</p>
-                          <span className="text-[10px] text-stone-500 block truncate">
-                            {s.taskType} • {s.durationMinutes}p • {s.materialsNeeded || 'Vật tư hữu cơ'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    Chu kỳ: {Math.max(...parsedSteps.map(s => s.dayOffset)) + 7} ngày
+                  </span>
                 </div>
-              )}
-            </div>
-          )}
+
+                {/* Quick Timeline Preview Chips */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {parsedSteps.map((s, idx) => (
+                    <div key={idx} className="p-2 bg-white rounded-xl border border-emerald-100 flex items-start gap-2 text-xs">
+                      <span className="px-2 py-0.5 rounded bg-brand-yellow font-black text-[10px] text-brand-dark shrink-0">
+                        D+{s.dayOffset}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-brand-dark truncate">{s.stepName}</p>
+                        <span className="text-[10px] text-stone-500 block truncate">
+                          {s.taskType} • {s.durationMinutes}p • {s.materialsNeeded || 'Vật tư hữu cơ'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Form fields (Always editable and in sync) */}
           <form onSubmit={handleCreate} className="space-y-4 pt-2">

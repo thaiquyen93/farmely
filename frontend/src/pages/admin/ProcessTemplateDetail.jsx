@@ -760,7 +760,7 @@ export default function ProcessTemplateDetail() {
 
           {/* Quick preset buttons */}
           <div className="p-3 bg-brand-cream/60 rounded-xl border border-brand-border flex items-center justify-between gap-3 text-xs">
-            <span className="text-stone-700">Mẫu VietGAP có sẵn:</span>
+            <span className="text-stone-700">Tài liệu kỹ thuật ban hành:</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -768,7 +768,7 @@ export default function ProcessTemplateDetail() {
                 className="px-3 py-1.5 bg-brand-green text-white rounded-lg font-bold hover:bg-emerald-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>⚡ Nạp Mẫu Demo Dưa Leo Baby F1 (8 Bước)</span>
+                <span>Nạp Tài Liệu Chuẩn VietGAP (Dưa Leo Baby F1)</span>
               </button>
             </div>
           </div>
