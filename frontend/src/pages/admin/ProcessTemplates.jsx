@@ -1,20 +1,25 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { processTemplatesData as initialTemplates } from '../../data/processTemplates';
-import { varietiesData } from '../../data/varieties';
+import { varietiesData as initialVarieties } from '../../data/varieties';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
-import { FileSpreadsheet, Plus, Eye, Edit, Calendar, CheckCircle2, Clock } from 'lucide-react';
+import { FileSpreadsheet, Plus, Eye, Edit, Trash2, Calendar, CheckCircle2, Clock, Sparkles } from 'lucide-react';
+import { useAuthStore } from '../../stores/authStore';
 
 export default function ProcessTemplates() {
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [templates, setTemplates] = useState(initialTemplates);
+  const [varieties, setVarieties] = useState(initialVarieties);
   const [loading, setLoading] = useState(true);
   const [isLiveDb, setIsLiveDb] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
   const [name, setName] = useState('');
@@ -23,12 +28,10 @@ export default function ProcessTemplates() {
   const [status, setStatus] = useState('ACTIVE');
   const [desc, setDesc] = useState('');
 
-  useEffect(() => {
-    let active = true;
+  const loadTemplatesFromApi = () => {
     fetch('/api/process-templates')
       .then((res) => res.json())
       .then((res) => {
-        if (!active) return;
         if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
           setTemplates(res.data);
           setIsLiveDb(true);
@@ -38,26 +41,70 @@ export default function ProcessTemplates() {
         console.warn('Cannot fetch live process templates, fallback to mock:', err);
       })
       .finally(() => {
-        if (active) setLoading(false);
+        setLoading(false);
       });
-    return () => { active = false; };
+  };
+
+  useEffect(() => {
+    loadTemplatesFromApi();
+
+    // Fetch live varieties
+    fetch('/api/varieties')
+      .then((res) => res.json())
+      .then((res) => {
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setVarieties(res.data);
+          if (res.data[0]?.id || res.data[0]?.varietyId) {
+            setVarietyId(String(res.data[0].id || res.data[0].varietyId));
+          }
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
-    const varObj = varietiesData.find((v) => String(v.id) === String(varietyId));
+    setIsSubmitting(true);
+
+    const numericVarietyId = parseInt(String(varietyId).replace(/\D/g, ''), 10) || 1;
+    const varObj = varieties.find((v) => String(v.id || v.varietyId) === String(varietyId));
+
+    try {
+      const res = await fetch('/api/process-templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          varietyId: numericVarietyId,
+          version: version.trim() || 'v1.0',
+          name: name.trim(),
+          description: desc.trim(),
+          ptCreatedBy: user?.userId || 5
+        })
+      });
+      const json = await res.json();
+      if (json.success && json.data?.id) {
+        setShowModal(false);
+        // Chuyển thẳng tới trang chi tiết quy trình vừa tạo để chuyên gia thêm các bước Day Offset
+        navigate(`/admin/master-data/process-templates/${json.data.id}`);
+        return;
+      }
+    } catch (err) {
+      console.warn('Tạo quy trình qua API lỗi, fallback lưu tạm:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
 
     const newTemplate = {
       id: `TMPL-00${templates.length + 1}`,
-      name,
+      name: name || `Quy trình VietGAP - ${varObj?.name || 'Cây trồng'}`,
       varietyId,
-      varietyName: varObj ? varObj.name : 'Giống cây',
-      cropName: varObj ? varObj.cropName : 'Rau màu',
+      varietyName: varObj ? (varObj.name || varObj.varietyName) : 'Giống cây',
+      cropName: varObj ? (varObj.cropName || 'Rau màu') : 'Rau màu',
       version,
       status,
-      totalSteps: 4,
+      totalSteps: 0,
       createdDate: new Date().toISOString().split('T')[0],
-      author: 'Chuyên Gia Nông Nghiệp',
+      author: user?.fullName || 'Chuyên Gia Nông Nghiệp',
       description: desc,
       steps: []
     };
@@ -200,9 +247,9 @@ export default function ProcessTemplates() {
               required
               value={varietyId}
               onChange={(e) => setVarietyId(e.target.value)}
-              options={varietiesData.map((v) => ({
-                value: v.id,
-                label: `${v.name} (${v.cropName})`
+              options={varieties.map((v) => ({
+                value: String(v.id || v.varietyId),
+                label: `${v.name || v.varietyName} (${v.cropName || 'Rau màu'})`
               }))}
             />
 
@@ -240,11 +287,11 @@ export default function ProcessTemplates() {
           </div>
 
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-brand-border">
-            <Button variant="outline" size="sm" type="button" onClick={() => setShowModal(false)}>
+            <Button variant="outline" size="sm" type="button" onClick={() => setShowModal(false)} disabled={isSubmitting}>
               Hủy
             </Button>
-            <Button variant="primary" size="sm" type="submit">
-              Khởi Tạo Template
+            <Button variant="primary" size="sm" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Đang Khởi Tạo...' : 'Khởi Tạo Template & Nhập Lộ Trình'}
             </Button>
           </div>
         </form>

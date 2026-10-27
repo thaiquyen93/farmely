@@ -2978,6 +2978,15 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
               const parts = (pgOut || '').trim().split('\n')[0].split('|');
               const newPlotId = parseInt(parts[0], 10);
 
+              const rawVarietyIds = Array.isArray(payload.varietyIds) ? payload.varietyIds : (Array.isArray(payload.compatibleVarietyIds) ? payload.compatibleVarietyIds : []);
+              const varietyIds = rawVarietyIds.map(v => parseInt(v, 10)).filter(v => !isNaN(v) && v > 0);
+              if (newPlotId && varietyIds.length > 0) {
+                const insertCompatSql = `INSERT INTO plot_variety_compatibility (plot_id, variety_id) VALUES ` +
+                  varietyIds.map(vid => `(${newPlotId}, ${vid})`).join(', ') +
+                  ` ON CONFLICT DO NOTHING;`;
+                await runPostgreSql(insertCompatSql);
+              }
+
               invalidatePlotsCache();
 
               res.statusCode = 201;
@@ -3046,6 +3055,18 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
 
               const updateSql = `UPDATE plots SET ${setClauses.join(', ')} WHERE plot_id = ${plotId};`;
               await runPostgreSql(updateSql);
+
+              const rawVarietyIds = Array.isArray(payload.varietyIds) ? payload.varietyIds : (Array.isArray(payload.compatibleVarietyIds) ? payload.compatibleVarietyIds : null);
+              if (rawVarietyIds !== null) {
+                const varietyIds = rawVarietyIds.map(v => parseInt(v, 10)).filter(v => !isNaN(v) && v > 0);
+                await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id = ${plotId};`);
+                if (varietyIds.length > 0) {
+                  const insertCompatSql = `INSERT INTO plot_variety_compatibility (plot_id, variety_id) VALUES ` +
+                    varietyIds.map(vid => `(${plotId}, ${vid})`).join(', ') +
+                    ` ON CONFLICT DO NOTHING;`;
+                  await runPostgreSql(insertCompatSql);
+                }
+              }
 
               invalidatePlotsCache();
 
@@ -3344,7 +3365,8 @@ SELECT json_build_object(
           return;
         }
 
-        // 14. PROCESS TEMPLATES API (GET)
+        // 14. PROCESS TEMPLATES API (GET, POST, PUT, DELETE)
+        // 14.1 GET /api/process-templates & /api/v1/process-templates
         if (req.method === 'GET' && (url === '/api/process-templates' || url === '/api/v1/process-templates' || url.startsWith('/api/process-templates?') || url.startsWith('/api/v1/process-templates?'))) {
           try {
             const sql = `
@@ -3370,46 +3392,61 @@ SELECT json_build_object(
           (SELECT sum(ts.duration_days)::int FROM template_steps ts WHERE ts.template_id = pt.template_id),
           v.expected_duration
         ) AS "totalDays",
-        COALESCE(
-          (
-            SELECT json_agg(
-              json_build_object(
-                'id', ts.step_id,
-                'day', ts.day_offset,
-                'name', ts.step_name,
-                'type', ts.task_type,
-                'description', COALESCE(ts.description, '')
-              ) ORDER BY ts.day_offset, ts.step_id
-            )
-            FROM template_steps ts
-            WHERE ts.template_id = pt.template_id
-          ),
-          '[]'::json
-        ) AS "steps",
         'Quy trình kỹ thuật nông nghiệp chuẩn VietGAP được ban hành chính thức cho giống ' || v.variety_name AS description,
-        'Chuyên gia Nông nghiệp Farmely' AS "authorName",
+        COALESCE(u.full_name, 'Chuyên gia Nông nghiệp Farmely') AS "authorName",
+        COALESCE(u.full_name, 'Chuyên gia Nông nghiệp Farmely') AS "author",
         TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt",
+        TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdDate",
         COALESCE(
           (SELECT json_agg(
             json_build_object(
+              'id', ts.step_id,
               'stepId', ts.step_id,
-              'stepOrder', ts.step_order,
+              'stepNumber', step_rows.step_num,
+              'stepOrder', step_rows.step_num,
               'stepName', ts.step_name,
+              'taskName', ts.step_name,
               'name', ts.step_name,
               'day', ts.day_offset,
               'dayOffset', ts.day_offset,
-              'type', 'BƯỚC ' || ts.step_order,
+              'taskType', ts.task_type,
+              'type', ts.task_type,
               'details', COALESCE(ts.description, ''),
-              'description', ts.description,
-              'materialsNeeded', ts.materials_needed,
-              'durationDays', ts.duration_days
-            ) ORDER BY ts.step_order ASC
-          ) FROM template_steps ts WHERE ts.template_id = pt.template_id),
+              'description', COALESCE(ts.description, ''),
+              'materialsNeeded', COALESCE(ts.materials_needed, ''),
+              'materialsRequired', COALESCE(ts.materials_needed, 'Chuẩn phân bón hữu cơ & vi sinh theo VietGAP'),
+              'method', CASE 
+                WHEN ts.task_type = 'SOIL_PREP' THEN 'Làm đất, đánh luống cao ráo & bón lót vi sinh Trichoderma'
+                WHEN ts.task_type = 'PLANTING' THEN 'Cấy cây con giống F1 đạt chuẩn tỷ lệ sống'
+                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo cảm biến trạm IoT'
+                WHEN ts.task_type = 'FERTILIZATION' THEN 'Bón thúc đạm hữu cơ vi sinh / phân trùn quế quanh tán'
+                WHEN ts.task_type = 'PEST_CONTROL' THEN 'Phun phòng sinh học tỏi ớt gừng / thảo mộc Matrine'
+                WHEN ts.task_type = 'PRUNING' THEN 'Cắm giàn cọc & tỉa chồi nách, cắt bỏ lá già chân'
+                WHEN ts.task_type = 'SAFETY_INTERVAL' THEN 'Cách ly an toàn tuyệt đối trước kỳ thu hái'
+                WHEN ts.task_type = 'HARVEST' THEN 'Thu hoạch sát gốc, cân đo điện tử & đóng sọt'
+                ELSE 'Kỹ thuật chăm sóc nông nghiệp chuẩn hóa'
+              END,
+              'durationDays', COALESCE(ts.duration_days, 1),
+              'durationMinutes', COALESCE(ts.duration_days * 60, 60),
+              'minTemp', ts.min_temp,
+              'maxTemp', ts.max_temp,
+              'minHumidity', ts.min_humidity,
+              'maxHumidity', ts.max_humidity,
+              'status', CASE WHEN ts.day_offset = 0 THEN 'COMPLETED' WHEN ts.day_offset <= 7 THEN 'ACTIVE' ELSE 'SCHEDULED' END
+            ) ORDER BY ts.day_offset ASC, ts.step_id ASC
+          ) FROM (
+              SELECT ts.*, ROW_NUMBER() OVER (PARTITION BY ts.template_id ORDER BY ts.day_offset ASC, ts.step_id ASC) AS step_num
+              FROM template_steps ts
+              WHERE ts.template_id = pt.template_id
+            ) step_rows
+            JOIN template_steps ts ON ts.step_id = step_rows.step_id
+          ),
           '[]'::json
         ) AS steps
       FROM process_templates pt
       JOIN varieties v ON pt.variety_id = v.variety_id
       JOIN crops c ON v.crop_id = c.crop_id
+      LEFT JOIN users u ON pt.pt_created_by = u.user_id
       ORDER BY pt.template_id ASC
     ) t
   )
@@ -3418,6 +3455,295 @@ SELECT json_build_object(
             const data = await runPostgreSql(sql);
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 14.2 GET /api/process-templates/:id (Template Detail with Steps)
+        if (req.method === 'GET' && (url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/))) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)[1];
+          const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy chi tiết quy trình chuẩn thành công',
+  'data', (
+    SELECT row_to_json(t) FROM (
+      SELECT 
+        pt.template_id AS id,
+        'TPL-' || LPAD(pt.template_id::text, 3, '0') AS code,
+        'Quy trình chuẩn VietGAP - ' || v.variety_name AS name,
+        pt.variety_id AS "varietyId",
+        v.variety_name AS "varietyName",
+        c.crop_id AS "cropId",
+        c.crop_name AS "cropName",
+        pt.version,
+        'ACTIVE' AS status,
+        COALESCE(
+          (SELECT count(*)::int FROM template_steps ts WHERE ts.template_id = pt.template_id), 0
+        ) AS "totalSteps",
+        COALESCE(
+          (SELECT sum(ts.duration_days)::int FROM template_steps ts WHERE ts.template_id = pt.template_id),
+          v.expected_duration
+        ) AS "totalDays",
+        'Quy trình kỹ thuật nông nghiệp chuẩn VietGAP được ban hành chính thức cho giống ' || v.variety_name AS description,
+        COALESCE(u.full_name, 'Chuyên gia Nông nghiệp Farmely') AS "authorName",
+        COALESCE(u.full_name, 'Chuyên gia Nông nghiệp Farmely') AS "author",
+        TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdAt",
+        TO_CHAR(pt.created_at, 'YYYY-MM-DD') AS "createdDate",
+        COALESCE(
+          (SELECT json_agg(
+            json_build_object(
+              'id', ts.step_id,
+              'stepId', ts.step_id,
+              'stepNumber', step_rows.step_num,
+              'stepOrder', step_rows.step_num,
+              'stepName', ts.step_name,
+              'taskName', ts.step_name,
+              'name', ts.step_name,
+              'day', ts.day_offset,
+              'dayOffset', ts.day_offset,
+              'taskType', ts.task_type,
+              'type', ts.task_type,
+              'details', COALESCE(ts.description, ''),
+              'description', COALESCE(ts.description, ''),
+              'materialsNeeded', COALESCE(ts.materials_needed, ''),
+              'materialsRequired', COALESCE(ts.materials_needed, 'Chuẩn phân bón hữu cơ & vi sinh theo VietGAP'),
+              'method', CASE 
+                WHEN ts.task_type = 'SOIL_PREP' THEN 'Làm đất, đánh luống cao ráo & bón lót vi sinh Trichoderma'
+                WHEN ts.task_type = 'PLANTING' THEN 'Cấy cây con giống F1 đạt chuẩn tỷ lệ sống'
+                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo cảm biến trạm IoT'
+                WHEN ts.task_type = 'FERTILIZATION' THEN 'Bón thúc đạm hữu cơ vi sinh / phân trùn quế quanh tán'
+                WHEN ts.task_type = 'PEST_CONTROL' THEN 'Phun phòng sinh học tỏi ớt gừng / thảo mộc Matrine'
+                WHEN ts.task_type = 'PRUNING' THEN 'Cắm giàn cọc & tỉa chồi nách, cắt bỏ lá già chân'
+                WHEN ts.task_type = 'SAFETY_INTERVAL' THEN 'Cách ly an toàn tuyệt đối trước kỳ thu hái'
+                WHEN ts.task_type = 'HARVEST' THEN 'Thu hoạch sát gốc, cân đo điện tử & đóng sọt'
+                ELSE 'Kỹ thuật chăm sóc nông nghiệp chuẩn hóa'
+              END,
+              'durationDays', COALESCE(ts.duration_days, 1),
+              'durationMinutes', COALESCE(ts.duration_days * 60, 60),
+              'minTemp', ts.min_temp,
+              'maxTemp', ts.max_temp,
+              'minHumidity', ts.min_humidity,
+              'maxHumidity', ts.max_humidity,
+              'status', CASE WHEN ts.day_offset = 0 THEN 'COMPLETED' WHEN ts.day_offset <= 7 THEN 'ACTIVE' ELSE 'SCHEDULED' END
+            ) ORDER BY ts.day_offset ASC, ts.step_id ASC
+          ) FROM (
+              SELECT ts.*, ROW_NUMBER() OVER (PARTITION BY ts.template_id ORDER BY ts.day_offset ASC, ts.step_id ASC) AS step_num
+              FROM template_steps ts
+              WHERE ts.template_id = pt.template_id
+            ) step_rows
+            JOIN template_steps ts ON ts.step_id = step_rows.step_id
+          ),
+          '[]'::json
+        ) AS steps
+      FROM process_templates pt
+      JOIN varieties v ON pt.variety_id = v.variety_id
+      JOIN crops c ON v.crop_id = c.crop_id
+      LEFT JOIN users u ON pt.pt_created_by = u.user_id
+      WHERE pt.template_id = ${templateId}
+    ) t
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":false,"message":"Không tìm thấy quy trình"}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 14.3 POST /api/process-templates (Create New Process Template for a Variety)
+        if (req.method === 'POST' && (url === '/api/process-templates' || url === '/api/v1/process-templates')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const varietyId = parseInt(String(payload.varietyId || 1).replace(/\D/g, ''), 10) || 1;
+              const version = (payload.version || 'v1.0').replace(/'/g, "''");
+              const createdBy = parseInt(payload.ptCreatedBy || payload.createdBy || 5, 10) || 5;
+
+              const insertSql = `
+INSERT INTO process_templates (variety_id, pt_created_by, version, created_at)
+VALUES (${varietyId}, ${createdBy}, '${version}', NOW())
+RETURNING template_id;
+`;
+              const insertRes = await runPostgreSql(insertSql);
+              const templateId = parseInt(String(insertRes).replace(/\D/g, ''), 10) || 1;
+
+              // Nếu có gửi kèm các bước ban đầu
+              if (Array.isArray(payload.steps) && payload.steps.length > 0) {
+                for (const step of payload.steps) {
+                  const sName = (step.stepName || step.taskName || 'Chăm sóc định kỳ').replace(/'/g, "''");
+                  const sDay = parseInt(step.dayOffset || step.day || 0, 10) || 0;
+                  const sType = (step.taskType || 'CARE').replace(/'/g, "''");
+                  const sDesc = (step.description || '').replace(/'/g, "''");
+                  const sMat = (step.materialsNeeded || '').replace(/'/g, "''");
+                  const sDur = parseInt(step.durationDays || 1, 10) || 1;
+                  await runPostgreSql(`
+INSERT INTO template_steps (template_id, step_name, day_offset, duration_days, task_type, description, materials_needed)
+VALUES (${templateId}, '${sName}', ${sDay}, ${sDur}, '${sType}', '${sDesc}', '${sMat}');
+                  `);
+                }
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Tạo quy trình canh tác thành công',
+                data: {
+                  id: templateId,
+                  templateId,
+                  varietyId,
+                  version
+                }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 14.4 POST /api/process-templates/:id/steps (Add Step to Template)
+        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps$/)) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps$/)[1];
+          const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const stepName = (payload.stepName || payload.taskName || 'Bước kỹ thuật mới').replace(/'/g, "''");
+              const dayOffset = parseInt(payload.dayOffset !== undefined ? payload.dayOffset : (payload.day || 0), 10) || 0;
+              const durationDays = parseInt(payload.durationDays || 1, 10) || 1;
+              const taskType = (payload.taskType || 'CARE').replace(/'/g, "''");
+              const description = (payload.description || payload.details || '').replace(/'/g, "''");
+              const materialsNeeded = (payload.materialsNeeded || payload.materialsRequired || '').replace(/'/g, "''");
+              const minTemp = payload.minTemp ? parseFloat(payload.minTemp) : 'NULL';
+              const maxTemp = payload.maxTemp ? parseFloat(payload.maxTemp) : 'NULL';
+              const minHumidity = payload.minHumidity ? parseFloat(payload.minHumidity) : 'NULL';
+              const maxHumidity = payload.maxHumidity ? parseFloat(payload.maxHumidity) : 'NULL';
+
+              const insertStepSql = `
+INSERT INTO template_steps (
+  template_id, step_name, day_offset, duration_days, task_type, 
+  description, materials_needed, min_temp, max_temp, min_humidity, max_humidity
+)
+VALUES (
+  ${templateId}, '${stepName}', ${dayOffset}, ${durationDays}, '${taskType}',
+  '${description}', '${materialsNeeded}', ${minTemp}, ${maxTemp}, ${minHumidity}, ${maxHumidity}
+)
+RETURNING step_id;
+`;
+              const stepRes = await runPostgreSql(insertStepSql);
+              const stepId = parseInt(String(stepRes).replace(/\D/g, ''), 10);
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Thêm bước kỹ thuật vào quy trình thành công',
+                data: {
+                  stepId,
+                  id: stepId,
+                  templateId,
+                  stepName,
+                  dayOffset,
+                  durationDays,
+                  taskType,
+                  description,
+                  materialsNeeded
+                }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 14.5 PUT /api/process-templates/:id/steps/:stepId (Update Step)
+        if (req.method === 'PUT' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/)) {
+          const match = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/);
+          const templateId = parseInt(match[1].replace(/\D/g, ''), 10) || 1;
+          const stepId = parseInt(match[2], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const setClauses = [];
+              if (payload.stepName || payload.taskName) {
+                setClauses.push(`step_name = '${(payload.stepName || payload.taskName).replace(/'/g, "''")}'`);
+              }
+              if (payload.dayOffset !== undefined || payload.day !== undefined) {
+                setClauses.push(`day_offset = ${parseInt(payload.dayOffset !== undefined ? payload.dayOffset : payload.day, 10) || 0}`);
+              }
+              if (payload.durationDays) {
+                setClauses.push(`duration_days = ${parseInt(payload.durationDays, 10) || 1}`);
+              }
+              if (payload.taskType) {
+                setClauses.push(`task_type = '${payload.taskType.replace(/'/g, "''")}'`);
+              }
+              if (payload.description !== undefined) {
+                setClauses.push(`description = '${payload.description.replace(/'/g, "''")}'`);
+              }
+              if (payload.materialsNeeded !== undefined || payload.materialsRequired !== undefined) {
+                setClauses.push(`materials_needed = '${(payload.materialsNeeded || payload.materialsRequired || '').replace(/'/g, "''")}'`);
+              }
+
+              if (setClauses.length > 0) {
+                await runPostgreSql(`
+UPDATE template_steps
+SET ${setClauses.join(', ')}
+WHERE step_id = ${stepId} AND template_id = ${templateId};
+                `);
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: `Cập nhật bước #${stepId} thành công` }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 14.6 DELETE /api/process-templates/:id/steps/:stepId (Delete Step)
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/)) {
+          const match = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/);
+          const templateId = parseInt(match[1].replace(/\D/g, ''), 10) || 1;
+          const stepId = parseInt(match[2], 10);
+          try {
+            await runPostgreSql(`DELETE FROM template_steps WHERE step_id = ${stepId} AND template_id = ${templateId};`);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, message: `Đã xóa bước #${stepId}` }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 14.7 DELETE /api/process-templates/:id (Delete Template)
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)[1];
+          const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
+          try {
+            await runPostgreSql(`DELETE FROM process_templates WHERE template_id = ${templateId};`);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, message: `Đã xóa quy trình #${templateId}` }));
           } catch (err) {
             res.statusCode = 500;
             res.end(JSON.stringify({ success: false, error: String(err) }));
