@@ -1,0 +1,91 @@
+# QUY TRÌNH KỸ THUẬT CANH TÁC CHUẨN VIETGAP - DƯA LEO BABY F1
+# HỆ THỐNG NÔNG NGHIỆP CÔNG NGHỆ CAO FARMELY
+# Áp dụng cho: Canh tác ủy thác trọn gói (Assisted-growing) & Giám sát IoT
+
+GIỐNG_CÂY: Dưa leo baby F1
+MÃ_PHIÊN_BẢN: v2.5 (Chuẩn VietGAP Nâng Cao)
+TRẠNG_THÁI: ACTIVE
+CHU_KỲ_DỰ_KIẾN: 55 ngày
+MÔ_TẢ: Quy trình nông nghiệp chuẩn VietGAP cho giống Dưa leo baby chịu nhiệt F1 tại nông trại Farmely Củ Chi. Kết hợp trạm quan trắc IoT điều tiết tưới nhỏ giọt và quản lý dịch hại bằng thảo mộc sinh học. Tự động sinh Care Task cho Chuyên viên lao động (CVLĐ).
+
+=== CÁC BƯỚC LỘ TRÌNH KỸ THUẬT CANH TÁC THEO MỐC NGÀY TUỔI (DAY OFFSET) ===
+
+[BƯỚC 1]
+NGÀY: 0
+TÊN: Làm đất xử lý giá thể & Đánh luống bón lót vi sinh
+LOẠI: SOIL_PREP
+THỜI_LƯỢNG: 120 phút
+VẬT_TƯ: Phân trùn quế vi sinh 2kg/m2, Vôi bột nông nghiệp khử chua, Chế phẩm nấm đối kháng Trichoderma
+HƯỚNG_DẪN: Xới đất sâu 25cm cho tơi xốp, rải vôi bột khử chua nâng độ pH đạt 6.0 - 6.8. Đánh luống cao 30cm, rộng 1m rãnh thoát nước tốt. Bón lót phân trùn quế đã ủ nấm Trichoderma. San phẳng mặt luống và phủ bạt nông nghiệp phản quang đục lỗ sẵn khoảng cách 40cm. Chụp ảnh mặt luống hoàn thiện nghiệm thu BR15.
+NHIỆT_ĐỘ: 25 - 34
+ĐỘ_ẨM: 65 - 80
+
+[BƯỚC 2]
+NGÀY: 2
+TÊN: Xuống giống cây con F1 & Kích thích bén rễ non
+LOẠI: PLANTING
+THỜI_LƯỢNG: 60 phút
+VẬT_TƯ: Khay cây con dưa leo baby F1 (đạt 2 lá thật, rễ trắng khỏe), Chế phẩm Humic sinh học kích rễ
+HƯỚNG_DẪN: Trồng cây con vào hốc bạt vào chiều mát, thao tác nhẹ nhàng tránh vỡ bầu rễ. Pha loãng dung dịch Humic tỷ lệ 1:500 tưới nhẹ quanh gốc để rễ non nhanh bám đất. Kiểm tra tỷ lệ sống đồng đều trên toàn thửa.
+NHIỆT_ĐỘ: 24 - 32
+ĐỘ_ẨM: 70 - 85
+
+[BƯỚC 3]
+NGÀY: 7
+TÊN: Cố định thân leo & Hiệu chuẩn trạm quan trắc tưới IoT
+LOẠI: IRRIGATION
+THỜI_LƯỢNG: 45 phút
+VẬT_TƯ: Kẹp thân nông nghiệp chuyên dụng, Dây se treo chịu tải trọng
+HƯỚNG_DẪN: Quấn dây treo đỡ thân chính lên giàn cao. Kiểm tra đầu nhỏ giọt của trạm quan trắc IoT vi khí hậu, đảm bảo áp lực nước đồng đều. Quy tắc BR18: Tự động hoãn phiên tưới khi độ ẩm đất trạm đo đạt >= 80% hoặc có mưa lớn.
+NHIỆT_ĐỘ: 22 - 35
+ĐỘ_ẨM: 60 - 80
+
+[BƯỚC 4]
+NGÀY: 14
+TÊN: Bón thúc đợt 1 & Tỉa nhánh chồi nách chân gốc
+LOẠI: FERTILIZATION
+THỜI_LƯỢNG: 90 phút
+VẬT_TƯ: Đạm cá hữu cơ ủ men vi sinh (Fish Amino Acid) tỷ lệ 1:200, NPK sinh học hữu cơ
+HƯỚNG_DẪN: Vặt tỉa toàn bộ nhánh phụ và hoa từ nách lá thứ 1 đến nách thứ 5 để cây tập trung dinh dưỡng nuôi thân chính to khỏe. Bón thúc đạm cá hữu cơ cách gốc 15cm kết hợp xới nhẹ phá váng.
+NHIỆT_ĐỘ: 25 - 35
+ĐỘ_ẨM: 60 - 85
+
+[BƯỚC 5]
+NGÀY: 22
+TÊN: Phun phòng sinh học tỏi ớt xua đuổi bọ trĩ rầy mềm
+LOẠI: PEST_CONTROL
+THỜI_LƯỢNG: 60 phút
+VẬT_TƯ: Chế phẩm thảo mộc tỏi ớt gừng ủ giấm, Tinh dầu Neem oil nguyên chất ép lạnh
+HƯỚNG_DẪN: Phun sương đều 2 mặt lá và ngọn non vào sáng sớm để xua đuổi bọ trĩ, nhện đỏ và rầy mềm. Tuyệt đối không sử dụng hóa chất bảo vệ thực vật theo cam kết an toàn VietGAP.
+NHIỆT_ĐỘ: 20 - 32
+ĐỘ_ẨM: 60 - 80
+
+[BƯỚC 6]
+NGÀY: 30
+TÊN: Bón nuôi quả Kali hữu cơ & Bấm ngọn định hình giàn
+LOẠI: CARE
+THỜI_LƯỢNG: 90 phút
+VẬT_TƯ: Dịch chuối ủ men giàu Kali hữu cơ, Chế phẩm Canxi-Bo sữa sinh học
+HƯỚNG_DẪN: Khi cây ra hoa cái và đậu quả non rộ, phun bổ sung Canxi-Bo chống rụng quả non và bón dịch chuối hữu cơ quanh gốc giúp quả ngọt đậm đà, thẳng mướt. Bấm ngọn khi dây leo chạm đỉnh giàn 2m.
+NHIỆT_ĐỘ: 22 - 34
+ĐỘ_ẨM: 65 - 85
+
+[BƯỚC 7]
+NGÀY: 42
+TÊN: Thiết lập thời gian cách ly an toàn VietGAP trước thu hoạch
+LOẠI: SAFETY_INTERVAL
+THỜI_LƯỢNG: 30 phút
+VẬT_TƯ: Nước giếng khoan lọc trạm xử lý vi sinh
+HƯỚNG_DẪN: Ngưng toàn bộ việc bón phân và phun chế phẩm phòng trừ sâu bệnh. Chỉ duy trì tưới nước sạch tinh khiết qua hệ thống nhỏ giọt để đảm bảo dư lượng an toàn tuyệt đối 100% trước kỳ thu hái.
+NHIỆT_ĐỘ: 24 - 32
+ĐỘ_ẨM: 65 - 80
+
+[BƯỚC 8]
+NGÀY: 48
+TÊN: Thu hoạch dưa leo baby đợt 1 & Cân đo ghi nhận sản lượng
+LOẠI: HARVEST
+THỜI_LƯỢNG: 120 phút
+VẬT_TƯ: Kéo cắt cuống vô trùng chuyên dụng, Sọt nhựa thoáng khí VietGAP lót giấy xốp, Cân điện tử
+HƯỚNG_DẪN: Thu hái quả vào buổi sáng sớm khi quả đạt kích thước chuẩn 10-12cm, cuống còn tươi xanh và vỏ phủ lớp phấn trắng tự nhiên. Cắt sát cuống 0.5cm, cân đo điện tử ghi nhận vào harvest_results kèm mã nhân sự CVLĐ (BR20).
+NHIỆT_ĐỘ: 20 - 30
+ĐỘ_ẨM: 60 - 75

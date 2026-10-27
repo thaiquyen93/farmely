@@ -3624,7 +3624,7 @@ VALUES (
           return;
         }
 
-        // 14.4 POST /api/process-templates/:id/steps (Add Step to Template)
+        // 14.4 POST /api/process-templates/:id/steps (Add Step or Bulk Steps to Template)
         if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps$/)) {
           const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
@@ -3633,6 +3633,45 @@ VALUES (
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
+
+              // Trường hợp gửi danh sách nhiều bước (Bulk Import)
+              if (Array.isArray(payload.steps) && payload.steps.length > 0) {
+                let insertedCount = 0;
+                for (const step of payload.steps) {
+                  const sName = (step.stepName || step.taskName || 'Bước kỹ thuật mới').replace(/'/g, "''");
+                  const sDay = parseInt(step.dayOffset !== undefined ? step.dayOffset : (step.day || 0), 10) || 0;
+                  const sDur = parseInt(step.durationDays || Math.ceil((step.durationMinutes || 60) / 60) || 1, 10) || 1;
+                  const sType = (step.taskType || 'CARE').replace(/'/g, "''");
+                  const sDesc = (step.description || step.details || '').replace(/'/g, "''");
+                  const sMat = (step.materialsNeeded || step.materialsRequired || '').replace(/'/g, "''");
+                  const sMinT = step.minTemp !== undefined && step.minTemp !== null && step.minTemp !== '' ? parseFloat(step.minTemp) : 'NULL';
+                  const sMaxT = step.maxTemp !== undefined && step.maxTemp !== null && step.maxTemp !== '' ? parseFloat(step.maxTemp) : 'NULL';
+                  const sMinH = step.minHumidity !== undefined && step.minHumidity !== null && step.minHumidity !== '' ? parseFloat(step.minHumidity) : 'NULL';
+                  const sMaxH = step.maxHumidity !== undefined && step.maxHumidity !== null && step.maxHumidity !== '' ? parseFloat(step.maxHumidity) : 'NULL';
+
+                  await runPostgreSql(`
+INSERT INTO template_steps (
+  template_id, step_name, day_offset, duration_days, task_type, 
+  description, materials_needed, min_temp, max_temp, min_humidity, max_humidity
+)
+VALUES (
+  ${templateId}, '${sName}', ${sDay}, ${sDur}, '${sType}', 
+  '${sDesc}', '${sMat}', ${sMinT}, ${sMaxT}, ${sMinH}, ${sMaxH}
+);
+                  `);
+                  insertedCount++;
+                }
+
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({
+                  success: true,
+                  message: `Đã nạp thành công ${insertedCount} bước kỹ thuật vào quy trình`,
+                  data: { templateId, count: insertedCount }
+                }));
+                return;
+              }
+
+              // Trường hợp thêm 1 bước đơn lẻ
               const stepName = (payload.stepName || payload.taskName || 'Bước kỹ thuật mới').replace(/'/g, "''");
               const dayOffset = parseInt(payload.dayOffset !== undefined ? payload.dayOffset : (payload.day || 0), 10) || 0;
               const durationDays = parseInt(payload.durationDays || 1, 10) || 1;
