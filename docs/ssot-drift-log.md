@@ -114,3 +114,15 @@ ightarrow$ tạo bản ghi `contract_cancellations` với trạng thái `PENDING
   - Bổ sung endpoint backend `POST /api/contracts/cancellations/:id/approve`: Admin duyệt $
 ightarrow$ cập nhật `cancellation` sang `APPROVED`, cập nhật `contracts` & `rentals` sang `CANCELLED`, chuyển các `plots` sang `MAINT` 4 ngày (BR23), tự động tạo bản ghi hoàn tiền `payment_transactions` (loại `REFUND`) và ghi log kiểm toán `audit_logs`.
 - **Trạng thái:** ✅ Đã hoàn toàn đồng bộ 1:1 với SSoT Report 3 và Report 4.
+
+### [DRIFT-009] Tích Hợp Lựa Chọn Giống Cây Tương Thích Trực Tiếp Vào Màn Hình Tạo Thửa Đất (BR03)
+- **Ngày:** 2026-10-27
+- **File:** `frontend/src/pages/admin/PlotForm.jsx`, `frontend/src/pages/admin/PlotDetail.jsx`, `frontend/src/components/admin/BoundaryDrawMap.jsx`, `frontend/server/siteVisitsApiPlugin.js`
+- **Docs nói (Report 3 SRS §3.1.2 & Report 4 SDD §2.4 / BR03):** Quy định tương thích giữa Thửa đất (`plots`) và Giống cây (`varieties`) thông qua bảng `plot_variety_compatibility`. Khách hàng chỉ được chọn các giống cây nằm trong danh mục tương thích của thửa đất đó.
+- **Hiện trạng trước đây:** Màn hình tạo thửa đất (`PlotForm.jsx`) chỉ tạo các thuộc tính cơ bản và ranh giới bản đồ, không có chỗ để Admin cấu hình giống cây cho thửa; Admin phải mò sang màn hình Ma trận Thổ Nhưỡng (`Compatibility.jsx`) để gán từng giống cây thủ công.
+- **Code mới đã chuẩn hóa:**
+  - Ẩn hoàn toàn công cụ tìm toạ độ / ghim GPS trong chế độ vẽ thửa đất (`BoundaryDrawMap.jsx` với `kind === 'plot'`), giữ bản đồ gọn gàng và tập trung vào phân lô.
+  - Tích hợp trực tiếp phân đoạn **"Giống cây trồng phù hợp thổ nhưỡng (Quy tắc BR03)"** vào ngay form Tạo / Sửa Thửa Đất (`PlotForm.jsx`): hiển thị toàn bộ danh mục giống cây VietGAP kèm thời gian sinh trưởng, có tìm kiếm nhanh, nút Chọn tất cả / Bỏ chọn, và ràng buộc validation bắt buộc chọn $\ge 1$ giống cây.
+  - Lưu và đồng bộ 100% dữ liệu thực tế vào bảng `plot_variety_compatibility` của PostgreSQL qua API `POST /api/plots` và `PUT /api/plots/:id`.
+  - Dữ liệu giống cây tương thích được đồng bộ tức thì trên WebGIS Marketplace (`/marketplace`), màn hình Thuê đất (`/book-plot`) và màn hình chi tiết Thửa đất của Admin (`PlotDetail.jsx`).
+- **Trạng thái:** ✅ Đã hoàn thiện và kiểm thử đồng bộ 100% với PostgreSQL live.
