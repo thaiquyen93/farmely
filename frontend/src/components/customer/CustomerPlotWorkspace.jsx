@@ -198,8 +198,8 @@ function CropGrowthHero({ cropProcess, onOpenStageDetail }) {
             {cropProcess.isNotStarted ? `${cropProcess.cropName} · Chưa bắt đầu canh tác` : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
           </h3>
           <p className="mt-1 text-sm text-lime-100/90 leading-relaxed max-w-2xl">
-            {cropProcess.isNotStarted 
-              ? 'Vụ mùa kế tiếp đã được lên lịch. Tiến độ sẽ bắt đầu tính khi vào vụ mới (sau chu kỳ nghỉ đất và làm đất tiêu chuẩn 5 ngày).' 
+            {cropProcess.isNotStarted
+              ? 'Vụ mùa kế tiếp đã được lên lịch. Tiến độ sẽ bắt đầu tính khi vào vụ mới (sau chu kỳ nghỉ đất và làm đất tiêu chuẩn 5 ngày).'
               : (currentStage?.statusDesc || 'Cây trồng đang phát triển thuận lợi theo đúng chỉ dẫn kỹ thuật nông học.')}
           </p>
 
@@ -277,7 +277,7 @@ function StandardProcessTimeline({
     if (entry.cropDay !== undefined && entry.cropDay !== null) return Number(entry.cropDay);
     if (entry.day !== undefined && entry.day !== null) return Number(entry.day);
     if (entry.dayOffset !== undefined && entry.dayOffset !== null) return Math.max(1, Number(entry.dayOffset));
-    
+
     // Nếu có ngày thực tế so với startDate của thửa đất
     const dateStr = entry.date || entry.createdAt || entry.created_at;
     if (dateStr && plot?.startDate) {
@@ -287,9 +287,9 @@ function StandardProcessTimeline({
         const diffDays = Math.floor((d1.getTime() - d0.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         if (diffDays >= 1 && diffDays <= totalDays) return diffDays;
         if (diffDays <= 0) return 1;
-      } catch {}
+      } catch { }
     }
-    
+
     const timeStr = String(entry.time || '') + ' ' + String(entry.dateFormatted || '');
     if (timeStr.includes('Hôm nay')) {
       return currentCropDay;
@@ -297,7 +297,7 @@ function StandardProcessTimeline({
     if (timeStr.includes('Hôm qua')) {
       return Math.max(1, currentCropDay - 1);
     }
-    
+
     return null;
   }, [plot?.startDate, currentCropDay, totalDays]);
 
@@ -359,8 +359,8 @@ function StandardProcessTimeline({
         shortTitle = shortTitle.split('·')[0].trim();
       }
       shortTitle = shortTitle.replace(/\s*đạt chuẩn VietGAP\s*/gi, '')
-                             .replace(/\s*tiêu chuẩn VietGAP\s*/gi, '')
-                             .trim();
+        .replace(/\s*tiêu chuẩn VietGAP\s*/gi, '')
+        .trim();
 
       // Mốc cuối cùng gắn với ngày thu hoạch kết thúc (totalDays)
       const milestoneDay = idx === numStages - 1 ? totalDays : st.dayStart;
@@ -578,9 +578,8 @@ function StandardProcessTimeline({
                     {/* Badge Hôm nay / Sắp tới / Đang xem trên nút */}
                     <div className="absolute -top-8 pointer-events-none flex flex-col items-center">
                       {isSelected ? (
-                        <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black text-white shadow-md whitespace-nowrap ring-1 ${
-                          isToday ? 'bg-emerald-800 ring-emerald-400' : isUpcomingFirst ? 'bg-sky-700 ring-sky-300' : 'bg-emerald-800 ring-emerald-400'
-                        }`}>
+                        <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black text-white shadow-md whitespace-nowrap ring-1 ${isToday ? 'bg-emerald-800 ring-emerald-400' : isUpcomingFirst ? 'bg-sky-700 ring-sky-300' : 'bg-emerald-800 ring-emerald-400'
+                          }`}>
                           {isToday ? 'HÔM NAY' : isUpcomingFirst ? 'SẮP TỚI' : 'ĐANG XEM'}
                         </span>
                       ) : isToday ? (
@@ -599,13 +598,12 @@ function StandardProcessTimeline({
                       type="button"
                       onClick={() => setSelectedDay(evt.day)}
                       onPointerDown={(e) => e.stopPropagation()}
-                      className={`group flex items-center justify-center rounded-2xl transition-all duration-300 cursor-pointer ${
-                        isSelected
+                      className={`group flex items-center justify-center rounded-2xl transition-all duration-300 cursor-pointer ${isSelected
                           ? 'h-12 w-12 bg-emerald-800 text-white ring-4 ring-emerald-300 shadow-xl scale-110 z-20'
                           : isPassed
-                          ? 'h-10 w-10 bg-emerald-700 text-white ring-2 ring-emerald-200 shadow-md hover:scale-110 z-10'
-                          : 'h-10 w-10 bg-white text-stone-700 border-2 border-stone-300 shadow-xs hover:border-emerald-500 hover:scale-110 z-10'
-                      }`}
+                            ? 'h-10 w-10 bg-emerald-700 text-white ring-2 ring-emerald-200 shadow-md hover:scale-110 z-10'
+                            : 'h-10 w-10 bg-white text-stone-700 border-2 border-stone-300 shadow-xs hover:border-emerald-500 hover:scale-110 z-10'
+                        }`}
                       title={`Ngày ${evt.day}: ${evt.title}`}
                     >
                       <Icon className={isSelected ? 'h-5 w-5 text-lime-300' : 'h-4 w-4'} />
@@ -613,14 +611,12 @@ function StandardProcessTimeline({
 
                     {/* Nhãn mô tả sự kiện bên dưới - Rộng rãi, cách đều nhau, không bao giờ bị đè */}
                     <div className="mt-3.5 flex flex-col items-center text-center w-full pointer-events-none">
-                      <span className={`text-xs font-black whitespace-nowrap ${
-                        isSelected ? 'text-emerald-950 scale-105' : 'text-stone-800'
-                      }`}>
+                      <span className={`text-xs font-black whitespace-nowrap ${isSelected ? 'text-emerald-950 scale-105' : 'text-stone-800'
+                        }`}>
                         Ngày {evt.day}
                       </span>
-                      <span className={`text-[11px] font-semibold mt-0.5 leading-snug line-clamp-2 ${
-                        isSelected ? 'text-emerald-800 font-bold' : 'text-stone-600'
-                      }`}>
+                      <span className={`text-[11px] font-semibold mt-0.5 leading-snug line-clamp-2 ${isSelected ? 'text-emerald-800 font-bold' : 'text-stone-600'
+                        }`}>
                         {evt.shortTitle}
                       </span>
                       {evt.stage?.label && (
@@ -835,9 +831,8 @@ function StandardProcessTimeline({
                   return (
                     <div
                       key={act.activityId || act.id || idx}
-                      className={`rounded-xl border p-3.5 space-y-2 text-xs transition ${
-                        isDone ? 'border-emerald-200 bg-emerald-50/40' : 'border-sky-100 bg-sky-50/30'
-                      }`}
+                      className={`rounded-xl border p-3.5 space-y-2 text-xs transition ${isDone ? 'border-emerald-200 bg-emerald-50/40' : 'border-sky-100 bg-sky-50/30'
+                        }`}
                     >
                       <div className="flex items-center justify-between text-xs gap-2">
                         <div className="flex items-center gap-2 min-w-0">
@@ -845,11 +840,10 @@ function StandardProcessTimeline({
                             <button
                               type="button"
                               onClick={() => onToggleTask?.(act.id || act.activityId)}
-                              className={`h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${
-                                isDone
+                              className={`h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${isDone
                                   ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
                                   : 'border-stone-300 bg-white hover:border-emerald-500'
-                              }`}
+                                }`}
                               title={isDone ? 'Bấm để đánh dấu chưa xong' : 'Bấm để đánh dấu hoàn thành'}
                             >
                               {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -1024,25 +1018,23 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
   const isToday = activity.isToday;
 
   return (
-    <div className={`group relative flex flex-col sm:flex-row items-start gap-4 rounded-2xl border transition hover:shadow-md ${
-      isDone
+    <div className={`group relative flex flex-col sm:flex-row items-start gap-4 rounded-2xl border transition hover:shadow-md ${isDone
         ? 'border-emerald-200/90 bg-emerald-50/20'
         : isToday
-        ? 'border-2 border-amber-300 bg-gradient-to-r from-amber-50/40 via-white to-amber-50/20 shadow-xs hover:border-emerald-500'
-        : 'border-stone-200/90 bg-stone-50/40 hover:bg-white hover:border-stone-300'
-    } p-4 shadow-sm`}>
+          ? 'border-2 border-amber-300 bg-gradient-to-r from-amber-50/40 via-white to-amber-50/20 shadow-xs hover:border-emerald-500'
+          : 'border-stone-200/90 bg-stone-50/40 hover:bg-white hover:border-stone-300'
+      } p-4 shadow-sm`}>
       {/* Cột trái: Nút Checkbox (cho Tự canh tác) HOẶC Ảnh minh chứng (cho Staff) */}
       {isSelf ? (
         <button
           type="button"
           onClick={() => onToggleTask?.(activity.activityId || activity.id)}
-          className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl border-2 flex items-center justify-center shrink-0 transition-all cursor-pointer ${
-            isDone
+          className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl border-2 flex items-center justify-center shrink-0 transition-all cursor-pointer ${isDone
               ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
               : isToday
-              ? 'border-amber-400 bg-amber-50 text-amber-500 hover:border-emerald-500 hover:bg-emerald-50'
-              : 'border-stone-300 bg-stone-50 hover:border-emerald-500 hover:bg-emerald-50/50 text-stone-300 hover:text-emerald-600'
-          }`}
+                ? 'border-amber-400 bg-amber-50 text-amber-500 hover:border-emerald-500 hover:bg-emerald-50'
+                : 'border-stone-300 bg-stone-50 hover:border-emerald-500 hover:bg-emerald-50/50 text-stone-300 hover:text-emerald-600'
+            }`}
           title={isDone ? 'Bấm để đánh dấu chưa hoàn thành' : 'Bấm để đánh dấu hoàn thành'}
         >
           <Check className={`h-5 w-5 stroke-[3] transition-transform ${isDone ? 'scale-100' : 'scale-75 opacity-30'}`} />
@@ -1067,9 +1059,8 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
           </span>
         </div>
       ) : (
-        <div className={`flex h-20 w-full sm:h-24 sm:w-28 shrink-0 items-center justify-center rounded-xl ${
-          isToday ? 'bg-amber-100/70 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-        }`}>
+        <div className={`flex h-20 w-full sm:h-24 sm:w-28 shrink-0 items-center justify-center rounded-xl ${isToday ? 'bg-amber-100/70 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+          }`}>
           {isToday ? <Flame className="h-8 w-8 animate-pulse text-amber-600" /> : <CalendarCheck className="h-8 w-8 opacity-60" />}
         </div>
       )}
@@ -1078,15 +1069,14 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-              isDone
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${isDone
                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                 : isInProg
-                ? 'bg-sky-100 text-sky-800 border border-sky-300 font-bold'
-                : isToday
-                ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
-                : 'bg-stone-100 text-stone-600 border border-stone-200'
-            }`}>
+                  ? 'bg-sky-100 text-sky-800 border border-sky-300 font-bold'
+                  : isToday
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
+                    : 'bg-stone-100 text-stone-600 border border-stone-200'
+              }`}>
               {isDone ? <Check className="h-3.5 w-3.5" /> : isToday ? <Flame className="h-3.5 w-3.5 text-amber-600" /> : <Clock className="h-3.5 w-3.5" />}
               {isDone ? 'Đã hoàn tất' : isInProg ? 'Đang thực hiện' : isToday ? 'Cần làm hôm nay' : 'Kế hoạch sắp tới'}
             </span>
@@ -1098,19 +1088,17 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
               {activity.actionTypeName}
             </span>
           ) : activity.cropDay ? (
-            <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold border ${
-              isToday
+            <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold border ${isToday
                 ? 'bg-amber-100 text-amber-900 border-amber-200'
                 : 'bg-emerald-50 text-emerald-800 border-emerald-100'
-            }`}>
+              }`}>
               Ngày tuổi {activity.cropDay}
             </span>
           ) : null}
         </div>
 
-        <h4 className={`mt-1.5 text-sm font-bold transition ${
-          isDone && isSelf ? 'text-stone-400 line-through' : 'text-[#18352b] group-hover:text-emerald-800'
-        }`}>
+        <h4 className={`mt-1.5 text-sm font-bold transition ${isDone && isSelf ? 'text-stone-400 line-through' : 'text-[#18352b] group-hover:text-emerald-800'
+          }`}>
           {activity.title}
         </h4>
 
@@ -1203,7 +1191,7 @@ function StaffActivitiesTab({
 
   const filtered = useMemo(() => {
     return activities.filter((act) => {
-      const matchSearch = !searchQuery.trim() || 
+      const matchSearch = !searchQuery.trim() ||
         act.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (act.notes && act.notes.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (!isSelf && act.workerName && act.workerName.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -1299,13 +1287,12 @@ function StaffActivitiesTab({
                 key={btn.id}
                 type="button"
                 onClick={() => setStatusFilter(btn.id)}
-                className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
-                  statusFilter === btn.id
+                className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold transition cursor-pointer ${statusFilter === btn.id
                     ? 'bg-[#18352b] text-white shadow-sm'
                     : btn.highlight
-                    ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
-                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                }`}
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                  }`}
               >
                 {btn.label}
               </button>
@@ -1629,9 +1616,8 @@ function ReadingCard({ metric, plot, onClick, active = false, showAction = true,
       {...(onClick ? { type: 'button', onClick, 'aria-pressed': active } : {})}
       aria-label={`${reading.label}: ${currentVal ?? 'chưa có'} — ${reading.chip}. ${reading.meaning}`}
       style={{ animationDelay: `${delay}ms` }}
-      className={`group relative flex animate-fadeInUp flex-col overflow-hidden rounded-3xl border bg-white p-4 text-left transition duration-300 ${CARD_SHADOW} ${
-        pulsing ? 'ring-2 ring-emerald-400 shadow-md scale-[1.01]' : active ? 'border-transparent ring-2' : 'border-white/80'
-      } ${onClick ? 'hover:-translate-y-1 hover:shadow-[0_20px_40px_-18px_rgba(24,53,43,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400' : ''}`}
+      className={`group relative flex animate-fadeInUp flex-col overflow-hidden rounded-3xl border bg-white p-4 text-left transition duration-300 ${CARD_SHADOW} ${pulsing ? 'ring-2 ring-emerald-400 shadow-md scale-[1.01]' : active ? 'border-transparent ring-2' : 'border-white/80'
+        } ${onClick ? 'hover:-translate-y-1 hover:shadow-[0_20px_40px_-18px_rgba(24,53,43,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400' : ''}`}
     >
       <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-[0.12] blur-2xl transition-opacity group-hover:opacity-25" style={{ backgroundColor: metric.color }} />
       {active && <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-3xl ring-2 ring-inset" style={{ '--tw-ring-color': metric.color }} />}
@@ -1829,9 +1815,8 @@ function IotTab({ plot, iotData, alerts, isConnected = false, onRefreshLive, isR
                 key={m.key}
                 type="button"
                 onClick={() => setMetricKey(m.key)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                  active ? 'border-transparent text-white' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300'
-                }`}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${active ? 'border-transparent text-white' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300'
+                  }`}
                 style={active ? { backgroundColor: m.color } : undefined}
               >
                 <Icon className="h-3.5 w-3.5" />{m.label}
@@ -2203,11 +2188,10 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
                         <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                           {o.id}
                         </span>
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                          isCompleted
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${isCompleted
                             ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                             : 'bg-amber-100 text-amber-800 border border-amber-200'
-                        }`}>
+                          }`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${isCompleted ? 'bg-emerald-600' : 'bg-amber-500 animate-pulse'}`} />
                           {o.statusLabel}
                         </span>
@@ -2218,7 +2202,7 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
                       </div>
 
                       <h4 className="text-base font-bold text-[#18352b] pt-0.5">{o.serviceName}</h4>
-                      
+
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-600">
                         <span className="flex items-center gap-1">
                           <Clock3 className="w-3.5 h-3.5 text-stone-400" />
@@ -2238,7 +2222,7 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
                       {/* Photo evidence preview if completed or uploaded */}
                       {o.proofPhoto ? (
                         <div className="pt-2 flex items-center gap-3">
-                          <div 
+                          <div
                             className="relative h-14 w-20 rounded-xl overflow-hidden border border-emerald-200 cursor-pointer shadow-xs group"
                             onClick={() => setSelectedOrderForDetail(o)}
                           >
@@ -2279,10 +2263,10 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
               );
             })
           ) : (
-            <EmptyState 
-              icon={ShoppingBag} 
-              title="Chưa có dịch vụ nào trong mục này" 
-              note="Các dịch vụ phát sinh hoặc gói ủy thác chăm sóc bạn đặt cho thửa này sẽ được lưu trữ và hiển thị đầy đủ tại đây." 
+            <EmptyState
+              icon={ShoppingBag}
+              title="Chưa có dịch vụ nào trong mục này"
+              note="Các dịch vụ phát sinh hoặc gói ủy thác chăm sóc bạn đặt cho thửa này sẽ được lưu trữ và hiển thị đầy đủ tại đây."
             />
           )}
         </div>
@@ -2344,9 +2328,9 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
                   Ảnh minh chứng hiện trường (BR15):
                 </h5>
                 <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-stone-900 flex items-center justify-center max-h-56">
-                  <img 
-                    src={selectedOrderForDetail.proofPhoto} 
-                    alt="Minh chứng hiện trường" 
+                  <img
+                    src={selectedOrderForDetail.proofPhoto}
+                    alt="Minh chứng hiện trường"
                     className="max-h-56 w-full object-cover"
                   />
                 </div>
@@ -2459,8 +2443,8 @@ export default function CustomerPlotWorkspace({
 
   const plotSeasons = useMemo(() => {
     if (customSeasons && customSeasons.length > 0) return customSeasons;
-    return resolvePlotSeasons(plot);
-  }, [plot, customSeasons]);
+    return resolvePlotSeasons(plot, plots);
+  }, [plot, customSeasons, plots]);
 
   const [activeSeasonId, setActiveSeasonId] = useState(() => {
     const current = plotSeasons.find((s) => s.isCurrent || s.status === 'ACTIVE');
@@ -2547,7 +2531,7 @@ export default function CustomerPlotWorkspace({
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch {}
+    } catch { }
     return [];
   });
 
@@ -2556,7 +2540,7 @@ export default function CustomerPlotWorkspace({
       setSelfTasks(defaultSelfTasks);
       try {
         localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(defaultSelfTasks));
-      } catch {}
+      } catch { }
     }
   }, [isSelf, selfTasks.length, defaultSelfTasks, plot.id]);
 
@@ -2571,7 +2555,7 @@ export default function CustomerPlotWorkspace({
       });
       try {
         localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(next));
-      } catch {}
+      } catch { }
       return next;
     });
   }, [plot.id]);
@@ -2592,7 +2576,7 @@ export default function CustomerPlotWorkspace({
       const next = [taskObj, ...prev];
       try {
         localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(next));
-      } catch {}
+      } catch { }
       return next;
     });
   }, [plot.id]);
@@ -2602,7 +2586,7 @@ export default function CustomerPlotWorkspace({
       const next = prev.filter((t) => (t.id || t.activityId) !== taskId);
       try {
         localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(next));
-      } catch {}
+      } catch { }
       return next;
     });
   }, [plot.id]);
@@ -2653,7 +2637,7 @@ export default function CustomerPlotWorkspace({
                     const d0 = new Date(plot.startDate);
                     const diff = Math.floor((d1.getTime() - d0.getTime()) / (1000 * 60 * 60 * 24)) + 1;
                     if (diff >= 1) taskDay = diff;
-                  } catch {}
+                  } catch { }
                 }
                 const resolvedDay = taskDay ? Math.max(1, Number(taskDay)) : 1;
 
@@ -2830,7 +2814,7 @@ export default function CustomerPlotWorkspace({
       label: cropProcess.isNotStarted ? 'Bắt đầu sau' : 'Tới thu hoạch',
       value: cropProcess.isNotStarted ? (cropProcess.daysUntilStart || 0) : cropProcess.daysLeft,
       unit: 'ngày',
-      note: cropProcess.isNotStarted 
+      note: cropProcess.isNotStarted
         ? (plot.startDate ? `Bắt đầu: ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Theo lịch vụ mùa')
         : (plot.expectedHarvestDate ? `Dự kiến ${plot.expectedHarvestDate}` : 'Đúng tiến độ'),
       icon: Wheat,
@@ -2840,11 +2824,11 @@ export default function CustomerPlotWorkspace({
       label: isSelf ? 'Công việc' : 'Việc Staff',
       value: cropProcess.isNotStarted ? 0 : (isSelf ? selfTasks.length : staffActivities.length),
       unit: 'mục',
-      note: cropProcess.isNotStarted 
+      note: cropProcess.isNotStarted
         ? 'Chờ ngày xuống giống'
-        : (isSelf 
-            ? `${selfTasks.filter(t => t.status !== 'COMPLETED').length} việc cần làm` 
-            : (openTaskCount > 0 ? `${openTaskCount} việc đang làm` : 'Đã nghiệm thu đủ')),
+        : (isSelf
+          ? `${selfTasks.filter(t => t.status !== 'COMPLETED').length} việc cần làm`
+          : (openTaskCount > 0 ? `${openTaskCount} việc đang làm` : 'Đã nghiệm thu đủ')),
       icon: CalendarCheck,
       tab: 'tasks'
     }
@@ -2967,9 +2951,8 @@ export default function CustomerPlotWorkspace({
                   role="tab"
                   aria-selected={active}
                   onClick={() => goTab(t.id)}
-                  className={`relative flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-300 cursor-pointer ${
-                    active ? 'bg-gradient-to-br from-[#1d4a39] to-[#0f2a20] text-white shadow-md shadow-[#18352b]/25' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
-                  }`}
+                  className={`relative flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-300 cursor-pointer ${active ? 'bg-gradient-to-br from-[#1d4a39] to-[#0f2a20] text-white shadow-md shadow-[#18352b]/25' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+                    }`}
                 >
                   <Icon className={`h-4 w-4 ${active ? 'text-lime-300' : ''}`} />
                   {t.label}
@@ -3123,9 +3106,8 @@ export default function CustomerPlotWorkspace({
                 aria-selected={active}
                 aria-label={t.label}
                 onClick={() => goTab(t.id)}
-                className={`relative flex min-h-[50px] flex-col items-center justify-center gap-0.5 rounded-2xl px-0.5 text-[9px] font-semibold transition-all duration-300 ${
-                  active ? 'bg-lime-300 text-[#17372c] shadow-sm' : 'text-white/65'
-                }`}
+                className={`relative flex min-h-[50px] flex-col items-center justify-center gap-0.5 rounded-2xl px-0.5 text-[9px] font-semibold transition-all duration-300 ${active ? 'bg-lime-300 text-[#17372c] shadow-sm' : 'text-white/65'
+                  }`}
               >
                 <span className="relative">
                   <Icon className="h-4 w-4" />

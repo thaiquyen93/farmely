@@ -232,7 +232,9 @@ export default function MarketplacePlotDetailPanel({
       id="detail-panel"
       data-plot-detail-panel={isOpen && plot ? 'open' : 'closed'}
       aria-label={`Chi tiết thửa đất ${plot?.code || ''}`}
-      className={`absolute inset-x-2 top-20 bottom-2 z-40 flex w-auto flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-[0_20px_60px_rgba(0,0,0,0.15)] backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform will-change-transform sm:inset-x-auto sm:right-3 sm:bottom-3 sm:w-[340px] sm:rounded-3xl 2xl:right-4 2xl:bottom-4 2xl:w-[370px] ${
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      className={`absolute inset-x-2 top-20 bottom-2 z-40 flex w-auto flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_16px_48px_rgba(0,0,0,0.16)] transition-transform duration-300 ease-out sm:inset-x-auto sm:right-3 sm:bottom-3 sm:w-[340px] sm:rounded-3xl 2xl:right-4 2xl:bottom-4 2xl:w-[370px] ${
         isOpen
           ? 'translate-x-0 translate-y-0 opacity-100 pointer-events-auto'
           : 'translate-y-[110%] opacity-0 pointer-events-none sm:translate-x-[400px] sm:translate-y-0'
@@ -261,7 +263,7 @@ export default function MarketplacePlotDetailPanel({
             <button
               type="button"
               onClick={prevPhoto}
-              className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-md text-white/90 hover:bg-black/70 hover:scale-110 active:scale-95 transition-all flex items-center justify-center border border-white/15 pointer-events-auto cursor-pointer"
+              className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 hover:scale-110 active:scale-95 transition-all flex items-center justify-center border border-white/20 pointer-events-auto cursor-pointer"
               title="Ảnh trước"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
@@ -269,7 +271,7 @@ export default function MarketplacePlotDetailPanel({
             <button
               type="button"
               onClick={nextPhoto}
-              className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-md text-white/90 hover:bg-black/70 hover:scale-110 active:scale-95 transition-all flex items-center justify-center border border-white/15 pointer-events-auto cursor-pointer"
+              className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 hover:scale-110 active:scale-95 transition-all flex items-center justify-center border border-white/20 pointer-events-auto cursor-pointer"
               title="Ảnh tiếp theo"
             >
               <ChevronRight className="w-3.5 h-3.5" />
@@ -282,16 +284,16 @@ export default function MarketplacePlotDetailPanel({
           <div className="flex items-center gap-1.5">
             <span
               id="detail-tag-status"
-              className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide flex items-center gap-1 shadow-sm backdrop-blur-md border ${
+              className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide flex items-center gap-1 shadow-sm border ${
                 isVacant
-                  ? 'bg-emerald-500/90 text-white border-emerald-400/50 shadow-emerald-950/30'
-                  : 'bg-slate-800/90 text-slate-300 border-slate-700/60'
+                  ? 'bg-emerald-600 text-white border-emerald-500'
+                  : 'bg-slate-800 text-slate-300 border-slate-700'
               }`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${isVacant ? 'bg-white animate-ping' : 'bg-slate-400'}`} />
               {displayStatus}
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/20 text-white backdrop-blur-md border border-white/25 shadow-2xs">
+            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-black/40 text-white border border-white/25 shadow-2xs">
               ✨ VietGAP
             </span>
           </div>
@@ -300,7 +302,7 @@ export default function MarketplacePlotDetailPanel({
             <button
               type="button"
               onClick={handleShare}
-              className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-md text-white/90 hover:bg-black/65 hover:text-white transition-all flex items-center justify-center border border-white/15 cursor-pointer"
+              className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all flex items-center justify-center border border-white/20 cursor-pointer"
               title="Sao chép liên kết thửa"
             >
               <Share2 className="w-3.5 h-3.5" />
@@ -308,7 +310,7 @@ export default function MarketplacePlotDetailPanel({
             <button
               type="button"
               onClick={onClose}
-              className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-md text-white/90 hover:bg-black/65 hover:text-white transition-all flex items-center justify-center border border-white/15 cursor-pointer"
+              className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all flex items-center justify-center border border-white/20 cursor-pointer"
               title="Đóng chi tiết"
             >
               <X className="w-3.5 h-3.5" />
@@ -325,7 +327,7 @@ export default function MarketplacePlotDetailPanel({
         {/* Bottom Hero Overlay */}
         <div className="absolute bottom-2 left-3 right-3 text-white z-10 pointer-events-none">
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="px-1.5 py-0.2 rounded bg-white/20 backdrop-blur-md text-[9px] font-black text-white border border-white/30 tracking-wider">
+            <span className="px-1.5 py-0.2 rounded bg-black/50 text-[9px] font-black text-white border border-white/30 tracking-wider">
               {plotCode}
             </span>
             <span className="max-w-[60%] truncate whitespace-nowrap text-[10px] text-emerald-200 font-semibold drop-shadow">
@@ -431,7 +433,9 @@ export default function MarketplacePlotDetailPanel({
       ───────────────────────────────────────────────────────────────────────────── */}
       <div
         key={`${plot.id}-${activeTab}`}
-        className="px-4 pt-2.5 pb-6 flex-1 overflow-y-auto no-scrollbar space-y-3"
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        className="px-4 pt-2.5 pb-6 flex-1 panel-scroll space-y-3"
       >
         {/* ═══════════ TAB: TỔNG QUAN ═══════════ */}
         {activeTab === 'overview' && (
@@ -847,7 +851,7 @@ export default function MarketplacePlotDetailPanel({
       {/* ─────────────────────────────────────────────────────────────────────────────
           5. BOTTOM CTA BUTTONS (Ghim cố định đáy, p-3.5 pb-4)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="p-3.5 pb-4 border-t border-slate-100/90 bg-white/98 backdrop-blur-xl shrink-0 space-y-2">
+      <div className="p-3.5 pb-4 border-t border-slate-200/80 bg-white shrink-0 space-y-2 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
         {/* Dòng tạm tính live */}
         {selectedCrop && (
           <div className="flex items-center justify-between text-[11px] text-stone-600 px-1 font-semibold">
