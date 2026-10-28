@@ -3866,6 +3866,7 @@ WHERE step_id = ${stepId} AND template_id = ${templateId};
         }
 
         // 15. COMPATIBILITY MATRIX API (GET, POST, DELETE)
+        // 15.1 GET /api/compatibility & /api/v1/compatibility
         if (req.method === 'GET' && (url === '/api/compatibility' || url === '/api/v1/compatibility' || url.startsWith('/api/compatibility?') || url.startsWith('/api/v1/compatibility?'))) {
           try {
             const sql = `
@@ -3902,6 +3903,86 @@ SELECT json_build_object(
             res.end(JSON.stringify({ success: false, error: String(err) }));
           }
           return;
+        }
+
+        // 15.2 POST /api/compatibility (Add single or bulk compatibility rule)
+        if (req.method === 'POST' && (url === '/api/compatibility' || url === '/api/v1/compatibility')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const plotId = parseInt(payload.plotId, 10);
+              if (!plotId) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, error: 'Thiếu plotId' }));
+                return;
+              }
+
+              let varIds = [];
+              if (Array.isArray(payload.varietyIds) && payload.varietyIds.length > 0) {
+                varIds = payload.varietyIds.map(v => parseInt(v, 10)).filter(Boolean);
+              } else if (payload.varietyId) {
+                const singleId = parseInt(payload.varietyId, 10);
+                if (singleId) varIds = [singleId];
+              }
+
+              if (varIds.length === 0) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, error: 'Thiếu varietyId hoặc varietyIds' }));
+                return;
+              }
+
+              for (const vId of varIds) {
+                await runPostgreSql(`
+                  INSERT INTO plot_variety_compatibility (plot_id, variety_id)
+                  VALUES (${plotId}, ${vId})
+                  ON CONFLICT (plot_id, variety_id) DO NOTHING;
+                `);
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: `Đã thiết lập tương thích cho thửa #${plotId} với ${varIds.length} giống cây`
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 15.3 DELETE /api/compatibility/:plotId/:varietyId or DELETE /api/compatibility
+        if (req.method === 'DELETE' && (url.startsWith('/api/compatibility') || url.startsWith('/api/v1/compatibility'))) {
+          try {
+            const m = url.match(/^\/api\/(?:v1\/)?compatibility\/(\d+)\/(\d+)$/);
+            let plotId, varietyId;
+            if (m) {
+              plotId = parseInt(m[1], 10);
+              varietyId = parseInt(m[2], 10);
+            } else {
+              const q = new URL(url, 'http://localhost').searchParams;
+              plotId = parseInt(q.get('plotId'), 10);
+              varietyId = parseInt(q.get('varietyId'), 10);
+            }
+
+            if (plotId && varietyId) {
+              await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id = ${plotId} AND variety_id = ${varietyId};`);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: `Đã xóa quy tắc tương thích thửa #${plotId} - giống #${varietyId}` }));
+              return;
+            } else {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, error: 'Thiếu plotId hoặc varietyId' }));
+              return;
+            }
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+            return;
+          }
         }
 
         // 16. KNOWLEDGE DOCUMENTS API (GET, POST, PUT, DELETE, UPLOAD, RAG)
