@@ -624,7 +624,7 @@ ON CONFLICT (user_id) DO NOTHING;
 
 -- 3. BẢNG LANDS (Trang trại Farmely)
 INSERT INTO lands (land_id, land_name, address, description, boundary_geojson) VALUES
-(1, 'Trang trại Happy Valley Củ Chi', 'Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh', 'Khu nông nghiệp công nghệ cao kiểu mẫu tại Củ Chi, đất phù sa bồi lắng.', '{"type":"Polygon","coordinates":[[[106.342,10.686],[106.352,10.686],[106.352,10.696],[106.342,10.696],[106.342,10.686]]]}'),
+(1, 'Trang trại Happy Valley Củ Chi', 'Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh', 'Khu nông nghiệp công nghệ cao kiểu mẫu tại Củ Chi, đất phù sa bồi lắng.', '{"type":"Polygon","coordinates":[[[106.342,10.6895],[106.3495,10.696],[106.3585,10.6855],[106.3505,10.6795],[106.342,10.6895]]]}'),
 (2, 'Trang trại Cao nguyên Mộc Châu', 'Tiểu khu Mía Đường, Thị trấn Nông trường Mộc Châu, Sơn La', 'Khu vực khí hậu ôn đới cao nguyên, thích hợp rau xứ lạnh và dâu tây.', NULL),
 (3, 'Trang trại Thung lũng Sinh thái Đà Lạt', 'Xã Tà Nung, TP. Đà Lạt, Tỉnh Lâm Đồng', 'Nông trại sinh thái thung lũng sương mù, canh tác hữu cơ VietGAP.', NULL)
 ON CONFLICT (land_id) DO NOTHING;

@@ -84,3 +84,45 @@
 - **Cần cập nhật:** Gắn comment mã màn hình `SCR-xxx` và mã thông báo `MSG-xx` trực tiếp vào từng Component / Modal / Toast tương ứng trong React.
 - **Cách sửa:** Thực hiện rà soát và đánh dấu mã màn hình + mã MSG vào JSX code.
 - **Trạng thái:** ❌ Đang tiến hành chuẩn hóa.
+
+---
+
+### [DRIFT-007] Cửa sổ Ngày bắt đầu canh tác (Lead Time Window: Min 5 ngày, Max 14 ngày)
+- **Ngày:** 2026-10-27
+- **File:** `frontend/src/pages/public/BookPlot.jsx`, `frontend/server/siteVisitsApiPlugin.js`
+- **Docs nói (Report 3 SCR-KH-04 Field 2 & Report 4 §2.4):** Quy định `Start Date >= Today + 3 days` (prep buffer). Chưa có giới hạn chặn trên (`Max Date`), dẫn đến việc khách có thể chọn ngày bắt đầu quá xa trong tương lai (ví dụ đặt tháng 10 cho tháng 12 làm khóa trạng thái thửa đất quá lâu).
+- **Code làm:** 
+  - Nâng mốc tối thiểu lên `Today + 5 ngày` (đảm bảo nông trại có đủ thời gian phơi ải, làm đất, ủ phân vi sinh và chuẩn bị hạt giống).
+  - Giới hạn mốc tối đa là `Today + 14 ngày` (không cho chọn ngày bắt đầu vượt quá 2 tuần để tối ưu hóa tỷ lệ lấp đầy thửa đất Occupancy Rate).
+- **Lý do lệch:** Chuẩn hóa nghiệp vụ thực tế trang trại: tránh tình trạng "giam đất" ảo hàng tháng trời trước ngày canh tác.
+- **Cần cập nhật:** Report 3 (SCR-KH-04 Field 2: đổi constraint thành `Today + 5d <= Start Date <= Today + 14d`) và Report 4 §2.4.
+- **Cách sửa:** Code đã enforce cả ở UI (`min`, `max`, validation) và Backend API (`/api/contracts/reservations`).
+- **Trạng thái:** ✅ Đã align nghiệp vụ thực tế (chờ cập nhật văn bản Report 3/4).
+
+### [DRIFT-008] Quy trình Hủy Hợp Đồng & Phê Duyệt Hoàn Cọc (BR10 & BR23)
+- **Ngày:** 2026-10-27
+- **File:** `frontend/server/siteVisitsApiPlugin.js`, `frontend/src/components/customer/ContractCancellationModal.jsx`, `frontend/src/pages/customer/CustomerDashboard.jsx`, `frontend/src/data/rentalTerms.js`
+- **Docs nói (Report 3 SRS §3.2.1 / BR10 & Report 4 SDD §2.3):** 
+  - Gửi yêu cầu hủy trước ngày bắt đầu: $\ge 3$ ngày khấu trừ 20% (hoàn 80%), $< 3$ ngày khấu trừ 50% (hoàn 50%), vào hoặc sau ngày bắt đầu canh tác khấu trừ 100% (hoàn 0%).
+  - Admin phê duyệt yêu cầu hủy $
+ightarrow$ giải phóng thửa đất sang bảo dưỡng 4 ngày (`plots.status = 'MAINT'` theo BR23) và lập bút toán hoàn tiền.
+- **Code cũ từng làm:** Khi khách bấm hủy trên modal, hệ thống tự động chạy UPDATE hủy hợp đồng ngay lập tức và chuyển đất sang `MAINT` mà không qua bước kiểm duyệt của Admin.
+- **Code mới đã chuẩn hóa (Tích hợp & hoàn thiện từ branch `fix/huy`):**
+  - Khách gửi yêu cầu hủy $
+ightarrow$ tạo bản ghi `contract_cancellations` với trạng thái `PENDING`.
+  - Hợp đồng và thửa đất vẫn giữ nguyên trạng thái cho đến khi Quản trị viên duyệt.
+  - Bổ sung endpoint backend `POST /api/contracts/cancellations/:id/approve`: Admin duyệt $
+ightarrow$ cập nhật `cancellation` sang `APPROVED`, cập nhật `contracts` & `rentals` sang `CANCELLED`, chuyển các `plots` sang `MAINT` 4 ngày (BR23), tự động tạo bản ghi hoàn tiền `payment_transactions` (loại `REFUND`) và ghi log kiểm toán `audit_logs`.
+- **Trạng thái:** ✅ Đã hoàn toàn đồng bộ 1:1 với SSoT Report 3 và Report 4.
+
+### [DRIFT-009] Tích Hợp Lựa Chọn Giống Cây Tương Thích Trực Tiếp Vào Màn Hình Tạo Thửa Đất (BR03)
+- **Ngày:** 2026-10-27
+- **File:** `frontend/src/pages/admin/PlotForm.jsx`, `frontend/src/pages/admin/PlotDetail.jsx`, `frontend/src/components/admin/BoundaryDrawMap.jsx`, `frontend/server/siteVisitsApiPlugin.js`
+- **Docs nói (Report 3 SRS §3.1.2 & Report 4 SDD §2.4 / BR03):** Quy định tương thích giữa Thửa đất (`plots`) và Giống cây (`varieties`) thông qua bảng `plot_variety_compatibility`. Khách hàng chỉ được chọn các giống cây nằm trong danh mục tương thích của thửa đất đó.
+- **Hiện trạng trước đây:** Màn hình tạo thửa đất (`PlotForm.jsx`) chỉ tạo các thuộc tính cơ bản và ranh giới bản đồ, không có chỗ để Admin cấu hình giống cây cho thửa; Admin phải mò sang màn hình Ma trận Thổ Nhưỡng (`Compatibility.jsx`) để gán từng giống cây thủ công.
+- **Code mới đã chuẩn hóa:**
+  - Ẩn hoàn toàn công cụ tìm toạ độ / ghim GPS trong chế độ vẽ thửa đất (`BoundaryDrawMap.jsx` với `kind === 'plot'`), giữ bản đồ gọn gàng và tập trung vào phân lô.
+  - Tích hợp trực tiếp phân đoạn **"Giống cây trồng phù hợp thổ nhưỡng (Quy tắc BR03)"** vào ngay form Tạo / Sửa Thửa Đất (`PlotForm.jsx`): hiển thị toàn bộ danh mục giống cây VietGAP kèm thời gian sinh trưởng, có tìm kiếm nhanh, nút Chọn tất cả / Bỏ chọn, và ràng buộc validation bắt buộc chọn $\ge 1$ giống cây.
+  - Lưu và đồng bộ 100% dữ liệu thực tế vào bảng `plot_variety_compatibility` của PostgreSQL qua API `POST /api/plots` và `PUT /api/plots/:id`.
+  - Dữ liệu giống cây tương thích được đồng bộ tức thì trên WebGIS Marketplace (`/marketplace`), màn hình Thuê đất (`/book-plot`) và màn hình chi tiết Thửa đất của Admin (`PlotDetail.jsx`).
+- **Trạng thái:** ✅ Đã hoàn thiện và kiểm thử đồng bộ 100% với PostgreSQL live.
