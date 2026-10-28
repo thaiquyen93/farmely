@@ -20,6 +20,17 @@ ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS title VARCHAR(255);
 ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
 ALTER TABLE farm_diaries ADD COLUMN IF NOT EXISTS title VARCHAR(255);
 ALTER TABLE farm_diaries ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
+ALTER TABLE farm_diaries DROP CONSTRAINT IF EXISTS farm_diaries_task_id_fkey;
+ALTER TABLE farm_diaries ADD CONSTRAINT farm_diaries_task_id_fkey FOREIGN KEY (task_id) REFERENCES care_tasks(task_id) ON DELETE SET NULL;
+
+-- Đồng bộ trạng thái: Thửa đất không có hợp đồng ACTIVE thì trở về AVAIL (trừ thửa đang nghỉ phơi ải MAINT)
+UPDATE plots SET status = 'AVAIL'
+WHERE status = 'RENT' AND plot_id NOT IN (
+  SELECT plot_id FROM rentals WHERE status = 'ACTIVE'
+);
+
+-- Dọn dẹp các tác vụ rác của các hợp đồng/thửa đã hủy
+DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE status = 'CANCELLED');
 
 CREATE OR REPLACE FUNCTION fn_resolve_expert_for_variety(p_variety_id INT)
 RETURNS INT AS $$
@@ -868,20 +879,20 @@ BEGIN
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id = v_plot_id;
 
     -- 1. TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP CỦA GIỐNG CÂY
-    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
     SELECT 
         v_rental_id,
         ts.step_id,
         fn_resolve_staff_for_plot(v_plot_id), -- Tự động gán CVLĐ theo Zone của thửa
         '${startDate}'::date + (ts.day_offset || ' days')::interval,
         CASE WHEN '${startDate}'::date <= CURRENT_DATE AND ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        ts.step_name,
         ts.step_name || ' - ' || ts.description,
         NOW(),
         NOW()
-    FROM process_templates pt
-    JOIN template_steps ts ON pt.template_id = ts.template_id
-    WHERE pt.variety_id = ${varietyId}
-    ORDER BY ts.step_order;
+    FROM template_steps ts
+    WHERE ts.template_id = (SELECT pt.template_id FROM process_templates pt WHERE pt.variety_id = ${varietyId} ORDER BY pt.template_id ASC LIMIT 1)
+    ORDER BY ts.day_offset;
 
     -- Tự động mở kênh chat CUST_EXP
     INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
@@ -1319,6 +1330,11 @@ BEGIN
     UPDATE plots
     SET status = 'MAINT', updated_at = NOW()
     WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = v_contract_id);
+
+    -- 4.1 Xóa sạch các tác vụ chăm sóc thực địa chưa hoàn thành của hợp đồng bị hủy
+    DELETE FROM care_tasks
+    WHERE rental_id IN (SELECT rental_id FROM rentals WHERE contract_id = v_contract_id)
+      AND status IN ('PENDING', 'IN_PROG');
 
     -- 5. Ghi nhận giao dịch hoàn tiền nếu có refund_amount > 0
     IF v_refund_amount > 0 THEN
@@ -4436,7 +4452,16 @@ ON CONFLICT DO NOTHING;
             const urlObj = new URL(url, 'http://localhost');
             const workerIdParam = urlObj.searchParams.get('workerId');
             const rentalIdParam = urlObj.searchParams.get('rentalId');
+            const allPlotsParam = urlObj.searchParams.get('allPlots');
             let taskWhere = [];
+
+            // STRICT BUSINESS RULE: Nhiệm vụ thực địa (Care Tasks) chỉ sinh ra và hiển thị cho các thửa ĐANG THUÊ thực tế!
+            // Thửa chưa thuê (AVAIL) hoặc Hợp đồng đã hủy (CANCELLED) tuyệt đối không có nhiệm vụ canh tác.
+            if (!allPlotsParam && !rentalIdParam) {
+              taskWhere.push(`rent.status = 'ACTIVE'`);
+              taskWhere.push(`c.status = 'ACTIVE'`);
+              taskWhere.push(`p.status = 'RENT'`);
+            }
             if (workerIdParam && parseInt(workerIdParam, 10)) {
               taskWhere.push(`ct.task_assigned_to = ${parseInt(workerIdParam, 10)}`);
             }
