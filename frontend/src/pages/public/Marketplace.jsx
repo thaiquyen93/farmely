@@ -365,7 +365,10 @@ export default function Marketplace() {
   // BR03: chỉ hiển thị giống cây tương thích với thửa đang mở (theo plot_variety_compatibility)
   const [compatByPlotId, setCompatByPlotId] = useState({});
   const [allCrops, setAllCrops] = useState(getSafeCropsList);
-  const selectedPlotDbId = selectedPlot?.plot_id;
+  const selectedPlotDbId =
+    selectedPlot?.plot_id ??
+    selectedPlot?.plotId ??
+    (selectedPlot?.code ? Number(String(selectedPlot.code).replace(/^P-?/i, '')) : null);
 
   useEffect(() => {
     let active = true;
@@ -386,9 +389,9 @@ export default function Marketplace() {
   }, []);
 
   useEffect(() => {
-    if (selectedPlotDbId === undefined || selectedPlotDbId === null) return;
+    if (selectedPlotDbId === undefined || selectedPlotDbId === null || isNaN(selectedPlotDbId)) return;
     let active = true;
-    fetchCompatibleVarietyIds(selectedPlotDbId).then((ids) => {
+    fetchCompatibleVarietyIds(selectedPlotDbId, true).then((ids) => {
       if (active) {
         setAllCrops(getSafeCropsList());
         setCompatByPlotId((prev) => ({ ...prev, [selectedPlotDbId]: ids }));

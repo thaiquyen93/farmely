@@ -476,7 +476,7 @@ export default function MarketplacePlotDetailPanel({
                   }`}
                 >
                   <option value="">Chọn giống cây canh tác...</option>
-                  {cropOptions.map((crop) => (
+                  {effectiveCropOptions.map((crop) => (
                     <option key={crop.id} value={crop.id}>
                       {crop.name} — {crop.variety}
                     </option>

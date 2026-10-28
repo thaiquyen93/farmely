@@ -6,6 +6,7 @@ import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Select from '../../components/common/Select';
+import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import { SlidersHorizontal, Plus, CheckCircle2, XCircle, AlertTriangle, Layers, Trash2, Sprout, Filter } from 'lucide-react';
 
 export default function Compatibility() {
@@ -125,6 +126,7 @@ export default function Compatibility() {
       });
       const data = await res.json();
       if (data.success) {
+        clearCompatibilityCache();
         loadRules();
         setShowModal(false);
         setSelectedVarietyIds([]);
@@ -148,6 +150,7 @@ export default function Compatibility() {
       const res = await fetch(`/api/compatibility/${pId}/${vId}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
+        clearCompatibilityCache();
         loadRules();
       } else {
         alert(data.error || 'Có lỗi xảy ra khi xóa quy tắc');

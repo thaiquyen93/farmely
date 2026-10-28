@@ -111,10 +111,12 @@ export const safeCrops = [
   }
 ];
 
+let dynamicCropsRegistry = [...safeCrops];
+
 export function mergeVarietiesIntoSafeCrops(varieties = []) {
-  if (!Array.isArray(varieties) || varieties.length === 0) return safeCrops;
-  const result = [...safeCrops];
-  const existingVarietyIds = new Set(safeCrops.map((c) => Number(c.varietyId)));
+  if (!Array.isArray(varieties) || varieties.length === 0) return [...dynamicCropsRegistry];
+  const result = [...dynamicCropsRegistry];
+  const existingVarietyIds = new Set(result.map((c) => Number(c.varietyId)));
 
   varieties.forEach((v) => {
     const vId = Number(v.varietyId ?? v.id);
@@ -143,15 +145,13 @@ export function mergeVarietiesIntoSafeCrops(varieties = []) {
   return result;
 }
 
-let dynamicCropsRegistry = [...safeCrops];
-
 export function registerDynamicCrops(varieties = []) {
   dynamicCropsRegistry = mergeVarietiesIntoSafeCrops(varieties);
-  return dynamicCropsRegistry;
+  return [...dynamicCropsRegistry];
 }
 
 export function getSafeCropsList() {
-  return dynamicCropsRegistry;
+  return [...dynamicCropsRegistry];
 }
 
 export const getSafeCropById = (cropId) => {

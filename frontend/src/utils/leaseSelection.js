@@ -259,10 +259,10 @@ const compatibilityCache = new Map();
 export const clearCompatibilityCache = () => compatibilityCache.clear();
 
 // GET /api/plots/{id}/compatibility -> number[] varietyId, hoặc null khi lỗi.
-export const fetchCompatibleVarietyIds = (plotDbId) => {
+export const fetchCompatibleVarietyIds = (plotDbId, bypassCache = false) => {
   const key = String(plotDbId ?? '');
   if (!/^\d+$/.test(key)) return Promise.resolve(null);
-  if (compatibilityCache.has(key)) return compatibilityCache.get(key);
+  if (!bypassCache && compatibilityCache.has(key)) return compatibilityCache.get(key);
   const request = fetch(`/api/plots/${key}/compatibility`)
     .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
     .then((json) => {
