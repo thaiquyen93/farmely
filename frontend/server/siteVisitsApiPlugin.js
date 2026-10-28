@@ -1115,6 +1115,9 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
     cn.cancelled_by AS "cancelledBy",
     COALESCE(u.full_name, 'Khách hàng #' || cn.cancelled_by) AS "cancellerName",
     COALESCE(u.full_name, 'Khách hàng #' || cn.cancelled_by) AS "customerName",
+    COALESCE(u.phone_number, '') AS "customerPhone",
+    COALESCE(plots_info.plot_codes, '') AS "plotCode",
+    COALESCE(plots_info.plot_names, '') AS "plotName",
     cn.reason,
     cn.status::text AS "status",
     COALESCE(c.total_amount, 0) AS "totalPaidAmount",
@@ -1126,6 +1129,14 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
   LEFT JOIN contracts c ON cn.contract_id = c.contract_id
   LEFT JOIN users u ON cn.cancelled_by = u.user_id
   LEFT JOIN LATERAL (SELECT MIN(start_date) AS start_date FROM rentals WHERE contract_id = cn.contract_id) dates ON true
+  LEFT JOIN LATERAL (
+    SELECT 
+      string_agg(p.plot_code, ', ') AS plot_codes,
+      string_agg('Thửa ' || p.plot_code, ', ') AS plot_names
+    FROM rentals r
+    JOIN plots p ON r.plot_id = p.plot_id
+    WHERE r.contract_id = cn.contract_id
+  ) plots_info ON true
   ORDER BY cn.cancellation_id DESC
 ) c;
 `;

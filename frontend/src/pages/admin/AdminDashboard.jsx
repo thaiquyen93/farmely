@@ -421,8 +421,8 @@ export default function AdminDashboard() {
           id: request.cancellationId,
           contractCode: request.contractNumber || `HĐ #${request.contractId}`,
           customerName: request.cancellerName || `Người dùng #${request.cancelledBy}`,
-          customerPhone: '',
-          plotCode: '',
+          customerPhone: request.customerPhone || request.cancellerPhone || '',
+          plotCode: request.plotCode || request.plotCodes || request.plotName || '',
           totalPaid: Number(request.totalPaidAmount || 0).toLocaleString('vi-VN') + ' đ',
           refundPercent: request.refundPercentage || 0,
           refundAmount: Number(request.refundAmount || 0).toLocaleString('vi-VN') + ' đ',
@@ -2087,7 +2087,7 @@ export default function AdminDashboard() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-600">
                         <p>Khách hàng: <strong className="text-brand-dark">{req.customerName}</strong> ({req.customerPhone || 'Khách hàng'})</p>
-                        <p>Thửa đất hủy: <strong className="text-brand-dark">{req.plotCode || 'P-01'}</strong></p>
+                        <p>Thửa đất hủy: <strong className="text-brand-dark">{req.plotCode || '—'}</strong></p>
                         <p>Đã thanh toán: <strong className="text-brand-dark">{req.totalPaid}</strong></p>
                         <p>Được hoàn: <strong className="text-emerald-700 font-bold">{req.refundAmount} ({req.refundPercent}%)</strong></p>
                         <p className="sm:col-span-2 text-stone-500">Khấu trừ: {req.deductionFee} • Lý do: "{req.reason}"</p>
