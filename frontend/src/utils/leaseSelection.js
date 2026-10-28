@@ -1,6 +1,8 @@
 // Nguồn sự thật duy nhất cho giỏ thuê thửa (Marketplace -> BookPlot).
 // Khóa chuẩn = mã thửa (plot code) dạng "P-04"; plot_id số chỉ dùng khi gọi API.
 
+import { registerDynamicCrops } from '../data/safeCrops.js';
+
 export const CART_STORAGE_KEY = 'farmely_master_lease_selected_plots';
 export const CROP_STORAGE_KEY = 'farmely_selected_crop_by_plot';
 
@@ -266,6 +268,7 @@ export const fetchCompatibleVarietyIds = (plotDbId) => {
     .then((json) => {
       const rows = Array.isArray(json) ? json : json?.data;
       if (!Array.isArray(rows)) return null;
+      registerDynamicCrops(rows);
       return rows.map((r) => Number(r.varietyId ?? r.variety_id)).filter((n) => Number.isFinite(n));
     })
     .catch(() => {

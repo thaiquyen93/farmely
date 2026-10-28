@@ -24,7 +24,7 @@ import {
   Info,
   Clock
 } from 'lucide-react';
-import { safeCrops } from '../../data/safeCrops';
+import { safeCrops, getSafeCropsList } from '../../data/safeCrops';
 import PlotLeaseOptions from './PlotLeaseOptions';
 import { getLeaseConfigError, computePlotLeasePrice } from '../../utils/leaseSelection';
 import { CROP_STANDARDS, detectCropKey } from '../../services/cropStandardProcess';
@@ -61,7 +61,8 @@ export default function MarketplacePlotDetailPanel({
     setShowTechnicalHandbookModal(false);
   }, [plot?.id, plot?.code]);
 
-  const effectiveCropOptions = cropOptions && cropOptions.length > 0 ? cropOptions : safeCrops;
+  const allSafeFallback = getSafeCropsList();
+  const effectiveCropOptions = cropOptions && cropOptions.length > 0 ? cropOptions : allSafeFallback;
   const selectedCrop = effectiveCropOptions.find((c) => c.id === leaseConfig?.cropId) || null;
   const currentTechnicalCrop = selectedCrop || effectiveCropOptions[0];
 

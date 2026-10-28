@@ -4,7 +4,7 @@ import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import { farmApi } from '../../api/farm/farmApi';
 import { rentalApi } from '../../api/rental/rentalApi';
-import { getSafeCropById, safeCrops } from '../../data/safeCrops';
+import { getSafeCropById, safeCrops, getSafeCropsList, registerDynamicCrops } from '../../data/safeCrops';
 import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Badge from '../../components/common/Badge';
@@ -242,6 +242,25 @@ export default function BookPlot() {
   const [contractCode, setContractCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVnPayModal, setShowVnPayModal] = useState(false);
+  const [allAvailableCrops, setAllAvailableCrops] = useState(getSafeCropsList);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/varieties')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!active) return;
+        const rows = json?.data || (Array.isArray(json) ? json : []);
+        if (Array.isArray(rows) && rows.length > 0) {
+          const merged = registerDynamicCrops(rows);
+          setAllAvailableCrops(merged);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Tự động nhận diện giống cây & cấu hình từ URL search param nếu có
   useEffect(() => {
@@ -335,6 +354,13 @@ export default function BookPlot() {
     if (savedCropKey) {
       const savedCrop =
         getSafeCropById(savedCropKey) ||
+        allAvailableCrops.find(
+          (c) =>
+            String(c.id).toUpperCase() === String(savedCropKey).toUpperCase() ||
+            String(c.varietyId) === String(savedCropKey) ||
+            c.name.toLowerCase() === String(savedCropKey).toLowerCase() ||
+            c.variety.toLowerCase() === String(savedCropKey).toLowerCase()
+        ) ||
         safeCrops.find(
           (c) =>
             String(c.id).toUpperCase() === String(savedCropKey).toUpperCase() ||
@@ -347,12 +373,12 @@ export default function BookPlot() {
     }
 
     return null;
-  }, [selectedCropByPlot, searchParams]);
+  }, [selectedCropByPlot, searchParams, allAvailableCrops]);
 
   // Danh sách tất cả các giống cây trồng có sẵn
   const getCompatibleCropsForPlot = useCallback(() => {
-    return safeCrops;
-  }, []);
+    return allAvailableCrops && allAvailableCrops.length > 0 ? allAvailableCrops : safeCrops;
+  }, [allAvailableCrops]);
 
   const handleSelectCropForPlot = (plotId, plotCode, cropId) => {
     const code = normalizePlotCode(plotCode || plotId);

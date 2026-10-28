@@ -7,7 +7,7 @@ import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceI
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
 import { buildGeoJsonFromDbPlots } from '../../data/marketplaceGisData';
 import { farmApi } from '../../api/farm/farmApi';
-import { getSafeCropById, safeCrops } from '../../data/safeCrops';
+import { getSafeCropById, safeCrops, getSafeCropsList, registerDynamicCrops } from '../../data/safeCrops';
 import { getStatusConfig, isAvailableStatus } from '../../utils/mapTheme';
 import {
   normalizePlotCode,
@@ -364,13 +364,35 @@ export default function Marketplace() {
 
   // BR03: chỉ hiển thị giống cây tương thích với thửa đang mở (theo plot_variety_compatibility)
   const [compatByPlotId, setCompatByPlotId] = useState({});
+  const [allCrops, setAllCrops] = useState(getSafeCropsList);
   const selectedPlotDbId = selectedPlot?.plot_id;
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/varieties')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!active) return;
+        const rows = json?.data || (Array.isArray(json) ? json : []);
+        if (Array.isArray(rows) && rows.length > 0) {
+          const merged = registerDynamicCrops(rows);
+          setAllCrops(merged);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (selectedPlotDbId === undefined || selectedPlotDbId === null) return;
     let active = true;
     fetchCompatibleVarietyIds(selectedPlotDbId).then((ids) => {
-      if (active) setCompatByPlotId((prev) => ({ ...prev, [selectedPlotDbId]: ids }));
+      if (active) {
+        setAllCrops(getSafeCropsList());
+        setCompatByPlotId((prev) => ({ ...prev, [selectedPlotDbId]: ids }));
+      }
     });
     return () => {
       active = false;
@@ -378,8 +400,8 @@ export default function Marketplace() {
   }, [selectedPlotDbId]);
 
   const selectedPlotCompat = useMemo(() => {
-    return filterCompatibleCrops(safeCrops, selectedPlotDbId != null ? compatByPlotId[selectedPlotDbId] : null);
-  }, [compatByPlotId, selectedPlotDbId]);
+    return filterCompatibleCrops(allCrops, selectedPlotDbId != null ? compatByPlotId[selectedPlotDbId] : null);
+  }, [allCrops, compatByPlotId, selectedPlotDbId]);
   const selectedPlotCompatLoaded = selectedPlotDbId != null && selectedPlotDbId in compatByPlotId;
 
   const selectedPlotKey = getPlotKey(selectedPlot);
