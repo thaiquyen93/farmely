@@ -232,10 +232,14 @@ export const buildCartSummary = (plots, configMap, getCrop) => {
   };
 };
 
-export const buildBookingUrl = (codes) => {
+export const buildBookingUrl = (codes, primaryConfig = null) => {
   const clean = dedupeCodes(codes);
   if (clean.length === 0) return '/marketplace';
-  return `/marketplace/plot/${encodeURIComponent(clean[0])}/book?plots=${clean.map(encodeURIComponent).join(',')}`;
+  let url = `/marketplace/plot/${encodeURIComponent(clean[0])}/book?plots=${clean.map(encodeURIComponent).join(',')}`;
+  if (primaryConfig?.cropId) url += `&cropId=${encodeURIComponent(primaryConfig.cropId)}`;
+  if (primaryConfig?.cultivationMode) url += `&mode=${encodeURIComponent(primaryConfig.cultivationMode)}`;
+  if (primaryConfig?.termMonths) url += `&term=${encodeURIComponent(primaryConfig.termMonths)}`;
+  return url;
 };
 
 // Không có dữ liệu tương thích (null/rỗng) -> trả toàn bộ danh mục, hasData=false.

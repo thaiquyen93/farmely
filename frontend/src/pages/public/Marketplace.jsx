@@ -320,12 +320,15 @@ export default function Marketplace() {
     const code = getPlotKey(plot);
     if (!code) return;
 
+    saveLeaseConfigMap(leaseConfigByPlot);
+    const cfg = leaseConfigByPlot[code];
+
     if (!isAuthenticated) {
       setPlotToBook(plot);
       setPendingBookingCodes([code]);
       setShowAuthModal(true);
     } else {
-      navigate(buildBookingUrl([code]));
+      navigate(buildBookingUrl([code], cfg));
     }
   };
 
@@ -335,12 +338,16 @@ export default function Marketplace() {
     const codes = contractSelectedPlots.map(getPlotKey).filter(Boolean);
     if (codes.length === 0) return;
 
+    saveLeaseConfigMap(leaseConfigByPlot);
+    const primaryCode = codes[0];
+    const cfg = leaseConfigByPlot[primaryCode];
+
     if (!isAuthenticated) {
       setPlotToBook(contractSelectedPlots[0] || null);
       setPendingBookingCodes(codes);
       setShowAuthModal(true);
     } else {
-      navigate(buildBookingUrl(codes));
+      navigate(buildBookingUrl(codes, cfg));
     }
   };
 
@@ -348,7 +355,10 @@ export default function Marketplace() {
     await login('customer@farmely.vn', '123456');
     setShowAuthModal(false);
     if (pendingBookingCodes.length > 0) {
-      navigate(buildBookingUrl(pendingBookingCodes));
+      saveLeaseConfigMap(leaseConfigByPlot);
+      const primaryCode = pendingBookingCodes[0];
+      const cfg = leaseConfigByPlot[primaryCode];
+      navigate(buildBookingUrl(pendingBookingCodes, cfg));
     }
   };
 
@@ -644,7 +654,9 @@ export default function Marketplace() {
               className="w-full font-bold uppercase tracking-wider text-xs bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl shadow-md cursor-pointer"
               onClick={() => {
                 setShowAuthModal(false);
-                navigate(`/login?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes))}`);
+                const primaryCode = pendingBookingCodes[0];
+                const cfg = primaryCode ? leaseConfigByPlot[primaryCode] : null;
+                navigate(`/login?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes, cfg))}`);
               }}
             >
               Đăng nhập ngay
@@ -663,7 +675,9 @@ export default function Marketplace() {
                 type="button"
                 onClick={() => {
                   setShowAuthModal(false);
-                  navigate(`/register?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes))}`);
+                  const primaryCode = pendingBookingCodes[0];
+                  const cfg = primaryCode ? leaseConfigByPlot[primaryCode] : null;
+                  navigate(`/register?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes, cfg))}`);
                 }}
                 className="text-brand-green font-bold hover:underline cursor-pointer"
               >

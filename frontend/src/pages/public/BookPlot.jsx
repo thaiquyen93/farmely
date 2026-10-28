@@ -33,6 +33,13 @@ import {
 import VnPayModal from '../../components/payment/VnPayModal';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
+import {
+  loadLeaseConfigMap,
+  saveLeaseConfigMap,
+  normalizePlotCode,
+  CULTIVATION_MODES,
+  DEFAULT_TERM_MONTHS
+} from '../../utils/leaseSelection';
 
 // Danh mục tương thích sinh học chuẩn hóa từ PostgreSQL table plot_variety_compatibility (BR03)
 const PLOT_COMPATIBLE_VARIETIES = {
@@ -143,40 +150,112 @@ export default function BookPlot() {
   const [graceApplied, setGraceApplied] = useState(false);
 
   const [selectedCropByPlot, setSelectedCropByPlot] = useState(() => {
+    const map = {};
     try {
-      const saved = JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
+      // 1. Đọc SSoT từ farmely_lease_config_by_plot (đã chọn ở Marketplace)
+      const leaseConfigs = loadLeaseConfigMap();
+      Object.entries(leaseConfigs).forEach(([code, cfg]) => {
+        if (cfg?.cropId) {
+          map[code] = cfg.cropId;
+          const num = code.replace(/\D/g, '');
+          if (num) map[num] = cfg.cropId;
+        }
+      });
+
+      // 2. Fallback sang farmely_selected_crop_by_plot cũ nếu có
+      const legacy = JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
+      Object.assign(map, legacy);
+
+      // 3. Ưu tiên cropId từ URL search params
       const cropFromUrl = searchParams.get('cropId');
       if (cropFromUrl) {
-        if (id) saved[id] = cropFromUrl;
+        if (id) {
+          map[id] = cropFromUrl;
+          const norm = normalizePlotCode(id);
+          if (norm) map[norm] = cropFromUrl;
+        }
         const plotsParam = searchParams.get('plots');
         if (plotsParam) {
           plotsParam.split(',').forEach((p) => {
-            if (p.trim()) saved[p.trim()] = cropFromUrl;
+            const trimmed = p.trim();
+            if (trimmed) {
+              map[trimmed] = cropFromUrl;
+              const norm = normalizePlotCode(trimmed);
+              if (norm) map[norm] = cropFromUrl;
+            }
           });
         }
       }
-      return saved;
-    } catch {
-      return {};
+    } catch (e) {
+      console.error(e);
     }
+    return map;
   });
   const [cropValidationError, setCropValidationError] = useState(false);
   const [startDate, setStartDate] = useState(() => getEarliestCultivationDate());
 
   // 15-minute reservation timer (BR08) & checkout settings
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
-  const [selectedMode, setSelectedMode] = useState(null); // Mặc định là trống, bắt buộc người dùng chọn
+
+  // Hình thức canh tác: tự động nhận diện từ Marketplace hoặc URL param
+  const [selectedMode, setSelectedMode] = useState(() => {
+    const modeFromUrl = searchParams.get('mode');
+    if (modeFromUrl === 'ASSISTED' || modeFromUrl === 'SELF') {
+      return modeFromUrl;
+    }
+    try {
+      const leaseConfigs = loadLeaseConfigMap();
+      const primaryCode = normalizePlotCode(id || (searchParams.get('plots') || '').split(',')[0]);
+      if (primaryCode && (leaseConfigs[primaryCode]?.cultivationMode === 'ASSISTED' || leaseConfigs[primaryCode]?.cultivationMode === 'SELF')) {
+        return leaseConfigs[primaryCode].cultivationMode;
+      }
+      const anyCfg = Object.values(leaseConfigs).find((c) => c?.cultivationMode === 'ASSISTED' || c?.cultivationMode === 'SELF');
+      if (anyCfg?.cultivationMode) return anyCfg.cultivationMode;
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  });
   const [modeValidationError, setModeValidationError] = useState(false);
-  const [rentalMonths, setRentalMonths] = useState(1);
+
+  // Thời hạn thuê: tự động nhận diện từ Marketplace hoặc URL param
+  const [rentalMonths, setRentalMonths] = useState(() => {
+    const termFromUrl = Number(searchParams.get('term'));
+    if ([1, 3, 6, 12].includes(termFromUrl)) {
+      return termFromUrl;
+    }
+    try {
+      const leaseConfigs = loadLeaseConfigMap();
+      const primaryCode = normalizePlotCode(id || (searchParams.get('plots') || '').split(',')[0]);
+      if (primaryCode && [1, 3, 6, 12].includes(Number(leaseConfigs[primaryCode]?.termMonths))) {
+        return Number(leaseConfigs[primaryCode].termMonths);
+      }
+      const anyCfg = Object.values(leaseConfigs).find((c) => [1, 3, 6, 12].includes(Number(c?.termMonths)));
+      if (anyCfg?.termMonths) return Number(anyCfg.termMonths);
+    } catch (e) {
+      console.error(e);
+    }
+    return 3;
+  });
   const [paymentMethod] = useState('VNPAY');
   const [isSuccess, setIsSuccess] = useState(false);
   const [contractCode, setContractCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVnPayModal, setShowVnPayModal] = useState(false);
 
-  // Tự động nhận diện giống cây từ URL search param nếu có
+  // Tự động nhận diện giống cây & cấu hình từ URL search param nếu có
   useEffect(() => {
     const cropFromUrl = searchParams.get('cropId');
+    const modeFromUrl = searchParams.get('mode');
+    const termFromUrl = Number(searchParams.get('term'));
+
+    if (modeFromUrl === 'ASSISTED' || modeFromUrl === 'SELF') {
+      setSelectedMode((prev) => prev || modeFromUrl);
+    }
+    if ([1, 3, 6, 12].includes(termFromUrl)) {
+      setRentalMonths((prev) => (prev === 1 || !prev ? termFromUrl : prev));
+    }
+
     if (cropFromUrl) {
       setSelectedCropByPlot((prev) => {
         const next = { ...prev };
@@ -184,9 +263,15 @@ export default function BookPlot() {
           selectedPlots.forEach((p) => {
             next[p.id] = cropFromUrl;
             if (p.code) next[p.code] = cropFromUrl;
+            const norm = normalizePlotCode(p.code || p.id);
+            if (norm) next[norm] = cropFromUrl;
           });
         }
-        if (id) next[id] = cropFromUrl;
+        if (id) {
+          next[id] = cropFromUrl;
+          const norm = normalizePlotCode(id);
+          if (norm) next[norm] = cropFromUrl;
+        }
         try {
           localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(next));
         } catch (e) {
@@ -197,14 +282,54 @@ export default function BookPlot() {
     }
   }, [searchParams, selectedPlots, id]);
 
+  // Đồng bộ cấu hình từ SSoT leaseConfigMap khi selectedPlots được load
+  useEffect(() => {
+    if (selectedPlots.length > 0) {
+      const leaseConfigs = loadLeaseConfigMap();
+      setSelectedCropByPlot((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        selectedPlots.forEach((p) => {
+          const code = normalizePlotCode(p.code || p.plotCode || p.plot_code || p.id);
+          const current = next[p.id] || next[p.code] || (code ? next[code] : null);
+          if (!current && code && leaseConfigs[code]?.cropId) {
+            next[code] = leaseConfigs[code].cropId;
+            next[p.id] = leaseConfigs[code].cropId;
+            if (p.code) next[p.code] = leaseConfigs[code].cropId;
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+
+      const primary = selectedPlots[0];
+      const pCode = normalizePlotCode(primary?.code || primary?.plotCode || primary?.plot_code || primary?.id);
+      if (pCode && leaseConfigs[pCode]) {
+        const cfg = leaseConfigs[pCode];
+        if (cfg.cultivationMode) {
+          setSelectedMode((prev) => prev || cfg.cultivationMode);
+        }
+        if (cfg.termMonths && [1, 3, 6, 12].includes(Number(cfg.termMonths))) {
+          setRentalMonths((prev) => (prev === 1 || !prev ? Number(cfg.termMonths) : prev));
+        }
+      }
+    }
+  }, [selectedPlots]);
+
   // Lấy giống cây đã chọn cho thửa đất (ưu tiên lựa chọn từ Marketplace hoặc state)
   const getPlotSelectedCrop = useCallback((plot) => {
     if (!plot) return null;
     const cropFromUrl = searchParams.get('cropId');
+    const pCode = normalizePlotCode(plot.code || plot.plotCode || plot.plot_code || plot.id);
+    const leaseConfigs = loadLeaseConfigMap();
+    const configCrop = pCode ? leaseConfigs[pCode]?.cropId : null;
+
     const savedCropKey =
       selectedCropByPlot[plot.id] ||
       selectedCropByPlot[plot.code] ||
       selectedCropByPlot[plot.plotCode] ||
+      (pCode ? selectedCropByPlot[pCode] : null) ||
+      configCrop ||
       cropFromUrl;
 
     if (savedCropKey) {
@@ -213,7 +338,8 @@ export default function BookPlot() {
         safeCrops.find(
           (c) =>
             String(c.id).toUpperCase() === String(savedCropKey).toUpperCase() ||
-            String(c.varietyId) === String(savedCropKey)
+            String(c.varietyId) === String(savedCropKey) ||
+            c.name.toLowerCase() === String(savedCropKey).toLowerCase()
         );
       if (savedCrop) {
         return savedCrop;
@@ -229,9 +355,11 @@ export default function BookPlot() {
   }, []);
 
   const handleSelectCropForPlot = (plotId, plotCode, cropId) => {
+    const code = normalizePlotCode(plotCode || plotId);
     setSelectedCropByPlot((prev) => {
       const next = { ...prev, [plotId]: cropId };
       if (plotCode) next[plotCode] = cropId;
+      if (code) next[code] = cropId;
       try {
         localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(next));
       } catch (e) {
@@ -239,7 +367,51 @@ export default function BookPlot() {
       }
       return next;
     });
+
+    try {
+      const map = loadLeaseConfigMap();
+      if (code) {
+        map[code] = { ...(map[code] || {}), cropId };
+        saveLeaseConfigMap(map);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     setCropValidationError(false);
+  };
+
+  const handleSelectMode = (mode) => {
+    setSelectedMode(mode);
+    setModeValidationError(false);
+    try {
+      const map = loadLeaseConfigMap();
+      selectedPlots.forEach((p) => {
+        const code = normalizePlotCode(p.code || p.plotCode || p.plot_code || p.id);
+        if (code) {
+          map[code] = { ...(map[code] || {}), cultivationMode: mode };
+        }
+      });
+      saveLeaseConfigMap(map);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSelectRentalMonths = (months) => {
+    setRentalMonths(months);
+    try {
+      const map = loadLeaseConfigMap();
+      selectedPlots.forEach((p) => {
+        const code = normalizePlotCode(p.code || p.plotCode || p.plot_code || p.id);
+        if (code) {
+          map[code] = { ...(map[code] || {}), termMonths: months };
+        }
+      });
+      saveLeaseConfigMap(map);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const calculatedEndDate = React.useMemo(() => {
@@ -1238,10 +1410,7 @@ export default function BookPlot() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedMode('SELF');
-                      setModeValidationError(false);
-                    }}
+                    onClick={() => handleSelectMode('SELF')}
                     className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
                       selectedMode === 'SELF'
                         ? 'border-2 border-brand-green bg-emerald-50/70 ring-2 ring-brand-green/30 shadow-xs'
@@ -1270,10 +1439,7 @@ export default function BookPlot() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedMode('ASSISTED');
-                      setModeValidationError(false);
-                    }}
+                    onClick={() => handleSelectMode('ASSISTED')}
                     className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
                       selectedMode === 'ASSISTED'
                         ? 'border-2 border-brand-yellow bg-amber-50/70 ring-2 ring-brand-yellow/40 shadow-xs'
@@ -1395,7 +1561,7 @@ export default function BookPlot() {
                         disabled={isDisabled}
                         onClick={() => {
                           if (!isDisabled) {
-                            setRentalMonths(opt.months);
+                            handleSelectRentalMonths(opt.months);
                           }
                         }}
                         className={`relative p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
