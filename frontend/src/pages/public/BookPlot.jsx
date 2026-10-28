@@ -1721,8 +1721,10 @@ export default function BookPlot() {
                     <ShieldCheck className="w-3.5 h-3.5 text-brand-green" />
                     Chính sách hoàn tiền hợp đồng:
                   </p>
-                  <p>• Hoàn 80% khi hủy trước ngày bắt đầu 3 ngày.</p>
-                  <p>• Hoàn 50% khi hủy trong vòng 3 ngày trước ngày bắt đầu.</p>
+                  <p>• Gửi yêu cầu hủy trước ngày bắt đầu ít nhất 3 ngày: hoàn 80% số tiền đã thanh toán.</p>
+                  <p>• Gửi trước 1–2 ngày: hoàn 50% số tiền đã thanh toán.</p>
+                  <p>• Gửi vào hoặc sau ngày bắt đầu: không hoàn tiền.</p>
+                  <p>Ngày bắt đầu áp dụng là ngày sớm nhất trong hợp đồng; yêu cầu hủy cần được quản trị viên duyệt.</p>
                 </div>
 
                 {selectedPlots.some((p) => !getPlotSelectedCrop(p)) && (

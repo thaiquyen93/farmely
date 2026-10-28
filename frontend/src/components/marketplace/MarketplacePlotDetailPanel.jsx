@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Zap,
   X,
@@ -13,15 +13,21 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Leaf,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Calendar,
-  Compass
+  Compass,
+  BookOpen,
+  Info,
+  Clock
 } from 'lucide-react';
 import { safeCrops } from '../../data/safeCrops';
 import PlotLeaseOptions from './PlotLeaseOptions';
 import { getLeaseConfigError, computePlotLeasePrice } from '../../utils/leaseSelection';
+import { CROP_STANDARDS, detectCropKey } from '../../services/cropStandardProcess';
 
 /* ──────────────────────────────────────────────────────────────────────────────
    MarketplacePlotDetailPanel — Per-plot lease config + responsive 1366x768
@@ -43,13 +49,38 @@ export default function MarketplacePlotDetailPanel({
   const [photoIndex, setPhotoIndex] = useState(0);
   const [activeTab, setActiveTab] = useState('overview');
   const [showConfigErrors, setShowConfigErrors] = useState(false);
+  const [expandedStageId, setExpandedStageId] = useState(null);
+  const [showTechnicalHandbookModal, setShowTechnicalHandbookModal] = useState(false);
 
   // Reset photo index, tab & error khi đổi thửa đất
   useEffect(() => {
     setPhotoIndex(0);
     setActiveTab('overview');
     setShowConfigErrors(false);
+    setExpandedStageId(null);
+    setShowTechnicalHandbookModal(false);
   }, [plot?.id, plot?.code]);
+
+  const effectiveCropOptions = cropOptions && cropOptions.length > 0 ? cropOptions : safeCrops;
+  const selectedCrop = effectiveCropOptions.find((c) => c.id === leaseConfig?.cropId) || null;
+  const currentTechnicalCrop = selectedCrop || effectiveCropOptions[0];
+
+  const cropProcessData = useMemo(() => {
+    if (!currentTechnicalCrop) return null;
+    const cropKey = detectCropKey(currentTechnicalCrop.variety || currentTechnicalCrop.name || '');
+    const standard = CROP_STANDARDS[cropKey] || CROP_STANDARDS['lettuce'];
+    return {
+      cropKey,
+      standard,
+      cropName: currentTechnicalCrop.variety || currentTechnicalCrop.name || standard.cropName,
+      cropIcon: currentTechnicalCrop.icon || '🌱',
+      duration: currentTechnicalCrop.duration || `${standard.totalDays} ngày`,
+      totalDays: standard.totalDays,
+      expectedYield: standard.expectedYield,
+      optimalConditions: standard.optimalConditions,
+      stages: standard.stages || []
+    };
+  }, [currentTechnicalCrop]);
 
   if (!plot) return null;
 
@@ -105,7 +136,6 @@ export default function MarketplacePlotDetailPanel({
   const phValue = plot.ph || plot.specs?.ph || '6.2 - 6.6';
   const tempValue = plot.temp || plot.specs?.temp || '20 - 28°C';
 
-  const selectedCrop = cropOptions.find((c) => c.id === leaseConfig.cropId) || null;
   const configError = getLeaseConfigError(leaseConfig, selectedCrop);
 
   const handleShare = () => {
@@ -197,7 +227,8 @@ export default function MarketplacePlotDetailPanel({
   });
 
   return (
-    <aside
+    <>
+      <aside
       id="detail-panel"
       data-plot-detail-panel={isOpen && plot ? 'open' : 'closed'}
       aria-label={`Chi tiết thửa đất ${plot?.code || ''}`}
@@ -531,6 +562,207 @@ export default function MarketplacePlotDetailPanel({
               </div>
             </div>
 
+            {/* ═══════════ QUY TRÌNH KỸ THUẬT CANH TÁC VIETGAP ═══════════ */}
+            <div className="rounded-2xl border border-emerald-200/90 bg-gradient-to-b from-emerald-50/50 via-white to-white p-3 shadow-2xs space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                    <Sprout className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-extrabold text-[11px] text-slate-800 uppercase tracking-wider truncate">
+                      Quy trình kỹ thuật canh tác
+                    </h4>
+                    <p className="text-[10px] text-emerald-700 font-semibold truncate">
+                      Tiêu chuẩn VietGAP • 100% sinh học
+                    </p>
+                  </div>
+                </div>
+                <span className="shrink-0 text-[9px] font-black uppercase text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-300/60">
+                  Chuẩn kỹ sư
+                </span>
+              </div>
+
+              {/* Bộ chọn giống cây để xem quy trình kỹ thuật */}
+              <div className="rounded-xl bg-slate-50/90 p-2 border border-slate-200/70">
+                <div className="flex items-center justify-between mb-1 text-[10px]">
+                  <span className="font-bold text-slate-600 flex items-center gap-1">
+                    <span>{cropProcessData?.cropIcon}</span>
+                    <span>Quy trình cho giống cây:</span>
+                  </span>
+                  {selectedCrop ? (
+                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                      ✓ Đã chọn thuê
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-medium text-stone-500 bg-stone-100 px-1.5 py-0.2 rounded">
+                      Xem trước
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <select
+                    value={leaseConfig.cropId || currentTechnicalCrop?.id || ''}
+                    onChange={(e) => {
+                      setShowConfigErrors(false);
+                      onChangeLeaseConfig({ cropId: e.target.value });
+                    }}
+                    className="w-full appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-800 hover:border-emerald-500 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/20 outline-hidden transition cursor-pointer"
+                  >
+                    {effectiveCropOptions.map((crop) => (
+                      <option key={crop.id} value={crop.id}>
+                        {crop.icon ? `${crop.icon} ` : ''}{crop.name} — {crop.variety}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2 top-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Thẻ chỉ số tổng quan mùa vụ */}
+              {cropProcessData && (
+                <div className="grid grid-cols-3 gap-1.5 text-center">
+                  <div className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/80">
+                    <p className="text-[8px] text-emerald-700 uppercase font-bold">Chu kỳ vụ</p>
+                    <p className="text-[11px] font-black text-emerald-950 mt-0.5">{cropProcessData.totalDays} ngày</p>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/80">
+                    <p className="text-[8px] text-emerald-700 uppercase font-bold">Năng suất dự kiến</p>
+                    <p className="text-[11px] font-black text-emerald-950 mt-0.5 truncate">{cropProcessData.expectedYield}</p>
+                  </div>
+                  <div className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/80">
+                    <p className="text-[8px] text-emerald-700 uppercase font-bold">Nhiệt độ tối ưu</p>
+                    <p className="text-[11px] font-black text-emerald-950 mt-0.5">{cropProcessData.optimalConditions?.tempRange || '20–30°C'}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Dòng thời gian các giai đoạn kỹ thuật (Stages Timeline) */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold px-0.5">
+                  <span>Các giai đoạn kỹ thuật ({cropProcessData?.stages?.length || 0} mốc):</span>
+                  <span className="text-[9px] text-emerald-600 font-medium">Bấm để xem chi tiết</span>
+                </div>
+
+                <div className="space-y-1.5">
+                  {cropProcessData?.stages?.map((stage, sIdx) => {
+                    const isExpanded = expandedStageId === stage.id || (expandedStageId === null && sIdx === 0);
+                    return (
+                      <div
+                        key={stage.id || sIdx}
+                        className={`rounded-xl border transition-all duration-200 overflow-hidden ${
+                          isExpanded
+                            ? 'border-emerald-300 bg-white shadow-2xs'
+                            : 'border-slate-200/70 bg-slate-50/60 hover:bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setExpandedStageId(isExpanded ? false : stage.id)}
+                          className="w-full p-2 flex items-center justify-between gap-2 text-left cursor-pointer select-none"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 ${
+                              isExpanded ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {stage.stepOrder || sIdx + 1}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-900 truncate leading-tight">
+                                {stage.name}
+                              </p>
+                              <p className="text-[9px] text-slate-500 font-medium mt-0.5">
+                                {stage.label}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-100">
+                              GĐ {stage.stepOrder || sIdx + 1}
+                            </span>
+                            <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180 text-emerald-600' : ''}`} />
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="px-2.5 pb-2.5 pt-1 border-t border-slate-100 text-[10px] space-y-2 bg-gradient-to-b from-emerald-50/20 to-white">
+                            {stage.statusDesc && (
+                              <p className="text-[10px] text-slate-600 italic leading-snug">
+                                {stage.statusDesc}
+                              </p>
+                            )}
+
+                            {/* Hướng dẫn kỹ thuật trọng tâm */}
+                            <div className="p-2 rounded-lg bg-emerald-50/70 border border-emerald-100/80">
+                              <span className="font-extrabold text-emerald-900 block mb-0.5 flex items-center gap-1">
+                                <Sprout className="w-3 h-3 text-emerald-600" />
+                                Chỉ dẫn kỹ thuật canh tác:
+                              </span>
+                              <p className="text-slate-700 leading-relaxed text-[10px]">
+                                {stage.guide}
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-1.5">
+                              {stage.waterRegime && (
+                                <div className="p-1.5 rounded-lg bg-sky-50/60 border border-sky-100 flex items-start gap-1.5">
+                                  <Droplets className="w-3.5 h-3.5 text-sky-500 shrink-0 mt-0.5" />
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-sky-900 block text-[9px]">Chế độ tưới nước:</span>
+                                    <span className="text-slate-600 text-[10px] leading-tight block">{stage.waterRegime}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {stage.nutrition && (
+                                <div className="p-1.5 rounded-lg bg-amber-50/60 border border-amber-100 flex items-start gap-1.5">
+                                  <Leaf className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-amber-900 block text-[9px]">Dinh dưỡng & Bón phân:</span>
+                                    <span className="text-slate-600 text-[10px] leading-tight block">{stage.nutrition}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {stage.pestAlert && (
+                                <div className="p-1.5 rounded-lg bg-rose-50/60 border border-rose-100 flex items-start gap-1.5">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-rose-900 block text-[9px]">Phòng trừ sâu bệnh sinh học:</span>
+                                    <span className="text-slate-600 text-[10px] leading-tight block">{stage.pestAlert}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {stage.inspectionCriteria && (
+                                <div className="p-1.5 rounded-lg bg-teal-50/60 border border-teal-100 flex items-start gap-1.5">
+                                  <ShieldCheck className="w-3.5 h-3.5 text-teal-600 shrink-0 mt-0.5" />
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-teal-900 block text-[9px]">Tiêu chí nghiệm thu VietGAP:</span>
+                                    <span className="text-slate-600 text-[10px] leading-tight block">{stage.inspectionCriteria}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Nút xem cẩm nang kỹ thuật chi tiết */}
+                <button
+                  type="button"
+                  onClick={() => setShowTechnicalHandbookModal(true)}
+                  className="w-full mt-2 py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-200/80 transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  Xem cẩm nang kỹ thuật toàn diện (VietGAP)
+                </button>
+              </div>
+            </div>
+
             {/* IoT Telemetry */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -673,5 +905,201 @@ export default function MarketplacePlotDetailPanel({
         )}
       </div>
     </aside>
+
+    {/* Modal Cẩm nang quy trình kỹ thuật canh tác VietGAP toàn diện */}
+    {showTechnicalHandbookModal && cropProcessData && (
+      <TechnicalHandbookModal
+        isOpen={showTechnicalHandbookModal}
+        onClose={() => setShowTechnicalHandbookModal(false)}
+        cropData={cropProcessData}
+        isSelected={Boolean(leaseConfig.cropId && leaseConfig.cropId === currentTechnicalCrop?.id)}
+        onSelectCrop={() => {
+          setShowConfigErrors(false);
+          onChangeLeaseConfig({ cropId: currentTechnicalCrop.id });
+        }}
+      />
+    )}
+  </>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────────
+   TechnicalHandbookModal — Sổ tay cẩm nang quy trình kỹ thuật chuẩn VietGAP
+   ────────────────────────────────────────────────────────────────────────── */
+function TechnicalHandbookModal({ isOpen, onClose, cropData, onSelectCrop, isSelected }) {
+  if (!isOpen || !cropData) return null;
+  const { cropName, cropIcon, totalDays, expectedYield, optimalConditions, stages } = cropData;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl bg-white shadow-2xl border border-stone-200 overflow-hidden">
+        {/* Header modal */}
+        <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between bg-gradient-to-r from-emerald-50/70 via-white to-teal-50/40 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="text-2xl shrink-0">{cropIcon}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-base font-extrabold text-[#18352b] truncate font-heading">
+                  Cẩm nang quy trình kỹ thuật canh tác VietGAP
+                </h3>
+                <span className="shrink-0 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  Chuẩn VietGAP
+                </span>
+              </div>
+              <p className="text-xs text-stone-500 font-medium truncate mt-0.5">
+                {cropName} • Chu kỳ chuẩn {totalDays} ngày tuổi
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-500 hover:text-stone-800 flex items-center justify-center transition cursor-pointer shrink-0"
+            title="Đóng cẩm nang"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Nội dung cẩm nang cuộn mượt */}
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 text-xs">
+          {/* Thông số tối ưu */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100 text-center">
+              <span className="text-[10px] text-emerald-700 font-bold block uppercase">Chu kỳ toàn vụ</span>
+              <span className="text-sm font-black text-emerald-950 mt-0.5 block">{totalDays} ngày</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100 text-center">
+              <span className="text-[10px] text-emerald-700 font-bold block uppercase">Năng suất ước tính</span>
+              <span className="text-sm font-black text-emerald-950 mt-0.5 block">{expectedYield}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100 text-center">
+              <span className="text-[10px] text-emerald-700 font-bold block uppercase">Nhiệt độ thích hợp</span>
+              <span className="text-sm font-black text-emerald-950 mt-0.5 block">{optimalConditions?.tempRange || '20–30°C'}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100 text-center">
+              <span className="text-[10px] text-emerald-700 font-bold block uppercase">Độ ẩm đất tối ưu</span>
+              <span className="text-sm font-black text-emerald-950 mt-0.5 block">{optimalConditions?.soilMoistureRange || '65–75%'}</span>
+            </div>
+          </div>
+
+          {/* Chi tiết từng giai đoạn */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-black uppercase text-stone-800 tracking-wider flex items-center gap-1.5">
+              <Sprout className="w-4 h-4 text-emerald-600" />
+              Chi tiết các giai đoạn sinh trưởng & biện pháp kỹ thuật ({stages.length} giai đoạn)
+            </h4>
+
+            {stages.map((st, idx) => (
+              <div key={st.id || idx} className="rounded-2xl border border-stone-200 bg-stone-50/40 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-emerald-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                      {st.stepOrder || idx + 1}
+                    </span>
+                    <div>
+                      <h5 className="font-extrabold text-sm text-stone-900">{st.name}</h5>
+                      <span className="text-[11px] text-stone-500 font-semibold">{st.label}</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-full shrink-0">
+                    Giai đoạn {st.stepOrder || idx + 1}
+                  </span>
+                </div>
+
+                {st.statusDesc && (
+                  <p className="text-stone-600 italic text-xs leading-relaxed">
+                    {st.statusDesc}
+                  </p>
+                )}
+
+                {/* Hướng dẫn kỹ thuật trọng tâm */}
+                <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-100">
+                  <span className="text-xs font-bold text-emerald-900 block mb-1 flex items-center gap-1.5">
+                    <Sprout className="w-3.5 h-3.5 text-emerald-600" />
+                    Chỉ dẫn kỹ thuật canh tác trọng tâm:
+                  </span>
+                  <p className="text-emerald-950 leading-relaxed text-xs">
+                    {st.guide}
+                  </p>
+                </div>
+
+                {/* 2 cột: Nước tưới & Dinh dưỡng */}
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {st.waterRegime && (
+                    <div className="p-2.5 rounded-xl bg-white border border-stone-200">
+                      <span className="text-[11px] font-bold text-sky-800 flex items-center gap-1 mb-0.5">
+                        <Droplets className="w-3.5 h-3.5 text-sky-500" />
+                        Chế độ nước tưới
+                      </span>
+                      <p className="text-stone-600 text-xs leading-relaxed">{st.waterRegime}</p>
+                    </div>
+                  )}
+
+                  {st.nutrition && (
+                    <div className="p-2.5 rounded-xl bg-white border border-stone-200">
+                      <span className="text-[11px] font-bold text-amber-800 flex items-center gap-1 mb-0.5">
+                        <Leaf className="w-3.5 h-3.5 text-amber-600" />
+                        Dinh dưỡng & Bón phân
+                      </span>
+                      <p className="text-stone-600 text-xs leading-relaxed">{st.nutrition}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sâu bệnh & Nghiệm thu */}
+                {st.pestAlert && (
+                  <div className="p-2.5 rounded-xl bg-rose-50/60 border border-rose-100">
+                    <span className="text-[11px] font-bold text-rose-800 flex items-center gap-1 mb-0.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                      Phòng ngừa sâu bệnh sinh học
+                    </span>
+                    <p className="text-rose-950 text-xs leading-relaxed">{st.pestAlert}</p>
+                  </div>
+                )}
+
+                {st.inspectionCriteria && (
+                  <div className="p-2.5 rounded-xl bg-teal-50/60 border border-teal-100">
+                    <span className="text-[11px] font-bold text-teal-800 flex items-center gap-1 mb-0.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+                      Tiêu chí nghiệm thu VietGAP của Kỹ sư
+                    </span>
+                    <p className="text-teal-950 text-xs leading-relaxed">{st.inspectionCriteria}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer modal */}
+        <div className="px-5 py-3.5 border-t border-stone-100 bg-stone-50/80 flex items-center justify-between gap-3 shrink-0">
+          <p className="text-[11px] text-stone-500 font-medium">
+            100% quy trình được giám sát nhật ký số và hỗ trợ bởi đội ngũ kỹ sư Farmely.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3.5 py-2 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-stone-700 font-bold text-xs transition cursor-pointer"
+            >
+              Đóng
+            </button>
+            {!isSelected && onSelectCrop && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectCrop();
+                  onClose();
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-sm cursor-pointer"
+              >
+                Chọn giống cây này
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
