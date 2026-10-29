@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&amp;family=Inter:wght@400;500;600;700;800&amp;display=swap');
+      text { text-rendering: geometricPrecision; }
+    </style>
+  </defs>
+
+  <!-- Slide Background -->
+  <rect width="1280" height="720" fill="#FFFFFF" />
+
+  <!-- Slide Header -->
+  <g id="slide-header">
+    <text x="640" y="76" font-family="'Playfair Display', Georgia, serif" font-size="38" font-weight="600" fill="#241E1C" text-anchor="middle" letter-spacing="0.5">
+      Timeline: Plot Rental & Cultivation
+    </text>
+    <text x="640" y="104" font-family="'Inter', 'Segoe UI', sans-serif" font-size="12" font-weight="600" fill="#8C7976" text-anchor="middle" letter-spacing="1.2">
+      FLOW 2 — HÀNH TRÌNH KHÁCH THUÊ ĐẤT, CANH TÁC VIETGAP VÀ THU HOẠCH GIAO TẬN NHÀ
+    </text>
+  </g>
+
+  <!-- Horizontal Timeline Ribbon Bar -->
+  <rect x="50" y="338" width="1180" height="44" rx="22" fill="#EAD6D6" />
+
+  <!-- 4 Timeline Nodes & Actions -->
+  
+        <g id="node-1">
+          
+        <line x1="190" y1="316" x2="190" y2="245" stroke="#3D3432" stroke-width="2" />
+        <circle cx="190" cy="245" r="4.5" fill="#3D3432" />
+      
+          
+        <text x="80" y="185" font-family="'Inter', 'Segoe UI', sans-serif" font-size="17" font-weight="800" fill="#2B2625">
+          Create rental order
+        </text>
+        
+          <g transform="translate(80, 200)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Chọn mảnh đất phù hợp trên bản đồ số
+            </text>
+          </g>
+        
+          <g transform="translate(80, 224)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Chọn giống rau củ & gói chăm sóc VietGAP
+            </text>
+          </g>
+        
+          <g transform="translate(80, 248)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Ký hợp đồng thuê số (Digital Agreement)
+            </text>
+          </g>
+        
+          <g transform="translate(80, 272)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Thanh toán đặt cọc tiện lợi qua VNPAY
+            </text>
+          </g>
+        
+      
+          
+      <circle cx="190" cy="360" r="40" fill="#BA8481" filter="drop-shadow(0px 4px 6px rgba(0,0,0,0.12))" />
+      
+        <!-- Customer icon (user silhouette) -->
+        <circle cx="190" cy="352" r="11" fill="none" stroke="#FFFFFF" stroke-width="3" />
+        <path d="M 172 378 C 172 366, 208 366, 208 378" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" />
+      
+    
+          
+        <text x="190" y="425" font-family="'Inter', 'Segoe UI', sans-serif" font-size="19" font-weight="800" fill="#2B2625" text-anchor="middle">
+          Customer
+        </text>
+        <text x="190" y="446" font-family="'Inter', 'Segoe UI', sans-serif" font-size="12" font-weight="500" fill="#786B69" text-anchor="middle">
+          (Khách thuê)
+        </text>
+      
+        </g>
+      
+        <g id="node-2">
+          
+        <text x="480" y="300" font-family="'Inter', 'Segoe UI', sans-serif" font-size="19" font-weight="800" fill="#2B2625" text-anchor="middle">
+          Agri Expert
+        </text>
+        <text x="480" y="282" font-family="'Inter', 'Segoe UI', sans-serif" font-size="12" font-weight="500" fill="#786B69" text-anchor="middle">
+          (Chuyên gia nông nghiệp)
+        </text>
+      
+          
+        <line x1="480" y1="404" x2="480" y2="475" stroke="#3D3432" stroke-width="2" />
+        <circle cx="480" cy="475" r="4.5" fill="#3D3432" />
+      
+          
+      <circle cx="480" cy="360" r="40" fill="#BA8481" filter="drop-shadow(0px 4px 6px rgba(0,0,0,0.12))" />
+      
+        <!-- Manager in suit icon -->
+        <circle cx="480" cy="352" r="10" fill="none" stroke="#FFFFFF" stroke-width="3" />
+        <path d="M 464 378 L 470 368 L 476 372 L 480 367 L 484 372 L 490 368 L 496 378" fill="none" stroke="#FFFFFF" stroke-width="3" />
+        <rect x="468" y="367" width="6" height="3" fill="#FFFFFF" rx="1" />
+      
+    
+          
+        <text x="370" y="495" font-family="'Inter', 'Segoe UI', sans-serif" font-size="17" font-weight="800" fill="#2B2625">
+          Approve & Schedule
+        </text>
+        
+          <g transform="translate(370, 511)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Xác nhận tính khả thi mùa vụ & hợp đồng
+            </text>
+          </g>
+        
+          <g transform="translate(370, 535)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Phân bổ nông dân phụ trách (Assign Worker)
+            </text>
+          </g>
+        
+          <g transform="translate(370, 559)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Kích hoạt lịch trình chăm sóc tự động 90 ngày
+            </text>
+          </g>
+        
+      
+        </g>
+      
+        <g id="node-3">
+          
+        <line x1="770" y1="316" x2="770" y2="245" stroke="#3D3432" stroke-width="2" />
+        <circle cx="770" cy="245" r="4.5" fill="#3D3432" />
+      
+          
+        <text x="660" y="185" font-family="'Inter', 'Segoe UI', sans-serif" font-size="17" font-weight="800" fill="#2B2625">
+          Cultivation & Care
+        </text>
+        
+          <g transform="translate(660, 200)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Thực hiện các công việc theo đúng quy trình VietGAP
+            </text>
+          </g>
+        
+          <g transform="translate(660, 224)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Chụp ảnh minh chứng hiện trường bắt buộc
+            </text>
+          </g>
+        
+          <g transform="translate(660, 248)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Ghi nhận chỉ số thời tiết & nhật ký sinh trưởng
+            </text>
+          </g>
+        
+          <g transform="translate(660, 272)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Thu hoạch, cân sản lượng & chụp ảnh cân
+            </text>
+          </g>
+        
+      
+          
+      <circle cx="770" cy="360" r="40" fill="#BA8481" filter="drop-shadow(0px 4px 6px rgba(0,0,0,0.12))" />
+      
+        <!-- Package / Box icon (like staff in reference) -->
+        <path d="M 770 344 L 786 354 L 786 372 L 770 378 L 754 372 L 754 354 Z" fill="none" stroke="#FFFFFF" stroke-width="3" />
+        <path d="M 770 344 L 770 378" stroke="#FFFFFF" stroke-width="2.5" />
+        <path d="M 754 354 L 770 363 L 786 354" stroke="#FFFFFF" stroke-width="2.5" />
+      
+    
+          
+        <text x="770" y="425" font-family="'Inter', 'Segoe UI', sans-serif" font-size="19" font-weight="800" fill="#2B2625" text-anchor="middle">
+          Field Worker
+        </text>
+        <text x="770" y="446" font-family="'Inter', 'Segoe UI', sans-serif" font-size="12" font-weight="500" fill="#786B69" text-anchor="middle">
+          (Nông dân tại vườn)
+        </text>
+      
+        </g>
+      
+        <g id="node-4">
+          
+        <text x="1060" y="300" font-family="'Inter', 'Segoe UI', sans-serif" font-size="19" font-weight="800" fill="#2B2625" text-anchor="middle">
+          Delivery
+        </text>
+        <text x="1060" y="282" font-family="'Inter', 'Segoe UI', sans-serif" font-size="12" font-weight="500" fill="#786B69" text-anchor="middle">
+          (Giao hàng / Trải nghiệm)
+        </text>
+      
+          
+        <line x1="1060" y1="404" x2="1060" y2="475" stroke="#3D3432" stroke-width="2" />
+        <circle cx="1060" cy="475" r="4.5" fill="#3D3432" />
+      
+          
+      <circle cx="1060" cy="360" r="40" fill="#BA8481" filter="drop-shadow(0px 4px 6px rgba(0,0,0,0.12))" />
+      
+        <!-- Delivery truck icon -->
+        <rect x="1042" y="350" width="22" height="18" fill="none" stroke="#FFFFFF" stroke-width="3" rx="2" />
+        <path d="M 1064 356 L 1072 356 L 1078 362 L 1078 368 L 1064 368 Z" fill="none" stroke="#FFFFFF" stroke-width="3" />
+        <circle cx="1051" cy="371" r="4" fill="#FFFFFF" />
+        <circle cx="1071" cy="371" r="4" fill="#FFFFFF" />
+      
+    
+          
+        <text x="950" y="495" font-family="'Inter', 'Segoe UI', sans-serif" font-size="17" font-weight="800" fill="#2B2625">
+          Harvest Delivery
+        </text>
+        
+          <g transform="translate(950, 511)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Đóng thùng nông sản đạt chuẩn an toàn
+            </text>
+          </g>
+        
+          <g transform="translate(950, 535)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Giao hàng tận nhà qua đơn vị vận chuyển đối tác
+            </text>
+          </g>
+        
+          <g transform="translate(950, 559)">
+            <circle cx="5" cy="-5" r="3.5" fill="#3D3432" />
+            <text x="16" y="0" font-family="'Inter', 'Segoe UI', sans-serif" font-size="13" font-weight="400" fill="#4A403E">
+              Hoặc đón khách hàng đến trải nghiệm thu hoạch
+            </text>
+          </g>
+        
+      
+        </g>
+      
+
+  <!-- Slide Footer (Matching Presentation slide footer) -->
+  <g id="slide-footer">
+    <line x1="50" y1="675" x2="1230" y2="675" stroke="#E8E1DE" stroke-width="1" />
+    <text x="60" y="695" font-family="'Inter', sans-serif" font-size="11" font-weight="600" fill="#8F8380">
+      10/2026
+    </text>
+    <text x="640" y="695" font-family="'Inter', sans-serif" font-size="11" font-weight="700" fill="#8F8380" text-anchor="middle" letter-spacing="1">
+      FARMELY — SMART AGRIRENT PLATFORM
+    </text>
+    <text x="1220" y="695" font-family="'Inter', sans-serif" font-size="12" font-weight="700" fill="#8F8380" text-anchor="end">
+      21
+    </text>
+  </g>
+</svg>

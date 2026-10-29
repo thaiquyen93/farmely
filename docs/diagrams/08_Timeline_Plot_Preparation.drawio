@@ -1,0 +1,97 @@
+<mxfile host="app.diagrams.net" agent="Antigravity">
+  <diagram id="timeline-plot-prep" name="Timeline: Plot Preparation for Rent">
+    <mxGraphModel dx="1280" dy="720" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1280" pageHeight="720" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+    <mxCell id="slide-bg" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;" vertex="1" parent="1">
+      <mxGeometry x="0" y="0" width="1280" height="720" as="geometry" />
+    </mxCell>
+    <mxCell id="slide-title" value="&lt;font face=&quot;Georgia&quot; style=&quot;font-size: 34px;&quot;&gt;&lt;b&gt;Timeline: Plot Preparation for Rent&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Helvetica&quot; style=&quot;font-size: 11px; letter-spacing: 1px; color: #8C7976;&quot;&gt;&lt;b&gt;FLOW 1 — NÔNG TRẠI & THỬA ĐẤT TỪ KHỞI TẠO ĐẾN NIÊM YẾT SÀN MARKETPLACE&lt;/b&gt;&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+      <mxGeometry x="190" y="40" width="900" height="70" as="geometry" />
+    </mxCell>
+    <mxCell id="timeline-bar" value="" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#EAD6D6;strokeColor=none;" vertex="1" parent="1">
+      <mxGeometry x="50" y="338" width="1180" height="44" as="geometry" />
+    </mxCell>
+  
+      <mxCell id="circle-0" value="&lt;b style=&quot;color: #ffffff; font-size: 13px;&quot;&gt;1&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#BA8481;strokeColor=none;shadow=1;" vertex="1" parent="1">
+        <mxGeometry x="150" y="320" width="80" height="80" as="geometry" />
+      </mxCell>
+    
+        <mxCell id="role-0" value="&lt;font style=&quot;font-size: 17px; font-weight: bold; color: #2B2625;&quot;&gt;Administrator&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #786B69;&quot;&gt;(Quản trị viên)&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="90" y="412" width="200" height="50" as="geometry" />
+        </mxCell>
+      
+        <mxCell id="stem-0" value="" style="endArrow=oval;endFill=1;html=1;rounded=0;strokeColor=#3D3432;strokeWidth=2;endSize=6;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="190" y="318" as="sourcePoint" />
+            <mxPoint x="190" y="245" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      
+        <mxCell id="action-0" value="&lt;div align=&quot;left&quot;&gt;&lt;b style=&quot;font-size: 16px; color: #2B2625;&quot;&gt;Create land & plot&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #786B69;&quot;&gt;(Khởi tạo thửa đất)&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #4A403E; line-height: 160%;&quot;&gt;&amp;#9679; Vẽ ranh giới nông trại & lô đất (GIS Map)&lt;br&gt;&amp;#9679; Định giá thuê theo mét vuông & chu kỳ&lt;br&gt;&amp;#9679; Cấu hình các gói dịch vụ chăm sóc đi kèm&lt;br&gt;&amp;#9679; Lưu trạng thái: Chưa kích hoạt (Inactive / Draft)&lt;/font&gt;&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=bottom;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="80" y="115" width="250" height="120" as="geometry" />
+        </mxCell>
+      
+      <mxCell id="circle-1" value="&lt;b style=&quot;color: #ffffff; font-size: 13px;&quot;&gt;2&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#BA8481;strokeColor=none;shadow=1;" vertex="1" parent="1">
+        <mxGeometry x="440" y="320" width="80" height="80" as="geometry" />
+      </mxCell>
+    
+        <mxCell id="role-1" value="&lt;font style=&quot;font-size: 17px; font-weight: bold; color: #2B2625;&quot;&gt;Agri Expert&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #786B69;&quot;&gt;(Chuyên gia nông nghiệp)&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=bottom;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="380" y="265" width="200" height="45" as="geometry" />
+        </mxCell>
+      
+        <mxCell id="stem-1" value="" style="endArrow=oval;endFill=1;html=1;rounded=0;strokeColor=#3D3432;strokeWidth=2;endSize=6;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="480" y="402" as="sourcePoint" />
+            <mxPoint x="480" y="475" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      
+        <mxCell id="action-1" value="&lt;div align=&quot;left&quot;&gt;&lt;b style=&quot;font-size: 16px; color: #2B2625;&quot;&gt;Agronomy setup&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #786B69;&quot;&gt;(Thiết lập thổ nhưỡng & quy trình)&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #4A403E; line-height: 160%;&quot;&gt;&amp;#9679; Thẩm định mẫu đất & trạm thời tiết khu vực&lt;br&gt;&amp;#9679; Gán danh mục giống cây tương thích (BR03)&lt;br&gt;&amp;#9679; Soạn thảo quy trình chuẩn VietGAP 90 ngày (BR12)&lt;br&gt;&amp;#9679; Xác nhận điều kiện nông học hoàn tất&lt;/font&gt;&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="370" y="485" width="250" height="130" as="geometry" />
+        </mxCell>
+      
+      <mxCell id="circle-2" value="&lt;b style=&quot;color: #ffffff; font-size: 13px;&quot;&gt;3&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#BA8481;strokeColor=none;shadow=1;" vertex="1" parent="1">
+        <mxGeometry x="730" y="320" width="80" height="80" as="geometry" />
+      </mxCell>
+    
+        <mxCell id="role-2" value="&lt;font style=&quot;font-size: 17px; font-weight: bold; color: #2B2625;&quot;&gt;Administrator&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #786B69;&quot;&gt;(Phê duyệt & Niêm yết)&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="670" y="412" width="200" height="50" as="geometry" />
+        </mxCell>
+      
+        <mxCell id="stem-2" value="" style="endArrow=oval;endFill=1;html=1;rounded=0;strokeColor=#3D3432;strokeWidth=2;endSize=6;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="770" y="318" as="sourcePoint" />
+            <mxPoint x="770" y="245" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      
+        <mxCell id="action-2" value="&lt;div align=&quot;left&quot;&gt;&lt;b style=&quot;font-size: 16px; color: #2B2625;&quot;&gt;Approve & Publish&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #786B69;&quot;&gt;(Kiểm duyệt & Xuất bản)&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #4A403E; line-height: 160%;&quot;&gt;&amp;#9679; Kiểm tra checklist điều kiện sẵn sàng thửa đất&lt;br&gt;&amp;#9679; Duyệt quy trình canh tác và cơ cấu giống&lt;br&gt;&amp;#9679; 1-Click chuyển trạng thái: Inactive ➔ Available&lt;br&gt;&amp;#9679; Bật cờ Niêm yết công khai (Publish = True)&lt;/font&gt;&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=bottom;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="660" y="115" width="250" height="120" as="geometry" />
+        </mxCell>
+      
+      <mxCell id="circle-3" value="&lt;b style=&quot;color: #ffffff; font-size: 13px;&quot;&gt;4&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#BA8481;strokeColor=none;shadow=1;" vertex="1" parent="1">
+        <mxGeometry x="1020" y="320" width="80" height="80" as="geometry" />
+      </mxCell>
+    
+        <mxCell id="role-3" value="&lt;font style=&quot;font-size: 17px; font-weight: bold; color: #2B2625;&quot;&gt;Marketplace&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #786B69;&quot;&gt;(Sàn thương mại điện tử)&lt;/font&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=bottom;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="960" y="265" width="200" height="45" as="geometry" />
+        </mxCell>
+      
+        <mxCell id="stem-3" value="" style="endArrow=oval;endFill=1;html=1;rounded=0;strokeColor=#3D3432;strokeWidth=2;endSize=6;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="1060" y="402" as="sourcePoint" />
+            <mxPoint x="1060" y="475" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      
+        <mxCell id="action-3" value="&lt;div align=&quot;left&quot;&gt;&lt;b style=&quot;font-size: 16px; color: #2B2625;&quot;&gt;Live Marketplace&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #786B69;&quot;&gt;(Hiển thị cho khách thuê)&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #4A403E; line-height: 160%;&quot;&gt;&amp;#9679; Thửa đất hiển thị trực quan trên bản đồ số 2D/3D&lt;br&gt;&amp;#9679; Công khai bảng giá, dịch vụ và giống được trồng&lt;br&gt;&amp;#9679; Sẵn sàng cho Khách hàng lựa chọn và đặt cọc&lt;br&gt;&amp;#9679; Chặn niêm yết nếu đất chưa qua chuyên gia duyệt&lt;/font&gt;&lt;/div&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="950" y="485" width="250" height="130" as="geometry" />
+        </mxCell>
+      
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
