@@ -80,6 +80,7 @@ export default function VnPayReturn() {
       localStorage.setItem('farmely_recently_booked_plots', JSON.stringify(recent));
       localStorage.removeItem('farmely_master_lease_selected_plots');
       localStorage.removeItem('farmely_pending_vnpay_booking');
+      localStorage.removeItem('farmely_pending_vnpay_service');
 
       window.dispatchEvent(new CustomEvent('farmely_plot_booked', { detail: pending.plots }));
       try {
@@ -140,7 +141,7 @@ export default function VnPayReturn() {
             serviceName: pendingService?.serviceName || 'Dịch vụ canh tác',
             plotCode: pendingService?.plotCode || 'P-01',
             scheduledDate: pendingService?.scheduledDate || new Date().toISOString().slice(0, 10),
-            amount: rawAmount || pendingService?.amount || 0,
+            amount: pendingService?.amount || (rawAmount <= 1000000 ? rawAmount : 25000),
             notes: pendingService?.notes || '',
             paymentMethod: 'VNPAY',
             gatewayRef: transNo || txnRef || `VNPAY-${Date.now()}`
@@ -157,7 +158,7 @@ export default function VnPayReturn() {
         plotName: pendingService?.plotName || pendingService?.plotCode || 'Thửa đất canh tác',
         plotCode: pendingService?.plotCode || 'P-01',
         scheduledDate: pendingService?.scheduledDate || new Date().toISOString().slice(0, 10),
-        amount: rawAmount || pendingService?.amount || 0,
+        amount: pendingService?.amount || (rawAmount <= 1000000 ? rawAmount : 25000),
         transactionNo: transNo || txnRef || `VNPAY-${Date.now()}`
       };
 
@@ -205,9 +206,11 @@ export default function VnPayReturn() {
           verifySuccess = true;
         }
 
+        const savedBookingJson = localStorage.getItem('farmely_pending_vnpay_booking');
         const savedServiceJson = localStorage.getItem('farmely_pending_vnpay_service');
         const orderInfo = params.get('vnp_OrderInfo') || '';
-        const isService = Boolean(savedServiceJson) || /dich vu|service/i.test(orderInfo);
+        const isBooking = Boolean(savedBookingJson) || /thue|booking|hop dong|contract|dat coc/i.test(orderInfo);
+        const isService = !isBooking && (Boolean(savedServiceJson) || /dich vu|service/i.test(orderInfo));
         setIsServiceOrder(isService);
 
         if (verifySuccess) {

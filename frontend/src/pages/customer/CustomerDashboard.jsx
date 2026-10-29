@@ -1123,12 +1123,22 @@ export default function CustomerDashboard() {
         if (Array.isArray(parsed)) {
           // Lọc các đơn cũ đã xóa trong DB (chỉ lọc các ID cũ <= 42 đã bị xóa, không lọc đơn mới đặt)
           const deletedReqIds = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 31, 32, 33, 35, 36, 38, 39, 40, 41, 42];
-          const cleaned = parsed.filter(o => {
-            const reqIdNum = Number(String(o.requestId || o.id || '').replace(/\D/g, ''));
-            if (reqIdNum > 0 && deletedReqIds.includes(reqIdNum)) return false;
-            return true;
-          });
-          if (cleaned.length !== parsed.length) {
+          const cleaned = parsed
+            .filter(o => {
+              const reqIdNum = Number(String(o.requestId || o.id || '').replace(/\D/g, ''));
+              if (reqIdNum > 0 && deletedReqIds.includes(reqIdNum)) return false;
+              return true;
+            })
+            .map(o => {
+              // Chuẩn hóa và tự động sửa các đơn bị gán nhầm tiền hợp đồng thuê đất (> 1.000.000đ)
+              const rawAmt = Number(o.amount || String(o.price || '').replace(/\D/g, '')) || 0;
+              if (rawAmt > 1000000) {
+                const normAmt = 25000;
+                return { ...o, amount: normAmt, price: `${normAmt.toLocaleString('vi-VN')} đ` };
+              }
+              return o;
+            });
+          if (JSON.stringify(cleaned) !== stored) {
             localStorage.setItem('farmely_customer_service_orders', JSON.stringify(cleaned));
           }
           return cleaned;
@@ -1239,8 +1249,17 @@ export default function CustomerDashboard() {
               plotId: req.plotCode ? `PLOT-${String(req.plotCode).replace(/^PLOT-/i, '')}` : undefined,
               serviceName: req.service?.serviceName || req.serviceName || 'Dịch vụ canh tác',
               plotName: req.plotName || (req.rentalId === 1 ? 'Thửa P-01' : `Rental #${req.rentalId}`),
-              price: `${(Number(req.paidAmount || req.amount || req.service?.price || req.price) || 0).toLocaleString('vi-VN')} đ`,
-              amount: Number(req.paidAmount || req.amount || req.service?.price || req.price) || 0,
+              price: (() => {
+                const stdPrice = Number(req.service?.price || req.price) || 25000;
+                const paid = Number(req.paidAmount || req.amount);
+                const finalAmt = (paid > 0 && paid <= 1000000) ? paid : stdPrice;
+                return `${finalAmt.toLocaleString('vi-VN')} đ`;
+              })(),
+              amount: (() => {
+                const stdPrice = Number(req.service?.price || req.price) || 25000;
+                const paid = Number(req.paidAmount || req.amount);
+                return (paid > 0 && paid <= 1000000) ? paid : stdPrice;
+              })(),
               date: req.scheduledDate ? `${req.scheduledDate} • Lịch làm việc` : 'Hôm nay',
               scheduledDate: req.scheduledDate || '',
               status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
@@ -2465,6 +2484,10 @@ export default function CustomerDashboard() {
                         const openCount = tasks.filter((t) => t.status !== 'COMPLETED').length;
                         const topAlert = (iotAlerts[plot.id] || defaultAlertsForPlot(plot) || []).find((a) => a.level === 'HIGH');
                         const daysLeft = Math.max(plot.totalDays - plot.currentDay, 0);
+                        const todayIso = new Date().toISOString().slice(0, 10);
+                        const startIso = (plot.startDate || plot.start_date || '').slice(0, 10);
+                        const isFutureStart = Boolean(startIso && startIso > todayIso);
+                        const daysUntilStart = isFutureStart ? Math.max(1, Math.ceil((new Date(`${startIso}T00:00:00`) - new Date()) / 86400000)) : 0;
 
                         return (
                           <article
@@ -2495,6 +2518,10 @@ export default function CustomerDashboard() {
                                 <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
                                   🛑 Đã hủy
                                 </span>
+                              ) : isFutureStart ? (
+                                <span className="absolute left-3 top-3 rounded-full bg-amber-50/95 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-900 shadow-2xs">
+                                  ⏳ Bắt đầu {startIso.split('-').reverse().join('/')}
+                                </span>
                               ) : (
                                 <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-[11px] font-semibold text-[#18352b]">
                                   {plot.mode === 'Self-Growing' ? 'Tự canh tác' : 'Farmely chăm sóc'}
@@ -2522,8 +2549,14 @@ export default function CustomerDashboard() {
                                   <Sprout className={`h-4 w-4 shrink-0 ${isCancelled ? 'text-stone-400' : 'text-emerald-600'}`} />
                                   <span className="truncate">{plot.crop}</span>
                                 </span>
-                                <span className="shrink-0 text-xs text-stone-500">
-                                  {isCancelled ? 'Hợp đồng kết thúc' : daysLeft > 0 ? `Còn ${daysLeft} ngày` : 'Đến vụ'}
+                                <span className="shrink-0 text-xs text-stone-500 font-medium">
+                                  {isCancelled 
+                                    ? 'Hợp đồng kết thúc' 
+                                    : isFutureStart 
+                                      ? `Bắt đầu sau ${daysUntilStart} ngày` 
+                                      : daysLeft > 0 
+                                        ? `Còn ${daysLeft} ngày` 
+                                        : 'Đến vụ'}
                                 </span>
                               </div>
 

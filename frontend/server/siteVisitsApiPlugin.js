@@ -679,8 +679,8 @@ BEGIN
         r.rental_id,
         ts.step_id,
         8, -- Kỹ thuật viên Trần Văn Lực (CVLĐ)
-        CURRENT_DATE + (ts.day_offset || ' days')::interval,
-        CASE WHEN ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        r.start_date + (ts.day_offset || ' days')::interval,
+        CASE WHEN ts.step_order = 1 AND r.start_date <= CURRENT_DATE THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
         ts.step_name || ' - ' || ts.description,
         NOW(),
         NOW()
@@ -711,7 +711,7 @@ BEGIN
     SELECT 
         r.rental_id,
         8,
-        CURRENT_DATE + 65 * INTERVAL '1 day',
+        r.start_date + 65 * INTERVAL '1 day',
         ROUND(COALESCE(p.area * 0.3, 35.0)::numeric, 1),
         'https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80',
         'DELIVERY',
@@ -806,8 +806,8 @@ BEGIN
           v_rental_id,
           ts.step_id,
           8, -- Kỹ thuật viên Trần Văn Lực (CVLĐ)
-          CURRENT_DATE + (ts.day_offset || ' days')::interval,
-          CASE WHEN ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+          '${startDate}'::date + (ts.day_offset || ' days')::interval,
+          CASE WHEN ts.step_order = 1 AND '${startDate}'::date <= CURRENT_DATE THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
           ts.step_name || ' - ' || ts.description,
           NOW(),
           NOW()
@@ -831,7 +831,7 @@ BEGIN
     VALUES (
         v_rental_id,
         8,
-        CURRENT_DATE + COALESCE((SELECT MAX(day_offset + duration_days) FROM template_steps ts JOIN process_templates pt ON ts.template_id = pt.template_id WHERE pt.variety_id = ${varietyId}), 65) * INTERVAL '1 day',
+        '${startDate}'::date + COALESCE((SELECT MAX(day_offset + duration_days) FROM template_steps ts JOIN process_templates pt ON ts.template_id = pt.template_id WHERE pt.variety_id = ${varietyId}), 65) * INTERVAL '1 day',
         ROUND(COALESCE((SELECT area * 0.3 FROM plots WHERE plot_id = v_plot_id), 35.0)::numeric, 1),
         'https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80',
         'DELIVERY',
@@ -4038,7 +4038,14 @@ SELECT json_build_object(
         pt.transaction_id AS "transactionId",
         COALESCE(pt.payment_method, 'VIETQR') AS "paymentMethod",
         COALESCE(pt.gateway_ref, '') AS "gatewayRef",
-        COALESCE(pt.amount, s.price) AS "paidAmount",
+        COALESCE(
+          CASE 
+            WHEN pt.transaction_id IS NOT NULL AND pt.contract_id IS NULL AND pt.amount > 0 AND pt.amount < 2000000 
+              THEN pt.amount 
+            ELSE NULL 
+          END, 
+          s.price
+        ) AS "paidAmount",
         COALESCE(pt.status, 'SUCCESS') AS "paymentStatus",
         ct.task_id AS "taskId",
         ct.status AS "taskStatus",
@@ -4052,7 +4059,7 @@ SELECT json_build_object(
       LEFT JOIN plots p ON rent.plot_id = p.plot_id
       LEFT JOIN contracts c ON rent.contract_id = c.contract_id
       LEFT JOIN users u_renter ON c.renter_id = u_renter.user_id
-      LEFT JOIN payment_transactions pt ON pt.service_request_id = sr.request_id
+      LEFT JOIN payment_transactions pt ON pt.service_request_id = sr.request_id AND pt.contract_id IS NULL
       LEFT JOIN care_tasks ct ON ct.service_request_id = sr.request_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
       ORDER BY sr.request_id DESC
@@ -4132,7 +4139,8 @@ END $$;
             const reqId = match ? parseInt(match[1], 10) : null;
             if (reqId) {
               await runPostgreSql(`UPDATE care_tasks SET service_request_id = NULL WHERE service_request_id = ${reqId};`);
-              await runPostgreSql(`DELETE FROM payment_transactions WHERE service_request_id = ${reqId};`);
+              await runPostgreSql(`UPDATE payment_transactions SET service_request_id = NULL WHERE service_request_id = ${reqId};`);
+              await runPostgreSql(`DELETE FROM payment_transactions WHERE service_request_id = ${reqId} AND contract_id IS NULL;`);
               await runPostgreSql(`DELETE FROM service_requests WHERE request_id = ${reqId};`);
             }
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -4412,7 +4420,7 @@ SELECT json_build_object(
       JOIN services s ON sr.service_id = s.service_id
       JOIN rentals rent ON sr.rental_id = rent.rental_id
       JOIN plots p ON rent.plot_id = p.plot_id
-      LEFT JOIN payment_transactions pt ON sr.request_id = pt.service_request_id
+      LEFT JOIN payment_transactions pt ON sr.request_id = pt.service_request_id AND pt.contract_id IS NULL
       LEFT JOIN care_tasks ct ON sr.request_id = ct.service_request_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
       ORDER BY sr.request_id DESC
