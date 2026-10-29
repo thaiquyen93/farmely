@@ -69,15 +69,15 @@ export default function PlotForm() {
           if (Array.isArray(plot.compatibleVarieties) && plot.compatibleVarieties.length > 0) {
             setSelectedVarietyIds(plot.compatibleVarieties.map((v) => Number(v.varietyId)));
           } else {
-            // Thửa chưa có dữ liệu tương thích: mặc định chọn tất cả giống cây có sẵn
-            setSelectedVarietyIds(varList.map((v) => Number(v.id)));
+            // Thửa chưa có dữ liệu tương thích: để trống chờ CGNN khảo nghiệm
+            setSelectedVarietyIds([]);
           }
         } else {
           if (!defaultLandId && landList?.length) {
             setLandId(String(landList[0].landId));
           }
-          // Thửa mới: mặc định chọn tất cả các giống cây sẵn có
-          setSelectedVarietyIds(varList.map((v) => Number(v.id)));
+          // Thửa mới: để trống chờ CGNN phân bổ tại Bàn làm việc Chuyên gia (BR03)
+          setSelectedVarietyIds([]);
         }
       })
       .catch((e) => alive && setLoadError(e.message))
@@ -131,9 +131,6 @@ export default function PlotForm() {
     if (!hasRing && !(Number(manualArea) > 0)) errs.area = 'Vẽ ranh giới trên bản đồ hoặc nhập diện tích.';
     if (!(Number(price) >= 0) || price === '') errs.price = 'Nhập giá thuê hợp lệ.';
     if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
-    if (selectedVarietyIds.length === 0) {
-      errs.varieties = 'Vui lòng chọn ít nhất 1 giống cây phù hợp thổ nhưỡng cho thửa đất này (BR03).';
-    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -219,21 +216,31 @@ export default function PlotForm() {
           Niêm yết lên Marketplace
         </label>
 
-        {/* SSoT BR03: Chọn Giống Cây Trồng Tương Thích Thổ Nhưỡng */}
+        {/* SSoT BR03: Phân Bổ Giống Cây Trồng Theo Thổ Nhưỡng (Nghiệp Vụ CGNN) */}
         <section className="space-y-3 rounded-2xl border border-brand-border bg-stone-50/50 p-4 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="p-3 bg-sky-50 rounded-xl border border-sky-200 text-xs text-sky-900 flex items-start gap-2.5">
+            <Sprout className="w-4 h-4 text-sky-700 shrink-0 mt-0.5" />
+            <div>
+              <strong className="font-bold block">Quy trình Nông học Chuẩn (BR03 / BR24):</strong>
+              <span className="leading-relaxed block mt-0.5">
+                Master Data tại Admin chỉ thiết lập hạ tầng vật lý (mã thửa, diện tích, giá thuê, ranh giới). Danh mục giống cây tương thích sẽ do <strong>Chuyên Gia Nông Nghiệp (CGNN)</strong> phụ trách trực tiếp khảo nghiệm thổ nhưỡng (loại đất, dải pH, độ mùn) và phê duyệt tại <strong>Bàn Làm Việc Chuyên Gia &gt; Ma Trận Thổ Nhưỡng – Giống Cây Trồng</strong>.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <Sprout className="h-4 w-4 text-brand-green" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-brand-dark">
-                  Giống cây trồng phù hợp thổ nhưỡng (Quy tắc BR03)
+                  Gợi ý giống cây trồng sơ bộ (Tùy chọn - Không bắt buộc)
                 </h3>
                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
                   Chuẩn VietGAP
                 </span>
               </div>
               <p className="text-xs text-stone-500">
-                Tick chọn các giống cây được phép canh tác trên thửa đất này. Khách hàng chỉ có thể chọn các giống cây này khi thuê đất.
+                Admin có thể gán sơ bộ nếu cần; Chuyên gia phụ trách thửa đất sẽ khảo nghiệm thực địa và phê duyệt danh mục chính thức trước khi mở thuê.
               </p>
             </div>
 
@@ -312,14 +319,8 @@ export default function PlotForm() {
 
           <div className="flex items-center justify-between text-xs text-stone-500 pt-1">
             <span>
-              Đã chọn: <strong className="text-brand-dark">{selectedVarietyIds.length}</strong> / {availableVarieties.length} giống cây phù hợp
+              Đã gán sơ bộ: <strong className="text-brand-dark">{selectedVarietyIds.length}</strong> / {availableVarieties.length} giống cây (CGNN sẽ khảo nghiệm và duyệt chính thức)
             </span>
-            {errors.varieties && (
-              <span className="font-medium text-rose-600 flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                {errors.varieties}
-              </span>
-            )}
           </div>
         </section>
 

@@ -9,6 +9,9 @@ import DashboardRail from '../../components/dashboard/DashboardRail';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { getSafeAvatar } from '../../api/communication/chatStorage';
 import { apiFetch, unwrapData } from '../../api/apiClient';
+import { clearCompatibilityCache } from '../../utils/leaseSelection';
+import Crops from '../admin/Crops';
+import Varieties from '../admin/Varieties';
 import {
   Sprout,
   Wheat,
@@ -146,7 +149,7 @@ export default function ExpertDashboard() {
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('tab');
-      if (['chat', 'plots', 'harvest', 'issues', 'templates', 'compatibility', 'knowledge'].includes(p)) return p;
+      if (['chat', 'plots', 'harvest', 'issues', 'crops', 'varieties', 'templates', 'compatibility', 'knowledge'].includes(p)) return p;
     }
     return 'chat';
   });
@@ -1071,55 +1074,205 @@ export default function ExpertDashboard() {
     ]
   });
 
-  // 4. Plot-Crop Compatibility Matrix State (Screen 42)
-  const [compatibilityList, setCompatibilityList] = useState([
+  // 4. Plot-Crop Compatibility Matrix State (Screen 42 - BR03 SSoT)
+  const ALL_VARIETIES_CATALOG = [
+    { id: 1, varietyId: 1, name: 'Cà chua bi Cherry Ruby F1', cropName: 'Cà chua & Quả mọng', growthDuration: 75, bufferDays: 10, defaultRating: '98%', defaultStatus: 'RẤT THÍCH HỢP' },
+    { id: 2, varietyId: 2, name: 'Xà lách Romaine VietGAP', cropName: 'Rau ăn lá', growthDuration: 35, bufferDays: 5, defaultRating: '100%', defaultStatus: 'HOÀN HẢO' },
+    { id: 3, varietyId: 3, name: 'Dưa leo Baby Hà Lan F1', cropName: 'Dưa leo & Bầu bí', growthDuration: 45, bufferDays: 7, defaultRating: '95%', defaultStatus: 'RẤT THÍCH HỢP' },
+    { id: 4, varietyId: 4, name: 'Dâu tây Nhật Hana Chịu Nhiệt', cropName: 'Quả mọng', growthDuration: 90, bufferDays: 10, defaultRating: '96%', defaultStatus: 'RẤT THÍCH HỢP' },
+    { id: 5, varietyId: 5, name: 'Cải xoăn Kale xoăn', cropName: 'Rau ăn lá', growthDuration: 60, bufferDays: 7, defaultRating: '95%', defaultStatus: 'RẤT THÍCH HỢP' },
+    { id: 6, varietyId: 6, name: 'Cà rốt baby giòn ngọt', cropName: 'Củ quả', growthDuration: 70, bufferDays: 8, defaultRating: '92%', defaultStatus: 'THÍCH HỢP' },
+    { id: 7, varietyId: 7, name: 'Rau mồng tơi hữu cơ', cropName: 'Rau ăn lá', growthDuration: 30, bufferDays: 5, defaultRating: '96%', defaultStatus: 'RẤT THÍCH HỢP' },
+    { id: 8, varietyId: 8, name: 'Xà lách búp Mỹ', cropName: 'Rau ăn lá', growthDuration: 40, bufferDays: 5, defaultRating: '90%', defaultStatus: 'THÍCH HỢP' },
+    { id: 9, varietyId: 9, name: 'Ớt chuông Sweet Pepper', cropName: 'Rau củ quả', growthDuration: 85, bufferDays: 10, defaultRating: '97%', defaultStatus: 'RẤT THÍCH HỢP' },
+    { id: 10, varietyId: 10, name: 'Bông cải xanh Baby Broccolini', cropName: 'Rau hoa', growthDuration: 65, bufferDays: 8, defaultRating: '94%', defaultStatus: 'THÍCH HỢP' }
+  ];
+
+  const INITIAL_PLOT_SOIL_PROFILES = [
     {
-      id: 'COMP-01',
+      plotId: 1,
+      plotCode: 'P-01',
+      plotName: 'Sen Vàng A1',
+      landName: 'Khu Nông Trại Củ Chi',
+      area: 100,
+      status: 'AVAIL',
+      waterSource: 'Kênh Đông Củ Chi (Nước mặt đã qua xử lý lọc cát)',
+      expertName: 'ThS. Nguyễn Hoàng Nam',
+      isAssignedToMe: true,
       soilType: 'Đất phù sa bồi lắng ven sông (Củ Chi)',
       phRange: 'pH 6.0 – 6.8',
-      moistureProfile: 'Thoát nước tốt, giàu mùn hữu cơ',
-      compatibleCrops: [
-        { crop: 'Cà chua bi Cherry F1', rating: '98%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Xà lách Romaine VietGAP', rating: '100%', status: 'HOÀN HẢO' },
-        { crop: 'Dưa leo Baby Đà Lạt', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Rau mồng tơi hữu cơ', rating: '96%', status: 'RẤT THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-01 (Sen Vàng A1), P-02 (Mộc Châu B2)'
+      moistureProfile: 'Thoát nước tốt, tầng đất dày 35cm, giàu mùn hữu cơ',
+      evaluatedDate: '15/10/2026',
+      notes: 'Thổ nhưỡng phù sa ven sông Sài Gòn, hàm lượng mùn cao, đáp ứng chuẩn VietGAP cho các loại rau ăn quả và ăn lá ngắn ngày.',
+      compatibleVarieties: [
+        { varietyId: 1, varietyName: 'Cà chua bi Cherry Ruby F1', cropName: 'Cà chua & Quả mọng', rating: '98%', status: 'RẤT THÍCH HỢP' },
+        { varietyId: 2, varietyName: 'Xà lách Romaine VietGAP', cropName: 'Rau ăn lá', rating: '100%', status: 'HOÀN HẢO' },
+        { varietyId: 3, varietyName: 'Dưa leo Baby Hà Lan F1', cropName: 'Dưa leo & Bầu bí', rating: '95%', status: 'RẤT THÍCH HỢP' },
+        { varietyId: 7, varietyName: 'Rau mồng tơi hữu cơ', cropName: 'Rau ăn lá', rating: '96%', status: 'RẤT THÍCH HỢP' }
+      ]
     },
     {
-      id: 'COMP-02',
+      plotId: 2,
+      plotCode: 'P-02',
+      plotName: 'Mộc Châu B2',
+      landName: 'Khu Nông Trại Củ Chi',
+      area: 120,
+      status: 'RENT',
+      waterSource: 'Nước ngầm giếng khoan đạt kiểm định VietGAP',
+      expertName: 'ThS. Nguyễn Hoàng Nam',
+      isAssignedToMe: true,
+      soilType: 'Đất phù sa pha cát nhẹ (Củ Chi)',
+      phRange: 'pH 6.2 – 6.8',
+      moistureProfile: 'Giữ ẩm trung bình, tơi xốp, vi sinh vật đất phát triển mạnh',
+      evaluatedDate: '16/10/2026',
+      notes: 'Đang có khách thuê canh tác Xà lách Romaine. Đất tơi xốp, giữ ẩm ổn định.',
+      compatibleVarieties: [
+        { varietyId: 1, varietyName: 'Cà chua bi Cherry Ruby F1', cropName: 'Cà chua & Quả mọng', rating: '95%', status: 'RẤT THÍCH HỢP' },
+        { varietyId: 2, varietyName: 'Xà lách Romaine VietGAP', cropName: 'Rau ăn lá', rating: '100%', status: 'HOÀN HẢO' },
+        { varietyId: 3, varietyName: 'Dưa leo Baby Hà Lan F1', cropName: 'Dưa leo & Bầu bí', rating: '96%', status: 'RẤT THÍCH HỢP' }
+      ]
+    },
+    {
+      plotId: 3,
+      plotCode: 'P-03',
+      plotName: 'Rừng Sác C3',
+      landName: 'Khu Nông Trại Mộc Châu',
+      area: 150,
+      status: 'RENT',
+      waterSource: 'Suối tự nhiên đầu nguồn dẫn qua lắng lọc vi sinh',
+      expertName: 'ThS. Nguyễn Hoàng Nam',
+      isAssignedToMe: true,
       soilType: 'Đất đỏ Bazan cao nguyên (Mộc Châu)',
       phRange: 'pH 5.5 – 6.5',
-      moistureProfile: 'Giữ ẩm trung bình, giàu khoáng vi lượng',
-      compatibleCrops: [
-        { crop: 'Dâu tây Hana chịu nhiệt', rating: '96%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cải xoăn Kale xoăn', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cà rốt baby giòn ngọt', rating: '92%', status: 'THÍCH HỢP' },
-        { crop: 'Xà lách búp Mỹ', rating: '90%', status: 'THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-03 (Rừng Sác C3), P-04 (Đất Đỏ D4)'
+      moistureProfile: 'Giàu khoáng vi lượng Fe/Al, thoát nước nhanh, tầng đất sâu',
+      evaluatedDate: '18/10/2026',
+      notes: 'Đất đỏ bazan đặc thù vùng cao, thích hợp dâu tây Hana và các giống cải xoăn ôn đới chịu lạnh tốt.',
+      compatibleVarieties: [
+        { varietyId: 4, varietyName: 'Dâu tây Nhật Hana Chịu Nhiệt', cropName: 'Quả mọng', rating: '96%', status: 'RẤT THÍCH HỢP' },
+        { varietyId: 5, varietyName: 'Cải xoăn Kale xoăn', cropName: 'Rau ăn lá', rating: '95%', status: 'RẤT THÍCH HỢP' },
+        { varietyId: 6, varietyName: 'Cà rốt baby giòn ngọt', cropName: 'Củ quả', rating: '92%', status: 'THÍCH HỢP' },
+        { varietyId: 8, varietyName: 'Xà lách búp Mỹ', cropName: 'Rau ăn lá', rating: '90%', status: 'THÍCH HỢP' }
+      ]
     },
     {
-      id: 'COMP-03',
+      plotId: 4,
+      plotCode: 'P-04',
+      plotName: 'Đất Đỏ D4',
+      landName: 'Khu Nông Trại Mộc Châu',
+      area: 120,
+      status: 'AVAIL',
+      waterSource: 'Hồ chứa thủy lợi khu vực Mộc Châu',
+      expertName: 'ThS. Nguyễn Hoàng Nam',
+      isAssignedToMe: true,
+      soilType: 'Đất đỏ Bazan tơi xốp (Mộc Châu)',
+      phRange: 'pH 5.8 – 6.5',
+      moistureProfile: 'Tầng canh tác dày 40cm, giàu mùn hữu cơ vi sinh',
+      evaluatedDate: '18/10/2026',
+      notes: 'Vừa thu hoạch và phơi ải hoàn tất theo BR23, sẵn sàng cho khách thuê trồng dâu tây hoặc cải xoăn.',
+      compatibleVarieties: [
+        { varietyId: 4, varietyName: 'Dâu tây Nhật Hana Chịu Nhiệt', cropName: 'Quả mọng', rating: '98%', status: 'RẤT THÍCH HỢP' },
+        { varietyId: 5, varietyName: 'Cải xoăn Kale xoăn', cropName: 'Rau ăn lá', rating: '96%', status: 'RẤT THÍCH HỢP' },
+        { varietyId: 6, varietyName: 'Cà rốt baby giòn ngọt', cropName: 'Củ quả', rating: '94%', status: 'THÍCH HỢP' }
+      ]
+    },
+    {
+      plotId: 5,
+      plotCode: 'P-05',
+      plotName: 'Happy Valley E5',
+      landName: 'Khu Nông Trại Đà Lạt',
+      area: 100,
+      status: 'AVAIL',
+      waterSource: 'Nước suối ngầm cao nguyên kiểm định',
+      expertName: 'ThS. Nguyễn Hoàng Nam',
+      isAssignedToMe: true,
       soilType: 'Đất cát pha phối giá thể hữu cơ (Đà Lạt)',
       phRange: 'pH 6.2 – 7.0',
-      moistureProfile: 'Thoát nước cực nhanh, tơi xốp tối ưu',
-      compatibleCrops: [
-        { crop: 'Ớt chuông Sweet Pepper', rating: '97%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cần tây lá giòn', rating: '94%', status: 'THÍCH HỢP' },
-        { crop: 'Bông cải xanh Baby Broccolini', rating: '92%', status: 'THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-05 (Happy Valley E5), P-06 (An Nhiên F6)'
+      moistureProfile: 'Thoát nước cực nhanh, tơi xốp tối ưu, phối xơ dừa vi sinh',
+      evaluatedDate: '20/10/2026',
+      notes: 'Đã phối trộn giá thể trùn quế và vỏ đậu phộng ủ hoai. Thích hợp ớt chuông và bông cải.',
+      compatibleVarieties: [
+        { varietyId: 9, varietyName: 'Ớt chuông Sweet Pepper', cropName: 'Rau củ quả', rating: '97%', status: 'RẤT THÍCH HỢP' },
+        { varietyId: 10, varietyName: 'Bông cải xanh Baby Broccolini', cropName: 'Rau hoa', rating: '92%', status: 'THÍCH HỢP' }
+      ]
+    },
+    {
+      plotId: 6,
+      plotCode: 'P-06',
+      plotName: 'An Nhiên F6',
+      landName: 'Khu Nông Trại Đà Lạt',
+      area: 110,
+      status: 'AVAIL',
+      waterSource: 'Hệ thống tưới nhỏ giọt tự động công nghệ cao',
+      expertName: 'ThS. Nguyễn Hoàng Nam',
+      isAssignedToMe: true,
+      soilType: 'Đất thịt nhẹ phối xơ dừa vi sinh (Đà Lạt)',
+      phRange: 'pH 6.0 – 6.8',
+      moistureProfile: 'Độ tơi xốp cao, nhà màng kiểm soát vi khí hậu',
+      evaluatedDate: '20/10/2026',
+      notes: 'Khu nhà lưới công nghệ cao, kiểm soát hoàn toàn độ ẩm giá thể và ánh sáng.',
+      compatibleVarieties: [
+        { varietyId: 9, varietyName: 'Ớt chuông Sweet Pepper', cropName: 'Rau củ quả', rating: '96%', status: 'RẤT THÍCH HỢP' },
+        { varietyId: 10, varietyName: 'Bông cải xanh Baby Broccolini', cropName: 'Rau hoa', rating: '94%', status: 'THÍCH HỢP' }
+      ]
+    },
+    {
+      plotId: 7,
+      plotCode: 'P-07',
+      plotName: 'Hương Rừng A3',
+      landName: 'Khu Nông Trại Củ Chi',
+      area: 95,
+      status: 'AVAIL',
+      waterSource: 'Kênh Đông Củ Chi',
+      expertName: 'ThS. Nguyễn Hoàng Nam',
+      isAssignedToMe: true,
+      soilType: 'Đất phù sa ven sông',
+      phRange: 'pH 6.0 – 6.5',
+      moistureProfile: 'Giàu mùn tự nhiên, độ ẩm đất 72%',
+      evaluatedDate: '21/10/2026',
+      notes: 'Thửa đất ven rạch tự nhiên, độ ẩm cao, phù hợp rau mồng tơi và xà lách.',
+      compatibleVarieties: [
+        { varietyId: 2, varietyName: 'Xà lách Romaine VietGAP', cropName: 'Rau ăn lá', rating: '96%', status: 'RẤT THÍCH HỢP' },
+        { varietyId: 7, varietyName: 'Rau mồng tơi hữu cơ', cropName: 'Rau ăn lá', rating: '98%', status: 'HOÀN HẢO' }
+      ]
+    },
+    {
+      plotId: 8,
+      plotCode: 'P-08',
+      plotName: 'Thửa Mới G7',
+      landName: 'Khu Nông Trại Củ Chi',
+      area: 130,
+      status: 'AVAIL',
+      waterSource: 'Kênh Đông Củ Chi',
+      expertName: 'ThS. Nguyễn Hoàng Nam',
+      isAssignedToMe: true,
+      soilType: 'Chưa xác định (Thửa mới tạo từ Master Data)',
+      phRange: 'Chưa đo',
+      moistureProfile: 'Chờ lấy mẫu đất hiện trường',
+      evaluatedDate: 'Chưa khảo nghiệm',
+      notes: 'Thửa đất vừa được Admin tạo tại Master Data. Chưa phê duyệt danh mục giống cây tương thích (BR03).',
+      compatibleVarieties: []
     }
-  ]);
+  ];
 
-  const [isAddCompatibilityOpen, setIsAddCompatibilityOpen] = useState(false);
-  const [newCompData, setNewCompData] = useState({
-    soilType: '',
-    phRange: 'pH 6.0 – 6.5',
-    moistureProfile: '',
-    cropsInput: ''
+  const [plotCompatibilityList, setPlotCompatibilityList] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('farmely_plot_compatibility_profiles') || 'null');
+      if (Array.isArray(saved) && saved.length > 0) return saved;
+    } catch {}
+    return INITIAL_PLOT_SOIL_PROFILES;
   });
+
+  const [selectedPlotForCompatibility, setSelectedPlotForCompatibility] = useState(null);
+  const [compatFilter, setCompatFilter] = useState('ALL'); // 'ALL' | 'ASSIGNED_TO_ME' | 'UNCONFIGURED' | 'CONFIGURED'
+  const [compatSearch, setCompatSearch] = useState('');
+  const [modalSoilType, setModalSoilType] = useState('');
+  const [modalPhRange, setModalPhRange] = useState('pH 6.0 – 6.8');
+  const [modalMoistureProfile, setModalMoistureProfile] = useState('');
+  const [modalNotes, setModalNotes] = useState('');
+  const [modalSelectedVarietyIds, setModalSelectedVarietyIds] = useState([]);
+  const [modalVarietyRatings, setModalVarietyRatings] = useState({});
+  const [modalVarietySearch, setModalVarietySearch] = useState('');
+  const [isSavingCompatibility, setIsSavingCompatibility] = useState(false);
 
   // 5. Knowledge Library & AI RAG State (Screen 45)
   const [knowledgeDocs, setKnowledgeDocs] = useState([
@@ -1241,18 +1394,37 @@ export default function ExpertDashboard() {
         })));
       }
       if (plots.length > 0) {
-        setCompatibilityList(plots.map((plot) => ({
-          id: plot.plotId,
-          soilType: plot.landName || 'Thửa đất Farmely',
-          phRange: plot.landAddress || 'Chưa cập nhật địa chỉ',
-          moistureProfile: `${plot.area || 0} m² • trạng thái ${plot.status || 'chưa cập nhật'}`,
-          compatibleCrops: (plot.compatibleVarieties || []).map((variety) => ({
-            crop: variety.varietyName || variety.name,
-            rating: 'Đạt',
-            status: 'PHÙ HỢP'
-          })),
-          plotsApplied: `${plot.plotCode}${plot.landName ? ` (${plot.landName})` : ''}`
-        })));
+        setPlotCompatibilityList((prev) => {
+          const existingCodes = new Set(prev.map(p => p.plotCode));
+          const newPlots = plots
+            .filter(p => !existingCodes.has(p.plotCode))
+            .map((plot) => ({
+              plotId: plot.plotId || plot.id,
+              plotCode: plot.plotCode || plot.code,
+              plotName: plot.name || plot.plotName || `Thửa ${plot.plotCode}`,
+              landName: plot.landName || 'Trang trại Farmely',
+              area: plot.area || 100,
+              status: plot.status || 'AVAIL',
+              waterSource: plot.waterSource || 'Kênh Đông Củ Chi',
+              expertName: plot.expertName || expertSenderName,
+              isAssignedToMe: true,
+              soilType: 'Chưa xác định (Thửa mới từ Master Data)',
+              phRange: 'Chưa đo',
+              moistureProfile: 'Chờ lấy mẫu đất hiện trường',
+              evaluatedDate: 'Chưa khảo nghiệm',
+              notes: 'Thửa đất mới khởi tạo từ Admin Master Data. Chưa phân bổ danh mục giống cây tương thích (BR03).',
+              compatibleVarieties: Array.isArray(plot.compatibleVarieties) && plot.compatibleVarieties.length > 0
+                ? plot.compatibleVarieties.map(v => ({
+                    varietyId: Number(v.varietyId || v.id),
+                    varietyName: v.varietyName || v.name,
+                    cropName: v.cropName || 'Rau củ',
+                    rating: '95%',
+                    status: 'RẤT THÍCH HỢP'
+                  }))
+                : []
+            }));
+          return newPlots.length > 0 ? [...prev, ...newPlots] : prev;
+        });
       }
       if (documents.length > 0) {
         setKnowledgeDocs(documents.map((document) => ({
@@ -1329,24 +1501,104 @@ export default function ExpertDashboard() {
     setProcessTemplates(prev => prev.filter(t => t.id !== templateId));
   };
 
-  const handleAddCompatibility = (e) => {
-    e.preventDefault();
-    if (!newCompData.soilType) return;
-    const crops = newCompData.cropsInput
-      ? newCompData.cropsInput.split(',').map(c => ({ crop: c.trim(), rating: '95%', status: 'RẤT THÍCH HỢP' }))
-      : [{ crop: 'Rau ăn lá VietGAP', rating: '95%', status: 'RẤT THÍCH HỢP' }];
+  const handleOpenCompatibilityModal = (plot) => {
+    setSelectedPlotForCompatibility(plot);
+    setModalSoilType(plot.soilType || 'Đất phù sa bồi lắng ven sông (Củ Chi)');
+    setModalPhRange(plot.phRange || 'pH 6.0 – 6.8');
+    setModalMoistureProfile(plot.moistureProfile || 'Thoát nước tốt, giàu mùn hữu cơ, tơi xốp');
+    setModalNotes(plot.notes || 'Thổ nhưỡng đạt chuẩn VietGAP, phù hợp các giống rau ăn quả và ăn lá ngắn ngày.');
+    const existingVarietyIds = (plot.compatibleVarieties || []).map(v => Number(v.varietyId || v.id));
+    setModalSelectedVarietyIds(existingVarietyIds);
 
-    const newComp = {
-      id: `COMP-0${compatibilityList.length + 1}`,
-      soilType: newCompData.soilType,
-      phRange: newCompData.phRange || 'pH 6.0 – 6.8',
-      moistureProfile: newCompData.moistureProfile || 'Thoát nước tốt, giàu mùn hữu cơ',
-      compatibleCrops: crops,
-      plotsApplied: 'Các thửa đất đang áp dụng tại trang trại'
-    };
-    setCompatibilityList(prev => [...prev, newComp]);
-    setIsAddCompatibilityOpen(false);
-    setNewCompData({ soilType: '', phRange: 'pH 6.0 – 6.5', moistureProfile: '', cropsInput: '' });
+    const ratingMap = {};
+    (plot.compatibleVarieties || []).forEach(v => {
+      const vid = Number(v.varietyId || v.id);
+      ratingMap[vid] = {
+        rating: v.rating || '95%',
+        status: v.status || 'RẤT THÍCH HỢP'
+      };
+    });
+    setModalVarietyRatings(ratingMap);
+    setModalVarietySearch('');
+  };
+
+  const handleToggleModalVariety = (varietyId) => {
+    const numId = Number(varietyId);
+    setModalSelectedVarietyIds(prev =>
+      prev.includes(numId) ? prev.filter(id => id !== numId) : [...prev, numId]
+    );
+  };
+
+  const handleSavePlotCompatibility = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!selectedPlotForCompatibility) return;
+    setIsSavingCompatibility(true);
+
+    try {
+      const selectedVarietiesDetailed = modalSelectedVarietyIds.map(vid => {
+        const vInfo = ALL_VARIETIES_CATALOG.find(x => x.varietyId === vid) || { name: `Giống #${vid}`, cropName: 'Rau củ' };
+        const rInfo = modalVarietyRatings[vid] || { rating: vInfo.defaultRating || '95%', status: vInfo.defaultStatus || 'RẤT THÍCH HỢP' };
+        return {
+          varietyId: vid,
+          varietyName: vInfo.name,
+          cropName: vInfo.cropName,
+          rating: rInfo.rating,
+          status: rInfo.status
+        };
+      });
+
+      const updatedList = plotCompatibilityList.map(p => {
+        if (p.plotId === selectedPlotForCompatibility.plotId || p.plotCode === selectedPlotForCompatibility.plotCode) {
+          return {
+            ...p,
+            soilType: modalSoilType.trim(),
+            phRange: modalPhRange.trim(),
+            moistureProfile: modalMoistureProfile.trim(),
+            notes: modalNotes.trim(),
+            evaluatedDate: new Intl.DateTimeFormat('vi-VN').format(new Date()),
+            compatibleVarieties: selectedVarietiesDetailed
+          };
+        }
+        return p;
+      });
+
+      setPlotCompatibilityList(updatedList);
+      localStorage.setItem('farmely_plot_compatibility_profiles', JSON.stringify(updatedList));
+
+      try {
+        await apiFetch('/api/compatibility', {
+          method: 'POST',
+          body: JSON.stringify({
+            plotId: selectedPlotForCompatibility.plotId,
+            varietyIds: modalSelectedVarietyIds
+          })
+        });
+      } catch (apiErr) {
+        console.warn('API compatibility sync fallback to local storage:', apiErr);
+      }
+
+      clearCompatibilityCache();
+
+      try {
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_compatibility_sync');
+          bc.postMessage({
+            type: 'COMPATIBILITY_UPDATED',
+            plotId: selectedPlotForCompatibility.plotId,
+            plotCode: selectedPlotForCompatibility.plotCode,
+            varietyIds: modalSelectedVarietyIds
+          });
+          bc.close();
+        }
+      } catch {}
+
+      triggerSuccessToast(`Đã khảo nghiệm thổ nhưỡng và phê duyệt ${modalSelectedVarietyIds.length} giống cây cho thửa ${selectedPlotForCompatibility.plotCode} thành công!`);
+      setSelectedPlotForCompatibility(null);
+    } catch (err) {
+      console.error('Lỗi khi lưu ma trận tương thích:', err);
+    } finally {
+      setIsSavingCompatibility(false);
+    }
   };
 
   const handleAddDoc = (e) => {
@@ -1448,6 +1700,8 @@ export default function ExpertDashboard() {
               { id: 'plots', label: 'Thửa Đất Giám Sát (BR24)', icon: Layers, count: assignedPlots.length },
               { id: 'harvest', label: 'Duyệt Kế Hoạch Thu Hoạch', icon: Wheat, count: pendingHarvestCount },
               { id: 'issues', label: 'Xử Lý Sự Cố Hiện Trường', icon: AlertTriangle, count: fieldIssues.filter(i => i.status === 'PENDING' || i.status === 'OPEN').length },
+              { id: 'crops', label: 'Danh Mục Cây Trồng (Crops)', icon: Sprout, count: null },
+              { id: 'varieties', label: 'Giống Cây Trồng (Varieties)', icon: Wheat, count: null },
               { id: 'templates', label: 'Quy Trình Canh Tác VietGAP', icon: FileSpreadsheet, count: null },
               { id: 'compatibility', label: 'Ma Trận Thổ Nhưỡng – Giống', icon: SlidersHorizontal, count: null },
               { id: 'knowledge', label: 'Kho Tri Thức Nông Nghiệp & AI', icon: BookOpen, count: null }
@@ -2456,6 +2710,20 @@ export default function ExpertDashboard() {
               </div>
             )}
 
+            {/* TAB CROPS: QUẢN LÝ DANH MỤC CÂY TRỒNG (SCR-CGNN-02, UC-EXP01) */}
+            {activeTab === 'crops' && (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm">
+                <Crops />
+              </div>
+            )}
+
+            {/* TAB VARIETIES: QUẢN LÝ GIỐNG CÂY TRỒNG (SCR-CGNN-02, UC-EXP01) */}
+            {activeTab === 'varieties' && (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm">
+                <Varieties />
+              </div>
+            )}
+
             {/* TAB 3: VIETGAP PROCESS TEMPLATES (Quản lý Phác đồ canh tác chuẩn VietGAP - UC09) */}
             {activeTab === 'templates' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
@@ -2552,78 +2820,301 @@ export default function ExpertDashboard() {
               </div>
             )}
 
-            {/* TAB 4: SOIL-CROP COMPATIBILITY MATRIX (Ma trận tương thích thổ nhưỡng - cây trồng) */}
+            {/* TAB 4: SOIL-CROP COMPATIBILITY MATRIX (Khảo Nghiệm Thổ Nhưỡng & Phân Bổ Giống Cây Trồng Theo Thửa Đất - BR03 SSoT) */}
             {activeTab === 'compatibility' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
                   <div>
-                    <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Ma Trận Tương Thích Thổ Nhưỡng – Giống Cây Trồng
-                    </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Căn cứ khoa học nông học để hệ thống tự động gợi ý giống cây phù hợp nhất khi khách hàng chọn thuê thửa đất.
-                    </p>
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => setIsAddCompatibilityOpen(true)}
-                    className="font-bold gap-1.5 self-start sm:self-auto cursor-pointer"
-                  >
-                    <span>+ Thêm Cấu Hình Thổ Nhưỡng</span>
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  {compatibilityList.map((comp) => (
-                    <div
-                      key={comp.id}
-                      className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white shadow-xs space-y-4 text-xs"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border/60 pb-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-brand-green text-sm">{comp.id}</span>
-                            <h4 className="font-bold text-brand-dark text-base">{comp.soilType}</h4>
-                          </div>
-                          <p className="text-stone-500 text-[11px] mt-0.5">
-                            Áp dụng tại: <strong>{comp.plotsApplied}</strong>
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
-                            {comp.phRange}
-                          </span>
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
-                            {comp.moistureProfile}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Compatible Crops Grid */}
-                      <div className="space-y-2">
-                        <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-                          Giống Cây Trồng Tương Thích Tối Ưu:
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                          {(comp.compatibleCrops || []).map((c, i) => (
-                            <div
-                              key={i}
-                              className="p-3 rounded-xl bg-stone-50/80 border border-brand-border/70 flex items-center justify-between"
-                            >
-                              <div className="min-w-0 pr-2">
-                                <span className="font-bold text-brand-dark block truncate">{c.crop}</span>
-                                <span className="text-[10px] text-emerald-700 font-bold">{c.status}</span>
-                              </div>
-                              <span className="text-xs font-black text-brand-green px-2 py-0.5 rounded-lg bg-white border border-emerald-100 shadow-2xs">
-                                {c.rating}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                    <div className="flex items-center gap-2">
+                      <span className="p-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <Sprout className="w-5 h-5 text-emerald-700" />
+                      </span>
+                      <div>
+                        <h3 className="font-heading font-black text-xl text-brand-dark">
+                          Khảo Nghiệm Thổ Nhưỡng & Phê Duyệt Giống Cây Tương Thích (BR03 - SSoT)
+                        </h3>
+                        <p className="text-xs text-brand-muted mt-0.5">
+                          Admin tại Master Data chỉ khởi tạo hạ tầng vật lý của thửa đất. Chuyên Gia Nông Nghiệp (CGNN) phụ trách trực tiếp đánh giá thổ nhưỡng (loại đất, pH, độ ẩm) và quyết định danh mục giống cây được phép canh tác trên từng thửa đất.
+                        </p>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                </div>
+
+                {/* 4 Thẻ KPI Nhanh */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-stone-50 border border-brand-border/70 space-y-1">
+                    <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
+                      Tổng Số Thửa Đất
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl sm:text-2xl font-black text-brand-dark">
+                        {plotCompatibilityList.length}
+                      </span>
+                      <span className="text-xs text-stone-500">thửa</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/70 space-y-1">
+                    <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">
+                      Thửa Bạn Phụ Trách
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl sm:text-2xl font-black text-emerald-900">
+                        {plotCompatibilityList.filter(p => p.isAssignedToMe).length}
+                      </span>
+                      <span className="text-xs text-emerald-700">thửa</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-sky-50/60 border border-sky-200/70 space-y-1">
+                    <span className="text-[11px] font-bold text-sky-800 uppercase tracking-wider block">
+                      Đã Phê Duyệt Giống
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl sm:text-2xl font-black text-sky-900">
+                        {plotCompatibilityList.filter(p => p.compatibleVarieties && p.compatibleVarieties.length > 0).length}
+                      </span>
+                      <span className="text-xs text-sky-700">chuẩn VietGAP</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50/60 border border-amber-200/70 space-y-1">
+                    <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">
+                      Chờ Khảo Nghiệm Giống
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl sm:text-2xl font-black text-amber-900">
+                        {plotCompatibilityList.filter(p => !p.compatibleVarieties || p.compatibleVarieties.length === 0).length}
+                      </span>
+                      <span className="text-xs text-amber-700">mới từ Master Data</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bộ lọc & Tìm kiếm */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+                  <div className="flex flex-wrap items-center gap-1.5 bg-stone-100/80 p-1 rounded-2xl border border-brand-border/60">
+                    <button
+                      type="button"
+                      onClick={() => setCompatFilter('ALL')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        compatFilter === 'ALL'
+                          ? 'bg-white text-brand-dark shadow-2xs'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      Tất Cả ({plotCompatibilityList.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompatFilter('ASSIGNED_TO_ME')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        compatFilter === 'ASSIGNED_TO_ME'
+                          ? 'bg-white text-emerald-800 shadow-2xs'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      Thửa Tôi Phụ Trách ({plotCompatibilityList.filter(p => p.isAssignedToMe).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompatFilter('UNCONFIGURED')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        compatFilter === 'UNCONFIGURED'
+                          ? 'bg-white text-amber-800 shadow-2xs'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      ⚠️ Chưa Duyệt Giống ({plotCompatibilityList.filter(p => !p.compatibleVarieties || p.compatibleVarieties.length === 0).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompatFilter('CONFIGURED')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        compatFilter === 'CONFIGURED'
+                          ? 'bg-white text-sky-800 shadow-2xs'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      ✅ Đã Phê Duyệt ({plotCompatibilityList.filter(p => p.compatibleVarieties && p.compatibleVarieties.length > 0).length})
+                    </button>
+                  </div>
+
+                  <div className="relative min-w-[220px]">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                    <input
+                      type="text"
+                      placeholder="Tìm mã thửa, tên thửa..."
+                      value={compatSearch}
+                      onChange={(e) => setCompatSearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-brand-border text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-green/20"
+                    />
+                  </div>
+                </div>
+
+                {/* Danh Sách Thửa Đất & Thổ Nhưỡng */}
+                <div className="space-y-4">
+                  {plotCompatibilityList
+                    .filter((p) => {
+                      if (compatFilter === 'ASSIGNED_TO_ME') return p.isAssignedToMe;
+                      if (compatFilter === 'UNCONFIGURED') return !p.compatibleVarieties || p.compatibleVarieties.length === 0;
+                      if (compatFilter === 'CONFIGURED') return p.compatibleVarieties && p.compatibleVarieties.length > 0;
+                      return true;
+                    })
+                    .filter((p) => {
+                      if (!compatSearch.trim()) return true;
+                      const q = compatSearch.toLowerCase();
+                      return (
+                        (p.plotCode || '').toLowerCase().includes(q) ||
+                        (p.plotName || '').toLowerCase().includes(q) ||
+                        (p.landName || '').toLowerCase().includes(q) ||
+                        (p.soilType || '').toLowerCase().includes(q)
+                      );
+                    })
+                    .map((plot) => {
+                      const hasVarieties = Array.isArray(plot.compatibleVarieties) && plot.compatibleVarieties.length > 0;
+                      return (
+                        <div
+                          key={plot.plotId || plot.plotCode}
+                          className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white shadow-xs space-y-4 text-xs transition-all hover:border-emerald-300"
+                        >
+                          {/* Header Thửa Đất */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-3.5">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-mono font-bold text-emerald-800 bg-emerald-100/80 px-2.5 py-0.5 rounded-lg text-xs border border-emerald-200">
+                                  {plot.plotCode}
+                                </span>
+                                <h4 className="font-bold text-brand-dark text-base">
+                                  {plot.plotName}
+                                </h4>
+                                <span className="text-stone-400">•</span>
+                                <span className="text-stone-600 font-medium">
+                                  {plot.landName}
+                                </span>
+                                <span className="text-stone-400">•</span>
+                                <span className="text-stone-500 font-mono">
+                                  {plot.area} m²
+                                </span>
+                                {plot.status === 'RENT' ? (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                    Đang thuê
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    Sẵn sàng (Available)
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-stone-500 text-[11px] mt-1 flex items-center gap-1.5">
+                                <span>Nguồn nước: <strong>{plot.waterSource || 'Kênh thủy lợi trang trại'}</strong></span>
+                                <span className="text-stone-300">|</span>
+                                <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                                  <UserCheck className="w-3.5 h-3.5" />
+                                  CGNN phụ trách: {plot.expertName || 'ThS. Nguyễn Hoàng Nam'}
+                                </span>
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                {plot.phRange}
+                              </span>
+                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
+                                {plot.moistureProfile}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Thông số Thổ Nhưỡng Khảo Nghiệm */}
+                          <div className="p-3 rounded-xl bg-stone-50/70 border border-brand-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="space-y-0.5">
+                              <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
+                                Loại Đất & Đặc Tính Nông Học:
+                              </span>
+                              <span className="font-bold text-stone-800 text-xs">
+                                {plot.soilType}
+                              </span>
+                              {plot.notes && (
+                                <p className="text-[11px] text-stone-500 italic mt-0.5">
+                                  "{plot.notes}"
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right text-[11px] text-stone-400 shrink-0">
+                              Đánh giá gần nhất: <strong className="text-stone-600">{plot.evaluatedDate || 'Chưa khảo nghiệm'}</strong>
+                            </div>
+                          </div>
+
+                          {/* Danh mục Giống Cây Trồng Đã Phê Duyệt Tương Thích (BR03) */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-stone-600 uppercase tracking-wider flex items-center gap-1.5">
+                                <Sprout className="w-3.5 h-3.5 text-emerald-700" />
+                                Giống Cây Trồng Được Phép Canh Tác (BR03 - VietGAP):
+                              </span>
+                              <span className="text-[11px] text-stone-400">
+                                Đã phê duyệt: <strong className="text-emerald-700 font-bold">{plot.compatibleVarieties?.length || 0}</strong> giống
+                              </span>
+                            </div>
+
+                            {hasVarieties ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                                {plot.compatibleVarieties.map((v, i) => (
+                                  <div
+                                    key={i}
+                                    className="p-2.5 rounded-xl bg-white border border-brand-border/80 shadow-2xs flex items-center justify-between hover:border-emerald-300 transition-colors"
+                                  >
+                                    <div className="min-w-0 pr-2">
+                                      <span className="font-bold text-brand-dark block truncate text-xs">
+                                        {v.varietyName}
+                                      </span>
+                                      <span className="text-[10px] text-emerald-700 font-bold block">
+                                        {v.cropName} • {v.status || 'PHÙ HỢP'}
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] font-black text-brand-green px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                                      {v.rating || '95%'}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2.5">
+                                <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                                <div className="space-y-0.5">
+                                  <p className="font-bold text-xs">
+                                    Thửa đất mới từ Master Data — Chưa phân bổ giống cây tương thích (BR03)
+                                  </p>
+                                  <p className="text-[11px] text-amber-800">
+                                    Khách hàng chưa thể chọn giống khi thuê thửa này. Chuyên gia phụ trách cần khảo nghiệm thổ nhưỡng và phê duyệt danh mục giống cây tương thích bên dưới.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Footer Action */}
+                          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-brand-border/60">
+                            <span className="text-[11px] text-stone-400 flex items-center gap-1">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              Dữ liệu tương thích được đồng bộ trực tiếp cho khách hàng thuê thửa đất này
+                            </span>
+
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleOpenCompatibilityModal(plot)}
+                              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1.5 cursor-pointer shadow-xs"
+                            >
+                              <Sprout className="w-3.5 h-3.5" />
+                              Khảo Nghiệm & Phê Duyệt Giống Cây (BR03)
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             )}
@@ -3602,66 +4093,226 @@ export default function ExpertDashboard() {
         </form>
       </Modal>
 
-      {/* Modal Add Soil Compatibility Rule */}
+      {/* Modal Khảo Nghiệm Thổ Nhưỡng & Phê Duyệt Giống Cây Trồng (BR03 SSoT) */}
       <Modal
-        isOpen={isAddCompatibilityOpen}
-        onClose={() => setIsAddCompatibilityOpen(false)}
-        title="Thêm Cấu Hình Thổ Nhưỡng – Giống Cây Trồng"
-        subtitle="Mở rộng ma trận gợi ý giống cây cho hệ thống"
+        isOpen={Boolean(selectedPlotForCompatibility)}
+        onClose={() => setSelectedPlotForCompatibility(null)}
+        title={`Khảo Nghiệm Thổ Nhưỡng & Duyệt Giống • Thửa ${selectedPlotForCompatibility?.plotCode || ''}`}
+        subtitle={`${selectedPlotForCompatibility?.plotName || ''} • ${selectedPlotForCompatibility?.landName || ''} (${selectedPlotForCompatibility?.area || 0} m²)`}
       >
-        <form onSubmit={handleAddCompatibility} className="space-y-3 text-xs text-left">
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Loại Đất & Khu Vực Thổ Nhưỡng:</label>
-            <input
-              type="text"
-              required
-              placeholder="Đất phù sa sét nhẹ ven sông (Củ Chi Zone B)"
-              value={newCompData.soilType}
-              onChange={(e) => setNewCompData({ ...newCompData, soilType: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={handleSavePlotCompatibility} className="space-y-4 text-xs text-left max-h-[75vh] overflow-y-auto pr-1">
+          {/* Thông tin cố định của Thửa Đất */}
+          <div className="p-3 rounded-xl bg-stone-50 border border-brand-border/70 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <label className="block font-bold text-brand-dark mb-1">Dải pH Khuyến Nghị:</label>
-              <input
-                type="text"
-                placeholder="pH 6.0 – 6.8"
-                value={newCompData.phRange}
-                onChange={(e) => setNewCompData({ ...newCompData, phRange: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-              />
+              <span className="text-[11px] text-stone-500 block">Thửa đất Master Data:</span>
+              <strong className="text-brand-dark text-xs">
+                {selectedPlotForCompatibility?.plotCode} - {selectedPlotForCompatibility?.plotName} ({selectedPlotForCompatibility?.area} m²)
+              </strong>
             </div>
             <div>
-              <label className="block font-bold text-brand-dark mb-1">Đặc tính giữ ẩm & thoát nước:</label>
-              <input
-                type="text"
-                placeholder="Thoát nước nhanh, giàu mùn hữu cơ"
-                value={newCompData.moistureProfile}
-                onChange={(e) => setNewCompData({ ...newCompData, moistureProfile: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-              />
+              <span className="text-[11px] text-stone-500 block">Chuyên gia phụ trách:</span>
+              <strong className="text-emerald-800 text-xs flex items-center gap-1">
+                <UserCheck className="w-3.5 h-3.5" />
+                {selectedPlotForCompatibility?.expertName || 'ThS. Nguyễn Hoàng Nam'}
+              </strong>
             </div>
           </div>
 
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Các giống cây thích hợp (cách nhau bởi dấu phẩy):</label>
-            <textarea
-              rows={2}
-              placeholder="Cà chua bi Cherry, Xà lách Romaine, Dưa leo Baby, Bạc hà Âu"
-              value={newCompData.cropsInput}
-              onChange={(e) => setNewCompData({ ...newCompData, cropsInput: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
+          {/* Phần 1: Khảo Nghiệm Thổ Nhưỡng Thực Địa */}
+          <div className="space-y-3 p-3.5 rounded-2xl bg-stone-50/50 border border-brand-border/70">
+            <h4 className="font-bold text-brand-dark uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+              <span>1. Khảo Nghiệm Đặc Tính Thổ Nhưỡng Thực Địa (Soil Assessment)</span>
+            </h4>
+
+            <div>
+              <label className="block font-bold text-brand-dark mb-1">Loại Đất Khảo Nghiệm:</label>
+              <select
+                value={modalSoilType}
+                onChange={(e) => setModalSoilType(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-brand-border text-xs bg-white focus:ring-2 focus:ring-brand-green/20"
+              >
+                <option value="Đất phù sa bồi lắng ven sông (Củ Chi)">Đất phù sa bồi lắng ven sông (Củ Chi) - Giàu mùn hữu cơ</option>
+                <option value="Đất phù sa pha cát nhẹ (Củ Chi)">Đất phù sa pha cát nhẹ (Củ Chi) - Thoát nước tốt</option>
+                <option value="Đất đỏ Bazan cao nguyên (Mộc Châu)">Đất đỏ Bazan cao nguyên (Mộc Châu) - Giàu khoáng vi lượng Fe/Al</option>
+                <option value="Đất đỏ Bazan tơi xốp (Mộc Châu)">Đất đỏ Bazan tơi xốp (Mộc Châu) - Tầng canh tác dày</option>
+                <option value="Đất cát pha phối giá thể hữu cơ (Đà Lạt)">Đất cát pha phối giá thể hữu cơ (Đà Lạt) - Phối xơ dừa vi sinh</option>
+                <option value="Đất thịt nhẹ phối xơ dừa vi sinh (Đà Lạt)">Đất thịt nhẹ phối xơ dừa vi sinh (Đà Lạt) - Nhà màng công nghệ cao</option>
+                <option value="Đất phù sa ven sông">Đất phù sa ven sông - Độ ẩm cao</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-brand-dark mb-1">Dải pH Khảo Nghiệm:</label>
+                <select
+                  value={modalPhRange}
+                  onChange={(e) => setModalPhRange(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-brand-border text-xs bg-white focus:ring-2 focus:ring-brand-green/20"
+                >
+                  <option value="pH 6.0 – 6.8">pH 6.0 – 6.8 (Lý tưởng cho rau ăn quả & ăn lá)</option>
+                  <option value="pH 5.5 – 6.5">pH 5.5 – 6.5 (Thích hợp cây ôn đới, dâu tây)</option>
+                  <option value="pH 6.2 – 7.0">pH 6.2 – 7.0 (Thích hợp ớt chuông, bông cải)</option>
+                  <option value="pH 5.8 – 6.5">pH 5.8 – 6.5 (Thích hợp cải xoăn Kale, cà rốt)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-brand-dark mb-1">Đặc tính giữ ẩm & thoát nước:</label>
+                <input
+                  type="text"
+                  value={modalMoistureProfile}
+                  onChange={(e) => setModalMoistureProfile(e.target.value)}
+                  placeholder="Thoát nước tốt, giàu mùn hữu cơ, tơi xốp"
+                  className="w-full p-2.5 rounded-xl border border-brand-border text-xs bg-white focus:ring-2 focus:ring-brand-green/20"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-brand-dark mb-1">Ghi chú & Khuyến cáo canh tác nông học:</label>
+              <textarea
+                rows={2}
+                value={modalNotes}
+                onChange={(e) => setModalNotes(e.target.value)}
+                placeholder="Khuyến nghị kỹ thuật canh tác cho khách hàng và công nhân..."
+                className="w-full p-2.5 rounded-xl border border-brand-border text-xs bg-white focus:ring-2 focus:ring-brand-green/20"
+              />
+            </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsAddCompatibilityOpen(false)}>
+          {/* Phần 2: Danh Mục Giống Cây Trồng Phê Duyệt Tương Thích (BR03) */}
+          <div className="space-y-3 p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-200/70">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="font-bold text-emerald-950 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                  <Sprout className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>2. Phân Bổ Giống Cây Trồng Tương Thích (BR03 SSoT)</span>
+                </h4>
+                <p className="text-[11px] text-emerald-800 mt-0.5">
+                  Khách hàng khi thuê thửa đất này CHỈ ĐƯỢC CHỌN những giống cây được phê duyệt dưới đây.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModalSelectedVarietyIds(ALL_VARIETIES_CATALOG.map(v => v.varietyId))}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50 transition cursor-pointer"
+                >
+                  Chọn tất cả (10)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalSelectedVarietyIds([])}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white text-stone-600 border border-brand-border hover:bg-stone-50 transition cursor-pointer"
+                >
+                  Bỏ chọn
+                </button>
+              </div>
+            </div>
+
+            <div className="relative">
+              <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400" />
+              <input
+                type="text"
+                placeholder="Tìm giống cây trồng..."
+                value={modalVarietySearch}
+                onChange={(e) => setModalVarietySearch(e.target.value)}
+                className="w-full pl-7 pr-3 py-1.5 rounded-lg border border-brand-border text-xs bg-white focus:outline-none"
+              />
+            </div>
+
+            {/* Danh sách 10 giống cây VietGAP */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+              {ALL_VARIETIES_CATALOG
+                .filter(v => {
+                  if (!modalVarietySearch.trim()) return true;
+                  const q = modalVarietySearch.toLowerCase();
+                  return v.name.toLowerCase().includes(q) || v.cropName.toLowerCase().includes(q);
+                })
+                .map((v) => {
+                  const isChecked = modalSelectedVarietyIds.includes(v.varietyId);
+                  const currentRating = modalVarietyRatings[v.varietyId]?.rating || v.defaultRating;
+                  return (
+                    <div
+                      key={v.varietyId}
+                      onClick={() => handleToggleModalVariety(v.varietyId)}
+                      className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                        isChecked
+                          ? 'bg-emerald-50 border-emerald-400 shadow-2xs'
+                          : 'bg-white border-brand-border/70 hover:bg-stone-50 opacity-70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}}
+                          className="w-4 h-4 rounded text-emerald-700 focus:ring-emerald-500 shrink-0 cursor-pointer"
+                        />
+                        <div className="min-w-0">
+                          <span className={`block font-bold text-xs truncate ${isChecked ? 'text-emerald-950' : 'text-stone-700'}`}>
+                            {v.name}
+                          </span>
+                          <span className="text-[10px] text-stone-500 block">
+                            {v.cropName} • {v.growthDuration} ngày
+                          </span>
+                        </div>
+                      </div>
+
+                      {isChecked && (
+                        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={currentRating}
+                            onChange={(e) => {
+                              const newRating = e.target.value;
+                              const status = newRating === '100%' ? 'HOÀN HẢO' : newRating === '98%' || newRating === '95%' ? 'RẤT THÍCH HỢP' : 'THÍCH HỢP';
+                              setModalVarietyRatings(prev => ({
+                                ...prev,
+                                [v.varietyId]: { rating: newRating, status }
+                              }));
+                            }}
+                            className="p-1 rounded-md text-[10px] font-bold border border-emerald-300 bg-white text-emerald-900"
+                          >
+                            <option value="100%">100% Hoàn Hảo</option>
+                            <option value="98%">98% Rất Thích Hợp</option>
+                            <option value="95%">95% Rất Thích Hợp</option>
+                            <option value="92%">92% Thích Hợp</option>
+                            <option value="90%">90% Thích Hợp</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div className="text-[11px] text-stone-500 pt-1 flex items-center justify-between">
+              <span>Đã chọn: <strong className="text-emerald-800 font-bold">{modalSelectedVarietyIds.length}</strong> / {ALL_VARIETIES_CATALOG.length} giống cây trồng</span>
+              {modalSelectedVarietyIds.length === 0 && (
+                <span className="text-rose-600 font-medium">⚠️ Cần chọn ít nhất 1 giống cây để mở thuê</span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-brand-border">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedPlotForCompatibility(null)}
+            >
               Hủy
             </Button>
-            <Button type="submit" variant="primary" size="sm" className="font-bold">
-              Lưu Cấu Hình
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={isSavingCompatibility}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold gap-1.5 cursor-pointer shadow-xs"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{isSavingCompatibility ? 'Đang lưu...' : 'Lưu & Phê Duyệt Danh Mục Tương Thích (BR03)'}</span>
             </Button>
           </div>
         </form>
