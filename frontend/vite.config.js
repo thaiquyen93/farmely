@@ -24,6 +24,7 @@ export default defineConfig({
     exclude: ['maplibre-gl'],
   },
   server: {
+    host: '0.0.0.0',
     port: 3000,
     watch: {
       ignored: ['**/public/docs/**', '**/docs/**'],

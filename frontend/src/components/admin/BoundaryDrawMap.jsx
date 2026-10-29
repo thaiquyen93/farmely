@@ -80,8 +80,9 @@ export default function BoundaryDrawMap({
   height = 460,
   pin = null, // [lng, lat] — ghim vị trí GPS do Admin nhập
   focusKey = null, // đổi giá trị này để bản đồ bay tới vùng hiện tại (vd khi tự sinh ranh giới)
-  hideCoordSearch = false
+  hideCoordSearch = undefined
 }) {
+  const shouldHideCoordSearch = hideCoordSearch !== undefined ? hideCoordSearch : kind === 'plot';
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
@@ -499,7 +500,7 @@ export default function BoundaryDrawMap({
           </>
         )}
 
-        <div className={`ml-auto min-w-[240px] flex-1 items-center gap-1.5 sm:max-w-sm ${hideCoordSearch ? 'hidden' : 'flex'}`} role="search">
+        <div className={`ml-auto min-w-[240px] flex-1 items-center gap-1.5 sm:max-w-sm ${shouldHideCoordSearch ? 'hidden' : 'flex'}`} role="search">
           <label className="sr-only" htmlFor={`coord-${kind}`}>Đi tới toạ độ</label>
           <input
             id={`coord-${kind}`}

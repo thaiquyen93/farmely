@@ -39,3 +39,5 @@ capture_*.py
 # Temporary scratch and fix folders
 /Fix/
 /frontend/scripts/
+frontend/public/uploads/
+!frontend/public/uploads/.gitkeep

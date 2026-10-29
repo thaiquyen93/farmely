@@ -55,14 +55,14 @@ export const chatService = {
         timestamp: Date.now()
       });
 
-      // Asynchronously sync with Backend Spring Boot service (Port 8087) if running
+      // Asynchronously sync with Backend PostgreSQL / Spring Boot service
       try {
         const numericConvId = parseInt(String(threadId).replace(/\D/g, ''), 10) || 1;
-        fetch(`/api/v1/conversations/${numericConvId}/messages`, {
+        fetch(`/api/conversations/${numericConvId}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            senderId: sender === 'expert' ? 2 : (sender === 'worker' ? 3 : 6),
+            senderId: sender === 'expert' ? 5 : (sender === 'worker' ? 8 : 1),
             senderName,
             content: text.trim(),
             attachmentUrl: meta?.photoUrl || null
@@ -147,59 +147,56 @@ export const chatService = {
 
   async syncBackendMessages() {
     try {
-      const res = await fetch('/api/v1/conversations/1/messages');
+      const res = await fetch('/api/conversations');
       if (!res.ok) return;
       const json = await res.json();
-      const backendMsgs = json?.data;
-      if (!Array.isArray(backendMsgs) || backendMsgs.length === 0) return;
+      const backendConvs = json?.data;
+      if (!Array.isArray(backendConvs) || backendConvs.length === 0) return;
 
       const threads = getStoredThreads();
-      const threadIndex = threads.findIndex((t) => t.id === 'CONS-401');
-      if (threadIndex === -1) return;
+      let hasNewOverall = false;
 
-      const thread = { ...threads[threadIndex] };
-      const currentTexts = new Set(thread.messages.map((m) => m.text));
+      backendConvs.forEach((bConv) => {
+        const threadIndex = threads.findIndex((t) =>
+          t.id === bConv.id ||
+          (bConv.conversationId && (t.id === `CONS-${bConv.conversationId}` || t.conversationId === bConv.conversationId)) ||
+          (bConv.customerName && t.customerName && t.customerName.toLowerCase() === bConv.customerName.toLowerCase())
+        );
 
-      let hasNew = false;
-      const newMessages = [...thread.messages];
+        if (threadIndex >= 0) {
+          const thread = { ...threads[threadIndex] };
+          thread.conversationId = bConv.conversationId;
+          if (bConv.role) thread.role = bConv.role;
+          if (bConv.roleLabel) thread.roleLabel = bConv.roleLabel;
+          if (bConv.plotCode) thread.plotCode = bConv.plotCode;
+          if (bConv.plotName) thread.plotName = bConv.plotName;
+          if (bConv.crop) thread.crop = bConv.crop;
 
-      backendMsgs.forEach((bMsg) => {
-        if (!currentTexts.has(bMsg.content)) {
-          hasNew = true;
-          const isExp = Number(bMsg.senderId) === 5 ||
-            Number(bMsg.senderId) === 2 ||
-            String(bMsg.senderName || '').includes('Nam') ||
-            String(bMsg.content || '').includes('Chào anh Quyền');
-          const isWorker = Number(bMsg.senderId) === 8 ||
-            Number(bMsg.senderId) === 3 ||
-            String(bMsg.senderName || '').includes('Lực');
-
-          let formattedTime = 'Vừa xong';
-          if (bMsg.createdAt) {
-            try {
-              formattedTime = new Date(bMsg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            } catch (_) {}
+          if (Array.isArray(bConv.messages) && bConv.messages.length > 0) {
+            const currentTexts = new Set(thread.messages.map((m) => m.text));
+            bConv.messages.forEach((bMsg) => {
+              if (!currentTexts.has(bMsg.text)) {
+                hasNewOverall = true;
+                thread.messages.push({
+                  id: bMsg.id || Date.now() + Math.random(),
+                  sender: bMsg.sender,
+                  senderId: bMsg.senderId,
+                  senderName: bMsg.senderName,
+                  text: bMsg.text,
+                  time: bMsg.time || 'Vừa xong',
+                  seen: true
+                });
+              }
+            });
           }
-
-          newMessages.push({
-            id: bMsg.messageId || (Date.now() + Math.random()),
-            sender: isExp ? 'expert' : isWorker ? 'worker' : 'customer',
-            senderName: isExp ? 'ThS. Nguyễn Hoàng Nam' : isWorker ? 'Trần Văn Lực' : (thread.customerName || 'Lô Thái Quyền'),
-            text: bMsg.content,
-            time: bMsg.time || formattedTime,
-            seen: true
-          });
+          threads[threadIndex] = thread;
         }
       });
 
-      if (hasNew) {
-        thread.messages = newMessages;
-        threads[threadIndex] = thread;
+      if (hasNewOverall) {
         saveThreads(threads);
         communicationBus.postMessage({
-          type: CHAT_EVENTS.MESSAGE_SENT,
-          threadId: 'CONS-401',
-          thread,
+          type: CHAT_EVENTS.SYNC_COMPLETED,
           timestamp: Date.now()
         });
       }

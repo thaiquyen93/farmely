@@ -118,13 +118,13 @@ public class RentalEntityMapper {
         String note;
         if (daysBeforeStart >= 3) {
             refundPct = 80;
-            note = "Hủy trước ngày bắt đầu >= 3 ngày: Hoàn 80%, khấu trừ 20% (Theo BR10)";
+            note = "Hủy trước ngày bắt đầu ít nhất 3 ngày: Hoàn 80%, khấu trừ 20%";
         } else if (daysBeforeStart > 0) {
             refundPct = 50;
-            note = "Hủy trước ngày bắt đầu < 3 ngày: Hoàn 50%, khấu trừ 50% (Theo BR10)";
+            note = "Hủy trước ngày bắt đầu 1–2 ngày: Hoàn 50%, khấu trừ 50%";
         } else {
             refundPct = 0;
-            note = "Hủy từ ngày bắt đầu thuê trở đi: Không hoàn tiền (Theo BR10)";
+            note = "Hủy từ ngày bắt đầu canh tác trở đi: Không hoàn tiền";
         }
 
         BigDecimal totalPaid = contract != null ? contract.getTotalAmount() : BigDecimal.ZERO;

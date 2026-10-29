@@ -81,11 +81,22 @@ export default function KnowledgeDocuments() {
     if (window.confirm(`Bạn có chắc chắn muốn xóa tài liệu "${doc.title}" khỏi cơ sở dữ liệu?`)) {
       try {
         await knowledgeApi.deleteDocument(docId);
-        setDocs((prev) => prev.filter((d) => (d.documentId || d.document_id || d.id) !== (doc.documentId || doc.document_id || doc.id)));
+        loadDocuments();
       } catch (err) {
         console.error('Lỗi xóa tài liệu:', err.message);
         alert(`Không thể xóa tài liệu: ${err.message}`);
       }
+    }
+  };
+
+  const handleToggleRAG = async (doc) => {
+    const docId = doc.documentId || doc.document_id || parseInt(String(doc.id || '').replace(/\D/g, ''), 10);
+    if (!docId) return;
+    try {
+      await knowledgeApi.toggleRagStatus(docId);
+      loadDocuments();
+    } catch (err) {
+      console.error('Lỗi đổi trạng thái RAG:', err.message);
     }
   };
 
@@ -139,6 +150,7 @@ export default function KnowledgeDocuments() {
 
     try {
       await knowledgeApi.updateDocument(docId, payload);
+      loadDocuments();
     } catch (err) {
       console.warn('Update document API error, updating local state:', err.message);
     }
@@ -213,25 +225,7 @@ export default function KnowledgeDocuments() {
     try {
       const apiRes = await knowledgeApi.createDocument(payload);
       if (apiRes && apiRes.data) {
-        const item = apiRes.data;
-        const normalizedItem = {
-          id: item.id || `DOC-00${item.document_id || item.documentId || docs.length + 1}`,
-          documentId: item.document_id || item.documentId || docs.length + 1,
-          title: item.title,
-          author: item.author_name || item.authorName || author,
-          fileUrl: item.file_url || item.fileUrl || fileUrl,
-          fileSize: item.file_size || item.fileSize || fileSizeStr,
-          varietyName: varObj ? varObj.name : 'Áp dụng chung',
-          cropName: varObj ? varObj.cropName : 'Nông nghiệp tổng quát',
-          documentType: docType,
-          version: version,
-          status: 'PUBLISHED',
-          uploadedDate: new Date().toISOString().split('T')[0],
-          description: description,
-          sectionsCount: 5,
-          isIndexedForRAG: true
-        };
-        setDocs((prev) => [normalizedItem, ...prev]);
+        loadDocuments();
         setShowUploadModal(false);
         setIsSubmitting(false);
         // Reset form
@@ -241,34 +235,10 @@ export default function KnowledgeDocuments() {
         return;
       }
     } catch (err) {
+      console.error('Lỗi upload tài liệu:', err);
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    const newDoc = {
-      id: `DOC-00${docs.length + 1}`,
-      title,
-      varietyId,
-      varietyName: varObj ? varObj.name : 'Áp dụng chung',
-      cropName: varObj ? varObj.cropName : 'Nông nghiệp tổng quát',
-      documentType: docType,
-      version,
-      status: 'PUBLISHED',
-      uploadedDate: new Date().toISOString().split('T')[0],
-      author,
-      fileUrl,
-      fileSize: fileSizeStr,
-      description,
-      sectionsCount: 5,
-      isIndexedForRAG: true
-    };
-
-    setDocs((prev) => [newDoc, ...prev]);
-    setShowUploadModal(false);
-    setIsSubmitting(false);
-    setTitle('');
-    setDescription('');
-    setSelectedFile(null);
   };
 
   const columns = [
@@ -326,12 +296,23 @@ export default function KnowledgeDocuments() {
     {
       header: 'RAG AI Indexing',
       key: 'isIndexedForRAG',
-      render: (row) => (
-        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-          Đã index cho AI (RAG)
-        </span>
-      )
+      render: (row) => {
+        const isIndexed = row.isIndexedForRAG ?? row.is_indexed_for_rag ?? false;
+        return (
+          <button
+            onClick={() => handleToggleRAG(row)}
+            className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+              isIndexed 
+                ? 'text-emerald-800 bg-emerald-50 border-emerald-200 hover:bg-emerald-100' 
+                : 'text-stone-500 bg-stone-50 border-stone-200 hover:bg-stone-100'
+            }`}
+            title="Bấm để bật/tắt nạp vào dữ liệu huấn luyện RAG cho AI Chatbot"
+          >
+            <CheckCircle2 className={`w-3.5 h-3.5 ${isIndexed ? 'text-emerald-600' : 'text-stone-400'}`} />
+            {isIndexed ? 'Đã index cho AI (RAG)' : 'Chưa index'}
+          </button>
+        );
+      }
     },
     {
       header: 'Trạng Thái',

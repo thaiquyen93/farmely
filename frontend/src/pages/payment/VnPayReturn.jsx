@@ -89,8 +89,8 @@ export default function VnPayReturn() {
         bc.close();
       } catch (e) {}
 
-      // Đồng bộ thông tin hợp đồng vào Chat hỗ trợ
-      if (pending.customerName) {
+      // Đồng bộ thông tin hợp đồng vào Chat hỗ trợ (bỏ qua tài khoản Admin / Nội bộ)
+      if (pending.customerName && !/Admin|Ban Quản Trị/i.test(pending.customerName) && !pending.customerEmail?.includes('admin')) {
         chatService.updateRentalContext({
           customerName: pending.customerName,
           plotCode: (pending.plots || []).map((p) => p.code).join(', '),
@@ -136,10 +136,10 @@ export default function VnPayReturn() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             serviceRequestId: verifyData?.serviceRequestId || null,
-            rentalId: pendingService?.rentalId || 1,
+            rentalId: pendingService?.rentalId || null,
             serviceId: pendingService?.serviceId || 1,
             serviceName: pendingService?.serviceName || 'Dịch vụ canh tác',
-            plotCode: pendingService?.plotCode || 'P-01',
+            plotCode: pendingService?.plotCode || null,
             scheduledDate: pendingService?.scheduledDate || new Date().toISOString().slice(0, 10),
             amount: pendingService?.amount || (rawAmount <= 1000000 ? rawAmount : 25000),
             notes: pendingService?.notes || '',

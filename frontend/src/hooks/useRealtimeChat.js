@@ -66,7 +66,7 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
   }, [threads, activeFilter]);
 
   // Send message
-  const sendMessage = useCallback((text, customSenderName = '') => {
+  const sendMessage = useCallback((text, customSenderName = '', meta = {}) => {
     if (!selectedThreadId || !text?.trim()) return null;
 
     const actualSender = customSenderName || senderName;
@@ -74,7 +74,8 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
       threadId: selectedThreadId,
       sender: role,
       text: text.trim(),
-      senderName: actualSender
+      senderName: actualSender,
+      meta
     });
 
     refreshThreads();

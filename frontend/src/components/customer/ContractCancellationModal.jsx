@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertCircle, AlertTriangle, ArrowRight, Ban, CheckCircle2, DollarSign, FileText, Landmark, ShieldAlert, Sparkles, X } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
+import { rentalApi } from '../../api/rental/rentalApi';
 
 const BANK_OPTIONS = [
   'Vietcombank (VCB)',
@@ -48,7 +49,8 @@ export default function ContractCancellationModal({
   const calculation = useMemo(() => {
     if (!contract) return null;
 
-    const totalAmount = Number(contract.totalAmount || contract.price || 3000000);
+    const totalAmount = Number(contract.totalAmount);
+    if (!contract.startDate || !Number.isFinite(totalAmount) || totalAmount <= 0) return null;
     const startDateObj = parseDateFlexible(contract.startDate || contract.start_date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -107,6 +109,10 @@ export default function ContractCancellationModal({
 
   if (!isOpen || !contract) return null;
 
+  if (!calculation) {
+    return <Modal isOpen={isOpen} onClose={onClose} size="lg"><div className="p-6 text-sm text-rose-700">Chưa có đủ ngày bắt đầu hoặc số tiền hợp đồng để tính hoàn tiền. Vui lòng tải lại trang và thử lại.</div></Modal>;
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -125,47 +131,29 @@ export default function ContractCancellationModal({
 
     setIsSubmitting(true);
     try {
-      const contractId = contract.contractId || contract.id || 1;
+      const contractId = Number(contract.contractId);
+      const cancelledBy = Number(contract.cancelledBy);
+      if (!Number.isInteger(contractId) || contractId <= 0 || !Number.isInteger(cancelledBy) || cancelledBy <= 0) {
+        throw new Error('Thiếu mã hợp đồng hoặc thông tin người yêu cầu. Vui lòng tải lại trang.');
+      }
       const payload = {
-        contractId: typeof contractId === 'string' && contractId.includes('-') ? 1 : Number(contractId) || 1,
-        contractNumber: contract.contractCode || contract.contract_number || `CTR-2026-FARM-${contractId}`,
+        contractId,
+        cancelledBy,
         reason: reason.trim(),
-        deductionRate: calculation.deductionRate,
-        refundAmount: calculation.refundAmount,
         bankName: calculation.canRefund ? bankName : null,
         bankAccountNumber: calculation.canRefund ? bankAccountNumber.trim() : null,
         bankAccountName: calculation.canRefund ? bankAccountName.trim() : null
       };
-
-      const res = await fetch(`/api/contracts/${contractId}/cancellation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      const data = await rentalApi.requestCancellation(payload);
+      setSuccessData({
+        ...data,
+        ticketId: `CNC-${String(data.cancellationId).padStart(3, '0')}`,
+        refundAmount: Number(data.refundAmount ?? calculation.refundAmount),
+        deductionRate: 1 - Number(data.refundPercentage ?? calculation.refundRate * 100) / 100
       });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        setSuccessData({
-          ticketId: data.data?.cancellationId ? `CNC-2026-${String(data.data.cancellationId).padStart(3, '0')}` : 'CNC-2026-001',
-          ...data.data,
-          refundAmount: calculation.refundAmount,
-          deductionRate: calculation.deductionRate
-        });
-        if (onSuccess) onSuccess(data.data);
-      } else {
-        setErrorMsg(data.message || 'Không thể gửi yêu cầu hủy hợp đồng.');
-      }
+      if (onSuccess) onSuccess(data);
     } catch (err) {
-      console.error('Lỗi gửi yêu cầu hủy hợp đồng:', err);
-      // Fallback thành công cho môi trường Demo
-      const mockResult = {
-        ticketId: `CNC-2026-${Math.floor(100 + Math.random() * 900)}`,
-        status: 'PENDING',
-        refundAmount: calculation.refundAmount,
-        deductionRate: calculation.deductionRate
-      };
-      setSuccessData(mockResult);
-      if (onSuccess) onSuccess(mockResult);
+      setErrorMsg(err.message || 'Không thể gửi yêu cầu hủy hợp đồng.');
     } finally {
       setIsSubmitting(false);
     }
@@ -242,7 +230,7 @@ export default function ContractCancellationModal({
               </div>
               <div className="flex justify-between pt-1">
                 <span className="text-stone-500">Trạng thái giải phóng thửa:</span>
-                <span className="font-semibold text-amber-700">Chuyển nghỉ đất phơi ải 4 ngày</span>
+                <span className="font-semibold text-amber-700">Chờ quản trị viên duyệt</span>
               </div>
             </div>
 
@@ -278,13 +266,13 @@ export default function ContractCancellationModal({
                 <div>
                   <span className="text-stone-400 block text-[10px]">TỔNG GIÁ TRỊ HỢP ĐỒNG</span>
                   <strong className="text-stone-800 font-mono">
-                    {Number(contract.totalAmount || contract.price || 3000000).toLocaleString('vi-VN')} đ
+                    {Number(contract.totalAmount).toLocaleString('vi-VN')} đ
                   </strong>
                 </div>
                 <div>
                   <span className="text-stone-400 block text-[10px]">NGÀY BẮT ĐẦU CANH TÁC</span>
                   <strong className="text-stone-800">
-                    {contract.startDate || contract.start_date || '18/10/2026'}
+                    {contract.startDate}
                   </strong>
                 </div>
               </div>
@@ -301,7 +289,7 @@ export default function ContractCancellationModal({
                 <div className="flex justify-between items-center text-stone-600 pb-1">
                   <span>Tổng tiền đã thanh toán trước (Lump-sum 100%):</span>
                   <span className="font-mono font-bold text-stone-900">
-                    {Number(contract.totalAmount || contract.price || 3000000).toLocaleString('vi-VN')} đ
+                    {Number(contract.totalAmount).toLocaleString('vi-VN')} đ
                   </span>
                 </div>
 

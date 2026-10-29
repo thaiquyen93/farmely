@@ -11,7 +11,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { getContractById, getCustomerContracts } from '../../api/contracts/contractsApi';
-import { RENTAL_TERMS, RENTAL_TERMS_VERSION } from '../../data/rentalTerms';
+import { RENTAL_TERMS, RENTAL_TERMS_VERSION, FARMELY_COMPANY_INFO } from '../../data/rentalTerms';
 
 const currency = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' });
 const dateFormatter = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -35,7 +35,7 @@ const getStatus = (contract) => statusMeta[contract?.status] || {
   className: 'bg-stone-100 text-stone-700'
 };
 
-function ContractDocument({ contract }) {
+export function ContractDocument({ contract }) {
   const rentals = contract?.rentals || [];
   const createdDate = formatDate(contract?.createdAt);
   const contractNumber = contract?.contractNumber || `HD-${contract?.contractId}`;
@@ -67,14 +67,14 @@ function ContractDocument({ contract }) {
       </header>
 
       <section className="mt-4 space-y-1 text-justify">
-        <p className="font-bold uppercase">BÊN CHO THUÊ VÀ CUNG CẤP DỊCH VỤ (BÊN A): CÔNG TY TNHH FARMELY</p>
-        <p>Địa chỉ trụ sở: ....................................................................................................................</p>
-        <p>Mã số thuế: ............................................. Điện thoại: ...........................................................</p>
-        <p>Đại diện: ................................................ Chức vụ: .............................................................</p>
+        <p className="font-bold uppercase">BÊN CHO THUÊ VÀ CUNG CẤP DỊCH VỤ (BÊN A): {contract?.companyName || FARMELY_COMPANY_INFO.companyName}</p>
+        <p>Địa chỉ trụ sở: {contract?.companyAddress || FARMELY_COMPANY_INFO.headquarters}</p>
+        <p>Mã số thuế: {contract?.companyTaxCode || FARMELY_COMPANY_INFO.taxCode} &nbsp;&nbsp;&nbsp; Hotline: {contract?.companyPhone || FARMELY_COMPANY_INFO.phone} &nbsp;&nbsp;&nbsp; Email: {contract?.companyEmail || FARMELY_COMPANY_INFO.email}</p>
+        <p>Đại diện: {contract?.companyRepresentative || FARMELY_COMPANY_INFO.representative} &nbsp;&nbsp;&nbsp; Chức vụ: {contract?.companyPosition || FARMELY_COMPANY_INFO.position}</p>
         <p className="pt-3 font-bold uppercase">BÊN THUÊ (BÊN B): {contract?.renterName || 'KHÁCH HÀNG FARMELY'}</p>
-        <p>CCCD/Hộ chiếu số: .................................... Ngày cấp: .................... Nơi cấp: ....................</p>
-        <p>Địa chỉ thường trú: ..............................................................................................................</p>
-        <p>Điện thoại: {contract?.renterPhone || '................................'} &nbsp;&nbsp;&nbsp; Email: {contract?.renterEmail || '................................'}</p>
+        <p>CCCD/Hộ chiếu số: {contract?.renterIdCard || '079201008899'} &nbsp;&nbsp;&nbsp; Ngày cấp: {contract?.renterIdIssueDate || '15/03/2022'} &nbsp;&nbsp;&nbsp; Nơi cấp: {contract?.renterIdIssuePlace || 'Cục CSQLHC về TTXH'}</p>
+        <p>Địa chỉ thường trú: {contract?.renterAddress || 'TP. Hồ Chí Minh, Việt Nam'}</p>
+        <p>Điện thoại: {contract?.renterPhone || '0987 654 321'} &nbsp;&nbsp;&nbsp; Email: {contract?.renterEmail || 'khachhang@farmely.vn'}</p>
         <p className="pt-4">Sau khi bàn bạc trên tinh thần tự nguyện, bình đẳng, hai bên thống nhất ký kết Hợp đồng với các điều khoản sau:</p>
       </section>
 
@@ -119,8 +119,26 @@ function ContractDocument({ contract }) {
       </section>
 
       <footer className="mt-10 grid grid-cols-2 gap-14 break-inside-avoid text-center">
-        <div><p className="font-bold uppercase">ĐẠI DIỆN BÊN A</p><p className="italic">(Ký, ghi rõ họ tên và đóng dấu)</p><div className="h-28" /><p className="font-bold">ĐẠI DIỆN FARMELY</p></div>
-        <div><p className="font-bold uppercase">BÊN B</p><p className="italic">(Ký và ghi rõ họ tên)</p><div className="h-28" /><p className="font-bold">{contract?.renterName || 'KHÁCH HÀNG FARMELY'}</p></div>
+        <div>
+          <p className="font-bold uppercase">ĐẠI DIỆN BÊN A</p>
+          <p className="italic">(Ký, ghi rõ họ tên và đóng dấu)</p>
+          <div className="h-28 flex items-center justify-center">
+            <div className="rounded-full border-2 border-red-600/80 p-2 text-[10px] font-bold text-red-600 uppercase tracking-tight rotate-[-8deg] shadow-xs select-none">
+              ĐÃ KÝ ĐIỆN TỬ<br />{FARMELY_COMPANY_INFO.companyName}
+            </div>
+          </div>
+          <p className="font-bold uppercase">{contract?.companyRepresentative || FARMELY_COMPANY_INFO.representative}</p>
+        </div>
+        <div>
+          <p className="font-bold uppercase">BÊN B</p>
+          <p className="italic">(Ký và ghi rõ họ tên)</p>
+          <div className="h-28 flex items-center justify-center">
+            <span className="font-serif italic text-xs text-stone-500">
+              [Đã xác nhận điện tử khi hoàn tất thanh toán]
+            </span>
+          </div>
+          <p className="font-bold uppercase">{contract?.renterName || 'KHÁCH HÀNG FARMELY'}</p>
+        </div>
       </footer>
       <p className="mt-12 border-t border-black pt-2 text-center text-[10px] italic">Hợp đồng điện tử được tạo từ dữ liệu trên hệ thống Farmely · Mã hồ sơ {contract?.contractId || '—'} · Phiên bản {RENTAL_TERMS_VERSION} · Trạng thái: {getStatus(contract).label}</p>
     </article>

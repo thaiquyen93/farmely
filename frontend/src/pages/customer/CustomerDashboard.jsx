@@ -13,6 +13,7 @@ import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
 import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
+import PlotRenewalModal from '../../components/customer/PlotRenewalModal';
 import ContractCancellationModal from '../../components/customer/ContractCancellationModal';
 import CustomerContractCenter from '../../components/customer/CustomerContractCenter';
 import CustomerMobileNav from '../../components/customer/CustomerMobileNav';
@@ -73,15 +74,19 @@ import {
   Wallet,
   LayoutDashboard,
   MessageCircle,
-  PanelLeftClose,
-  PanelLeftOpen,
   Star,
   ShieldAlert,
   Eye,
   Wheat,
   Truck,
   CalendarCheck,
-  Compass
+  Compass,
+  UploadCloud,
+  Image as ImageIcon,
+  X,
+  Lock,
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 
 const EMPTY_ARRAY = [];
@@ -243,8 +248,14 @@ export default function CustomerDashboard() {
 
   // Modals for Other Screen Flows
   const [showNewDiaryModal, setShowNewDiaryModal] = useState(false);
-  const [diaryPlotId, setDiaryPlotId] = useState('PLOT-MC-02');
+  const [diaryPlotId, setDiaryPlotId] = useState('');
   const [diaryFocusPlotId, setDiaryFocusPlotId] = useState('PLOT-CC-01');
+
+  useEffect(() => {
+    if (selectedPlotId) {
+      setDiaryPlotId(selectedPlotId);
+    }
+  }, [selectedPlotId]);
   const [showHarvestAcceptModal, setShowHarvestAcceptModal] = useState(false);
   const [harvestDeliveryMethod, setHarvestDeliveryMethod] = useState('DELIVERY');
   const [harvestAcceptance, setHarvestAcceptance] = useState({ status: 'PENDING', confirmedAt: null, deliveryMethod: null, rating: null, feedback: '' });
@@ -353,70 +364,6 @@ export default function CustomerDashboard() {
     }
   };
 
-  // Customer Disputes & Complaints (UC20 / BR17 / SCR-KH-15)
-  const [showDisputeModal, setShowDisputeModal] = useState(false);
-  const [disputeList, setDisputeList] = useState([]);
-  const [disputeData, setDisputeData] = useState({
-    plotId: '',
-    disputeType: 'YIELD_SHORTAGE',
-    reason: 'Thiếu hụt sản lượng so với cam kết tối thiểu (BR16)',
-    requestedSolution: 'COMPENSATE_NEXT',
-    evidenceUrl: '',
-    notes: ''
-  });
-  const [isSubmittingDispute, setIsSubmittingDispute] = useState(false);
-
-  const handleCreateDispute = async (e) => {
-    e.preventDefault();
-    if (!disputeData.notes.trim()) return;
-    setIsSubmittingDispute(true);
-    try {
-      const selectedPlot = customerPlots.find(p => p.id === disputeData.plotId) || customerPlots[0];
-      const rentalId = selectedPlot?.rentalId || 1;
-
-      await fetch('/api/issues', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rentalId: rentalId,
-          reportedBy: user?.id || 1,
-          issueType: `[KHIẾU NẠI] ${disputeData.reason}`,
-          description: `Yêu cầu xử lý: ${disputeData.requestedSolution}. Ghi chú: ${disputeData.notes}`,
-          imageUrl: disputeData.evidenceUrl || null
-        })
-      }).catch(() => null);
-
-      const newDispute = {
-        id: `DISPUTE-${Date.now().toString().slice(-4)}`,
-        plotName: selectedPlot ? selectedPlot.name : 'Thửa đã chọn',
-        disputeType: disputeData.disputeType,
-        reason: disputeData.reason,
-        requestedSolution: disputeData.requestedSolution,
-        evidenceUrl: disputeData.evidenceUrl,
-        notes: disputeData.notes,
-        createdAt: new Date().toLocaleString('vi-VN'),
-        status: 'OPEN',
-        statusLabel: 'Chờ Ban Quản Trị & Chuyên Gia thẩm tra (BR17)'
-      };
-
-      setDisputeList(prev => [newDispute, ...prev]);
-      setShowDisputeModal(false);
-      setDisputeData({
-        plotId: '',
-        disputeType: 'YIELD_SHORTAGE',
-        reason: 'Thiếu hụt sản lượng so với cam kết tối thiểu (BR16)',
-        requestedSolution: 'COMPENSATE_NEXT',
-        evidenceUrl: '',
-        notes: ''
-      });
-      alert('Đã gửi hồ sơ khiếu nại thành công! Ban Quản Trị Farmely cam kết thẩm tra và phản hồi kết quả trong vòng 24 giờ làm việc.');
-    } catch (err) {
-      console.warn('Lỗi gửi khiếu nại:', err);
-    } finally {
-      setIsSubmittingDispute(false);
-    }
-  };
-
   // Ngữ cảnh thửa: khi đi từ trang 1 thửa sang Nhật ký / Lịch / Dịch vụ thì chỉ hiện
   // dữ liệu của ĐÚNG thửa đó (null = xem tất cả thửa, khi vào từ sidebar)
   const [plotScopeId, setPlotScopeId] = useState(null);
@@ -481,7 +428,7 @@ export default function CustomerDashboard() {
   const [showRenewContractModal, setShowRenewContractModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedContractForCancel, setSelectedContractForCancel] = useState(null);
-  const [cancelledContracts, setCancelledContracts] = useState({});
+  const [pendingCancellations, setPendingCancellations] = useState({});
   const [emergencyRequests, setEmergencyRequests] = useState({});
 
   // Subsystem 3: Contracts & Renewal Management (UC07 / BR11)
@@ -537,23 +484,119 @@ export default function CustomerDashboard() {
   }, []);
 
   const handleOpenCancelModal = (item) => {
-    const isNew = item.isPendingHandover || item.contractCode === 'CTR-2026-FARM-NEW';
     const contractData = {
-      contractId: item.contractId || (item.id === 'PLOT-CC-01' ? 1 : item.id === 'PLOT-MC-02' ? 2 : 3),
-      contractCode: item.contractCode || item.contractNumber || 'CTR-2026-FARM-9912',
-      plotName: item.plotName || item.name || 'Thửa Sen Vàng A1',
-      plotCode: item.mapPlotId || item.plotCode || 'P-01',
-      totalAmount: item.totalAmount || (item.area === '160m²' ? 3900000 : 3600000),
-      startDate: item.startDate || (isNew ? '20/10/2026' : '12/08/2026'),
-      endDate: item.endDate || '18/11/2026',
-      status: cancelledContracts[item.contractCode] ? 'CANCELLED' : (isNew ? 'CONFIRMED' : 'ACTIVE')
+      contractId: item.contractId ?? item.contract_id,
+      contractCode: item.contractCode || item.contractNumber || item.contract_number,
+      plotName: item.plotName || item.name,
+      plotCode: item.mapPlotId || item.plotCode || item.plot_code,
+      totalAmount: item.contractTotalAmount ?? item.totalAmount ?? item.contract_total_amount ?? item.total_price,
+      startDate: item.startDate || item.start_date,
+      endDate: item.endDate || item.end_date,
+      status: item.contract_status || item.status,
+      cancelledBy: user?.userId
     };
     setSelectedContractForCancel(contractData);
     setShowCancellationModal(true);
   };
 
-  // Form states
+  // Form states - Farm Diary
   const [diaryNote, setDiaryNote] = useState('');
+  const [diaryPhotoPreview, setDiaryPhotoPreview] = useState('');
+  const [diaryPhotoFile, setDiaryPhotoFile] = useState(null);
+  const [diaryPhotoMeta, setDiaryPhotoMeta] = useState(null);
+  const [isProcessingDiaryPhoto, setIsProcessingDiaryPhoto] = useState(false);
+  const [isSubmittingDiary, setIsSubmittingDiary] = useState(false);
+  const [isDragOverDiary, setIsDragOverDiary] = useState(false);
+  const [diarySuccessToast, setDiarySuccessToast] = useState('');
+  const [diaryFormError, setDiaryFormError] = useState('');
+  const diaryFileInputRef = useRef(null);
+  const diaryCameraInputRef = useRef(null);
+
+  const handleProcessDiaryFile = useCallback((file) => {
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+      setDiaryFormError('Vui lòng chọn tệp định dạng hình ảnh (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setDiaryFormError('Kích thước ảnh quá lớn (tối đa 15MB). Vui lòng chọn ảnh khác.');
+      return;
+    }
+    setDiaryFormError('');
+
+    setIsProcessingDiaryPhoto(true);
+    const sizeInMb = (file.size / (1024 * 1024)).toFixed(1);
+    const sizeFormatted = file.size >= 1024 * 1024 ? `${sizeInMb} MB` : `${Math.round(file.size / 1024)} KB`;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      const img = new window.Image();
+      img.onload = () => {
+        try {
+          const MAX_WIDTH = 1600;
+          const MAX_HEIGHT = 1600;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+            if (width > height) {
+              height = Math.round((height * MAX_WIDTH) / width);
+              width = MAX_WIDTH;
+            } else {
+              width = Math.round((width * MAX_HEIGHT) / height);
+              height = MAX_HEIGHT;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+          setDiaryPhotoPreview(optimizedDataUrl);
+          setDiaryPhotoFile(file);
+          setDiaryPhotoMeta({
+            name: file.name || 'anh_hien_truong.jpg',
+            sizeFormatted
+          });
+        } catch (err) {
+          console.warn('Canvas resize fallback:', err);
+          setDiaryPhotoPreview(dataUrl);
+          setDiaryPhotoFile(file);
+          setDiaryPhotoMeta({
+            name: file.name || 'anh_hien_truong.jpg',
+            sizeFormatted
+          });
+        } finally {
+          setIsProcessingDiaryPhoto(false);
+        }
+      };
+      img.onerror = () => {
+        setDiaryPhotoPreview(dataUrl);
+        setDiaryPhotoFile(file);
+        setDiaryPhotoMeta({ name: file.name, sizeFormatted });
+        setIsProcessingDiaryPhoto(false);
+      };
+      img.src = dataUrl;
+    };
+    reader.onerror = () => {
+      setDiaryFormError('Không thể đọc file ảnh. Vui lòng thử lại.');
+      setIsProcessingDiaryPhoto(false);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const handleClearDiaryPhoto = () => {
+    setDiaryPhotoPreview('');
+    setDiaryPhotoFile(null);
+    setDiaryPhotoMeta(null);
+    setDiaryFormError('');
+    if (diaryFileInputRef.current) diaryFileInputRef.current.value = '';
+    if (diaryCameraInputRef.current) diaryCameraInputRef.current.value = '';
+  };
 
   // AI Chatbot state
   const [chatMessages, setChatMessages] = useState([
@@ -580,9 +623,9 @@ export default function CustomerDashboard() {
   const dbPlotsRef = useRef(null);
   dbPlotsRef.current = dbPlots;
 
-  const fetchCustomerPlots = useCallback(async () => {
+  const fetchCustomerPlots = useCallback(async (isInitial = false) => {
     try {
-      if (dbPlotsRef.current === null) {
+      if (isInitial || dbPlotsRef.current === null) {
         setIsLoadingPlots(true);
       }
       const userId = user?.userId || user?.id;
@@ -639,28 +682,36 @@ export default function CustomerDashboard() {
       }
     } catch (err) {
       console.error('Failed to load customer plots from DB:', err);
+
     } finally {
-      setIsLoadingPlots(false);
+      if (isInitial) setIsLoadingPlots(false);
     }
   }, [user?.id, user?.userId, user?.email]);
 
   useEffect(() => {
-    fetchCustomerPlots();
+    fetchCustomerPlots(true);
 
     // Lắng nghe đồng bộ tức thì khi trạng thái thửa đất thay đổi (Booked / Cancelled / Admin change)
     let plotBc = null;
+    let bc = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         plotBc = new BroadcastChannel('farmely_plot_updates');
         plotBc.onmessage = () => {
-          fetchCustomerPlots();
+          fetchCustomerPlots(false);
+        };
+        bc = new BroadcastChannel('farmely_iot_telemetry');
+        bc.onmessage = (msg) => {
+          if (msg.data?.type === 'TELEMETRY_UPDATED') {
+            fetchCustomerPlots(false);
+          }
         };
       }
     } catch {}
 
     const handleStorage = (e) => {
-      if (e.key === 'farmely_recently_booked_plots') {
-        fetchCustomerPlots();
+      if (e.key === 'farmely_recently_booked_plots' || e.key === 'farmely_iot_sync_ping') {
+        fetchCustomerPlots(false);
       }
     };
     const handlePlotSync = () => fetchCustomerPlots();
@@ -670,7 +721,7 @@ export default function CustomerDashboard() {
     window.addEventListener('farmely_plot_booked', handlePlotSync);
 
     // Chu kỳ đồng bộ ngầm định kỳ (chạy êm trong nền không gây giật lag giao diện)
-    const pollTimer = setInterval(fetchCustomerPlots, 20000);
+    const pollTimer = setInterval(() => fetchCustomerPlots(false), 20000);
 
     return () => { 
       clearInterval(pollTimer);
@@ -719,6 +770,8 @@ export default function CustomerDashboard() {
               status: 'HEALTHY',
               worker: 'Trần Văn Lực (CVLĐ)',
               contractCode: pendingBooking.contractCode || `HD-${Date.now()}`,
+              contractId: pendingBooking.contractId,
+              contractTotalAmount: pendingBooking.totalAmount,
               startDate: pendingBooking.startDate || new Date().toISOString().split('T')[0],
               expectedHarvestDate: '2026-12-16'
             });
@@ -840,6 +893,7 @@ export default function CustomerDashboard() {
           completedAt: request.completedAt || null
         };
       }));
+
     }).catch(() => {
       if (!cancelled) { setApiServices([]); setApiCustomerPlots([]); setActiveServiceOrders([]); }
     });
@@ -1425,51 +1479,154 @@ export default function CustomerDashboard() {
     await handleDirectServicePayment();
   };
 
-  const handleServicePaymentSuccess = (paidResult) => {
+  const handleServicePaymentSuccess = async (paidResult) => {
     setShowServiceQrModal(false);
     setShowServiceCardModal(false);
     setShowServiceVnPayModal(false);
+
+    const targetPlot = customerPlots.find((p) => p.id === checkoutPlotId) || selectedCheckoutPlot || customerPlots[0];
+    const targetPlotCode = targetPlot?.mapPlotId || targetPlot?.plotCode || (targetPlot?.id ? targetPlot.id.replace(/^PLOT-/i, '') : 'P-01');
+    const targetRentalId = targetPlot?.rentalId || targetPlot?.rental_id || 1;
+    const targetServiceId = typeof selectedServiceToBuy?.serviceId === 'number'
+      ? selectedServiceToBuy.serviceId
+      : (parseInt(String(selectedServiceToBuy?.serviceId || selectedServiceToBuy?.id || 1).replace(/\D/g, ''), 10) || 1);
+    const scheduledDate = checkoutDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const gatewayRef = paidResult?.gatewayRef || `TXN_SVC_${Date.now().toString().slice(-8)}`;
+
+    let serverData = null;
+    try {
+      const res = await fetch('/api/v1/payments/service/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serviceRequestId: paidResult?.serviceRequestId || paidResult?.requestId || null,
+          rentalId: targetRentalId,
+          serviceId: targetServiceId,
+          serviceName: selectedServiceToBuy?.name || 'Dịch vụ nông nghiệp',
+          plotCode: targetPlotCode,
+          scheduledDate: scheduledDate,
+          amount: Number(paidResult?.amount || selectedServiceToBuy?.price || 0),
+          notes: checkoutNotes || '',
+          paymentMethod: paidResult?.paymentMethod || (checkoutPaymentMethod === 'CARD' ? 'CARD' : 'VNPAY'),
+          gatewayRef: gatewayRef
+        })
+      });
+      const json = await res.json();
+      serverData = json?.data || json;
+    } catch (e) {
+      console.warn('Sync service checkout to server failed:', e);
+    }
+
     fetchServiceOrders();
     if (typeof loadOperationsFromDb === 'function') {
       loadOperationsFromDb();
     }
-    const targetPlot = customerPlots.find(p => p.id === checkoutPlotId) || selectedCheckoutPlot || customerPlots[0];
-    const targetPlotCode = targetPlot?.mapPlotId || targetPlot?.plotCode || (targetPlot?.id ? targetPlot.id.replace(/^PLOT-/i, '') : 'P-01');
+
+    const resolvedRequestId = serverData?.requestId || paidResult?.serviceRequestId || paidResult?.requestId;
+    const resolvedTxnId = serverData?.transactionId || paidResult?.transactionId || gatewayRef;
+
     const newOrder = {
-      id: paidResult?.requestId ? `REQ-${paidResult.requestId}` : `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
-      requestId: paidResult?.requestId,
-      transactionId: paidResult?.transactionId || `TXN-SVC-${Date.now().toString().slice(-6)}`,
+      id: resolvedRequestId ? `REQ-${resolvedRequestId}` : `REQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      requestId: resolvedRequestId,
+      transactionId: resolvedTxnId,
       serviceName: selectedServiceToBuy?.name || 'Dịch vụ canh tác',
       plotName: targetPlot ? targetPlot.name : 'Thửa đất đã chọn',
       plotCode: targetPlotCode,
       plotId: targetPlot?.id,
-      rentalId: targetPlot?.rentalId || targetPlot?.rental_id || 1,
+      rentalId: targetRentalId,
       price: selectedServiceToBuy ? selectedServiceToBuy.formattedPrice : `${(paidResult?.amount || 0).toLocaleString('vi-VN')} đ`,
       amount: Number(paidResult?.amount || selectedServiceToBuy?.price || 0),
-      date: `${checkoutDate || new Date().toISOString().slice(0, 10)} • Mới kích hoạt`,
-      scheduledDate: checkoutDate || new Date().toISOString().slice(0, 10),
+      date: `${scheduledDate} • Hôm nay`,
+      scheduledDate: scheduledDate,
       status: 'IN_PROGRESS',
       statusLabel: 'Đang thực hiện (Đã phân công CVLĐ)',
       worker: 'Trần Văn Lực (CVLĐ)',
       paymentMethod: paidResult?.paymentMethod || (checkoutPaymentMethod === 'VNPAY' ? 'Cổng VNPAY Sandbox' : checkoutPaymentMethod === 'CARD' ? 'Thẻ Quốc tế / Nội địa' : 'Ví Farmely'),
       paymentStatus: 'SUCCESS',
-      gatewayRef: paidResult?.gatewayRef || `TXN_SVC_${Date.now().toString().slice(-8)}`,
+      gatewayRef: gatewayRef,
       proofPhoto: null,
       proofNotes: checkoutNotes || ''
     };
 
-    setActiveServiceOrders(prev => {
-      const next = [newOrder, ...prev.filter(p => p.id !== newOrder.id)];
+    setActiveServiceOrders((prev) => {
+      const next = [newOrder, ...prev.filter((p) => p.id !== newOrder.id)];
       try {
         localStorage.setItem('farmely_customer_service_orders', JSON.stringify(next));
       } catch {}
       return next;
     });
-    if (paidResult) {
-      setLastPaymentResult(paidResult);
-    }
+
+    const resultInfo = {
+      transactionId: resolvedTxnId,
+      requestId: resolvedRequestId,
+      taskId: serverData?.taskId,
+      serviceName: selectedServiceToBuy?.name,
+      plotName: targetPlot ? targetPlot.name : `Thửa ${targetPlotCode}`,
+      plotCode: targetPlotCode,
+      plotId: targetPlot?.id,
+      amount: selectedServiceToBuy?.price,
+      formattedAmount: selectedServiceToBuy?.formattedPrice,
+      scheduledDate: scheduledDate,
+      paymentMethod: newOrder.paymentMethod,
+      gatewayRef: gatewayRef
+    };
+
+    setLastPaymentResult(resultInfo);
+    window.dispatchEvent(new CustomEvent('farmely_service_paid', { detail: resultInfo }));
     setSelectedServiceToBuy(null);
     setShowCheckoutSuccessModal(true);
+  };
+
+  const isPlotCancelled = (plot) => {
+    if (!plot) return false;
+    const rs = String(
+      plot.rental_status ||
+      plot.rentalStatus ||
+      plot.contract_status ||
+      plot.contractStatus ||
+      plot.displayStatus ||
+      plot.status ||
+      ''
+    ).toUpperCase();
+    return (
+      rs === 'CANCELLED' ||
+      rs === 'CANCELED' ||
+      rs.includes('HỦY') ||
+      rs === 'ĐÃ HỦY'
+    );
+  };
+
+  const resolvePlotFromCollection = (targetId, collection = customerPlots) => {
+    if (!targetId || !collection?.length) return null;
+    const cleanTarget = String(targetId).trim();
+    const isRentalTarget = cleanTarget.startsWith('RENTAL-') || /^\d+$/.test(cleanTarget);
+    const targetRentalId = isRentalTarget ? Number(cleanTarget.replace(/^RENTAL-/i, '')) : null;
+
+    if (targetRentalId) {
+      const match = collection.find((p) => Number(p.rentalId || p.rental_id) === targetRentalId);
+      if (match) return match;
+    }
+
+    const cleanCode = cleanTarget.replace(/^PLOT-/i, '').toUpperCase();
+    const matches = collection.filter((p) => {
+      const pCode = String(p.plotCode || p.mapPlotId || p.id || '').replace(/^PLOT-/i, '').toUpperCase();
+      return (
+        p.id === cleanTarget ||
+        p.plotCode === cleanTarget ||
+        p.mapPlotId === cleanTarget ||
+        pCode === cleanCode ||
+        (p.rentalId && `RENTAL-${p.rentalId}` === cleanTarget)
+      );
+    });
+
+    if (!matches.length) return null;
+
+    // Ưu tiên thửa ĐANG ACTIVE (chưa bị hủy) và có rentalId mới nhất
+    const activeMatches = matches.filter((p) => !isPlotCancelled(p));
+    if (activeMatches.length > 0) {
+      return activeMatches.sort((a, b) => (Number(b.rentalId || b.rental_id || 0) - Number(a.rentalId || a.rental_id || 0)))[0];
+    }
+    return matches.sort((a, b) => (Number(b.rentalId || b.rental_id || 0) - Number(a.rentalId || a.rental_id || 0)))[0];
   };
 
   const handleDeleteServiceOrder = async (orderId) => {
@@ -1492,9 +1649,17 @@ export default function CustomerDashboard() {
     }
   };
 
-  const currentSelectedPlot = customerPlots.find((p) => p.id === selectedPlotId);
-  const diaryFocusPlot = customerPlots.find((p) => p.id === diaryFocusPlotId) || customerPlots[0];
-  const scopedPlot = customerPlots.find((p) => p.id === plotScopeId) || null;
+  const currentSelectedPlot = useMemo(() => {
+    return resolvePlotFromCollection(selectedPlotId, customerPlots);
+  }, [customerPlots, selectedPlotId]);
+
+  const diaryFocusPlot = useMemo(() => {
+    return resolvePlotFromCollection(diaryFocusPlotId, customerPlots) || customerPlots[0];
+  }, [customerPlots, diaryFocusPlotId]);
+
+  const scopedPlot = useMemo(() => {
+    return resolvePlotFromCollection(plotScopeId, customerPlots) || null;
+  }, [customerPlots, plotScopeId]);
   const scopedPlots = scopedPlot ? [scopedPlot] : customerPlots;
   const scopedServiceOrders = scopedPlot
     ? activeServiceOrders.filter((ord) =>
@@ -1506,7 +1671,7 @@ export default function CustomerDashboard() {
         ord.rentalId === scopedPlot.rentalId
       )
     : activeServiceOrders;
-  const harvestModalPlot = customerPlots.find((p) => p.id === harvestModalPlotId || p.plotCode === harvestModalPlotId) || null;
+  const harvestModalPlot = resolvePlotFromCollection(harvestModalPlotId, customerPlots) || null;
 
   /** Từ trang 1 thửa sang trang chức năng: giữ nguyên ngữ cảnh thửa đó */
   const openPlotScopedTab = (tab, plotId) => {
@@ -1584,27 +1749,19 @@ export default function CustomerDashboard() {
     const requestedPlotCode = query.get('plotCode');
     const requestedView = query.get('view') || query.get('tab');
     const fromPlotId = query.get('fromPlot');
-    const requestedPlot = (requestedPlotId || requestedPlotCode) && customerPlots.find((plot) =>
-      plot.id === requestedPlotId ||
-      plot.mapPlotId === requestedPlotId ||
-      String(plot.plotId) === requestedPlotId ||
-      plot.plotCode === requestedPlotCode ||
-      plot.mapPlotId === requestedPlotCode ||
-      plot.id === `PLOT-${requestedPlotCode}` ||
-      (requestedPlotId && (plot.id === `PLOT-${requestedPlotId}` || plot.plotCode === requestedPlotId))
-    );
+    const requestedPlot = (requestedPlotId || requestedPlotCode) && resolvePlotFromCollection(requestedPlotId || requestedPlotCode, customerPlots);
 
     if (requestedView === 'tasks') {
       setActiveTab('yards');
       if (requestedPlot) {
-        setSelectedPlotId(requestedPlot.id);
+        setSelectedPlotId(requestedPlot.rentalId ? `RENTAL-${requestedPlot.rentalId}` : requestedPlot.id);
         setCheckoutPlotId(requestedPlot.id);
       } else {
         setSelectedPlotId(null);
       }
     } else if (requestedPlot) {
       setActiveTab('yards');
-      setSelectedPlotId(requestedPlot.id);
+      setSelectedPlotId(requestedPlot.rentalId ? `RENTAL-${requestedPlot.rentalId}` : requestedPlot.id);
       setCheckoutPlotId(requestedPlot.id);
     } else if (['contracts', 'harvest', 'process', 'iot', 'diary', 'services', 'welcome', 'visits'].includes(requestedView)) {
       setSelectedPlotId(null);
@@ -1687,16 +1844,29 @@ export default function CustomerDashboard() {
               }
             }
 
+            const resolvedTaskDay = (t.cropDay !== undefined && t.cropDay !== null)
+              ? Math.max(1, Number(t.cropDay))
+              : (t.dayOffset !== undefined && t.dayOffset !== null)
+              ? (Number(t.dayOffset) === 0 ? 1 : Math.max(1, Number(t.dayOffset)))
+              : (t.day !== undefined && t.day !== null)
+              ? Math.max(1, Number(t.day))
+              : null;
+
             const formattedTask = {
               id: t.id || `TSK-${t.taskId}`,
               taskId: t.taskId,
               title: t.title,
               time: t.dueDate ? `${t.dueDate} (08:30)` : 'Hôm nay',
+              date: t.date || t.dueDate,
+              day: resolvedTaskDay,
+              cropDay: resolvedTaskDay,
+              dayOffset: t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null,
+              stepOrder: t.stepOrder || 1,
               status: t.status,
-              owner: t.workerName || t.assignedTo || 'Trần Văn Lực (CVLĐ)',
+              owner: t.workerName || t.assignedTo || 'Kỹ thuật viên hiện trường',
               crop: t.crop,
               instructions: t.instructions,
-              proofPhoto: t.proofPhoto,
+              proofPhoto: t.proofPhoto || t.evidenceImageUrl || null,
               completedAt: t.completedAt
             };
 
@@ -1737,12 +1907,26 @@ export default function CustomerDashboard() {
               }
             }
 
+            const resolvedDiaryDay = (d.cropDay !== undefined && d.cropDay !== null)
+              ? Math.max(1, Number(d.cropDay))
+              : (d.dayOffset !== undefined && d.dayOffset !== null)
+              ? (Number(d.dayOffset) === 0 ? 1 : Math.max(1, Number(d.dayOffset)))
+              : (d.day !== undefined && d.day !== null)
+              ? Math.max(1, Number(d.day))
+              : null;
+
             const formattedDiary = {
               id: d.id,
-              time: d.dateFormatted || 'Hôm nay',
-              title: d.content ? d.content.slice(0, 40) : 'Cập nhật hiện trường',
-              note: d.content,
-              author: d.authorName || 'Trần Văn Lực (CVLĐ)'
+              date: d.date,
+              time: d.dateFormatted || (d.date && d.time ? `${d.date} ${d.time}` : 'Hôm nay'),
+              title: d.title || (d.content ? d.content.slice(0, 45) : 'Cập nhật hiện trường'),
+              note: d.content || d.note,
+              author: d.authorName || d.author || 'Chủ vườn',
+              image: d.imageUrl || d.image_url || d.photo || '',
+              imageUrl: d.imageUrl || d.image_url || d.photo || '',
+              cropDay: resolvedDiaryDay,
+              dayOffset: d.dayOffset !== undefined && d.dayOffset !== null ? Number(d.dayOffset) : null,
+              day: resolvedDiaryDay
             };
 
             targetKeys.forEach((key) => {
@@ -1911,6 +2095,7 @@ export default function CustomerDashboard() {
       return false;
     });
   }, [currentSelectedPlot?.id, currentSelectedPlot?.plotCode, currentSelectedPlot?.rentalId, currentSelectedPlot?.name, activeServiceOrders]);
+
 
   const plotTabFromUrl = new URLSearchParams(location.search).get('tab') || 'overview';
 
@@ -2089,6 +2274,7 @@ export default function CustomerDashboard() {
 
       {/* 2. Main Page Container luôn co giãn theo phần màn hình còn lại */}
       <div className={`box-border min-w-0 flex-1 w-full lg:w-auto transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'} ${selectedPlotId ? 'px-3 pb-16 pt-20 sm:px-5 lg:px-8' : activeTab === 'yards' ? 'pt-20' : 'space-y-6 px-4 pb-16 pt-24 sm:px-8 sm:pt-28 lg:px-10'}`}>
+
         
         {/* 3. Layout with Left Sidebar + Right Content */}
         <div className={`flex min-w-0 w-full flex-col items-start ${selectedPlotId ? '' : 'gap-6'}`}>
@@ -2111,7 +2297,7 @@ export default function CustomerDashboard() {
                 serviceOrders={currentPlotServiceOrders}
                 harvestPlan={harvestPlans[currentSelectedPlot.id] || dbHarvestResults.find(h => h.plotScopeId === currentSelectedPlot.id || h.plotCode === currentSelectedPlot.plotCode || h.rentalId === currentSelectedPlot.rentalId) || null}
                 activeTab={plotTabFromUrl}
-                onTabChange={(tab) => navigate(`/customer/dashboard?plot=${currentSelectedPlot.id}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
+                onTabChange={(tab) => navigate(`/customer/dashboard?plot=${selectedPlotId || (currentSelectedPlot.rentalId ? `RENTAL-${currentSelectedPlot.rentalId}` : currentSelectedPlot.id)}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
                 onBack={() => navigate('/customer/dashboard')}
                 onOpenHarvest={(plot) => setHarvestModalPlotId(plot.id)}
                 onSelectPlot={(plotId) => navigate(`/customer/dashboard?plot=${plotId}${plotTabFromUrl !== 'overview' ? `&tab=${plotTabFromUrl}` : ''}`)}
@@ -2210,7 +2396,6 @@ export default function CustomerDashboard() {
               // Kiểm tra thửa đất đã hủy / hết hạn
               const isPlotCancelled = (plot) => {
                 if (!plot) return false;
-                if (plot.contractCode && cancelledContracts[plot.contractCode]) return true;
                 const rs = String(
                   plot.rental_status ||
                   plot.rentalStatus ||
@@ -2272,7 +2457,10 @@ export default function CustomerDashboard() {
                 (n, p) => n + (iotAlerts[p.id] || defaultAlertsForPlot(p) || []).filter((a) => a.level === 'HIGH').length,
                 0
               );
-              const openPlot = (plotId, tab) => navigate(`/customer/dashboard?plot=${plotId}${tab ? `&tab=${tab}` : ''}`);
+              const openPlot = (plotId, tab, rentalId) => {
+                const targetParam = rentalId ? `RENTAL-${rentalId}` : plotId;
+                navigate(`/customer/dashboard?plot=${targetParam}${tab ? `&tab=${tab}` : ''}`);
+              };
 
               return (
               <div className="mx-auto max-w-[1400px] space-y-6 px-4 pb-16 pt-5 sm:px-6 lg:px-10 lg:pt-8">
@@ -2424,12 +2612,15 @@ export default function CustomerDashboard() {
                     </span>
                   </div>
 
-                  {isLoadingPlots ? (
-                    <div className="flex h-48 items-center justify-center rounded-2xl border border-stone-200 bg-white shadow-sm">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-stone-500">
-                        <RefreshCw className="h-5 w-5 animate-spin text-emerald-600" />
-                        Đang đồng bộ danh sách thửa đất từ cơ sở dữ liệu...
-                      </div>
+                  {isLoadingPlots && (!dbPlots || dbPlots.length === 0) ? (
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {[1, 2, 3].map((n) => (
+                        <div key={n} className="animate-pulse rounded-3xl border border-stone-200/80 bg-white p-4 shadow-sm h-64">
+                          <div className="h-36 rounded-2xl bg-stone-200/60 mb-3" />
+                          <div className="h-4 w-3/4 rounded bg-stone-200/60 mb-2" />
+                          <div className="h-3 w-1/2 rounded bg-stone-100" />
+                        </div>
+                      ))}
                     </div>
                   ) : displayedPlots.length === 0 ? (
                     plotStatusFilter === 'CANCELLED' ? (
@@ -2479,7 +2670,8 @@ export default function CustomerDashboard() {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                       {displayedPlots.map((plot) => {
                         const isCancelled = isPlotCancelled(plot);
-                        const tasks = plotOperations[plot.id]?.tasks || defaultOperationsForPlot(plot).tasks || [];
+                        const isPendingPayment = !isCancelled && String(plot.contract_status || plot.rental_status || plot.status || '').toUpperCase() === 'PENDING_PAYMENT';
+                        const tasks = (plot.rentalId && plotOperations[`RENTAL-${plot.rentalId}`]?.tasks) || plotOperations[plot.id]?.tasks || defaultOperationsForPlot(plot).tasks || [];
                         const nextTask = tasks.find((t) => t.status === 'IN_PROGRESS') || tasks.find((t) => t.status === 'PENDING');
                         const openCount = tasks.filter((t) => t.status !== 'COMPLETED').length;
                         const topAlert = (iotAlerts[plot.id] || defaultAlertsForPlot(plot) || []).find((a) => a.level === 'HIGH');
@@ -2489,18 +2681,28 @@ export default function CustomerDashboard() {
                         const isFutureStart = Boolean(startIso && startIso > todayIso);
                         const daysUntilStart = isFutureStart ? Math.max(1, Math.ceil((new Date(`${startIso}T00:00:00`) - new Date()) / 86400000)) : 0;
 
+                        // Kiểm tra ngày bắt đầu (Requirement #1 & #2)
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const plotStartDateStr = plot.startDate || plot.start_date;
+                        const startDateObj = plotStartDateStr ? new Date(plotStartDateStr) : null;
+                        if (startDateObj) startDateObj.setHours(0, 0, 0, 0);
+                        const isNotStarted = !isCancelled && !isPendingPayment && Boolean(startDateObj && startDateObj > today);
+
                         return (
                           <article
                             key={`${plot.id}-${plot.rentalId || plot.contractCode || ''}`}
                             className={`group flex flex-col overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 hover:shadow-lg ${
                               isCancelled
                                 ? 'border-rose-200/90 bg-stone-50/50 shadow-2xs'
+                                : isPendingPayment
+                                ? 'border-amber-300 bg-amber-50/20 shadow-sm'
                                 : 'border-stone-200/80 bg-white shadow-sm'
                             }`}
                           >
                             <button
                               type="button"
-                              onClick={() => (isCancelled ? handleOpenCancelModal(plot) : openPlot(plot.id))}
+                              onClick={() => (isCancelled ? handleOpenCancelModal(plot) : openPlot(plot.id, null, plot.rentalId))}
                               className="relative block h-40 w-full overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400 cursor-pointer"
                               aria-label={`Mở ${plot.name}`}
                             >
@@ -2517,6 +2719,10 @@ export default function CustomerDashboard() {
                               {isCancelled ? (
                                 <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
                                   🛑 Đã hủy
+                                </span>
+) : isPendingPayment ? (
+                                <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
+                                  ⏳ Chờ thanh toán
                                 </span>
                               ) : isFutureStart ? (
                                 <span className="absolute left-3 top-3 rounded-full bg-amber-50/95 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-900 shadow-2xs">
@@ -2558,6 +2764,7 @@ export default function CustomerDashboard() {
                                         ? `Còn ${daysLeft} ngày` 
                                         : 'Đến vụ'}
                                 </span>
+
                               </div>
 
                               {isCancelled && (
@@ -2572,10 +2779,33 @@ export default function CustomerDashboard() {
                                     Thời gian thuê: {plot.startDate || plot.start_date || '---'} đến {plot.expectedHarvestDate || plot.endDate || plot.end_date || '---'}
                                   </p>
                                 </div>
-                              )}
+)}
 
                               {/* Hàng nút bấm hành động */}
-                              <div className="mt-auto pt-2">
+                              <div className="mt-auto flex flex-col gap-2 pt-2">
+                                {isPendingPayment && (
+                                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                                    <span className="font-semibold text-[11px]">Chờ thanh toán</span>
+                                    <button
+                                      type="button"
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (plot.contract_id) {
+                                          try {
+                                            await fetch(`/api/contracts/${plot.contract_id}/activate`, { method: 'POST' });
+                                            fetchCustomerPlots(false);
+                                          } catch (err) {
+                                            console.error(err);
+                                          }
+                                        }
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold text-[11px] hover:bg-amber-700 transition cursor-pointer shadow-xs"
+                                    >
+                                      Kích hoạt ngay
+                                    </button>
+                                  </div>
+                                )}
+
                                 {isCancelled ? (
                                   <button
                                     type="button"
@@ -2586,13 +2816,24 @@ export default function CustomerDashboard() {
                                     Xem chi tiết hợp đồng đã hủy
                                   </button>
                                 ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => openPlot(plot.id)}
-                                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20] cursor-pointer shadow-xs"
-                                  >
-                                    Mở thửa <ChevronRight className="h-4 w-4" />
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => openPlot(plot.id)}
+                                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20] cursor-pointer shadow-xs"
+                                    >
+                                      Mở thửa <ChevronRight className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenCancelModal(plot)}
+                                      aria-label={`Hợp đồng & hủy ${plot.name}`}
+                                      title="Quản lý Hợp đồng & Hủy"
+                                      className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-stone-400 hover:bg-stone-50 cursor-pointer"
+                                    >
+                                      <FileText className="h-4 w-4" />
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -3128,7 +3369,18 @@ export default function CustomerDashboard() {
                               <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800">{entry.author}</span>
                             </div>
                             <h5 className="mt-2 text-xs font-black text-brand-dark">{entry.title}</h5>
-                            <p className="mt-1 text-xs leading-relaxed text-stone-600">{entry.note}</p>
+                            <p className="mt-1 text-xs leading-relaxed text-stone-600 whitespace-pre-line">{entry.note}</p>
+                            {(entry.image || entry.imageUrl || entry.photo) && (
+                              <div className="mt-2 overflow-hidden rounded-lg border border-stone-200">
+                                <img
+                                  src={entry.image || entry.imageUrl || entry.photo}
+                                  alt={entry.title || 'Ảnh nhật ký'}
+                                  className="max-h-48 w-full object-cover cursor-pointer hover:opacity-95 transition"
+                                  onClick={() => window.open(entry.image || entry.imageUrl || entry.photo, '_blank')}
+                                  loading="lazy"
+                                />
+                              </div>
+                            )}
                           </article>
                         ))}
                       </div>
@@ -3184,21 +3436,6 @@ export default function CustomerDashboard() {
                       Đăng ký lịch hái theo dõi phê duyệt từ Kỹ sư nông nghiệp và nghiệm thu khối lượng thực tế đối chứng cân điện tử.
                     </p>
                   </div>
-                  {customerPlots.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setDisputeData(prev => ({ ...prev, plotId: customerPlots[0]?.id || '' }));
-                          setShowDisputeModal(true);
-                        }}
-                        className="text-rose-700 border-rose-300 hover:bg-rose-50 font-bold text-xs cursor-pointer"
-                      >
-                        Khiếu nại sản lượng / sự cố
-                      </Button>
-                    </div>
-                  )}
                 </div>
 
                 {/* PHẦN 1: KẾ HOẠCH THU HOẠCH THEO TỪNG THỬA ĐẤT */}
@@ -3381,34 +3618,6 @@ export default function CustomerDashboard() {
                       </div>
                     );
                   })}
-
-                  {/* Danh sách khiếu nại đã gửi (nếu có) */}
-                  {disputeList.length > 0 && (
-                    <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200 space-y-3 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-rose-950 flex items-center gap-1.5">
-                          <ShieldAlert className="w-4 h-4 text-rose-700" />
-                          Hồ Sơ Khiếu Nại & Tranh Chấp Đang Thẩm Tra:
-                        </span>
-                        <span className="text-[10px] text-rose-700 font-bold bg-white px-2 py-0.5 rounded border border-rose-200">
-                          {disputeList.length} hồ sơ
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {disputeList.map((dsp) => (
-                          <div key={dsp.id} className="p-3 rounded-xl bg-white border border-rose-200 space-y-1">
-                            <div className="flex flex-wrap justify-between items-center gap-1 text-[11px]">
-                              <span className="font-mono font-bold text-rose-800">{dsp.id} • {dsp.plotName}</span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900">{dsp.statusLabel}</span>
-                            </div>
-                            <p className="font-semibold text-stone-800">{dsp.reason}</p>
-                            <p className="text-stone-600 text-[11px]">{dsp.notes}</p>
-                            <p className="text-[10px] text-stone-400">Gửi lúc: {dsp.createdAt}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
                 )}
                 </div>
@@ -3508,7 +3717,7 @@ export default function CustomerDashboard() {
                         </div>
                         <h3 className="font-heading font-black text-xl text-brand-dark mt-1 flex items-center gap-2">
                           <FileText className="w-5 h-5 text-brand-green" />
-                          Hợp Đồng Thuê Thửa Đất & Chính Sách Hoàn Hủy (BR10)
+                          Hợp Đồng Thuê Thửa Đất & Chính Sách Hoàn Hủy
                         </h3>
                         <p className="text-xs text-brand-muted mt-0.5">
                           Quản lý các kỳ thuê đất, theo dõi ngày bàn giao thực tế và gửi yêu cầu hủy hợp đồng theo đúng tỷ lệ khấu trừ.
@@ -3520,13 +3729,13 @@ export default function CustomerDashboard() {
                     <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 space-y-1.5">
                       <div className="font-bold flex items-center gap-1.5 text-blue-950">
                         <ShieldAlert className="w-4 h-4 text-blue-700" />
-                        Chính Sách Hoàn Tiền Khi Hủy Hợp Đồng (Quy định SSoT BR10):
+                        Chính Sách Hoàn Tiền Khi Hủy Hợp Đồng:
                       </div>
                       <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-blue-900/90 leading-relaxed">
                         <li><strong>Trước ngày bắt đầu ≥ 3 ngày:</strong> Khấu trừ 20% phí quản trị & giữ chỗ, <strong>hoàn trả 80%</strong> số tiền đã đóng.</li>
                         <li><strong>Trước ngày bắt đầu &lt; 3 ngày:</strong> Khấu trừ 50% chi phí giống & chuẩn bị đất, <strong>hoàn trả 50%</strong> số tiền đã đóng.</li>
                         <li><strong>Khi đã đến hoặc sau ngày bắt đầu canh tác:</strong> Khấu trừ 100%, <strong>không hoàn tiền</strong> vì cây giống đã trồng và công nhân đã triển khai.</li>
-                        <li><strong>Bảo trì thửa đất (BR23):</strong> Mọi thửa đất sau khi hủy đều chuyển sang trạng thái <strong>Bảo dưỡng phơi ải 4 ngày (MAINT)</strong> trước khi mở lại trên sàn.</li>
+                        <li><strong>Bảo trì thửa đất:</strong> Sau khi yêu cầu hủy được duyệt, thửa đất chuyển sang <strong>bảo dưỡng phơi ải 4 ngày</strong> trước khi mở lại trên sàn.</li>
                       </ul>
                     </div>
 
@@ -3550,11 +3759,11 @@ export default function CustomerDashboard() {
                               <div className="flex items-center gap-2">
                                 <span className="font-mono font-bold text-brand-green text-sm">{plot.contractCode || `CTR-${plot.id}`}</span>
                                 <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                  Đang hiệu lực ({plot.mode === 'Assisted-Growing' ? 'Farmely chăm sóc' : 'Tự canh tác'})
+                                  {String(plot.contract_status || plot.rental_status || '').toUpperCase() === 'CANCELLED' ? 'Đã hủy' : pendingCancellations[plot.contractCode] ? 'Chờ duyệt yêu cầu hủy' : `Đang hiệu lực (${plot.mode === 'Assisted-Growing' ? 'Farmely chăm sóc' : 'Tự canh tác'})`}
                                 </span>
                               </div>
                               <span className="text-[11px] text-stone-500">
-                                Thời hạn: {plot.totalDays || 90} Ngày · Còn {Math.max((plot.totalDays || 90) - (plot.currentDay || 0), 0)} ngày
+                                Thời hạn: {plot.termDays || plot.totalDays || 90} Ngày · Còn {Math.max((plot.termDays || plot.totalDays || 90) - (plot.currentDay || 0), 0)} ngày
                               </span>
                             </div>
 
@@ -3577,15 +3786,19 @@ export default function CustomerDashboard() {
                               </div>
                             </div>
 
-                            {cancelledContracts[plot.contractCode || `CTR-${plot.id}`] ? (
+                            {String(plot.contract_status || '').toUpperCase() !== 'CANCELLED' && pendingCancellations[plot.contractCode || `CTR-${plot.id}`] ? (
+                              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 font-bold">
+                                Đã gửi yêu cầu hủy, đang chờ quản trị viên duyệt.
+                              </div>
+                            ) : String(plot.contract_status || plot.rental_status || '').toUpperCase() === 'CANCELLED' ? (
                               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
-                                <span>✓ Đã gửi yêu cầu chấm dứt hợp đồng sớm (Thửa đất chuyển bảo dưỡng 4 ngày BR23)</span>
+                                <span>✓ Hợp đồng đã hủy; thửa đất chuyển sang bảo dưỡng 4 ngày.</span>
                                 <span className="text-[11px] bg-rose-200 px-2 py-0.5 rounded">ĐÃ HỦY NGANG</span>
                               </div>
                             ) : (
                               <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-brand-border/40">
                                 <span className="text-[11px] text-stone-400">
-                                  Gia hạn trước tối thiểu 3 ngày theo quy định BR11b.
+                                  Gia hạn trước ngày kết thúc tối thiểu 3 ngày.
                                 </span>
                                 <div className="flex flex-wrap gap-2">
                                   <Button
@@ -3608,18 +3821,10 @@ export default function CustomerDashboard() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => handleOpenCancelModal({
-                                      contractCode: plot.contractCode || `CTR-${plot.id}`,
-                                      name: plot.name,
-                                      area: plot.area,
-                                      crop: plot.crop,
-                                      totalAmount: 3600000,
-                                      startDate: '12/08/2026',
-                                      stage: plot.stage
-                                    })}
+                                    onClick={() => handleOpenCancelModal(plot)}
                                     className="text-xs text-rose-600 hover:text-rose-800 hover:underline font-bold self-center cursor-pointer px-2"
                                   >
-                                    Chấm dứt hợp đồng sớm (BR10)
+                                    Chấm dứt hợp đồng sớm
                                   </button>
                                 </div>
                               </div>
@@ -4289,84 +4494,332 @@ export default function CustomerDashboard() {
       </Modal>
 
       {/* Modal: New Diary Entry */}
-      <Modal
-        isOpen={showNewDiaryModal}
-        onClose={() => setShowNewDiaryModal(false)}
-        title="Thêm Nhật Ký Canh Tác Mới"
-        subtitle="Cập nhật tiến độ hoặc ảnh tham quan vườn của bạn"
-      >
-        <div className="space-y-4 text-left text-xs">
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Chọn Thửa Đất:</label>
-            <select
-              value={diaryPlotId}
-              onChange={(e) => setDiaryPlotId(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs"
-            >
-              {customerPlots.length === 0 ? (
-                <option value="">Chưa có thửa đất nào</option>
-              ) : (
-                customerPlots.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.id}) • {p.crop}
-                  </option>
-                ))
+      {(() => {
+        const activeDiaryTargetPlot = customerPlots.find((p) => p.id === diaryPlotId) || currentSelectedPlot || scopedPlot || customerPlots[0];
+        return (
+          <Modal
+            isOpen={showNewDiaryModal}
+            onClose={() => {
+              setShowNewDiaryModal(false);
+              handleClearDiaryPhoto();
+            }}
+            title="Thêm Nhật Ký Canh Tác Mới"
+            subtitle="Cập nhật tiến độ hoặc ảnh tham quan vườn của bạn"
+          >
+            <div className="space-y-4 text-left text-xs">
+              {/* 1. KHÓA CỐ ĐỊNH THỬA ĐẤT - KHÔNG CHO CHỌN THỬA KHÁC */}
+              <div>
+                <label className="block font-bold text-stone-700 mb-1.5 flex items-center justify-between">
+                  <span>Thửa đất áp dụng:</span>
+                  <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" />
+                    Cố định theo dashboard hiện tại
+                  </span>
+                </label>
+                <div className="rounded-2xl border border-emerald-200/90 bg-gradient-to-r from-emerald-50/70 via-stone-50 to-emerald-50/40 p-3.5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow">
+                      <Sprout className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-extrabold text-sm text-stone-900">
+                          {activeDiaryTargetPlot?.name || `Thửa ${activeDiaryTargetPlot?.id || 'P-06'}`}
+                        </span>
+                        <span className="rounded-md bg-emerald-700 text-white px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                          {activeDiaryTargetPlot?.id || activeDiaryTargetPlot?.plotCode || 'PLOT-P-06'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-600 font-medium mt-0.5 truncate">
+                        🌱 Giống cây: <strong className="text-emerald-800 font-bold">{activeDiaryTargetPlot?.crop || 'Rau muống lá tre F1'}</strong>
+                        {activeDiaryTargetPlot?.location ? ` • ${activeDiaryTargetPlot.location}` : ' • Happy Valley Củ Chi'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. GHI CHÚ NỘI DUNG NHẬT KÝ */}
+              <div>
+                <label className="block font-bold text-stone-700 mb-1.5">
+                  Ghi Chú Nhật Ký / Tình Hình Vườn:
+                </label>
+                <textarea
+                  rows={3}
+                  value={diaryNote}
+                  onChange={(e) => {
+                    setDiaryNote(e.target.value);
+                    if (diaryFormError) setDiaryFormError('');
+                  }}
+                  placeholder="Ví dụ: Hôm nay ra thăm vườn, mầm đã nảy xanh đều, đất tơi xốp, lá non xanh mướt..."
+                  className="w-full p-3 rounded-xl border border-brand-border text-xs leading-relaxed focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green transition"
+                />
+              </div>
+
+              {/* Thông báo lỗi nếu có */}
+              {diaryFormError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-xs font-semibold text-rose-700 flex items-center gap-1.5">
+                  <span>⚠️</span>
+                  <span>{diaryFormError}</span>
+                </div>
               )}
-            </select>
-          </div>
 
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Ghi Chú Nhật Ký:</label>
-            <textarea
-              rows={3}
-              value={diaryNote}
-              onChange={(e) => setDiaryNote(e.target.value)}
-              placeholder="Ví dụ: Cây phát triển rất đều, đất tơi xốp, lá xanh mướt..."
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
+              {/* 3. UPLOAD ẢNH (HỖ TRỢ ĐIỆN THOẠI & LAPTOP) */}
+              <div>
+                <label className="block font-bold text-stone-700 mb-1.5 flex items-center justify-between">
+                  <span>Đính kèm hình ảnh hiện trường:</span>
+                  <span className="text-[10px] text-stone-400">Điện thoại hoặc Laptop</span>
+                </label>
 
-          <div className="p-4 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-1">
-            <Camera className="w-6 h-6 text-stone-400 mx-auto" />
-            <p className="font-bold text-stone-600">Đính kèm ảnh hiện trường thực tế</p>
-            <p className="text-[10px] text-stone-400">Hỗ trợ PNG, JPG tối đa 5MB</p>
-          </div>
+                {/* Input ẩn cho Laptop / Thư viện ảnh */}
+                <input
+                  ref={diaryFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleProcessDiaryFile(file);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => setShowNewDiaryModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={async () => {
-                if (!diaryNote.trim()) return;
-                try {
-                  const targetPlot = customerPlots.find((p) => p.id === diaryPlotId) || customerPlots[0];
-                  const targetRental = targetPlot?.rentalId || 1;
-                  await fetch('/api/farm-diaries', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      rentalId: targetRental,
-                      content: diaryNote.trim(),
-                      imageUrl: targetPlot?.image || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80'
-                    })
-                  });
-                  loadOperationsFromDb();
-                } catch (err) {
-                  console.warn('Could not post diary to DB:', err);
-                }
-                alert('Đã lưu nhật ký Farm Diary thành công vào cơ sở dữ liệu!');
-                setShowNewDiaryModal(false);
-                setDiaryNote('');
-              }}
-            >
-              LƯU NHẬT KÝ
-            </Button>
-          </div>
-        </div>
-      </Modal>
+                {/* Input ẩn cho Camera điện thoại */}
+                <input
+                  ref={diaryCameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleProcessDiaryFile(file);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
+
+                {!diaryPhotoPreview ? (
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDragOverDiary(true); }}
+                    onDragLeave={() => setIsDragOverDiary(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragOverDiary(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleProcessDiaryFile(file);
+                    }}
+                    className={`relative rounded-2xl border-2 border-dashed p-4 text-center transition ${
+                      isDragOverDiary
+                        ? 'border-emerald-500 bg-emerald-50/70 ring-2 ring-emerald-200'
+                        : 'border-stone-300 bg-stone-50/70 hover:border-emerald-400 hover:bg-emerald-50/20'
+                    }`}
+                  >
+                    {isProcessingDiaryPhoto ? (
+                      <div className="py-4 space-y-2">
+                        <RefreshCw className="w-6 h-6 text-emerald-600 animate-spin mx-auto" />
+                        <p className="text-xs font-bold text-stone-600">Đang tối ưu & nén ảnh...</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm border border-stone-200 text-stone-600">
+                            <Camera className="w-5 h-5 text-emerald-600" />
+                          </div>
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm border border-stone-200 text-stone-600">
+                            <UploadCloud className="w-5 h-5 text-sky-600" />
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="font-bold text-stone-700 text-xs">
+                            Đính kèm ảnh hiện trường thực tế
+                          </p>
+                          <p className="text-[10px] text-stone-400 mt-0.5">
+                            Kéo thả ảnh vào đây hoặc chọn chụp bằng điện thoại / duyệt từ máy tính
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => diaryCameraInputRef.current?.click()}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            📱 Chụp ảnh (Camera)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => diaryFileInputRef.current?.click()}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs font-bold text-stone-700 shadow-sm hover:bg-stone-50 transition"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5 text-stone-500" />
+                            💻 Chọn từ máy tính / Thư viện
+                          </button>
+                        </div>
+
+                        <p className="text-[9px] text-stone-400 pt-1">
+                          Hỗ trợ PNG, JPG, JPEG, WEBP (Tự động nén chất lượng cao)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-3 space-y-2.5">
+                    <div className="relative overflow-hidden rounded-xl border border-emerald-200 bg-stone-900/5 max-h-56 flex items-center justify-center">
+                      <img
+                        src={diaryPhotoPreview}
+                        alt="Xem trước ảnh nhật ký"
+                        className="max-h-56 w-full object-contain rounded-xl"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleClearDiaryPhoto}
+                        className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-stone-900/80 text-white hover:bg-rose-600 transition shadow"
+                        title="Xóa ảnh này"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-1.5 text-emerald-800 font-semibold truncate max-w-[220px]">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="truncate">{diaryPhotoMeta?.name || 'Ảnh minh chứng'}</span>
+                        {diaryPhotoMeta?.sizeFormatted && (
+                          <span className="text-[10px] text-stone-500 shrink-0">({diaryPhotoMeta.sizeFormatted})</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => diaryFileInputRef.current?.click()}
+                        className="text-[11px] font-bold text-emerald-700 hover:underline"
+                      >
+                        Đổi ảnh khác
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. HÀNH ĐỘNG */}
+              <div className="flex justify-end gap-2 pt-2 border-t border-stone-100">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isSubmittingDiary}
+                  onClick={() => {
+                    setShowNewDiaryModal(false);
+                    handleClearDiaryPhoto();
+                    setDiaryFormError('');
+                  }}
+                >
+                  HỦY
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={isSubmittingDiary || (!diaryNote.trim() && !diaryPhotoPreview)}
+                  onClick={async () => {
+                    if (!diaryNote.trim() && !diaryPhotoPreview) {
+                      setDiaryFormError('Vui lòng nhập ghi chú hoặc đính kèm ảnh hiện trường.');
+                      return;
+                    }
+
+                    const targetPlot = activeDiaryTargetPlot;
+                    const targetRental = targetPlot?.rentalId || targetPlot?.rental_id || 1;
+                    const authorName = user?.fullName || user?.name || 'Lô Thái Quyền (Chủ vườn)';
+
+                    setIsSubmittingDiary(true);
+                    setDiaryFormError('');
+                    let finalImageUrl = diaryPhotoPreview || '';
+
+                    // Nếu có tệp ảnh gốc, thử tải lên API lưu trữ
+                    if (diaryPhotoFile) {
+                      try {
+                        const formData = new FormData();
+                        formData.append('file', diaryPhotoFile);
+                        const uploadRes = await fetch('/api/files/upload', {
+                          method: 'POST',
+                          body: formData
+                        });
+                        if (uploadRes.ok) {
+                          const uploadData = await uploadRes.json();
+                          if (uploadData?.data?.fileUrl) {
+                            finalImageUrl = uploadData.data.fileUrl;
+                          }
+                        }
+                      } catch (uploadErr) {
+                        console.warn('API upload fallback to data URL:', uploadErr);
+                      }
+                    }
+
+                    try {
+                      await fetch('/api/farm-diaries', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          rentalId: targetRental,
+                          plotId: targetPlot?.id,
+                          plotCode: targetPlot?.plotCode || targetPlot?.mapPlotId || targetPlot?.id,
+                          content: diaryNote.trim() || 'Cập nhật ảnh minh chứng tại thửa vườn',
+                          imageUrl: finalImageUrl,
+                          authorName
+                        })
+                      });
+
+                      // Cập nhật ngay tức thì vào state để người dùng thấy nhật ký xuất hiện ngay
+                      const newEntry = {
+                        id: `DIR-LOCAL-${Date.now()}`,
+                        time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' • Hôm nay',
+                        title: diaryNote.trim() ? (diaryNote.trim().slice(0, 45) + (diaryNote.trim().length > 45 ? '...' : '')) : 'Ảnh hiện trường tham quan vườn',
+                        note: diaryNote.trim() || 'Ảnh chụp hiện trường tham quan vườn của chủ sở hữu.',
+                        author: authorName,
+                        image: finalImageUrl || diaryPhotoPreview,
+                        imageUrl: finalImageUrl || diaryPhotoPreview
+                      };
+
+                      setPlotOperations((prev) => {
+                        const next = { ...prev };
+                        const targetKeys = [targetPlot?.id, targetPlot?.mapPlotId, targetPlot?.plotCode, `RENTAL-${targetRental}`].filter(Boolean);
+                        targetKeys.forEach((key) => {
+                          if (!next[key]) next[key] = { tasks: [], diary: [] };
+                          next[key] = {
+                            ...next[key],
+                            diary: [newEntry, ...(next[key].diary || [])]
+                          };
+                        });
+                        return next;
+                      });
+
+                      loadOperationsFromDb();
+                      setShowNewDiaryModal(false);
+                      setDiaryNote('');
+                      handleClearDiaryPhoto();
+                      setDiarySuccessToast(`Đã lưu nhật ký và tải ảnh hiện trường thành công cho ${targetPlot?.name || 'thửa vườn'}!`);
+                      setTimeout(() => setDiarySuccessToast(''), 4500);
+                    } catch (err) {
+                      console.warn('Could not post diary to DB:', err);
+                      setDiaryFormError('Có lỗi khi lưu nhật ký. Vui lòng kiểm tra kết nối và thử lại.');
+                    } finally {
+                      setIsSubmittingDiary(false);
+                    }
+                  }}
+                >
+                  {isSubmittingDiary ? (
+                    <span className="flex items-center gap-1.5">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      ĐANG LƯU...
+                    </span>
+                  ) : (
+                    'LƯU NHẬT KÝ'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {/* Modal: Chuẩn bị thu hoạch cho RIÊNG 1 thửa */}
       <PlotHarvestModal
@@ -4499,111 +4952,18 @@ export default function CustomerDashboard() {
         </form>
       </Modal>
 
-      {/* Modal: Renew Contract (UC07 / BR11 / BR12) */}
-      <Modal
+      {/* Modal: Renew Contract theo Vụ Mùa (BR12) */}
+      <PlotRenewalModal
         isOpen={showRenewContractModal}
         onClose={() => setShowRenewContractModal(false)}
-        title="Gia Hạn Hợp Đồng Thuê Thửa Đất (Renewal)"
-        subtitle={selectedPlotForRenew ? `${selectedPlotForRenew.name || selectedPlotForRenew.mapPlotId} (${selectedPlotForRenew.mapPlotId || selectedPlotForRenew.id})` : "Gia hạn quyền canh tác"}
-      >
-        <form onSubmit={handleConfirmRenewContract} className="space-y-4 text-left text-xs">
-          {selectedPlotForRenew && (
-            <div className="p-3.5 rounded-xl bg-brand-cream/70 border border-brand-border space-y-1">
-              <p><strong>Thửa đất:</strong> {selectedPlotForRenew.name || selectedPlotForRenew.mapPlotId} ({selectedPlotForRenew.mapPlotId || selectedPlotForRenew.id})</p>
-              <p><strong>Cây trồng:</strong> {selectedPlotForRenew.crop || 'Rau hữu cơ VietGAP'}</p>
-              <p><strong>Hình thức:</strong> {selectedPlotForRenew.mode === 'Assisted-Growing' ? 'Farmely hỗ trợ toàn diện' : 'Tự canh tác'}</p>
-            </div>
-          )}
-
-          {customerPlots.length > 1 && (
-            <div>
-              <label className="block font-bold text-brand-dark mb-1">Chọn Thửa Đất Cần Gia Hạn:</label>
-              <select
-                value={selectedPlotForRenew?.id || ''}
-                onChange={(e) => {
-                  const target = customerPlots.find(p => p.id === e.target.value);
-                  if (target) setSelectedPlotForRenew(target);
-                }}
-                className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs font-bold"
-              >
-                {customerPlots.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.mapPlotId || p.id})</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Gói Thời Gian Gia Hạn Kế Tiếp:</label>
-            <select
-              value={renewMonths}
-              onChange={(e) => setRenewMonths(Number(e.target.value))}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs font-bold"
-            >
-              <option value={1}>Gia hạn thêm 01 Tháng (Đơn giá tiêu chuẩn)</option>
-              <option value={3}>Gia hạn thêm 03 Tháng (Ưu đãi giảm 5%)</option>
-              <option value={6}>Gia hạn thêm 06 Tháng (Ưu đãi giảm 10%)</option>
-              <option value={12}>Gia hạn thêm 12 Tháng (Ưu đãi giảm 15%)</option>
-            </select>
-          </div>
-
-          {/* Pricing summary */}
-          {(() => {
-            const monthlyPrice = 1200000;
-            const discountPct = renewMonths === 12 ? 0.15 : renewMonths === 6 ? 0.10 : renewMonths === 3 ? 0.05 : 0;
-            const subtotal = monthlyPrice * renewMonths;
-            const discountAmount = subtotal * discountPct;
-            const total = subtotal - discountAmount;
-
-            const futureDate = new Date();
-            futureDate.setMonth(futureDate.getMonth() + renewMonths);
-            const formattedDate = `${String(futureDate.getDate()).padStart(2, '0')}/${String(futureDate.getMonth() + 1).padStart(2, '0')}/${futureDate.getFullYear()}`;
-
-            return (
-              <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-1.5">
-                <div className="flex justify-between text-stone-600">
-                  <span>Thời hạn hiệu lực mới đến:</span>
-                  <span className="font-bold text-brand-dark">{formattedDate}</span>
-                </div>
-                <div className="flex justify-between text-stone-600">
-                  <span>Đơn giá định mức:</span>
-                  <span>{monthlyPrice.toLocaleString('vi-VN')} đ/tháng × {renewMonths} tháng</span>
-                </div>
-                {discountPct > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-semibold">
-                    <span>Ưu đãi gia hạn ({discountPct * 100}%):</span>
-                    <span>-{discountAmount.toLocaleString('vi-VN')} đ</span>
-                  </div>
-                )}
-                <div className="flex justify-between border-t border-stone-200 pt-1.5 font-bold text-sm text-brand-green">
-                  <span>Tổng tiền thanh toán:</span>
-                  <span>{total.toLocaleString('vi-VN')} đ</span>
-                </div>
-              </div>
-            );
-          })()}
-
-          <div className="p-3 rounded-xl bg-brand-cream/60 border border-brand-border text-stone-600 space-y-1 text-[11px]">
-            <p>• <strong>BR12:</strong> Thửa đất được kế thừa toàn bộ lịch sử dinh dưỡng, camera IoT và nhật ký vụ trước.</p>
-            <p>• <strong>Tặng kèm:</strong> 01 chu kỳ phân bón vi sinh VietGAP và kiểm tra mẫu đất miễn phí.</p>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setShowRenewContractModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={isRenewingContract}
-              className="bg-brand-green hover:bg-[#203c2c] text-white font-bold"
-            >
-              {isRenewingContract ? 'Đang kích hoạt...' : 'XÁC NHẬN GIA HẠN'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        plot={selectedPlotForRenew || customerPlots[0]}
+        onRenewSuccess={() => {
+          setRenewSuccessToast('Gia hạn vụ mùa cho thửa đất thành công!');
+          setShowRenewContractModal(false);
+          setTimeout(() => setRenewSuccessToast(''), 4500);
+          if (typeof fetchCustomerPlots === 'function') fetchCustomerPlots(false);
+        }}
+      />
 
       {/* Cultivation Service VNPay Pop-up Modal */}
       <VnPayModal
@@ -4635,9 +4995,9 @@ export default function CustomerDashboard() {
         chargeEndpoint="http://localhost:8085/api/v1/payments/service/card/charge"
         additionalPayload={{
           serviceName: selectedServiceToBuy?.name,
-          rentalId: 1,
-          plotCode: checkoutPlotId,
-          scheduledDate: checkoutDate,
+          rentalId: customerPlots.find(p => p.id === checkoutPlotId)?.rentalId || customerPlots.find(p => p.id === checkoutPlotId)?.rental_id || 1,
+          plotCode: customerPlots.find(p => p.id === checkoutPlotId)?.mapPlotId || customerPlots.find(p => p.id === checkoutPlotId)?.plotCode || (checkoutPlotId ? checkoutPlotId.replace(/^PLOT-/i, '') : 'P-01'),
+          scheduledDate: checkoutDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10),
           notes: checkoutNotes
         }}
         onPaymentSuccess={handleServicePaymentSuccess}
@@ -4650,11 +5010,12 @@ export default function CustomerDashboard() {
         onClose={() => setShowCancellationModal(false)}
         onSuccess={(result) => {
           if (selectedContractForCancel?.contractCode) {
-            setCancelledContracts((prev) => ({
+            setPendingCancellations((prev) => ({
               ...prev,
               [selectedContractForCancel.contractCode]: result
             }));
           }
+          fetchCustomerPlots(false);
         }}
       />
 
@@ -4728,7 +5089,7 @@ export default function CustomerDashboard() {
           </div>
 
           <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-900 space-y-1 text-[11px]">
-            <p className="font-bold">Quy trình xử lý theo quy định BR13:</p>
+            <p className="font-bold">Quy trình xử lý:</p>
             <p>1. Ban Quản Trị tiếp nhận và phân công Chuyên Gia khảo sát tính khả thi nông học.</p>
             <p>2. Chuyên gia gửi báo giá và phương án kỹ thuật qua tin nhắn / thông báo trong 2 giờ.</p>
             <p>3. Bạn duyệt báo giá để công nhân tiến hành thực hiện ngoài ruộng.</p>
@@ -4751,103 +5112,27 @@ export default function CustomerDashboard() {
         </form>
       </Modal>
 
-      {/* Modal: Gửi Khiếu Nại & Tranh Chấp Sản Lượng / Chất Lượng (SCR-KH-15 / UC20 / BR17) */}
-      <Modal
-        isOpen={showDisputeModal}
-        onClose={() => setShowDisputeModal(false)}
-        title="Gửi Khiếu Nại & Tranh Chấp Vụ Mùa (UC20 / BR17)"
-        subtitle="Hệ thống cam kết tiếp nhận và phản hồi phán quyết trong vòng 24 giờ"
-      >
-        <form onSubmit={handleCreateDispute} className="space-y-3.5 text-xs text-left max-h-[75vh] overflow-y-auto pr-1">
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Thửa đất khiếu nại:</label>
-            <select
-              value={disputeData.plotId}
-              onChange={(e) => setDisputeData({ ...disputeData, plotId: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs font-bold"
+      {/* Floating Toast Notification for Farm Diary */}
+      {diarySuccessToast && (
+        <div className="fixed top-20 right-6 z-50 max-w-md animate-in slide-in-from-top-3 fade-in duration-300">
+          <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/40 bg-[#18352b] px-4 py-3 text-white shadow-2xl backdrop-blur-md">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow">
+              <CheckCircle2 className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1 text-xs">
+              <p className="font-extrabold text-emerald-300">Nhật Ký Canh Tác</p>
+              <p className="text-stone-200 mt-0.5 leading-snug">{diarySuccessToast}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDiarySuccessToast('')}
+              className="ml-2 rounded-lg p-1.5 text-stone-400 hover:bg-white/10 hover:text-white transition"
             >
-              {customerPlots.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.mapPlotId || p.id}) — {p.crop}
-                </option>
-              ))}
-            </select>
+              <X className="h-4 w-4" />
+            </button>
           </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Loại khiếu nại:</label>
-            <select
-              value={disputeData.reason}
-              onChange={(e) => setDisputeData({ ...disputeData, reason: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs"
-            >
-              <option value="Thiếu hụt sản lượng so với cam kết tối thiểu (BR16)">Thiếu hụt sản lượng so với cam kết tối thiểu (BR16)</option>
-              <option value="Nông sản bị dập nát, hư hỏng trong quá trình vận chuyển">Nông sản bị dập nát, hư hỏng trong quá trình vận chuyển</option>
-              <option value="Chăm sóc không đúng quy trình kỹ thuật VietGAP đã cam kết">Chăm sóc không đúng quy trình kỹ thuật VietGAP đã cam kết</option>
-              <option value="Phát hiện dấu hiệu sâu bệnh bất thường không được cảnh báo">Phát hiện dấu hiệu sâu bệnh bất thường không được cảnh báo</option>
-              <option value="Khác (Ý kiến về vệ sinh, đóng gói)">Khác (Ý kiến về vệ sinh, đóng gói)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Phương án bồi thường mong muốn:</label>
-            <select
-              value={disputeData.requestedSolution}
-              onChange={(e) => setDisputeData({ ...disputeData, requestedSolution: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border bg-white text-xs"
-            >
-              <option value="Bồi thường nông sản tương đương trong đợt thu hoạch kế tiếp">Bồi thường nông sản tương đương trong đợt thu hoạch kế tiếp</option>
-              <option value="Hoàn tiền tương ứng phần sản lượng thiếu hụt vào ví Farmely">Hoàn tiền tương ứng phần sản lượng thiếu hụt vào ví Farmely</option>
-              <option value="Cử chuyên gia nông nghiệp trực tiếp thẩm định hiện trường">Cử chuyên gia nông nghiệp trực tiếp thẩm định hiện trường</option>
-              <option value="Gia hạn thêm ngày chăm sóc bù đắp chi phí">Gia hạn thêm ngày chăm sóc bù đắp chi phí</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Link ảnh chụp minh chứng (URL):</label>
-            <input
-              type="text"
-              value={disputeData.evidenceUrl}
-              onChange={(e) => setDisputeData({ ...disputeData, evidenceUrl: e.target.value })}
-              placeholder="https://example.com/anh-can-thieu.jpg"
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Mô tả chi tiết nội dung khiếu nại:</label>
-            <textarea
-              rows={3}
-              required
-              value={disputeData.notes}
-              onChange={(e) => setDisputeData({ ...disputeData, notes: e.target.value })}
-              placeholder="Ghi rõ thời điểm nhận hàng, tình trạng thực tế đối chiếu với thông số cân trên hệ thống..."
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
-          <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 space-y-1 text-[11px]">
-            <p className="font-bold">Chính sách bảo vệ khách hàng Farmely (BR17):</p>
-            <p>• Dữ liệu cân điện tử và camera tại trạm đóng gói được trích xuất để đối chứng minh bạch.</p>
-            <p>• Trường hợp lỗi do quy trình nông trại, Farmely cam kết bồi thường 100% thiệt hại.</p>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
-            <Button type="button" variant="outline" size="sm" onClick={() => setShowDisputeModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={isSubmittingDispute}
-              className="bg-rose-700 hover:bg-rose-800 text-white font-bold"
-            >
-              {isSubmittingDispute ? 'Đang gửi...' : 'GỬI HỒ SƠ KHIẾU NẠI'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        </div>
+      )}
 
       <CustomerMobileNav activeView={activeTab} />
     </div>

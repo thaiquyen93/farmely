@@ -111,5 +111,65 @@ export const safeCrops = [
   }
 ];
 
-export const getSafeCropById = (cropId) => safeCrops.find((crop) => crop.id === cropId);
+let dynamicCropsRegistry = [...safeCrops];
+
+export function mergeVarietiesIntoSafeCrops(varieties = []) {
+  if (!Array.isArray(varieties) || varieties.length === 0) return [...dynamicCropsRegistry];
+  const result = [...dynamicCropsRegistry];
+  const existingVarietyIds = new Set(result.map((c) => Number(c.varietyId)));
+
+  varieties.forEach((v) => {
+    const vId = Number(v.varietyId ?? v.id);
+    if (!Number.isFinite(vId) || existingVarietyIds.has(vId)) return;
+
+    const padId = `CRP-${String(vId).padStart(2, '0')}`;
+    const cName = v.cropName || v.crop_name || v.name || 'Cây trồng';
+    const vName = v.varietyName || v.variety_name || v.name || 'Giống VietGAP';
+    const durationDays = Number(v.growthDuration || v.expectedDuration || v.duration || 45);
+
+    result.push({
+      id: padId,
+      varietyId: vId,
+      cropId: v.cropId || v.crop_id,
+      name: cName,
+      variety: vName,
+      icon: '🌱',
+      duration: `${durationDays} ngày`,
+      minDays: durationDays,
+      temperature: '20–32°C',
+      soilMoisture: '65–75%'
+    });
+    existingVarietyIds.add(vId);
+  });
+
+  return result;
+}
+
+export function registerDynamicCrops(varieties = []) {
+  dynamicCropsRegistry = mergeVarietiesIntoSafeCrops(varieties);
+  return [...dynamicCropsRegistry];
+}
+
+export function getSafeCropsList() {
+  return [...dynamicCropsRegistry];
+}
+
+export const getSafeCropById = (cropId) => {
+  if (!cropId) return undefined;
+  const idStr = String(cropId).trim().toUpperCase();
+  return (
+    dynamicCropsRegistry.find(
+      (crop) =>
+        crop.id.toUpperCase() === idStr ||
+        String(crop.varietyId) === String(cropId) ||
+        crop.name.toLowerCase() === idStr.toLowerCase() ||
+        crop.variety.toLowerCase() === idStr.toLowerCase()
+    ) ||
+    safeCrops.find(
+      (crop) =>
+        crop.id.toUpperCase() === idStr ||
+        String(crop.varietyId) === String(cropId)
+    )
+  );
+};
 

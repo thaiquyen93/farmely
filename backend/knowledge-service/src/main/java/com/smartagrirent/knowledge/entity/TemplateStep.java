@@ -38,6 +38,39 @@ public class TemplateStep {
     @Column(name = "materials_needed", columnDefinition = "TEXT")
     private String materialsNeeded;
 
+    @Column(name = "task_type", length = 50)
+    private String taskType;
+
+    @Column(name = "duration_days")
+    private Integer durationDays;
+
+    @Column(name = "water_regime", columnDefinition = "TEXT")
+    private String waterRegime;
+
+    @Column(name = "nutrition_regime", columnDefinition = "TEXT")
+    private String nutritionRegime;
+
+    @Column(name = "pest_warning", columnDefinition = "TEXT")
+    private String pestWarning;
+
+    @Column(name = "evidence_requirement", columnDefinition = "TEXT")
+    private String evidenceRequirement;
+
+    @Column(name = "inspection_criteria", columnDefinition = "TEXT")
+    private String inspectionCriteria;
+
+    @Column(name = "min_temp")
+    private Double minTemp;
+
+    @Column(name = "max_temp")
+    private Double maxTemp;
+
+    @Column(name = "min_humidity")
+    private Double minHumidity;
+
+    @Column(name = "max_humidity")
+    private Double maxHumidity;
+
     @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "template_id", insertable = false, updatable = false)

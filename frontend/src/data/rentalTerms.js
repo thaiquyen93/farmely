@@ -1,6 +1,22 @@
-export const RENTAL_TERMS_VERSION = 'FARMELY-LEASE-2026-10-15-DRAFT';
+export const RENTAL_TERMS_VERSION = 'FARMELY-LEASE-2026-10-27-DRAFT';
 
-// Dự thảo nghiệp vụ để người phụ trách pháp lý duyệt trước khi áp dụng chính thức.
+/**
+ * THÔNG TIN PHÁP LÝ & ĐẠI DIỆN BÊN CHO THUÊ (BÊN A) - CÔNG TY TNHH FARMELY
+ * Bạn có thể trực tiếp chỉnh sửa thông tin công ty, trụ sở, mã số thuế, hotline,
+ * người đại diện tại đây để hiển thị trên toàn bộ các hợp đồng điện tử của hệ thống.
+ */
+export const FARMELY_COMPANY_INFO = {
+  companyName: 'CÔNG TY TNHH FARMELY',
+  headquarters: 'Khu Công nghệ cao TP.HCM, Phường Long Thạnh Mỹ, TP. Thủ Đức, TP. Hồ Chí Minh',
+  farmAddress: 'Trang trại Farmely Củ Chi, Đường Bến Than, Xã Hòa Phú, Huyện Củ Chi, TP. Hồ Chí Minh',
+  taxCode: '0318998899',
+  phone: '1900 688 889',
+  hotline: '0988 123 456',
+  email: 'support@farmely.vn',
+  website: 'https://farmely.vn',
+  representative: 'Lương Văn Hoàng',
+  position: 'Giám đốc Điều hành (CEO)'
+};
 export const RENTAL_TERMS = [
   {
     title: 'Điều 1. Phạm vi và đối tượng giao dịch',
@@ -24,7 +40,7 @@ export const RENTAL_TERMS = [
   },
   {
     title: 'Điều 6. Thay đổi, hủy và hoàn tiền',
-    content: 'Yêu cầu thay đổi ngày canh tác, cây trồng, dịch vụ, hủy hoặc hoàn tiền phải gửi trên hệ thống và được xử lý theo trạng thái hợp đồng, chi phí đã phát sinh và chính sách hiển thị tại thời điểm đặt thuê. Farmely thông báo kết quả xử lý qua tài khoản hoặc kênh liên hệ đã đăng ký.'
+    content: 'Khách hàng gửi yêu cầu hủy toàn bộ hợp đồng trên hệ thống Farmely. Mức hoàn tiền dự kiến tính trên tổng số tiền đã thanh toán, theo ngày hệ thống ghi nhận yêu cầu so với ngày bắt đầu canh tác sớm nhất trong hợp đồng: gửi trước ít nhất 3 ngày thì hoàn 80%, khấu trừ 20%; gửi trước 1–2 ngày thì hoàn 50%, khấu trừ 50%; gửi vào hoặc sau ngày bắt đầu thì không hoàn tiền, khấu trừ 100%. Yêu cầu gửi thành công chỉ ở trạng thái chờ duyệt; hợp đồng và thửa đất chỉ chuyển sang trạng thái hủy sau khi quản trị viên phê duyệt. Farmely thông báo kết quả và số tiền hoàn được duyệt qua tài khoản hoặc kênh liên hệ đã đăng ký. Yêu cầu thay đổi ngày canh tác, cây trồng hoặc dịch vụ được xử lý theo trạng thái hợp đồng và chi phí đã phát sinh.'
   },
   {
     title: 'Điều 7. Sản lượng, rủi ro và sự kiện bất khả kháng',

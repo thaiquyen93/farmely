@@ -45,47 +45,49 @@ export default function MasterDataLayout() {
       <div className={`flex-1 ${sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72'} flex flex-col min-w-0 transition-[padding] duration-300`}>
         
         {/* Top Navbar */}
-        <header className="sticky top-0 z-20 h-20 bg-white/90 backdrop-blur-md border-b border-brand-border px-4 sm:px-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden p-2 text-stone-600 hover:text-brand-dark rounded-lg hover:bg-stone-100"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-brand-green uppercase tracking-wider bg-brand-cream px-2 py-0.5 rounded-full border border-brand-border">
-                  Farmely Master Data
-                </span>
-                <span className="text-stone-300">/</span>
-                <span className="text-xs text-brand-muted hidden sm:inline">
-                  Chuẩn hóa dữ liệu sinh học & quỹ đất
-                </span>
+        <header className="sticky top-0 z-20 h-20 bg-white/90 backdrop-blur-md border-b border-brand-border px-4 sm:px-8 flex items-center">
+          <div className="max-w-7xl w-full mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setMobileSidebarOpen(true)}
+                className="lg:hidden p-2 text-stone-600 hover:text-brand-dark rounded-lg hover:bg-stone-100"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-brand-green uppercase tracking-wider bg-brand-cream px-2 py-0.5 rounded-full border border-brand-border">
+                    Farmely Master Data
+                  </span>
+                  <span className="text-stone-300">/</span>
+                  <span className="text-xs text-brand-muted hidden sm:inline">
+                    Chuẩn hóa dữ liệu sinh học & quỹ đất
+                  </span>
+                </div>
+                <h1 className="font-heading text-lg sm:text-xl font-bold text-brand-dark truncate mt-0.5">
+                  {getPageTitle(location.pathname)}
+                </h1>
               </div>
-              <h1 className="font-heading text-lg sm:text-xl font-bold text-brand-dark truncate mt-0.5">
-                {getPageTitle(location.pathname)}
-              </h1>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Health pill */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Dữ liệu hoạt động bình thường</span>
             </div>
 
-            {/* Admin User Badge */}
-            <div className="flex items-center gap-2.5 pl-3 border-l border-brand-border">
-              <img
-                src={user?.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=100&q=80"}
-                alt="Admin"
-                className="w-9 h-9 rounded-full object-cover border border-brand-green/30"
-              />
-              <div className="hidden sm:block text-left text-xs">
-                <p className="font-bold text-brand-dark leading-tight">{user?.fullName || "Ban Quản Trị"}</p>
-                <p className="text-[11px] text-brand-muted">{user?.roleTitle || "Administrator"}</p>
+            <div className="flex items-center gap-3">
+              {/* Health pill */}
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Dữ liệu hoạt động bình thường</span>
+              </div>
+
+              {/* Admin User Badge */}
+              <div className="flex items-center gap-2.5 pl-3 border-l border-brand-border">
+                <img
+                  src={user?.avatar || "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=100&q=80"}
+                  alt="Admin"
+                  className="w-9 h-9 rounded-full object-cover border border-brand-green/30"
+                />
+                <div className="hidden sm:block text-left text-xs">
+                  <p className="font-bold text-brand-dark leading-tight">{user?.fullName || "Ban Quản Trị"}</p>
+                  <p className="text-[11px] text-brand-muted">{user?.roleTitle || "Administrator"}</p>
+                </div>
               </div>
             </div>
           </div>

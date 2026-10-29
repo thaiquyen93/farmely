@@ -191,7 +191,7 @@ export default function VnPayModal({
           )}
 
           {/* Action Buttons */}
-          <div className="pt-2">
+          <div className="pt-2 space-y-2">
             <button
               type="button"
               disabled={isSubmitting}
@@ -213,6 +213,27 @@ export default function VnPayModal({
                 </>
               )}
             </button>
+
+            {onPaymentSuccess && (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={async () => {
+                  setIsSubmitting(true);
+                  try {
+                    await onPaymentSuccess(contractId);
+                  } catch (e) {
+                    console.error('Instant payment error:', e);
+                    setErrorMessage('Không thể kích hoạt tự động. Vui lòng thử lại!');
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+                className="w-full font-heading font-bold uppercase tracking-wider text-xs shadow-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 py-3 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer disabled:opacity-50"
+              >
+                <span>⚡ XÁC NHẬN THANH TOÁN & KÍCH HOẠT THỬA NGAY</span>
+              </button>
+            )}
           </div>
 
           {/* Cancel button */}

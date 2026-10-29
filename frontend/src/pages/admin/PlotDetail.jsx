@@ -250,25 +250,55 @@ export default function PlotDetail() {
 
       {/* Compatible Crops */}
       <div className="bg-white rounded-2xl p-6 border border-brand-border shadow-sm space-y-4">
-        <h3 className="font-heading text-base font-bold text-brand-dark flex items-center gap-2">
-          <Sprout className="w-5 h-5 text-brand-green" />
-          Danh Mục Giống Cây Trồng Phù Hợp Thổ Nhưỡng (Plot-Crop Compatibility)
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-heading text-base font-bold text-brand-dark flex items-center gap-2">
+            <Sprout className="w-5 h-5 text-brand-green" />
+            Danh Mục Giống Cây Trồng Phù Hợp Thổ Nhưỡng (BR03 - Plot Compatibility)
+          </h3>
+          <Link
+            to={`/admin/master-data/plots/create?editId=${plot.id}`}
+            className="rounded-lg border border-brand-border px-2.5 py-1 text-xs font-semibold text-brand-green hover:bg-stone-50 transition-colors"
+          >
+            Chỉnh sửa danh mục giống cây
+          </Link>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {(plot.compatibleCrops || []).map((c, idx) => (
-            <div
-              key={idx}
-              className="p-3.5 rounded-xl bg-brand-cream/50 border border-brand-border flex items-center gap-3 text-xs"
-            >
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span className="font-bold text-brand-dark">{c}</span>
-            </div>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {plot.compatibleVarieties && plot.compatibleVarieties.length > 0 ? (
+            plot.compatibleVarieties.map((v, idx) => (
+              <div
+                key={v.varietyId || idx}
+                className="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-start gap-3 text-xs"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-brand-dark truncate">{v.varietyName}</p>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-stone-500">
+                    <span className="rounded bg-white px-1.5 py-0.2 border border-emerald-100 font-medium text-emerald-800">
+                      {v.cropName}
+                    </span>
+                    {v.expectedDuration && <span>⏱️ {v.expectedDuration} ngày</span>}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (plot.compatibleCrops || []).length > 0 ? (
+            (plot.compatibleCrops || []).map((c, idx) => (
+              <div
+                key={idx}
+                className="p-3.5 rounded-xl bg-brand-cream/50 border border-brand-border flex items-center gap-3 text-xs"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-bold text-brand-dark">{c}</span>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-amber-700 italic col-span-3">Chưa cấu hình giống cây tương thích cho thửa đất này.</p>
+          )}
         </div>
 
         <div className="pt-2 text-xs text-brand-muted">
-          Để bổ sung hoặc điều chỉnh quy tắc tương thích cho thửa đất này, vui lòng truy cập mục{' '}
+          Để cấu hình nhanh trực tiếp cho thửa đất này, vui lòng bấm vào nút <strong>Chỉnh sửa danh mục giống cây</strong> ở trên hoặc xem ma trận tổng thể tại mục{' '}
           <Link to="/admin/master-data/compatibility" className="font-bold text-brand-green hover:underline">
             Tương Thích Thổ Nhưỡng
           </Link>.

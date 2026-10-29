@@ -12,27 +12,67 @@
  * - Lượng mưa và tốc độ gió thực tế (precipitation, wind_speed_10m)
  */
 
-// Tọa độ chuẩn của các nông trại trong hệ thống Farmely
-export const FARM_LOCATIONS = {
-  'CU_CHI': {
-    name: 'Farmely Happy Valley - Củ Chi, TP.HCM',
-    lat: 10.6877,
-    lon: 106.3503,
-    stationId: 'AGRO-CUCHI-01'
-  },
-  'DA_LAT': {
-    name: 'Farmely Green Valley - Đà Lạt, Lâm Đồng',
-    lat: 11.9404,
-    lon: 108.4583,
-    stationId: 'AGRO-DALAT-02'
-  },
-  'MOC_CHAU': {
-    name: 'Farmely Highland - Mộc Châu, Sơn La',
-    lat: 20.8443,
-    lon: 104.6838,
-    stationId: 'AGRO-MOCCHAU-03'
+// Bộ nhớ đệm danh sách nông trại tải động từ CSDL PostgreSQL (/api/lands)
+let cachedLands = null;
+let cachedLandsTimestamp = 0;
+
+/**
+ * Tải danh sách toàn bộ nông trại từ CSDL PostgreSQL để trích xuất tọa độ GPS động
+ */
+export async function getDynamicFarmLands() {
+  const now = Date.now();
+  if (cachedLands && now - cachedLandsTimestamp < 60000) {
+    return cachedLands;
   }
-};
+  try {
+    const res = await fetch('/api/lands');
+    if (res.ok) {
+      const json = await res.json();
+      const list = Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []);
+      if (list.length > 0) {
+        cachedLands = list;
+        cachedLandsTimestamp = now;
+        return list;
+      }
+    }
+  } catch (e) {
+    console.debug('[weatherIotService] Fallback to cached/direct plot coordinates:', e);
+  }
+  return cachedLands || [];
+}
+
+/**
+ * Helper tính tâm đa giác GeoJSON (Centroid [lat, lon]) từ boundary
+ */
+function extractCentroidFromGeoJson(boundary) {
+  if (!boundary) return null;
+  try {
+    const raw = typeof boundary === 'string' ? JSON.parse(boundary) : boundary;
+    const ring = Array.isArray(raw) 
+      ? (Array.isArray(raw[0]) && typeof raw[0][0] === 'number' ? raw : (Array.isArray(raw[0]) ? raw[0] : null))
+      : (raw?.coordinates ? (Array.isArray(raw.coordinates[0][0]) ? raw.coordinates[0][0] : raw.coordinates[0]) : null);
+
+    if (Array.isArray(ring) && ring.length > 0) {
+      let sumLng = 0;
+      let sumLat = 0;
+      let count = 0;
+      for (const pt of ring) {
+        if (Array.isArray(pt) && pt.length >= 2 && !isNaN(pt[0]) && !isNaN(pt[1])) {
+          sumLng += Number(pt[0]);
+          sumLat += Number(pt[1]);
+          count++;
+        }
+      }
+      if (count > 0) {
+        return {
+          lat: Math.round((sumLat / count) * 10000) / 10000,
+          lon: Math.round((sumLng / count) * 10000) / 10000
+        };
+      }
+    }
+  } catch {}
+  return null;
+}
 
 const CACHE_DURATION_MS = 3 * 60 * 1000; // Cache 3 phút
 const cache = new Map();
@@ -69,30 +109,91 @@ function normalizeDirectRadiationToLux(radiationWm2) {
 }
 
 /**
- * Lấy vị trí nông trại dựa trên thông tin plot hoặc vị trí
+ * Lấy vị trí nông trại động hoàn toàn từ CSDL (tọa độ GPS của Thửa hoặc Nông trại)
  */
-export function resolveFarmLocation(plot) {
-  if (!plot) return FARM_LOCATIONS.CU_CHI;
+export async function resolveFarmLocation(plot) {
+  const defaultFallback = {
+    name: 'Nông trại Farmely Củ Chi',
+    lat: 10.6877,
+    lon: 106.3503,
+    stationId: 'AGRO-FARMELY-DEFAULT'
+  };
 
-  const loc = String(plot.location || plot.name || '').toLowerCase();
-  if (loc.includes('đà lạt') || loc.includes('da lat') || loc.includes('lâm đồng')) {
-    return FARM_LOCATIONS.DA_LAT;
-  }
-  if (loc.includes('mộc châu') || loc.includes('moc chau') || loc.includes('sơn la')) {
-    return FARM_LOCATIONS.MOC_CHAU;
-  }
+  if (!plot) return defaultFallback;
 
-  // Nếu plot có tọa độ riêng
-  if (plot.latitude && plot.longitude) {
+  const farmName = plot.landName || plot.land_name || plot.location || plot.name || 'Nông trại Farmely';
+  const stationId = `AGRO-${plot.plotCode || plot.plot_code || plot.id || 'IOT'}`;
+
+  // 1. Ưu tiên cao nhất: Tọa độ latitude/longitude đã được tính toán từ PostgreSQL
+  if (plot.latitude && plot.longitude && !isNaN(plot.latitude) && !isNaN(plot.longitude)) {
     return {
-      name: plot.location || 'Nông trại Farmely',
+      name: farmName,
       lat: Number(plot.latitude),
       lon: Number(plot.longitude),
-      stationId: `AGRO-PLOT-${plot.id || 'GPS'}`
+      stationId
     };
   }
 
-  return FARM_LOCATIONS.CU_CHI;
+  // 2. Ưu tiên 2: Trích xuất trực tiếp từ ranh giới GeoJSON của thửa đất hoặc nông trại
+  const centroid = extractCentroidFromGeoJson(plot.boundary || plot.boundary_geojson || plot.plot_boundary_geojson || plot.land_boundary_geojson);
+  if (centroid) {
+    return {
+      name: farmName,
+      lat: centroid.lat,
+      lon: centroid.lon,
+      stationId
+    };
+  }
+
+  // 3. Ưu tiên 3: Tìm trong danh sách Nông trại tải động từ CSDL (/api/lands)
+  const landId = plot.landId || plot.land_id;
+  const lands = await getDynamicFarmLands();
+  if (lands && lands.length > 0) {
+    let matchedLand = null;
+    if (landId) {
+      matchedLand = lands.find(l => String(l.landId || l.land_id || l.id) === String(landId));
+    }
+    if (!matchedLand && farmName) {
+      matchedLand = lands.find(l => (l.landName || l.land_name || '').toLowerCase().includes(farmName.toLowerCase()));
+    }
+    if (matchedLand) {
+      if (matchedLand.latitude && matchedLand.longitude) {
+        return {
+          name: matchedLand.landName || matchedLand.land_name || farmName,
+          lat: Number(matchedLand.latitude),
+          lon: Number(matchedLand.longitude),
+          stationId: `AGRO-LAND-${matchedLand.landId || 'DB'}`
+        };
+      }
+      const landCentroid = extractCentroidFromGeoJson(matchedLand.boundary || matchedLand.boundary_geojson);
+      if (landCentroid) {
+        return {
+          name: matchedLand.landName || matchedLand.land_name || farmName,
+          lat: landCentroid.lat,
+          lon: landCentroid.lon,
+          stationId: `AGRO-LAND-${matchedLand.landId || 'DB'}`
+        };
+      }
+    }
+  }
+
+  // 4. Fallback theo địa chỉ lưu trong DB nếu chưa có boundary
+  const addr = String(plot.address || plot.location || '').toLowerCase();
+  if (addr.includes('long an') || addr.includes('đức hòa') || addr.includes('duc hoa')) {
+    return { name: farmName, lat: 10.7025, lon: 106.4011, stationId };
+  }
+  if (addr.includes('đà lạt') || addr.includes('da lat') || addr.includes('lâm đồng')) {
+    return { name: farmName, lat: 11.9404, lon: 108.4583, stationId };
+  }
+  if (addr.includes('mộc châu') || addr.includes('sơn la')) {
+    return { name: farmName, lat: 20.8443, lon: 104.6838, stationId };
+  }
+
+  return {
+    ...defaultFallback,
+    name: farmName,
+    stationId
+  };
 }
 
 /**
@@ -103,7 +204,7 @@ export function resolveFarmLocation(plot) {
  * @returns {Promise<object>} Dữ liệu cảm biến thời gian thực và lịch sử 24h
  */
 export async function fetchLiveAgroIotData(plot = null, forceRefresh = false) {
-  const farm = resolveFarmLocation(plot);
+  const farm = await resolveFarmLocation(plot);
   const cacheKey = `${farm.lat.toFixed(4)}_${farm.lon.toFixed(4)}`;
 
   const now = Date.now();

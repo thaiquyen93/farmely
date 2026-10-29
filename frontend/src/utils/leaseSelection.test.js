@@ -188,6 +188,11 @@ describe('buildBookingUrl', () => {
     expect(buildBookingUrl(['P-08'])).toBe('/marketplace/plot/P-08/book?plots=P-08');
     expect(buildBookingUrl(['P-04', 'P-05'])).toBe('/marketplace/plot/P-04/book?plots=P-04,P-05');
   });
+  it('includes cropId, mode, and term in search params when provided', () => {
+    expect(
+      buildBookingUrl(['P-10'], { cropId: 'CRP-04', cultivationMode: 'ASSISTED', termMonths: 3 })
+    ).toBe('/marketplace/plot/P-10/book?plots=P-10&cropId=CRP-04&mode=ASSISTED&term=3');
+  });
 });
 
 describe('filterCompatibleCrops', () => {
