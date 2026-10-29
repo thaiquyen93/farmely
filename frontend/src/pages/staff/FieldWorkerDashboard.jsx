@@ -659,6 +659,24 @@ export default function FieldWorkerDashboard() {
         );
       }
 
+      // 5B. Tự động đóng sự cố nếu nhiệm vụ này là xử lý sự cố (ISS-xxx)
+      const issMatch = (selectedTaskToExecute.notes || selectedTaskToExecute.title || '').match(/\[(?:ISS|ISSUE)-(\d+)\]/i);
+      if (issMatch && issMatch[1]) {
+        try {
+          const issId = issMatch[1];
+          await apiFetch(`/api/issue-reports/${issId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              markResolved: true,
+              resolutionNotes: taskProofNote || 'CVLĐ đã thực địa xử lý theo chỉ đạo và chụp ảnh minh chứng thành công.'
+            })
+          });
+          setMyIssues(prev => prev.map(iss => (iss.apiId === parseInt(issId, 10) || iss.id === `ISS-${issId}`) ? { ...iss, status: 'RESOLVED' } : iss));
+        } catch (e) {
+          console.warn('Could not auto-resolve issue:', e);
+        }
+      }
+
       setSelectedTaskToExecute(null);
       setTaskProofNote('');
       setTaskProofPhoto('');
@@ -1691,9 +1709,23 @@ export default function FieldWorkerDashboard() {
                 selectedIssue={selectedIssue}
                 onSelect={setSelectedIssue}
                 onOpenTask={(issue) => {
-                  const linked = tasks.find((task) => task.plotCode === issue.plotCode && task.status !== 'COMPLETED');
-                  if (linked) setFocusedTaskId(linked.id);
+                  const issueKey = issue.id || `ISS-${issue.apiId}`;
+                  const linked = tasks.find(
+                    (task) =>
+                      (String(task.notes || task.title || '').includes(`[${issueKey}]`) ||
+                       String(task.notes || task.title || '').includes(issueKey) ||
+                       (task.plotCode === issue.plotCode && String(task.title || '').toLowerCase().includes('chỉ đạo'))) &&
+                      task.status !== 'COMPLETED'
+                  ) || tasks.find((task) => task.plotCode === issue.plotCode && task.status !== 'COMPLETED');
+
                   setActiveTab('tasks');
+                  const targetModalCode = issue.rentalId ? String(issue.rentalId) : issue.plotCode;
+                  setSelectedPlotModalCode(targetModalCode);
+                  setPlotModalTab('tasks');
+                  if (linked) {
+                    setFocusedTaskId(linked.id);
+                    handleTaskAction(linked);
+                  }
                 }}
               />
             )}

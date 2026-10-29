@@ -4506,7 +4506,7 @@ SELECT json_build_object(
         END AS status,
         CASE 
           WHEN ct.notes ILIKE '%[LÀM NGAY]%' OR ct.notes ILIKE '%[KHẨN CẤP]%' THEN 'EMERGENCY'
-          WHEN ct.service_request_id IS NOT NULL OR ct.notes ILIKE '%[ƯU TIÊN CAO]%' THEN 'HIGH'
+          WHEN ct.service_request_id IS NOT NULL OR ct.notes ILIKE '%[ƯU TIÊN CAO]%' OR ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN 'HIGH'
           ELSE 'NORMAL'
         END AS priority,
         TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS "dueDate",
@@ -5234,8 +5234,12 @@ RETURNING issue_id, rental_id, issue_type, status;
               if (expertId) {
                 setClauses.push(`handled_by = ${parseInt(expertId, 10)}`);
               }
+              let isDiagnosed = false;
+              let diagnosisText = '';
               if (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes) {
                 const diag = (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes).replace(/'/g, "''");
+                diagnosisText = diag;
+                isDiagnosed = true;
                 const nextStatus = payload.markResolved ? 'RESOLVED' : 'OPEN';
                 setClauses.push(`status = '${nextStatus}'`);
                 setClauses.push(`resolution_notes = '${diag}'`);
@@ -5255,6 +5259,47 @@ WHERE issue_id = ${issueId}
 RETURNING issue_id, handled_by, status;
 `;
               await runPostgreSql(sql);
+
+              // Tự động sinh Care Task xử lý sự cố cho CVLĐ nếu chuyên gia vừa chỉ đạo kỹ thuật
+              if (isDiagnosed && diagnosisText) {
+                try {
+                  await runPostgreSql(`
+DO $$
+DECLARE
+  v_rental_id INT;
+  v_staff_id INT;
+  v_issue_type VARCHAR(100);
+  v_plot_code VARCHAR(20);
+BEGIN
+  SELECT ir.rental_id, COALESCE(r.staff_id, ir.reported_by, 8), ir.issue_type, p.plot_code
+  INTO v_rental_id, v_staff_id, v_issue_type, v_plot_code
+  FROM issue_reports ir
+  JOIN rentals r ON ir.rental_id = r.rental_id
+  JOIN plots p ON r.plot_id = p.plot_id
+  WHERE ir.issue_id = ${issueId};
+
+  IF v_rental_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM care_tasks WHERE rental_id = v_rental_id AND (notes LIKE '%[ISS-' || ${issueId} || ']%' OR notes LIKE '%[ISSUE-' || ${issueId} || ']%')
+  ) THEN
+    INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+    VALUES (
+      v_rental_id,
+      v_staff_id,
+      CURRENT_DATE,
+      'IN_PROG',
+      'Xử lý ' || LOWER(v_issue_type) || ' theo chỉ đạo CGNN',
+      '[CHỈ ĐẠO CGNN] Xử lý ' || v_issue_type || ' [ISS-' || ${issueId} || ']' || CHR(10) || 'Hướng dẫn kỹ thuật từ CGNN: ' || '${diagnosisText}' || CHR(10) || 'Hiện trường: Thửa ' || v_plot_code,
+      NOW(),
+      NOW()
+    );
+  END IF;
+END $$;
+                  `);
+                } catch (e) {
+                  console.error('Error auto-creating task for issue:', e);
+                }
+              }
+
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: true, message: `Đã cập nhật sự cố #${issueId}` }));
             } catch (err) {

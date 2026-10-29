@@ -2440,27 +2440,14 @@ export default function ExpertDashboard() {
                             Xem Chi Tiết Lỗi
                           </Button>
                           <Button
-                            variant="outline"
+                            variant="primary"
                             size="sm"
                             onClick={() => handleOpenIssueDetail(issue)}
-                            className="font-bold text-xs gap-1.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                            className="font-bold text-xs gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white"
                           >
-                            <UserCheck className="w-3.5 h-3.5 text-emerald-700" />
+                            <UserCheck className="w-3.5 h-3.5" />
                             {issue.assignedTaskCode ? 'Giao Thêm Task' : 'Giao Việc CVLĐ'}
                           </Button>
-                          {issue.status !== 'RESOLVED' && (
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedIssueToDiagnose(issue);
-                                setDiagnosisAdvice(issue.diagnosis || '');
-                              }}
-                              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1"
-                            >
-                              Chẩn Đoán Nhanh
-                            </Button>
-                          )}
                         </div>
                       </div>
                     </div>
