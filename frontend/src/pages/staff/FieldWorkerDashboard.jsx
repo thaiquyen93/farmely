@@ -105,24 +105,23 @@ const getTaskTimingMeta = (task) => {
       row: 'border-l-emerald-400 bg-emerald-50/30'
     };
   }
-  if (task.priority === 'HIGH' || task.priority === 'URGENT') {
+
+  const rawDate = task.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(task.deadline || '') ? task.deadline : null);
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+
+  // 1. Nếu hạn ở tương lai (sau ngày hôm nay) -> Bắt buộc là Chưa tới hạn (không lôi vào Việc Hôm Nay)
+  if (rawDate && rawDate > todayStr) {
+    const isPriority = task.priority === 'HIGH' || task.priority === 'URGENT' || task.priority === 'EMERGENCY';
     return {
-      key: 'URGENT',
-      label: 'Khẩn cấp',
-      tone: 'bg-rose-100 text-rose-800 border border-rose-300 font-bold',
-      dot: 'bg-rose-500 animate-pulse',
-      row: 'border-l-rose-500 bg-rose-50/80'
+      key: 'NOT_DUE',
+      label: isPriority ? 'Ưu tiên cao (Chưa tới hạn)' : 'Chưa tới hạn',
+      tone: isPriority ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-stone-100 text-stone-600 border border-stone-200',
+      dot: isPriority ? 'bg-amber-500' : 'bg-stone-400',
+      row: 'border-l-stone-300 bg-white'
     };
   }
-  if (task.status === 'OVERDUE') {
-    return {
-      key: 'OVERDUE',
-      label: 'Quá hạn',
-      tone: 'bg-rose-100 text-rose-800 border border-rose-300 font-bold',
-      dot: 'bg-rose-500',
-      row: 'border-l-rose-400 bg-rose-50/70'
-    };
-  }
+
+  // 2. Nếu đang làm trong ca
   if (task.status === 'IN_PROGRESS') {
     return {
       key: 'TODAY',
@@ -133,43 +132,46 @@ const getTaskTimingMeta = (task) => {
     };
   }
 
-  const rawDate = task.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(task.deadline || '') ? task.deadline : null);
-  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-
-  if (rawDate) {
-    if (rawDate < todayStr) {
-      return {
-        key: 'OVERDUE',
-        label: 'Cần làm (Quá hạn)',
-        tone: 'bg-rose-100 text-rose-800 border border-rose-300 font-bold',
-        dot: 'bg-rose-500',
-        row: 'border-l-rose-400 bg-rose-50/70'
-      };
-    }
-    if (rawDate === todayStr) {
-      return {
-        key: 'TODAY',
-        label: 'Hôm nay',
-        tone: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold',
-        dot: 'bg-amber-500',
-        row: 'border-l-amber-500 bg-amber-50/50'
-      };
-    }
+  // 3. Nếu là sự cố khẩn cấp (LÀM NGAY) trong ca hôm nay
+  if (task.priority === 'EMERGENCY' || String(task.title || '').includes('[LÀM NGAY]')) {
     return {
-      key: 'NOT_DUE',
-      label: 'Chưa tới hạn',
-      tone: 'bg-stone-100 text-stone-600 border border-stone-200',
-      dot: 'bg-stone-400',
-      row: 'border-l-stone-200 bg-white'
+      key: 'URGENT',
+      label: 'Khẩn cấp',
+      tone: 'bg-rose-100 text-rose-800 border border-rose-300 font-bold',
+      dot: 'bg-rose-500 animate-pulse',
+      row: 'border-l-rose-500 bg-rose-50/80'
+    };
+  }
+
+  // 4. Nếu quá hạn (ở quá khứ)
+  if (rawDate && rawDate < todayStr) {
+    const isHigh = task.priority === 'HIGH' || task.priority === 'URGENT';
+    return {
+      key: 'OVERDUE',
+      label: isHigh ? 'Cần làm gấp (Quá hạn)' : 'Cần làm (Quá hạn)',
+      tone: 'bg-rose-100 text-rose-800 border border-rose-300 font-bold',
+      dot: 'bg-rose-500',
+      row: 'border-l-rose-400 bg-rose-50/70'
+    };
+  }
+
+  // 5. Nếu đến hạn hôm nay
+  if (task.priority === 'HIGH' || task.priority === 'URGENT') {
+    return {
+      key: 'TODAY',
+      label: 'Ưu tiên hôm nay',
+      tone: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold',
+      dot: 'bg-amber-500 animate-pulse',
+      row: 'border-l-amber-500 bg-amber-50/50'
     };
   }
 
   return {
-    key: 'NOT_DUE',
-    label: 'Chưa tới hạn',
-    tone: 'bg-stone-100 text-stone-600 border border-stone-200',
-    dot: 'bg-stone-400',
-    row: 'border-l-stone-200 bg-white'
+    key: 'TODAY',
+    label: 'Hôm nay',
+    tone: 'bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold',
+    dot: 'bg-emerald-500',
+    row: 'border-l-emerald-500 bg-emerald-50/40'
   };
 };
 
@@ -468,9 +470,11 @@ export default function FieldWorkerDashboard() {
     loadPlots();
     loadTasksAndData();
 
-    // Đồng bộ tức thời khi Admin nhảy số IoT trạm hoặc có thao tác công việc từ khách hàng
+    // Đồng bộ tức thời khi Admin nhảy số IoT trạm, Expert giao việc hoặc khách hàng yêu cầu dịch vụ
     let bc = null;
     let bcStaff = null;
+    let bcDispatch = null;
+    let bcTasks = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         bc = new BroadcastChannel('farmely_iot_telemetry');
@@ -480,11 +484,19 @@ export default function FieldWorkerDashboard() {
           }
         };
 
-        bcStaff = new BroadcastChannel('farmely_staff_activity_channel');
-        bcStaff.onmessage = () => {
+        const handleStaffSync = () => {
           loadTasksAndData();
           loadPlots();
         };
+
+        bcStaff = new BroadcastChannel('farmely_staff_activity_channel');
+        bcStaff.onmessage = handleStaffSync;
+
+        bcDispatch = new BroadcastChannel('farmely_staff_dispatch');
+        bcDispatch.onmessage = handleStaffSync;
+
+        bcTasks = new BroadcastChannel('farmely_staff_tasks');
+        bcTasks.onmessage = handleStaffSync;
       }
     } catch {}
 
@@ -492,7 +504,7 @@ export default function FieldWorkerDashboard() {
       if (e.key === 'farmely_iot_sync_ping') {
         loadPlots();
       }
-      if (e.key === 'farmely_task_sync' || e.key === 'farmely_persisted_staff_activities_v2') {
+      if (e.key === 'farmely_task_sync' || e.key === 'farmely_staff_sync_ping' || e.key === 'farmely_persisted_staff_activities_v2') {
         loadTasksAndData();
         loadPlots();
       }
@@ -509,6 +521,8 @@ export default function FieldWorkerDashboard() {
       clearInterval(pollInterval);
       if (bc) try { bc.close(); } catch {}
       if (bcStaff) try { bcStaff.close(); } catch {}
+      if (bcDispatch) try { bcDispatch.close(); } catch {}
+      if (bcTasks) try { bcTasks.close(); } catch {}
       window.removeEventListener('storage', handleStorage);
     };
   }, [loadPlots, loadTasksAndData]);
@@ -1822,6 +1836,10 @@ export default function FieldWorkerDashboard() {
         const pendingTasks = plotTasks.filter((t) => t.status !== 'COMPLETED');
 
         const isTaskToday = (t) => {
+          if (t.status === 'COMPLETED') return false;
+          const rawDate = t.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(t.deadline || '') ? t.deadline : null);
+          const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+          if (rawDate && rawDate > todayStr) return false;
           const meta = getTaskTimingMeta(t);
           return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
         };

@@ -127,6 +127,79 @@ export const dedupeSelectedPlots = (plots) => {
   });
 };
 
+export const resolveInitialSelectedPlots = ({
+  plotsList = [],
+  plotsQuery = '',
+  savedPlots = null,
+  fallbackId = '',
+  findFn = null
+}) => {
+  if (!plotsList || !plotsList.length) return [];
+  const finder =
+    findFn ||
+    ((code, list) => {
+      if (!code) return null;
+      const clean = String(code).trim().toLowerCase();
+      const cleanDigits = clean.replace(/\D/g, '');
+      return list.find((p) => {
+        const pId = String(p.id || '').toLowerCase();
+        const pCode = String(p.code || p.plotCode || p.plot_code || '').toLowerCase();
+        const pDigits = pCode.replace(/\D/g, '') || String(p.plotId || p.plot_id || '');
+        return (
+          pId === clean ||
+          pCode === clean ||
+          pCode.replace(/^p-?/i, '') === clean.replace(/^p-?/i, '') ||
+          (cleanDigits && pDigits === cleanDigits)
+        );
+      });
+    });
+
+  // 1. URL search param: ?plots=P-11,P-16
+  if (plotsQuery) {
+    const codes = [...new Set(plotsQuery.split(',').map((c) => c.trim()).filter(Boolean))];
+    const matchedMap = new Map();
+    codes.forEach((code) => {
+      const found = finder(code, plotsList);
+      if (found && !matchedMap.has(found.id)) {
+        matchedMap.set(found.id, found);
+      }
+    });
+    const matched = Array.from(matchedMap.values());
+    if (matched.length > 0) return matched;
+  }
+
+  // 2. localStorage cart (farmely_master_lease_selected_plots)
+  if (savedPlots) {
+    try {
+      const parsed = typeof savedPlots === 'string' ? JSON.parse(savedPlots) : savedPlots;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const matchedMap = new Map();
+        parsed.forEach((item) => {
+          const key = item && typeof item === 'object' ? item.code || item.plotCode || item.plot_code || item.id : item;
+          if (key) {
+            const found = finder(key, plotsList);
+            if (found && !matchedMap.has(found.id)) {
+              matchedMap.set(found.id, found);
+            }
+          }
+        });
+        const matched = Array.from(matchedMap.values());
+        if (matched.length > 0) return matched;
+      }
+    } catch {
+      // ignore parsing error
+    }
+  }
+
+  // 3. Fallback id
+  if (fallbackId) {
+    const target = finder(fallbackId, plotsList);
+    if (target) return [target];
+  }
+
+  return plotsList.length > 0 ? [plotsList[0]] : [];
+};
+
 export const getBookingValidationError = ({ acceptedTerms, selectedMode, assistedService }) => {
   if (!acceptedTerms) return 'Bạn cần đọc và chấp nhận điều khoản thuê đất trước khi thanh toán.';
   if (selectedMode === 'ASSISTED' && !assistedService) {
@@ -179,9 +252,11 @@ export default function BookPlot() {
           plotsParam.split(',').forEach((p) => {
             const trimmed = p.trim();
             if (trimmed) {
-              map[trimmed] = cropFromUrl;
               const norm = normalizePlotCode(trimmed);
-              if (norm) map[norm] = cropFromUrl;
+              if (!map[trimmed] && (!norm || !map[norm])) {
+                map[trimmed] = cropFromUrl;
+                if (norm) map[norm] = cropFromUrl;
+              }
             }
           });
         }
@@ -486,12 +561,14 @@ export default function BookPlot() {
 
   // Helper to match plot by any identifier
   const findPlotByAnyCode = useCallback((code, plotsList = allPlots) => {
-    if (!code || !plotsList.length) return null;
-    const clean = code.trim().toLowerCase();
+    if (!code || !plotsList || !plotsList.length) return null;
+    const clean = String(code).trim().toLowerCase();
+    const cleanDigits = clean.replace(/\D/g, '');
     return plotsList.find((p) => {
-      const pId = (p.id || '').toLowerCase();
-      const pCode = (p.code || '').toLowerCase();
-      const pLabel = (p.label || '').toLowerCase();
+      const pId = String(p.id || '').toLowerCase();
+      const pCode = String(p.code || p.plotCode || p.plot_code || '').toLowerCase();
+      const pLabel = String(p.label || '').toLowerCase();
+      const pDigits = pCode.replace(/\D/g, '') || String(p.plotId || p.plot_id || '');
       return (
         pId === clean ||
         pCode === clean ||
@@ -499,7 +576,8 @@ export default function BookPlot() {
         pCode.replace('plot ', '').trim() === clean ||
         clean.replace('plot ', '').trim() === pCode ||
         pId.replace('plt-hv-', 'p-') === clean ||
-        (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', ''))
+        (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', '')) ||
+        (cleanDigits && pDigits === cleanDigits)
       );
     });
   }, [allPlots]);
@@ -510,34 +588,41 @@ export default function BookPlot() {
     farmApi.listPlots()
       .then((rows) => {
         const mapped = (rows || []).map((p) => ({
-          id: String(p.plotId),
-          plotId: p.plotId,
-          code: p.plotCode,
-          label: p.plotCode,
-          name: `Thửa đất ${p.plotCode}`,
-          landName: p.landName || 'Trang trại Happy Valley Củ Chi',
+          id: String(p.plotId || p.plot_id),
+          plotId: p.plotId || p.plot_id,
+          code: p.plotCode || p.plot_code,
+          label: p.plotCode || p.plot_code,
+          name: `Thửa đất ${p.plotCode || p.plot_code}`,
+          landName: p.landName || p.land_name || 'Trang trại Happy Valley Củ Chi',
           area: `${Number(p.area)} m²`,
           areaFormatted: `${Number(p.area)} m²`,
-          rentalPrice: Number(p.pricePerPeriod),
-          formattedPrice: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
-          rentalPriceFormatted: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
-          careServicePrice: Math.round(Number(p.pricePerPeriod) * 0.5),
-          status: p.status === 'AVAIL' ? 'AVAILABLE' : p.status === 'RENT' ? 'RENTED' : 'MAINTENANCE',
-          iotStationId: `IOT-${p.plotCode}`,
+          rentalPrice: Number(p.pricePerPeriod || p.price_per_period),
+          formattedPrice: `${Number(p.pricePerPeriod || p.price_per_period).toLocaleString('vi-VN')} đ/tháng`,
+          rentalPriceFormatted: `${Number(p.pricePerPeriod || p.price_per_period).toLocaleString('vi-VN')} đ/tháng`,
+          careServicePrice: Math.round(Number(p.pricePerPeriod || p.price_per_period) * 0.5),
+          status: (p.status === 'AVAIL' || p.status === 'AVAILABLE') ? 'AVAILABLE' : (p.status === 'RENT' || p.status === 'RENTED') ? 'RENTED' : 'MAINTENANCE',
+          iotStationId: `IOT-${p.plotCode || p.plot_code}`,
           compatibleCrops: safeCrops.map((crop) => crop.variety),
-          imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80'
+          imageUrl: p.imageUrl || p.image_url || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
+          dbPlotId: p.plotId || p.plot_id
         }));
         setAllPlots(mapped);
 
-        // Determine initial plot
-        const target = findPlotByAnyCode(id, mapped) || mapped[0];
-        if (target) {
-          setSelectedPlots([target]);
+        // Khôi phục đầy đủ danh sách thửa đất đã chọn (từ URL param ?plots=... hoặc giỏ hàng)
+        const initialPlots = resolveInitialSelectedPlots({
+          plotsList: mapped,
+          plotsQuery: searchParams.get('plots'),
+          savedPlots: localStorage.getItem('farmely_master_lease_selected_plots'),
+          fallbackId: id,
+          findFn: (c, list) => findPlotByAnyCode(c, list)
+        });
+        if (initialPlots.length > 0) {
+          setSelectedPlots(initialPlots);
         }
       })
       .catch((err) => console.error('Lỗi nạp plots trong BookPlot:', err))
       .finally(() => setLoadingPlots(false));
-  }, [id, findPlotByAnyCode]);
+  }, [id, searchParams, findPlotByAnyCode]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -547,80 +632,24 @@ export default function BookPlot() {
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
+  // Đồng bộ lại selectedPlots khi searchParams hoặc allPlots thay đổi
   useEffect(() => {
-    fetch('/api/plots')
-      .then((res) => res.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : (data?.data || []);
-        if (list.length > 0) {
-          setSelectedPlots((prev) =>
-            prev.map((sp) => {
-              const matched = list.find(
-                (p) => (p.plot_code || p.plotCode || '').toLowerCase() === (sp.code || sp.id || '').toLowerCase()
-              );
-              if (!matched) return sp;
-              const numPrice = Number(matched.price_per_period || matched.pricePerPeriod || sp.rentalPrice);
-              return {
-                ...sp,
-                rentalPrice: numPrice,
-                formattedPrice: `${numPrice.toLocaleString('vi-VN')} đ/tháng`,
-                dbPlotId: matched.plot_id || matched.plotId
-              };
-            })
-          );
-        }
-      })
-      .catch((e) => console.error(e));
-  }, []);
-
-  // If URL changes or plots query param exists, sync plots
-  useEffect(() => {
-    const plotsQuery = searchParams.get('plots');
-    if (plotsQuery) {
-      const codes = [...new Set(plotsQuery.split(',').map((c) => c.trim()).filter(Boolean))];
-      const matchedMap = new Map();
-      codes.forEach((code) => {
-        const found = findPlotByAnyCode(code);
-        if (found && !matchedMap.has(found.id)) {
-          matchedMap.set(found.id, found);
-        }
+    if (!allPlots.length) return;
+    const resolved = resolveInitialSelectedPlots({
+      plotsList: allPlots,
+      plotsQuery: searchParams.get('plots'),
+      savedPlots: localStorage.getItem('farmely_master_lease_selected_plots'),
+      fallbackId: id,
+      findFn: (c, list) => findPlotByAnyCode(c, list)
+    });
+    if (resolved.length > 0) {
+      setSelectedPlots((prev) => {
+        const prevKey = prev.map((p) => p.code || p.id).join(',');
+        const newKey = resolved.map((p) => p.code || p.id).join(',');
+        return prevKey === newKey ? prev : resolved;
       });
-      const matched = Array.from(matchedMap.values());
-      if (matched.length > 0) {
-        setSelectedPlots(matched);
-        return;
-      }
     }
-
-    // Nếu không có param plots trên URL, đọc từ localStorage để bảo toàn khi quay lại
-    try {
-      const saved = localStorage.getItem('farmely_master_lease_selected_plots');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const matchedMap = new Map();
-          parsed.forEach((p) => {
-            const found = findPlotByAnyCode(p.code || p.id);
-            if (found && !matchedMap.has(found.id)) {
-              matchedMap.set(found.id, found);
-            }
-          });
-          const matched = Array.from(matchedMap.values());
-          if (matched.length > 0) {
-            setSelectedPlots(matched);
-            return;
-          }
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    const target = findPlotByAnyCode(id);
-    if (target && !selectedPlots.some((p) => p.id === target.id)) {
-      setSelectedPlots([target]);
-    }
-  }, [id, searchParams]);
+  }, [id, searchParams, allPlots, findPlotByAnyCode]);
 
   // Luôn đồng bộ danh sách thửa đất trong hợp đồng vào localStorage
   useEffect(() => {

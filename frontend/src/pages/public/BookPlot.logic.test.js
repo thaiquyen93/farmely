@@ -7,7 +7,8 @@ import {
   getLatestCultivationDate,
   getPlotSelectionKey,
   getRentalEndDate,
-  validateCultivationStartDate
+  validateCultivationStartDate,
+  resolveInitialSelectedPlots
 } from './BookPlot';
 
 describe('BookPlot booking rules', () => {
@@ -56,5 +57,51 @@ describe('BookPlot booking rules', () => {
   it('calculates a separate contract period from each plot start date', () => {
     expect(addMonths('2026-10-25', 3)).toBe('2027-01-25');
     expect(getRentalEndDate('2026-10-25', 1, { duration: '40–45 ngày' })).toBe('2026-12-19');
+  });
+
+  it('resolves multiple selected plots correctly from URL query ?plots=P-11,P-16', () => {
+    const plotsList = [
+      { id: '17', plotId: 17, code: 'P-11' },
+      { id: '22', plotId: 22, code: 'P-16' },
+      { id: '4', plotId: 4, code: 'P-04' }
+    ];
+
+    const result = resolveInitialSelectedPlots({
+      plotsList,
+      plotsQuery: 'P-11,P-16',
+      savedPlots: null,
+      fallbackId: 'P-11'
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.code)).toEqual(['P-11', 'P-16']);
+  });
+
+  it('resolves multiple selected plots correctly from localStorage cart', () => {
+    const plotsList = [
+      { id: '17', plotId: 17, code: 'P-11' },
+      { id: '22', plotId: 22, code: 'P-16' },
+      { id: '4', plotId: 4, code: 'P-04' }
+    ];
+
+    // Format 1: array of string codes
+    const result1 = resolveInitialSelectedPlots({
+      plotsList,
+      plotsQuery: '',
+      savedPlots: JSON.stringify(['P-11', 'P-16']),
+      fallbackId: 'P-11'
+    });
+    expect(result1).toHaveLength(2);
+    expect(result1.map((p) => p.code)).toEqual(['P-11', 'P-16']);
+
+    // Format 2: array of objects
+    const result2 = resolveInitialSelectedPlots({
+      plotsList,
+      plotsQuery: '',
+      savedPlots: JSON.stringify([{ code: 'P-11' }, { code: 'P-16' }]),
+      fallbackId: 'P-11'
+    });
+    expect(result2).toHaveLength(2);
+    expect(result2.map((p) => p.code)).toEqual(['P-11', 'P-16']);
   });
 });

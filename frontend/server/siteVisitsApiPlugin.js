@@ -4696,20 +4696,33 @@ END $$;
             try {
               const payload = JSON.parse(body || '{}');
               const rentalId = parseInt(payload.rentalId || payload.rental_id || 1, 10);
-              const workerId = parseInt(payload.workerId || payload.taskAssignedTo || 8, 10);
+              const workerId = parseInt(payload.workerId || payload.taskAssignedTo || payload.worker_id || 0, 10);
               const dueDate = payload.dueDate || payload.due_date || new Date().toISOString().split('T')[0];
-              const notes = (payload.title ? payload.title + (payload.notes ? ' - ' + payload.notes : '') : (payload.notes || 'Nhiệm vụ chăm sóc ngoài đồng')).replace(/'/g, "''");
+              const rawTitle = payload.title ? String(payload.title).trim() : '';
+              const cleanTitle = (rawTitle || 'Nhiệm vụ chăm sóc ngoài đồng').replace(/'/g, "''");
+              const cleanNotes = (payload.notes ? String(payload.notes).trim() : cleanTitle).replace(/'/g, "''");
               const sql = `
 WITH ins AS (
-  INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
-  VALUES (${rentalId}, ${workerId}, '${dueDate}', 'PENDING', '${notes}', NOW(), NOW())
-  RETURNING task_id, rental_id, status
+  INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+  VALUES (
+    ${rentalId}, 
+    COALESCE(${workerId > 0 ? workerId : 'NULL'}, (SELECT fn_resolve_staff_for_plot(r.plot_id) FROM rentals r WHERE r.rental_id = ${rentalId}), 8), 
+    '${dueDate}', 
+    'PENDING', 
+    '${cleanTitle}', 
+    '${cleanNotes}', 
+    NOW(), 
+    NOW()
+  )
+  RETURNING task_id, rental_id, status, title, due_date
 )
 SELECT json_build_object(
   'taskId', task_id,
   'taskCode', 'TSK-' || task_id,
   'rentalId', rental_id,
-  'status', status
+  'status', status,
+  'title', title,
+  'dueDate', due_date
 ) FROM ins;
 `;
               const data = await runPostgreSql(sql);

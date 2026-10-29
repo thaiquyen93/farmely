@@ -576,11 +576,11 @@ export default function ExpertDashboard() {
     const targetWorker = availableFieldWorkers.find((w) => w.id === targetWorkerId) || availableFieldWorkers[0];
     const dueDate = detailDueDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const priorityTag = detailPriority === 'EMERGENCY' ? '[LÀM NGAY]' : detailPriority === 'HIGH' ? '[ƯU TIÊN CAO]' : '[BÌNH THƯỜNG]';
-    const taskTitle = `${priorityTag} Xử lý ${String(selectedIssueDetail.issueType || 'sự cố hiện trường').toLowerCase()}`;
+    const taskTitle = `Xử lý ${String(selectedIssueDetail.issueType || 'sự cố hiện trường').toLowerCase()} theo chỉ đạo CGNN`;
     const instructions = detailDiagnosisText.trim() || selectedIssueDetail.diagnosis || selectedIssueDetail.description || 'Tiến hành xử lý khắc phục theo quy chuẩn VietGAP.';
     const notes = [
       `${priorityTag} [${selectedIssueDetail.issueCode || selectedIssueDetail.id}] ${taskTitle}`,
-      `Hướng dẫn kỹ thuật từ CGNN: ${instructions}`,
+      `Hướng dẫn kỹ thuật từ CGNN (${expertSenderName}): ${instructions}`,
       `Hiện trường: Thửa ${selectedIssueDetail.plotCode} - ${selectedIssueDetail.plotName}`
     ].join('\n');
 
@@ -604,29 +604,32 @@ export default function ExpertDashboard() {
       const expertId = Number(String(user?.userId || user?.id || '5').replace(/\D/g, '')) || 5;
 
       // Update issue with diagnosis & link task
-      await fetch(`/api/issues/${issueId}/diagnose`, {
+      await fetch(`/api/issue-reports/${issueId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           handledBy: expertId,
           diagnosis: instructions,
-          resolutionNotes: `${priorityTag} Đã giao nhiệm vụ ${assignedTaskCode} cho ${targetWorker.name}.`,
+          resolutionNotes: `Đã giao nhiệm vụ ${assignedTaskCode} cho ${targetWorker.name}.`,
           markResolved: false
         })
       }).catch(() => {});
 
       // Broadcast channel sync
       try {
-        if (typeof window !== 'undefined' && window.BroadcastChannel) {
-          const bc = new BroadcastChannel('farmely_staff_dispatch');
-          bc.postMessage({
-            type: 'NEW_TASK_DISPATCHED',
-            workerId: targetWorkerId,
-            taskCode: assignedTaskCode,
-            plotCode: selectedIssueDetail.plotCode
-          });
-          bc.close();
-        }
+        localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
+        ['farmely_staff_activity_channel', 'farmely_staff_dispatch', 'farmely_staff_tasks'].forEach((ch) => {
+          try {
+            const bc = new BroadcastChannel(ch);
+            bc.postMessage({
+              type: 'NEW_TASK_DISPATCHED',
+              workerId: targetWorkerId,
+              taskCode: assignedTaskCode,
+              plotCode: selectedIssueDetail.plotCode
+            });
+            bc.close();
+          } catch {}
+        });
       } catch {}
 
       // Update state
@@ -660,38 +663,82 @@ export default function ExpertDashboard() {
     }
   };
 
-  // Submit diagnosis for worker field issue
+  // Submit diagnosis for worker field issue and automatically dispatch task to staff
   const handleSendIssueDiagnosis = async (e) => {
     e.preventDefault();
     if (!selectedIssueToDiagnose || !diagnosisAdvice.trim()) return;
 
     const issueId = selectedIssueToDiagnose.issueId || selectedIssueToDiagnose.apiId || parseInt(String(selectedIssueToDiagnose.id).replace(/\D/g, ''), 10) || 1;
+    const rentalId = selectedIssueToDiagnose.rentalId || (assignedPlots.find((p) => p.plotCode === selectedIssueToDiagnose.plotCode)?.rentalId) || 2;
+    const targetWorkerId = Number(selectedIssueToDiagnose.reportedBy || selectedIssueToDiagnose.workerId || 8);
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    const expertId = Number(String(user?.userId || user?.id || '5').replace(/\D/g, '')) || 5;
+    const taskTitle = `Xử lý ${String(selectedIssueToDiagnose.issueType || 'sự cố hiện trường').toLowerCase()} theo chỉ đạo CGNN`;
+    const instructions = diagnosisAdvice.trim();
+
     try {
+      // 1. Tạo care_task thực sự trong PostgreSQL cho CVLĐ
+      const taskRes = unwrapData(await apiFetch('/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          rentalId,
+          taskAssignedTo: targetWorkerId,
+          workerId: targetWorkerId,
+          dueDate: todayStr,
+          priority: 'HIGH',
+          title: taskTitle,
+          status: 'PENDING',
+          notes: `[CHỈ ĐẠO CGNN] ${taskTitle}\nHướng dẫn kỹ thuật từ CGNN (${expertSenderName}): ${instructions}\nHiện trường: Thửa ${selectedIssueToDiagnose.plotCode}`
+        })
+      }));
+
+      const assignedTaskCode = taskRes?.taskCode || `TSK-${taskRes?.taskId || Date.now().toString().slice(-3)}`;
+
+      // 2. Cập nhật issue report
       await fetch(`/api/issue-reports/${issueId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ diagnosis: diagnosisAdvice })
+        body: JSON.stringify({
+          diagnosis: instructions,
+          handledBy: expertId,
+          resolutionNotes: `Đã giao nhiệm vụ ${assignedTaskCode} cho CVLĐ thực hiện.`,
+          markResolved: false
+        })
       });
-      if (selectedIssueToDiagnose.apiId) {
-        const expertId = Number(String(user?.userId || user?.id || '').replace(/\D/g, ''));
-        await fetch(`/api/issues/${selectedIssueToDiagnose.apiId}/diagnose`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ handledBy: expertId, resolutionNotes: diagnosisAdvice, markResolved: true })
-        }).catch(() => {});
-      }
+
+      // 3. Realtime Broadcast tới toàn bộ các tab của Staff
+      try {
+        localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
+        ['farmely_staff_activity_channel', 'farmely_staff_dispatch', 'farmely_staff_tasks'].forEach((ch) => {
+          try {
+            const bc = new BroadcastChannel(ch);
+            bc.postMessage({
+              type: 'NEW_TASK_DISPATCHED',
+              workerId: targetWorkerId,
+              taskCode: assignedTaskCode,
+              plotCode: selectedIssueToDiagnose.plotCode
+            });
+            bc.close();
+          } catch {}
+        });
+      } catch {}
+
+      setFieldIssues((prev) =>
+        prev.map((i) =>
+          i.id === selectedIssueToDiagnose.id
+            ? { ...i, diagnosis: instructions, status: 'IN_PROGRESS', assignedTaskCode }
+            : i
+        )
+      );
+
+      triggerSuccessToast(`Đã ban hành chỉ đạo và giao nhiệm vụ ${assignedTaskCode} cho CVLĐ!`);
     } catch (err) {
-      console.warn('Could not update diagnosis to DB:', err);
+      console.warn('Lỗi ban hành chỉ đạo:', err);
+      setDataError(err.message || 'Không thể giao task cho nhân viên.');
+    } finally {
+      setSelectedIssueToDiagnose(null);
+      setDiagnosisAdvice('');
     }
-    setFieldIssues((prev) =>
-      prev.map((i) =>
-        i.id === selectedIssueToDiagnose.id
-          ? { ...i, diagnosis: diagnosisAdvice, status: 'RESOLVED' }
-          : i
-      )
-    );
-    setSelectedIssueToDiagnose(null);
-    setDiagnosisAdvice('');
   };
 
   // 3. VietGAP Process Templates State (UC09 / Screen 43)
@@ -831,6 +878,24 @@ export default function ExpertDashboard() {
       setFieldIssues((current) => current.map((issue) => issue.id === selectedIssueToAssign.id
         ? { ...issue, assignedTaskCode: task?.taskCode || `TSK-${task?.taskId}`, assignedDueDate: taskAssignment.dueDate, diagnosis: `${priorityTag} Đã giao nhiệm vụ cho ${issue.workerName}.` }
         : issue));
+
+      // Broadcast channel sync
+      try {
+        localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
+        ['farmely_staff_activity_channel', 'farmely_staff_dispatch', 'farmely_staff_tasks'].forEach((ch) => {
+          try {
+            const bc = new BroadcastChannel(ch);
+            bc.postMessage({
+              type: 'NEW_TASK_DISPATCHED',
+              workerId,
+              taskCode: task?.taskCode || `TSK-${task?.taskId}`,
+              plotCode: selectedIssueToAssign.plotCode
+            });
+            bc.close();
+          } catch {}
+        });
+      } catch {}
+
       setSelectedIssueToAssign(null);
       setDataError('');
       triggerSuccessToast(`Đã giao nhiệm vụ ${priorityTag} cho chuyên viên hiện trường!`);
@@ -965,11 +1030,13 @@ export default function ExpertDashboard() {
       // 3. Đồng bộ BroadcastChannel & localStorage cho màn hình Staff
       try {
         localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
-        if (typeof window !== 'undefined' && window.BroadcastChannel) {
-          const staffBc = new BroadcastChannel('farmely_staff_tasks');
-          staffBc.postMessage({ type: 'TASK_ASSIGNED', taskId: taskRes?.taskId, priority: directTaskModal.priority });
-          staffBc.close();
-        }
+        ['farmely_staff_activity_channel', 'farmely_staff_dispatch', 'farmely_staff_tasks'].forEach((ch) => {
+          try {
+            const staffBc = new BroadcastChannel(ch);
+            staffBc.postMessage({ type: 'TASK_ASSIGNED', taskId: taskRes?.taskId, priority: directTaskModal.priority });
+            staffBc.close();
+          } catch {}
+        });
       } catch {}
 
       triggerSuccessToast(`Đã phát lệnh thành công! Nhiệm vụ ${priorityTag} đã chuyển tới CVLĐ ${targetWorker.name}.`);
