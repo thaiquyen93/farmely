@@ -28,7 +28,8 @@ import {
   Sparkles,
   X,
   Loader2,
-  Calendar
+  Calendar,
+  SlidersHorizontal
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
 import { chatService } from '../../api/communication/chatService';
@@ -239,96 +240,21 @@ export default function BookPlot() {
   const [isExtendingGrace, setIsExtendingGrace] = useState(false);
   const [graceApplied, setGraceApplied] = useState(false);
 
-  const [selectedCropByPlot, setSelectedCropByPlot] = useState(() => {
-    const map = {};
+  const [plotConfigs, setPlotConfigs] = useState(() => {
     try {
-      // 1. Đọc SSoT từ farmely_lease_config_by_plot (đã chọn ở Marketplace)
-      const leaseConfigs = loadLeaseConfigMap();
-      Object.entries(leaseConfigs).forEach(([code, cfg]) => {
-        if (cfg?.cropId) {
-          map[code] = cfg.cropId;
-          const num = code.replace(/\D/g, '');
-          if (num) map[num] = cfg.cropId;
-        }
-      });
-
-      // 2. Fallback sang farmely_selected_crop_by_plot cũ nếu có
-      const legacy = JSON.parse(localStorage.getItem('farmely_selected_crop_by_plot') || '{}');
-      Object.assign(map, legacy);
-
-      // 3. Ưu tiên cropId từ URL search params
-      const cropFromUrl = searchParams.get('cropId');
-      if (cropFromUrl) {
-        if (id) {
-          map[id] = cropFromUrl;
-          const norm = normalizePlotCode(id);
-          if (norm) map[norm] = cropFromUrl;
-        }
-        const plotsParam = searchParams.get('plots');
-        if (plotsParam) {
-          plotsParam.split(',').forEach((p) => {
-            const trimmed = p.trim();
-            if (trimmed) {
-              const norm = normalizePlotCode(trimmed);
-              if (!map[trimmed] && (!norm || !map[norm])) {
-                map[trimmed] = cropFromUrl;
-                if (norm) map[norm] = cropFromUrl;
-              }
-            }
-          });
-        }
-      }
-    } catch (e) {
-      console.error(e);
+      return loadLeaseConfigMap();
+    } catch {
+      return {};
     }
-    return map;
   });
+
   const [cropValidationError, setCropValidationError] = useState(false);
+  const [modeValidationError, setModeValidationError] = useState(false);
   const [startDate, setStartDate] = useState(() => getEarliestCultivationDate());
 
   // 15-minute reservation timer (BR08) & checkout settings
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
 
-  // Hình thức canh tác: tự động nhận diện từ Marketplace hoặc URL param
-  const [selectedMode, setSelectedMode] = useState(() => {
-    const modeFromUrl = searchParams.get('mode');
-    if (modeFromUrl === 'ASSISTED' || modeFromUrl === 'SELF') {
-      return modeFromUrl;
-    }
-    try {
-      const leaseConfigs = loadLeaseConfigMap();
-      const primaryCode = normalizePlotCode(id || (searchParams.get('plots') || '').split(',')[0]);
-      if (primaryCode && (leaseConfigs[primaryCode]?.cultivationMode === 'ASSISTED' || leaseConfigs[primaryCode]?.cultivationMode === 'SELF')) {
-        return leaseConfigs[primaryCode].cultivationMode;
-      }
-      const anyCfg = Object.values(leaseConfigs).find((c) => c?.cultivationMode === 'ASSISTED' || c?.cultivationMode === 'SELF');
-      if (anyCfg?.cultivationMode) return anyCfg.cultivationMode;
-    } catch (e) {
-      console.error(e);
-    }
-    return null;
-  });
-  const [modeValidationError, setModeValidationError] = useState(false);
-
-  // Thời hạn thuê: tự động nhận diện từ Marketplace hoặc URL param
-  const [rentalMonths, setRentalMonths] = useState(() => {
-    const termFromUrl = Number(searchParams.get('term'));
-    if ([1, 3, 6, 12].includes(termFromUrl)) {
-      return termFromUrl;
-    }
-    try {
-      const leaseConfigs = loadLeaseConfigMap();
-      const primaryCode = normalizePlotCode(id || (searchParams.get('plots') || '').split(',')[0]);
-      if (primaryCode && [1, 3, 6, 12].includes(Number(leaseConfigs[primaryCode]?.termMonths))) {
-        return Number(leaseConfigs[primaryCode].termMonths);
-      }
-      const anyCfg = Object.values(leaseConfigs).find((c) => [1, 3, 6, 12].includes(Number(c?.termMonths)));
-      if (anyCfg?.termMonths) return Number(anyCfg.termMonths);
-    } catch (e) {
-      console.error(e);
-    }
-    return 3;
-  });
   const [paymentMethod] = useState('VNPAY');
   const [isSuccess, setIsSuccess] = useState(false);
   const [contractCode, setContractCode] = useState('');
@@ -354,227 +280,250 @@ export default function BookPlot() {
     };
   }, []);
 
-  // Tự động nhận diện giống cây & cấu hình từ URL search param nếu có
-  useEffect(() => {
+  // Lấy cấu hình của một thửa đất (ưu tiên cấu hình riêng của thửa từ SSoT leaseConfigMap)
+  const getPlotConfig = useCallback((plot) => {
+    if (!plot) return { cropId: '', cultivationMode: 'SELF', termMonths: 3 };
+    const pCode = normalizePlotCode(plot.code || plot.plotCode || plot.plot_code || plot.id);
+    const raw = plotConfigs[pCode] || plotConfigs[plot.id] || (plot.code ? plotConfigs[plot.code] : null) || {};
+
+    const isPrimary = selectedPlots[0] && normalizePlotCode(selectedPlots[0].code || selectedPlots[0].id) === pCode;
     const cropFromUrl = searchParams.get('cropId');
     const modeFromUrl = searchParams.get('mode');
     const termFromUrl = Number(searchParams.get('term'));
 
-    if (modeFromUrl === 'ASSISTED' || modeFromUrl === 'SELF') {
-      setSelectedMode((prev) => prev || modeFromUrl);
-    }
-    if ([1, 3, 6, 12].includes(termFromUrl)) {
-      setRentalMonths((prev) => (prev === 1 || !prev ? termFromUrl : prev));
-    }
+    const cropId = raw.cropId || (isPrimary && cropFromUrl ? cropFromUrl : '');
+    const cultivationMode = raw.cultivationMode || (isPrimary && (modeFromUrl === 'SELF' || modeFromUrl === 'ASSISTED') ? modeFromUrl : 'SELF');
+    let termMonths = Number(raw.termMonths) || (isPrimary && [1, 3, 6, 12].includes(termFromUrl) ? termFromUrl : 3);
+    if (![1, 3, 6, 12].includes(termMonths)) termMonths = 3;
 
-    if (cropFromUrl) {
-      setSelectedCropByPlot((prev) => {
-        const next = { ...prev };
-        if (selectedPlots.length > 0) {
-          selectedPlots.forEach((p) => {
-            next[p.id] = cropFromUrl;
-            if (p.code) next[p.code] = cropFromUrl;
-            const norm = normalizePlotCode(p.code || p.id);
-            if (norm) next[norm] = cropFromUrl;
-          });
-        }
-        if (id) {
-          next[id] = cropFromUrl;
-          const norm = normalizePlotCode(id);
-          if (norm) next[norm] = cropFromUrl;
-        }
-        try {
-          localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(next));
-        } catch (e) {
-          console.error(e);
-        }
-        return next;
-      });
-    }
-  }, [searchParams, selectedPlots, id]);
+    return { cropId, cultivationMode, termMonths };
+  }, [plotConfigs, selectedPlots, searchParams]);
 
-  // Đồng bộ cấu hình từ SSoT leaseConfigMap khi selectedPlots được load
+  // Đồng bộ cấu hình ban đầu khi selectedPlots hoặc URL query params có mặt
   useEffect(() => {
     if (selectedPlots.length > 0) {
       const leaseConfigs = loadLeaseConfigMap();
-      setSelectedCropByPlot((prev) => {
+      const primary = selectedPlots[0];
+      const primaryCode = normalizePlotCode(primary?.code || primary?.plotCode || primary?.id);
+
+      const urlCrop = searchParams.get('cropId');
+      const urlMode = searchParams.get('mode');
+      const urlTerm = Number(searchParams.get('term'));
+
+      setPlotConfigs((prev) => {
         let changed = false;
         const next = { ...prev };
-        selectedPlots.forEach((p) => {
-          const code = normalizePlotCode(p.code || p.plotCode || p.plot_code || p.id);
-          const current = next[p.id] || next[p.code] || (code ? next[code] : null);
-          if (!current && code && leaseConfigs[code]?.cropId) {
-            next[code] = leaseConfigs[code].cropId;
-            next[p.id] = leaseConfigs[code].cropId;
-            if (p.code) next[p.code] = leaseConfigs[code].cropId;
+
+        selectedPlots.forEach((p, idx) => {
+          const code = normalizePlotCode(p.code || p.plotCode || p.id);
+          if (!code) return;
+
+          const existing = next[code] || leaseConfigs[code] || {};
+          const isPrimary = idx === 0 || code === primaryCode;
+
+          const cropId = existing.cropId || (isPrimary && urlCrop ? urlCrop : '');
+          const cultivationMode = existing.cultivationMode || (isPrimary && (urlMode === 'SELF' || urlMode === 'ASSISTED') ? urlMode : 'SELF');
+          let termMonths = Number(existing.termMonths) || (isPrimary && [1, 3, 6, 12].includes(urlTerm) ? urlTerm : 3);
+          if (![1, 3, 6, 12].includes(termMonths)) termMonths = 3;
+
+          if (
+            !next[code] ||
+            next[code].cropId !== cropId ||
+            next[code].cultivationMode !== cultivationMode ||
+            next[code].termMonths !== termMonths
+          ) {
+            next[code] = { cropId, cultivationMode, termMonths };
+            next[p.id] = next[code];
+            if (p.code) next[p.code] = next[code];
             changed = true;
           }
         });
-        return changed ? next : prev;
+
+        if (changed) {
+          saveLeaseConfigMap(next);
+          return next;
+        }
+        return prev;
       });
-
-      const primary = selectedPlots[0];
-      const pCode = normalizePlotCode(primary?.code || primary?.plotCode || primary?.plot_code || primary?.id);
-      if (pCode && leaseConfigs[pCode]) {
-        const cfg = leaseConfigs[pCode];
-        if (cfg.cultivationMode) {
-          setSelectedMode((prev) => prev || cfg.cultivationMode);
-        }
-        if (cfg.termMonths && [1, 3, 6, 12].includes(Number(cfg.termMonths))) {
-          setRentalMonths((prev) => (prev === 1 || !prev ? Number(cfg.termMonths) : prev));
-        }
-      }
     }
-  }, [selectedPlots]);
+  }, [selectedPlots, searchParams]);
 
-  // Lấy giống cây đã chọn cho thửa đất (ưu tiên lựa chọn từ Marketplace hoặc state)
+  // Lấy giống cây đã chọn cho thửa đất
   const getPlotSelectedCrop = useCallback((plot) => {
     if (!plot) return null;
-    const cropFromUrl = searchParams.get('cropId');
-    const pCode = normalizePlotCode(plot.code || plot.plotCode || plot.plot_code || plot.id);
-    const leaseConfigs = loadLeaseConfigMap();
-    const configCrop = pCode ? leaseConfigs[pCode]?.cropId : null;
+    const cfg = getPlotConfig(plot);
+    if (!cfg.cropId) return null;
+    return (
+      getSafeCropById(cfg.cropId) ||
+      allAvailableCrops.find(
+        (c) =>
+          String(c.id).toUpperCase() === String(cfg.cropId).toUpperCase() ||
+          String(c.varietyId) === String(cfg.cropId) ||
+          c.name.toLowerCase() === String(cfg.cropId).toLowerCase() ||
+          c.variety.toLowerCase() === String(cfg.cropId).toLowerCase()
+      ) ||
+      safeCrops.find(
+        (c) =>
+          String(c.id).toUpperCase() === String(cfg.cropId).toUpperCase() ||
+          String(c.varietyId) === String(cfg.cropId)
+      ) ||
+      null
+    );
+  }, [getPlotConfig, allAvailableCrops]);
 
-    const savedCropKey =
-      selectedCropByPlot[plot.id] ||
-      selectedCropByPlot[plot.code] ||
-      selectedCropByPlot[plot.plotCode] ||
-      (pCode ? selectedCropByPlot[pCode] : null) ||
-      configCrop ||
-      cropFromUrl;
-
-    if (savedCropKey) {
-      const savedCrop =
-        getSafeCropById(savedCropKey) ||
-        allAvailableCrops.find(
-          (c) =>
-            String(c.id).toUpperCase() === String(savedCropKey).toUpperCase() ||
-            String(c.varietyId) === String(savedCropKey) ||
-            c.name.toLowerCase() === String(savedCropKey).toLowerCase() ||
-            c.variety.toLowerCase() === String(savedCropKey).toLowerCase()
-        ) ||
-        safeCrops.find(
-          (c) =>
-            String(c.id).toUpperCase() === String(savedCropKey).toUpperCase() ||
-            String(c.varietyId) === String(savedCropKey) ||
-            c.name.toLowerCase() === String(savedCropKey).toLowerCase()
-        );
-      if (savedCrop) {
-        return savedCrop;
-      }
-    }
-
-    return null;
-  }, [selectedCropByPlot, searchParams, allAvailableCrops]);
+  // Thời hạn thuê tối thiểu cho riêng thửa này (BR04: > 35 ngày hoặc Assisted -> tối thiểu 3 tháng)
+  const getPlotMinTerm = useCallback((plot) => {
+    const crop = getPlotSelectedCrop(plot);
+    const cfg = getPlotConfig(plot);
+    if (cfg.cultivationMode === 'ASSISTED') return 3;
+    if (crop?.minDays && crop.minDays > 30) return 3;
+    return 1;
+  }, [getPlotSelectedCrop, getPlotConfig]);
 
   // Danh sách tất cả các giống cây trồng có sẵn
   const getCompatibleCropsForPlot = useCallback(() => {
     return allAvailableCrops && allAvailableCrops.length > 0 ? allAvailableCrops : safeCrops;
   }, [allAvailableCrops]);
 
-  const handleSelectCropForPlot = (plotId, plotCode, cropId) => {
-    const code = normalizePlotCode(plotCode || plotId);
-    setSelectedCropByPlot((prev) => {
-      const next = { ...prev, [plotId]: cropId };
-      if (plotCode) next[plotCode] = cropId;
-      if (code) next[code] = cropId;
-      try {
-        localStorage.setItem('farmely_selected_crop_by_plot', JSON.stringify(next));
-      } catch (e) {
-        console.error(e);
+  // Cập nhật cấu hình riêng cho một thửa đất
+  const handleUpdatePlotConfig = (plot, patch) => {
+    const pCode = normalizePlotCode(plot.code || plot.plotCode || plot.plot_code || plot.id);
+    if (!pCode) return;
+
+    setPlotConfigs((prev) => {
+      const current = prev[pCode] || prev[plot.id] || {};
+      const updated = { ...current, ...patch };
+
+      // BR04: Check if termMonths needs to be bumped
+      const crop = updated.cropId ? getSafeCropById(updated.cropId) : null;
+      const minMonths = (updated.cultivationMode === 'ASSISTED' || (crop?.minDays && crop.minDays > 30)) ? 3 : 1;
+      if (updated.termMonths && updated.termMonths < minMonths) {
+        updated.termMonths = minMonths;
+      } else if (!updated.termMonths) {
+        updated.termMonths = minMonths >= 3 ? 3 : 1;
       }
+
+      const next = {
+        ...prev,
+        [pCode]: updated,
+        [plot.id]: updated
+      };
+      if (plot.code) next[plot.code] = updated;
+      saveLeaseConfigMap(next);
       return next;
     });
 
-    try {
-      const map = loadLeaseConfigMap();
-      if (code) {
-        map[code] = { ...(map[code] || {}), cropId };
-        saveLeaseConfigMap(map);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-
-    setCropValidationError(false);
+    if (patch.cropId) setCropValidationError(false);
+    if (patch.cultivationMode) setModeValidationError(false);
   };
 
-  const handleSelectMode = (mode) => {
-    setSelectedMode(mode);
+  const handleSelectCropForPlot = (plotId, plotCode, cropId) => {
+    const plot = selectedPlots.find((p) => p.id === plotId || p.code === plotCode) || { id: plotId, code: plotCode };
+    handleUpdatePlotConfig(plot, { cropId });
+  };
+
+  // Thao tác áp dụng hàng loạt (Batch apply) nếu khách hàng muốn đồng bộ
+  const handleBatchApplyMode = (mode) => {
+    setPlotConfigs((prev) => {
+      const next = { ...prev };
+      selectedPlots.forEach((p) => {
+        const code = normalizePlotCode(p.code || p.plotCode || p.id);
+        if (code) {
+          const current = next[code] || {};
+          const crop = current.cropId ? getSafeCropById(current.cropId) : null;
+          let termMonths = current.termMonths || 3;
+          if (mode === 'ASSISTED' && termMonths < 3) termMonths = 3;
+          const updated = { ...current, cultivationMode: mode, termMonths };
+          next[code] = updated;
+          next[p.id] = updated;
+          if (p.code) next[p.code] = updated;
+        }
+      });
+      saveLeaseConfigMap(next);
+      return next;
+    });
     setModeValidationError(false);
-    try {
-      const map = loadLeaseConfigMap();
-      selectedPlots.forEach((p) => {
-        const code = normalizePlotCode(p.code || p.plotCode || p.plot_code || p.id);
-        if (code) {
-          map[code] = { ...(map[code] || {}), cultivationMode: mode };
-        }
-      });
-      saveLeaseConfigMap(map);
-    } catch (e) {
-      console.error(e);
-    }
   };
 
-  const handleSelectRentalMonths = (months) => {
-    setRentalMonths(months);
-    try {
-      const map = loadLeaseConfigMap();
+  const handleBatchApplyTerm = (months) => {
+    setPlotConfigs((prev) => {
+      const next = { ...prev };
       selectedPlots.forEach((p) => {
-        const code = normalizePlotCode(p.code || p.plotCode || p.plot_code || p.id);
+        const code = normalizePlotCode(p.code || p.plotCode || p.id);
         if (code) {
-          map[code] = { ...(map[code] || {}), termMonths: months };
+          const current = next[code] || {};
+          const crop = current.cropId ? getSafeCropById(current.cropId) : null;
+          const minMonths = (current.cultivationMode === 'ASSISTED' || (crop?.minDays && crop.minDays > 30)) ? 3 : 1;
+          const effectiveMonths = Math.max(months, minMonths);
+          const updated = { ...current, termMonths: effectiveMonths };
+          next[code] = updated;
+          next[p.id] = updated;
+          if (p.code) next[p.code] = updated;
         }
       });
-      saveLeaseConfigMap(map);
-    } catch (e) {
-      console.error(e);
-    }
+      saveLeaseConfigMap(next);
+      return next;
+    });
   };
 
-  const calculatedEndDate = React.useMemo(() => {
+  // Tính ngày kết thúc riêng cho từng thửa
+  const getPlotEndDate = useCallback((plot) => {
     if (!startDate) return '';
+    const cfg = getPlotConfig(plot);
+    const months = cfg.termMonths || 3;
     const d = new Date(startDate);
-    d.setMonth(d.getMonth() + rentalMonths);
+    d.setMonth(d.getMonth() + months);
     return d.toISOString().split('T')[0];
-  }, [startDate, rentalMonths]);
+  }, [startDate, getPlotConfig]);
+
+  const getPlotEndDateFormatted = useCallback((plot) => {
+    const end = getPlotEndDate(plot);
+    if (!end) return '';
+    const parts = end.split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return end;
+  }, [getPlotEndDate]);
+
+  // Chi tiết đơn giá & thành tiền riêng cho từng thửa
+  const getPlotPriceDetails = useCallback((p) => {
+    const cfg = getPlotConfig(p);
+    const rentPerMonth = Number(p.rentalPrice) || 1200000;
+    const carePerMonth = Number(p.careServicePrice) || Math.round(rentPerMonth * 0.5);
+    const months = Number(cfg.termMonths) || 3;
+    const rentTotal = rentPerMonth * months;
+    const careTotal = cfg.cultivationMode === 'ASSISTED' ? carePerMonth * months : 0;
+    return {
+      rentPerMonth,
+      carePerMonth,
+      months,
+      rentTotal,
+      careTotal,
+      total: rentTotal + careTotal
+    };
+  }, [getPlotConfig]);
+
+  const selectedMode = selectedPlots.every((p) => getPlotConfig(p).cultivationMode === 'ASSISTED')
+    ? 'ASSISTED'
+    : selectedPlots.every((p) => getPlotConfig(p).cultivationMode === 'SELF')
+    ? 'SELF'
+    : 'MIXED';
+
+  const rentalMonths = selectedPlots.length > 0
+    ? Math.max(...selectedPlots.map((p) => getPlotConfig(p).termMonths || 3))
+    : 3;
 
   const calculatedEndDateFormatted = React.useMemo(() => {
-    if (!calculatedEndDate) return '';
-    const parts = calculatedEndDate.split('-');
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-    return calculatedEndDate;
-  }, [calculatedEndDate]);
-
-  // BR04: Thời hạn thuê tối thiểu phải >= thời gian sinh trưởng của giống cây + buffer time
-  // Gói Assisted-Growing (Ủy thác canh tác trọn gói) bắt buộc tối thiểu 1 vụ mùa hoàn chỉnh (3 tháng)
-  const minRequiredMonths = React.useMemo(() => {
-    if (selectedMode === 'ASSISTED') {
-      return 3;
-    }
-
-    let minMonths = 1;
+    if (!startDate || selectedPlots.length === 0) return '';
+    let maxDate = '';
     selectedPlots.forEach((p) => {
-      const crop = getPlotSelectedCrop(p);
-      if (crop) {
-        const days = crop.minDays || 35;
-        if (days > 30) {
-          minMonths = Math.max(minMonths, 3);
-        }
-      }
+      const end = getPlotEndDate(p);
+      if (!maxDate || end > maxDate) maxDate = end;
     });
-
-    return minMonths;
-  }, [selectedPlots, getPlotSelectedCrop, selectedMode]);
-
-  // Tự động nâng thời hạn thuê nếu thời hạn hiện tại nhỏ hơn mức tối thiểu BR04
-  useEffect(() => {
-    if (rentalMonths < minRequiredMonths) {
-      setRentalMonths(minRequiredMonths);
-    }
-  }, [minRequiredMonths, rentalMonths]);
+    if (!maxDate) return '';
+    const parts = maxDate.split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return maxDate;
+  }, [startDate, selectedPlots, getPlotEndDate]);
 
   // Helper to match plot by any identifier
   const findPlotByAnyCode = useCallback((code, plotsList = allPlots) => {

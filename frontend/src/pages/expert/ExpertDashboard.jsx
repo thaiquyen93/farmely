@@ -1225,7 +1225,13 @@ export default function ExpertDashboard() {
       const varieties = unwrapData(varietyPayload) || [];
       const compatList = unwrapData(compatPayload) || [];
       if (varieties.length > 0) {
-        setVarietiesList(varieties);
+        setVarietiesList(varieties.map((v) => ({
+          ...v,
+          varietyId: Number(v.id || v.varietyId),
+          varietyName: v.name || v.varietyName,
+          id: Number(v.id || v.varietyId),
+          name: v.name || v.varietyName
+        })));
       }
       const compatByPlotId = {};
       compatList.forEach((c) => {
@@ -1332,27 +1338,28 @@ export default function ExpertDashboard() {
     if (!newTemplateData.varietyId) return;
     setIsSubmittingTemplate(true);
     try {
-      await apiFetch('/api/templates', {
+      await apiFetch('/api/process-templates', {
         method: 'POST',
         body: JSON.stringify({
           varietyId: Number(newTemplateData.varietyId),
-          ptCreatedBy: user?.id || 5,
+          ptCreatedBy: user?.userId || user?.id || 5,
           version: newTemplateData.version || '1.0',
           steps: newTemplateData.steps
         })
       });
-      triggerSuccessToast('Đã ban hành quy trình canh tác VietGAP mới thành công!');
+      triggerSuccessToast('Đã ban hành quy trình canh tác VietGAP mới thành công vào cơ sở dữ liệu!');
       setIsCreateTemplateOpen(false);
       await loadExpertData();
+      loadTemplates();
     } catch (err) {
       console.warn('Lỗi gọi API templates, fallback lưu local:', err);
-      const chosenVar = varietiesList.find(v => v.varietyId === Number(newTemplateData.varietyId));
+      const chosenVar = (allAvailableVarieties.length > 0 ? allAvailableVarieties : varietiesList).find(v => Number(v.varietyId || v.id) === Number(newTemplateData.varietyId));
       const newTmpl = {
         id: `TMPL-${Date.now()}`,
         code: newTemplateData.code || `TMPL-${Math.floor(1000 + Math.random() * 9000)}`,
         version: newTemplateData.version || 'v1.0',
-        name: `Quy trình ${chosenVar?.varietyName || 'canh tác VietGAP'}`,
-        variety: chosenVar?.varietyName || 'Rau hữu cơ',
+        name: `Quy trình ${chosenVar?.varietyName || chosenVar?.name || 'canh tác VietGAP'}`,
+        variety: chosenVar?.varietyName || chosenVar?.name || 'Rau hữu cơ',
         durationDays: Math.max(...newTemplateData.steps.map(s => Number(s.dayOffset) || 0)),
         stagesCount: newTemplateData.steps.length,
         stepsCount: newTemplateData.steps.length,
@@ -3482,21 +3489,16 @@ export default function ExpertDashboard() {
                 onChange={(e) => setNewTemplateData({ ...newTemplateData, varietyId: Number(e.target.value) })}
                 className="w-full p-2.5 rounded-xl border border-brand-border text-xs font-bold bg-white"
               >
-                {varietiesList.length > 0 ? (
-                  varietiesList.map((v) => (
-                    <option key={v.varietyId} value={v.varietyId}>
-                      {v.varietyName}
+                {(allAvailableVarieties.length > 0 ? allAvailableVarieties : varietiesList).map((v) => {
+                  const vId = Number(v.varietyId || v.id);
+                  const vName = v.varietyName || v.name;
+                  const cName = v.cropName ? ` (${v.cropName})` : '';
+                  return (
+                    <option key={vId} value={vId}>
+                      {vName}{cName}
                     </option>
-                  ))
-                ) : (
-                  <>
-                    <option value={1}>Cà chua bi Cherry F1</option>
-                    <option value={2}>Xà lách Romaine VietGAP</option>
-                    <option value={3}>Dưa leo Baby Đà Lạt</option>
-                    <option value={4}>Rau mồng tơi hữu cơ</option>
-                    <option value={5}>Bắp cải Brussels tí hon</option>
-                  </>
-                )}
+                  );
+                })}
               </select>
             </div>
             <div>

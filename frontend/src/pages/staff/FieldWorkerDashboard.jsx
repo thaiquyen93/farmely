@@ -181,6 +181,19 @@ const issueStatusMeta = (issue) => {
   return { key: 'WAITING', label: 'Chờ chuyên gia', tone: 'bg-stone-100 text-stone-600' };
 };
 
+const formatDateVN = (dateStr) => {
+  if (!dateStr) return '';
+  const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  return dateStr;
+};
+
+const formatCleanArea = (val) => {
+  if (!val || val === '—') return '—';
+  const num = String(val).replace(/[^0-9.]/g, '');
+  return num ? `${num} m²` : '—';
+};
+
 function IssueHistory({ issues, filter, onFilter, search, onSearch, selectedIssue, onSelect, onOpenTask }) {
   const normalizedSearch = search.trim().toLowerCase();
   const visibleIssues = issues.filter((issue) => {
@@ -253,6 +266,9 @@ export default function FieldWorkerDashboard() {
   // Assigned care tasks loaded from the cultivation service.
   const [tasks, setTasks] = useState([]);
   const [focusedTaskId, setFocusedTaskId] = useState(null);
+
+  // Modal State for Viewing Detailed Task Instructions & Expert Notes
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
 
   // Modal State for Task Execution / Completing with Photo Proof
   const [selectedTaskToExecute, setSelectedTaskToExecute] = useState(null);
@@ -386,6 +402,10 @@ export default function FieldWorkerDashboard() {
           deadline: task.deadline || '08:30 AM',
           dueDate: task.dueDate || null,
           instructions: task.instructions || task.notes || 'Tuân thủ định mức và kỹ thuật VietGAP.',
+          notes: task.notes || '',
+          expertName: task.expertName || 'Chuyên gia Nông nghiệp VietGAP',
+          stepOrder: task.stepOrder || 1,
+          cropDay: task.cropDay || null,
           status: normalizeTaskStatus(task.displayStatus || task.status),
           priority: task.priority || (task.serviceRequestId ? 'HIGH' : (task.isOverdue ? 'OVERDUE' : 'NORMAL')),
           completedAt: task.completedAt || (task.updatedAt ? new Date(task.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null),
