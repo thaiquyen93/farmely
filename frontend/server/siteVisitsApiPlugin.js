@@ -891,7 +891,7 @@ BEGIN
         NOW(),
         NOW()
     FROM template_steps ts
-    WHERE ts.template_id = (SELECT pt.template_id FROM process_templates pt WHERE pt.variety_id = ${varietyId} ORDER BY pt.template_id ASC LIMIT 1)
+    WHERE ts.template_id = (SELECT pt.template_id FROM process_templates pt WHERE pt.variety_id = ${varietyId} ORDER BY pt.template_id DESC LIMIT 1)
     ORDER BY ts.day_offset;
 
     -- Tự động mở kênh chat CUST_EXP
@@ -3464,8 +3464,13 @@ SELECT json_build_object(
         }
 
         // 14. PROCESS TEMPLATES API (GET, POST, PUT, DELETE)
-        // 14.1 GET /api/process-templates & /api/v1/process-templates
-        if (req.method === 'GET' && (url === '/api/process-templates' || url === '/api/v1/process-templates' || url.startsWith('/api/process-templates?') || url.startsWith('/api/v1/process-templates?'))) {
+        // 14.1 GET /api/process-templates & /api/templates
+        if (req.method === 'GET' && (
+          url === '/api/process-templates' || url === '/api/v1/process-templates' ||
+          url === '/api/templates' || url === '/api/v1/templates' ||
+          url.startsWith('/api/process-templates?') || url.startsWith('/api/v1/process-templates?') ||
+          url.startsWith('/api/templates?') || url.startsWith('/api/v1/templates?')
+        )) {
           try {
             const sql = `
 SELECT json_build_object(
@@ -3560,9 +3565,9 @@ SELECT json_build_object(
           return;
         }
 
-        // 14.2 GET /api/process-templates/:id (Template Detail with Steps)
-        if (req.method === 'GET' && (url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/))) {
-          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)[1];
+        // 14.2 GET /api/process-templates/:id & /api/templates/:id (Template Detail with Steps)
+        if (req.method === 'GET' && (url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/))) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
           try {
             const sql = `
@@ -3658,8 +3663,11 @@ SELECT json_build_object(
           return;
         }
 
-        // 14.3 POST /api/process-templates (Create New Process Template for a Variety)
-        if (req.method === 'POST' && (url === '/api/process-templates' || url === '/api/v1/process-templates')) {
+        // 14.3 POST /api/process-templates & /api/templates (Create New Process Template for a Variety)
+        if (req.method === 'POST' && (
+          url === '/api/process-templates' || url === '/api/v1/process-templates' ||
+          url === '/api/templates' || url === '/api/v1/templates'
+        )) {
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
@@ -3679,6 +3687,7 @@ RETURNING template_id;
 
               // Nếu có gửi kèm các bước ban đầu
               if (Array.isArray(payload.steps) && payload.steps.length > 0) {
+                let sIdx = 1;
                 for (const step of payload.steps) {
                   const sName = (step.stepName || step.taskName || 'Chăm sóc định kỳ').replace(/'/g, "''");
                   const sDay = parseInt(step.dayOffset !== undefined ? step.dayOffset : (step.day || 0), 10) || 0;
@@ -3686,6 +3695,8 @@ RETURNING template_id;
                   const sDesc = (step.description || '').replace(/'/g, "''");
                   const sMat = (step.materialsNeeded || step.materialsRequired || '').replace(/'/g, "''");
                   const sDur = parseInt(step.durationDays || Math.ceil((step.durationMinutes || 60) / 60) || 1, 10) || 1;
+                  const sOrder = parseInt(step.stepOrder || sIdx, 10) || sIdx;
+                  sIdx++;
                   const sMinT = step.minTemp ? parseFloat(step.minTemp) : 'NULL';
                   const sMaxT = step.maxTemp ? parseFloat(step.maxTemp) : 'NULL';
                   const sMinH = step.minHumidity ? parseFloat(step.minHumidity) : 'NULL';
@@ -3693,11 +3704,11 @@ RETURNING template_id;
                   await runPostgreSql(`
 INSERT INTO template_steps (
   template_id, step_name, day_offset, duration_days, task_type, 
-  description, materials_needed, min_temp, max_temp, min_humidity, max_humidity
+  description, materials_needed, min_temp, max_temp, min_humidity, max_humidity, step_order
 )
 VALUES (
   ${templateId}, '${sName}', ${sDay}, ${sDur}, '${sType}', 
-  '${sDesc}', '${sMat}', ${sMinT}, ${sMaxT}, ${sMinH}, ${sMaxH}
+  '${sDesc}', '${sMat}', ${sMinT}, ${sMaxT}, ${sMinH}, ${sMaxH}, ${sOrder}
 );
                   `);
                 }
@@ -3723,8 +3734,8 @@ VALUES (
         }
 
         // 14.4 POST /api/process-templates/:id/steps (Add Step or Bulk Steps to Template)
-        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps$/)) {
-          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps$/)[1];
+        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps$/)) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
           let body = '';
           req.on('data', chunk => body += chunk);
@@ -3868,8 +3879,8 @@ WHERE step_id = ${stepId} AND template_id = ${templateId};
         }
 
         // 14.6 DELETE /api/process-templates/:id/steps/:stepId (Delete Step)
-        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/)) {
-          const match = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/);
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/)) {
+          const match = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/);
           const templateId = parseInt(match[1].replace(/\D/g, ''), 10) || 1;
           const stepId = parseInt(match[2], 10);
           try {
@@ -3884,8 +3895,8 @@ WHERE step_id = ${stepId} AND template_id = ${templateId};
         }
 
         // 14.7 DELETE /api/process-templates/:id (Delete Template)
-        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)) {
-          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)[1];
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/)) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
           try {
             await runPostgreSql(`DELETE FROM process_templates WHERE template_id = ${templateId};`);
@@ -4532,11 +4543,13 @@ SELECT json_build_object(
         'MORNING' AS session,
         ct.evidence_image_url AS "proofPhoto",
         ct.evidence_image_url AS "evidenceImageUrl",
+        ct.notes AS notes,
+        COALESCE(u_expert.full_name, 'Chuyên gia Nông nghiệp VietGAP') AS "expertName",
         CASE
-          WHEN ts.description IS NOT NULL AND ts.description <> '' THEN ts.description
-          WHEN ct.notes LIKE '% - %' THEN SUBSTRING(ct.notes FROM POSITION(' - ' IN ct.notes) + 3)
-          WHEN ct.notes LIKE '%' || CHR(10) || '%' THEN SUBSTRING(ct.notes FROM POSITION(CHR(10) IN ct.notes) + 1)
-          ELSE COALESCE(ct.notes, ts.description, 'Kiểm tra độ ẩm trạm IoT trước khi tưới. Ghi chép nhật ký đầy đủ.')
+          WHEN ts.description IS NOT NULL AND ts.description <> '' AND ts.description NOT LIKE '%Thửa%' THEN ts.description
+          WHEN ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN ct.notes
+          WHEN ct.notes IS NOT NULL AND ct.notes NOT LIKE '%Thửa ' || p.plot_code THEN ct.notes
+          ELSE 'Tuân thủ định mức kỹ thuật VietGAP và hướng dẫn chuyên gia. Kiểm tra độ ẩm đất qua trạm IoT trước khi thực hiện.'
         END AS instructions,
         TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') AS "completedAt"
       FROM care_tasks ct
@@ -4545,6 +4558,7 @@ SELECT json_build_object(
       JOIN contracts c ON rent.contract_id = c.contract_id
       LEFT JOIN users u_renter ON c.renter_id = u_renter.user_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
+      LEFT JOIN users u_expert ON rent.expert_id = u_expert.user_id
       LEFT JOIN varieties v ON rent.variety_id = v.variety_id
       LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
       LEFT JOIN service_requests sr ON ct.service_request_id = sr.request_id

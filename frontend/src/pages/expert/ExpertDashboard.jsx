@@ -493,8 +493,10 @@ export default function ExpertDashboard() {
     loadFieldIssues();
     loadTemplates();
     loadAssignedPlots();
+    loadExpertData();
 
     let bc = null;
+    let varBc = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         bc = new BroadcastChannel('farmely_iot_telemetry');
@@ -502,6 +504,11 @@ export default function ExpertDashboard() {
           if (msg.data?.type === 'TELEMETRY_UPDATED') {
             loadAssignedPlots();
           }
+        };
+
+        varBc = new BroadcastChannel('farmely_varieties_sync');
+        varBc.onmessage = () => {
+          loadExpertData();
         };
       }
     } catch {}
@@ -518,9 +525,16 @@ export default function ExpertDashboard() {
     return () => {
       clearInterval(pollInterval);
       if (bc) try { bc.close(); } catch {}
+      if (varBc) try { varBc.close(); } catch {}
       window.removeEventListener('storage', handleStorage);
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'compatibility' || activeTab === 'varieties' || activeTab === 'crops') {
+      loadExpertData();
+    }
+  }, [activeTab]);
 
   // Open detailed issue view (UC12 / UC48)
   const handleOpenIssueDetail = (issue) => {
@@ -1074,218 +1088,42 @@ export default function ExpertDashboard() {
     ]
   });
 
-  // 4. Plot-Crop Compatibility Matrix State (Screen 42 - BR03 SSoT)
-  const ALL_VARIETIES_CATALOG = [
-    { id: 1, varietyId: 1, name: 'Cà chua bi Cherry Ruby F1', cropName: 'Cà chua & Quả mọng', growthDuration: 75, bufferDays: 10, defaultRating: '98%', defaultStatus: 'RẤT THÍCH HỢP' },
-    { id: 2, varietyId: 2, name: 'Xà lách Romaine VietGAP', cropName: 'Rau ăn lá', growthDuration: 35, bufferDays: 5, defaultRating: '100%', defaultStatus: 'HOÀN HẢO' },
-    { id: 3, varietyId: 3, name: 'Dưa leo Baby Hà Lan F1', cropName: 'Dưa leo & Bầu bí', growthDuration: 45, bufferDays: 7, defaultRating: '95%', defaultStatus: 'RẤT THÍCH HỢP' },
-    { id: 4, varietyId: 4, name: 'Dâu tây Nhật Hana Chịu Nhiệt', cropName: 'Quả mọng', growthDuration: 90, bufferDays: 10, defaultRating: '96%', defaultStatus: 'RẤT THÍCH HỢP' },
-    { id: 5, varietyId: 5, name: 'Cải xoăn Kale xoăn', cropName: 'Rau ăn lá', growthDuration: 60, bufferDays: 7, defaultRating: '95%', defaultStatus: 'RẤT THÍCH HỢP' },
-    { id: 6, varietyId: 6, name: 'Cà rốt baby giòn ngọt', cropName: 'Củ quả', growthDuration: 70, bufferDays: 8, defaultRating: '92%', defaultStatus: 'THÍCH HỢP' },
-    { id: 7, varietyId: 7, name: 'Rau mồng tơi hữu cơ', cropName: 'Rau ăn lá', growthDuration: 30, bufferDays: 5, defaultRating: '96%', defaultStatus: 'RẤT THÍCH HỢP' },
-    { id: 8, varietyId: 8, name: 'Xà lách búp Mỹ', cropName: 'Rau ăn lá', growthDuration: 40, bufferDays: 5, defaultRating: '90%', defaultStatus: 'THÍCH HỢP' },
-    { id: 9, varietyId: 9, name: 'Ớt chuông Sweet Pepper', cropName: 'Rau củ quả', growthDuration: 85, bufferDays: 10, defaultRating: '97%', defaultStatus: 'RẤT THÍCH HỢP' },
-    { id: 10, varietyId: 10, name: 'Bông cải xanh Baby Broccolini', cropName: 'Rau hoa', growthDuration: 65, bufferDays: 8, defaultRating: '94%', defaultStatus: 'THÍCH HỢP' }
+  // 4. Plot-Crop Compatibility Matrix State (BR03 SSoT)
+  // Danh mục giống cây trồng đồng bộ 100% với PostgreSQL và Master Data
+  const DEFAULT_SYSTEM_VARIETIES = [
+    { id: 1, varietyId: 1, name: 'Rau muống lá tre F1', cropName: 'Rau muống cạn', growthDuration: 25 },
+    { id: 2, varietyId: 2, name: 'Cải ngọt bông F1', cropName: 'Cải ngọt / Cải bẹ', growthDuration: 30 },
+    { id: 3, varietyId: 3, name: 'Xà lách Romaine VietGAP', cropName: 'Xà lách xoăn', growthDuration: 35 },
+    { id: 4, varietyId: 4, name: 'Cà chua bi đỏ F1', cropName: 'Cà chua bi (Cherry)', growthDuration: 75 },
+    { id: 5, varietyId: 5, name: 'Dưa leo baby F1', cropName: 'Dưa leo baby', growthDuration: 45 },
+    { id: 6, varietyId: 6, name: 'Đậu cô ve lùn / leo F1', cropName: 'Đậu cô ve', growthDuration: 55 },
+    { id: 7, varietyId: 7, name: 'Mướp hương cao sản F1', cropName: 'Mướp hương', growthDuration: 60 },
+    { id: 8, varietyId: 8, name: 'Mồng tơi lá to F1', cropName: 'Rau mồng tơi', growthDuration: 30 },
+    { id: 9, varietyId: 9, name: 'Ớt chỉ thiên F1', cropName: 'Ớt cay / Ớt chỉ thiên', growthDuration: 70 },
+    { id: 10, varietyId: 10, name: 'Rau dền đỏ F1', cropName: 'Rau dền (đỏ/cơm)', growthDuration: 25 },
+    { id: 13, varietyId: 13, name: 'giống mèo khỉ f1', cropName: 'cây mèo khỉ', growthDuration: 45 },
+    { id: 14, varietyId: 14, name: 'giống mèo khỉ f123123', cropName: 'cây mèo mèo', growthDuration: 45 }
   ];
 
-  const INITIAL_PLOT_SOIL_PROFILES = [
-    {
-      plotId: 1,
-      plotCode: 'P-01',
-      plotName: 'Sen Vàng A1',
-      landName: 'Khu Nông Trại Củ Chi',
-      area: 100,
-      status: 'AVAIL',
-      waterSource: 'Kênh Đông Củ Chi (Nước mặt đã qua xử lý lọc cát)',
-      expertName: 'ThS. Nguyễn Hoàng Nam',
-      isAssignedToMe: true,
-      soilType: 'Đất phù sa bồi lắng ven sông (Củ Chi)',
-      phRange: 'pH 6.0 – 6.8',
-      moistureProfile: 'Thoát nước tốt, tầng đất dày 35cm, giàu mùn hữu cơ',
-      evaluatedDate: '15/10/2026',
-      notes: 'Thổ nhưỡng phù sa ven sông Sài Gòn, hàm lượng mùn cao, đáp ứng chuẩn VietGAP cho các loại rau ăn quả và ăn lá ngắn ngày.',
-      compatibleVarieties: [
-        { varietyId: 1, varietyName: 'Cà chua bi Cherry Ruby F1', cropName: 'Cà chua & Quả mọng', rating: '98%', status: 'RẤT THÍCH HỢP' },
-        { varietyId: 2, varietyName: 'Xà lách Romaine VietGAP', cropName: 'Rau ăn lá', rating: '100%', status: 'HOÀN HẢO' },
-        { varietyId: 3, varietyName: 'Dưa leo Baby Hà Lan F1', cropName: 'Dưa leo & Bầu bí', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { varietyId: 7, varietyName: 'Rau mồng tơi hữu cơ', cropName: 'Rau ăn lá', rating: '96%', status: 'RẤT THÍCH HỢP' }
-      ]
-    },
-    {
-      plotId: 2,
-      plotCode: 'P-02',
-      plotName: 'Mộc Châu B2',
-      landName: 'Khu Nông Trại Củ Chi',
-      area: 120,
-      status: 'RENT',
-      waterSource: 'Nước ngầm giếng khoan đạt kiểm định VietGAP',
-      expertName: 'ThS. Nguyễn Hoàng Nam',
-      isAssignedToMe: true,
-      soilType: 'Đất phù sa pha cát nhẹ (Củ Chi)',
-      phRange: 'pH 6.2 – 6.8',
-      moistureProfile: 'Giữ ẩm trung bình, tơi xốp, vi sinh vật đất phát triển mạnh',
-      evaluatedDate: '16/10/2026',
-      notes: 'Đang có khách thuê canh tác Xà lách Romaine. Đất tơi xốp, giữ ẩm ổn định.',
-      compatibleVarieties: [
-        { varietyId: 1, varietyName: 'Cà chua bi Cherry Ruby F1', cropName: 'Cà chua & Quả mọng', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { varietyId: 2, varietyName: 'Xà lách Romaine VietGAP', cropName: 'Rau ăn lá', rating: '100%', status: 'HOÀN HẢO' },
-        { varietyId: 3, varietyName: 'Dưa leo Baby Hà Lan F1', cropName: 'Dưa leo & Bầu bí', rating: '96%', status: 'RẤT THÍCH HỢP' }
-      ]
-    },
-    {
-      plotId: 3,
-      plotCode: 'P-03',
-      plotName: 'Rừng Sác C3',
-      landName: 'Khu Nông Trại Mộc Châu',
-      area: 150,
-      status: 'RENT',
-      waterSource: 'Suối tự nhiên đầu nguồn dẫn qua lắng lọc vi sinh',
-      expertName: 'ThS. Nguyễn Hoàng Nam',
-      isAssignedToMe: true,
-      soilType: 'Đất đỏ Bazan cao nguyên (Mộc Châu)',
-      phRange: 'pH 5.5 – 6.5',
-      moistureProfile: 'Giàu khoáng vi lượng Fe/Al, thoát nước nhanh, tầng đất sâu',
-      evaluatedDate: '18/10/2026',
-      notes: 'Đất đỏ bazan đặc thù vùng cao, thích hợp dâu tây Hana và các giống cải xoăn ôn đới chịu lạnh tốt.',
-      compatibleVarieties: [
-        { varietyId: 4, varietyName: 'Dâu tây Nhật Hana Chịu Nhiệt', cropName: 'Quả mọng', rating: '96%', status: 'RẤT THÍCH HỢP' },
-        { varietyId: 5, varietyName: 'Cải xoăn Kale xoăn', cropName: 'Rau ăn lá', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { varietyId: 6, varietyName: 'Cà rốt baby giòn ngọt', cropName: 'Củ quả', rating: '92%', status: 'THÍCH HỢP' },
-        { varietyId: 8, varietyName: 'Xà lách búp Mỹ', cropName: 'Rau ăn lá', rating: '90%', status: 'THÍCH HỢP' }
-      ]
-    },
-    {
-      plotId: 4,
-      plotCode: 'P-04',
-      plotName: 'Đất Đỏ D4',
-      landName: 'Khu Nông Trại Mộc Châu',
-      area: 120,
-      status: 'AVAIL',
-      waterSource: 'Hồ chứa thủy lợi khu vực Mộc Châu',
-      expertName: 'ThS. Nguyễn Hoàng Nam',
-      isAssignedToMe: true,
-      soilType: 'Đất đỏ Bazan tơi xốp (Mộc Châu)',
-      phRange: 'pH 5.8 – 6.5',
-      moistureProfile: 'Tầng canh tác dày 40cm, giàu mùn hữu cơ vi sinh',
-      evaluatedDate: '18/10/2026',
-      notes: 'Vừa thu hoạch và phơi ải hoàn tất theo BR23, sẵn sàng cho khách thuê trồng dâu tây hoặc cải xoăn.',
-      compatibleVarieties: [
-        { varietyId: 4, varietyName: 'Dâu tây Nhật Hana Chịu Nhiệt', cropName: 'Quả mọng', rating: '98%', status: 'RẤT THÍCH HỢP' },
-        { varietyId: 5, varietyName: 'Cải xoăn Kale xoăn', cropName: 'Rau ăn lá', rating: '96%', status: 'RẤT THÍCH HỢP' },
-        { varietyId: 6, varietyName: 'Cà rốt baby giòn ngọt', cropName: 'Củ quả', rating: '94%', status: 'THÍCH HỢP' }
-      ]
-    },
-    {
-      plotId: 5,
-      plotCode: 'P-05',
-      plotName: 'Happy Valley E5',
-      landName: 'Khu Nông Trại Đà Lạt',
-      area: 100,
-      status: 'AVAIL',
-      waterSource: 'Nước suối ngầm cao nguyên kiểm định',
-      expertName: 'ThS. Nguyễn Hoàng Nam',
-      isAssignedToMe: true,
-      soilType: 'Đất cát pha phối giá thể hữu cơ (Đà Lạt)',
-      phRange: 'pH 6.2 – 7.0',
-      moistureProfile: 'Thoát nước cực nhanh, tơi xốp tối ưu, phối xơ dừa vi sinh',
-      evaluatedDate: '20/10/2026',
-      notes: 'Đã phối trộn giá thể trùn quế và vỏ đậu phộng ủ hoai. Thích hợp ớt chuông và bông cải.',
-      compatibleVarieties: [
-        { varietyId: 9, varietyName: 'Ớt chuông Sweet Pepper', cropName: 'Rau củ quả', rating: '97%', status: 'RẤT THÍCH HỢP' },
-        { varietyId: 10, varietyName: 'Bông cải xanh Baby Broccolini', cropName: 'Rau hoa', rating: '92%', status: 'THÍCH HỢP' }
-      ]
-    },
-    {
-      plotId: 6,
-      plotCode: 'P-06',
-      plotName: 'An Nhiên F6',
-      landName: 'Khu Nông Trại Đà Lạt',
-      area: 110,
-      status: 'AVAIL',
-      waterSource: 'Hệ thống tưới nhỏ giọt tự động công nghệ cao',
-      expertName: 'ThS. Nguyễn Hoàng Nam',
-      isAssignedToMe: true,
-      soilType: 'Đất thịt nhẹ phối xơ dừa vi sinh (Đà Lạt)',
-      phRange: 'pH 6.0 – 6.8',
-      moistureProfile: 'Độ tơi xốp cao, nhà màng kiểm soát vi khí hậu',
-      evaluatedDate: '20/10/2026',
-      notes: 'Khu nhà lưới công nghệ cao, kiểm soát hoàn toàn độ ẩm giá thể và ánh sáng.',
-      compatibleVarieties: [
-        { varietyId: 9, varietyName: 'Ớt chuông Sweet Pepper', cropName: 'Rau củ quả', rating: '96%', status: 'RẤT THÍCH HỢP' },
-        { varietyId: 10, varietyName: 'Bông cải xanh Baby Broccolini', cropName: 'Rau hoa', rating: '94%', status: 'THÍCH HỢP' }
-      ]
-    },
-    {
-      plotId: 7,
-      plotCode: 'P-07',
-      plotName: 'Hương Rừng A3',
-      landName: 'Khu Nông Trại Củ Chi',
-      area: 95,
-      status: 'AVAIL',
-      waterSource: 'Kênh Đông Củ Chi',
-      expertName: 'ThS. Nguyễn Hoàng Nam',
-      isAssignedToMe: true,
-      soilType: 'Đất phù sa ven sông',
-      phRange: 'pH 6.0 – 6.5',
-      moistureProfile: 'Giàu mùn tự nhiên, độ ẩm đất 72%',
-      evaluatedDate: '21/10/2026',
-      notes: 'Thửa đất ven rạch tự nhiên, độ ẩm cao, phù hợp rau mồng tơi và xà lách.',
-      compatibleVarieties: [
-        { varietyId: 2, varietyName: 'Xà lách Romaine VietGAP', cropName: 'Rau ăn lá', rating: '96%', status: 'RẤT THÍCH HỢP' },
-        { varietyId: 7, varietyName: 'Rau mồng tơi hữu cơ', cropName: 'Rau ăn lá', rating: '98%', status: 'HOÀN HẢO' }
-      ]
-    },
-    {
-      plotId: 8,
-      plotCode: 'P-08',
-      plotName: 'Thửa Mới G7',
-      landName: 'Khu Nông Trại Củ Chi',
-      area: 130,
-      status: 'AVAIL',
-      waterSource: 'Kênh Đông Củ Chi',
-      expertName: 'ThS. Nguyễn Hoàng Nam',
-      isAssignedToMe: true,
-      soilType: 'Chưa xác định (Thửa mới tạo từ Master Data)',
-      phRange: 'Chưa đo',
-      moistureProfile: 'Chờ lấy mẫu đất hiện trường',
-      evaluatedDate: 'Chưa khảo nghiệm',
-      notes: 'Thửa đất vừa được Admin tạo tại Master Data. Chưa phê duyệt danh mục giống cây tương thích (BR03).',
-      compatibleVarieties: []
-    }
-  ];
-
-  const [plotCompatibilityList, setPlotCompatibilityList] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('farmely_plot_compatibility_profiles') || 'null');
-      if (Array.isArray(saved) && saved.length > 0) return saved;
-    } catch {}
-    return INITIAL_PLOT_SOIL_PROFILES;
-  });
-
+  const [plotCompatibilityList, setPlotCompatibilityList] = useState([]);
   const [activeCompatPlotId, setActiveCompatPlotId] = useState(1);
   const [selectedCompatVarietyIds, setSelectedCompatVarietyIds] = useState([]);
   const [compatSearch, setCompatSearch] = useState('');
   const [varietySearchQuery, setVarietySearchQuery] = useState('');
   const [isSavingCompatibility, setIsSavingCompatibility] = useState(false);
 
+  // Đồng bộ 1:1 với Danh Mục Giống Cây Trồng (Varieties)
   const allAvailableVarieties = useMemo(() => {
-    const list = [...varietiesList];
-    const seenIds = new Set(list.map(v => Number(v.id || v.varietyId)));
-    ALL_VARIETIES_CATALOG.forEach(v => {
-      const vid = Number(v.id || v.varietyId);
-      if (!seenIds.has(vid)) {
-        list.push({
-          id: vid,
-          varietyId: vid,
-          name: v.name,
-          varietyName: v.name,
-          cropName: v.cropName,
-          growthDuration: v.growthDuration || 45
-        });
-        seenIds.add(vid);
-      }
-    });
-    return list;
+    const list = Array.isArray(varietiesList) && varietiesList.length > 0 ? varietiesList : DEFAULT_SYSTEM_VARIETIES;
+    return list.map((v) => ({
+      id: Number(v.id || v.varietyId),
+      varietyId: Number(v.id || v.varietyId),
+      name: v.name || v.varietyName,
+      cropId: v.cropId,
+      cropName: v.cropName || 'Rau sạch',
+      growthDuration: Number(v.growthDuration) || 45,
+      expectedYield: v.expectedYield || '4.0 kg/m²'
+    }));
   }, [varietiesList]);
 
   const activeCompatPlot = useMemo(() => {
@@ -1297,7 +1135,7 @@ export default function ExpertDashboard() {
       const vIds = (activeCompatPlot.compatibleVarieties || []).map((v) => Number(v.varietyId || v.id));
       setSelectedCompatVarietyIds(vIds);
     }
-  }, [activeCompatPlot?.plotId]);
+  }, [activeCompatPlot?.plotId, activeCompatPlot?.compatibleVarieties]);
 
   const handleToggleVariety = (varietyId) => {
     const vid = Number(varietyId);
