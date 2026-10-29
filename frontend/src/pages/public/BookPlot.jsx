@@ -32,7 +32,6 @@ import {
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
 import { chatService } from '../../api/communication/chatService';
-import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import {
   loadLeaseConfigMap,
   saveLeaseConfigMap,
@@ -681,22 +680,8 @@ export default function BookPlot() {
   const primaryPlot = selectedPlots[0] || allPlots[0] || {};
   const plotCodesList = selectedPlots.map((p) => p.code).join(', ');
   const plotCodesSummary = selectedPlots.map((p) => p.code).join('-');
-  const primaryCrop = getPlotSelectedCrop(primaryPlot);
-
   const syncRentalToChat = () => {
-    if (!user) return;
-    const demoProfile = DEMO_CUSTOMERS.find(
-      (customer) => customer.email?.toLowerCase() === user.email?.toLowerCase()
-    );
-    const safeKey = user.email?.replace(/[^a-zA-Z0-9]/g, '_') || user.id || 'customer';
-    chatService.updateRentalContext({
-      threadId: demoProfile?.threadId || `CONS-${safeKey}`,
-      customerName: user.fullName,
-      customerAvatar: user.avatar,
-      plotCode: plotCodesList,
-      plotName: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`,
-      crop: primaryCrop?.variety || primaryPlot.compatibleCrops?.[0] || 'Cây trồng tiêu chuẩn'
-    });
+    if (user?.userId) chatService.syncBackendMessages(user.userId, 'customer').catch(() => {});
   };
 
   // Cộng thời gian ân hạn 10 phút khi vào bước thanh toán

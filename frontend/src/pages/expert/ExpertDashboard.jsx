@@ -7,7 +7,7 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
-import { getSafeAvatar } from '../../api/communication/chatStorage';
+import { getSafeAvatar } from '../../api/communication/chatAvatars';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import {
   Sprout,
@@ -79,7 +79,7 @@ export default function ExpertDashboard() {
     refreshThreads
   } = useRealtimeChat({
     role: 'expert',
-    initialThreadId: 'CONS-401',
+    initialThreadId: null,
     senderName: expertSenderName
   });
   const [chatSearchQuery, setChatSearchQuery] = useState('');
@@ -158,7 +158,7 @@ export default function ExpertDashboard() {
   };
 
   // Handle send message in Messenger chat
-  const handleSendCustomerMessage = (e) => {
+  const handleSendCustomerMessage = async (e) => {
     if (e) e.preventDefault();
     if (!chatInputText.trim()) return;
 
@@ -166,8 +166,8 @@ export default function ExpertDashboard() {
       ? user.fullName
       : (activeRealtimeThread?.expertName || expertSenderName);
 
-    sendExpertMessage(chatInputText.trim(), currentExpert);
-    setChatInputText('');
+    if (await sendExpertMessage(chatInputText.trim(), currentExpert)) setChatInputText('');
+    else setDataError('Không thể gửi tin nhắn. Vui lòng thử lại.');
     setTimeout(() => {
       if (chatContainerRef.current) {
         chatContainerRef.current.scrollTo({
@@ -203,13 +203,7 @@ export default function ExpertDashboard() {
   const [assignedPlots, setAssignedPlots] = useState([]);
 
   // Quản lý Yêu cầu Thu hoạch & Thẩm định VietGAP (PHI Check)
-  const [harvestRequests, setHarvestRequests] = useState(() => {
-    try {
-      const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || 'null');
-      if (Array.isArray(shared) && shared.length > 0) return shared;
-    } catch {}
-    return [];
-  });
+  const [harvestRequests, setHarvestRequests] = useState([]);
   const [harvestFilter, setHarvestFilter] = useState('ALL');
   const [harvestSuccessToast, setHarvestSuccessToast] = useState('');
   const [postponeModalReq, setPostponeModalReq] = useState(null);
@@ -231,82 +225,41 @@ export default function ExpertDashboard() {
       .catch((err) => console.warn('Could not fetch live rentals:', err));
   };
 
+  const loadHarvestRequests = async () => {
+    if (!user?.userId) return;
+    const rows = unwrapData(await apiFetch(`/api/harvest-requests?expertId=${user.userId}`)) || [];
+    setHarvestRequests(rows.map((row) => ({ ...row, id: row.requestId,
+      requestedDate: row.date, methodLabel: row.method, phone: row.phone || '',
+      expectedYield: row.yieldAmount ? `${row.yieldAmount} kg` : '',
+      phiDays: 0, phiStandardDays: 0 })));
+  };
   useEffect(() => {
-    const handleHarvestSync = () => {
-      try {
-        const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || 'null');
-        if (Array.isArray(shared) && shared.length > 0) {
-          setHarvestRequests(shared);
-        }
-      } catch {}
-    };
-
-    let harvestBc = null;
-    try {
-      if (typeof window !== 'undefined' && window.BroadcastChannel) {
-        harvestBc = new BroadcastChannel('farmely_harvest_sync');
-        harvestBc.onmessage = handleHarvestSync;
-      }
-    } catch {}
-
-    window.addEventListener('storage', handleHarvestSync);
-    return () => {
-      if (harvestBc) try { harvestBc.close(); } catch {}
-      window.removeEventListener('storage', handleHarvestSync);
-    };
-  }, []);
+    loadHarvestRequests().catch((error) => console.warn('Cannot load harvest requests:', error));
+    const timer = setInterval(() => loadHarvestRequests().catch(() => {}), 10000);
+    return () => clearInterval(timer);
+  }, [user?.userId]);
 
   const pendingHarvestCount = harvestRequests.filter(r => r.status === 'PENDING' || r.status === 'PENDING_CONFIRM').length;
 
-  const handleApproveHarvest = (reqId) => {
-    setHarvestRequests((prev) => {
-      const next = prev.map((item) => {
-        if (item.id === reqId) {
-          return {
-            ...item,
-            status: 'APPROVED',
-            approvedAt: new Date().toISOString(),
-            approvedBy: expertSenderName,
-            workerName: item.workerName || 'Trần Văn Lực (CVLĐ)'
-          };
-        }
-        return item;
+  const handleApproveHarvest = async (reqId) => {
+    try {
+      await apiFetch(`/api/harvest-requests/${reqId}/approve`, {
+        method: 'POST', body: JSON.stringify({ actorId: Number(user?.userId) })
       });
-      try {
-        localStorage.setItem('farmely_shared_harvest_plans', JSON.stringify(next));
-        const bc = new BroadcastChannel('farmely_harvest_sync');
-        bc.postMessage({ type: 'HARVEST_PLAN_UPDATED' });
-        bc.close();
-      } catch {}
-      return next;
-    });
+      await loadHarvestRequests();
+    } catch (error) { setDataError(error.message || 'Không thể duyệt yêu cầu.'); return; }
     setHarvestSuccessToast('Đã phê duyệt lệnh thu hoạch đạt chuẩn VietGAP! Lệnh điều phối đã chuyển sang ca trực của CVLĐ.');
     setTimeout(() => setHarvestSuccessToast(''), 4500);
   };
 
-  const handleConfirmPostpone = () => {
+  const handleConfirmPostpone = async () => {
     if (!postponeModalReq) return;
-    setHarvestRequests((prev) => {
-      const next = prev.map((item) => {
-        if (item.id === postponeModalReq.id) {
-          return {
-            ...item,
-            status: 'POSTPONED',
-            postponeReason: postponeReason.trim(),
-            postponedAt: new Date().toISOString(),
-            postponedBy: expertSenderName
-          };
-        }
-        return item;
+    try {
+      await apiFetch(`/api/harvest-requests/${postponeModalReq.id}/postpone`, {
+        method: 'POST', body: JSON.stringify({ actorId: Number(user?.userId), reason: postponeReason.trim() })
       });
-      try {
-        localStorage.setItem('farmely_shared_harvest_plans', JSON.stringify(next));
-        const bc = new BroadcastChannel('farmely_harvest_sync');
-        bc.postMessage({ type: 'HARVEST_PLAN_UPDATED' });
-        bc.close();
-      } catch {}
-      return next;
-    });
+      await loadHarvestRequests();
+    } catch (error) { setDataError(error.message || 'Không thể hoãn yêu cầu.'); return; }
     setPostponeModalReq(null);
     setHarvestSuccessToast('Đã ban hành yêu cầu hoãn hái và hướng dẫn cách ly cho khách hàng.');
     setTimeout(() => setHarvestSuccessToast(''), 4500);

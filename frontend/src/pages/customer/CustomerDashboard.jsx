@@ -19,7 +19,6 @@ import CustomerContractCenter from '../../components/customer/CustomerContractCe
 import CustomerMobileNav from '../../components/customer/CustomerMobileNav';
 import CustomerWelcomeLounge from '../../components/customer/CustomerWelcomeLounge';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
-import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import { useSensorStream } from '../../api/monitoring/useSensorStream';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import { resolveStandardCropProcess } from '../../services/cropStandardProcess';
@@ -109,75 +108,14 @@ export default function CustomerDashboard() {
   const [iotReturnPlotId, setIotReturnPlotId] = useState(null);
   const [showExpertChatModal, setShowExpertChatModal] = useState(false);
 
-  // Chat Communication & Identity Resolution:
-  // Detect if current logged-in user is a custom registered user (not the default demo USR-001)
-  const isCustomUser = Boolean(
-    user &&
-    user.id !== 'USR-001' &&
-    user.email !== 'customer@farmely.vn' &&
-    !DEMO_CUSTOMERS.some((c) => c.email && user.email && c.email.toLowerCase() === user.email.toLowerCase())
-  );
-
-  const customAccount = useMemo(() => {
-    if (!isCustomUser || !user) return null;
-    const safeKey = user.email
-      ? user.email.replace(/[^a-zA-Z0-9]/g, '_')
-      : (user.id ? String(user.id).replace(/[^a-zA-Z0-9]/g, '_') : 'custom_user');
-    return {
-      id: `CUST-${safeKey}`,
-      threadId: `CONS-${safeKey}`,
-      name: user.fullName || user.email?.split('@')[0] || 'Khách Hàng',
-      email: user.email,
-      phone: user.phone || '0901 888 999',
-      avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-      plotCode: 'P-01',
-      plotName: 'Thửa Canh Tác Của ' + (user.fullName || user.email?.split('@')[0] || 'Khách Hàng'),
-      crop: 'Rau củ VietGAP',
-      expertName: 'ThS. Nguyễn Hoàng Nam'
-    };
-  }, [user, isCustomUser]);
-
-  // Default thread for the active user account
-  const defaultUserThreadId = useMemo(() => {
-    if (customAccount) return customAccount.threadId;
-    if (user?.email) {
-      const match = DEMO_CUSTOMERS.find((c) => c.email && c.email.toLowerCase() === user.email.toLowerCase());
-      if (match) return match.threadId;
-    }
-    return DEMO_CUSTOMERS[0].threadId; // 'CONS-401' for Lô Thái Quyền (demo)
-  }, [customAccount, user?.email]);
-
-  const availableCustomerOptions = useMemo(() => {
-    if (customAccount) {
-      return [customAccount, ...DEMO_CUSTOMERS];
-    }
-    return DEMO_CUSTOMERS;
-  }, [customAccount]);
-
-  const [selectedCustomerThreadId, setSelectedCustomerThreadId] = useState(defaultUserThreadId);
-
-  // CRITICAL: Whenever user changes in auth store (login, logout, switch demo role in navbar):
-  // ALWAYS reset the chat thread to the current logged-in user's own thread!
-  useEffect(() => {
-    setSelectedCustomerThreadId(defaultUserThreadId);
-  }, [defaultUserThreadId]);
-
-  const currentCustomerProfile = useMemo(() => {
-    return (
-      availableCustomerOptions.find((c) => c.threadId === selectedCustomerThreadId) ||
-      availableCustomerOptions[0]
-    );
-  }, [availableCustomerOptions, selectedCustomerThreadId]);
-
-  // Sender name is strictly tied to the selected profile
-  const activeCustomerSenderName = currentCustomerProfile?.name || user?.fullName || 'Khách Hàng';
+  const activeCustomerSenderName = user?.fullName || 'Khách hàng';
 
   const {
     currentThread: customerChatThread,
     sendMessage: sendCustomerMessage
   } = useRealtimeChat({
     role: 'customer',
-    initialThreadId: selectedCustomerThreadId,
+    initialThreadId: null,
     senderName: activeCustomerSenderName
   });
 
@@ -190,12 +128,12 @@ export default function CustomerDashboard() {
     }
   }, [showExpertChatModal, customerChatThread?.messages]);
 
-  const handleSendCustomerChat = (e) => {
+  const handleSendCustomerChat = async (e) => {
     if (e) e.preventDefault();
     if (!customerChatInput.trim()) return;
 
-    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName);
-    setCustomerChatInput('');
+    if (await sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName)) setCustomerChatInput('');
+    else setDataError('Không thể gửi tin nhắn. Vui lòng thử lại.');
   };
 
   // IoT Section States
@@ -365,61 +303,30 @@ export default function CustomerDashboard() {
 
   // Kế hoạch thu hoạch theo từng thửa: { [plotId]: plan }
   const [harvestModalPlotId, setHarvestModalPlotId] = useState(null);
-  const harvestStorageKey = `farmely_harvest_plans_${user?.id || 'guest'}`;
-  const [harvestPlans, setHarvestPlans] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(harvestStorageKey) || '{}');
-      return saved && typeof saved === 'object' ? saved : {};
-    } catch {
-      return {};
-    }
-  });
+  const [harvestPlans, setHarvestPlans] = useState({});
+  const loadHarvestPlans = useCallback(async () => {
+    if (!user?.userId) return;
+    const rows = unwrapData(await apiFetch(`/api/harvest-requests?customerId=${user.userId}`)) || [];
+    const byPlot = {};
+    rows.filter((row) => row.status !== 'CANCELLED').forEach((row) => {
+      const methodLabels = {
+        FARM_PICKUP: 'Tôi đến nông trại nhận',
+        DELIVERY: 'Farmely thu hoạch & giao tận nhà',
+        FARMELY_PICK_DELIVER: 'Thuê Farmely thu hoạch & giao tận nhà'
+      };
+      const plan = { ...row, id: row.requestId, plotId: `PLOT-${row.plotCode}`,
+        methodLabel: methodLabels[row.method] || row.method, status: row.status };
+      byPlot[`PLOT-${row.plotCode}`] = plan;
+      byPlot[row.plotCode] = plan;
+    });
+    setHarvestPlans(byPlot);
+  }, [user?.userId]);
 
   useEffect(() => {
-    const handleSync = () => {
-      try {
-        const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
-        if (Array.isArray(shared) && shared.length > 0) {
-          setHarvestPlans((prev) => {
-            const next = { ...prev };
-            let changed = false;
-            shared.forEach((item) => {
-              const code = item.plotCode || item.plotId;
-              if (code && next[code]) {
-                if (next[code].status !== item.status) {
-                  next[code] = { ...next[code], status: item.status, approvedAt: item.approvedAt, approvedBy: item.approvedBy };
-                  changed = true;
-                }
-              }
-            });
-            return changed ? next : prev;
-          });
-        }
-      } catch {}
-    };
-
-    let bc = null;
-    try {
-      if (typeof window !== 'undefined' && window.BroadcastChannel) {
-        bc = new BroadcastChannel('farmely_harvest_sync');
-        bc.onmessage = handleSync;
-      }
-    } catch {}
-
-    window.addEventListener('storage', handleSync);
-    return () => {
-      if (bc) bc.close();
-      window.removeEventListener('storage', handleSync);
-    };
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(harvestStorageKey, JSON.stringify(harvestPlans));
-    } catch {
-      /* hết dung lượng / chế độ ẩn danh: bỏ qua, kế hoạch vẫn còn trong phiên */
-    }
-  }, [harvestPlans, harvestStorageKey]);
+    loadHarvestPlans().catch((error) => console.warn('Cannot load harvest requests:', error));
+    const timer = setInterval(() => loadHarvestPlans().catch(() => {}), 10000);
+    return () => clearInterval(timer);
+  }, [loadHarvestPlans]);
   const [showRenewContractModal, setShowRenewContractModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedContractForCancel, setSelectedContractForCancel] = useState(null);
@@ -1562,57 +1469,32 @@ export default function CustomerDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleConfirmHarvestPlan = (plan) => {
-    const targetKey = plan.plotCode || plan.plotId;
-    setHarvestPlans((prev) => ({ ...prev, [targetKey]: plan, [plan.plotId]: plan }));
+  const handleConfirmHarvestPlan = async (plan) => {
     try {
-      const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
-      const existingIdx = shared.findIndex(item => item.plotCode === (plan.plotCode || plan.plotId) || item.plotId === plan.plotId);
-      const newReq = {
-        id: existingIdx >= 0 ? shared[existingIdx].id : `HARV-REQ-${Date.now().toString().slice(-4)}`,
-        plotId: plan.plotId,
-        plotCode: plan.plotCode || plan.plotId,
-        plotName: plan.plotName || `Thửa ${plan.plotCode || plan.plotId}`,
-        crop: plan.crop || 'Cà chua bi đỏ F1',
-        renterName: user?.fullName || 'Lô Thái Quyền',
-        renterEmail: user?.email || 'customer@farmely.vn',
-        phone: plan.phone || user?.phone || '0901234567',
-        address: plan.address || '',
-        requestedDate: plan.date,
-        method: plan.method,
-        methodLabel: plan.methodLabel,
-        expectedYield: plan.expectedYield || 'Theo mùa vụ',
-        phiDays: 6,
-        phiStandardDays: 5,
-        status: 'PENDING',
-        notes: plan.notes || '',
-        createdAt: new Date().toISOString(),
-        workerName: 'Trần Văn Lực (CVLĐ)'
-      };
-      if (existingIdx >= 0) {
-        shared[existingIdx] = { ...shared[existingIdx], ...newReq };
-      } else {
-        shared.unshift(newReq);
-      }
-      localStorage.setItem('farmely_shared_harvest_plans', JSON.stringify(shared));
-      try {
-        const bc = new BroadcastChannel('farmely_harvest_sync');
-        bc.postMessage({ type: 'HARVEST_PLAN_UPDATED' });
-        bc.close();
-      } catch {}
+      const plot = customerPlots.find((item) => item.id === plan.plotId || item.plotCode === plan.plotId);
+      if (!plot?.rentalId) throw new Error('Thửa đất chưa có lượt thuê hợp lệ.');
+      await apiFetch('/api/harvest-requests', { method: 'POST', body: JSON.stringify({
+        rentalId: plot.rentalId, customerId: Number(user?.userId), date: plan.date,
+        method: plan.method, address: plan.address, phone: plan.phone, notes: plan.notes
+      }) });
+      await loadHarvestPlans();
+      setDataSuccess('Đã gửi yêu cầu thu hoạch đến nhân viên phụ trách.');
+      setHarvestModalPlotId(null);
     } catch (err) {
-      console.warn('Sync harvest plans error:', err);
+      setDataError(err.message || 'Không thể gửi yêu cầu thu hoạch.');
     }
-    setHarvestModalPlotId(null);
   };
 
-  const handleCancelHarvestPlan = (plotId) => {
-    setHarvestPlans((prev) => {
-      const next = { ...prev };
-      delete next[plotId];
-      return next;
-    });
-    setHarvestModalPlotId(null);
+  const handleCancelHarvestPlan = async (plotId) => {
+    const request = harvestPlans[plotId];
+    if (!request?.requestId) return;
+    try {
+      await apiFetch(`/api/harvest-requests/${request.requestId}/cancel`, {
+        method: 'POST', body: JSON.stringify({ actorId: Number(user?.userId) })
+      });
+      await loadHarvestPlans();
+      setHarvestModalPlotId(null);
+    } catch (error) { setDataError(error.message || 'Không thể hủy yêu cầu thu hoạch.'); }
   };
 
   useEffect(() => {
@@ -3343,6 +3225,7 @@ export default function CustomerDashboard() {
                       {harvestTargetPlots.map((plot) => {
                         const plan = harvestPlans[plot.id] || harvestPlans[plot.plotCode] || null;
                         const isApproved = plan?.status === 'APPROVED';
+                        const isCompleted = plan?.status === 'COMPLETED';
 
                         return (
                           <div
@@ -3365,7 +3248,9 @@ export default function CustomerDashboard() {
                                     ? 'bg-amber-100 text-amber-800 border-amber-300'
                                     : 'bg-stone-200 text-stone-600 border-stone-300'
                                 }`}>
-                                  {isApproved
+                                  {isCompleted
+                                    ? '✓ Đã thu hoạch thành công'
+                                    : isApproved
                                     ? '✓ Đã duyệt lịch · Sẵn sàng hái'
                                     : plan
                                     ? '⏳ Chờ kỹ sư xác nhận'
@@ -3410,6 +3295,7 @@ export default function CustomerDashboard() {
                             <div className="flex justify-end pt-1">
                               <Button
                                 size="sm"
+                                disabled={isCompleted}
                                 onClick={() => setHarvestModalPlotId(plot.id)}
                                 className={`text-xs font-bold gap-1.5 cursor-pointer ${
                                   plan
@@ -3418,7 +3304,7 @@ export default function CustomerDashboard() {
                                 }`}
                               >
                                 <Wheat className="w-4 h-4" />
-                                <span>{plan ? 'Xem / Sửa kế hoạch thu hoạch' : 'Đăng ký thu hoạch ngay'}</span>
+                                <span>{isCompleted ? 'Đã hoàn tất thu hoạch' : plan ? 'Xem / Sửa kế hoạch thu hoạch' : 'Đăng ký thu hoạch ngay'}</span>
                               </Button>
                             </div>
                           </div>

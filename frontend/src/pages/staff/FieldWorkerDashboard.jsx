@@ -276,6 +276,7 @@ export default function FieldWorkerDashboard() {
 
   // Harvest records loaded from the cultivation service.
   const [harvestTasks, setHarvestTasks] = useState([]);
+  const [harvestRequests, setHarvestRequests] = useState([]);
   const [selectedHarvestTask, setSelectedHarvestTask] = useState(null);
   const [harvestPhotos, setHarvestPhotos] = useState([]);
   const [harvestWeight, setHarvestWeight] = useState('');
@@ -360,12 +361,15 @@ export default function FieldWorkerDashboard() {
       }),
       apiFetch('/api/issues'),
       apiFetch('/api/harvest'),
+      apiFetch(`/api/harvest-requests?staffId=${effectiveWorkerId}`),
       apiFetch('/api/services/requests').catch(() => ({ data: [] }))
     ])
-      .then(([taskBody, issueBody, harvestBody, serviceBody]) => {
+      .then(([taskBody, issueBody, harvestBody, requestBody, serviceBody]) => {
         const taskData = unwrapData(taskBody) || [];
         const issueData = unwrapData(issueBody) || [];
         const harvestData = unwrapData(harvestBody) || [];
+        const harvestRequestData = unwrapData(requestBody) || [];
+        setHarvestRequests(harvestRequestData);
         const rawServices = unwrapData(serviceBody) || [];
 
         setTasks(taskData.map((task) => ({
@@ -853,15 +857,16 @@ export default function FieldWorkerDashboard() {
     }
     let saved;
     try {
-      saved = unwrapData(await apiFetch('/api/harvest', {
+      saved = unwrapData(await apiFetch(selectedHarvestTask.requestId
+        ? `/api/harvest-requests/${selectedHarvestTask.requestId}/complete`
+        : '/api/harvest', {
         method: 'POST',
-        body: JSON.stringify({
-          rentalId: selectedHarvestTask.rentalId,
-          enteredBy,
+        body: JSON.stringify(selectedHarvestTask.requestId ? {
+          actorId: enteredBy, yieldAmount: parsedWeight, evidenceImageUrl: harvestPhotos[0]
+        } : {
+          rentalId: selectedHarvestTask.rentalId, enteredBy,
           harvestDate: new Date().toISOString().slice(0, 10),
-          yieldAmount: parsedWeight,
-          evidenceImageUrl: harvestPhotos[0],
-          deliveryType: 'PICKUP'
+          yieldAmount: parsedWeight, evidenceImageUrl: harvestPhotos[0], deliveryType: 'PICKUP'
         })
       })) || {};
     } catch (error) {
@@ -884,27 +889,7 @@ export default function FieldWorkerDashboard() {
       setTasks((prev) => prev.map((task) => task.id === selectedHarvestTask.sourceTaskId ? { ...task, status: 'COMPLETED', completedAt: completedHarvest.verifiedAt } : task));
     }
 
-    try {
-      const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
-      const code = selectedHarvestTask.plotCode;
-      const updated = shared.map((item) => {
-        if (item.plotCode === code || item.plotId === selectedHarvestTask.rentalId) {
-          return {
-            ...item,
-            status: 'COMPLETED',
-            actualYield: `${parsedWeight.toFixed(2)} kg`,
-            evidenceImageUrl: saved.evidenceImageUrl || harvestPhotos[0],
-            completedAt: new Date().toISOString(),
-            workerName: user?.fullName || 'Trần Văn Lực (CVLĐ)'
-          };
-        }
-        return item;
-      });
-      localStorage.setItem('farmely_shared_harvest_plans', JSON.stringify(updated));
-      const bc = new BroadcastChannel('farmely_harvest_sync');
-      bc.postMessage({ type: 'HARVEST_COMPLETED' });
-      bc.close();
-    } catch {}
+    loadTasksAndData();
 
     setSelectedHarvestTask(completedHarvest);
     setHarvestPhotos([]);
@@ -1062,35 +1047,21 @@ export default function FieldWorkerDashboard() {
       };
     });
   const candidateRentalIds = new Set(harvestTaskCandidates.map((item) => item.rentalId).filter(Boolean));
-  const candidatePlotCodes = new Set(harvestTaskCandidates.map((item) => item.plotCode).filter(Boolean));
-
-  let sharedApprovedHarvests = [];
-  try {
-    const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
-    if (Array.isArray(shared)) {
-      sharedApprovedHarvests = shared
-        .filter((item) => item.status === 'APPROVED' && !candidatePlotCodes.has(item.plotCode))
-        .map((item) => ({
-          id: `SHARED-${item.id}`,
-          sourceTaskId: null,
-          apiTaskId: null,
-          rentalId: item.rentalId || 1,
-          plotCode: item.plotCode,
-          plotName: item.plotName || `Thửa ${item.plotCode}`,
-          crop: item.crop || 'Rau củ chuẩn VietGAP',
-          customerName: item.renterName || 'Khách hàng Farmely',
-          expectedYield: item.expectedYield || 'Theo kết quả cân thực tế',
-          status: 'READY_TO_HARVEST',
-          actualWeight: '',
-          deadline: item.requestedDate || 'Hôm nay'
-        }));
-    }
-  } catch {}
+  const requestedHarvests = harvestRequests.filter((item) => item.status !== 'CANCELLED' && item.status !== 'POSTPONED').map((item) => ({
+    id: `REQUEST-${item.requestId}`, requestId: item.requestId,
+    rentalId: item.rentalId, plotCode: item.plotCode, plotName: item.plotName,
+    crop: item.crop, customerName: item.renterName,
+    expectedYield: 'Theo kết quả cân thực tế',
+    status: item.status === 'COMPLETED' ? 'COMPLETED' : 'READY_TO_HARVEST',
+    actualWeight: item.yieldAmount ? `${item.yieldAmount} kg` : '',
+    photoUrl: item.evidenceImageUrl || '', deadline: item.requestedDate
+  }));
 
   const harvestWorkItems = [
-    ...harvestTaskCandidates,
-    ...sharedApprovedHarvests,
-    ...harvestTasks.filter((item) => !candidateRentalIds.has(item.rentalId))
+    ...requestedHarvests.filter((item) => item.status !== 'COMPLETED'),
+    ...harvestTaskCandidates.filter((item) => !requestedHarvests.some((request) => request.rentalId === item.rentalId)),
+    ...harvestTasks.filter((item) => !candidateRentalIds.has(item.rentalId)),
+    ...requestedHarvests.filter((item) => item.status === 'COMPLETED')
   ];
 
   useEffect(() => {
@@ -1099,7 +1070,7 @@ export default function FieldWorkerDashboard() {
       return;
     }
     setSelectedHarvestTask((current) => harvestWorkItems.find((item) => item.id === current?.id) || harvestWorkItems.find((item) => item.status !== 'COMPLETED') || harvestWorkItems[0]);
-  }, [tasks, harvestTasks]);
+  }, [tasks, harvestTasks, harvestRequests]);
 
   return (
     <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">

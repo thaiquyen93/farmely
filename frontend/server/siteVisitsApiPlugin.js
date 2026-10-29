@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import pg from 'pg';
 const { Pool } = pg;
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
+import { handleHarvestRequests } from './harvestRequestsApi.js';
 
 let rentalLeaseColumnsEnsured = false;
 async function ensureRentalLeaseColumns() {
@@ -409,6 +410,10 @@ JOIN plots p ON ins.plot_id = p.plot_id;
 
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
+        if (url.startsWith('/api/harvest-requests')) {
+          await handleHarvestRequests(req, res, getPgPool());
+          return;
+        }
 
         // 0. GET /api/db/status (Health check & statistics)
         if (req.method === 'GET' && url === '/api/db/status') {
@@ -4879,6 +4884,44 @@ SELECT json_build_object(
         }
 
         // 19c. CONVERSATIONS & MESSAGES API (GET, POST /api/conversations & /api/v1/conversations)
+        if (req.method === 'POST' && (url === '/api/conversations' || url === '/api/v1/conversations')) {
+          let body = '';
+          req.on('data', (chunk) => { body += chunk; });
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const participantOne = Number(payload.participantOne);
+              const type = payload.type === 'STAFF_EXP' ? 'STAFF_EXP' : 'CUST_EXP';
+              if (!Number.isInteger(participantOne) || participantOne < 1) throw new Error('Người gửi không hợp lệ.');
+              const pool = getPgPool();
+              const participant = await pool.query('SELECT user_id FROM users WHERE user_id = $1', [participantOne]);
+              if (!participant.rows.length) throw new Error('Không tìm thấy người dùng.');
+              const expert = await pool.query(`SELECT COALESCE(
+                  (SELECT expert_id FROM rentals r JOIN contracts c ON c.contract_id = r.contract_id
+                    WHERE c.renter_id = $1 AND r.expert_id IS NOT NULL AND r.status = 'ACTIVE'
+                    ORDER BY r.rental_id DESC LIMIT 1),
+                  (SELECT u.user_id FROM users u JOIN roles ro ON ro.role_id = u.role_id
+                    WHERE ro.role_name = 'EXPERT' ORDER BY u.user_id LIMIT 1)) AS id`, [participantOne]);
+              if (!expert.rows[0]?.id) throw new Error('Chưa có chuyên gia để nhận hội thoại.');
+              const existing = await pool.query(`SELECT conversation_id FROM conversations
+                WHERE participant_one = $1 AND participant_two = $2 AND type = $3 AND status = 'OPEN'
+                ORDER BY conversation_id DESC LIMIT 1`, [participantOne, expert.rows[0].id, type]);
+              let conversationId = existing.rows[0]?.conversation_id;
+              if (!conversationId) {
+                const created = await pool.query(`INSERT INTO conversations
+                  (participant_one, participant_two, type, status) VALUES ($1, $2, $3, 'OPEN') RETURNING conversation_id`,
+                  [participantOne, expert.rows[0].id, type]);
+                conversationId = created.rows[0].conversation_id;
+              }
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, data: { conversationId } }));
+            } catch (error) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, message: error.message }));
+            }
+          });
+          return;
+        }
         if (req.method === 'GET' && (url === '/api/conversations' || url === '/api/v1/conversations' || url.startsWith('/api/conversations?') || url.startsWith('/api/v1/conversations?'))) {
           try {
             const urlObj = new URL(url, 'http://localhost:3000');
@@ -4904,9 +4947,9 @@ SELECT json_build_object(
         c.status,
         c.rental_id AS "rentalId",
         c.plot_id AS "plotId",
-        COALESCE(p.plot_code, 'P-01') AS "plotCode",
-        'Thửa ' || COALESCE(p.plot_code, 'P-01') AS "plotName",
-        COALESCE(v.variety_name, 'Rau củ chuẩn VietGAP') AS crop,
+        COALESCE(p.plot_code, '') AS "plotCode",
+        CASE WHEN p.plot_code IS NOT NULL THEN 'Thửa ' || p.plot_code ELSE '' END AS "plotName",
+        COALESCE(v.variety_name, '') AS crop,
         c.participant_one AS "participantOneId",
         u1.full_name AS "customerName",
         COALESCE(u1.email, '') AS "customerEmail",
@@ -5010,18 +5053,22 @@ SELECT json_build_object(
             req.on('end', async () => {
               try {
                 const payload = JSON.parse(body || '{}');
-                const senderId = parseInt(payload.senderId || payload.sender_id || 5, 10);
-                const content = (payload.content || payload.text || '').replace(/'/g, "''");
-                const attachmentUrl = (payload.attachmentUrl || payload.photoUrl || '').replace(/'/g, "''");
-
-                const sql = `
-INSERT INTO messages (conversation_id, sender_id, content, attachment_url, created_at)
-VALUES (${convId}, ${senderId}, '${content}', ${attachmentUrl ? `'${attachmentUrl}'` : 'NULL'}, NOW())
-RETURNING message_id, conversation_id, sender_id, content, created_at;
-`;
-                const result = await runPostgreSql(sql);
+                const senderId = Number(payload.senderId || payload.sender_id);
+                const content = String(payload.content || payload.text || '').trim();
+                const attachmentUrl = payload.attachmentUrl || payload.photoUrl || null;
+                if (!Number.isInteger(senderId) || !content) throw new Error('Tin nhắn không hợp lệ.');
+                const pool = getPgPool();
+                const result = await pool.query(`INSERT INTO messages
+                  (conversation_id, sender_id, content, attachment_url, created_at)
+                  SELECT c.conversation_id, $2, $3, $4, NOW() FROM conversations c
+                  WHERE c.conversation_id = $1 AND c.status = 'OPEN'
+                    AND $2 IN (c.participant_one, c.participant_two)
+                  RETURNING message_id AS "messageId", conversation_id AS "conversationId",
+                    sender_id AS "senderId", content, created_at AS "createdAt"`,
+                  [convId, senderId, content, attachmentUrl]);
+                if (!result.rows.length) throw new Error('Người gửi không thuộc hội thoại này.');
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.end(JSON.stringify({ success: true, message: 'Gửi tin nhắn thành công', data: result[0] }));
+                res.end(JSON.stringify({ success: true, message: 'Gửi tin nhắn thành công', data: result.rows[0] }));
               } catch (err) {
                 console.error('Error inserting message:', err);
                 res.statusCode = 500;

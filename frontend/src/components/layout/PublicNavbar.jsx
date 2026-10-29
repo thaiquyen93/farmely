@@ -96,6 +96,16 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
     }
   };
 
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== 'CUSTOMER' || !user?.userId) return;
+    const load = () => apiFetch(`/api/v1/notifications?userId=${user.userId}`)
+      .then((response) => setNotifications(unwrapData(response) || []))
+      .catch(() => {});
+    load();
+    const timer = setInterval(load, 10000);
+    return () => clearInterval(timer);
+  }, [isAuthenticated, user?.role, user?.userId]);
+
   const handleSaveProfile = async (event) => {
     event.preventDefault();
     setProfileErrorMsg('');
@@ -463,7 +473,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               <div className="relative">
                 <button type="button" onClick={toggleNotifications} className="relative flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10 hover:text-brand-yellow" aria-label="Thông báo">
                   <Bell className="h-4 w-4" />
-                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-[#294C3B] bg-orange-400" />
+                  {notifications.some((notice) => !notice.isRead) && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-[#294C3B] bg-orange-400" />}
                 </button>
                 {notificationOpen && (
                   <div className="absolute right-0 z-[70] mt-3 w-80 rounded-2xl border border-brand-border bg-white p-3 text-brand-dark shadow-elevated">

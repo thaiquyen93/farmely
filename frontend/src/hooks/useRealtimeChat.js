@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { chatService } from '../api/communication/chatService';
+import { useAuthStore } from '../stores/authStore';
 
 /**
  * Custom hook for real-time chat with cross-tab sync and backend persistence
@@ -9,35 +10,42 @@ import { chatService } from '../api/communication/chatService';
  * @param {string} [options.senderName]
  */
 export function useRealtimeChat({ role = 'customer', initialThreadId = null, senderName = '' } = {}) {
-  const [threads, setThreads] = useState(() => chatService.getThreads());
+  const userId = useAuthStore((state) => state.user?.userId);
+  const accountRole = useAuthStore((state) => state.user?.role);
+  const effectiveRole = accountRole === 'EXPERT' ? 'expert'
+    : ['STAFF', 'FIELD_WORKER'].includes(accountRole) ? 'worker' : role;
+  const [threads, setThreads] = useState(() => chatService.getThreads(userId));
+  const [chatError, setChatError] = useState('');
   const [selectedThreadId, setSelectedThreadId] = useState(initialThreadId);
   const [activeFilter, setActiveFilter] = useState('all');
 
   // Sync threads from storage
   const refreshThreads = useCallback(() => {
-    const latest = chatService.getThreads();
+    const latest = chatService.getThreads(userId);
     setThreads(latest);
-  }, []);
+  }, [userId]);
 
   // Sync backend messages on mount if available
   useEffect(() => {
-    if (typeof chatService.syncBackendMessages === 'function') {
-      chatService.syncBackendMessages().then(() => {
-        refreshThreads();
-      }).catch(() => {});
-    }
-  }, [refreshThreads]);
+    if (!userId) return;
+    const sync = () => chatService.syncBackendMessages(userId, effectiveRole)
+      .then(() => { refreshThreads(); setChatError(''); })
+      .catch((error) => setChatError(error.message || 'Không thể tải hội thoại.'));
+    sync();
+    const timer = setInterval(sync, 5000);
+    return () => clearInterval(timer);
+  }, [refreshThreads, userId, effectiveRole]);
 
   // Update selectedThreadId if initialThreadId changes
   useEffect(() => {
-    if (initialThreadId && initialThreadId !== selectedThreadId) {
+    if (initialThreadId && threads.some((thread) => thread.id === initialThreadId) && initialThreadId !== selectedThreadId) {
       setSelectedThreadId(initialThreadId);
     }
-  }, [initialThreadId]);
+  }, [initialThreadId, threads, selectedThreadId]);
 
   // Set default selectedThreadId if not set
   useEffect(() => {
-    if (!selectedThreadId && threads.length > 0) {
+    if ((!selectedThreadId || !threads.some((thread) => thread.id === selectedThreadId)) && threads.length > 0) {
       setSelectedThreadId(threads[0]?.id || null);
     }
   }, [selectedThreadId, threads]);
@@ -66,21 +74,22 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
   }, [threads, activeFilter]);
 
   // Send message
-  const sendMessage = useCallback((text, customSenderName = '', meta = {}) => {
-    if (!selectedThreadId || !text?.trim()) return null;
-
-    const actualSender = customSenderName || senderName;
-    const res = chatService.sendMessage({
-      threadId: selectedThreadId,
-      sender: role,
-      text: text.trim(),
-      senderName: actualSender,
-      meta
-    });
-
-    refreshThreads();
-    return res;
-  }, [selectedThreadId, role, senderName, refreshThreads]);
+  const sendMessage = useCallback(async (text, customSenderName = '', meta = {}) => {
+    const targetId = currentThread?.id;
+    if (!targetId || !text?.trim()) return null;
+    try {
+      const result = await chatService.sendMessage({
+        threadId: targetId, senderId: Number(userId), userId: Number(userId),
+        role: effectiveRole, text: text.trim(), senderName: customSenderName || senderName, meta
+      });
+      setChatError('');
+      refreshThreads();
+      return result;
+    } catch (error) {
+      setChatError(error.message || 'Không thể gửi tin nhắn.');
+      return null;
+    }
+  }, [currentThread?.id, userId, effectiveRole, senderName, refreshThreads]);
 
   // Mark thread unread as false (for inbox list)
   const markAsRead = useCallback((threadIdToMark) => {
@@ -101,6 +110,7 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
     setActiveFilter,
     sendMessage,
     markAsRead,
-    refreshThreads
+    refreshThreads,
+    chatError
   };
 }

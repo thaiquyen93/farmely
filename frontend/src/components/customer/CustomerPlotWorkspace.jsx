@@ -2380,7 +2380,7 @@ function HarvestTab({ plot, harvestPlan, onOpenHarvest, cropProcess }) {
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <Card className="p-5">
-        <SectionTitle eyebrow="Dự kiến thu hoạch" title={daysLeft > 0 ? `Còn ${daysLeft} ngày nữa` : 'Đã đến mùa thu hoạch'} />
+        <SectionTitle eyebrow="Dự kiến thu hoạch" title={harvestPlan?.status === 'COMPLETED' ? 'Đã thu hoạch' : daysLeft > 0 ? `Còn ${daysLeft} ngày nữa` : 'Đã đến mùa thu hoạch'} />
         <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
           <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Ngày thu hoạch</dt><dd className="font-semibold text-[#18352b]">{plot.expectedHarvestDate || 'Sau 19 ngày'}</dd></div>
           <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Sản lượng tiêu chuẩn</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.expectedYield || plot.expectedYield}</dd></div>
@@ -2389,14 +2389,18 @@ function HarvestTab({ plot, harvestPlan, onOpenHarvest, cropProcess }) {
         </dl>
       </Card>
       <Card className="flex flex-col p-5">
-        <SectionTitle eyebrow="Kế hoạch của bạn" title={harvestPlan ? 'Đã đăng ký thu hoạch' : 'Chưa đăng ký'} />
+        <SectionTitle eyebrow="Kế hoạch của bạn" title={harvestPlan?.status === 'COMPLETED' ? 'Thu hoạch thành công' : harvestPlan ? 'Đã đăng ký thu hoạch' : 'Chưa đăng ký'} />
         {harvestPlan ? (
           <div className="mt-4 space-y-2 text-sm">
             <p className="flex items-center gap-2 text-[#18352b]"><CalendarCheck className="h-4 w-4 text-emerald-700" />Ngày hái: <strong>{planDate}</strong></p>
             <p className="flex items-center gap-2 text-[#18352b]"><Truck className="h-4 w-4 text-emerald-700" />{harvestPlan.methodLabel}</p>
             {harvestPlan.address && <p className="flex items-start gap-2 text-stone-600"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />{harvestPlan.address}</p>}
-            {harvestPlan.status === 'APPROVED' ? (
+            {harvestPlan.status === 'COMPLETED' ? (
+              <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã thu hoạch thành công{harvestPlan.yieldAmount ? ` · ${harvestPlan.yieldAmount} kg` : ''}</p>
+            ) : harvestPlan.status === 'APPROVED' ? (
               <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã duyệt lịch hái · Đang điều phối thu hoạch</p>
+            ) : harvestPlan.status === 'POSTPONED' ? (
+              <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Đã hoãn lịch thu hoạch</p>
             ) : (
               <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ kỹ sư xác nhận</p>
             )}
@@ -2404,11 +2408,11 @@ function HarvestTab({ plot, harvestPlan, onOpenHarvest, cropProcess }) {
         ) : (
           <p className="mt-4 text-sm text-stone-600">Chọn ngày và phương thức nhận nông sản. Farmely sẽ nhắc bạn trước 3 ngày.</p>
         )}
-        <button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5">
+        {harvestPlan?.status !== 'COMPLETED' && <button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5">
           <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800">
             <Wheat className="h-4 w-4" />{harvestPlan ? 'Sửa kế hoạch thu hoạch' : 'Đăng ký thu hoạch'}
           </span>
-        </button>
+        </button>}
       </Card>
     </div>
   );
