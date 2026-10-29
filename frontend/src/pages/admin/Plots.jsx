@@ -6,7 +6,7 @@ import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { Plus, Edit, Trash2, Loader2, PenLine, Map } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export default function Plots() {
   const [plots, setPlots] = useState([]);
@@ -14,6 +14,25 @@ export default function Plots() {
   const [loadError, setLoadError] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
+
+  const handleTogglePublish = async (plotId, currentPublished) => {
+    setTogglingId(plotId);
+    try {
+      const res = await fetch(`/api/plots/${plotId}/publish`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublished: !currentPublished })
+      });
+      if (res.ok) {
+        setPlots((prev) => prev.map((p) => p.id === plotId ? { ...p, isPublished: !currentPublished } : p));
+      }
+    } catch (e) {
+      console.warn('Lỗi cập nhật publish thửa đất:', e);
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -71,7 +90,31 @@ export default function Plots() {
             <span className="text-[11px] font-black font-mono text-brand-yellow bg-brand-dark px-1.5 py-0.5 rounded">
               {row.code}
             </span>
-            <span className="block text-xs text-stone-500 mt-0.5">{row.isPublished ? 'Đang niêm yết Marketplace' : 'Chưa niêm yết'}</span>
+            <div className="mt-1">
+              {row.isPublished ? (
+                <button
+                  type="button"
+                  disabled={togglingId === row.id}
+                  onClick={() => handleTogglePublish(row.id, row.isPublished)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition cursor-pointer"
+                  title="Thửa đất đang hiển thị công khai trên Marketplace. Bấm để gỡ niêm yết"
+                >
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  <span>Đang niêm yết (Gỡ)</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={togglingId === row.id}
+                  onClick={() => handleTogglePublish(row.id, row.isPublished)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black bg-[#294C3B] hover:bg-[#1f3a2d] text-white shadow-xs transition cursor-pointer"
+                  title="Bấm để duyệt và xuất bản thửa đất này lên Marketplace ngay lập tức"
+                >
+                  <Sparkles className="w-3 h-3 text-lime-300" />
+                  <span>BẤM ĐỂ PUBLISH LÊN SÀN</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )

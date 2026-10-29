@@ -7,7 +7,7 @@ import BoundaryDrawMap from '../../components/admin/BoundaryDrawMap';
 import { farmApi, PLOT_STATUS_OPTIONS } from '../../api/farm/farmApi';
 import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import { areaM2, cleanRing, formatArea, validateRing } from '../../utils/polygonGeometry';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, Lock, Save, Search, Sprout } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Globe, Loader2, Lock, Save, Search, Sparkles, Sprout } from 'lucide-react';
 
 export default function PlotForm() {
   const [searchParams] = useSearchParams();
@@ -214,10 +214,52 @@ export default function PlotForm() {
           <Input label="Ảnh đại diện (URL)" placeholder="https://…" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
         </div>
 
-        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-brand-dark">
-          <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} className="h-4 w-4 rounded border-brand-border text-brand-green focus:ring-brand-green" />
-          Niêm yết lên Marketplace
-        </label>
+        {/* Cấu hình Niêm Yết Marketplace */}
+        <div className={`p-4 rounded-xl border transition-all ${
+          isPublished 
+            ? 'bg-emerald-50/90 border-emerald-300 shadow-sm' 
+            : 'bg-stone-50 border-stone-200'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className={`mt-0.5 p-2 rounded-lg ${isPublished ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-600'}`}>
+                <Globe className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-stone-900">
+                    Trạng thái Niêm yết (Publish lên Marketplace)
+                  </span>
+                  {isPublished ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-300">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Đang hiển thị cho khách thuê
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full bg-stone-200 px-2.5 py-0.5 text-xs font-medium text-stone-700">
+                      Chưa niêm yết (Khách chưa thấy)
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-stone-600 mt-0.5">
+                  Khi bật & lưu, thửa đất này sẽ được đẩy lên Sàn giao dịch (Marketplace) để khách hàng có thể chọn thuê và chọn gói dịch vụ.
+                </p>
+              </div>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={isPublished}
+                onChange={(e) => setIsPublished(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-14 h-7 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-600"></div>
+              <span className="ml-3 text-sm font-bold text-stone-900">
+                {isPublished ? 'BẬT NIÊM YẾT' : 'TẮT NIÊM YẾT'}
+              </span>
+            </label>
+          </div>
+        </div>
 
         {/* SSoT BR03: Chọn Giống Cây Trồng Tương Thích Thổ Nhưỡng */}
         <section className="space-y-3 rounded-2xl border border-brand-border bg-stone-50/50 p-4 sm:p-5">

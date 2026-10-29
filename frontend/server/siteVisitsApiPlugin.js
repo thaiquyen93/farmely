@@ -3179,6 +3179,33 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
           return;
         }
 
+        // 11B. PATCH /api/plots/:id/publish (Toggle is_published: true/false)
+        if (req.method === 'PATCH' && (url.match(/^\/api\/plots\/(\d+)\/publish/) || url.match(/^\/api\/v1\/plots\/(\d+)\/publish/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/plots\/(\d+)\/publish/);
+          const plotId = parseInt(match[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const isPublished = payload.isPublished === true;
+              await runPostgreSql(`UPDATE plots SET is_published = ${isPublished}, updated_at = NOW() WHERE plot_id = ${plotId};`);
+              invalidatePlotsCache();
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: isPublished ? `Đã xuất bản (Publish) thửa đất #${plotId} lên Marketplace` : `Đã gỡ niêm yết thửa đất #${plotId} khỏi Marketplace`,
+                plotId,
+                isPublished
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: String(err) }));
+            }
+          });
+          return;
+        }
+
         // 12. CROPS API (GET, POST, PUT, DELETE)
         if (req.method === 'GET' && (url === '/api/crops' || url === '/api/v1/crops' || url.startsWith('/api/crops?') || url.startsWith('/api/v1/crops?'))) {
           try {

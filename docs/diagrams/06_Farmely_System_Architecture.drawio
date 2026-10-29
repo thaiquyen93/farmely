@@ -1,356 +1,298 @@
-<mxfile host="app.diagrams.net" modified="2026-10-29T09:21:45.240Z" agent="Antigravity" version="24.0.0" type="device">
+<mxfile host="app.diagrams.net" agent="Antigravity">
   <diagram id="farmely-system-design" name="System design">
-    <mxGraphModel dx="1200" dy="750" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1180" pageHeight="750" math="0" shadow="0">
+    <mxGraphModel dx="1311" dy="643" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1180" pageHeight="750" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-
-        <!-- TITLE -->
-        <mxCell id="title" value="System design" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=32;fontFamily=Georgia;fontColor=#1e293b;" vertex="1" parent="1">
-          <mxGeometry x="810" y="30" width="240" height="50" as="geometry" />
+        <mxCell id="node-fcm" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" value="&lt;b&gt;Notification&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Firebase cloud message)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="145" x="390" y="95" as="geometry" />
         </mxCell>
-
-        <!-- 1. NOTIFICATION (FIREBASE CLOUD MESSAGING) -->
-        <mxCell id="node-fcm" value="&lt;b&gt;Notification&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Firebase cloud message)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" vertex="1" parent="1">
-          <mxGeometry x="390" y="95" width="145" height="75" as="geometry" />
+        <mxCell id="icon-fcm" parent="node-fcm" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/firebase/firebase-plain.svg;" value="" vertex="1">
+          <mxGeometry height="25" width="25" x="60" y="10" as="geometry" />
         </mxCell>
-        <mxCell id="icon-fcm" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/firebase/firebase-plain.svg;" vertex="1" parent="node-fcm">
-          <mxGeometry x="60" y="10" width="25" height="25" as="geometry" />
+        <mxCell id="node-delivery" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;verticalAlign=bottom;spacingBottom=12;" value="&lt;b&gt;Third party delivery&lt;/b&gt;" vertex="1">
+          <mxGeometry height="70" width="125" x="595" y="35" as="geometry" />
         </mxCell>
-
-        <!-- 2. THIRD PARTY DELIVERY -->
-        <mxCell id="node-delivery" value="&lt;b&gt;Third party delivery&lt;/b&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;verticalAlign=bottom;spacingBottom=12;" vertex="1" parent="1">
-          <mxGeometry x="595" y="35" width="125" height="70" as="geometry" />
+        <mxCell id="icon-delivery" parent="node-delivery" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn-icons-png.flaticon.com/512/2830/2830305.png;" value="" vertex="1">
+          <mxGeometry height="25" width="25" x="50" y="10" as="geometry" />
         </mxCell>
-        <mxCell id="icon-delivery" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn-icons-png.flaticon.com/512/2830/2830305.png;" vertex="1" parent="node-delivery">
-          <mxGeometry x="50" y="10" width="25" height="25" as="geometry" />
+        <mxCell id="node-vnpay" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;align=center;verticalAlign=middle;" value="&lt;font color=&quot;#005baa&quot; style=&quot;font-size: 18px; font-weight: 900;&quot;&gt;VN&lt;/font&gt;&lt;font color=&quot;#e31837&quot; style=&quot;font-size: 18px; font-weight: 900;&quot;&gt;PAY&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 11px; color: #0f172a;&quot;&gt;VNPAY&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 9px; color: #475569;&quot;&gt;(Payment Gateway)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="75" width="145" x="390" y="235" as="geometry" />
         </mxCell>
-
-        <!-- 3. VNPAY (PAYMENT GATEWAY) -->
-        <mxCell id="node-vnpay" value="&lt;font color=&quot;#005baa&quot; style=&quot;font-size: 18px; font-weight: 900;&quot;&gt;VN&lt;/font&gt;&lt;font color=&quot;#e31837&quot; style=&quot;font-size: 18px; font-weight: 900;&quot;&gt;PAY&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 11px; color: #0f172a;&quot;&gt;VNPAY&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 9px; color: #475569;&quot;&gt;(Payment Gateway)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;align=center;verticalAlign=middle;" vertex="1" parent="1">
-          <mxGeometry x="390" y="235" width="145" height="75" as="geometry" />
+        <mxCell id="node-twilio" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;align=center;verticalAlign=middle;" value="&lt;font color=&quot;#f22f46&quot; style=&quot;font-size: 14px; font-weight: bold;&quot;&gt;twilio&lt;/font&gt;&lt;br&gt;&lt;b&gt;OTP&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Twilio / SMTP)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="135" x="60" y="390" as="geometry" />
         </mxCell>
-
-        <!-- 4. OTP (TWILIO / SMTP) -->
-        <mxCell id="node-twilio" value="&lt;font color=&quot;#f22f46&quot; style=&quot;font-size: 14px; font-weight: bold;&quot;&gt;twilio&lt;/font&gt;&lt;br&gt;&lt;b&gt;OTP&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Twilio / SMTP)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
-          <mxGeometry x="60" y="390" width="135" height="80" as="geometry" />
+        <mxCell id="node-mobile" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=12;" value="&lt;b&gt;Mobile Application&lt;/b&gt;" vertex="1">
+          <mxGeometry height="80" width="130" x="235" y="390" as="geometry" />
         </mxCell>
-
-        <!-- 5. MOBILE APPLICATION (FLUTTER / FIELD WORKER & CUSTOMER) -->
-        <mxCell id="node-mobile" value="&lt;b&gt;Mobile Application&lt;/b&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=12;" vertex="1" parent="1">
-          <mxGeometry x="235" y="390" width="130" height="80" as="geometry" />
+        <mxCell id="icon-flutter" parent="node-mobile" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/flutter/flutter-original.svg;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="50" y="10" as="geometry" />
         </mxCell>
-        <mxCell id="icon-flutter" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/flutter/flutter-original.svg;" vertex="1" parent="node-mobile">
-          <mxGeometry x="50" y="10" width="30" height="30" as="geometry" />
+        <mxCell id="node-web" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=12;" value="&lt;b&gt;Web Application&lt;/b&gt;" vertex="1">
+          <mxGeometry height="80" width="130" x="200" y="560" as="geometry" />
         </mxCell>
-
-        <!-- 6. WEB APPLICATION (REACT / TAILWINDCSS) -->
-        <mxCell id="node-web" value="&lt;b&gt;Web Application&lt;/b&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=12;" vertex="1" parent="1">
-          <mxGeometry x="200" y="560" width="130" height="80" as="geometry" />
+        <mxCell id="icon-react" parent="node-web" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="50" y="10" as="geometry" />
         </mxCell>
-        <mxCell id="icon-react" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg;" vertex="1" parent="node-web">
-          <mxGeometry x="50" y="10" width="30" height="30" as="geometry" />
+        <mxCell id="node-store" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" value="&lt;b&gt;Store&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Firebase cloud storage)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="155" x="450" y="565" as="geometry" />
         </mxCell>
-
-        <!-- 7. STORE (FIREBASE CLOUD STORAGE) -->
-        <mxCell id="node-store" value="&lt;b&gt;Store&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Firebase cloud storage)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" vertex="1" parent="1">
-          <mxGeometry x="450" y="565" width="155" height="80" as="geometry" />
+        <mxCell id="icon-store" parent="node-store" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/firebase/firebase-plain.svg;" value="" vertex="1">
+          <mxGeometry height="25" width="25" x="65" y="10" as="geometry" />
         </mxCell>
-        <mxCell id="icon-store" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/firebase/firebase-plain.svg;" vertex="1" parent="node-store">
-          <mxGeometry x="65" y="10" width="25" height="25" as="geometry" />
+        <mxCell id="node-backend" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" value="&lt;b&gt;Backend Server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Spring Boot)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="130" x="590" y="390" as="geometry" />
         </mxCell>
-
-        <!-- 8. BACKEND SERVER (SPRING BOOT) -->
-        <mxCell id="node-backend" value="&lt;b&gt;Backend Server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Spring Boot)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" vertex="1" parent="1">
-          <mxGeometry x="590" y="390" width="130" height="80" as="geometry" />
+        <mxCell id="icon-spring" parent="node-backend" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/spring/spring-original.svg;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="50" y="10" as="geometry" />
         </mxCell>
-        <mxCell id="icon-spring" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/spring/spring-original.svg;" vertex="1" parent="node-backend">
-          <mxGeometry x="50" y="10" width="30" height="30" as="geometry" />
+        <mxCell id="node-weather" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;align=center;verticalAlign=middle;" value="&lt;b&gt;Weather API&lt;/b&gt;&lt;br&gt;&lt;b&gt;OpenWeatherMap&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Weather &amp; Rain Forecast)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="175" x="785" y="260" as="geometry" />
         </mxCell>
-
-        <!-- 9. WEATHER API (OPENWEATHERMAP) -->
-        <mxCell id="node-weather" value="&lt;b&gt;Weather API&lt;/b&gt;&lt;br&gt;&lt;b&gt;OpenWeatherMap&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Weather &amp; Rain Forecast)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
-          <mxGeometry x="785" y="260" width="175" height="80" as="geometry" />
+        <mxCell id="node-db" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" value="&lt;b&gt;Database&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(PostgreSQL)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="115" x="805" y="390" as="geometry" />
         </mxCell>
-
-        <!-- 10. DATABASE (POSTGRESQL) -->
-        <mxCell id="node-db" value="&lt;b&gt;Database&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(PostgreSQL)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" vertex="1" parent="1">
-          <mxGeometry x="805" y="390" width="115" height="80" as="geometry" />
+        <mxCell id="icon-postgres" parent="node-db" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="42.5" y="10" as="geometry" />
         </mxCell>
-        <mxCell id="icon-postgres" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg;" vertex="1" parent="node-db">
-          <mxGeometry x="42.5" y="10" width="30" height="30" as="geometry" />
+        <mxCell id="legend-box" parent="1" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.2;dashed=1;dashPattern=3 3;align=center;verticalAlign=top;spacingTop=6;fontSize=11;" value="&lt;b&gt;Annotation&lt;/b&gt;" vertex="1">
+          <mxGeometry height="75" width="145" x="785" y="555" as="geometry" />
         </mxCell>
-
-        <!-- 11. ANNOTATION LEGEND -->
-        <mxCell id="legend-box" value="&lt;b&gt;Annotation&lt;/b&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.2;dashed=1;dashPattern=3 3;align=center;verticalAlign=top;spacingTop=6;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="785" y="555" width="145" height="75" as="geometry" />
-        </mxCell>
-        <mxCell id="legend-solid" value="Call/Send" style="endArrow=classic;html=1;strokeColor=#1e293b;strokeWidth=1.4;fontSize=10.5;align=left;labelPosition=right;verticalLabelPosition=middle;verticalAlign=middle;" edge="1" parent="legend-box">
-          <mxGeometry width="50" height="50" relative="1" as="geometry">
+        <mxCell id="legend-solid" edge="1" parent="legend-box" style="endArrow=classic;html=1;strokeColor=#1e293b;strokeWidth=1.4;fontSize=10.5;align=left;labelPosition=right;verticalLabelPosition=middle;verticalAlign=middle;" value="Call/Send">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
             <mxPoint x="18" y="38" as="sourcePoint" />
             <mxPoint x="62" y="38" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="legend-dashed" value="Return" style="endArrow=classic;html=1;strokeColor=#1e293b;strokeWidth=1.4;dashed=1;dashPattern=4 3;fontSize=10.5;align=left;labelPosition=right;verticalLabelPosition=middle;verticalAlign=middle;" edge="1" parent="legend-box">
-          <mxGeometry width="50" height="50" relative="1" as="geometry">
+        <mxCell id="legend-dashed" edge="1" parent="legend-box" style="endArrow=classic;html=1;strokeColor=#1e293b;strokeWidth=1.4;dashed=1;dashPattern=4 3;fontSize=10.5;align=left;labelPosition=right;verticalLabelPosition=middle;verticalAlign=middle;" value="Return">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
             <mxPoint x="18" y="58" as="sourcePoint" />
             <mxPoint x="62" y="58" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- ==================== ORTHOGONAL EDGES ==================== -->
-
-        <!-- Notification to Mobile via left border rail -->
-        <mxCell id="e-fcm-rail" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-fcm-rail" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="400" y="95" as="sourcePoint" />
-            <mxPoint x="60" y="430" as="targetPoint" />
             <Array as="points">
               <mxPoint x="400" y="45" />
               <mxPoint x="35" y="45" />
               <mxPoint x="35" y="430" />
             </Array>
+            <mxPoint x="400" y="95" as="sourcePoint" />
+            <mxPoint x="60" y="430" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-fcm-rail-web" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-fcm-rail-web" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="35" y="430" as="sourcePoint" />
-            <mxPoint x="200" y="600" as="targetPoint" />
             <Array as="points">
               <mxPoint x="35" y="600" />
             </Array>
+            <mxPoint x="35" y="430" as="sourcePoint" />
+            <mxPoint x="200" y="600" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Notification <-> Mobile App direct -->
-        <mxCell id="e-fcm-mob-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-fcm-mob-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="430" y="170" as="sourcePoint" />
-            <mxPoint x="320" y="390" as="targetPoint" />
             <Array as="points">
               <mxPoint x="430" y="360" />
               <mxPoint x="320" y="360" />
             </Array>
+            <mxPoint x="430" y="170" as="sourcePoint" />
+            <mxPoint x="320" y="390" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-fcm-mob-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-fcm-mob-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="335" y="390" as="sourcePoint" />
-            <mxPoint x="445" y="170" as="targetPoint" />
             <Array as="points">
               <mxPoint x="335" y="375" />
               <mxPoint x="445" y="375" />
             </Array>
+            <mxPoint x="335" y="390" as="sourcePoint" />
+            <mxPoint x="445" y="170" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Mobile <-> OTP (Twilio) -->
-        <mxCell id="e-mob-otp-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-mob-otp-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="235" y="420" as="sourcePoint" />
             <mxPoint x="195" y="420" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-mob-otp-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-mob-otp-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="195" y="440" as="sourcePoint" />
             <mxPoint x="235" y="440" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Mobile <-> VNPAY Sandbox -->
-        <mxCell id="e-mob-vnpay-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-mob-vnpay-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="290" y="390" as="sourcePoint" />
-            <mxPoint x="390" y="280" as="targetPoint" />
             <Array as="points">
               <mxPoint x="290" y="280" />
             </Array>
+            <mxPoint x="290" y="390" as="sourcePoint" />
+            <mxPoint x="390" y="280" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-mob-vnpay-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-mob-vnpay-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="390" y="260" as="sourcePoint" />
-            <mxPoint x="275" y="390" as="targetPoint" />
             <Array as="points">
               <mxPoint x="275" y="260" />
             </Array>
+            <mxPoint x="390" y="260" as="sourcePoint" />
+            <mxPoint x="275" y="390" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Mobile <-> Backend Server (Spring Boot) -->
-        <mxCell id="e-mob-be-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-mob-be-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="365" y="420" as="sourcePoint" />
             <mxPoint x="590" y="420" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-mob-be-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-mob-be-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="590" y="440" as="sourcePoint" />
             <mxPoint x="365" y="440" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Mobile <-> Store (Firebase Storage) -->
-        <mxCell id="e-mob-store-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-mob-store-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="365" y="460" as="sourcePoint" />
             <mxPoint x="450" y="565" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-mob-store-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-mob-store-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="465" y="565" as="sourcePoint" />
             <mxPoint x="365" y="445" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Web <-> Store (Firebase Storage) -->
-        <mxCell id="e-web-store-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-web-store-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="330" y="585" as="sourcePoint" />
             <mxPoint x="450" y="585" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-web-store-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-web-store-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="450" y="605" as="sourcePoint" />
             <mxPoint x="330" y="605" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Web <-> Backend Server (Spring Boot) -->
-        <mxCell id="e-web-be-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-web-be-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="270" y="560" as="sourcePoint" />
-            <mxPoint x="640" y="470" as="targetPoint" />
             <Array as="points">
               <mxPoint x="270" y="520" />
               <mxPoint x="640" y="520" />
             </Array>
+            <mxPoint x="270" y="560" as="sourcePoint" />
+            <mxPoint x="640" y="470" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-web-be-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-web-be-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="660" y="470" as="sourcePoint" />
-            <mxPoint x="290" y="560" as="targetPoint" />
             <Array as="points">
               <mxPoint x="660" y="535" />
               <mxPoint x="290" y="535" />
             </Array>
+            <mxPoint x="660" y="470" as="sourcePoint" />
+            <mxPoint x="290" y="560" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Backend <-> Store (Firebase Storage) -->
-        <mxCell id="e-be-store-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-store-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="610" y="470" as="sourcePoint" />
             <mxPoint x="610" y="565" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-be-store-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-store-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="625" y="565" as="sourcePoint" />
             <mxPoint x="625" y="470" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Backend <-> Database (PostgreSQL) -->
-        <mxCell id="e-be-db-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-db-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="720" y="420" as="sourcePoint" />
             <mxPoint x="805" y="420" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-be-db-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-db-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="805" y="440" as="sourcePoint" />
             <mxPoint x="720" y="440" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Backend <-> VNPAY Sandbox -->
-        <mxCell id="e-be-vnpay-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-vnpay-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="610" y="390" as="sourcePoint" />
-            <mxPoint x="535" y="280" as="targetPoint" />
             <Array as="points">
               <mxPoint x="610" y="280" />
             </Array>
+            <mxPoint x="610" y="390" as="sourcePoint" />
+            <mxPoint x="535" y="280" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-be-vnpay-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-vnpay-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="535" y="260" as="sourcePoint" />
-            <mxPoint x="625" y="390" as="targetPoint" />
             <Array as="points">
               <mxPoint x="625" y="260" />
             </Array>
+            <mxPoint x="535" y="260" as="sourcePoint" />
+            <mxPoint x="625" y="390" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Backend <-> Notification (FCM) -->
-        <mxCell id="e-be-fcm-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-fcm-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="590" y="405" as="sourcePoint" />
-            <mxPoint x="535" y="140" as="targetPoint" />
             <Array as="points">
               <mxPoint x="565" y="405" />
               <mxPoint x="565" y="140" />
             </Array>
+            <mxPoint x="590" y="405" as="sourcePoint" />
+            <mxPoint x="535" y="140" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-be-fcm-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-fcm-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="535" y="120" as="sourcePoint" />
-            <mxPoint x="580" y="390" as="targetPoint" />
             <Array as="points">
               <mxPoint x="580" y="120" />
             </Array>
+            <mxPoint x="535" y="120" as="sourcePoint" />
+            <mxPoint x="580" y="390" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Backend <-> Third party delivery -->
-        <mxCell id="e-be-del-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-del-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="645" y="390" as="sourcePoint" />
-            <mxPoint x="595" y="70" as="targetPoint" />
             <Array as="points">
               <mxPoint x="645" y="70" />
             </Array>
+            <mxPoint x="645" y="390" as="sourcePoint" />
+            <mxPoint x="595" y="70" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-be-del-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-del-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="595" y="85" as="sourcePoint" />
-            <mxPoint x="665" y="390" as="targetPoint" />
             <Array as="points">
               <mxPoint x="665" y="85" />
             </Array>
+            <mxPoint x="595" y="85" as="sourcePoint" />
+            <mxPoint x="665" y="390" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
-        <!-- Backend <-> Weather API (OpenWeatherMap) -->
-        <mxCell id="e-be-weather-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-weather-call" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="700" y="390" as="sourcePoint" />
-            <mxPoint x="785" y="320" as="targetPoint" />
             <Array as="points">
               <mxPoint x="700" y="320" />
             </Array>
+            <mxPoint x="700" y="390" as="sourcePoint" />
+            <mxPoint x="785" y="320" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-be-weather-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-weather-ret" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="785" y="300" as="sourcePoint" />
-            <mxPoint x="715" y="390" as="targetPoint" />
             <Array as="points">
               <mxPoint x="715" y="300" />
             </Array>
+            <mxPoint x="785" y="300" as="sourcePoint" />
+            <mxPoint x="715" y="390" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-
       </root>
     </mxGraphModel>
   </diagram>
