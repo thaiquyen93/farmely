@@ -3966,6 +3966,10 @@ SELECT json_build_object(
                 return;
               }
 
+              if (payload.replace || Array.isArray(payload.varietyIds)) {
+                await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id = ${plotId};`);
+              }
+
               for (const vId of varIds) {
                 await runPostgreSql(`
                   INSERT INTO plot_variety_compatibility (plot_id, variety_id)
@@ -3973,6 +3977,10 @@ SELECT json_build_object(
                   ON CONFLICT (plot_id, variety_id) DO NOTHING;
                 `);
               }
+
+              try {
+                invalidatePlotsCache();
+              } catch (_) {}
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
