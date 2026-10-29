@@ -802,6 +802,8 @@ export default function BookPlot() {
         varietyId: Number(crop?.varietyId || 1),
         // Dịch vụ chăm sóc trọn gói S15 = 1,800,000 đ/vụ (Assisted), hoặc null (Self)
         serviceId: selectedMode === 'ASSISTED' ? 15 : null,
+        cultivationMode: selectedMode,
+        termMonths: rentalMonths,
         startDate: startStr,
         endDate: end.toISOString().split('T')[0]
       };

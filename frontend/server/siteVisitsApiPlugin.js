@@ -1655,13 +1655,14 @@ BEGIN
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
     
     -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa trong hợp đồng nếu chưa có (tính ngày theo start_date)
-    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
     SELECT 
         r.rental_id,
         ts.step_id,
         r.staff_id,
         r.start_date + (ts.day_offset || ' days')::interval,
-        CASE WHEN r.start_date <= CURRENT_DATE AND ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        CASE WHEN r.start_date <= CURRENT_DATE AND COALESCE(ts.step_order, 1) = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        ts.step_name,
         ts.step_name || ' - ' || ts.description,
         NOW(),
         NOW()
@@ -1670,7 +1671,7 @@ BEGIN
     JOIN template_steps ts ON pt.template_id = ts.template_id
     WHERE r.contract_id = ${contractId}
       AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id)
-    ORDER BY ts.step_order;
+    ORDER BY COALESCE(ts.step_order, 1), ts.day_offset, ts.step_id;
 
     -- Tự động mở kênh chat CUST_EXP
     INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
