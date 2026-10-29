@@ -43,7 +43,8 @@ export default function MarketplacePlotDetailPanel({
   onChangeLeaseConfig,
   cropOptions = [],
   compatibilityMissing = false,
-  onOpenSiteVisit
+  onOpenSiteVisit,
+  cartPlotsCount = 0
 }) {
   const [copied, setCopied] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -859,7 +860,7 @@ export default function MarketplacePlotDetailPanel({
           </div>
         )}
 
-        {/* Nút chính — Thuê ngay thửa này */}
+        {/* Nút chính — Thuê ngay thửa này hoặc Tiến hành thuê N thửa */}
         <button
           type="button"
           onClick={handleBookClick}
@@ -871,7 +872,13 @@ export default function MarketplacePlotDetailPanel({
           }`}
         >
           <Sparkles className="w-4 h-4" />
-          <span>{isVacant ? 'Thuê ngay thửa này' : 'Thửa đất đã có người thuê'}</span>
+          <span>
+            {isVacant
+              ? (cartPlotsCount > 1 || (isPlotSelectedForContract && cartPlotsCount > 0)
+                  ? `Tiến hành thuê (${Math.max(cartPlotsCount, isPlotSelectedForContract ? cartPlotsCount : cartPlotsCount + 1)} thửa đã chọn)`
+                  : 'Thuê ngay thửa này')
+              : 'Thửa đất đã có người thuê'}
+          </span>
         </button>
 
         {/* Nút phụ — Chọn thửa đất */}

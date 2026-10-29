@@ -144,51 +144,68 @@ export const resolveInitialSelectedPlots = ({
       return list.find((p) => {
         const pId = String(p.id || '').toLowerCase();
         const pCode = String(p.code || p.plotCode || p.plot_code || '').toLowerCase();
+        const pLabel = String(p.label || '').toLowerCase();
         const pDigits = pCode.replace(/\D/g, '') || String(p.plotId || p.plot_id || '');
         return (
           pId === clean ||
           pCode === clean ||
+          pLabel === clean ||
           pCode.replace(/^p-?/i, '') === clean.replace(/^p-?/i, '') ||
-          (cleanDigits && pDigits === cleanDigits)
+          clean.replace(/^p-?/i, '') === pCode.replace(/^p-?/i, '') ||
+          pCode.replace('plot ', '').trim() === clean ||
+          clean.replace('plot ', '').trim() === pCode ||
+          pId.replace('plt-hv-', 'p-') === clean ||
+          (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', '')) ||
+          (cleanDigits && pDigits && parseInt(cleanDigits, 10) === parseInt(pDigits, 10))
         );
       });
     });
 
   // 1. URL search param: ?plots=P-11,P-16
-  if (plotsQuery) {
-    const codes = [...new Set(plotsQuery.split(',').map((c) => c.trim()).filter(Boolean))];
-    const matchedMap = new Map();
-    codes.forEach((code) => {
-      const found = finder(code, plotsList);
-      if (found && !matchedMap.has(found.id)) {
-        matchedMap.set(found.id, found);
-      }
-    });
-    const matched = Array.from(matchedMap.values());
-    if (matched.length > 0) return matched;
-  }
+  const urlCodes = plotsQuery
+    ? [...new Set(plotsQuery.split(',').map((c) => c.trim()).filter(Boolean))]
+    : [];
 
   // 2. localStorage cart (farmely_master_lease_selected_plots)
+  let savedCodes = [];
   if (savedPlots) {
     try {
       const parsed = typeof savedPlots === 'string' ? JSON.parse(savedPlots) : savedPlots;
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const matchedMap = new Map();
-        parsed.forEach((item) => {
-          const key = item && typeof item === 'object' ? item.code || item.plotCode || item.plot_code || item.id : item;
-          if (key) {
-            const found = finder(key, plotsList);
-            if (found && !matchedMap.has(found.id)) {
-              matchedMap.set(found.id, found);
-            }
-          }
-        });
-        const matched = Array.from(matchedMap.values());
-        if (matched.length > 0) return matched;
+      if (Array.isArray(parsed)) {
+        savedCodes = parsed
+          .map((item) => (item && typeof item === 'object' ? item.code || item.plotCode || item.plot_code || item.id : item))
+          .filter(Boolean);
       }
     } catch {
       // ignore parsing error
     }
+  }
+
+  // Kết hợp: Nếu URL chỉ có 1 thửa nhưng giỏ hàng có nhiều thửa đã chọn, giữ trọn vẹn cả các thửa trong giỏ
+  let candidateCodes = urlCodes;
+  if (urlCodes.length > 1) {
+    candidateCodes = urlCodes;
+  } else if (savedCodes.length > 1) {
+    candidateCodes = [...new Set([...urlCodes, ...savedCodes])];
+  } else if (urlCodes.length === 1) {
+    candidateCodes = urlCodes;
+  } else if (savedCodes.length > 0) {
+    candidateCodes = savedCodes;
+  }
+
+  if (candidateCodes.length > 0) {
+    const matchedMap = new Map();
+    candidateCodes.forEach((code) => {
+      const found = finder(code, plotsList);
+      if (found) {
+        const key = found.id || found.code || found.plotCode || String(found.plotId || found.plot_id);
+        if (!matchedMap.has(key)) {
+          matchedMap.set(key, found);
+        }
+      }
+    });
+    const matched = Array.from(matchedMap.values());
+    if (matched.length > 0) return matched;
   }
 
   // 3. Fallback id
@@ -573,11 +590,13 @@ export default function BookPlot() {
         pId === clean ||
         pCode === clean ||
         pLabel === clean ||
+        pCode.replace(/^p-?/i, '') === clean.replace(/^p-?/i, '') ||
+        clean.replace(/^p-?/i, '') === pCode.replace(/^p-?/i, '') ||
         pCode.replace('plot ', '').trim() === clean ||
         clean.replace('plot ', '').trim() === pCode ||
         pId.replace('plt-hv-', 'p-') === clean ||
         (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', '')) ||
-        (cleanDigits && pDigits === cleanDigits)
+        (cleanDigits && pDigits && parseInt(cleanDigits, 10) === parseInt(pDigits, 10))
       );
     });
   }, [allPlots]);
@@ -677,13 +696,19 @@ export default function BookPlot() {
   );
 
   const handleAddPlot = (plotToAdd) => {
-    setSelectedPlots((prev) => [...prev, plotToAdd]);
+    const updated = [...selectedPlots, plotToAdd];
+    setSelectedPlots(updated);
     setIsAddPlotModalOpen(false);
+    const newCodes = updated.map((p) => p.code || p.id).join(',');
+    navigate(`?plots=${newCodes}`, { replace: true });
   };
 
   const handleRemovePlot = (plotIdToRemove) => {
     if (selectedPlots.length <= 1) return; // Keep at least 1 plot
-    setSelectedPlots((prev) => prev.filter((p) => p.id !== plotIdToRemove));
+    const updated = selectedPlots.filter((p) => p.id !== plotIdToRemove);
+    setSelectedPlots(updated);
+    const newCodes = updated.map((p) => p.code || p.id).join(',');
+    navigate(`?plots=${newCodes}`, { replace: true });
   };
 
   // Aggregate calculations for the multi-plot rental contract.
@@ -1085,7 +1110,7 @@ export default function BookPlot() {
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Link
                 to={`/login?redirect=${encodeURIComponent(
-                  `/marketplace/plot/${primaryPlot.id}/book`
+                  `/marketplace/plot/${primaryPlot.code || primaryPlot.id}/book?plots=${(selectedPlots.length > 0 ? selectedPlots : [primaryPlot]).map((p) => p.code || p.id).join(',')}`
                 )}`}
                 className="flex-1"
               >
@@ -1099,7 +1124,7 @@ export default function BookPlot() {
               </Link>
               <Link
                 to={`/register?redirect=${encodeURIComponent(
-                  `/marketplace/plot/${primaryPlot.id}/book`
+                  `/marketplace/plot/${primaryPlot.code || primaryPlot.id}/book?plots=${(selectedPlots.length > 0 ? selectedPlots : [primaryPlot]).map((p) => p.code || p.id).join(',')}`
                 )}`}
                 className="flex-1"
               >

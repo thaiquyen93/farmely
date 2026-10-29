@@ -104,4 +104,37 @@ describe('BookPlot booking rules', () => {
     expect(result2).toHaveLength(2);
     expect(result2.map((p) => p.code)).toEqual(['P-11', 'P-16']);
   });
+
+  it('preserves all selected plots when URL only specifies primary plot but cart has 2 plots', () => {
+    const plotsList = [
+      { id: '4', plotId: 4, code: 'P-04' },
+      { id: '5', plotId: 5, code: 'P-05' },
+      { id: '6', plotId: 6, code: 'P-06' }
+    ];
+
+    const result = resolveInitialSelectedPlots({
+      plotsList,
+      plotsQuery: 'P-04',
+      savedPlots: JSON.stringify(['P-04', 'P-05']),
+      fallbackId: 'P-04'
+    });
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.code)).toEqual(['P-04', 'P-05']);
+  });
+
+  it('matches plot codes even with single digit or different zero padding', () => {
+    const plotsList = [
+      { id: '4', plotId: 4, code: 'P-04' },
+      { id: '5', plotId: 5, code: 'P-05' }
+    ];
+
+    const result = resolveInitialSelectedPlots({
+      plotsList,
+      plotsQuery: 'P-4,P-5',
+      savedPlots: null,
+      fallbackId: 'P-04'
+    });
+    expect(result).toHaveLength(2);
+    expect(result.map((p) => p.code)).toEqual(['P-04', 'P-05']);
+  });
 });

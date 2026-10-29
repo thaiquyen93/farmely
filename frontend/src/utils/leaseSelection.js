@@ -17,7 +17,7 @@ export const normalizePlotCode = (value) => {
   return str;
 };
 
-const dedupeCodes = (codes) => {
+export const dedupeCodes = (codes) => {
   const seen = new Set();
   const out = [];
   (codes || []).forEach((c) => {
