@@ -627,6 +627,11 @@ INSERT INTO users (user_id, role_id, email, password_hash, full_name, phone_numb
 (11, 4, 'admin@farmely.vn', '$2a$10$wT4L8sC4eH0HlMfZ1Wd1eOpNfJ7L7Vd6kXFm5M5G2pE2qR1tV2sXu', 'Ban Quản Trị Farmely', '0909000111', 'Trụ sở Farmely Tech Hub, Quận 1, TP.HCM', 'ACTIVE')
 ON CONFLICT (user_id) DO NOTHING;
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+UPDATE users
+SET password_hash = crypt('123456', gen_salt('bf', 10))
+WHERE user_id BETWEEN 1 AND 11;
+
 -- 3. BẢNG LANDS (Trang trại Farmely)
 INSERT INTO lands (land_id, land_name, address, description, boundary_geojson) VALUES
 (1, 'Trang trại Happy Valley Củ Chi', 'Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh', 'Khu nông nghiệp công nghệ cao kiểu mẫu tại Củ Chi, đất phù sa bồi lắng.', '{"type":"Polygon","coordinates":[[[106.342,10.686],[106.352,10.686],[106.352,10.696],[106.342,10.696],[106.342,10.686]]]}'),

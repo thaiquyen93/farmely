@@ -253,7 +253,7 @@ export default function PlotDetail() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-heading text-base font-bold text-brand-dark flex items-center gap-2">
             <Sprout className="w-5 h-5 text-brand-green" />
-            Danh Mục Giống Cây Trồng Phù Hợp Thổ Nhưỡng (BR03 - Plot Compatibility)
+            Danh Mục Giống Cây Trồng Phù Hợp Thổ Nhưỡng ( - Plot Compatibility)
           </h3>
           <Link
             to={`/admin/master-data/plots/create?editId=${plot.id}`}

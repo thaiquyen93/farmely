@@ -306,7 +306,7 @@ export default function CustomerDashboard() {
     }
   };
 
-  // Custom Service Request (UC10 / BR13)
+  // Custom Service Request (UC10 / )
   const [showCustomServiceModal, setShowCustomServiceModal] = useState(false);
   const [customServiceData, setCustomServiceData] = useState({
     plotId: '',
@@ -426,7 +426,7 @@ export default function CustomerDashboard() {
   const [pendingCancellations, setPendingCancellations] = useState({});
   const [emergencyRequests, setEmergencyRequests] = useState({});
 
-  // Subsystem 3: Contracts & Renewal Management (UC07 / BR11)
+  // Subsystem 3: Contracts & Renewal Management (UC07 / )
   const [contractSubView, setContractSubView] = useState('list'); // 'list' | 'document'
   const [selectedPlotForRenew, setSelectedPlotForRenew] = useState(null);
   const [renewMonths, setRenewMonths] = useState(3);
@@ -3492,7 +3492,7 @@ export default function CustomerDashboard() {
               );
             })()}
 
-            {/* TAB 6: HỢP ĐỒNG THUÊ ĐẤT & QUY TRÌNH HỦY (BR10) / HỒ SƠ ĐIỆN TỬ */}
+            {/* TAB 6: HỢP ĐỒNG THUÊ ĐẤT & QUY TRÌNH HỦY / HỒ SƠ ĐIỆN TỬ */}
             {activeTab === 'contracts' && !selectedPlotId && (
               <div className="space-y-6">
                 {renewSuccessToast && (
@@ -3569,7 +3569,7 @@ export default function CustomerDashboard() {
                       </div>
                     </div>
 
-                    {/* Banner giải thích quy chuẩn BR10 & BR23 */}
+                    {/* Banner giải thích quy chuẩn  &  */}
                     <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 space-y-1.5">
                       <div className="font-bold flex items-center gap-1.5 text-blue-950">
                         <ShieldAlert className="w-4 h-4 text-blue-700" />
@@ -4675,7 +4675,7 @@ export default function CustomerDashboard() {
         onCancelPlan={handleCancelHarvestPlan}
       />
 
-      {/* Modal: Accept Harvest & Quality Rating (UC19 / BR16) */}
+      {/* Modal: Accept Harvest & Quality Rating (UC19 / ) */}
       <Modal
         isOpen={showHarvestAcceptModal}
         onClose={() => setShowHarvestAcceptModal(false)}
@@ -4796,7 +4796,7 @@ export default function CustomerDashboard() {
         </form>
       </Modal>
 
-      {/* Modal: Renew Contract theo Vụ Mùa (BR12) */}
+      {/* Modal: Renew Contract theo Vụ Mùa */}
       <PlotRenewalModal
         isOpen={showRenewContractModal}
         onClose={() => setShowRenewContractModal(false)}
@@ -4847,7 +4847,7 @@ export default function CustomerDashboard() {
         onPaymentSuccess={handleServicePaymentSuccess}
       />
 
-      {/* SSoT BR10: Modal Yêu cầu Hủy Hợp Đồng & Quy trình Hoàn Tiền */}
+      {/* SSoT : Modal Yêu cầu Hủy Hợp Đồng & Quy trình Hoàn Tiền */}
       <ContractCancellationModal
         isOpen={showCancellationModal}
         contract={selectedContractForCancel}
@@ -4863,7 +4863,7 @@ export default function CustomerDashboard() {
         }}
       />
 
-      {/* Modal: Gửi Yêu Cầu Dịch Vụ Riêng & Chăm Sóc Đặc Biệt (UC10 / BR13) */}
+      {/* Modal: Gửi Yêu Cầu Dịch Vụ Riêng & Chăm Sóc Đặc Biệt (UC10 / ) */}
       <Modal
         isOpen={showCustomServiceModal}
         onClose={() => setShowCustomServiceModal(false)}

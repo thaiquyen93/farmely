@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { varietiesData as initialVarieties } from '../../data/varieties';
-import { cropsData as initialCrops } from '../../data/crops';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
@@ -11,8 +9,8 @@ import Select from '../../components/common/Select';
 import { Wheat, Plus, Eye, Edit, Clock, Layers, BookOpen, CheckCircle2, Trash2, AlertCircle, X } from 'lucide-react';
 
 export default function Varieties() {
-  const [varieties, setVarieties] = useState(initialVarieties);
-  const [crops, setCrops] = useState(initialCrops);
+  const [varieties, setVarieties] = useState([]);
+  const [crops, setCrops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isLiveDb, setIsLiveDb] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -37,16 +35,18 @@ export default function Varieties() {
       fetch('/api/crops').then((r) => r.json())
     ])
       .then(([varRes, cropRes]) => {
-        if (varRes && varRes.success && Array.isArray(varRes.data) && varRes.data.length > 0) {
+        if (varRes && varRes.success && Array.isArray(varRes.data)) {
           setVarieties(varRes.data);
           setIsLiveDb(true);
         }
-        if (cropRes && cropRes.success && Array.isArray(cropRes.data) && cropRes.data.length > 0) {
+        if (cropRes && cropRes.success && Array.isArray(cropRes.data)) {
           setCrops(cropRes.data);
         }
       })
       .catch((err) => {
-        console.warn('Cannot fetch live varieties, fallback to mock:', err);
+        console.warn('Cannot fetch live varieties:', err);
+        setVarieties([]);
+        setCrops([]);
       })
       .finally(() => setLoading(false));
   };

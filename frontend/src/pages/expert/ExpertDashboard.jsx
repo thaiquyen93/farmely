@@ -55,92 +55,6 @@ import {
 } from 'lucide-react';
 
 // SSoT danh mục giống canh tác chuẩn theo từng thửa đất tại Happy Valley
-const DEFAULT_PLOT_CROPS = {
-  'P-01': 'Cà chua bi đỏ F1',
-  'P-02': 'Xà lách Romaine VietGAP',
-  'P-03': 'Dưa leo baby F1',
-  'P-04': 'Cà chua bi đỏ F1',
-  'P-05': 'Cải ngọt bông F1',
-  'P-06': 'Xà lách xoăn Lollo Bionda',
-  'P-07': 'Dưa leo baby F1',
-  'P-08': 'Cải ngọt bông F1',
-  'P-09': 'Xà lách Romaine VietGAP',
-  'P-10': 'Cà chua bi đỏ F1',
-  'P-11': 'Dưa leo baby F1',
-  'P-12': 'Cà chua bi đỏ F1',
-  'P-13': 'Cải ngọt bông F1',
-  'P-14': 'Cà chua bi đỏ F1',
-  'P-15': 'Cải ngọt bông F1',
-  'P-16': 'Xà lách Romaine VietGAP'
-};
-
-const DEFAULT_HARVEST_REQUESTS = [
-  {
-    id: 'HARV-REQ-001',
-    plotCode: 'P-01',
-    plotName: 'Thửa P-01',
-    crop: 'Cà chua bi đỏ F1',
-    renterName: 'Lô Thái Quyền',
-    renterEmail: 'customer@farmely.vn',
-    phone: '0901234567',
-    address: '123 Nguyễn Huệ, P. Bến Nghé, Quận 1, TP.HCM',
-    requestedDate: '2026-10-23',
-    method: 'DELIVERY',
-    methodLabel: 'Farmely thu hoạch & giao tận nhà (trong 24h)',
-    expectedYield: '12.0 kg',
-    phiDays: 6,
-    phiStandardDays: 5,
-    status: 'PENDING',
-    notes: 'Nhờ kỹ sư kiểm tra độ chín đồng đều của các chùm quả trước khi cho cắt.',
-    createdAt: '2026-10-22T08:30:00Z',
-    workerName: 'Trần Văn Lực (CVLĐ)'
-  },
-  {
-    id: 'HARV-REQ-002',
-    plotCode: 'P-02',
-    plotName: 'Thửa P-02',
-    crop: 'Xà lách Romaine VietGAP',
-    renterName: 'Đào Duy Anh',
-    renterEmail: 'duyanh@farmely.vn',
-    phone: '0912345678',
-    address: '',
-    requestedDate: '2026-10-25',
-    method: 'FARM_PICKUP',
-    methodLabel: 'Khách đến nông trại tự thu hoạch & trải nghiệm',
-    expectedYield: '8.5 kg',
-    phiDays: 5,
-    phiStandardDays: 5,
-    status: 'APPROVED',
-    notes: 'Khách đăng ký xuống nông trại Happy Valley vào sáng thứ Bảy.',
-    createdAt: '2026-10-21T14:15:00Z',
-    workerName: 'Trần Văn Lực (CVLĐ)',
-    approvedAt: '2026-10-22T09:00:00Z'
-  },
-  {
-    id: 'HARV-REQ-003',
-    plotCode: 'P-03',
-    plotName: 'Thửa P-03',
-    crop: 'Dưa leo baby F1',
-    renterName: 'Tạ Nguyễn Khôi Nguyên',
-    renterEmail: 'tanguyen@farmely.vn',
-    phone: '0934567890',
-    address: '456 Lê Duẩn, Quận 1, TP.HCM',
-    requestedDate: '2026-10-10',
-    method: 'DELIVERY',
-    methodLabel: 'Farmely thu hoạch & giao tận nhà',
-    expectedYield: '30.0 kg',
-    actualYield: '32.5 kg',
-    phiDays: 7,
-    phiStandardDays: 5,
-    status: 'COMPLETED',
-    notes: 'Đã hoàn tất nghiệm thu và giao hàng tươi trong ngày.',
-    createdAt: '2026-10-09T10:00:00Z',
-    workerName: 'TS. Lê Hoàng Đức',
-    approvedAt: '2026-10-09T11:00:00Z',
-    completedAt: '2026-10-10T07:44:00Z'
-  }
-];
-
 export default function ExpertDashboard() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState(() => {
@@ -265,46 +179,7 @@ export default function ExpertDashboard() {
   };
 
   // 2. Field Issue Reports from Workers (UC12 / UC48)
-  const [fieldIssues, setFieldIssues] = useState([
-    {
-      id: 'ISS-901',
-      issueCode: 'ISS-901',
-      apiId: 1,
-      rentalId: 2,
-      reportedBy: 8,
-      isStaffReporter: true,
-      workerName: 'Trần Văn Lực (CVLĐ)',
-      plotCode: 'P-03',
-      plotName: 'Thửa Rừng Sác C3',
-      cropName: 'Dưa leo baby F1',
-      urgency: 'HIGH', // 'NORMAL' | 'HIGH' | 'CRITICAL'
-      issueType: 'Phát hiện bọ trĩ mặt dưới lá non',
-      description: 'Lá dưa leo baby có hiện tượng quăn mép và chấm bạc li ti. Nghi ngờ bị bọ trĩ tấn công do 2 ngày nay trời hanh khô.',
-      reportedTime: 'Sáng nay • 08:45',
-      photoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d69109853?auto=format&fit=crop&w=800&q=80',
-      diagnosis: '',
-      status: 'OPEN'
-    },
-    {
-      id: 'ISS-889',
-      issueCode: 'ISS-889',
-      apiId: 2,
-      rentalId: 1,
-      reportedBy: 9,
-      isStaffReporter: true,
-      workerName: 'Nguyễn Văn Đạt (CVLĐ)',
-      plotCode: 'P-01',
-      plotName: 'Thửa Sen Vàng A1',
-      cropName: 'Cà chua bi đỏ F1',
-      urgency: 'NORMAL',
-      issueType: 'Đầu béc tưới số 3 bị nghẹt cặn',
-      description: 'Đã súc rửa màng lọc và thay béc phun sương mới. Độ ẩm đất đã cân bằng 68%.',
-      reportedTime: 'Hôm qua • 16:00',
-      photoUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80',
-      diagnosis: 'Chuyên gia Nam duyệt: Đạt yêu cầu kỹ thuật.',
-      status: 'RESOLVED'
-    }
-  ]);
+  const [fieldIssues, setFieldIssues] = useState([]);
 
   const [selectedIssueDetail, setSelectedIssueDetail] = useState(null);
   const [detailDiagnosisText, setDetailDiagnosisText] = useState('');
@@ -323,51 +198,7 @@ export default function ExpertDashboard() {
   // Direct task dispatching from chat/directives workspace
   const [directTaskModal, setDirectTaskModal] = useState(null);
   const [isSubmittingDirectTask, setIsSubmittingDirectTask] = useState(false);
-  const availableFieldWorkers = [
-    { id: 8, name: 'Trần Văn Lực', role: 'Tổ trưởng CVLĐ (Khu A & B)', email: 'worker@farmely.vn' },
-    { id: 9, name: 'Nguyễn Văn Đạt', role: 'Kỹ thuật viên tưới & thổ nhưỡng', email: 'dat.nguyen@farmely.vn' },
-    { id: 10, name: 'Hoàng Thanh Hải', role: 'CVLĐ phụ trách thu hoạch', email: 'hai.hoang@farmely.vn' }
-  ];
-
-  const loadFieldIssues = () => {
-    fetch('/api/issue-reports')
-      .then((res) => res.json())
-      .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setFieldIssues(res.data);
-        }
-      })
-      .catch((err) => console.warn('Could not fetch live issues:', err));
-  };
-
-  const loadTemplates = () => {
-    fetch('/api/process-templates')
-      .then((res) => res.json())
-      .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
-          const mapped = res.data.map((template) => ({
-            id: template.id || template.templateId,
-            code: template.code || `TMPL-${String(template.templateId || template.id).padStart(3, '0')}`,
-            version: template.version || 'v1.0',
-            name: template.name || `Quy trình ${template.varietyName || 'canh tác VietGAP'}`,
-            variety: template.variety || template.varietyName || `Giống #${template.varietyId}`,
-            durationDays: template.durationDays || template.totalDays || Math.max(0, ...(template.steps || []).map((s) => Number(s.dayOffset || s.day) || 0), 45),
-            stagesCount: (template.steps || []).length || template.totalSteps || 0,
-            stepsCount: (template.steps || []).length || template.totalSteps || 0,
-            status: 'ACTIVE',
-            description: template.description || `Quy trình chuẩn VietGAP lưu trong hệ thống, phiên bản ${template.version || 'v1.0'}.`,
-            steps: Array.isArray(template.steps) ? template.steps.map((st, i) => ({
-              day: st.day ?? st.dayOffset ?? (i * 5),
-              name: st.name ?? st.stepName ?? `Bước ${i + 1}`,
-              type: st.type ?? `BƯỚC ${st.stepOrder ?? (i + 1)}`,
-              details: st.details ?? st.description ?? st.materialsNeeded ?? ''
-            })) : []
-          }));
-          setProcessTemplates(mapped);
-        }
-      })
-      .catch((err) => console.warn('Could not fetch live templates:', err));
-  };
+  const [availableFieldWorkers, setAvailableFieldWorkers] = useState([]);
 
   const [assignedPlots, setAssignedPlots] = useState([]);
 
@@ -377,7 +208,7 @@ export default function ExpertDashboard() {
       const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || 'null');
       if (Array.isArray(shared) && shared.length > 0) return shared;
     } catch {}
-    return DEFAULT_HARVEST_REQUESTS;
+    return [];
   });
   const [harvestFilter, setHarvestFilter] = useState('ALL');
   const [harvestSuccessToast, setHarvestSuccessToast] = useState('');
@@ -388,10 +219,12 @@ export default function ExpertDashboard() {
     apiFetch('/api/rentals')
       .then((res) => {
         const list = unwrapData(res) || [];
-        if (Array.isArray(list) && list.length > 0) {
-          setAssignedPlots(list.map((p) => ({
+        if (Array.isArray(list)) {
+          setAssignedPlots(list.filter((p) =>
+            p.status === 'ACTIVE' && Number(p.expertId) === Number(user?.userId)
+          ).map((p) => ({
             ...p,
-            crop: p.varietyName || p.crop || DEFAULT_PLOT_CROPS[p.plotCode] || 'Rau củ chuẩn VietGAP'
+            crop: p.varietyName || p.crop || ''
           })));
         }
       })
@@ -487,8 +320,7 @@ export default function ExpertDashboard() {
   });
 
   useEffect(() => {
-    loadFieldIssues();
-    loadTemplates();
+    loadExpertData();
     loadAssignedPlots();
 
     let bc = null;
@@ -517,7 +349,7 @@ export default function ExpertDashboard() {
       if (bc) try { bc.close(); } catch {}
       window.removeEventListener('storage', handleStorage);
     };
-  }, []);
+  }, [user?.userId]);
 
   // Open detailed issue view (UC12 / UC48)
   const handleOpenIssueDetail = (issue) => {
@@ -538,7 +370,7 @@ export default function ExpertDashboard() {
 
     setIsSavingDiagnosis(true);
     try {
-      await fetch(`/api/issues/${issueId}/diagnose`, {
+      await apiFetch(`/api/issues/${issueId}/diagnose`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -546,7 +378,7 @@ export default function ExpertDashboard() {
           diagnosis: detailDiagnosisText.trim(),
           markResolved: false
         })
-      }).catch(() => {});
+      });
 
       setFieldIssues((current) => current.map((i) => i.id === selectedIssueDetail.id
         ? { ...i, diagnosis: detailDiagnosisText.trim(), status: i.status === 'RESOLVED' ? 'RESOLVED' : 'IN_PROGRESS' }
@@ -571,9 +403,9 @@ export default function ExpertDashboard() {
   const handleDispatchTaskFromDetail = async () => {
     if (!selectedIssueDetail) return;
     const issueId = selectedIssueDetail.issueId || selectedIssueDetail.apiId || parseInt(String(selectedIssueDetail.id).replace(/\D/g, ''), 10) || 1;
-    const rentalId = selectedIssueDetail.rentalId || (assignedPlots.find((p) => p.plotCode === selectedIssueDetail.plotCode)?.rentalId) || 2;
-    const targetWorkerId = Number(detailAssignWorkerId) || 8;
-    const targetWorker = availableFieldWorkers.find((w) => w.id === targetWorkerId) || availableFieldWorkers[0];
+    const rentalId = selectedIssueDetail.rentalId || (assignedPlots.find((p) => p.plotCode === selectedIssueDetail.plotCode)?.rentalId);
+    const targetWorkerId = Number(detailAssignWorkerId);
+    const targetWorker = availableFieldWorkers.find((w) => w.id === targetWorkerId);
     const dueDate = detailDueDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const priorityTag = detailPriority === 'EMERGENCY' ? '[LÀM NGAY]' : detailPriority === 'HIGH' ? '[ƯU TIÊN CAO]' : '[BÌNH THƯỜNG]';
     const taskTitle = `${priorityTag} Xử lý ${String(selectedIssueDetail.issueType || 'sự cố hiện trường').toLowerCase()}`;
@@ -586,6 +418,7 @@ export default function ExpertDashboard() {
 
     setIsDispatchingFromDetail(true);
     try {
+      if (!rentalId || !targetWorker) throw new Error('Chọn thửa đất và nhân viên trước khi giao việc.');
       const taskRes = unwrapData(await apiFetch('/api/tasks', {
         method: 'POST',
         body: JSON.stringify({
@@ -604,7 +437,7 @@ export default function ExpertDashboard() {
       const expertId = Number(String(user?.userId || user?.id || '5').replace(/\D/g, '')) || 5;
 
       // Update issue with diagnosis & link task
-      await fetch(`/api/issues/${issueId}/diagnose`, {
+      await apiFetch(`/api/issues/${issueId}/diagnose`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -613,7 +446,7 @@ export default function ExpertDashboard() {
           resolutionNotes: `${priorityTag} Đã giao nhiệm vụ ${assignedTaskCode} cho ${targetWorker.name}.`,
           markResolved: false
         })
-      }).catch(() => {});
+      });
 
       // Broadcast channel sync
       try {
@@ -667,21 +500,23 @@ export default function ExpertDashboard() {
 
     const issueId = selectedIssueToDiagnose.issueId || selectedIssueToDiagnose.apiId || parseInt(String(selectedIssueToDiagnose.id).replace(/\D/g, ''), 10) || 1;
     try {
-      await fetch(`/api/issue-reports/${issueId}`, {
+      await apiFetch(`/api/issue-reports/${issueId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ diagnosis: diagnosisAdvice })
       });
       if (selectedIssueToDiagnose.apiId) {
         const expertId = Number(String(user?.userId || user?.id || '').replace(/\D/g, ''));
-        await fetch(`/api/issues/${selectedIssueToDiagnose.apiId}/diagnose`, {
+        await apiFetch(`/api/issues/${selectedIssueToDiagnose.apiId}/diagnose`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ handledBy: expertId, resolutionNotes: diagnosisAdvice, markResolved: true })
-        }).catch(() => {});
+        });
       }
     } catch (err) {
       console.warn('Could not update diagnosis to DB:', err);
+      setDataError(err.message || 'Không thể lưu chẩn đoán.');
+      return;
     }
     setFieldIssues((prev) =>
       prev.map((i) =>
@@ -695,85 +530,7 @@ export default function ExpertDashboard() {
   };
 
   // 3. VietGAP Process Templates State (UC09 / Screen 43)
-  const [processTemplates, setProcessTemplates] = useState([
-    {
-      id: 'TMPL-TOMATO-01',
-      code: 'TMPL-TOMATO-01',
-      version: 'v2.3 (Chuẩn VietGAP)',
-      name: 'Phác Đồ Canh Tác Cà Chua Bi Cherry F1',
-      variety: 'Cà chua bi Cherry F1',
-      durationDays: 65,
-      stagesCount: 5,
-      stepsCount: 6,
-      status: 'ACTIVE',
-      description: 'Quy trình chuẩn hóa kiểm soát dưỡng chất vi sinh và tỉa chồi nách, tối ưu độ ngọt brix >= 9.0.',
-      steps: [
-        { day: 1, name: 'Gieo ươm bầu & Kích rễ sinh học', type: 'Ủ GIỐNG & GIEO', details: 'Ngâm hạt nước ấm 54°C (3 sôi 2 lạnh) trong 4 giờ. Tra hạt vào khay 84 lỗ.' },
-        { day: 15, name: 'Xuống giống ra luống & Tưới đẫm Trichoderma', type: 'TRỒNG CÂY', details: 'Mật độ 2.500 cây/1000m2. Tưới đẫm dung dịch Trichoderma ngừa nấm rễ.' },
-        { day: 25, name: 'Bấm tỉa chồi nách & Lên giàn chữ A', type: 'CẮT TỈA', details: 'Cố định thân chính vào dây leo giàn, bấm sạch chồi nách dưới 20cm.' },
-        { day: 40, name: 'Bón thúc đợt 2: Dịch đạm cá & Trùn quế', type: 'BÓN PHÂN', details: 'Pha dịch cá vi sinh 1:500 tưới gốc. Rải 300g trùn quế quanh tán.' },
-        { day: 60, name: 'Cách ly an toàn VietGAP 5 ngày', type: 'CÁCH LY', details: 'Ngưng hoàn toàn phân bón, chỉ duy trì tưới ẩm nước sạch mỗi sáng.' },
-        { day: 65, name: 'Thu hoạch quả chín bói đợt 1', type: 'THU HOẠCH', details: 'Hái quả lúc sáng sớm khi vỏ đỏ đều 85%, xếp khay xốp có lót giấy mềm.' }
-      ]
-    },
-    {
-      id: 'TMPL-LETTUCE-02',
-      code: 'TMPL-LETTUCE-02',
-      version: 'v1.8 (Chuẩn VietGAP)',
-      name: 'Phác Đồ Xà Lách Romaine Hữu Cơ',
-      variety: 'Xà lách Romaine VietGAP',
-      durationDays: 35,
-      stagesCount: 3,
-      stepsCount: 5,
-      status: 'ACTIVE',
-      description: 'Quy trình rau ăn lá ngắn ngày, bổ sung đạm hữu cơ và cách ly vi sinh nghiêm ngặt 5 ngày.',
-      steps: [
-        { day: 1, name: 'Làm đất & Bón lót phân trùn quế', type: 'LÀM ĐẤT', details: 'Cày tơi xốp, bón lót 1.5kg phân trùn quế/m2, lên luống cao 25cm.' },
-        { day: 7, name: 'Trồng cây con 3 lá thật', type: 'TRỒNG CÂY', details: 'Khoảng cách cây cách cây 20cm, hàng cách hàng 25cm.' },
-        { day: 18, name: 'Bón thúc đạm đậu nành lên men', type: 'BÓN PHÂN', details: 'Tưới dung dịch đạm đậu tương ngâm ủ EM tỉ lệ 1:300.' },
-        { day: 30, name: 'Ngưng dinh dưỡng & Cách ly an toàn', type: 'CÁCH LY', details: 'Cách ly hoàn toàn trước thu hoạch, chỉ tưới nước sạch.' },
-        { day: 35, name: 'Thu hoạch nhổ tỉa sáng sớm', type: 'THU HOẠCH', details: 'Thu hoạch trước 8:00 sáng để giữ độ giòn và ngọt tự nhiên.' }
-      ]
-    },
-    {
-      id: 'TMPL-CUCUMBER-03',
-      code: 'TMPL-CUCUMBER-03',
-      version: 'v2.0 (Chuẩn VietGAP)',
-      name: 'Phác Đồ Dưa Leo Baby Đà Lạt F1',
-      variety: 'Dưa leo Baby F1',
-      durationDays: 45,
-      stagesCount: 4,
-      stepsCount: 5,
-      status: 'ACTIVE',
-      description: 'Trồng giàn lưới nhà màng sinh thái, kết hợp thả ong mật tự nhiên thụ phấn.',
-      steps: [
-        { day: 1, name: 'Gieo hạt trực tiếp vào luống', type: 'GIEO HẠT', details: 'Tra hạt sâu 1.5cm, tưới ẩm 70% kích mầm.' },
-        { day: 14, name: 'Cột dây leo giàn & Tỉa nhánh phụ', type: 'CHĂM SÓC', details: 'Tỉa bỏ hoa đực và nhánh phụ từ mắt thứ 5 trở xuống.' },
-        { day: 25, name: 'Thả đàn ong mật thụ phấn hoa', type: 'SINH THÁI', details: 'Thả thùng ong mật trong nhà lưới để thụ phấn tự nhiên.' },
-        { day: 40, name: 'Cách ly trước thu hái 5 ngày', type: 'CÁCH LY', details: 'Ngưng tưới chế phẩm sinh học.' },
-        { day: 45, name: 'Thu hoạch quả non baby 10-12cm', type: 'THU HOẠCH', details: 'Cắt cuống bằng kéo sạch, thu hái hàng ngày.' }
-      ]
-    },
-    {
-      id: 'TMPL-STRAW-04',
-      code: 'TMPL-STRAW-04',
-      version: 'v1.5 (Chuẩn VietGAP)',
-      name: 'Phác Đồ Dâu Tây Hana Chịu Nhiệt',
-      variety: 'Dâu tây Hana Nhật Bản',
-      durationDays: 90,
-      stagesCount: 5,
-      stepsCount: 5,
-      status: 'ACTIVE',
-      description: 'Trồng trên giá thể xơ dừa phối trùn quế, bổ sung vi lượng Kali hữu cơ.',
-      steps: [
-        { day: 1, name: 'Vào bầu giá thể & Kích rễ ngó', type: 'XUỐNG GIỐNG', details: 'Giá thể xơ dừa xử lý chát kết hợp trùn quế 3:1.' },
-        { day: 30, name: 'Ngắt hoa bói đợt 1 dưỡng cây', type: 'TỈA HOA', details: 'Ngắt bỏ lứa hoa đầu để bộ rễ phát triển sung mãn.' },
-        { day: 55, name: 'Bổ sung dịch chuối trứng lên men', type: 'BÓN PHÂN', details: 'Bổ sung Kali hữu cơ giúp hoa đậu sai và quả mọng đỏ.' },
-        { day: 85, name: 'Cách ly VietGAP 5 ngày', type: 'CÁCH LY', details: 'Duy trì tưới nhỏ giọt nước tinh khiết.' },
-        { day: 90, name: 'Thu hoạch quả chín bói đợt 1', type: 'THU HOẠCH', details: 'Hái quả chín 90%, lót rơm hoặc mút xốp.' }
-      ]
-    }
-  ]);
+  const [processTemplates, setProcessTemplates] = useState([]);
 
   const openTaskAssignment = (issue) => {
     const dueDate = new Date();
@@ -1005,98 +762,13 @@ export default function ExpertDashboard() {
   });
 
   // 4. Plot-Crop Compatibility Matrix State (Screen 42)
-  const [compatibilityList, setCompatibilityList] = useState([
-    {
-      id: 'COMP-01',
-      soilType: 'Đất phù sa bồi lắng ven sông (Củ Chi)',
-      phRange: 'pH 6.0 – 6.8',
-      moistureProfile: 'Thoát nước tốt, giàu mùn hữu cơ',
-      compatibleCrops: [
-        { crop: 'Cà chua bi Cherry F1', rating: '98%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Xà lách Romaine VietGAP', rating: '100%', status: 'HOÀN HẢO' },
-        { crop: 'Dưa leo Baby Đà Lạt', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Rau mồng tơi hữu cơ', rating: '96%', status: 'RẤT THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-01 (Sen Vàng A1), P-02 (Mộc Châu B2)'
-    },
-    {
-      id: 'COMP-02',
-      soilType: 'Đất đỏ Bazan cao nguyên (Mộc Châu)',
-      phRange: 'pH 5.5 – 6.5',
-      moistureProfile: 'Giữ ẩm trung bình, giàu khoáng vi lượng',
-      compatibleCrops: [
-        { crop: 'Dâu tây Hana chịu nhiệt', rating: '96%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cải xoăn Kale xoăn', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cà rốt baby giòn ngọt', rating: '92%', status: 'THÍCH HỢP' },
-        { crop: 'Xà lách búp Mỹ', rating: '90%', status: 'THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-03 (Rừng Sác C3), P-04 (Đất Đỏ D4)'
-    },
-    {
-      id: 'COMP-03',
-      soilType: 'Đất cát pha phối giá thể hữu cơ (Đà Lạt)',
-      phRange: 'pH 6.2 – 7.0',
-      moistureProfile: 'Thoát nước cực nhanh, tơi xốp tối ưu',
-      compatibleCrops: [
-        { crop: 'Ớt chuông Sweet Pepper', rating: '97%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cần tây lá giòn', rating: '94%', status: 'THÍCH HỢP' },
-        { crop: 'Bông cải xanh Baby Broccolini', rating: '92%', status: 'THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-05 (Happy Valley E5), P-06 (An Nhiên F6)'
-    }
-  ]);
+  const [compatibilityList, setCompatibilityList] = useState([]);
 
   const [isAddCompatibilityOpen, setIsAddCompatibilityOpen] = useState(false);
-  const [newCompData, setNewCompData] = useState({
-    soilType: '',
-    phRange: 'pH 6.0 – 6.5',
-    moistureProfile: '',
-    cropsInput: ''
-  });
+  const [newCompData, setNewCompData] = useState({ plotId: '', varietyId: '' });
 
   // 5. Knowledge Library & AI RAG State (Screen 45)
-  const [knowledgeDocs, setKnowledgeDocs] = useState([
-    {
-      id: 'DOC-AGRI-01',
-      title: 'Cẩm Nang Phòng Trừ Bọ Trĩ & Rầy Mềm Bằng Thảo Mộc Gừng Ớt Tỏi',
-      category: 'Bảo Vệ Thực Vật Sinh Học',
-      author: 'ThS. Nguyễn Hoàng Nam',
-      updatedAt: '05/10/2026',
-      pages: 12,
-      aiRagStatus: 'ĐÃ NẠP RAG AI',
-      summary: 'Quy trình chiết xuất và tỉ lệ pha loãng 1:200 chế phẩm gừng ớt tỏi sinh học, cơ chế phá vỡ màng chitin của côn trùng chích hút mà không để lại dư lượng độc hại.'
-    },
-    {
-      id: 'DOC-AGRI-02',
-      title: 'Quy Chuẩn Cách Ly An Toàn VietGAP Trước Ngày Thu Hoạch Rau Ăn Lá',
-      category: 'Tiêu Chuẩn VietGAP',
-      author: 'ThS. Nguyễn Hoàng Nam',
-      updatedAt: '01/10/2026',
-      pages: 8,
-      aiRagStatus: 'ĐÃ NẠP RAG AI',
-      summary: 'Quy định mốc cách ly 5-7 ngày đối với phân bón hữu cơ và chế phẩm sinh học, kỹ thuật tưới rửa lá bằng nước lọc sạch để giữ độ ngọt giòn trước khi thu hái.'
-    },
-    {
-      id: 'DOC-AGRI-03',
-      title: 'Kỹ Thuật Điều Tiết Ẩm Độ Giá Thể Và Dinh Dưỡng Cho Cà Chua Bi Cherry',
-      category: 'Kỹ Thuật Trồng Nhà Màng',
-      author: 'ThS. Nguyễn Hoàng Nam',
-      updatedAt: '28/09/2026',
-      pages: 16,
-      aiRagStatus: 'ĐÃ NẠP RAG AI',
-      summary: 'Biện pháp khắc phục hiện tượng vàng lá sinh lý tầng chân, điều chỉnh chu kỳ tưới béc phun sương khi độ ẩm vượt 70% và phác đồ bổ sung đạm cá vi sinh.'
-    },
-    {
-      id: 'DOC-AGRI-04',
-      title: 'Sổ Tay Thụ Phấn Tự Nhiên Bằng Ong Mật Sinh Thái Trong Nhà Màng',
-      category: 'Hệ Sinh Thái Nông Trại',
-      author: 'ThS. Nguyễn Hoàng Nam',
-      updatedAt: '15/09/2026',
-      pages: 10,
-      aiRagStatus: 'ĐÃ NẠP RAG AI',
-      summary: 'Hướng dẫn đặt tổ ong mật Ý tại góc nhà lưới, kiểm soát nhiệt độ 22-30°C để ong hoạt động tối ưu, tăng tỉ lệ đậu quả dưa leo baby lên 95%.'
-    }
-  ]);
+  const [knowledgeDocs, setKnowledgeDocs] = useState([]);
 
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
   const [selectedDocToView, setSelectedDocToView] = useState(null);
@@ -1110,13 +782,15 @@ export default function ExpertDashboard() {
 
   const loadExpertData = async () => {
     try {
-      const [issuePayload, templatePayload, plotPayload, documentPayload, userPayload, varietyPayload] = await Promise.all([
-        apiFetch('/api/issues').catch(() => ({ data: [] })),
-        apiFetch('/api/templates').catch(() => ({ data: [] })),
-        apiFetch('/api/plots').catch(() => ({ data: [] })),
-        apiFetch('/api/v1/knowledge-documents').catch(() => ({ data: [] })),
-        apiFetch('/api/users').catch(() => ({ data: [] })),
-        apiFetch('/api/varieties').catch(() => ({ data: [] }))
+      const [issuePayload, templatePayload, plotPayload, documentPayload, userPayload, varietyPayload, compatibilityPayload, rentalPayload] = await Promise.all([
+        apiFetch('/api/issues'),
+        apiFetch('/api/templates'),
+        apiFetch('/api/plots'),
+        apiFetch('/api/v1/knowledge-documents'),
+        apiFetch('/api/users'),
+        apiFetch('/api/varieties'),
+        apiFetch('/api/compatibility'),
+        apiFetch('/api/rentals')
       ]);
       const issues = unwrapData(issuePayload) || [];
       const templates = unwrapData(templatePayload) || [];
@@ -1124,37 +798,41 @@ export default function ExpertDashboard() {
       const documents = unwrapData(documentPayload) || [];
       const users = unwrapData(userPayload) || [];
       const varieties = unwrapData(varietyPayload) || [];
-      if (varieties.length > 0) {
-        setVarietiesList(varieties);
-      }
-      const userById = new Map(users.map((account) => [Number(account.userId || account.id), account]));
+      const compatibility = unwrapData(compatibilityPayload) || [];
+      const rentals = unwrapData(rentalPayload) || [];
+      const expertId = Number(user?.userId);
+      const myRentals = rentals.filter((rental) => rental.status === 'ACTIVE' && Number(rental.expertId) === expertId);
+      const myRentalIds = new Set(myRentals.map((rental) => Number(rental.rentalId || rental.rental_id)));
+      const myPlotIds = new Set(myRentals.map((rental) => Number(rental.plotId || rental.plot_id)));
+      setVarietiesList(varieties);
+      setAvailableFieldWorkers(users.filter((account) => ['STAFF', 'FIELD_WORKER'].includes(account.role)).map((account) => ({
+        id: Number(account.userId || account.id), name: account.fullName || account.full_name,
+        role: account.role, email: account.email
+      })));
 
-      if (issues.length > 0) {
-        setFieldIssues(issues.map((issue) => ({
+      setFieldIssues(issues.filter((issue) => Number(issue.expertId || issue.handledBy) === expertId || myRentalIds.has(Number(issue.rentalId))).map((issue) => ({
           ...issue,
           id: issue.id || `ISS-${issue.issueId || issue.id}`,
           issueCode: issue.issueCode || `ISS-${issue.issueId || issue.id}`,
           apiId: issue.apiId || issue.issueId,
           rentalId: issue.rentalId,
-          reportedBy: issue.reportedBy || 8,
-          isStaffReporter: true,
-          workerName: issue.workerName || issue.reporterName || `Người báo #${issue.reportedBy || 8}`,
+          reportedBy: issue.reportedBy,
+          isStaffReporter: Boolean(issue.isStaffReporter),
+          workerName: issue.workerName || issue.reporterName || `Người báo #${issue.reportedBy}`,
           plotCode: issue.plotCode || '',
           plotName: issue.plotName || `Thửa ${issue.plotCode || ''}`,
-          cropName: issue.cropName || issue.crop || 'Cà chua bi đỏ F1',
+          cropName: issue.cropName || issue.crop || '',
           urgency: issue.urgency || (String(issue.description || '').includes('[KHẨN CẤP]') ? 'HIGH' : 'NORMAL'),
           issueType: issue.issueType,
           description: issue.description,
           reportedTime: issue.reportedTime || (issue.createdAt ? new Date(issue.createdAt).toLocaleString('vi-VN') : ''),
-          photoUrl: issue.photoUrl || issue.imageUrl || '/images/moc-chau-2811.jpg',
+          photoUrl: issue.photoUrl || issue.imageUrl || '',
           diagnosis: issue.diagnosis || issue.resolutionNotes || '',
           status: issue.status || issue.displayStatus || 'OPEN',
           assignedTaskCode: issue.assignedTaskCode || null,
           assignedDueDate: issue.assignedDueDate || null
         })));
-      }
-      if (templates.length > 0) {
-        setProcessTemplates(templates.map((template) => ({
+      setProcessTemplates(templates.map((template) => ({
           id: template.templateId,
           code: `TMPL-${String(template.templateId).padStart(3, '0')}`,
           version: template.version || 'v1.0',
@@ -1172,36 +850,36 @@ export default function ExpertDashboard() {
             details: step.description || step.materialsNeeded || ''
           }))
         })));
-      }
-      if (plots.length > 0) {
-        setCompatibilityList(plots.map((plot) => ({
-          id: plot.plotId,
-          soilType: plot.landName || 'Thửa đất Farmely',
-          phRange: plot.landAddress || 'Chưa cập nhật địa chỉ',
-          moistureProfile: `${plot.area || 0} m² • trạng thái ${plot.status || 'chưa cập nhật'}`,
-          compatibleCrops: (plot.compatibleVarieties || []).map((variety) => ({
-            crop: variety.varietyName || variety.name,
-            rating: 'Đạt',
-            status: 'PHÙ HỢP'
-          })),
-          plotsApplied: `${plot.plotCode}${plot.landName ? ` (${plot.landName})` : ''}`
-        })));
-      }
-      if (documents.length > 0) {
-        setKnowledgeDocs(documents.map((document) => ({
+      const plotById = new Map(plots.map((plot) => [Number(plot.plotId), plot]));
+      const compatibilityByPlot = new Map();
+      compatibility.filter((entry) => myPlotIds.has(Number(entry.plotId))).forEach((entry) => {
+        const key = Number(entry.plotId);
+        const group = compatibilityByPlot.get(key) || [];
+        group.push({ crop: entry.varietyName, rating: entry.status, status: entry.status });
+        compatibilityByPlot.set(key, group);
+      });
+      setCompatibilityList([...compatibilityByPlot].map(([plotId, compatibleCrops]) => {
+        const plot = plotById.get(plotId) || {};
+        return {
+          id: plotId, soilType: plot.soilType || plot.landName || '', phRange: plot.ph || '',
+          moistureProfile: plot.area ? `${plot.area} m²` : '', compatibleCrops,
+          plotsApplied: plot.plotCode || ''
+        };
+      }));
+      setKnowledgeDocs(documents.map((document) => ({
           id: document.documentId || document.id,
           title: document.title,
           category: document.documentType || 'Tài liệu canh tác',
-          author: document.author || 'Chuyên gia Farmely',
+          author: document.authorName || document.author || '',
           updatedAt: document.uploadedDate || (document.createdAt ? new Date(document.createdAt).toLocaleDateString('vi-VN') : ''),
-          pages: document.sectionsCount || 1,
+          pages: document.sectionsCount || 0,
           aiRagStatus: document.isIndexedForRAG ? 'ĐÃ NẠP RAG AI' : 'CHƯA NẠP RAG AI',
           summary: document.description || document.content || ''
         })));
-      }
       setDataError('');
     } catch (error) {
       console.warn('Could not sync live expert data:', error);
+      setDataError('Không thể tải dữ liệu chuyên gia. Vui lòng thử lại.');
     }
   };
 
@@ -1214,7 +892,7 @@ export default function ExpertDashboard() {
         method: 'POST',
         body: JSON.stringify({
           varietyId: Number(newTemplateData.varietyId),
-          ptCreatedBy: user?.id || 5,
+          ptCreatedBy: Number(user?.userId),
           version: newTemplateData.version || '1.0',
           steps: newTemplateData.steps
         })
@@ -1223,29 +901,7 @@ export default function ExpertDashboard() {
       setIsCreateTemplateOpen(false);
       await loadExpertData();
     } catch (err) {
-      console.warn('Lỗi gọi API templates, fallback lưu local:', err);
-      const chosenVar = varietiesList.find(v => v.varietyId === Number(newTemplateData.varietyId));
-      const newTmpl = {
-        id: `TMPL-${Date.now()}`,
-        code: newTemplateData.code || `TMPL-${Math.floor(1000 + Math.random() * 9000)}`,
-        version: newTemplateData.version || 'v1.0',
-        name: `Quy trình ${chosenVar?.varietyName || 'canh tác VietGAP'}`,
-        variety: chosenVar?.varietyName || 'Rau hữu cơ',
-        durationDays: Math.max(...newTemplateData.steps.map(s => Number(s.dayOffset) || 0)),
-        stagesCount: newTemplateData.steps.length,
-        stepsCount: newTemplateData.steps.length,
-        status: 'ACTIVE',
-        description: newTemplateData.description || 'Quy trình canh tác chuẩn VietGAP.',
-        steps: newTemplateData.steps.map(s => ({
-          day: s.dayOffset,
-          name: s.stepName,
-          type: `BƯỚC ${s.stepOrder}`,
-          details: `${s.description} • Vật tư: ${s.materialsNeeded}`
-        }))
-      };
-      setProcessTemplates(prev => [newTmpl, ...prev]);
-      setIsCreateTemplateOpen(false);
-      triggerSuccessToast('Đã lưu quy trình canh tác mới vào hệ thống!');
+      setDataError(err.message || 'Không thể lưu quy trình canh tác.');
     } finally {
       setIsSubmittingTemplate(false);
     }
@@ -1255,49 +911,50 @@ export default function ExpertDashboard() {
     if (!window.confirm('Bạn có chắc chắn muốn xóa quy trình canh tác này?')) return;
     try {
       await apiFetch(`/api/templates/${templateId}`, { method: 'DELETE' });
+      setProcessTemplates(prev => prev.filter(t => t.id !== templateId));
       triggerSuccessToast('Đã xóa quy trình canh tác thành công!');
     } catch (err) {
-      console.warn('Lỗi khi xóa template:', err);
+      setDataError(err.message || 'Không thể xóa quy trình canh tác.');
     }
-    setProcessTemplates(prev => prev.filter(t => t.id !== templateId));
   };
 
-  const handleAddCompatibility = (e) => {
+  const handleAddCompatibility = async (e) => {
     e.preventDefault();
-    if (!newCompData.soilType) return;
-    const crops = newCompData.cropsInput
-      ? newCompData.cropsInput.split(',').map(c => ({ crop: c.trim(), rating: '95%', status: 'RẤT THÍCH HỢP' }))
-      : [{ crop: 'Rau ăn lá VietGAP', rating: '95%', status: 'RẤT THÍCH HỢP' }];
-
-    const newComp = {
-      id: `COMP-0${compatibilityList.length + 1}`,
-      soilType: newCompData.soilType,
-      phRange: newCompData.phRange || 'pH 6.0 – 6.8',
-      moistureProfile: newCompData.moistureProfile || 'Thoát nước tốt, giàu mùn hữu cơ',
-      compatibleCrops: crops,
-      plotsApplied: 'Các thửa đất đang áp dụng tại trang trại'
-    };
-    setCompatibilityList(prev => [...prev, newComp]);
-    setIsAddCompatibilityOpen(false);
-    setNewCompData({ soilType: '', phRange: 'pH 6.0 – 6.5', moistureProfile: '', cropsInput: '' });
+    if (!newCompData.plotId || !newCompData.varietyId) return;
+    try {
+      await apiFetch('/api/compatibility', {
+        method: 'POST',
+        body: JSON.stringify({ plotId: Number(newCompData.plotId), varietyId: Number(newCompData.varietyId) })
+      });
+      await loadExpertData();
+      setIsAddCompatibilityOpen(false);
+      setNewCompData({ plotId: '', varietyId: '' });
+      triggerSuccessToast('Đã lưu giống cây tương thích cho thửa đất.');
+    } catch (err) {
+      setDataError(err.message || 'Không thể lưu giống cây tương thích.');
+    }
   };
 
-  const handleAddDoc = (e) => {
+  const handleAddDoc = async (e) => {
     e.preventDefault();
-    if (!newDocData.title) return;
-    const newDoc = {
-      id: `DOC-AGRI-0${knowledgeDocs.length + 1}`,
-      title: newDocData.title,
-      category: newDocData.category,
-      author: user?.fullName || 'ThS. Nguyễn Hoàng Nam',
-      updatedAt: 'Hôm nay',
-      pages: Number(newDocData.pages) || 10,
-      aiRagStatus: 'ĐÃ NẠP RAG AI',
-      summary: newDocData.summary || 'Tài liệu hướng dẫn kỹ thuật nông nghiệp chuẩn VietGAP được chuyên gia số hóa.'
-    };
-    setKnowledgeDocs(prev => [newDoc, ...prev]);
-    setIsAddDocOpen(false);
-    setNewDocData({ title: '', category: 'Tiêu Chuẩn VietGAP', summary: '', pages: 10 });
+    if (!newDocData.title.trim() || !newDocData.summary.trim()) return;
+    try {
+      await apiFetch('/api/v1/knowledge-documents', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: newDocData.title.trim(), content: newDocData.summary.trim(),
+          documentType: newDocData.category, authorName: user?.fullName || '',
+          sectionsCount: Number(newDocData.pages) || 0,
+          createdBy: Number(user?.userId), isIndexedForRAG: false
+        })
+      });
+      await loadExpertData();
+      setIsAddDocOpen(false);
+      setNewDocData({ title: '', category: 'Tiêu Chuẩn VietGAP', summary: '', pages: 0 });
+      triggerSuccessToast('Đã lưu tài liệu vào kho tri thức.');
+    } catch (err) {
+      setDataError(err.message || 'Không thể lưu tài liệu.');
+    }
   };
 
   return (
@@ -1305,10 +962,11 @@ export default function ExpertDashboard() {
       <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
 
       <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
+        {dataError && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{dataError}</div>}
         
         {/* Top Agronomy Metrics */}
         {(() => {
-          const pendingIssuesCount = fieldIssues.filter(i => i.status === 'PENDING').length;
+          const pendingIssuesCount = fieldIssues.filter(i => i.status === 'PENDING' || i.status === 'OPEN').length;
           const pendingChatCount = chatThreads.filter(c => c.status === 'PENDING').length;
           return (
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -1317,9 +975,9 @@ export default function ExpertDashboard() {
                   Thửa Đất Giám Sát
                 </span>
                 <div className="text-2xl font-heading font-black text-brand-dark">
-                  {assignedPlots.length > 0 ? assignedPlots.length : 16} Thửa
+                  {assignedPlots.length} Thửa
                 </div>
-                <span className="text-[10px] text-emerald-700 font-bold block">100% chuẩn VietGAP</span>
+                <span className="text-[10px] text-emerald-700 font-bold block">Đang phụ trách</span>
               </div>
 
               <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
@@ -1351,7 +1009,7 @@ export default function ExpertDashboard() {
                   Quy Trình Chuẩn
                 </span>
                 <div className="text-2xl font-heading font-black text-brand-dark">
-                  0{processTemplates.length} Phác Đồ
+                  {processTemplates.length} Phác Đồ
                 </div>
                 <span className="text-[10px] text-stone-500 font-semibold block">Đang áp dụng thực địa</span>
               </div>
@@ -1361,7 +1019,7 @@ export default function ExpertDashboard() {
                   Kho Tri Thức & AI
                 </span>
                 <div className="text-2xl font-heading font-black text-brand-dark">
-                  0{knowledgeDocs.length} Tài Liệu
+                  {knowledgeDocs.length} Tài Liệu
                 </div>
                 <span className="text-[10px] text-stone-500 font-semibold block">Đã nạp RAG AI</span>
               </div>
@@ -1378,7 +1036,7 @@ export default function ExpertDashboard() {
 
             {[
               { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
-              { id: 'plots', label: 'Thửa Đất Giám Sát (BR24)', icon: Layers, count: assignedPlots.length },
+              { id: 'plots', label: 'Thửa Đất Giám Sát', icon: Layers, count: assignedPlots.length },
               { id: 'harvest', label: 'Duyệt Kế Hoạch Thu Hoạch', icon: Wheat, count: pendingHarvestCount },
               { id: 'issues', label: 'Xử Lý Sự Cố Hiện Trường', icon: AlertTriangle, count: fieldIssues.filter(i => i.status === 'PENDING' || i.status === 'OPEN').length },
               { id: 'templates', label: 'Quy Trình Canh Tác VietGAP', icon: FileSpreadsheet, count: null },
@@ -1933,14 +1591,14 @@ export default function ExpertDashboard() {
               </div>
             )}
 
-            {/* TAB: THỬA ĐẤT GIÁM SÁT KỸ THUẬT (BR24) */}
+            {/* TAB: THỬA ĐẤT GIÁM SÁT KỸ THUẬT */}
             {activeTab === 'plots' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
                       <Layers className="w-5 h-5 text-sky-700" />
-                      <span>Thửa Đất Giám Sát Kỹ Thuật (BR24)</span>
+                      <span>Thửa Đất Giám Sát Kỹ Thuật</span>
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh sách các thửa đất canh tác do Ban Quản Trị chỉ định cho Chuyên Gia Nông Nghiệp phụ trách chuyên môn.
@@ -2006,7 +1664,7 @@ export default function ExpertDashboard() {
                           <div>
                             <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Quan Trắc IoT:</span>
                             <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
-                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu ẩm &gt;= 80% (BR18)</span>
+                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu ẩm &gt;= 80%</span>
                           </div>
                         </div>
 
@@ -3073,7 +2731,7 @@ export default function ExpertDashboard() {
                       <Camera className="w-3.5 h-3.5 text-emerald-400" />
                       Minh chứng thực địa từ hiện trường
                     </span>
-                    <span className="text-[10px] text-stone-300">BR16</span>
+                    <span className="text-[10px] text-stone-300"></span>
                   </div>
                 </div>
 
@@ -3556,59 +3214,21 @@ export default function ExpertDashboard() {
         subtitle="Mở rộng ma trận gợi ý giống cây cho hệ thống"
       >
         <form onSubmit={handleAddCompatibility} className="space-y-3 text-xs text-left">
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Loại Đất & Khu Vực Thổ Nhưỡng:</label>
-            <input
-              type="text"
-              required
-              placeholder="Đất phù sa sét nhẹ ven sông (Củ Chi Zone B)"
-              value={newCompData.soilType}
-              onChange={(e) => setNewCompData({ ...newCompData, soilType: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-bold text-brand-dark mb-1">Dải pH Khuyến Nghị:</label>
-              <input
-                type="text"
-                placeholder="pH 6.0 – 6.8"
-                value={newCompData.phRange}
-                onChange={(e) => setNewCompData({ ...newCompData, phRange: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-              />
-            </div>
-            <div>
-              <label className="block font-bold text-brand-dark mb-1">Đặc tính giữ ẩm & thoát nước:</label>
-              <input
-                type="text"
-                placeholder="Thoát nước nhanh, giàu mùn hữu cơ"
-                value={newCompData.moistureProfile}
-                onChange={(e) => setNewCompData({ ...newCompData, moistureProfile: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Các giống cây thích hợp (cách nhau bởi dấu phẩy):</label>
-            <textarea
-              rows={2}
-              placeholder="Cà chua bi Cherry, Xà lách Romaine, Dưa leo Baby, Bạc hà Âu"
-              value={newCompData.cropsInput}
-              onChange={(e) => setNewCompData({ ...newCompData, cropsInput: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
+          <label className="block font-bold text-brand-dark">Thửa đất đang phụ trách
+            <select required value={newCompData.plotId} onChange={(e) => setNewCompData({ ...newCompData, plotId: e.target.value })} className="mt-1 w-full rounded-xl border border-brand-border bg-white p-2.5">
+              <option value="">Chọn thửa đất</option>
+              {assignedPlots.map((plot) => <option key={plot.plotId} value={plot.plotId}>{plot.plotCode} — {plot.name}</option>)}
+            </select>
+          </label>
+          <label className="block font-bold text-brand-dark">Giống cây phù hợp
+            <select required value={newCompData.varietyId} onChange={(e) => setNewCompData({ ...newCompData, varietyId: e.target.value })} className="mt-1 w-full rounded-xl border border-brand-border bg-white p-2.5">
+              <option value="">Chọn giống cây</option>
+              {varietiesList.map((variety) => <option key={variety.varietyId} value={variety.varietyId}>{variety.varietyName}</option>)}
+            </select>
+          </label>
           <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsAddCompatibilityOpen(false)}>
-              Hủy
-            </Button>
-            <Button type="submit" variant="primary" size="sm" className="font-bold">
-              Lưu Cấu Hình
-            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsAddCompatibilityOpen(false)}>Hủy</Button>
+            <Button type="submit" variant="primary" size="sm" className="font-bold">Lưu cấu hình</Button>
           </div>
         </form>
       </Modal>

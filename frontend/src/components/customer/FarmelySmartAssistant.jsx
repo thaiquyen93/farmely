@@ -29,7 +29,7 @@ const FALLBACK_KNOWLEDGE_BASE = [
   },
   {
     keywords: ['độ ẩm', 'ẩm đất', 'tưới nước', 'tưới bù', 'hạn'],
-    reply: 'Theo quy chuẩn vi khí hậu Farmely (Quy tắc BR18): Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Nếu cảm biến báo dưới 40%, hệ thống sẽ kích hoạt cảnh báo tưới bổ sung. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ.',
+    reply: 'Theo quy chuẩn vi khí hậu Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Nếu cảm biến báo dưới 40%, hệ thống sẽ kích hoạt cảnh báo tưới bổ sung. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ.',
     source: 'Quy trình Vi khí hậu & Tự động hóa IoT Farmely'
   },
   {
@@ -40,12 +40,12 @@ const FALLBACK_KNOWLEDGE_BASE = [
   {
     keywords: ['thuê đất', 'hợp đồng', 'gia hạn', 'chi phí', 'giá'],
     reply: 'Quy trình thuê đất tại Farmely bao gồm: Chọn thửa đất trên Marketplace bản đồ vệ tinh, chọn giống cây & gói canh tác (Tự trồng hoặc Có hỗ trợ chăm sóc), thanh toán trả trước 100% qua VNPay/VietQR. Hợp đồng được ký điện tử và bạn có thể gia hạn trước khi hết hạn 3 ngày với chiết khấu từ 5% – 15%.',
-    source: 'Điều khoản Hợp đồng & Pháp lý Farmely (BR11, BR12)'
+    source: 'Điều khoản Hợp đồng & Pháp lý Farmely'
   },
   {
     keywords: ['thu hoạch', 'sản lượng', 'chất lượng', 'khiếu nại'],
     reply: 'Khi đến kỳ thu hoạch, nhân viên hiện trường sẽ cân sản lượng thực tế, dán mã QR truy xuất và chụp ảnh đối chứng. Khách hàng nghiệm thu đánh giá chất lượng (Độ tươi, Bao gói). Nếu sản lượng thiếu hụt do lỗi vận hành, bạn có quyền gửi hồ sơ khiếu nại để nhận bồi thường hoàn tiền hoặc bù vụ tiếp theo.',
-    source: 'Quy chế Nghiệm thu & Bảo hiểm Nông sản Farmely (BR16, BR17)'
+    source: 'Quy chế Nghiệm thu & Bảo hiểm Nông sản Farmely'
   }
 ];
 

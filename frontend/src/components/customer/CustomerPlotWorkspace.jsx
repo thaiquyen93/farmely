@@ -2164,7 +2164,7 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200/80 pb-3">
           <div>
             <SectionTitle eyebrow={`${orders.length} đơn dịch vụ`} title="Lịch sử mua & sử dụng dịch vụ" />
-            <p className="text-xs text-stone-500 mt-0.5">Theo dõi chi tiết tiến độ thực hiện, nhân viên phụ trách và ảnh nghiệm thu thực địa (BR15).</p>
+            <p className="text-xs text-stone-500 mt-0.5">Theo dõi chi tiết tiến độ thực hiện, nhân viên phụ trách và ảnh nghiệm thu thực địa.</p>
           </div>
           <div className="flex items-center gap-1.5 self-start sm:self-auto bg-stone-100 p-1 rounded-xl text-xs font-semibold">
             <button
@@ -2250,7 +2250,7 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
                           <div className="text-xs">
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                               <Camera className="w-3 h-3" />
-                              Minh chứng hiện trường (BR15)
+                              Minh chứng hiện trường
                             </span>
                             <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-1">{o.proofNotes || 'Đã nghiệm thu đạt chuẩn'}</p>
                           </div>
@@ -2258,7 +2258,7 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
                       ) : (
                         <p className="text-[11px] text-stone-400 italic pt-1 flex items-center gap-1">
                           <Info className="w-3 h-3 text-stone-400" />
-                          {isCompleted ? 'Dịch vụ đã hoàn tất theo định mức' : 'Nhân viên sẽ chụp ảnh hiện trường gửi vào đây khi thực hiện (BR15)'}
+                          {isCompleted ? 'Dịch vụ đã hoàn tất theo định mức' : 'Nhân viên sẽ chụp ảnh hiện trường gửi vào đây khi thực hiện'}
                         </p>
                       )}
                     </div>
@@ -2341,7 +2341,7 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
               <div className="space-y-1.5">
                 <h5 className="font-bold text-xs text-[#18352b] flex items-center gap-1.5">
                   <Camera className="w-4 h-4 text-emerald-700" />
-                  Ảnh minh chứng hiện trường (BR15):
+                  Ảnh minh chứng hiện trường:
                 </h5>
                 <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-stone-900 flex items-center justify-center max-h-56">
                   <img 
@@ -2453,7 +2453,7 @@ export default function CustomerPlotWorkspace({
     });
   }, [isSelf]);
 
-  // 0. Quản lý Mùa vụ (Seasons) & Gia hạn hợp đồng thửa đất (BR12)
+  // 0. Quản lý Mùa vụ (Seasons) & Gia hạn hợp đồng thửa đất
   const [customSeasons, setCustomSeasons] = useState(null);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
 
@@ -2775,8 +2775,8 @@ export default function CustomerPlotWorkspace({
       dynamicList.unshift({
         id: 'DYNAMIC-FLOOD-BR18',
         level: 'HIGH',
-        title: 'Mưa lớn & Đất bão hoà ẩm (BR18)',
-        explanation: `Độ ẩm đất đo đạc thực tế từ trạm là ${activePlot.soilMoisture} (≥ 80%). Hệ thống đã tự động kích hoạt luật BR18: Tạm hoãn mọi tác vụ tưới hôm nay để tránh ngập úng rễ cây.`,
+        title: 'Mưa lớn & Đất bão hoà ẩm',
+        explanation: `Độ ẩm đất đo đạc thực tế từ trạm là ${activePlot.soilMoisture} (≥ 80%). Hệ thống đã tự động kích hoạt luật : Tạm hoãn mọi tác vụ tưới hôm nay để tránh ngập úng rễ cây.`,
         action: 'Farmely đã tự động dời lịch tưới hôm nay.',
         time: activePlot.lastUpdated || 'Vừa xong'
       });
@@ -2784,7 +2784,7 @@ export default function CustomerPlotWorkspace({
       dynamicList.unshift({
         id: 'DYNAMIC-DRY-BR18',
         level: 'HIGH',
-        title: 'Đất khô kiệt dưới ngưỡng an toàn (BR18)',
+        title: 'Đất khô kiệt dưới ngưỡng an toàn',
         explanation: `Độ ẩm đất đo đạc tụt xuống ${activePlot.soilMoisture} (< 50%). Cây trồng có nguy cơ sốc nhiệt nếu không được cấp nước bù.`,
         action: 'Kỹ thuật viên thực địa đã được thông báo để tưới nhỏ giọt bù ẩm.',
         time: activePlot.lastUpdated || 'Vừa xong'
@@ -3096,7 +3096,7 @@ export default function CustomerPlotWorkspace({
         />
       )}
 
-      {/* Modal Gia Hạn Hợp Đồng Thuê Thửa Đất theo Vụ Mùa (BR12) */}
+      {/* Modal Gia Hạn Hợp Đồng Thuê Thửa Đất theo Vụ Mùa */}
       <PlotRenewalModal
         isOpen={showRenewalModal}
         onClose={() => setShowRenewalModal(false)}

@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import { siteVisitsApiPlugin } from './server/siteVisitsApiPlugin.js'
 
+const apiTarget = process.env.FARMELY_API_TARGET || 'http://localhost:8080'
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), siteVisitsApiPlugin()],
@@ -31,30 +33,30 @@ export default defineConfig({
     },
     proxy: {
       '/api/sensors': {
-        target: 'http://localhost:8088',
+        target: apiTarget,
         changeOrigin: true,
       },
-      '/api/services': { target: 'http://localhost:8086', changeOrigin: true },
-      '/api/tasks': { target: 'http://localhost:8086', changeOrigin: true },
-      '/api/issues': { target: 'http://localhost:8086', changeOrigin: true },
-      '/api/harvest': { target: 'http://localhost:8086', changeOrigin: true },
-      '/api/plots': { target: 'http://localhost:8082', changeOrigin: true },
-      '/api/lands': { target: 'http://localhost:8082', changeOrigin: true },
-      '/api/crops': { target: 'http://localhost:8083', changeOrigin: true },
-      '/api/varieties': { target: 'http://localhost:8083', changeOrigin: true },
-      '/api/templates': { target: 'http://localhost:8083', changeOrigin: true },
-      '/api/knowledge-documents': { target: 'http://localhost:8083', changeOrigin: true },
-      '/api/contracts': { target: 'http://localhost:8084', changeOrigin: true },
-      '/api/reservations': { target: 'http://localhost:8084', changeOrigin: true },
-      '/api/cancellations': { target: 'http://localhost:8084', changeOrigin: true },
-      '/api/rentals': { target: 'http://localhost:8084', changeOrigin: true },
-      '/api/users': { target: 'http://localhost:8081', changeOrigin: true },
+      '/api/services': { target: apiTarget, changeOrigin: true },
+      '/api/tasks': { target: apiTarget, changeOrigin: true },
+      '/api/issues': { target: apiTarget, changeOrigin: true },
+      '/api/harvest': { target: apiTarget, changeOrigin: true },
+      '/api/plots': { target: apiTarget, changeOrigin: true },
+      '/api/lands': { target: apiTarget, changeOrigin: true },
+      '/api/crops': { target: apiTarget, changeOrigin: true },
+      '/api/varieties': { target: apiTarget, changeOrigin: true },
+      '/api/templates': { target: apiTarget, changeOrigin: true },
+      '/api/knowledge-documents': { target: apiTarget, changeOrigin: true },
+      '/api/contracts': { target: apiTarget, changeOrigin: true },
+      '/api/reservations': { target: apiTarget, changeOrigin: true },
+      '/api/cancellations': { target: apiTarget, changeOrigin: true },
+      '/api/rentals': { target: apiTarget, changeOrigin: true },
+      '/api/users': { target: apiTarget, changeOrigin: true },
       '/api/v1/payments': {
-        target: 'http://localhost:8085',
+        target: apiTarget,
         changeOrigin: true,
       },
       '/api': {
-        target: 'http://localhost:8080',
+        target: apiTarget,
         changeOrigin: true,
       },
     },

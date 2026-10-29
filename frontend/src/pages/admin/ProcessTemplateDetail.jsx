@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { processTemplatesData } from '../../data/processTemplates';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
@@ -36,9 +35,7 @@ export default function ProcessTemplateDetail() {
   const bulkFileRef = useRef(null);
 
   // Template State
-  const [template, setTemplate] = useState(() => {
-    return processTemplatesData.find((t) => String(t.id) === String(id) || t.code === id || t.id === `TMPL-00${id}`) || processTemplatesData[0];
-  });
+  const [template, setTemplate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLiveDb, setIsLiveDb] = useState(false);
 
@@ -76,7 +73,8 @@ export default function ProcessTemplateDetail() {
         }
       })
       .catch((err) => {
-        console.warn('Lỗi tải quy trình từ database, giữ mock:', err);
+        console.warn('Lỗi tải quy trình từ database:', err);
+        setTemplate(null);
       })
       .finally(() => {
         setLoading(false);
@@ -92,7 +90,7 @@ export default function ProcessTemplateDetail() {
     setEditingStep(null);
     setStepName('');
     // Auto suggest next day offset
-    const currentSteps = template.steps || [];
+    const currentSteps = template?.steps || [];
     const lastDay = currentSteps.length > 0 ? Math.max(...currentSteps.map(s => Number(s.dayOffset || s.day || 0))) : 0;
     setDayOffset(String(lastDay === 0 && currentSteps.length === 0 ? 0 : lastDay + 5));
     setTaskType('CARE');
@@ -179,36 +177,12 @@ export default function ProcessTemplateDetail() {
         }
       }
     } catch (err) {
-      console.warn('Lưu bước kỹ thuật qua API thất bại, lưu tạm local:', err);
+      console.warn('Lưu bước kỹ thuật qua API thất bại:', err);
     } finally {
       setIsSubmitting(false);
     }
 
-    // Local fallback update if offline
-    if (editingStep) {
-      setTemplate(prev => ({
-        ...prev,
-        steps: (prev.steps || []).map(s => {
-          if (s === editingStep || s.id === editingStep.id || s.stepId === editingStep.stepId) {
-            return { ...s, ...payload, stepNumber: s.stepNumber || 1 };
-          }
-          return s;
-        }).sort((a, b) => Number(a.dayOffset) - Number(b.dayOffset))
-      }));
-    } else {
-      const newStep = {
-        id: Date.now(),
-        stepId: Date.now(),
-        stepNumber: (template.steps?.length || 0) + 1,
-        ...payload,
-        status: day === 0 ? 'COMPLETED' : 'SCHEDULED'
-      };
-      setTemplate(prev => ({
-        ...prev,
-        steps: [...(prev.steps || []), newStep].sort((a, b) => Number(a.dayOffset) - Number(b.dayOffset))
-      }));
-    }
-    setShowStepModal(false);
+    window.alert('Không thể lưu bước kỹ thuật. Vui lòng thử lại.');
   };
 
   // Delete Step
@@ -235,11 +209,7 @@ export default function ProcessTemplateDetail() {
       }
     }
 
-    // Local fallback removal
-    setTemplate(prev => ({
-      ...prev,
-      steps: (prev.steps || []).filter(s => s !== step && s.id !== step.id && s.stepId !== step.stepId)
-    }));
+    window.alert('Không thể xóa bước kỹ thuật. Vui lòng thử lại.');
   };
 
   // Bulk File Handling
@@ -324,6 +294,8 @@ export default function ProcessTemplateDetail() {
     }
   };
 
+  if (!template) return <p className="p-6 text-stone-600">{loading ? 'Đang tải quy trình...' : 'Không tìm thấy quy trình hoặc không thể tải dữ liệu.'}</p>;
+
   return (
     <div className="space-y-8">
       {/* Back and Header */}
@@ -404,7 +376,7 @@ export default function ProcessTemplateDetail() {
         <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-3">
           <Sparkles className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
           <p className="text-xs text-amber-900 leading-relaxed">
-            <strong>Cơ chế tự động sinh việc (Auto-dispatch BR12):</strong> Khi khách hàng kích hoạt hợp đồng thuê thửa với giống này theo hình thức <em>Assisted-growing</em>, hệ thống sẽ tự động quét toàn bộ danh sách các bước dưới đây và sinh <strong>Care Task</strong> giao cho Chuyên viên lao động (CVLĐ) đúng vào ngày thứ <em>Day Offset</em> kể từ ngày bắt đầu vụ.
+            <strong>Cơ chế tự động sinh việc (Auto-dispatch):</strong> Khi khách hàng kích hoạt hợp đồng thuê thửa với giống này theo hình thức <em>Assisted-growing</em>, hệ thống sẽ tự động quét toàn bộ danh sách các bước dưới đây và sinh <strong>Care Task</strong> giao cho Chuyên viên lao động (CVLĐ) đúng vào ngày thứ <em>Day Offset</em> kể từ ngày bắt đầu vụ.
           </p>
         </div>
       </div>
@@ -573,7 +545,7 @@ export default function ProcessTemplateDetail() {
                     <div className="pt-1 flex items-center justify-between text-[11px] text-brand-muted border-t border-stone-100">
                       <span className="flex items-center gap-1 text-emerald-800 font-semibold">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Nghiệm thu bắt buộc: Tải tối thiểu 1 ảnh minh chứng thực địa (BR15)
+                        Nghiệm thu bắt buộc: Tải tối thiểu 1 ảnh minh chứng thực địa
                       </span>
                       <span className="text-stone-400">Tự động đồng bộ Farm Diary sau khi duyệt</span>
                     </div>

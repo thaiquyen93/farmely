@@ -121,7 +121,7 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
     }) || null;
   }, [activePlotId, dbPlots]);
 
-  // Dates: Min date = tomorrow (at least 24h advance per SSoT BR06 / SCR-PUB-05), Max = +30 days
+  // Dates: Min date = tomorrow (at least 24h advance per SSoT  / SCR-PUB-05), Max = +30 days
   const { minDateStr, maxDateStr, tomorrowStr, weekendSatStr, weekendSunStr } = useMemo(() => {
     const tmr = new Date();
     tmr.setDate(tmr.getDate() + 1);

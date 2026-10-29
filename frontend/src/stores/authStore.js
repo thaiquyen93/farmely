@@ -74,10 +74,10 @@ const normalizeUser = (user, token) => {
 const readAuth = () => {
   try {
     const auth = JSON.parse(localStorage.getItem('farmely_auth') || 'null');
-    if (auth?.token && auth?.user) return auth;
+    if (auth?.token && auth?.user && !auth.token.startsWith('demo-token-')) return auth;
     const user = JSON.parse(localStorage.getItem('farmely_user') || 'null');
     const token = localStorage.getItem('farmely_token') || null;
-    if (user) return { token, user: normalizeUser(user, token) };
+    if (user && token && !token.startsWith('demo-token-')) return { token, user: normalizeUser(user, token) };
     return null;
   } catch {
     return null;
@@ -115,26 +115,10 @@ export const useAuthStore = create((set, get) => ({
         return { success: true, user };
       }
       // Fallback cho tài khoản demo kiểm thử nếu mật khẩu DB không khớp
-      const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
-      if (demoAcc) {
-        const fallbackToken = 'demo-token-' + demoAcc.id;
-        const normalized = normalizeUser(demoAcc, fallbackToken);
-        persistAuth({ token: fallbackToken, user: normalized });
-        set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
-        return { success: true, user: normalized };
-      }
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       return { success: false, message: resData?.message || 'Email hoặc mật khẩu không chính xác.' };
     } catch (error) {
       // Fallback cho tài khoản demo khi Identity Service offline
-      const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
-      if (demoAcc) {
-        const fallbackToken = 'demo-token-' + demoAcc.id;
-        const normalized = normalizeUser(demoAcc, fallbackToken);
-        persistAuth({ token: fallbackToken, user: normalized });
-        set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
-        return { success: true, user: normalized };
-      }
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       return { success: false, message: error.message || 'Không thể kết nối đến máy chủ xác thực.' };
     }
@@ -169,9 +153,6 @@ export const useAuthStore = create((set, get) => ({
   refreshUser: async () => {
     const auth = readAuth();
     if (!auth?.token) return null;
-    if (auth.token.startsWith('demo-token-')) {
-      return auth.user;
-    }
     try {
       const response = await fetch('/api/auth/me', {
         headers: {
@@ -216,12 +197,6 @@ export const useAuthStore = create((set, get) => ({
   },
 
   switchRole: async (role) => {
-    const target = DEMO_ACCOUNTS.find(acc => acc.role === role);
-    if (target) {
-      const normalized = normalizeUser(target, 'demo-token-' + target.id);
-      persistAuth({ token: 'demo-token-' + target.id, user: normalized });
-      set({ user: normalized, isAuthenticated: true });
-    }
     const roleEmailMap = {
       CUSTOMER: 'customer@farmely.vn',
       EXPERT: 'expert@farmely.vn',
@@ -229,6 +204,6 @@ export const useAuthStore = create((set, get) => ({
       ADMIN: 'admin@farmely.vn'
     };
     const email = roleEmailMap[role] || 'customer@farmely.vn';
-    return await get().login(email, 'Password@123').catch(() => ({ success: true, user: target }));
+    return await get().login(email, '123456');
   }
 }));

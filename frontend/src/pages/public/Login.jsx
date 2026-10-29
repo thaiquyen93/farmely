@@ -62,13 +62,13 @@ export default function Login() {
 
   const handleQuickLogin = async (account) => {
     setEmail(account.email);
-    setPassword('Password@123');
+    setPassword('123456');
     setIsLoading(true);
     setErrorMessage('');
     setSuccessMessage('');
 
     try {
-      const res = await login(account.email, 'Password@123');
+      const res = await login(account.email, '123456');
       setIsLoading(false);
       if (res.success) {
         setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
@@ -81,31 +81,10 @@ export default function Login() {
         else navigate('/');
         return;
       }
-    } catch (_) {}
-
-    // Fallback tức thì nếu có bất kỳ lỗi mạng hoặc backend
-    const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === account.email.toLowerCase());
-    if (demoAcc) {
-      const fallbackToken = 'demo-token-' + demoAcc.id;
-      const mappedUser = {
-        ...demoAcc,
-        userId: demoAcc.userId || parseInt(String(demoAcc.id).replace(/\D/g, ''), 10) || 1
-      };
-      localStorage.setItem('farmely_token', fallbackToken);
-      localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
-      localStorage.setItem('farmely_auth', JSON.stringify({ token: fallbackToken, user: mappedUser }));
-      useAuthStore.setState({ user: mappedUser, token: fallbackToken, isAuthenticated: true, isLoading: false });
-
-      setSuccessMessage(`Chào mừng ${mappedUser.fullName}.`);
-      const userRole = String(demoAcc.role || '').toUpperCase();
-      if (redirectParam) navigate(redirectParam);
-      else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
-      else if (userRole === 'ADMIN') navigate('/admin/dashboard');
-      else if (userRole === 'EXPERT') navigate('/expert/dashboard');
-      else if (userRole === 'STAFF') navigate('/staff/dashboard');
-      else navigate('/');
-    } else {
+      setErrorMessage(res.message || 'Đăng nhập không thành công.');
+    } catch (error) {
       setIsLoading(false);
+      setErrorMessage(error.message || 'Không thể kết nối máy chủ xác thực.');
     }
   };
 

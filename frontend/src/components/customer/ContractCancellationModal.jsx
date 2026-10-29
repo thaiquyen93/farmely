@@ -45,7 +45,7 @@ export default function ContractCancellationModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [successData, setSuccessData] = useState(null);
 
-  // Tính toán thời gian và mốc khấu trừ hoàn tiền theo BR10
+  // Tính toán thời gian và mốc khấu trừ hoàn tiền
   const calculation = useMemo(() => {
     if (!contract) return null;
 

@@ -41,7 +41,7 @@ import {
   DEFAULT_TERM_MONTHS
 } from '../../utils/leaseSelection';
 
-// Danh mục tương thích sinh học chuẩn hóa từ PostgreSQL table plot_variety_compatibility (BR03)
+// Danh mục tương thích sinh học chuẩn hóa từ PostgreSQL table plot_variety_compatibility
 const PLOT_COMPATIBLE_VARIETIES = {
   1: [1, 2, 3, 4, 8, 10], // P-01
   2: [1, 2, 3, 6, 8, 10], // P-02
@@ -194,7 +194,7 @@ export default function BookPlot() {
   const [cropValidationError, setCropValidationError] = useState(false);
   const [startDate, setStartDate] = useState(() => getEarliestCultivationDate());
 
-  // 15-minute reservation timer (BR08) & checkout settings
+  // 15-minute reservation timer & checkout settings
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
 
   // Hình thức canh tác: tự động nhận diện từ Marketplace hoặc URL param
@@ -456,7 +456,7 @@ export default function BookPlot() {
     return calculatedEndDate;
   }, [calculatedEndDate]);
 
-  // BR04: Thời hạn thuê tối thiểu phải >= thời gian sinh trưởng của giống cây + buffer time
+  // : Thời hạn thuê tối thiểu phải >= thời gian sinh trưởng của giống cây + buffer time
   // Gói Assisted-Growing (Ủy thác canh tác trọn gói) bắt buộc tối thiểu 1 vụ mùa hoàn chỉnh (3 tháng)
   const minRequiredMonths = React.useMemo(() => {
     if (selectedMode === 'ASSISTED') {
@@ -477,7 +477,7 @@ export default function BookPlot() {
     return minMonths;
   }, [selectedPlots, getPlotSelectedCrop, selectedMode]);
 
-  // Tự động nâng thời hạn thuê nếu thời hạn hiện tại nhỏ hơn mức tối thiểu BR04
+  // Tự động nâng thời hạn thuê nếu thời hạn hiện tại nhỏ hơn mức tối thiểu
   useEffect(() => {
     if (rentalMonths < minRequiredMonths) {
       setRentalMonths(minRequiredMonths);
@@ -699,7 +699,7 @@ export default function BookPlot() {
     });
   };
 
-  // Cộng thời gian ân hạn 10 phút khi vào bước thanh toán (BR08)
+  // Cộng thời gian ân hạn 10 phút khi vào bước thanh toán
   const handleExtendGracePeriod = async () => {
     if (!createdContractId) return;
     setIsExtendingGrace(true);
@@ -751,7 +751,7 @@ export default function BookPlot() {
     return 1;
   }, [findPlotByAnyCode]);
 
-  // Tạo hợp đồng giữ chỗ trực tiếp trong Database PostgreSQL qua rental-service (BR08)
+  // Tạo hợp đồng giữ chỗ trực tiếp trong Database PostgreSQL qua rental-service
   const createReservationOnServer = async () => {
     const renterId = user?.userId
       ? Number(user.userId)
@@ -763,7 +763,7 @@ export default function BookPlot() {
     const items = selectedPlots.map((p) => {
       const crop = getPlotSelectedCrop(p);
       const plotDbId = resolvePlotDbId(p);
-      // Đảm bảo thỏa mãn BR04: rentDays >= variety.minDays
+      // Đảm bảo thỏa mãn : rentDays >= variety.minDays
       const days = Math.max(rentalMonths * 30, crop?.minDays || 35);
       const end = new Date(start);
       end.setDate(end.getDate() + days);
@@ -988,7 +988,7 @@ export default function BookPlot() {
                 <Clock className="w-5 h-5 text-brand-yellow animate-pulse" />
                 <div>
                   <span className="text-[10px] text-stone-300 block font-bold uppercase tracking-wider">
-                    Khóa giữ chỗ 15 phút (BR08)
+                    Khóa giữ chỗ 15 phút
                   </span>
                   <span className="font-mono text-lg font-black text-brand-yellow">
                     {formattedTimer}
@@ -1000,7 +1000,7 @@ export default function BookPlot() {
                     onClick={handleExtendGracePeriod}
                     disabled={isExtendingGrace}
                     className="ml-2 px-2.5 py-1 text-[11px] font-bold bg-brand-yellow text-brand-dark rounded-lg hover:bg-yellow-400 transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
-                    title="Cộng thêm 10 phút ân hạn khi chuẩn bị thanh toán (BR08)"
+                    title="Cộng thêm 10 phút ân hạn khi chuẩn bị thanh toán"
                   >
                     {isExtendingGrace ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                     <span>+10p Ân Hạn</span>
@@ -1512,7 +1512,7 @@ export default function BookPlot() {
                     <h3 className="font-heading font-bold text-lg text-brand-dark flex items-center gap-2">
                       <span>3. Thời Hạn Thuê Thửa Đất Theo Vụ Mùa</span>
                       <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800">
-                        Quy tắc BR04
+                        Quy tắc
                       </span>
                     </h3>
                     <p className="text-xs text-stone-500 mt-1">
@@ -1535,7 +1535,7 @@ export default function BookPlot() {
                       <span className="font-bold block">
                         {selectedMode === 'ASSISTED'
                           ? 'Gói Hỗ trợ canh tác trọn gói (Assisted-Growing):'
-                          : 'Giống cây có chu kỳ sinh trưởng dài (BR04):'}
+                          : 'Giống cây có chu kỳ sinh trưởng dài:'}
                       </span>
                       <span className="text-[11px] text-stone-600 leading-relaxed block">
                         {selectedMode === 'ASSISTED'
@@ -1612,7 +1612,7 @@ export default function BookPlot() {
                                   : 'bg-stone-100 text-stone-600'
                               }`}
                             >
-                              {isDisabled ? 'Khóa (BR04)' : opt.tag}
+                              {isDisabled ? 'Khóa' : opt.tag}
                             </span>
                           </div>
                           <p className="text-xs font-bold text-stone-700">{opt.cycleName}</p>

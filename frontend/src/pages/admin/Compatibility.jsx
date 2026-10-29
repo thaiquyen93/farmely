@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { compatibilityData as initialRules } from '../../data/compatibility';
 import { farmApi } from '../../api/farm/farmApi';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
@@ -10,7 +9,7 @@ import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import { SlidersHorizontal, Plus, CheckCircle2, XCircle, AlertTriangle, Layers, Trash2, Sprout, Filter } from 'lucide-react';
 
 export default function Compatibility() {
-  const [rules, setRules] = useState(initialRules);
+  const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isLiveDb, setIsLiveDb] = useState(false);
   const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
@@ -28,27 +27,28 @@ export default function Compatibility() {
     fetch('/api/compatibility')
       .then((res) => res.json())
       .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+        if (res && res.success && Array.isArray(res.data)) {
           const normalized = res.data.map((r, idx) => ({
             id: `COMP-${idx + 1}`,
             plotId: String(r.plotId),
             plotCode: r.plotCode,
             plotName: `Thửa ${r.plotCode} (${r.landName || 'Trang trại Happy Valley'})`,
-            soilType: 'Đất phù sa / đất thịt nhẹ chuẩn VietGAP',
+            soilType: r.soilType || '',
             varietyId: Number(r.varietyId),
             varietyName: r.varietyName,
             cropName: r.cropName,
             status: r.status || 'COMPATIBLE',
-            notes: r.notes || 'Thổ nhưỡng và điều kiện vi khí hậu đạt chuẩn chứng nhận VietGAP.',
-            updatedBy: 'Hội đồng Nông học Farmely',
-            updatedDate: '2026-10-12'
+            notes: r.notes || '',
+            updatedBy: r.updatedBy || '',
+            updatedDate: r.updatedDate || ''
           }));
           setRules(normalized);
           setIsLiveDb(true);
         }
       })
       .catch((err) => {
-        console.warn('Cannot fetch live compatibility, fallback to mock:', err);
+        console.warn('Cannot fetch live compatibility:', err);
+        setRules([]);
       });
   };
 
@@ -272,7 +272,7 @@ export default function Compatibility() {
             Tương Thích Thổ Nhưỡng – Giống Cây
           </h2>
           <p className="text-xs text-brand-muted mt-0.5">
-            Xác lập quy tắc bắt buộc (BR03): Khách hàng chỉ được gieo trồng giống cây đã được kiểm định tương thích với đất của thửa.
+            Xác lập quy tắc bắt buộc: Khách hàng chỉ được gieo trồng giống cây đã được kiểm định tương thích với đất của thửa.
           </p>
         </div>
 

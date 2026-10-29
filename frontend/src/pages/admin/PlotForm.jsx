@@ -28,7 +28,7 @@ export default function PlotForm() {
   const [originalStatus, setOriginalStatus] = useState(null);
   const [originalCode, setOriginalCode] = useState('');
 
-  // BR03: Danh mục giống cây tương thích thổ nhưỡng
+  // : Danh mục giống cây tương thích thổ nhưỡng
   const [availableVarieties, setAvailableVarieties] = useState([]);
   const [selectedVarietyIds, setSelectedVarietyIds] = useState([]);
   const [varietySearch, setVarietySearch] = useState('');
@@ -132,7 +132,7 @@ export default function PlotForm() {
     if (!(Number(price) >= 0) || price === '') errs.price = 'Nhập giá thuê hợp lệ.';
     if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
     if (selectedVarietyIds.length === 0) {
-      errs.varieties = 'Vui lòng chọn ít nhất 1 giống cây phù hợp thổ nhưỡng cho thửa đất này (BR03).';
+      errs.varieties = 'Vui lòng chọn ít nhất 1 giống cây phù hợp thổ nhưỡng cho thửa đất này.';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -219,14 +219,14 @@ export default function PlotForm() {
           Niêm yết lên Marketplace
         </label>
 
-        {/* SSoT BR03: Chọn Giống Cây Trồng Tương Thích Thổ Nhưỡng */}
+        {/* SSoT : Chọn Giống Cây Trồng Tương Thích Thổ Nhưỡng */}
         <section className="space-y-3 rounded-2xl border border-brand-border bg-stone-50/50 p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <Sprout className="h-4 w-4 text-brand-green" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-brand-dark">
-                  Giống cây trồng phù hợp thổ nhưỡng (Quy tắc BR03)
+                  Giống cây trồng phù hợp thổ nhưỡng
                 </h3>
                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
                   Chuẩn VietGAP

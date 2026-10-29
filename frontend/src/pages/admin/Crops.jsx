@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { cropsData as initialCrops } from '../../data/crops';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
@@ -9,7 +8,7 @@ import Select from '../../components/common/Select';
 import { Sprout, Plus, Edit, Eye, Power, Trash2, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 export default function Crops() {
-  const [crops, setCrops] = useState(initialCrops);
+  const [crops, setCrops] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isLiveDb, setIsLiveDb] = useState(false);
   const [selectedCrop, setSelectedCrop] = useState(null);
@@ -30,13 +29,14 @@ export default function Crops() {
     fetch('/api/crops')
       .then((res) => res.json())
       .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+        if (res && res.success && Array.isArray(res.data)) {
           setCrops(res.data);
           setIsLiveDb(true);
         }
       })
       .catch((err) => {
-        console.warn('Cannot fetch live crops, fallback to mock:', err);
+        console.warn('Cannot fetch live crops:', err);
+        setCrops([]);
       })
       .finally(() => setLoading(false));
   };

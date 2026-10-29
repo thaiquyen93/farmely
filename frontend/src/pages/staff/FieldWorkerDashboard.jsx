@@ -1254,7 +1254,7 @@ export default function FieldWorkerDashboard() {
                         <span>Thửa đất phụ trách ca trực</span>
                       </h3>
                       <p className="text-xs text-stone-500">
-                        Bấm vào từng thửa đất để mở cửa sổ popup chi tiết công việc cần làm hôm nay, thực hiện nghiệm thu (BR15) hoặc báo sự cố (BR16).
+                        Bấm vào từng thửa đất để mở cửa sổ popup chi tiết công việc cần làm hôm nay, thực hiện nghiệm thu hoặc báo sự cố.
                       </p>
                     </div>
                     <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">
@@ -1341,7 +1341,7 @@ export default function FieldWorkerDashboard() {
               </div>
             )}
 
-            {/* TAB: ASSIGNED PLOTS (Thửa Đất Được Phân Công Phụ Trách - BR14) */}
+            {/* TAB: ASSIGNED PLOTS (Thửa Đất Được Phân Công Phụ Trách - ) */}
             {activeTab === 'plots' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
@@ -1812,7 +1812,7 @@ export default function FieldWorkerDashboard() {
 
       </main>
 
-      {/* POPUP MODAL: CHI TIẾT THỬA ĐẤT & CHU KỲ VƯỜN (BR14, BR18, DỊCH VỤ, THU HOẠCH) */}
+      {/* POPUP MODAL: CHI TIẾT THỬA ĐẤT & CHU KỲ VƯỜN (, , DỊCH VỤ, THU HOẠCH) */}
       {selectedPlotModalCode && (() => {
         const activePlot = plotSummaryList.find((p) => p.key === selectedPlotModalCode || String(p.rentalId) === String(selectedPlotModalCode) || p.plotCode === selectedPlotModalCode) || plotSummaryList[0];
         if (!activePlot) return null;
@@ -2050,7 +2050,7 @@ export default function FieldWorkerDashboard() {
                               <span>Việc Cần Thực Hiện Hôm Nay ({todayTasks.length})</span>
                             </h4>
                             <p className="text-[11px] text-amber-800 font-medium">
-                              Nhiệm vụ ưu tiên hoàn thành và nghiệm thu hình ảnh (BR15) trong ca trực
+                              Nhiệm vụ ưu tiên hoàn thành và nghiệm thu hình ảnh trong ca trực
                             </p>
                           </div>
                         </div>
@@ -2134,7 +2134,7 @@ export default function FieldWorkerDashboard() {
                                     className="gap-2 font-bold px-4 py-2.5 bg-[#07533d] hover:bg-[#053d2d] text-white shadow-xs text-xs"
                                   >
                                     {isHarvestTask ? <Scale className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
-                                    {isHarvestTask ? 'Thu hoạch' : 'Nghiệm thu (Chụp ảnh BR15)'}
+                                    {isHarvestTask ? 'Thu hoạch' : 'Nghiệm thu (Chụp ảnh )'}
                                   </Button>
                                 </div>
                               </div>
@@ -2353,11 +2353,11 @@ export default function FieldWorkerDashboard() {
                     </div>
                   </div>
 
-                  {/* BR18 Irrigation Rule Notice */}
+                  {/*  Irrigation Rule Notice */}
                   <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-sky-950 space-y-1.5">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-sky-700" />
-                      <strong className="font-heading font-black text-sky-900">Quy tắc tự động hóa BR18:</strong>
+                      <strong className="font-heading font-black text-sky-900">Quy tắc tự động hóa :</strong>
                     </div>
                     <p className="text-sky-800 leading-relaxed">
                       Trạm quan trắc sẽ <strong>tự động tạm hoãn lệnh tưới</strong> nếu độ ẩm đất đo được vượt ngưỡng <strong>80%</strong> để chống ngập úng rễ và ngăn ngừa nấm bệnh. Hệ thống sẽ kích hoạt lại khi độ ẩm đất hạ về dưới 65%.

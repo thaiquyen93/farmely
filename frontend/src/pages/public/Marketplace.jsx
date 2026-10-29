@@ -362,7 +362,7 @@ export default function Marketplace() {
     }
   };
 
-  // BR03: chỉ hiển thị giống cây tương thích với thửa đang mở (theo plot_variety_compatibility)
+  // : chỉ hiển thị giống cây tương thích với thửa đang mở (theo plot_variety_compatibility)
   const [compatByPlotId, setCompatByPlotId] = useState({});
   const [allCrops, setAllCrops] = useState(getSafeCropsList);
   const selectedPlotDbId =

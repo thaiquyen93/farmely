@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { iotStationsData as initialStations } from '../../data/iotStations';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
@@ -21,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export default function IoTStations() {
-  const [stations, setStations] = useState(initialStations);
+  const [stations, setStations] = useState([]);
   const [selectedStation, setSelectedStation] = useState(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [isLiveDb, setIsLiveDb] = useState(false);
@@ -34,7 +33,7 @@ export default function IoTStations() {
     try {
       const res = await fetch('/api/iot-stations');
       const json = await res.json();
-      if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
+      if (json && json.success && Array.isArray(json.data)) {
         setStations(json.data);
         setIsLiveDb(true);
         setLastSyncTime(new Date().toLocaleTimeString('vi-VN'));
@@ -165,9 +164,9 @@ export default function IoTStations() {
         }
         let msg = `Đã ghi nhận ${result.count || 17} chu kỳ đo đạc mới vào PostgreSQL!`;
         if (mode === 'alert_flood') {
-          msg = '💧 Đã kích hoạt mô phỏng Ngập Úng (Độ ẩm ≥ 80% — Tự động hoãn tưới theo BR18)';
+          msg = '💧 Đã kích hoạt mô phỏng Ngập Úng (Độ ẩm ≥ 80% — Tự động hoãn tưới theo)';
         } else if (mode === 'alert_dry') {
-          msg = '☀️ Đã kích hoạt mô phỏng Khô Hạn (Độ ẩm < 50% — Kích hoạt cảnh báo khẩn theo BR18)';
+          msg = '☀️ Đã kích hoạt mô phỏng Khô Hạn (Độ ẩm < 50% — Kích hoạt cảnh báo khẩn theo)';
         }
         setFeedbackMsg(msg);
         setTimeout(() => setFeedbackMsg(''), 4500);
@@ -225,12 +224,12 @@ export default function IoTStations() {
             </span>
             {isFlood && (
               <span className="inline-block mt-0.5 text-[9px] font-bold text-sky-800 bg-sky-100/90 px-1.5 py-0.2 rounded border border-sky-300">
-                BR18: Hoãn tưới
+                Hoãn tưới
               </span>
             )}
             {isDry && (
               <span className="inline-block mt-0.5 text-[9px] font-bold text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded border border-amber-300">
-                BR18: Cảnh báo
+                Cảnh báo
               </span>
             )}
           </div>

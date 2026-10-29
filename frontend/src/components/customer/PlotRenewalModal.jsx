@@ -169,7 +169,7 @@ export default function PlotRenewalModal({
       });
     };
 
-    // 1. Thử gọi API ma trận tương thích thổ nhưỡng của thửa đất (BR03: /api/plots/{id}/compatibility)
+    // 1. Thử gọi API ma trận tương thích thổ nhưỡng của thửa đất (: /api/plots/{id}/compatibility)
     fetch(`/api/plots/${numericPlotId}/compatibility`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -410,7 +410,7 @@ export default function PlotRenewalModal({
               </p>
             </div>
             <div className="rounded-2xl bg-stone-50 border border-stone-200 p-4 max-w-sm mx-auto text-xs text-stone-600 space-y-1 text-left">
-              <p>• <strong>BR12:</strong> Toàn bộ camera IoT, dữ liệu dinh dưỡng đất được kế thừa.</p>
+              <p>• <strong>:</strong> Toàn bộ camera IoT, dữ liệu dinh dưỡng đất được kế thừa.</p>
               <p>• <strong>Fallow Protocol:</strong> 5 ngày nghỉ đất khử trùng được kích hoạt tự động giữa 2 vụ.</p>
             </div>
             <button
@@ -472,7 +472,7 @@ export default function PlotRenewalModal({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block font-black uppercase tracking-wider text-stone-700">
-                  2. Chọn giống rau củ cho vụ kế tiếp (BR03):
+                  2. Chọn giống rau củ cho vụ kế tiếp:
                 </label>
                 <span className="text-[11px] font-medium text-emerald-700">
                   Đã kiểm tra tương thích thổ nhưỡng ✓

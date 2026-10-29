@@ -512,16 +512,22 @@ SELECT json_build_object(
         if (req.method === 'GET' && (url === '/api/admin/analytics' || url === '/api/v1/admin/analytics' || url.startsWith('/api/admin/analytics?') || url.startsWith('/api/v1/admin/analytics?'))) {
           try {
             const sql = `
+WITH ledger AS (
+  SELECT pt.*,
+         CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END AS signed_amount
+  FROM payment_transactions pt
+  WHERE pt.status = 'SUCCESS' AND pt.type IN ('PAYMENT', 'REFUND')
+)
 SELECT json_build_object(
   'success', true,
   'message', 'Lấy dữ liệu thống kê doanh thu và vận hành thành công từ PostgreSQL',
   'data', json_build_object(
     'kpi', json_build_object(
-      'totalRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS'), 0),
-      'leaseRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND contract_id IS NOT NULL), 0),
-      'serviceRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND service_request_id IS NOT NULL), 0),
-      'pendingRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'PENDING'), 0),
-      'monthlyRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND created_at >= DATE_TRUNC('month', CURRENT_DATE)), 0),
+      'totalRevenue', COALESCE((SELECT SUM(signed_amount) FROM ledger), 0),
+      'leaseRevenue', COALESCE((SELECT SUM(signed_amount) FROM ledger WHERE contract_id IS NOT NULL AND service_request_id IS NULL), 0),
+      'serviceRevenue', COALESCE((SELECT SUM(signed_amount) FROM ledger WHERE service_request_id IS NOT NULL), 0),
+      'pendingRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'PENDING' AND type = 'PAYMENT'), 0),
+      'monthlyRevenue', COALESCE((SELECT SUM(signed_amount) FROM ledger WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE) AND created_at < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'), 0),
       'totalPlots', (SELECT count(*)::int FROM plots),
       'rentedPlots', (SELECT count(*)::int FROM plots WHERE status = 'RENT'),
       'availablePlots', (SELECT count(*)::int FROM plots WHERE status = 'AVAIL'),
@@ -555,14 +561,22 @@ SELECT json_build_object(
         SELECT 
           TO_CHAR(pt.created_at, 'MM/YYYY') AS "month",
           'Tháng ' || TO_CHAR(pt.created_at, 'MM') AS "monthLabel",
-          SUM(CASE WHEN pt.contract_id IS NOT NULL THEN pt.amount ELSE 0 END) AS "leaseRevenue",
-          SUM(CASE WHEN pt.service_request_id IS NOT NULL THEN pt.amount ELSE 0 END) AS "serviceRevenue",
-          SUM(pt.amount) AS "totalRevenue"
-        FROM payment_transactions pt
-        WHERE pt.status = 'SUCCESS'
-        GROUP BY TO_CHAR(pt.created_at, 'MM/YYYY'), 'Tháng ' || TO_CHAR(pt.created_at, 'MM')
-        ORDER BY "month" ASC
+          SUM(CASE WHEN pt.contract_id IS NOT NULL AND pt.service_request_id IS NULL THEN pt.signed_amount ELSE 0 END) AS "leaseRevenue",
+          SUM(CASE WHEN pt.service_request_id IS NOT NULL THEN pt.signed_amount ELSE 0 END) AS "serviceRevenue",
+          SUM(pt.signed_amount) AS "totalRevenue"
+        FROM ledger pt
+        GROUP BY DATE_TRUNC('month', pt.created_at), TO_CHAR(pt.created_at, 'MM/YYYY'), 'Tháng ' || TO_CHAR(pt.created_at, 'MM')
+        ORDER BY DATE_TRUNC('month', pt.created_at) ASC
       ) m
+    ),
+    'paymentMethodBreakdown', (
+      SELECT COALESCE(json_agg(row_to_json(pm)), '[]'::json) FROM (
+        SELECT COALESCE(payment_method, 'KHÁC') AS "paymentMethod",
+               SUM(signed_amount) AS amount
+        FROM ledger
+        GROUP BY COALESCE(payment_method, 'KHÁC')
+        ORDER BY amount DESC
+      ) pm
     ),
     'recentTransactions', (
       SELECT COALESCE(json_agg(row_to_json(tx)), '[]'::json) FROM (
@@ -571,15 +585,21 @@ SELECT json_build_object(
           '#TXN-' || LPAD(pt.transaction_id::text, 4, '0') AS code,
           pt.type,
           pt.amount,
+          pt.service_request_id AS "serviceRequestId",
           pt.payment_method AS "paymentMethod",
           COALESCE(pt.gateway_ref, 'VNPAY_SANDBOX') AS "gatewayRef",
           pt.status,
           TO_CHAR(pt.created_at, 'HH24:MI - DD/MM/YYYY') AS "createdAt",
-          COALESCE(c.contract_number, 'Dịch vụ phát sinh') AS "referenceCode",
-          COALESCE(u.full_name, 'Khách vãng lai') AS "customerName"
+          COALESCE(c.contract_number, s.service_name, 'Giao dịch') AS "referenceCode",
+          COALESCE(u.full_name, service_user.full_name, 'Khách vãng lai') AS "customerName"
         FROM payment_transactions pt
         LEFT JOIN contracts c ON pt.contract_id = c.contract_id
         LEFT JOIN users u ON c.renter_id = u.user_id
+        LEFT JOIN service_requests sr ON pt.service_request_id = sr.request_id
+        LEFT JOIN services s ON sr.service_id = s.service_id
+        LEFT JOIN rentals rental ON sr.rental_id = rental.rental_id
+        LEFT JOIN contracts service_contract ON rental.contract_id = service_contract.contract_id
+        LEFT JOIN users service_user ON service_contract.renter_id = service_user.user_id
         ORDER BY pt.created_at DESC
         LIMIT 8
       ) tx
@@ -1136,15 +1156,21 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
     COALESCE(plots_info.plot_names, '') AS "plotName",
     cn.reason,
     cn.status::text AS "status",
-    COALESCE(c.total_amount, 0) AS "totalPaidAmount",
+    COALESCE(financials.paid_amount, 0) AS "totalPaidAmount",
     CASE WHEN dates.start_date - cn.created_at::date >= 3 THEN 80 WHEN dates.start_date > cn.created_at::date THEN 50 ELSE 0 END AS "refundPercentage",
-    ROUND(COALESCE(c.total_amount, 0) * (CASE WHEN dates.start_date - cn.created_at::date >= 3 THEN 0.8 WHEN dates.start_date > cn.created_at::date THEN 0.5 ELSE 0 END), 2) AS "refundAmount",
+    COALESCE(financials.refund_amount, ROUND(COALESCE(financials.paid_amount, 0) * (CASE WHEN dates.start_date - cn.created_at::date >= 3 THEN 0.8 WHEN dates.start_date > cn.created_at::date THEN 0.5 ELSE 0 END), 2)) AS "refundAmount",
     'Dự tính theo ngày bắt đầu canh tác' AS "refundPolicyNote",
     TO_CHAR(cn.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt"
   FROM contract_cancellations cn
   LEFT JOIN contracts c ON cn.contract_id = c.contract_id
   LEFT JOIN users u ON cn.cancelled_by = u.user_id
   LEFT JOIN LATERAL (SELECT MIN(start_date) AS start_date FROM rentals WHERE contract_id = cn.contract_id) dates ON true
+  LEFT JOIN LATERAL (
+    SELECT SUM(pt.amount) FILTER (WHERE pt.type = 'PAYMENT') AS paid_amount,
+           SUM(pt.amount) FILTER (WHERE pt.type = 'REFUND' AND pt.cancellation_request_id = cn.cancellation_id) AS refund_amount
+    FROM payment_transactions pt
+    WHERE pt.contract_id = cn.contract_id AND pt.status = 'SUCCESS'
+  ) financials ON true
   LEFT JOIN LATERAL (
     SELECT 
       string_agg(p.plot_code, ', ') AS plot_codes,
@@ -1198,7 +1224,7 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
                 return;
               }
 
-              const contractSql = `SELECT json_build_object('renterId', c.renter_id, 'status', c.status::text, 'totalAmount', c.total_amount, 'startDate', (SELECT MIN(start_date) FROM rentals WHERE contract_id = c.contract_id)::text, 'pending', EXISTS(SELECT 1 FROM contract_cancellations cc WHERE cc.contract_id = c.contract_id AND cc.status = 'PENDING')) FROM contracts c WHERE c.contract_id = ${contractId};`;
+              const contractSql = `SELECT json_build_object('renterId', c.renter_id, 'status', c.status::text, 'paidAmount', COALESCE((SELECT SUM(pt.amount) FROM payment_transactions pt WHERE pt.contract_id = c.contract_id AND pt.type = 'PAYMENT' AND pt.status = 'SUCCESS'), 0), 'startDate', (SELECT MIN(start_date) FROM rentals WHERE contract_id = c.contract_id)::text, 'pending', EXISTS(SELECT 1 FROM contract_cancellations cc WHERE cc.contract_id = c.contract_id AND cc.status = 'PENDING')) FROM contracts c WHERE c.contract_id = ${contractId};`;
               const contractOut = await runPostgreSql(contractSql);
               const contractInfo = contractOut?.trim() ? JSON.parse(contractOut.trim().split('\n')[0]) : null;
               if (!contractInfo || contractInfo.pending || ['CANCELLED', 'COMPLETED'].includes(contractInfo.status)) {
@@ -1214,7 +1240,7 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
                 daysBeforeStart = Math.round((new Date(`${contractInfo.startDate}T00:00:00`) - today) / 86400000);
               }
               const refundPercentage = daysBeforeStart >= 3 ? 80 : daysBeforeStart > 0 ? 50 : 0;
-              const refundAmount = Math.round(Number(contractInfo.totalAmount || 0) * refundPercentage / 100);
+              const refundAmount = Math.round(Number(contractInfo.paidAmount || 0) * refundPercentage / 100);
 
               // Build combined reason with disbursement details
               let fullReason = reason;
@@ -1285,7 +1311,7 @@ LIMIT 1;
 DO $$
 DECLARE
     v_contract_id INT;
-    v_total_amount NUMERIC;
+    v_paid_amount NUMERIC;
     v_start_date DATE;
     v_refund_rate NUMERIC;
     v_refund_amount NUMERIC;
@@ -1298,7 +1324,9 @@ BEGIN
         RAISE EXCEPTION 'Không tìm thấy yêu cầu hủy đang chờ duyệt';
     END IF;
 
-    SELECT total_amount INTO v_total_amount FROM contracts WHERE contract_id = v_contract_id;
+    SELECT COALESCE(SUM(amount), 0) INTO v_paid_amount
+    FROM payment_transactions
+    WHERE contract_id = v_contract_id AND type = 'PAYMENT' AND status = 'SUCCESS';
     SELECT MIN(start_date) INTO v_start_date FROM rentals WHERE contract_id = v_contract_id;
 
     IF v_start_date IS NOT NULL AND (v_start_date - CURRENT_DATE) >= 3 THEN
@@ -1309,7 +1337,7 @@ BEGIN
         v_refund_rate := 0.0;
     END IF;
 
-    v_refund_amount := ROUND(COALESCE(v_total_amount, 0) * v_refund_rate, 2);
+    v_refund_amount := ROUND(v_paid_amount * v_refund_rate, 2);
 
     -- 1. Cập nhật cancellation status -> APPROVED
     UPDATE contract_cancellations
@@ -1338,8 +1366,8 @@ BEGIN
 
     -- 5. Ghi nhận giao dịch hoàn tiền nếu có refund_amount > 0
     IF v_refund_amount > 0 THEN
-        INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status, created_at)
-        VALUES (v_contract_id, 'REFUND', v_refund_amount, 'VNPAY', 'REF-' || TO_CHAR(NOW(), 'YYYYMMDDHH24MISS'), 'SUCCESS', NOW());
+        INSERT INTO payment_transactions (contract_id, cancellation_request_id, type, amount, payment_method, gateway_ref, status, created_at)
+        VALUES (v_contract_id, ${cancellationId}, 'REFUND', v_refund_amount, 'VNPAY', 'REF-' || TO_CHAR(NOW(), 'YYYYMMDDHH24MISS'), 'SUCCESS', NOW());
     END IF;
 
     -- 6. Ghi log kiểm toán vận hành
@@ -1353,7 +1381,7 @@ END $$;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
-              message: `Phê duyệt yêu cầu hủy #${cancellationId} thành công. Thửa đất đã chuyển sang bảo dưỡng 4 ngày (BR23).`
+              message: `Phê duyệt yêu cầu hủy #${cancellationId} thành công. Thửa đất đã chuyển sang bảo dưỡng 4 ngày.`
             }));
           } catch (err) {
             console.error('Error on POST /api/contracts/cancellations/:id/approve:', err);
@@ -1431,7 +1459,7 @@ LIMIT 1;
                   res.setHeader('Content-Type', 'application/json; charset=utf-8');
                   res.end(JSON.stringify({
                     success: false,
-                    message: `Giống cây '${varietyName}' không tương thích với thửa đất '${plotCode}' (Theo BR03)`
+                    message: `Giống cây '${varietyName}' không tương thích với thửa đất '${plotCode}'.`
                   }));
                   return;
                 }
@@ -1584,7 +1612,7 @@ LIMIT 1;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: 'Tạo đơn giữ chỗ thành công (Hiệu lực 15 phút theo quy định BR08)',
+                message: 'Tạo đơn giữ chỗ thành công, hiệu lực 15 phút.',
                 data: {
                   contractId: createdData?.contractId || Date.now(),
                   contractNumber: createdData?.contractNumber || contractNumber,
@@ -1623,7 +1651,7 @@ WHERE contract_id = ${contractId};
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
-              message: 'Cộng thời gian ân hạn 10 phút thành công (BR08)',
+              message: 'Cộng thời gian ân hạn 10 phút thành công.',
               data: { contractId }
             }));
           } catch (err) {
@@ -1690,7 +1718,7 @@ END $$;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
-              message: 'Kích hoạt hợp đồng và nhận bàn giao thửa đất thành công (BR09)',
+              message: 'Kích hoạt hợp đồng và nhận bàn giao thửa đất thành công.',
               data: { contractId, status: 'ACTIVE' }
             }));
           } catch (err) {
@@ -1879,7 +1907,7 @@ WHERE r.role_name IN ('EXPERT', 'FIELD_WORKER');
 
               // Gọi identity-service trước nếu đang chạy để nhận JWT thật
               try {
-                const idRes = await fetch('http://localhost:8081/api/auth/login', {
+                const idRes = await fetch(`${process.env.FARMELY_IDENTITY_TARGET || 'http://localhost:8081'}/api/auth/login`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ email, password })
@@ -1984,7 +2012,7 @@ LIMIT 1;
           // Thử gọi identity-service trước nếu có token JWT chuẩn
           if (token && !token.startsWith('farmely-jwt-token-') && !token.startsWith('demo-token-')) {
             try {
-              const idRes = await fetch('http://localhost:8081/api/auth/me', {
+              const idRes = await fetch(`${process.env.FARMELY_IDENTITY_TARGET || 'http://localhost:8081'}/api/auth/me`, {
                 headers: { 'Authorization': `Bearer ${token}` }
               });
               if (idRes.ok) {
@@ -2028,16 +2056,11 @@ LIMIT 1;
             }
           } catch (_) {}
 
-          // Fallback mặc định
-          const defaultUser = {
-            userId: 1,
-            email: 'customer@farmely.vn',
-            fullName: 'Lô Thái Quyền',
-            role: 'CUSTOMER',
-            status: 'ACTIVE'
-          };
+          // Không thay thế phiên hiện tại bằng một khách hàng khác khi DB không khả dụng.
+          // Client sẽ giữ hồ sơ đã nhận từ lần đăng nhập thành công.
+          res.statusCode = 503;
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
-          res.end(JSON.stringify({ success: true, message: 'Thành công', data: defaultUser }));
+          res.end(JSON.stringify({ success: false, message: 'Không thể tải hồ sơ người dùng' }));
           return;
         }
 
@@ -4150,10 +4173,10 @@ SELECT json_build_object(
               const author = (payload.authorName || payload.author || 'Chuyên gia Nông nghiệp Farmely').replace(/'/g, "''");
               const version = (payload.version || 'v2.0').replace(/'/g, "''");
               const docType = (payload.documentType || 'CULTIVATION_GUIDE').replace(/'/g, "''");
-              const fileSize = (payload.fileSize || '3.5 MB (PDF)').replace(/'/g, "''");
-              const fileUrl = (payload.fileUrl || '/docs/rau_an_toan_vietgap_huyen.pdf').replace(/'/g, "''");
-              const isIndexed = payload.isIndexedForRAG !== false;
-              const sectionsCount = parseInt(payload.sectionsCount || 5, 10) || 5;
+              const fileSize = (payload.fileSize || '').replace(/'/g, "''");
+              const fileUrl = payload.fileUrl ? String(payload.fileUrl).replace(/'/g, "''") : null;
+              const isIndexed = payload.isIndexedForRAG === true;
+              const sectionsCount = parseInt(payload.sectionsCount, 10) || 0;
               const createdBy = parseInt(payload.createdBy || 5, 10) || 5;
               const varietyId = payload.varietyId ? parseInt(payload.varietyId, 10) : 'NULL';
 
@@ -4164,7 +4187,7 @@ INSERT INTO knowledge_documents (
 )
 VALUES (
   '${title}', '${content}', '${author}', '${version}', '${docType}', '${fileSize}',
-  '${fileUrl}', ${isIndexed}, ${sectionsCount}, 'PUBLISHED', ${varietyId}, ${createdBy}, NOW()
+  ${fileUrl ? `'${fileUrl}'` : 'NULL'}, ${isIndexed}, ${sectionsCount}, 'PUBLISHED', ${varietyId}, ${createdBy}, NOW()
 )
 RETURNING document_id;
 `;
@@ -4174,7 +4197,7 @@ RETURNING document_id;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: 'Khởi tạo tài liệu tri thức RAG thành công',
+                message: 'Đã lưu tài liệu tri thức',
                 data: {
                   documentId: docId,
                   document_id: docId,
@@ -5490,7 +5513,7 @@ SELECT json_build_object(
     NULL::int)`;
               const notes = (payload.notes || '').replace(/'/g, "''");
               const paymentMethod = (payload.paymentMethod || 'VNPAY').replace(/'/g, "''");
-              const amount = parseFloat(payload.amount || 0) || 50000;
+              // Giá dịch vụ được lấy từ danh mục hiện hành trong DB, không tin số tiền từ trình duyệt.
               const serviceName = (payload.serviceName || 'Dịch vụ canh tác').replace(/'/g, "''");
               const gatewayRef = (payload.gatewayRef || ('TXN_SVC_' + Date.now().toString().slice(-8))).replace(/'/g, "''");
               const existingReqId = payload.serviceRequestId ? parseInt(String(payload.serviceRequestId).replace(/\D/g, ''), 10) : null;
@@ -5579,7 +5602,7 @@ ins_tx AS (
   SELECT 
     request_id, 
     'PAYMENT', 
-    ${amount}, 
+    (SELECT price FROM services WHERE service_id = ${serviceId} AND status = 'ACTIVE'),
     '${paymentMethod}', 
     '${gatewayRef}', 
     'SUCCESS', 
@@ -6261,7 +6284,7 @@ GROUP BY p.plot_id, p.plot_code;
               rainfallProbability: 85,
               windSpeed: 14.2,
               wateringPostponementRecommended: true,
-              recommendationMessage: 'Quy tắc BR18: Xác suất mưa dông đạt 85% chiều nay (kết hợp độ ẩm đất 76%). Hệ thống đề xuất tạm hoãn ca tưới 16:30 để tiết kiệm nước và phòng ngừa ngập úng gốc rễ.',
+              recommendationMessage: 'Xác suất mưa dông đạt 85% chiều nay (kết hợp độ ẩm đất 76%). Hệ thống đề xuất tạm hoãn ca tưới 16:30 để tiết kiệm nước và phòng ngừa ngập úng gốc rễ.',
               forecastDays: [
                 { date: '2026-10-21', dayOfWeek: 'Hôm nay', condition: 'Mưa dông chiều', iconCode: 'RAIN', minTemp: 26.0, maxTemp: 32.5, rainProb: 85 },
                 { date: '2026-10-22', dayOfWeek: 'Thứ Năm', condition: 'Nắng ráo gián đoạn', iconCode: 'PARTLY_CLOUDY', minTemp: 25.5, maxTemp: 34.0, rainProb: 40 },
@@ -6319,9 +6342,9 @@ GROUP BY p.plot_id, p.plot_code;
               const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('xà lách') || item.title.toLowerCase().includes('rau')) || liveRagDocs[0];
               if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94, fileUrl: d.file_url });
             } else if (lower.includes('độ ẩm') || lower.includes('ẩm đất') || lower.includes('tưới nước') || lower.includes('tưới bù') || lower.includes('mưa')) {
-              reply = 'Theo quy tắc vi khí hậu BR18 của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
+              reply = 'Theo quy tắc vi khí hậu của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
               const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('vi khí hậu') || item.title.toLowerCase().includes('tbkt')) || liveRagDocs[1] || liveRagDocs[0];
-              if (d) docs.push({ docTitle: d.title, source: 'Tài liệu Vận hành Trạm IoT Farmely (BR18)', similarityScore: 0.96, fileUrl: d ? d.file_url : '/docs/rau_an_toan_vietgap_huyen.pdf' });
+              if (d) docs.push({ docTitle: d.title, source: 'Tài liệu Vận hành Trạm IoT Farmely', similarityScore: 0.96, fileUrl: d.file_url });
             } else if (lower.includes('sâu') || lower.includes('rầy') || lower.includes('bọ trĩ') || lower.includes('ốc sên') || lower.includes('bệnh')) {
               reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Đối với bọ trĩ và rầy mềm thì phun dung dịch tỏi ớt gừng lên men vi sinh hoặc dầu khoáng sinh học SK Enspray 99EC. Đối với ốc sên thì rải vỏ trứng vụn hoặc bẫy sinh học men bia quanh gốc cây.';
               const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('ipm') || item.title.toLowerCase().includes('qlsb') || item.title.toLowerCase().includes('sâu')) || liveRagDocs[2] || liveRagDocs[0];
@@ -6329,7 +6352,7 @@ GROUP BY p.plot_id, p.plot_code;
             } else if (lower.includes('thuê') || lower.includes('hợp đồng') || lower.includes('giá') || lower.includes('gia hạn')) {
               reply = 'Quy trình thuê đất tại Farmely: Bạn chọn thửa đất ưng ý trên Marketplace bản đồ vệ tinh, chọn giống rau và gói chăm sóc, thanh toán trực tuyến 100% qua VNPay/VietQR. Hợp đồng điện tử có hiệu lực ngay và bạn có thể gia hạn trước 3 ngày với chiết khấu từ 5% – 15%.';
               const d = liveRagDocs.find(item => item.title.includes('VietGAP')) || liveRagDocs[0];
-              if (d) docs.push({ docTitle: d.title, source: 'Trung tâm Pháp lý & Hợp đồng Farmely (BR11, BR12)', similarityScore: 0.93, fileUrl: d.file_url });
+              if (d) docs.push({ docTitle: d.title, source: 'Trung tâm Pháp lý & Hợp đồng Farmely', similarityScore: 0.93, fileUrl: d.file_url });
             } else {
               // Tìm kiếm theo từ khóa trong các tài liệu RAG
               const matched = liveRagDocs.filter(item => {

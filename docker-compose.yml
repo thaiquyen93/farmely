@@ -7,13 +7,13 @@ services:
     container_name: farmely-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-@Bin054206}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: ${DB_NAME:-farmely}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - farmely_postgres_data:/var/lib/postgresql/data
-      - ./context/farmely_full_database.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./Database/farmely_full_database.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d farmely"]
       interval: 5s
@@ -44,6 +44,15 @@ services:
     container_name: farmely-api-gateway
     environment:
       - SPRING_PROFILES_ACTIVE=docker
+      - IDENTITY_SERVICE_HOST=identity-service
+      - FARM_SERVICE_HOST=farm-service
+      - KNOWLEDGE_SERVICE_HOST=knowledge-service
+      - RENTAL_SERVICE_HOST=rental-service
+      - PAYMENT_SERVICE_HOST=payment-service
+      - CULTIVATION_SERVICE_HOST=cultivation-service
+      - COMMUNICATION_SERVICE_HOST=communication-service
+      - MONITORING_SERVICE_HOST=monitoring-service
+      - AI_SERVICE_HOST=ai-service
       - DB_URL=jdbc:postgresql://postgres:5432/farmely
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -257,6 +266,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: farmely-frontend
+    environment:
+      - FARMELY_API_TARGET=http://api-gateway:8080
+      - FARMELY_IDENTITY_TARGET=http://identity-service:8081
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASSWORD=password
     ports:
       - "3000:3000"
     depends_on:

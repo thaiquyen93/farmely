@@ -151,7 +151,7 @@ export default function AdminDashboard() {
   const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [newTaskNotes, setNewTaskNotes] = useState('');
 
-  // 4. Expert & Staff Plot Oversight (BR24 / SSoT: Phân công CVLĐ & CGNN phụ trách thửa đất)
+  // 4. Expert & Staff Plot Oversight ( / SSoT: Phân công CVLĐ & CGNN phụ trách thửa đất)
   const [rentals, setRentals] = useState([]);
   const [selectedRentalToAssignPersonnel, setSelectedRentalToAssignPersonnel] = useState(null);
   const [rentalAssignExpertId, setRentalAssignExpertId] = useState('');
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
   const [issueAssignExpertId, setIssueAssignExpertId] = useState('');
   const [issueAssignNotes, setIssueAssignNotes] = useState('');
 
-  // 6. Refund / Cancellation Requests State (UC08 / BR10)
+  // 6. Refund / Cancellation Requests State (UC08 / )
   const [refundRequests, setRefundRequests] = useState([]);
   const [selectedRefundToReview, setSelectedRefundToReview] = useState(null);
 
@@ -195,7 +195,7 @@ export default function AdminDashboard() {
   const [userEditStatus, setUserEditStatus] = useState('ACTIVE');
   const [isUpdatingUser, setIsUpdatingUser] = useState(false);
 
-  // 11. IoT Microclimate Alerts & Weather (BR18 / UC13 / Task 1.4 & 2.1)
+  // 11. IoT Microclimate Alerts & Weather ( / UC13 / Task 1.4 & 2.1)
   const [iotAlerts, setIotAlerts] = useState([]);
   const [alertOverview, setAlertOverview] = useState({
     totalAlerts: 0,
@@ -469,13 +469,9 @@ export default function AdminDashboard() {
         const ov = unwrapData(await apiFetch('/api/audit-logs/overview'));
         if (ov) setAuditOverview(ov);
       } catch (auditErr) {
-        setAuditLogs([
-          { logId: 101, userId: 1, userEmail: 'customer@farmely.vn', action: 'LOGIN', entityType: 'USER', entityId: '1', description: 'Đăng nhập thành công', ipAddress: '127.0.0.1', status: 'SUCCESS', createdAt: new Date().toISOString() },
-          { logId: 102, userId: 2, userEmail: 'expert@farmely.vn', action: 'LOGIN', entityType: 'USER', entityId: '2', description: 'Đăng nhập thành công', ipAddress: '127.0.0.1', status: 'SUCCESS', createdAt: new Date(Date.now() - 3600000).toISOString() },
-          { logId: 103, userId: 4, userEmail: 'admin@farmely.vn', action: 'CHANGE_USER_STATUS', entityType: 'USER', entityId: '3', description: 'Kích hoạt tài khoản nhân viên', ipAddress: '127.0.0.1', status: 'SUCCESS', createdAt: new Date(Date.now() - 7200000).toISOString() },
-          { logId: 104, userId: 1, userEmail: 'customer@farmely.vn', action: 'PASSWORD_RESET', entityType: 'USER', entityId: '1', description: 'Đặt lại mật khẩu thành công qua token', ipAddress: '127.0.0.1', status: 'SUCCESS', createdAt: new Date(Date.now() - 14400000).toISOString() }
-        ]);
-        setAuditOverview({ totalLogs: 4, loginsCount: 2, passwordResetsCount: 1, roleChangesCount: 1, activitiesToday: 4, totalUsers: users.length });
+        console.warn('Không thể tải nhật ký hoạt động:', auditErr);
+        setAuditLogs([]);
+        setAuditOverview({ totalLogs: 0, loginsCount: 0, passwordResetsCount: 0, roleChangesCount: 0, activitiesToday: 0, totalUsers: users.length });
       }
 
       setDataError('');
@@ -706,7 +702,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // 9. Tiếp nhận cảnh báo vi khí hậu IoT (BR18 / UC13)
+  // 9. Tiếp nhận cảnh báo vi khí hậu IoT ( / UC13)
   const handleAcknowledgeAlert = async (alertId) => {
     try {
       await apiFetch(`/api/alerts/${alertId}/ack?acknowledgedBy=${encodeURIComponent(user?.fullName || 'Ban Quản Trị')}`, {
@@ -793,7 +789,7 @@ export default function AdminDashboard() {
       <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
 
       <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
-        
+
         {/* Success Toast */}
         {successToast && (
           <div role="status" className="fixed top-24 right-6 z-50 rounded-2xl border border-emerald-300 bg-emerald-800 text-white px-5 py-3 text-xs sm:text-sm font-bold shadow-xl flex items-center gap-2 animate-bounce">
@@ -808,7 +804,7 @@ export default function AdminDashboard() {
             <button onClick={() => setDataError('')} className="text-rose-500 font-bold hover:underline">Đóng</button>
           </div>
         )}
-        
+
         {/* Operational KPI Metric Gauges */}
         <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
           <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
@@ -874,7 +870,7 @@ export default function AdminDashboard() {
 
         {/* Layout with Sidebar Navigation + Content */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
-          
+
           {/* Admin Left Menu */}
           <DashboardRail user={user} fallbackName="Ban Quản Trị" roleLabel="Quản trị hệ thống" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
             <div className={`px-2 pb-2 text-xs font-bold text-white/60 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Phân Hệ Vận Hành</div>
@@ -934,7 +930,7 @@ export default function AdminDashboard() {
             {/* ========================================================================= */}
             {activeTab === 'dispatch' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                
+
                 {/* Header */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-brand-border/60 pb-5">
                   <div>
@@ -1287,7 +1283,7 @@ export default function AdminDashboard() {
                 )}
 
                 {/* ========================================================================= */}
-                {/* SUB-TAB 3: PHÂN CÔNG THỬA ĐẤT CANH TÁC (CVLĐ & CGNN - BR14 & BR24)        */}
+                {/* SUB-TAB 3: PHÂN CÔNG THỬA ĐẤT CANH TÁC (CVLĐ & CGNN -  & )        */}
                 {/* ========================================================================= */}
                 {dispatchSubTab === 'expert_plots' && (
                   <div className="space-y-4">
@@ -1548,36 +1544,20 @@ export default function AdminDashboard() {
             {/* ========================================================================= */}
             {activeTab === 'overview' && (() => {
               const kpi = analyticsData?.kpi || {
-                totalRevenue: 19595000,
-                monthlyRevenue: 13745000,
-                leaseRevenue: 19400000,
-                serviceRevenue: 195000,
-                pendingRevenue: 3600000,
-                totalPlots: landStats.total || 17,
-                rentedPlots: landStats.rented || 6,
-                availablePlots: 10,
-                maintenancePlots: 1,
-                occupancyRate: 35.3,
-                totalRentals: 19,
-                selfGrowingCount: 18,
-                assistedGrowingCount: 1,
-                selfGrowingPct: 94.7,
-                assistedGrowingPct: 5.3,
-                totalTasks: 12,
-                completedTasks: 1,
-                inProgressTasks: 5,
-                pendingTasks: 6,
-                taskCompletionRate: 92.5
+                totalRevenue: 0, monthlyRevenue: 0, leaseRevenue: 0, serviceRevenue: 0,
+                pendingRevenue: 0, totalPlots: 0, rentedPlots: 0, availablePlots: 0,
+                maintenancePlots: 0, occupancyRate: 0, totalRentals: 0,
+                selfGrowingCount: 0, assistedGrowingCount: 0, selfGrowingPct: 0,
+                assistedGrowingPct: 0, totalTasks: 0, completedTasks: 0,
+                inProgressTasks: 0, pendingTasks: 0, taskCompletionRate: 0
               };
 
-              const monthlyChartData = (analyticsData?.monthlyRevenue && analyticsData.monthlyRevenue.length > 0)
-                ? analyticsData.monthlyRevenue
-                : [
-                    { month: '09/2026', monthLabel: 'Tháng 09', leaseRevenue: 5850000, serviceRevenue: 0, totalRevenue: 5850000 },
-                    { month: '10/2026', monthLabel: 'Tháng 10', leaseRevenue: 13550000, serviceRevenue: 195000, totalRevenue: 13745000 }
-                  ];
-
+              const monthlyChartData = analyticsData?.monthlyRevenue || [];
               const recentTransactions = analyticsData?.recentTransactions || [];
+              const paymentMethodBreakdown = analyticsData?.paymentMethodBreakdown || [];
+              const netRevenue = Number(kpi.leaseRevenue || 0) + Number(kpi.serviceRevenue || 0);
+              const leasePercent = netRevenue > 0 ? Math.max(0, Math.min(100, Number(kpi.leaseRevenue || 0) / netRevenue * 100)) : 0;
+              const servicePercent = netRevenue > 0 ? Math.max(0, Math.min(100, Number(kpi.serviceRevenue || 0) / netRevenue * 100)) : 0;
 
               return (
                 <div className="space-y-6">
@@ -1597,7 +1577,7 @@ export default function AdminDashboard() {
                         Tổng Quan Doanh Thu & Chỉ Số Vận Hành
                       </h2>
                       <p className="text-xs text-brand-muted mt-0.5">
-                        Theo dõi dòng tiền thanh toán 100% Lump-sum (BR09), tỷ lệ lấp đầy quỹ đất và tiến độ nghiệm thu thực địa.
+                        Theo dõi dòng tiền thanh toán 100% Lump-sum, tỷ lệ lấp đầy quỹ đất và tiến độ nghiệm thu thực địa.
                       </p>
                     </div>
 
@@ -1640,7 +1620,7 @@ export default function AdminDashboard() {
                       <div className="pt-2 border-t border-brand-border/60 flex items-center justify-between text-[11px]">
                         <span className="text-stone-500">Master Lease: {formatVnd(kpi.leaseRevenue)}</span>
                         <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md">
-                          +134.9%
+                          {formatVnd(kpi.serviceRevenue)} dịch vụ
                         </span>
                       </div>
                     </div>
@@ -1718,7 +1698,7 @@ export default function AdminDashboard() {
                       <div className="pt-2 border-t border-brand-border/60 flex items-center justify-between text-[11px]">
                         <span className="text-stone-500">{kpi.inProgressTasks} Đang làm • {kpi.pendingTasks} Chờ</span>
                         <span className="font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md">
-                          ≥1 ảnh BR15
+                          ≥1 ảnh
                         </span>
                       </div>
                     </div>
@@ -1788,13 +1768,13 @@ export default function AdminDashboard() {
                               <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
                               Thuê Thửa Đất (Master Lease)
                             </span>
-                            <span className="font-mono text-emerald-800">99.0%</span>
+                            <span className="font-mono text-emerald-800">{leasePercent.toFixed(1)}%</span>
                           </div>
                           <div className="w-full bg-stone-100 h-2.5 rounded-full overflow-hidden">
-                            <div className="bg-emerald-600 h-full rounded-full" style={{ width: '99%' }}></div>
+                            <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${leasePercent}%` }}></div>
                           </div>
                           <div className="flex justify-between text-[11px] text-stone-500">
-                            <span>Hợp đồng trọn gói 100% (BR09)</span>
+                            <span>Hợp đồng trọn gói 100%</span>
                             <span className="font-bold text-stone-800">{formatVnd(kpi.leaseRevenue)}</span>
                           </div>
                         </div>
@@ -1806,13 +1786,13 @@ export default function AdminDashboard() {
                               <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                               Dịch Vụ Phát Sinh (A-la-carte)
                             </span>
-                            <span className="font-mono text-amber-800">1.0%</span>
+                            <span className="font-mono text-amber-800">{servicePercent.toFixed(1)}%</span>
                           </div>
                           <div className="w-full bg-stone-100 h-2.5 rounded-full overflow-hidden">
-                            <div className="bg-amber-500 h-full rounded-full" style={{ width: '5%' }}></div>
+                            <div className="bg-amber-500 h-full rounded-full" style={{ width: `${servicePercent}%` }}></div>
                           </div>
                           <div className="flex justify-between text-[11px] text-stone-500">
-                            <span>Services Master (BR27)</span>
+                            <span>Services Master</span>
                             <span className="font-bold text-stone-800">{formatVnd(kpi.serviceRevenue)}</span>
                           </div>
                         </div>
@@ -1823,20 +1803,19 @@ export default function AdminDashboard() {
                             Cổng Thanh Toán Tích Hợp
                           </span>
                           <div className="grid grid-cols-2 gap-2 text-[11px]">
-                            <div className="p-2.5 rounded-xl bg-blue-50/60 border border-blue-100 space-y-0.5">
-                              <span className="font-bold text-blue-900 block">VNPAY Sandbox</span>
-                              <span className="text-stone-600">63.0% Thực thu</span>
-                            </div>
-                            <div className="p-2.5 rounded-xl bg-purple-50/60 border border-purple-100 space-y-0.5">
-                              <span className="font-bold text-purple-900 block">VietQR 24/7</span>
-                              <span className="text-stone-600">37.0% Thực thu</span>
-                            </div>
+                            {paymentMethodBreakdown.map((method) => (
+                              <div key={method.paymentMethod} className="p-2.5 rounded-xl bg-blue-50/60 border border-blue-100 space-y-0.5">
+                                <span className="font-bold text-blue-900 block">{method.paymentMethod}</span>
+                                <span className="text-stone-600">{formatVnd(method.amount)} thực thu</span>
+                              </div>
+                            ))}
+                            {paymentMethodBreakdown.length === 0 && <span className="text-stone-500">Chưa có giao dịch thành công.</span>}
                           </div>
                         </div>
 
                         {/* Note SSoT */}
                         <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-[11px] text-stone-600 leading-relaxed">
-                          💡 <span className="font-bold text-stone-800">Quy tắc BR09:</span> 100% tiền thuê đất được thanh toán trọn gói trước khi kích hoạt canh tác. Giữ chỗ 15 phút + 10 phút Grace Period (BR08).
+                          💡 <span className="font-bold text-stone-800">Quy tắc:</span> 100% tiền thuê đất được thanh toán trọn gói trước khi kích hoạt canh tác. Giữ chỗ 15 phút + 10 phút Grace Period.
                         </div>
                       </div>
                     </div>
@@ -1883,7 +1862,9 @@ export default function AdminDashboard() {
                                 <div className="text-[11px] text-stone-500">{tx.referenceCode}</div>
                               </td>
                               <td className="py-3 px-3">
-                                {tx.referenceCode && tx.referenceCode.startsWith('HD-') ? (
+                                {tx.type === 'REFUND' ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">Hoàn tiền</span>
+                                ) : !tx.serviceRequestId ? (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                                     Thuê đất (Master Lease)
                                   </span>
@@ -1903,7 +1884,7 @@ export default function AdminDashboard() {
                                 </span>
                               </td>
                               <td className="py-3 px-3 text-right font-mono font-black text-sm text-stone-900">
-                                {formatVnd(tx.amount)}
+                                {tx.type === 'REFUND' ? '-' : ''}{formatVnd(tx.amount)}
                               </td>
                               <td className="py-3 px-3 text-stone-500 whitespace-nowrap">
                                 {tx.createdAt}
@@ -2054,7 +2035,7 @@ export default function AdminDashboard() {
             })()}
 
             {/* ========================================================================= */}
-            {/* TAB 3: CONTRACTS & REFUND REQUESTS (UC08 / BR10)                          */}
+            {/* TAB 3: CONTRACTS & REFUND REQUESTS (UC08 / )                          */}
             {/* ========================================================================= */}
             {activeTab === 'contracts' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
@@ -2285,7 +2266,7 @@ export default function AdminDashboard() {
             )}
 
             {/* ========================================================================= */}
-            {/* TAB 6: IOT ALERTS, WEATHER & HARDWARE HEALTH (SCR-AD-08 / UC13 / BR18)   */}
+            {/* TAB 6: IOT ALERTS, WEATHER & HARDWARE HEALTH (SCR-AD-08 / UC13 / )   */}
             {/* ========================================================================= */}
             {activeTab === 'iot-alerts' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6 text-left">
@@ -2294,7 +2275,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-2">
                       <Radio className="w-5 h-5 text-brand-green animate-pulse" />
                       <h3 className="font-heading font-black text-xl text-brand-dark">
-                        Trạm Quan Trắc IoT, Thời Tiết &amp; Cảnh Báo Vi Khí Hậu (SCR-AD-08 / BR18)
+                        Trạm Quan Trắc IoT, Thời Tiết &amp; Cảnh Báo Vi Khí Hậu (SCR-AD-08 / )
                       </h3>
                     </div>
                     <p className="text-xs text-brand-muted mt-0.5">
@@ -2348,7 +2329,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-1">
-                    <p className="font-bold text-sky-900">Điều Tiết Tưới BR18</p>
+                    <p className="font-bold text-sky-900">Điều Tiết Tưới </p>
                     <p className="text-2xl font-black text-sky-700">
                       {weatherData?.wateringPostponementRecommended ? 'HOÃN TƯỚI' : 'BÌNH THƯỜNG'}
                     </p>
@@ -2358,7 +2339,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Weather & BR18 Watering Postponement Card */}
+                {/* Weather &  Watering Postponement Card */}
                 {weatherData && (
                   <div className="p-5 rounded-2xl bg-gradient-to-r from-sky-50 via-emerald-50 to-amber-50 border border-sky-200 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-sky-200/60">
@@ -2395,7 +2376,7 @@ export default function AdminDashboard() {
                     <div className="p-3.5 rounded-xl bg-sky-900 text-white text-xs flex items-start gap-2.5">
                       <ShieldAlert className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
                       <div>
-                        <strong className="text-amber-200 block mb-0.5">Quy tắc sinh học BR18: Tự động hoãn ca tưới khi độ ẩm đất &gt;= 80% hoặc xác suất mưa &gt;= 70%</strong>
+                        <strong className="text-amber-200 block mb-0.5">Quy tắc sinh học: Tự động hoãn ca tưới khi độ ẩm đất &gt;= 80% hoặc xác suất mưa &gt;= 70%</strong>
                         <p className="text-white/90 leading-relaxed text-[11px]">
                           {weatherData.recommendationMessage}
                         </p>
@@ -2984,7 +2965,7 @@ export default function AdminDashboard() {
       </Modal>
 
       {/* ========================================================================= */}
-      {/* MODAL 4: PHÂN CÔNG NHÂN SỰ THỬA ĐẤT (STAFF & EXPERT - BR14 & BR24)        */}
+      {/* MODAL 4: PHÂN CÔNG NHÂN SỰ THỬA ĐẤT (STAFF & EXPERT -  & )        */}
       {/* ========================================================================= */}
       <Modal
         isOpen={Boolean(selectedRentalToAssignPersonnel)}
