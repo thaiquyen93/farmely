@@ -264,7 +264,8 @@ export default function FieldWorkerDashboard() {
   const [myIssues, setMyIssues] = useState([]);
   const [showNewIssueModal, setShowNewIssueModal] = useState(false);
   const [newIssuePlot, setNewIssuePlot] = useState('');
-  const [newIssueType, setNewIssueType] = useState('Sâu bệnh mặt lá');
+  const [newIssueType, setNewIssueType] = useState('Sâu bệnh mặt lá (Bọ trĩ, rầy mềm)');
+  const [customIssueType, setCustomIssueType] = useState('');
   const [newIssueDesc, setNewIssueDesc] = useState('');
   const [newIssueUrgency, setNewIssueUrgency] = useState('NORMAL');
   const [newIssuePhoto, setNewIssuePhoto] = useState('');
@@ -739,6 +740,9 @@ export default function FieldWorkerDashboard() {
       setDataError('Chưa có mã lượt thuê cho thửa đã chọn.');
       return;
     }
+
+    const finalIssueType = newIssueType === 'Khác' ? (customIssueType.trim() || 'Sự cố nông nghiệp khác') : newIssueType;
+
     let saved;
     try {
       saved = unwrapData(await apiFetch('/api/issues', {
@@ -746,7 +750,7 @@ export default function FieldWorkerDashboard() {
         body: JSON.stringify({
           rentalId: targetRentalId,
           reportedBy: reporterId,
-          issueType: newIssueType,
+          issueType: finalIssueType,
           description: newIssueDesc,
           imageUrl: newIssuePhoto || ''
         })
@@ -761,7 +765,7 @@ export default function FieldWorkerDashboard() {
       rentalId: targetRentalId,
       plotCode: newIssuePlot,
       plotName: `Thửa ${newIssuePlot}`,
-      issueType: newIssueType,
+      issueType: finalIssueType,
       urgency: newIssueUrgency,
       sentTime: 'Vừa xong',
       status: 'OPEN',
@@ -775,6 +779,8 @@ export default function FieldWorkerDashboard() {
     setShowNewIssueModal(false);
     setNewIssueDesc('');
     setNewIssuePhoto('');
+    setCustomIssueType('');
+    setNewIssueType('Sâu bệnh mặt lá (Bọ trĩ, rầy mềm)');
     setDataError('');
     setDataSuccess('Đã gửi báo cáo sự cố thành công lên cơ sở dữ liệu cho Chuyên gia.');
   };
@@ -2603,7 +2609,24 @@ export default function FieldWorkerDashboard() {
               <option value="Ống tưới nhỏ giọt bị rò rỉ / nghẹt cặn">Ống tưới nhỏ giọt bị rò rỉ / nghẹt cặn</option>
               <option value="Đất nứt nẻ thiếu ẩm">Đất nứt nẻ thiếu ẩm</option>
               <option value="Cây héo rũ gốc / thối rễ">Cây héo rũ gốc / thối rễ</option>
+              <option value="Khác">Bệnh / Sự cố khác (Tự nhập)</option>
             </select>
+
+            {newIssueType === 'Khác' && (
+              <div className="mt-2.5 space-y-1">
+                <label className="block text-[11px] font-bold text-emerald-900">
+                  Nhập tên bệnh / bất thường cụ thể: <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={customIssueType}
+                  onChange={(e) => setCustomIssueType(e.target.value)}
+                  placeholder="Ví dụ: Nấm phấn trắng, sương mai, đốm mắt cua, rỉ sắt, xoăn ngọn..."
+                  className="w-full p-2.5 rounded-xl border border-emerald-300 bg-emerald-50/40 text-xs font-medium focus:ring-2 focus:ring-emerald-500/20"
+                />
+              </div>
+            )}
           </div>
 
           <div>
