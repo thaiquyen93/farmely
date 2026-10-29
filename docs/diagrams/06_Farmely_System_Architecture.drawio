@@ -1,5 +1,5 @@
-<mxfile host="app.diagrams.net" modified="2026-10-29T08:22:50.233Z" agent="Antigravity" version="24.0.0" type="device">
-  <diagram id="isp392-system-design" name="System design">
+<mxfile host="app.diagrams.net" modified="2026-10-29T09:21:45.240Z" agent="Antigravity" version="24.0.0" type="device">
+  <diagram id="farmely-system-design" name="System design">
     <mxGraphModel dx="1200" dy="750" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1180" pageHeight="750" math="0" shadow="0">
       <root>
         <mxCell id="0" />
@@ -10,7 +10,7 @@
           <mxGeometry x="810" y="30" width="240" height="50" as="geometry" />
         </mxCell>
 
-        <!-- 1. NOTIFICATION (FIREBASE CLOUD MESSAGE) -->
+        <!-- 1. NOTIFICATION (FIREBASE CLOUD MESSAGING) -->
         <mxCell id="node-fcm" value="&lt;b&gt;Notification&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Firebase cloud message)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" vertex="1" parent="1">
           <mxGeometry x="390" y="95" width="145" height="75" as="geometry" />
         </mxCell>
@@ -20,20 +20,23 @@
 
         <!-- 2. THIRD PARTY DELIVERY -->
         <mxCell id="node-delivery" value="&lt;b&gt;Third party delivery&lt;/b&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;verticalAlign=bottom;spacingBottom=12;" vertex="1" parent="1">
-          <mxGeometry x="600" y="35" width="115" height="70" as="geometry" />
+          <mxGeometry x="595" y="35" width="125" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="icon-delivery" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn-icons-png.flaticon.com/512/2830/2830305.png;" vertex="1" parent="node-delivery">
+          <mxGeometry x="50" y="10" width="25" height="25" as="geometry" />
         </mxCell>
 
-        <!-- 3. ZALOPAY -->
-        <mxCell id="node-zalopay" value="&lt;font color=&quot;#0068ff&quot; style=&quot;font-size: 18px; font-weight: 900;&quot;&gt;Zalo&lt;/font&gt;&lt;font color=&quot;#00be00&quot; style=&quot;font-size: 18px; font-weight: 900;&quot;&gt;Pay&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 12px; color: #0f172a;&quot;&gt;ZaloPay&lt;/b&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;align=center;verticalAlign=middle;" vertex="1" parent="1">
+        <!-- 3. VNPAY (PAYMENT GATEWAY) -->
+        <mxCell id="node-vnpay" value="&lt;font color=&quot;#005baa&quot; style=&quot;font-size: 18px; font-weight: 900;&quot;&gt;VN&lt;/font&gt;&lt;font color=&quot;#e31837&quot; style=&quot;font-size: 18px; font-weight: 900;&quot;&gt;PAY&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 11px; color: #0f172a;&quot;&gt;VNPAY&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 9px; color: #475569;&quot;&gt;(Payment Gateway)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;align=center;verticalAlign=middle;" vertex="1" parent="1">
           <mxGeometry x="390" y="235" width="145" height="75" as="geometry" />
         </mxCell>
 
-        <!-- 4. OTP (TWILIO) -->
-        <mxCell id="node-twilio" value="&lt;font color=&quot;#f22f46&quot; style=&quot;font-size: 14px; font-weight: bold;&quot;&gt;twilio&lt;/font&gt;&lt;br&gt;&lt;b&gt;OTP&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Twilio)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+        <!-- 4. OTP (TWILIO / SMTP) -->
+        <mxCell id="node-twilio" value="&lt;font color=&quot;#f22f46&quot; style=&quot;font-size: 14px; font-weight: bold;&quot;&gt;twilio&lt;/font&gt;&lt;br&gt;&lt;b&gt;OTP&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Twilio / SMTP)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
           <mxGeometry x="60" y="390" width="135" height="80" as="geometry" />
         </mxCell>
 
-        <!-- 5. MOBILE APPLICATION (FLUTTER) -->
+        <!-- 5. MOBILE APPLICATION (FLUTTER / FIELD WORKER & CUSTOMER) -->
         <mxCell id="node-mobile" value="&lt;b&gt;Mobile Application&lt;/b&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=12;" vertex="1" parent="1">
           <mxGeometry x="235" y="390" width="130" height="80" as="geometry" />
         </mxCell>
@@ -41,7 +44,7 @@
           <mxGeometry x="50" y="10" width="30" height="30" as="geometry" />
         </mxCell>
 
-        <!-- 6. WEB APPLICATION (REACT) -->
+        <!-- 6. WEB APPLICATION (REACT / TAILWINDCSS) -->
         <mxCell id="node-web" value="&lt;b&gt;Web Application&lt;/b&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=12;" vertex="1" parent="1">
           <mxGeometry x="200" y="560" width="130" height="80" as="geometry" />
         </mxCell>
@@ -57,24 +60,24 @@
           <mxGeometry x="65" y="10" width="25" height="25" as="geometry" />
         </mxCell>
 
-        <!-- 8. BACKEND SERVER -->
-        <mxCell id="node-backend" value="&lt;b&gt;Backend Server&lt;/b&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=12;" vertex="1" parent="1">
+        <!-- 8. BACKEND SERVER (SPRING BOOT) -->
+        <mxCell id="node-backend" value="&lt;b&gt;Backend Server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Spring Boot)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" vertex="1" parent="1">
           <mxGeometry x="590" y="390" width="130" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="icon-csharp" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg;" vertex="1" parent="node-backend">
+        <mxCell id="icon-spring" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/spring/spring-original.svg;" vertex="1" parent="node-backend">
           <mxGeometry x="50" y="10" width="30" height="30" as="geometry" />
         </mxCell>
 
-        <!-- 9. GOOGLE DISTANCE MATRIX API -->
-        <mxCell id="node-maps" value="&lt;b&gt;Google&lt;/b&gt;&lt;br&gt;&lt;b&gt;Distance Matrix API&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Distance matrix API)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
+        <!-- 9. WEATHER API (OPENWEATHERMAP) -->
+        <mxCell id="node-weather" value="&lt;b&gt;Weather API&lt;/b&gt;&lt;br&gt;&lt;b&gt;OpenWeatherMap&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(Weather &amp; Rain Forecast)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=11;align=center;verticalAlign=middle;" vertex="1" parent="1">
           <mxGeometry x="785" y="260" width="175" height="80" as="geometry" />
         </mxCell>
 
-        <!-- 10. DATABASE -->
-        <mxCell id="node-db" value="&lt;font style=&quot;font-size: 9px; color: #64748b;&quot;&gt;SQL Server&lt;/font&gt;&lt;br&gt;&lt;b&gt;Database&lt;/b&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=12;" vertex="1" parent="1">
+        <!-- 10. DATABASE (POSTGRESQL) -->
+        <mxCell id="node-db" value="&lt;b&gt;Database&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #475569;&quot;&gt;(PostgreSQL)&lt;/font&gt;" style="rounded=1;arcSize=18;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#475569;strokeWidth=1.4;fontSize=12;verticalAlign=bottom;spacingBottom=10;" vertex="1" parent="1">
           <mxGeometry x="805" y="390" width="115" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="icon-sqlserver" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/microsoftsqlserver/microsoftsqlserver-plain.svg;" vertex="1" parent="node-db">
+        <mxCell id="icon-postgres" value="" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg;" vertex="1" parent="node-db">
           <mxGeometry x="42.5" y="10" width="30" height="30" as="geometry" />
         </mxCell>
 
@@ -155,8 +158,8 @@
           </mxGeometry>
         </mxCell>
 
-        <!-- Mobile <-> ZaloPay -->
-        <mxCell id="e-mob-zalo-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <!-- Mobile <-> VNPAY Sandbox -->
+        <mxCell id="e-mob-vnpay-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="290" y="390" as="sourcePoint" />
             <mxPoint x="390" y="280" as="targetPoint" />
@@ -165,7 +168,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-mob-zalo-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-mob-vnpay-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="390" y="260" as="sourcePoint" />
             <mxPoint x="275" y="390" as="targetPoint" />
@@ -175,7 +178,7 @@
           </mxGeometry>
         </mxCell>
 
-        <!-- Mobile <-> Backend Server -->
+        <!-- Mobile <-> Backend Server (Spring Boot) -->
         <mxCell id="e-mob-be-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="365" y="420" as="sourcePoint" />
@@ -217,7 +220,7 @@
           </mxGeometry>
         </mxCell>
 
-        <!-- Web <-> Backend Server -->
+        <!-- Web <-> Backend Server (Spring Boot) -->
         <mxCell id="e-web-be-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="270" y="560" as="sourcePoint" />
@@ -253,7 +256,7 @@
           </mxGeometry>
         </mxCell>
 
-        <!-- Backend <-> Database -->
+        <!-- Backend <-> Database (PostgreSQL) -->
         <mxCell id="e-be-db-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="720" y="420" as="sourcePoint" />
@@ -267,8 +270,8 @@
           </mxGeometry>
         </mxCell>
 
-        <!-- Backend <-> ZaloPay -->
-        <mxCell id="e-be-zalo-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <!-- Backend <-> VNPAY Sandbox -->
+        <mxCell id="e-be-vnpay-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="610" y="390" as="sourcePoint" />
             <mxPoint x="535" y="280" as="targetPoint" />
@@ -277,7 +280,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-be-zalo-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-vnpay-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="535" y="260" as="sourcePoint" />
             <mxPoint x="625" y="390" as="targetPoint" />
@@ -312,18 +315,24 @@
         <mxCell id="e-be-del-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="645" y="390" as="sourcePoint" />
-            <mxPoint x="645" y="105" as="targetPoint" />
+            <mxPoint x="595" y="70" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="645" y="70" />
+            </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="e-be-del-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
-            <mxPoint x="665" y="105" as="sourcePoint" />
+            <mxPoint x="595" y="85" as="sourcePoint" />
             <mxPoint x="665" y="390" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="665" y="85" />
+            </Array>
           </mxGeometry>
         </mxCell>
 
-        <!-- Backend <-> Google Distance Matrix API -->
-        <mxCell id="e-be-maps-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
+        <!-- Backend <-> Weather API (OpenWeatherMap) -->
+        <mxCell id="e-be-weather-call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="700" y="390" as="sourcePoint" />
             <mxPoint x="785" y="320" as="targetPoint" />
@@ -332,7 +341,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e-be-maps-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
+        <mxCell id="e-be-weather-ret" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1e293b;strokeWidth=1.3;dashed=1;dashPattern=4 3;endArrow=classic;" edge="1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="785" y="300" as="sourcePoint" />
             <mxPoint x="715" y="390" as="targetPoint" />
