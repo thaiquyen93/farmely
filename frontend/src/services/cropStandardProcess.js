@@ -1072,6 +1072,112 @@ export const FALLOW_PROTOCOL_STEPS = [
 ];
 
 /**
+ * Chuẩn hóa danh sách các Vụ mùa theo đúng thứ tự tuần tự (Sequential):
+ * - Vụ sau chỉ bắt đầu sau khi Vụ trước kết thúc + thời gian nghỉ đất (fallowDays).
+ * - Không bao giờ có 2 vụ cùng ở trạng thái ACTIVE (Đang trồng) tại cùng một thời điểm.
+ * - Nếu Vụ trước chưa COMPLETED (đang trồng, đang nghỉ đất, hoặc chưa bắt đầu),
+ *   thì tất cả các vụ kế tiếp bắt buộc ở trạng thái SCHEDULED (currentDay = 0).
+ */
+function enforceSequentialSeasons(rawSeasons = [], plot = {}) {
+  if (!Array.isArray(rawSeasons) || rawSeasons.length === 0) return [];
+
+  const primaryCropKey = detectCropKey(plot.crop || 'lettuce');
+  const primaryStandard = CROP_STANDARDS[primaryCropKey] || CROP_STANDARDS['lettuce'];
+  const defaultDuration = Number(plot.cycleDays) || Number(plot.totalDays) || primaryStandard.totalDays || 55;
+  const rawCurrentDay = Number(plot.currentDay !== undefined && plot.currentDay !== null ? plot.currentDay : 1);
+
+  const normalized = [];
+  let currentStart = plot.startDate ? new Date(plot.startDate) : new Date();
+  if (Number.isNaN(currentStart.getTime())) currentStart = new Date();
+  let accumulatedDays = 0;
+  let earlierSeasonIncomplete = false;
+
+  rawSeasons.forEach((s, idx) => {
+    const seasonNumber = idx + 1;
+    const cropKey = s.cropKey || detectCropKey(s.cropName || plot.crop || 'lettuce');
+    const standard = CROP_STANDARDS[cropKey] || primaryStandard;
+    const cropName = s.cropName || plot.crop || standard.cropName;
+    const seasonDuration = Number(s.totalDays) || standard.totalDays || defaultDuration;
+    const fallowDays = Number(s.fallowDays) || 5;
+
+    const seasonStart = new Date(currentStart);
+    const seasonEnd = new Date(seasonStart);
+    seasonEnd.setDate(seasonEnd.getDate() + seasonDuration);
+
+    const seasonDayStart = accumulatedDays + 1;
+    const seasonDayEnd = accumulatedDays + seasonDuration;
+    const fallowEnd = seasonDayEnd + fallowDays;
+
+    let status = 'SCHEDULED';
+    let currentDayInSeason = 0;
+    let isCurrent = false;
+    let inFallow = false;
+
+    if (earlierSeasonIncomplete) {
+      status = 'SCHEDULED';
+      currentDayInSeason = 0;
+      isCurrent = false;
+      inFallow = false;
+    } else if (rawCurrentDay <= 0) {
+      status = 'SCHEDULED';
+      currentDayInSeason = 0;
+      isCurrent = idx === 0;
+      earlierSeasonIncomplete = true;
+    } else if (rawCurrentDay > fallowEnd) {
+      status = 'COMPLETED';
+      currentDayInSeason = seasonDuration;
+      isCurrent = false;
+    } else if (rawCurrentDay > seasonDayEnd) {
+      status = 'SOIL_PREP';
+      currentDayInSeason = seasonDuration;
+      isCurrent = true;
+      inFallow = true;
+      earlierSeasonIncomplete = true;
+    } else if (rawCurrentDay >= seasonDayStart) {
+      status = 'ACTIVE';
+      currentDayInSeason = rawCurrentDay - seasonDayStart + 1;
+      isCurrent = true;
+      earlierSeasonIncomplete = true;
+    } else {
+      status = 'SCHEDULED';
+      currentDayInSeason = 0;
+      isCurrent = false;
+      earlierSeasonIncomplete = true;
+    }
+
+    normalized.push({
+      ...s,
+      seasonNumber,
+      id: `SEASON-${seasonNumber}`,
+      seasonName: `Vụ ${seasonNumber}: ${cropName}`,
+      cropKey,
+      cropName,
+      status,
+      totalDays: seasonDuration,
+      currentDay: currentDayInSeason,
+      startDate: seasonStart.toISOString().slice(0, 10),
+      endDate: seasonEnd.toISOString().slice(0, 10),
+      fallowDays,
+      isCurrent,
+      inFallow,
+      yieldKgActual: status === 'COMPLETED' ? (s.yieldKgActual || 12.5) : null
+    });
+
+    const nextStart = new Date(seasonEnd);
+    nextStart.setDate(nextStart.getDate() + fallowDays);
+    currentStart = nextStart;
+    accumulatedDays = fallowEnd;
+  });
+
+  if (!normalized.some((s) => s.isCurrent) && normalized.length > 0) {
+    const active = normalized.find((s) => s.status === 'ACTIVE' || s.status === 'SOIL_PREP') || normalized[0];
+    if (active) active.isCurrent = true;
+  }
+
+  return normalized;
+}
+
+/**
  * Phân tích và sinh danh sách các Vụ mùa (Seasons) cho một thửa đất
  * Tuân thủ chính xác theo hợp đồng: số vụ thuê, thời hạn thuê termMonths,
  * hỗ trợ chuyển đổi giữa các vụ và hiển thị giai đoạn nghỉ đất 5 ngày.
@@ -1095,52 +1201,17 @@ export function resolvePlotSeasons(plot, allRentals = []) {
         // Bỏ qua nếu là dữ liệu giả 2 vụ cũ bị sinh tự động (chưa từng qua gia hạn thật)
         const isStaleMockSplit = parsed.length === 2 && parsed[1]?.id === 'SEASON-2' && (parsed[1]?.rentalId === (plot.rentalId || 1) + 1 || parsed[1]?.rentalId === 2) && !parsed[1]?.varietyId;
         if (isMatchingRental && isMatchingCrop && !isStaleMockSplit) {
-          return parsed;
+          return enforceSequentialSeasons(parsed, plot);
         }
       }
     }
   } catch {}
 
-  // 2. Nếu trong danh sách rentals/contracts có nhiều hợp đồng/vụ mùa thực tế cho cùng thửa đất này:
-  const matchingRentals = (allRentals || []).filter((r) => {
-    const rCode = String(r.plotCode || r.plotId || r.mapPlotId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
-    return (rCode && rCode === plotKey) || (r.rentalId && r.rentalId === plot.rentalId);
-  });
-
-  if (matchingRentals.length > 1) {
-    matchingRentals.sort((a, b) => new Date(a.startDate || a.start_date || 0) - new Date(b.startDate || b.start_date || 0));
-    return matchingRentals.map((r, idx) => {
-      const sNumber = idx + 1;
-      const isPast = new Date(r.endDate || r.end_date) < new Date();
-      const isActive = !isPast;
-      const cropKey = detectCropKey(r.varietyName || r.crop || plot.crop || 'lettuce');
-      const standard = CROP_STANDARDS[cropKey] || CROP_STANDARDS['lettuce'];
-      return {
-        seasonNumber: sNumber,
-        id: `SEASON-${sNumber}`,
-        seasonName: `Vụ ${sNumber}: ${r.varietyName || r.crop || standard.cropName}`,
-        cropKey,
-        cropName: r.varietyName || r.crop || standard.cropName,
-        varietyId: r.varietyId || r.variety_id,
-        status: isPast ? 'COMPLETED' : 'ACTIVE',
-        totalDays: r.durationDays || r.totalDays || standard.totalDays,
-        currentDay: isPast ? (r.durationDays || standard.totalDays) : Math.min(plot.currentDay || 1, r.durationDays || standard.totalDays),
-        startDate: r.startDate || r.start_date,
-        endDate: r.endDate || r.end_date,
-        fallowDays: 5,
-        rentalId: r.rentalId || r.rental_id,
-        cultivationMode: r.cultivationMode || r.cultivation_mode || plot.mode || 'ASSISTED',
-        isCurrent: isActive
-      };
-    });
-  }
-
-  // 3. Tính số vụ mùa (targetSeasons) chuẩn xác theo hợp đồng:
+  // 2. Tính số vụ mùa (targetSeasons) chuẩn xác theo hợp đồng hiện tại của thửa đất:
   const primaryCropKey = detectCropKey(plot.crop || 'lettuce');
   const primaryStandard = CROP_STANDARDS[primaryCropKey] || CROP_STANDARDS['lettuce'];
   const cropDisplayName = plot.crop || primaryStandard.cropName;
   const cycleDays = Number(plot.cycleDays || (plot.termDays ? plot.totalDays : null)) || Number(plot.totalDays) || primaryStandard.totalDays || 55;
-  const rawCurrentDay = Number(plot.currentDay !== undefined && plot.currentDay !== null ? plot.currentDay : 1);
   const termDays = Number(plot.termDays) || 0;
   const termMonths = Number(plot.termMonths) || 0;
 
@@ -1158,82 +1229,21 @@ export function resolvePlotSeasons(plot, allRentals = []) {
     else if (termMonths <= 9) targetSeasons = 3;
     else targetSeasons = Math.min(4, Math.floor(termMonths / 3));
   } else if (termDays > 0) {
-    // Nếu tính theo khoảng ngày hợp đồng: 1 vụ gồm cycleDays + 5 ngày nghỉ đất
     const seasonDuration = cycleDays + 5;
     targetSeasons = Math.max(1, Math.round(termDays / seasonDuration));
   }
 
-  // Tạo danh sách vụ mùa chuẩn theo targetSeasons
-  const fallowDays = 5;
-  const seasons = [];
-  let currentStart = plot.startDate ? new Date(plot.startDate) : new Date();
-  let accumulatedDays = 0;
+  const rawSeasons = Array.from({ length: targetSeasons }, (_, i) => ({
+    seasonNumber: i + 1,
+    id: `SEASON-${i + 1}`,
+    seasonName: `Vụ ${i + 1}: ${cropDisplayName}`,
+    cropKey: primaryCropKey,
+    cropName: cropDisplayName,
+    totalDays: cycleDays,
+    fallowDays: 5,
+    rentalId: i === 0 ? (plot.rentalId || 1) : (plot.rentalId ? plot.rentalId * 100 + (i + 1) : i + 1),
+    cultivationMode: plot.mode || 'ASSISTED'
+  }));
 
-  for (let i = 0; i < targetSeasons; i++) {
-    const seasonNumber = i + 1;
-    const seasonDuration = cycleDays;
-    const seasonStart = new Date(currentStart);
-    const seasonEnd = new Date(seasonStart);
-    seasonEnd.setDate(seasonEnd.getDate() + seasonDuration);
-
-    const seasonDayStart = accumulatedDays + 1;
-    const seasonDayEnd = accumulatedDays + seasonDuration;
-    const fallowEnd = seasonDayEnd + fallowDays;
-
-    let status = 'SCHEDULED';
-    let currentDayInSeason = 0;
-    let isCurrent = false;
-    let inFallow = false;
-
-    if (rawCurrentDay > fallowEnd) {
-      status = 'COMPLETED';
-      currentDayInSeason = seasonDuration;
-      isCurrent = false;
-    } else if (rawCurrentDay > seasonDayEnd) {
-      status = 'SOIL_PREP';
-      currentDayInSeason = seasonDuration;
-      isCurrent = true;
-      inFallow = true;
-    } else if (rawCurrentDay >= seasonDayStart) {
-      status = 'ACTIVE';
-      currentDayInSeason = rawCurrentDay - seasonDayStart + 1;
-      isCurrent = true;
-    } else {
-      status = 'SCHEDULED';
-      currentDayInSeason = 0;
-      isCurrent = (i === 0 && rawCurrentDay <= 0);
-    }
-
-    seasons.push({
-      seasonNumber,
-      id: `SEASON-${seasonNumber}`,
-      seasonName: `Vụ ${seasonNumber}: ${cropDisplayName}`,
-      cropKey: primaryCropKey,
-      cropName: cropDisplayName,
-      status,
-      totalDays: seasonDuration,
-      currentDay: currentDayInSeason,
-      startDate: seasonStart.toISOString().slice(0, 10),
-      endDate: seasonEnd.toISOString().slice(0, 10),
-      fallowDays,
-      rentalId: plot.rentalId ? (plot.rentalId * 100 + seasonNumber) : seasonNumber,
-      cultivationMode: plot.mode || 'ASSISTED',
-      isCurrent,
-      inFallow,
-      yieldKgActual: status === 'COMPLETED' ? 12.5 : null
-    });
-
-    const nextStart = new Date(seasonEnd);
-    nextStart.setDate(nextStart.getDate() + fallowDays);
-    currentStart = nextStart;
-    accumulatedDays = fallowEnd;
-  }
-
-  // Đảm bảo có ít nhất 1 vụ được chọn là vụ hiện tại
-  if (!seasons.some((s) => s.isCurrent)) {
-    const active = seasons.find((s) => s.status === 'ACTIVE') || seasons[0];
-    if (active) active.isCurrent = true;
-  }
-
-  return seasons;
+  return enforceSequentialSeasons(rawSeasons, plot);
 }

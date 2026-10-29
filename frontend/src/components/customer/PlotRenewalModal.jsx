@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { X, Sprout, Calendar, ShieldCheck, Check, Sparkles, AlertCircle, ArrowRight, LoaderCircle, CheckCircle2 } from 'lucide-react';
 import { rentalApi } from '../../api/rental/rentalApi';
+import VnPayModal from '../payment/VnPayModal';
 
 const COMPATIBLE_VARIETIES = [
   {
@@ -145,26 +146,37 @@ export default function PlotRenewalModal({
 
   useEffect(() => {
     let isMounted = true;
-    const rawPlotId = plot?.plotId || plot?.id || plot?.mapPlotId || 1;
+    const rawPlotId = plot?.plot_id || plot?.plotId || plot?.mapPlotId || plot?.plotCode || plot?.id || 1;
     const numericPlotId = typeof rawPlotId === 'number' ? rawPlotId : (parseInt(String(rawPlotId).replace(/\D/g, ''), 10) || 1);
 
     const mapItems = (items) => {
       return items.map((item, idx) => {
+        const rawId = item.varietyId ?? item.variety_id ?? item.id;
+        const rawName = String(item.varietyName || item.variety_name || item.name || '').trim();
+        const rawDuration = item.expectedDuration ?? item.expected_duration ?? item.growthDuration;
+        const rawBuffer = item.bufferTime ?? item.buffer_time;
+
         const fallback = COMPATIBLE_VARIETIES.find(
-          (f) => f.varietyId === item.varietyId || f.name.toLowerCase().includes(item.varietyName?.toLowerCase() || '')
+          (f) =>
+            (rawId !== undefined && rawId !== null && Number(f.varietyId) === Number(rawId)) ||
+            (rawName.length > 0 && (f.name.toLowerCase().includes(rawName.toLowerCase()) || rawName.toLowerCase().includes(f.name.toLowerCase())))
         ) || COMPATIBLE_VARIETIES[idx % COMPATIBLE_VARIETIES.length];
 
+        const resolvedId = Number(rawId) || fallback.id || idx + 1;
+
         return {
-          id: item.varietyId || fallback.id,
-          varietyId: item.varietyId || fallback.varietyId,
-          name: item.varietyName || fallback.name,
+          id: resolvedId,
+          varietyId: resolvedId,
+          name: rawName || fallback.name,
           cropKey: fallback.cropKey || 'tomato',
-          expectedDuration: item.expectedDuration || fallback.expectedDuration || 35,
-          bufferTime: item.bufferTime || fallback.bufferTime || 5,
-          expectedYield: fallback.expectedYield || '15 kg/thửa',
-          price: fallback.price || 350000,
-          image: fallback.image,
-          desc: fallback.desc || `${item.varietyName} đạt chuẩn an toàn VietGAP.`
+          expectedDuration: Number(rawDuration) || fallback.expectedDuration || 35,
+          bufferTime: Number(rawBuffer) || fallback.bufferTime || 5,
+          expectedYield: item.expectedYield || fallback.expectedYield || '15 kg/thửa',
+          price: Number(item.price) || fallback.price || 350000,
+          image: item.imageUrl || item.image || fallback.image,
+          desc: (item.description && !item.description.includes('Giống cây thuần chủng F1 đạt chuẩn VietGAP'))
+            ? item.description
+            : (fallback.desc || `${rawName || fallback.name} đạt chuẩn an toàn VietGAP.`)
         };
       });
     };
@@ -233,6 +245,17 @@ export default function PlotRenewalModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successData, setSuccessData] = useState(null);
+  const [showVnPayModal, setShowVnPayModal] = useState(false);
+  const [pendingRenewal, setPendingRenewal] = useState(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setShowVnPayModal(false);
+      setPendingRenewal(null);
+      setSuccessData(null);
+      setErrorMessage('');
+    }
+  }, [isOpen, plot?.id]);
 
   // Tính toán ngày kết thúc mới (newEndDate)
   const calculation = useMemo(() => {
@@ -268,98 +291,156 @@ export default function PlotRenewalModal({
 
   if (!isOpen) return null;
 
+  const buildPendingRenewalPayload = () => {
+    const rentalId = plot?.rentalId || plot?.rental_id || 1;
+    const plotKey = String(plot?.plotCode || plot?.mapPlotId || plot?.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+    const rentalIdSuffix = plot?.rentalId ? `_${plot.rentalId}` : '';
+    const storageKey = `farmely_plot_seasons_${plotKey}${rentalIdSuffix}`;
+
+    let baseSeasons = [];
+    if (Array.isArray(seasons) && seasons.length > 0) {
+      baseSeasons = [...seasons];
+    } else {
+      try {
+        const saved = localStorage.getItem(storageKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) baseSeasons = parsed;
+        }
+      } catch {}
+    }
+
+    if (baseSeasons.length === 0) {
+      const s1Crop = plot?.crop || 'Xà lách Lô Lô Xanh Thủy Canh';
+      baseSeasons = [
+        {
+          seasonNumber: 1,
+          id: 'SEASON-1',
+          seasonName: `Vụ 1: ${s1Crop}`,
+          cropKey: 'lettuce',
+          cropName: s1Crop,
+          status: 'ACTIVE',
+          totalDays: Number(plot?.totalDays) || 32,
+          currentDay: plot?.currentDay || 1,
+          startDate: plot?.startDate || new Date().toISOString().slice(0, 10),
+          endDate: plot?.expectedHarvestDate || plot?.endDate || '2026-11-30',
+          fallowDays: 5,
+          rentalId: plot?.rentalId || 1,
+          cultivationMode: plot?.mode || 'ASSISTED',
+          isCurrent: true
+        }
+      ];
+    }
+
+    const addedSeasons = [];
+    let prevEndStr = baseSeasons[baseSeasons.length - 1]?.endDate || plot?.expectedHarvestDate || plot?.endDate || new Date().toISOString().slice(0, 10);
+    let prevFallow = Number(baseSeasons[baseSeasons.length - 1]?.fallowDays) || 5;
+
+    for (let i = 0; i < selectedSeasonsCount; i++) {
+      const sNum = baseSeasons.length + i + 1;
+      const nextStartObj = new Date(prevEndStr);
+      nextStartObj.setDate(nextStartObj.getDate() + prevFallow);
+      const sStartStr = nextStartObj.toISOString().slice(0, 10);
+
+      const nextEndObj = new Date(nextStartObj);
+      nextEndObj.setDate(nextEndObj.getDate() + (Number(selectedVariety.expectedDuration) || 35));
+      const sEndStr = nextEndObj.toISOString().slice(0, 10);
+
+      addedSeasons.push({
+        seasonNumber: sNum,
+        id: `SEASON-${sNum}`,
+        seasonName: `Vụ ${sNum}: ${selectedVariety.name}`,
+        cropKey: selectedVariety.cropKey,
+        cropName: selectedVariety.name,
+        varietyId: selectedVariety.varietyId,
+        status: 'SCHEDULED',
+        totalDays: selectedVariety.expectedDuration,
+        currentDay: 0,
+        startDate: sStartStr,
+        endDate: sEndStr,
+        fallowDays: selectedVariety.bufferTime || 5,
+        rentalId: Date.now() + i,
+        cultivationMode: selectedCareMode,
+        isCurrent: false
+      });
+
+      prevEndStr = sEndStr;
+      prevFallow = Number(selectedVariety.bufferTime) || 5;
+    }
+
+    const updatedSeasons = [...baseSeasons, ...addedSeasons];
+    const newSeasonNumber = baseSeasons.length + 1;
+
+    return {
+      type: 'RENEWAL',
+      rentalId,
+      contractId: plot?.contractId || plot?.contract_id || null,
+      plotId: plot?.id || `PLOT-${plotKey}`,
+      plotCode: plotKey,
+      plotName: String(plot?.name || plotKey).replace(/^Thửa\s+/i, 'Thửa '),
+      newEndDate: calculation.newEndDate,
+      newVarietyId: selectedVariety.varietyId,
+      varietyName: selectedVariety.name,
+      newServiceId: selectedCareMode === 'ASSISTED' ? 15 : null,
+      cultivationMode: selectedCareMode,
+      selectedSeasonsCount,
+      newSeasonNumber,
+      totalAdditionalDays: calculation.totalAdditionalDays,
+      totalAmount: calculation.totalAmount,
+      storageKey,
+      plotKey,
+      updatedSeasons
+    };
+  };
+
   const handleSubmit = async (e) => {
     e?.preventDefault();
-    setIsSubmitting(true);
     setErrorMessage('');
 
     try {
-      const rentalId = plot?.rentalId || 1;
-      const payload = {
-        newEndDate: calculation.newEndDate,
-        newVarietyId: selectedVariety.varietyId,
-        newServiceId: selectedCareMode === 'ASSISTED' ? 1 : null
-      };
+      const renewalData = buildPendingRenewalPayload();
+      localStorage.setItem('farmely_pending_vnpay_renewal', JSON.stringify(renewalData));
+      localStorage.removeItem('farmely_pending_vnpay_booking');
+      localStorage.removeItem('farmely_pending_vnpay_service');
+      setPendingRenewal(renewalData);
+      setShowVnPayModal(true);
+    } catch (err) {
+      setErrorMessage(err.message || 'Không thể khởi tạo thanh toán gia hạn. Vui lòng thử lại.');
+    }
+  };
 
-      // 1. Gọi API Backend (POST /api/rentals/{id}/renew)
+  const handleInstantPaymentSuccess = async () => {
+    setIsSubmitting(true);
+    setErrorMessage('');
+    try {
+      const renewalData = pendingRenewal || buildPendingRenewalPayload();
       try {
-        await rentalApi.renewRental(rentalId, payload);
+        await rentalApi.renewRental(renewalData.rentalId, {
+          newEndDate: renewalData.newEndDate,
+          newVarietyId: renewalData.newVarietyId,
+          newServiceId: renewalData.newServiceId,
+          cultivationMode: renewalData.cultivationMode,
+          additionalAmount: renewalData.totalAmount,
+          additionalSeasons: renewalData.selectedSeasonsCount
+        });
       } catch (apiErr) {
         console.warn('API call fallback to local state:', apiErr.message);
       }
 
-      // 2. Cập nhật localStorage cho seasons của thửa đất để hiển thị tức thì
-      const plotKey = String(plot?.plotCode || plot?.mapPlotId || plot?.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
-      const storageKey = `farmely_plot_seasons_${plotKey}`;
+      localStorage.setItem(renewalData.storageKey, JSON.stringify(renewalData.updatedSeasons));
+      localStorage.setItem(`farmely_plot_seasons_${renewalData.plotKey}`, JSON.stringify(renewalData.updatedSeasons));
+      localStorage.removeItem('farmely_pending_vnpay_renewal');
 
-      let baseSeasons = [];
-      if (Array.isArray(seasons) && seasons.length > 0) {
-        baseSeasons = [...seasons];
-      } else {
-        try {
-          const saved = localStorage.getItem(storageKey);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) baseSeasons = parsed;
-          }
-        } catch {}
-      }
-
-      if (baseSeasons.length === 0) {
-        const s1Crop = plot?.crop || 'Xà lách Lô Lô Xanh Thủy Canh';
-        baseSeasons = [
-          {
-            seasonNumber: 1,
-            id: 'SEASON-1',
-            seasonName: `Vụ 1: ${s1Crop}`,
-            cropKey: 'lettuce',
-            cropName: s1Crop,
-            status: 'ACTIVE',
-            totalDays: 32,
-            currentDay: plot?.currentDay || 1,
-            startDate: plot?.startDate || new Date().toISOString().slice(0, 10),
-            endDate: plot?.expectedHarvestDate || plot?.endDate || '2026-11-30',
-            fallowDays: 5,
-            rentalId: plot?.rentalId || 1,
-            cultivationMode: plot?.mode || 'ASSISTED',
-            isCurrent: true
-          }
-        ];
-      }
-
-      const newSeasonNumber = baseSeasons.length + 1;
-      const updatedSeasons = [
-        ...baseSeasons,
-        {
-          seasonNumber: newSeasonNumber,
-          id: `SEASON-${newSeasonNumber}`,
-          seasonName: `Vụ ${newSeasonNumber}: ${selectedVariety.name}`,
-          cropKey: selectedVariety.cropKey,
-          cropName: selectedVariety.name,
-          varietyId: selectedVariety.varietyId,
-          status: 'SCHEDULED',
-          totalDays: selectedVariety.expectedDuration,
-          currentDay: 0,
-          startDate: plot?.expectedHarvestDate || plot?.endDate || new Date().toISOString().slice(0, 10),
-          endDate: calculation.newEndDate,
-          fallowDays: selectedVariety.bufferTime || 5,
-          rentalId: Date.now(),
-          cultivationMode: selectedCareMode,
-          isCurrent: false
-        }
-      ];
-
-      localStorage.setItem(storageKey, JSON.stringify(updatedSeasons));
-
+      setShowVnPayModal(false);
       setSuccessData({
-        newEndDate: calculation.newEndDate,
-        varietyName: selectedVariety.name,
-        seasonNumber: newSeasonNumber,
-        totalAmount: calculation.totalAmount
+        newEndDate: renewalData.newEndDate,
+        varietyName: renewalData.varietyName,
+        seasonNumber: renewalData.newSeasonNumber,
+        totalAmount: renewalData.totalAmount
       });
 
       if (onRenewSuccess) {
-        onRenewSuccess(updatedSeasons);
+        onRenewSuccess(renewalData.updatedSeasons);
       }
     } catch (err) {
       setErrorMessage(err.message || 'Không thể hoàn tất gia hạn. Vui lòng thử lại.');
@@ -378,11 +459,11 @@ export default function PlotRenewalModal({
               <Sparkles className="h-5 w-5 text-lime-300" />
             </span>
             <div>
-              <h3 className="font-heading text-lg font-black tracking-tight">
+              <h3 className="font-heading text-lg font-black tracking-tight !text-white">
                 Gia Hạn Hợp Đồng Thuê Thửa Đất
               </h3>
               <p className="text-xs text-emerald-100">
-                Thửa {plot?.name || plot?.plotCode || 'P-06'} · Quyền ưu tiên giữ thửa quen theo Vụ mùa
+                {String(plot?.name || plot?.plotCode || 'P-06').replace(/^Thửa\s+/i, 'Thửa ')} · Quyền ưu tiên giữ thửa quen theo Vụ mùa
               </p>
             </div>
           </div>
@@ -604,7 +685,7 @@ export default function PlotRenewalModal({
                   </>
                 ) : (
                   <>
-                    <span>Xác nhận & Gia hạn vụ mới</span>
+                    <span>Thanh toán & Gia hạn vụ mới</span>
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
@@ -613,6 +694,26 @@ export default function PlotRenewalModal({
           </form>
         )}
       </div>
+
+      <VnPayModal
+        isOpen={showVnPayModal}
+        onClose={() => setShowVnPayModal(false)}
+        totalAmount={calculation.totalAmount}
+        contractId={plot?.contractId || plot?.contract_id || null}
+        plotInfo={{
+          code: pendingRenewal?.plotCode || String(plot?.plotCode || plot?.mapPlotId || plot?.id || '').replace(/^PLOT-/i, ''),
+          name: `${String(plot?.name || plot?.plotCode || 'Thửa đất').replace(/^Thửa\s+/i, 'Thửa ')} (+${selectedSeasonsCount} vụ: ${selectedVariety.name})`,
+          plotCode: pendingRenewal?.plotCode,
+          rentalId: plot?.rentalId || plot?.rental_id || 1
+        }}
+        additionalPayload={{
+          isRenewal: true,
+          rentalId: plot?.rentalId || plot?.rental_id || 1,
+          orderInfo: `Thanh toan gia han vu mua ${pendingRenewal?.plotCode || plot?.plotCode || ''} (+${selectedSeasonsCount} vu ${selectedVariety.name})`
+        }}
+        pendingRenewal={pendingRenewal}
+        onPaymentSuccess={handleInstantPaymentSuccess}
+      />
     </div>
   );
 }

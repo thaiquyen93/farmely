@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1050 680" width="1050" height="680" style="font-family: Arial, Helvetica, sans-serif; background-color: #ffffff;">
+  <defs>
+    <marker id="arrow-end" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#111111" />
+    </marker>
+    <marker id="arrow-start" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M 9 1.5 L 0 5 L 9 8.5 z" fill="#111111" />
+    </marker>
+  </defs>
+
+  <rect width="1050" height="680" fill="#ffffff" />
+
+  <!-- ==================== FRONTEND / BACKEND DIVIDER LINE ==================== -->
+  <line x1="45" y1="135" x2="985" y2="135" stroke="#111111" stroke-width="1.8" stroke-dasharray="6,5" />
+
+  <!-- ==================== CONNECTIONS ==================== -->
+  <!-- (1) React Web Client <-> (2) API Gateway -->
+  <line x1="495" y1="92" x2="495" y2="173" stroke="#111111" stroke-width="1.6" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+
+  <!-- (1) React Web Client <-> (7) File Storage -->
+  <polyline points="612,62 855,62 855,232" fill="none" stroke="#111111" stroke-width="1.6" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+
+  <!-- (2) API Gateway <-> (3) Backend Services -->
+  <line x1="495" y1="232" x2="495" y2="293" stroke="#111111" stroke-width="1.6" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+
+  <!-- (2) API Gateway <-> (6) AI RAG Service -->
+  <polyline points="612,202 680,202 680,480 500,480 500,542" fill="none" stroke="#111111" stroke-width="1.6" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+
+  <!-- (3) Backend Services <-> (4) PostgreSQL Database -->
+  <line x1="258" y1="360" x2="348" y2="360" stroke="#111111" stroke-width="1.6" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+
+  <!-- (5) Scheduled Jobs <-> (4) PostgreSQL Database -->
+  <line x1="155" y1="408" x2="155" y2="508" stroke="#111111" stroke-width="1.6" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+
+  <!-- (3) Backend Services <-> (5) Scheduled Jobs -->
+  <polyline points="348,395 290,395 290,508" fill="none" stroke="#111111" stroke-width="1.6" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+
+  <!-- (3) Backend Services -> (7) File Storage -->
+  <polyline points="642,360 715,360 715,272 752,272" fill="none" stroke="#111111" stroke-width="1.6" marker-end="url(#arrow-end)" />
+
+  <!-- (3) Backend Services <-> (8) External Services -->
+  <polyline points="610,427 610,480 790,480 790,508" fill="none" stroke="#111111" stroke-width="1.6" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+
+  <!-- (6) AI RAG Service <-> (8) External Services -->
+  <line x1="608" y1="572" x2="712" y2="572" stroke="#111111" stroke-width="1.6" marker-start="url(#arrow-start)" marker-end="url(#arrow-end)" />
+
+
+  <!-- ==================== NODE (1): REACT WEB CLIENT ==================== -->
+  <g>
+    <rect x="380" y="35" width="230" height="55" fill="#ffffff" stroke="#111111" stroke-width="1.6" />
+    <text x="495" y="68" text-anchor="middle" font-size="15" fill="#111111">React Web Client</text>
+    <circle cx="380" cy="62" r="17" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5" />
+    <text x="380" y="67" text-anchor="middle" font-size="13" font-weight="bold" fill="#111111">1</text>
+  </g>
+
+  <!-- ==================== NODE (2): API GATEWAY ==================== -->
+  <g>
+    <rect x="380" y="175" width="230" height="55" fill="#dae8fc" stroke="#6c8ebf" stroke-width="1.5" />
+    <text x="495" y="208" text-anchor="middle" font-size="15" fill="#111111">API Gateway</text>
+    <circle cx="380" cy="202" r="17" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5" />
+    <text x="380" y="207" text-anchor="middle" font-size="13" font-weight="bold" fill="#111111">2</text>
+  </g>
+
+  <!-- ==================== NODE (3): BACKEND SERVICES ==================== -->
+  <g>
+    <rect x="350" y="295" width="290" height="130" fill="none" stroke="#111111" stroke-width="1.6" stroke-dasharray="6,5" />
+    <rect x="395" y="315" width="220" height="60" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5" />
+    <rect x="382" y="328" width="220" height="60" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5" />
+    <rect x="370" y="340" width="220" height="60" fill="#d5e8d4" stroke="#82b366" stroke-width="1.5" />
+    <text x="480" y="375" text-anchor="middle" font-size="15" fill="#111111">Backend Services</text>
+    <circle cx="350" cy="315" r="17" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5" />
+    <text x="350" y="320" text-anchor="middle" font-size="13" font-weight="bold" fill="#111111">3</text>
+  </g>
+
+  <!-- ==================== NODE (4): POSTGRESQL DATABASE ==================== -->
+  <g>
+    <path d="M 55,332 L 55,392 C 55,408 255,408 255,392 L 255,332 Z" fill="#ffe6cc" stroke="#d79b00" stroke-width="1.5" />
+    <ellipse cx="155" cy="332" rx="100" ry="14" fill="#ffe6cc" stroke="#d79b00" stroke-width="1.5" />
+    <text x="155" y="374" text-anchor="middle" font-size="15" fill="#111111">PostgreSQL Database</text>
+    <circle cx="60" cy="332" r="17" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5" />
+    <text x="60" y="337" text-anchor="middle" font-size="13" font-weight="bold" fill="#111111">4</text>
+  </g>
+
+  <!-- ==================== NODE (5): SCHEDULED JOBS ==================== -->
+  <g>
+    <rect x="55" y="510" width="265" height="120" fill="none" stroke="#111111" stroke-width="1.6" stroke-dasharray="6,5" />
+    <rect x="98" y="528" width="200" height="55" fill="#f8cecc" stroke="#b85450" stroke-width="1.5" />
+    <rect x="85" y="540" width="200" height="55" fill="#f8cecc" stroke="#b85450" stroke-width="1.5" />
+    <rect x="72" y="552" width="200" height="55" fill="#f8cecc" stroke="#b85450" stroke-width="1.5" />
+    <text x="172" y="585" text-anchor="middle" font-size="15" fill="#111111">Scheduled Jobs</text>
+    <circle cx="55" cy="530" r="17" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5" />
+    <text x="55" y="535" text-anchor="middle" font-size="13" font-weight="bold" fill="#111111">5</text>
+  </g>
+
+  <!-- ==================== NODE (6): AI RAG SERVICE ==================== -->
+  <g>
+    <rect x="395" y="545" width="210" height="55" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5" />
+    <text x="500" y="578" text-anchor="middle" font-size="15" fill="#111111">AI RAG Service</text>
+    <circle cx="395" cy="572" r="17" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5" />
+    <text x="395" y="577" text-anchor="middle" font-size="13" font-weight="bold" fill="#111111">6</text>
+  </g>
+
+  <!-- ==================== NODE (7): FILE STORAGE ==================== -->
+  <g>
+    <path d="M 755,246 L 755,298 C 755,312 955,312 955,298 L 955,246 Z" fill="#f5f5f5" stroke="#666666" stroke-width="1.5" />
+    <ellipse cx="855" cy="246" rx="100" ry="12" fill="#f5f5f5" stroke="#666666" stroke-width="1.5" />
+    <path d="M 755,254 C 755,266 955,266 955,254" fill="none" stroke="#666666" stroke-width="1.2" />
+    <path d="M 755,262 C 755,274 955,274 955,262" fill="none" stroke="#666666" stroke-width="1.2" />
+    <text x="855" y="290" text-anchor="middle" font-size="15" fill="#111111">File Storage</text>
+    <circle cx="758" cy="246" r="17" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5" />
+    <text x="758" y="251" text-anchor="middle" font-size="13" font-weight="bold" fill="#111111">7</text>
+  </g>
+
+  <!-- ==================== NODE (8): EXTERNAL SERVICES ==================== -->
+  <g>
+    <rect x="715" y="510" width="265" height="120" fill="none" stroke="#111111" stroke-width="1.6" stroke-dasharray="6,5" />
+    <rect x="758" y="528" width="200" height="55" fill="#fff2cc" stroke="#d6b656" stroke-width="1.5" />
+    <rect x="745" y="540" width="200" height="55" fill="#fff2cc" stroke="#d6b656" stroke-width="1.5" />
+    <rect x="732" y="552" width="200" height="55" fill="#fff2cc" stroke="#d6b656" stroke-width="1.5" />
+    <text x="832" y="585" text-anchor="middle" font-size="15" fill="#111111">External Services</text>
+    <circle cx="715" cy="530" r="17" fill="#e1d5e7" stroke="#9673a6" stroke-width="1.5" />
+    <text x="715" y="535" text-anchor="middle" font-size="13" font-weight="bold" fill="#111111">8</text>
+  </g>
+</svg>

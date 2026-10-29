@@ -306,6 +306,21 @@ function StandardProcessTimeline({
     const map = {};
     const list = operations?.diary || [];
     list.forEach((e) => {
+      if (isSelf) {
+        const authorStr = String(e.author || '');
+        const titleStr = String(e.title || '');
+        if (
+          authorStr.includes('CVLĐ') ||
+          authorStr.includes('Trần Văn Lực') ||
+          authorStr.includes('Nguyễn Văn Đạt') ||
+          authorStr.includes('Nguyễn Hoàng Nam') ||
+          titleStr === 'Tưới nước vi sinh & kiểm tra đất' ||
+          titleStr === 'Kiểm tra sinh trưởng định kỳ' ||
+          titleStr === 'Nhiệm vụ chăm sóc hiện trường'
+        ) {
+          return;
+        }
+      }
       const d = getEntryCropDay(e);
       if (d !== null && d !== undefined) {
         if (!map[d]) map[d] = [];
@@ -313,7 +328,7 @@ function StandardProcessTimeline({
       }
     });
     return map;
-  }, [operations?.diary, getEntryCropDay]);
+  }, [operations?.diary, getEntryCropDay, isSelf]);
 
   // Gom nhóm hoạt động nhân viên theo ngày
   const activitiesByDay = useMemo(() => {
@@ -794,7 +809,9 @@ function StandardProcessTimeline({
                       </span>
                       <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 flex items-center gap-1">
                         <UserRound className="w-3 h-3" />
-                        {entry.author || 'Chủ vườn'}
+                        {isSelf
+                          ? (entry.author && !entry.author.includes('CVLĐ') && !entry.author.includes('Trần Văn Lực') ? entry.author : 'Chủ vườn (Tự canh tác)')
+                          : (entry.author || 'Chủ vườn')}
                       </span>
                     </div>
 
@@ -856,7 +873,7 @@ function StandardProcessTimeline({
                           </span>
                         </div>
                         <span className="text-[10px] font-semibold text-stone-500 bg-white/90 px-2 py-0.5 rounded-md border border-stone-200 shrink-0">
-                          {act.timestamp || act.time || 'Ca trực'}
+                          {act.timestamp || act.time || (isSelf ? 'Hằng ngày' : 'Ca trực')}
                         </span>
                       </div>
                       {(act.notes || act.note) && (
@@ -900,7 +917,9 @@ function StandardProcessTimeline({
                     Chưa có nhật ký ghi nhận cho Ngày {selectedDay}
                   </p>
                   <p className="text-[11px] text-stone-400 max-w-xs mx-auto mt-0.5">
-                    Ảnh và nhật ký sẽ hiển thị tại ngày tương ứng khi kỹ thuật viên hoặc chủ vườn ghi nhận.
+                    {isSelf
+                      ? 'Bạn có thể tự ghi chép nhật ký canh tác và tải ảnh vườn tại ngày tương ứng.'
+                      : 'Ảnh và nhật ký sẽ hiển thị tại ngày tương ứng khi kỹ thuật viên hoặc chủ vườn ghi nhận.'}
                   </p>
                 </div>
                 <button

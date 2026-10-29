@@ -13,7 +13,9 @@ export default function VnPayReturn() {
   const [result, setResult] = useState(null);
   const [contractDetails, setContractDetails] = useState(null);
   const [serviceDetails, setServiceDetails] = useState(null);
+  const [renewalDetails, setRenewalDetails] = useState(null);
   const [isServiceOrder, setIsServiceOrder] = useState(false);
+  const [isRenewalOrder, setIsRenewalOrder] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const hasCommittedRef = useRef(false);
 
@@ -171,6 +173,76 @@ export default function VnPayReturn() {
     }
   };
 
+  // 1.2 Ghi nhận gia hạn vụ mùa vào CSDL PostgreSQL & LocalStorage (rentals, contracts, payment_transactions)
+  const commitPendingRenewal = async (txnRef, transNo) => {
+    try {
+      const savedRenewalJson = localStorage.getItem('farmely_pending_vnpay_renewal');
+      let pendingRenewal = null;
+      if (savedRenewalJson) {
+        try {
+          pendingRenewal = JSON.parse(savedRenewalJson);
+        } catch (e) {
+          console.warn('Lỗi parse pending renewal JSON:', e);
+        }
+      }
+
+      if (pendingRenewal) {
+        try {
+          await fetch(`/api/rentals/${pendingRenewal.rentalId || 1}/renew`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              newEndDate: pendingRenewal.newEndDate,
+              newVarietyId: pendingRenewal.newVarietyId,
+              newServiceId: pendingRenewal.newServiceId,
+              cultivationMode: pendingRenewal.cultivationMode,
+              additionalAmount: rawAmount || pendingRenewal.totalAmount || 0,
+              additionalSeasons: pendingRenewal.selectedSeasonsCount || 1,
+              gatewayRef: transNo || txnRef || `VNPAY-RENEW-${Date.now()}`
+            })
+          });
+        } catch (reqErr) {
+          console.warn('Sync renewal API fallback:', reqErr);
+        }
+
+        if (Array.isArray(pendingRenewal.updatedSeasons) && pendingRenewal.updatedSeasons.length > 0) {
+          if (pendingRenewal.storageKey) {
+            localStorage.setItem(pendingRenewal.storageKey, JSON.stringify(pendingRenewal.updatedSeasons));
+          }
+          if (pendingRenewal.plotKey) {
+            localStorage.setItem(`farmely_plot_seasons_${pendingRenewal.plotKey}`, JSON.stringify(pendingRenewal.updatedSeasons));
+          }
+        }
+
+        if (pendingRenewal.plotCode) {
+          try {
+            localStorage.setItem('farmely_selected_task_plot', 'PLOT-' + String(pendingRenewal.plotCode).replace(/^PLOT-/i, ''));
+          } catch {}
+        }
+      }
+
+      const renewalInfo = {
+        plotId: pendingRenewal?.plotId || (pendingRenewal?.plotCode ? `PLOT-${pendingRenewal.plotCode}` : 'PLOT-P-01'),
+        plotCode: pendingRenewal?.plotCode || 'P-01',
+        plotName: pendingRenewal?.plotName || 'Thửa đất gia hạn',
+        varietyName: pendingRenewal?.varietyName || 'Giống rau VietGAP',
+        selectedSeasonsCount: pendingRenewal?.selectedSeasonsCount || 1,
+        newSeasonNumber: pendingRenewal?.newSeasonNumber || 2,
+        newEndDate: pendingRenewal?.newEndDate || '',
+        amount: rawAmount || pendingRenewal?.totalAmount || 0,
+        transactionNo: transNo || txnRef || `VNPAY-${Date.now()}`
+      };
+
+      setRenewalDetails(renewalInfo);
+      localStorage.removeItem('farmely_pending_vnpay_renewal');
+      window.dispatchEvent(new CustomEvent('farmely_plot_renewed', { detail: renewalInfo }));
+      return renewalInfo;
+    } catch (err) {
+      console.error('Lỗi xử lý hoàn tất gia hạn vụ mùa:', err);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const search = location.search;
     if (!search) {
@@ -200,9 +272,12 @@ export default function VnPayReturn() {
           verifySuccess = true;
         }
 
+        const savedRenewalJson = localStorage.getItem('farmely_pending_vnpay_renewal');
         const savedServiceJson = localStorage.getItem('farmely_pending_vnpay_service');
         const orderInfo = params.get('vnp_OrderInfo') || '';
-        const isService = Boolean(savedServiceJson) || /dich vu|service/i.test(orderInfo);
+        const isRenewal = Boolean(savedRenewalJson) || /gia han/i.test(orderInfo);
+        const isService = !isRenewal && (Boolean(savedServiceJson) || /dich vu|service/i.test(orderInfo));
+        setIsRenewalOrder(isRenewal);
         setIsServiceOrder(isService);
 
         if (verifySuccess) {
@@ -217,7 +292,9 @@ export default function VnPayReturn() {
           // Thực hiện commit CSDL
           if (!hasCommittedRef.current) {
             hasCommittedRef.current = true;
-            if (isService) {
+            if (isRenewal) {
+              await commitPendingRenewal(vnpTxnRef, transactionNo);
+            } else if (isService) {
               await commitPendingService(vnpTxnRef, transactionNo, verifyData);
             } else {
               await commitPendingBooking(vnpTxnRef, transactionNo);
@@ -254,7 +331,10 @@ export default function VnPayReturn() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          if (isServiceOrder) {
+          if (isRenewalOrder) {
+            const plotTarget = renewalDetails?.plotId || (renewalDetails?.plotCode ? `PLOT-${renewalDetails.plotCode.replace(/^PLOT-/i, '')}` : 'PLOT-P-01');
+            navigate(`/customer/dashboard?plot=${plotTarget}`);
+          } else if (isServiceOrder) {
             const plotTarget = serviceDetails?.plotCode ? `PLOT-${serviceDetails.plotCode.replace(/^PLOT-/i, '')}` : (localStorage.getItem('farmely_selected_task_plot') || 'PLOT-P-07');
             navigate(`/customer/dashboard?view=tasks&plot=${plotTarget}`);
           } else {
@@ -267,7 +347,7 @@ export default function VnPayReturn() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [result?.status, isServiceOrder, navigate]);
+  }, [result?.status, isRenewalOrder, isServiceOrder, renewalDetails, serviceDetails, navigate]);
 
   return (
     <div className="min-h-screen bg-brand-cream flex flex-col font-sans">
@@ -306,7 +386,97 @@ export default function VnPayReturn() {
               </div>
             ) : result?.status === 'SUCCESS' || responseCode === '00' ? (
               /* Success State */
-              isServiceOrder ? (
+              isRenewalOrder ? (
+                /* Plot Renewal Payment Success View */
+                <div className="flex flex-col items-center text-center space-y-5 animate-fade-in">
+                  <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm animate-bounce">
+                    <Sprout className="w-12 h-12" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="text-2xl font-heading font-black text-[#294C3B]">
+                      Thanh Toán & Gia Hạn Vụ Mùa Thành Công!
+                    </h3>
+                    <p className="text-sm font-medium text-stone-700">
+                      Hợp đồng thửa đất đã được gia hạn thêm <strong>+{renewalDetails?.selectedSeasonsCount || 1} vụ ({renewalDetails?.varietyName || 'Giống rau VietGAP'})</strong> và cập nhật vào CSDL.
+                    </p>
+                  </div>
+
+                  {/* Auto close badge */}
+                  <div className="text-xs font-semibold text-emerald-700 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-200 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>Tự động chuyển về Workspace thửa đất sau <strong>{countdown}</strong> giây...</span>
+                  </div>
+
+                  {/* Renewal Transaction Receipt Card */}
+                  <div className="w-full bg-stone-50 rounded-2xl p-4 sm:p-5 border border-stone-200 text-xs text-left space-y-2.5">
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Mã giao dịch VNPAY:</span>
+                      <strong className="text-brand-green font-mono font-bold text-sm">
+                        {transactionNo || vnpTxnRef}
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Thửa đất gia hạn:</span>
+                      <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded font-bold text-[11px] border border-emerald-300">
+                        {renewalDetails?.plotName || renewalDetails?.plotCode || 'Thửa đất canh tác'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Vụ mùa đăng ký tiếp theo:</span>
+                      <strong className="text-stone-800 font-bold">
+                        +{renewalDetails?.selectedSeasonsCount || 1} vụ • {renewalDetails?.varietyName || 'Giống rau VietGAP'}
+                      </strong>
+                    </div>
+
+                    {renewalDetails?.newEndDate && (
+                      <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                        <span className="text-stone-500">Thời hạn hợp đồng mới đến:</span>
+                        <strong className="text-stone-800 font-mono font-bold">
+                          {renewalDetails.newEndDate}
+                        </strong>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Cổng thanh toán:</span>
+                      <strong className="text-[#294C3B] font-bold">VNPAY Sandbox (2.1.0)</strong>
+                    </div>
+
+                    <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                      <span className="text-stone-500">Số tiền thanh toán:</span>
+                      <strong className="text-emerald-700 font-mono text-sm font-black">
+                        {rawAmount.toLocaleString('vi-VN')} đ
+                      </strong>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-stone-500">Trạng thái hạch toán:</span>
+                      <span className="px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        SUCCESS (ĐÃ GIA HẠN & LƯU CSDL)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Navigation CTA Buttons */}
+                  <div className="pt-2 w-full flex flex-col sm:flex-row gap-3">
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      className="flex-1 font-bold uppercase tracking-wider text-sm shadow-md bg-[#294C3B] hover:bg-[#1f3a2d] text-white border-0 flex items-center justify-center gap-2 py-3.5 transition-colors cursor-pointer"
+                      onClick={() => {
+                        const plotTarget = renewalDetails?.plotId || (renewalDetails?.plotCode ? `PLOT-${renewalDetails.plotCode.replace(/^PLOT-/i, '')}` : 'PLOT-P-01');
+                        navigate(`/customer/dashboard?plot=${plotTarget}`);
+                      }}
+                    >
+                      <span>Về Workspace Thửa Đất Ngay</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ) : isServiceOrder ? (
                 /* Service Payment Success View */
                 <div className="flex flex-col items-center text-center space-y-5 animate-fade-in">
                   <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm animate-bounce">

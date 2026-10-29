@@ -1690,23 +1690,32 @@ export default function CustomerDashboard() {
           liveTasks.forEach((t) => {
             const rawPlotCode = t.plotCode || 'P-01';
             const cleanCode = String(rawPlotCode).replace(/^PLOT-/i, '').trim();
-            const matchingPlot = (customerPlots || []).find((p) =>
-              (t.rentalId && (p.rentalId === t.rentalId || p.rental_id === t.rentalId)) ||
-              p.id === `PLOT-${cleanCode}` ||
-              p.id === cleanCode ||
-              p.mapPlotId === cleanCode ||
-              p.plot_code === cleanCode ||
-              p.plotCode === cleanCode
-            );
+            const matchingPlot = (customerPlots || []).find((p) => {
+              if (t.rentalId && (p.rentalId || p.rental_id)) {
+                return Number(p.rentalId || p.rental_id) === Number(t.rentalId);
+              }
+              return (
+                p.id === `PLOT-${cleanCode}` ||
+                p.id === cleanCode ||
+                p.mapPlotId === cleanCode ||
+                p.plot_code === cleanCode ||
+                p.plotCode === cleanCode
+              );
+            });
 
             const targetKeys = new Set();
-            targetKeys.add(`PLOT-${cleanCode}`);
-            targetKeys.add(cleanCode);
             if (t.rentalId) {
               targetKeys.add(`RENTAL-${t.rentalId}`);
               targetKeys.add(String(t.rentalId));
+            } else {
+              targetKeys.add(`PLOT-${cleanCode}`);
+              targetKeys.add(cleanCode);
             }
             if (matchingPlot) {
+              const isPlotSelf = matchingPlot.mode === 'Self-Growing' || matchingPlot.cultivationMode === 'SELF' || matchingPlot.service_type === 'SELF';
+              if (isPlotSelf && !t.serviceRequestId) {
+                return;
+              }
               targetKeys.add(matchingPlot.id);
               if (matchingPlot.mapPlotId) targetKeys.add(matchingPlot.mapPlotId);
               if (matchingPlot.plotCode) targetKeys.add(matchingPlot.plotCode);
@@ -1757,21 +1766,30 @@ export default function CustomerDashboard() {
 
           liveDiaries.forEach((d) => {
             const rawPlotCode = d.plotCode || 'P-01';
-            const matchingPlot = (customerPlots || []).find((p) =>
-              p.id === `PLOT-${rawPlotCode}` ||
-              p.id === rawPlotCode ||
-              p.mapPlotId === rawPlotCode ||
-              (d.rentalId && (p.rentalId === d.rentalId || p.rental_id === d.rentalId))
-            );
+            const matchingPlot = (customerPlots || []).find((p) => {
+              if (d.rentalId && (p.rentalId || p.rental_id)) {
+                return Number(p.rentalId || p.rental_id) === Number(d.rentalId);
+              }
+              return (
+                p.id === `PLOT-${rawPlotCode}` ||
+                p.id === rawPlotCode ||
+                p.mapPlotId === rawPlotCode
+              );
+            });
 
             const targetKeys = new Set();
-            targetKeys.add(`PLOT-${rawPlotCode}`);
-            targetKeys.add(rawPlotCode);
             if (d.rentalId) {
               targetKeys.add(`RENTAL-${d.rentalId}`);
               targetKeys.add(String(d.rentalId));
+            } else {
+              targetKeys.add(`PLOT-${rawPlotCode}`);
+              targetKeys.add(rawPlotCode);
             }
             if (matchingPlot) {
+              const isPlotSelf = matchingPlot.mode === 'Self-Growing' || matchingPlot.cultivationMode === 'SELF' || matchingPlot.service_type === 'SELF';
+              if (isPlotSelf && d.title === 'Nhiệm vụ chăm sóc hiện trường') {
+                return;
+              }
               targetKeys.add(matchingPlot.id);
               if (matchingPlot.rentalId) {
                 targetKeys.add(`RENTAL-${matchingPlot.rentalId}`);
@@ -1908,14 +1926,29 @@ export default function CustomerDashboard() {
   const iotAlerts = fallbackIotAlerts;
 
   function defaultOperationsForPlot(plot) {
+    const isSelfMode = plot?.mode === 'Self-Growing' || plot?.cultivationMode === 'SELF' || plot?.service_type === 'SELF' || plot?.cultivation_mode === 'SELF';
+    if (isSelfMode) {
+      return {
+        tasks: [
+          { id: `TSK-${plot?.id || '1'}-01`, title: `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`, time: '07:30 hôm nay', status: 'IN_PROGRESS', owner: 'Chủ vườn (Tự canh tác)' },
+          { id: `TSK-${plot?.id || '1'}-02`, title: 'Kiểm tra sinh trưởng và chỉ số vi khí hậu IoT', time: '14:00 hôm nay', status: 'PENDING', owner: 'Chủ vườn (Tự canh tác)' },
+          { id: `TSK-${plot?.id || '1'}-03`, title: 'Cắt tỉa lá gốc và vệ sinh luống canh tác', time: '09:00 hôm qua', status: 'COMPLETED', owner: 'Chủ vườn (Tự canh tác)' }
+        ],
+        diary: []
+      };
+    }
+
+    const defaultAuthor = plot?.worker || 'Trần Văn Lực (CVLĐ)';
+    const defaultTaskOwner = plot?.worker || 'Trần Văn Lực (CVLĐ)';
+
     return {
       tasks: [
-        { id: `TSK-${plot?.id || '1'}-01`, title: `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`, time: '07:30 hôm nay', status: 'IN_PROGRESS', owner: plot?.mode === 'Self-Growing' ? 'Khách hàng' : (plot?.worker || 'Trần Văn Lực (CVLĐ)') },
+        { id: `TSK-${plot?.id || '1'}-01`, title: `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`, time: '07:30 hôm nay', status: 'IN_PROGRESS', owner: defaultTaskOwner },
         { id: `TSK-${plot?.id || '1'}-02`, title: 'Kiểm tra sinh trưởng và chỉ số vi khí hậu IoT', time: '14:00 hôm nay', status: 'PENDING', owner: 'Farmely Smart Monitor' },
-        { id: `TSK-${plot?.id || '1'}-03`, title: 'Cắt tỉa lá gốc và vệ sinh luống canh tác', time: '09:00 hôm qua', status: 'COMPLETED', owner: plot?.mode === 'Self-Growing' ? 'Khách hàng' : (plot?.worker || 'Trần Văn Lực (CVLĐ)') }
+        { id: `TSK-${plot?.id || '1'}-03`, title: 'Cắt tỉa lá gốc và vệ sinh luống canh tác', time: '09:00 hôm qua', status: 'COMPLETED', owner: defaultTaskOwner }
       ],
       diary: [
-        { time: '08:15 • Hôm nay', title: 'Tưới nước vi sinh & kiểm tra đất', note: `Độ ẩm duy trì ở mức ${plot?.soilMoisture || '68%'}, vi sinh phát triển tốt.`, author: plot?.worker || 'Trần Văn Lực' },
+        { time: '08:15 • Hôm nay', title: 'Tưới nước vi sinh & kiểm tra đất', note: `Độ ẩm duy trì ở mức ${plot?.soilMoisture || '68%'}, vi sinh phát triển tốt.`, author: defaultAuthor },
         { time: '16:00 • Hôm qua', title: 'Kiểm tra sinh trưởng định kỳ', note: `Cây đang trong giai đoạn ${plot?.stage || 'phát triển tốt'}, không phát hiện sâu bệnh.`, author: 'ThS. Nguyễn Hoàng Nam' }
       ]
     };
@@ -1943,9 +1976,9 @@ export default function CustomerDashboard() {
     { level: 'LOW', title: 'Nhiệt độ & ẩm độ tối ưu', metric: `${plot?.temp || '28°C'} · Ẩm đất ${plot?.soilMoisture || '68%'}`, time: '10 phút trước' }
   ];
 
+  const isSelectedPlotSelf = currentSelectedPlot?.mode === 'Self-Growing' || currentSelectedPlot?.cultivationMode === 'SELF' || currentSelectedPlot?.service_type === 'SELF' || currentSelectedPlot?.cultivation_mode === 'SELF';
   const currentPlotOperations = (currentSelectedPlot?.rentalId && plotOperations[`RENTAL-${currentSelectedPlot.rentalId}`]) ||
-    plotOperations[selectedPlotId] ||
-    (currentSelectedPlot?.id && plotOperations[currentSelectedPlot.id]) ||
+    (!isSelectedPlotSelf && (plotOperations[selectedPlotId] || (currentSelectedPlot?.id && plotOperations[currentSelectedPlot.id]))) ||
     (currentSelectedPlot ? defaultOperationsForPlot(currentSelectedPlot) : { tasks: [], diary: [] });
   const plotTabFromUrl = new URLSearchParams(location.search).get('tab') || 'overview';
 
@@ -3625,8 +3658,8 @@ export default function CustomerDashboard() {
                                 <p><strong className="text-emerald-800">ThS. Nguyễn Hoàng Nam</strong></p>
                               </div>
                               <div>
-                                <span className="text-stone-400 block text-[10px]">CÔNG NHÂN TRỰC TIẾP</span>
-                                <p><strong className="text-amber-800">{plot.worker || 'Trần Văn Lực (Tổ trưởng CVLĐ)'}</strong></p>
+                                <span className="text-stone-400 block text-[10px]">{plot.mode === 'Self-Growing' || plot.cultivationMode === 'SELF' ? 'HÌNH THỨC CANH TÁC' : 'CÔNG NHÂN TRỰC TIẾP'}</span>
+                                <p><strong className="text-amber-800">{plot.mode === 'Self-Growing' || plot.cultivationMode === 'SELF' ? 'Tự canh tác (Chủ vườn)' : (plot.worker || 'Trần Văn Lực (Tổ trưởng CVLĐ)')}</strong></p>
                               </div>
                             </div>
 

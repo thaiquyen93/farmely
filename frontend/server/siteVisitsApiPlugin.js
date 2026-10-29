@@ -756,27 +756,29 @@ BEGIN
 
     -- Thêm bản ghi rental với ngày bắt đầu do khách chọn (Tự động gán Expert & Staff theo giống & zone)
     INSERT INTO rentals (contract_id, plot_id, variety_id, service_id, cultivation_mode, term_months, start_date, end_date, total_price, status, expert_id, staff_id, created_at, updated_at)
-    VALUES (v_contract_id, v_plot_id, ${varietyId}, ${itemServiceId ? itemServiceId : 'NULL'}, '${itemMode}', ${itemTerm}, '${startDate}', '${startDate}'::date + INTERVAL '${itemTerm} months', ${itemPrice}, 'ACTIVE', fn_resolve_expert_for_variety(${varietyId}), fn_resolve_staff_for_plot(v_plot_id), NOW(), NOW())
+    VALUES (v_contract_id, v_plot_id, ${varietyId}, ${itemServiceId ? itemServiceId : 'NULL'}, '${itemMode}', ${itemTerm}, '${startDate}', '${startDate}'::date + INTERVAL '${itemTerm} months', ${itemPrice}, 'ACTIVE', fn_resolve_expert_for_variety(${varietyId}), CASE WHEN '${itemMode}' = 'SELF' THEN NULL ELSE fn_resolve_staff_for_plot(v_plot_id) END, NOW(), NOW())
     RETURNING rental_id INTO v_rental_id;
 
     -- CẬP NHẬT TRẠNG THÁI THỬA ĐẤT SANG 'RENT' (ĐÃ THUÊ)
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id = v_plot_id;
 
-    -- 1. TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP CỦA GIỐNG CÂY
-    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
-    SELECT 
-        v_rental_id,
-        ts.step_id,
-        fn_resolve_staff_for_plot(v_plot_id), -- Tự động gán CVLĐ theo Zone của thửa
-        '${startDate}'::date + (ts.day_offset || ' days')::interval,
-        CASE WHEN '${startDate}'::date <= CURRENT_DATE AND ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
-        ts.step_name || ' - ' || ts.description,
-        NOW(),
-        NOW()
-    FROM process_templates pt
-    JOIN template_steps ts ON pt.template_id = ts.template_id
-    WHERE pt.variety_id = ${varietyId}
-    ORDER BY ts.step_order;
+    -- 1. TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP CỦA GIỐNG CÂY (CHỈ KHI THUÊ GÓI HỖ TRỢ)
+    IF '${itemMode}' <> 'SELF' THEN
+        INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+        SELECT 
+            v_rental_id,
+            ts.step_id,
+            fn_resolve_staff_for_plot(v_plot_id), -- Tự động gán CVLĐ theo Zone của thửa
+            '${startDate}'::date + (ts.day_offset || ' days')::interval,
+            CASE WHEN '${startDate}'::date <= CURRENT_DATE AND ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+            ts.step_name || ' - ' || ts.description,
+            NOW(),
+            NOW()
+        FROM process_templates pt
+        JOIN template_steps ts ON pt.template_id = ts.template_id
+        WHERE pt.variety_id = ${varietyId}
+        ORDER BY ts.step_order;
+    END IF;
 
     -- Tự động mở kênh chat CUST_EXP
     INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
@@ -1564,13 +1566,13 @@ BEGIN
     SET 
       status = 'ACTIVE', 
       expert_id = COALESCE(expert_id, fn_resolve_expert_for_variety(variety_id)),
-      staff_id = COALESCE(staff_id, fn_resolve_staff_for_plot(plot_id)),
+      staff_id = CASE WHEN COALESCE(cultivation_mode, 'ASSISTED') = 'SELF' THEN NULL ELSE COALESCE(staff_id, fn_resolve_staff_for_plot(plot_id)) END,
       updated_at = NOW() 
     WHERE contract_id = ${contractId};
     
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
     
-    -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa trong hợp đồng nếu chưa có (tính ngày theo start_date)
+    -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa thuê gói Hỗ trợ (Assisted) nếu chưa có (tính ngày theo start_date)
     INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
     SELECT 
         r.rental_id,
@@ -1585,6 +1587,7 @@ BEGIN
     JOIN process_templates pt ON pt.variety_id = r.variety_id
     JOIN template_steps ts ON pt.template_id = ts.template_id
     WHERE r.contract_id = ${contractId}
+      AND COALESCE(r.cultivation_mode, 'ASSISTED') <> 'SELF'
       AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id)
     ORDER BY ts.step_order;
 
@@ -2047,7 +2050,10 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     '6.5' AS ph,
     'IOT-' || p.plot_code AS "stationId",
     'HEALTHY' AS status,
-    'Trần Văn Lực (CVLĐ)' AS worker,
+    CASE 
+      WHEN r.cultivation_mode = 'SELF' OR s.service_type = 'SELF' THEN 'Chủ vườn (Tự canh tác)'
+      ELSE 'Trần Văn Lực (CVLĐ)'
+    END AS worker,
     c.contract_number AS "contractCode",
     c.contract_id AS "contractId",
     COALESCE(c.total_amount, r.total_price, 3000000) AS "contractTotalAmount",
@@ -2064,7 +2070,7 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     TO_CHAR(r.start_date, 'YYYY-MM-DD') AS start_date, 
     TO_CHAR(r.end_date, 'YYYY-MM-DD') AS end_date, 
     r.total_price, r.status AS rental_status,
-    p.plot_id, p.plot_code, p.area AS raw_area, p.status AS plot_status, p.image_url,
+    p.plot_id, p.plot_id AS "plotId", p.plot_code, p.area AS raw_area, p.status AS plot_status, p.image_url,
     p.boundary_geojson AS plot_boundary_geojson,
     l.land_id, l.land_name, l.address,
     l.boundary_geojson AS land_boundary_geojson,
@@ -2077,7 +2083,7 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
   JOIN lands l ON p.land_id = l.land_id
   LEFT JOIN varieties v ON r.variety_id = v.variety_id
   LEFT JOIN services s ON r.service_id = s.service_id
-  WHERE ${userClause}
+  WHERE ${userClause} AND r.parent_rental_id IS NULL
   ORDER BY 
     CASE WHEN c.status = 'ACTIVE' OR r.status = 'ACTIVE' THEN 0 ELSE 1 END ASC,
     r.rental_id DESC
@@ -2820,7 +2826,11 @@ FROM (
   FROM plot_variety_compatibility pvc
   JOIN varieties v ON v.variety_id = pvc.variety_id
   JOIN crops c ON c.crop_id = v.crop_id
-  WHERE pvc.plot_id = ${plotId}
+  WHERE pvc.plot_id = COALESCE(
+    (SELECT plot_id FROM plots WHERE plot_id = ${plotId}),
+    (SELECT plot_id FROM plots WHERE plot_code IN ('P-' || LPAD('${plotId}', 2, '0'), 'P-${plotId}') LIMIT 1),
+    ${plotId}
+  )
 ) x;
 `;
             const out = await runPostgreSql(sql);
@@ -3281,11 +3291,14 @@ SELECT json_build_object(
     SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json) FROM (
       SELECT 
         v.variety_id AS id,
+        v.variety_id AS "varietyId",
         'VAR-' || LPAD(v.variety_id::text, 3, '0') AS code,
         v.variety_name AS name,
+        v.variety_name AS "varietyName",
         v.crop_id AS "cropId",
         c.crop_name AS "cropName",
         v.expected_duration AS "growthDuration",
+        v.expected_duration AS "expectedDuration",
         v.buffer_time AS "bufferTime",
         '4.0 kg/m²' AS "expectedYield",
         'Giống cây thuần chủng F1 đạt chuẩn VietGAP, kháng sâu bệnh tốt.' AS description,
@@ -4002,6 +4015,64 @@ ON CONFLICT DO NOTHING;
           return;
         }
 
+        // 17C. RENEW RENTAL BY SEASON (POST /api/rentals/:id/renew)
+        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?rentals\/(\d+)\/renew/)) {
+          const rentalId = parseInt(url.match(/^\/api\/(?:v1\/)?rentals\/(\d+)\/renew/)[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const newEndDate = String(payload.newEndDate || '').replace(/'/g, "''");
+              const additionalAmount = parseFloat(payload.additionalAmount || 0) || 1200000;
+              const gatewayRef = String(payload.gatewayRef || ('VNP-RENEW-' + Date.now().toString().slice(-8))).replace(/'/g, "''");
+
+              const sql = `
+DO $$
+DECLARE
+  v_contract_id INT;
+  v_new_end DATE := NULLIF('${newEndDate}', '')::date;
+BEGIN
+  SELECT contract_id INTO v_contract_id FROM rentals WHERE rental_id = ${rentalId};
+  IF v_contract_id IS NOT NULL THEN
+    UPDATE rentals
+    SET
+      end_date = COALESCE(GREATEST(end_date, v_new_end), end_date + INTERVAL '40 days'),
+      term_months = GREATEST(COALESCE(term_months, 1), ROUND((COALESCE(GREATEST(end_date, v_new_end), end_date + INTERVAL '40 days')::date - start_date) / 30.0)::int),
+      total_price = COALESCE(total_price, 0) + ${additionalAmount},
+      updated_at = NOW()
+    WHERE rental_id = ${rentalId};
+
+    UPDATE contracts
+    SET
+      total_amount = COALESCE(total_amount, 0) + ${additionalAmount},
+      updated_at = NOW()
+    WHERE contract_id = v_contract_id;
+
+    IF NOT EXISTS (SELECT 1 FROM payment_transactions WHERE gateway_ref = '${gatewayRef}') THEN
+      INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status, created_at)
+      VALUES (v_contract_id, 'PAYMENT', ${additionalAmount}, 'VNPAY', '${gatewayRef}', 'SUCCESS', NOW());
+    END IF;
+  END IF;
+END $$;
+`;
+              await runPostgreSql(sql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Gia hạn hợp đồng thuê thửa đất theo vụ mùa thành công (BR12)',
+                data: { rentalId, newEndDate, additionalAmount }
+              }));
+            } catch (err) {
+              console.error('Error on POST /api/rentals/:id/renew:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+          });
+          return;
+        }
+
         // 18. CARE TASKS API (GET, POST, PATCH /api/care-tasks)
         if (req.method === 'GET' && (url === '/api/care-tasks' || url === '/api/v1/care-tasks' || url === '/api/tasks' || url.startsWith('/api/care-tasks?') || url.startsWith('/api/v1/care-tasks?') || url.startsWith('/api/tasks?'))) {
           try {
@@ -4321,8 +4392,14 @@ SELECT json_build_object(
         TO_CHAR(fd.created_at, 'YYYY-MM-DD') AS date,
         TO_CHAR(fd.created_at, 'HH24:MI') AS time,
         TO_CHAR(fd.created_at, 'DD/MM/YYYY HH24:MI') AS "dateFormatted",
-        COALESCE(u_worker.full_name, u_cust.full_name, 'Chủ vườn') AS author,
-        COALESCE(u_worker.full_name, u_cust.full_name, 'Chủ vườn') AS "authorName",
+        CASE
+          WHEN rent.cultivation_mode = 'SELF' AND ct.service_request_id IS NULL THEN COALESCE(u_cust.full_name, 'Chủ vườn (Tự canh tác)')
+          ELSE COALESCE(u_worker.full_name, u_cust.full_name, 'Chủ vườn')
+        END AS author,
+        CASE
+          WHEN rent.cultivation_mode = 'SELF' AND ct.service_request_id IS NULL THEN COALESCE(u_cust.full_name, 'Chủ vườn (Tự canh tác)')
+          ELSE COALESCE(u_worker.full_name, u_cust.full_name, 'Chủ vườn')
+        END AS "authorName",
         'Chăm sóc & theo dõi' AS stage
       FROM farm_diaries fd
       JOIN rentals rent ON fd.rental_id = rent.rental_id
