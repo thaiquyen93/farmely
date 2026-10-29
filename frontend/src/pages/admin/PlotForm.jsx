@@ -21,7 +21,7 @@ export default function PlotForm() {
   const [code, setCode] = useState('');
   const [manualArea, setManualArea] = useState('');
   const [price, setPrice] = useState('1200000');
-  const [status, setStatus] = useState('AVAIL');
+  const [status, setStatus] = useState('MAINT');
   const [isPublished, setIsPublished] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [boundary, setBoundary] = useState([]);
@@ -60,7 +60,7 @@ export default function PlotForm() {
           setOriginalCode(plot.plotCode || '');
           setManualArea(plot.area != null ? String(plot.area) : '');
           setPrice(plot.pricePerPeriod != null ? String(plot.pricePerPeriod) : '');
-          setStatus(plot.status || 'AVAIL');
+          setStatus(plot.status || 'MAINT');
           setOriginalStatus(plot.status);
           setIsPublished(Boolean(plot.isPublished));
           setImageUrl(plot.imageUrl || '');
@@ -69,15 +69,16 @@ export default function PlotForm() {
           if (Array.isArray(plot.compatibleVarieties) && plot.compatibleVarieties.length > 0) {
             setSelectedVarietyIds(plot.compatibleVarieties.map((v) => Number(v.varietyId)));
           } else {
-            // Thửa chưa có dữ liệu tương thích: mặc định chọn tất cả giống cây có sẵn
-            setSelectedVarietyIds(varList.map((v) => Number(v.id)));
+            setSelectedVarietyIds([]);
           }
         } else {
           if (!defaultLandId && landList?.length) {
             setLandId(String(landList[0].landId));
           }
-          // Thửa mới: mặc định chọn tất cả các giống cây sẵn có
-          setSelectedVarietyIds(varList.map((v) => Number(v.id)));
+          // Thửa mới tạo: mặc định chưa kích hoạt (MAINT, isPublished=false) và chờ Expert gán giống cây & quy trình
+          setStatus('MAINT');
+          setIsPublished(false);
+          setSelectedVarietyIds([]);
         }
       })
       .catch((e) => alive && setLoadError(e.message))
@@ -131,8 +132,8 @@ export default function PlotForm() {
     if (!hasRing && !(Number(manualArea) > 0)) errs.area = 'Vẽ ranh giới trên bản đồ hoặc nhập diện tích.';
     if (!(Number(price) >= 0) || price === '') errs.price = 'Nhập giá thuê hợp lệ.';
     if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
-    if (selectedVarietyIds.length === 0) {
-      errs.varieties = 'Vui lòng chọn ít nhất 1 giống cây phù hợp thổ nhưỡng cho thửa đất này (BR03).';
+    if (isPublished && selectedVarietyIds.length === 0) {
+      errs.varieties = 'Chưa thể xuất bản lên Marketplace: Cần Chuyên gia (Expert) gán ít nhất 1 giống cây tương thích & quy trình canh tác (BR03/BR12) trước!';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -144,12 +145,13 @@ export default function PlotForm() {
     if (!validate()) return;
     setIsSaving(true);
     try {
+      const effectiveStatus = isPublished && status === 'MAINT' ? 'AVAIL' : status;
       const body = {
         landId: Number(landId),
         plotCode: code.trim(),
         area: hasRing ? null : Number(manualArea),
         pricePerPeriod: Number(price),
-        status,
+        status: effectiveStatus,
         isPublished,
         imageUrl: imageUrl.trim() || null,
         boundary: lockedBoundary ? undefined : ring,
@@ -160,7 +162,14 @@ export default function PlotForm() {
       if (saved?.landId) {
         localStorage.setItem('farmely_selected_land_id', String(saved.landId));
       }
-      navigate(`/admin/master-data/lands/${saved.landId}`, { state: { flash: `${editId ? 'Đã lưu' : 'Đã tạo'} thửa ${saved.plotCode} (${formatArea(Number(saved.area))}).`, highlightPlotId: saved.plotId } });
+      navigate(`/admin/master-data/lands/${saved.landId}`, {
+        state: {
+          flash: isPublished
+            ? `Đã duyệt & xuất bản thửa ${saved.plotCode} (${formatArea(Number(saved.area))}) lên Marketplace!`
+            : `${editId ? 'Đã lưu' : 'Đã tạo'} thửa ${saved.plotCode} ở trạng thái Chưa kích hoạt (chờ Expert thiết lập giống cây & quy trình).`,
+          highlightPlotId: saved.plotId
+        }
+      });
     } catch (err) {
       setServerError(err.message);
     } finally {
@@ -250,7 +259,15 @@ export default function PlotForm() {
               <input
                 type="checkbox"
                 checked={isPublished}
-                onChange={(e) => setIsPublished(e.target.checked)}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsPublished(checked);
+                  if (checked && status === 'MAINT') {
+                    setStatus('AVAIL');
+                  } else if (!checked && status === 'AVAIL') {
+                    setStatus('MAINT');
+                  }
+                }}
                 className="sr-only peer"
               />
               <div className="w-14 h-7 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-600"></div>

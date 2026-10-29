@@ -15,6 +15,9 @@ ALTER TABLE rentals ADD COLUMN IF NOT EXISTS cultivation_mode VARCHAR(20);
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS term_months INTEGER;
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS expert_id INT;
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS staff_id INT;
+ALTER TABLE lands ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE;
+UPDATE plots SET is_published = TRUE WHERE plot_id <= 16 AND status IN ('AVAIL', 'RENT') AND EXISTS (SELECT 1 FROM plot_variety_compatibility pvc WHERE pvc.plot_id = plots.plot_id);
+UPDATE lands SET is_published = TRUE WHERE land_id <= 3 AND EXISTS (SELECT 1 FROM plots p WHERE p.land_id = lands.land_id AND p.is_published = TRUE);
 
 CREATE OR REPLACE FUNCTION fn_resolve_expert_for_variety(p_variety_id INT)
 RETURNS INT AS $$
@@ -183,7 +186,7 @@ async function runPostgreSql(sqlQuery, params = []) {
     return result.rows.map(r => Object.values(r).map(v => v === null ? '' : v).join('|')).join('\n');
   } catch (err) {
     if (err.code === 'ECONNREFUSED' && pgPool) {
-      try { await pgPool.end(); } catch {}
+      try { await pgPool.end(); } catch { }
       pgPool = null;
     }
     throw err;
@@ -237,7 +240,7 @@ export function siteVisitsApiPlugin() {
           if (obj && obj.coordinates && Array.isArray(obj.coordinates)) {
             return Array.isArray(obj.coordinates[0]) ? (Array.isArray(obj.coordinates[0][0]) ? obj.coordinates[0][0] : obj.coordinates[0]) : null;
           }
-        } catch {}
+        } catch { }
         return null;
       }
 
@@ -354,7 +357,7 @@ JOIN plots p ON ins.plot_id = p.plot_id;
                 }
                 continue;
               }
-              const matched = readings.find(r => 
+              const matched = readings.find(r =>
                 String(r.plotId) === String(target) ||
                 String(r.plotCode).toUpperCase() === String(target).toUpperCase() ||
                 `PLOT-${r.plotCode}`.toUpperCase() === String(target).toUpperCase() ||
@@ -370,7 +373,7 @@ JOIN plots p ON ins.plot_id = p.plot_id;
             }
           }
 
-          runPostgreSql(`DELETE FROM sensor_readings WHERE reading_id < (SELECT COALESCE(max(reading_id), 0) - 400 FROM sensor_readings);`).catch(() => {});
+          runPostgreSql(`DELETE FROM sensor_readings WHERE reading_id < (SELECT COALESCE(max(reading_id), 0) - 400 FROM sensor_readings);`).catch(() => { });
           return readings;
         } catch {
           return [];
@@ -579,7 +582,7 @@ RETURNING json_build_object(
                 const pgOutput = await runPostgreSql(pgSql);
                 const jsonMatch = pgOutput.match(/\{[\s\S]*\}/);
                 if (jsonMatch) createdObj = JSON.parse(jsonMatch[0]);
-              } catch (pgErr) {}
+              } catch (pgErr) { }
 
               // Đồng bộ song song sang SQL Server (isp392_agritech)
               try {
@@ -622,7 +625,7 @@ Write-Output ($dt | ConvertTo-Json -Compress)
                     created_at: msRow.created_at
                   };
                 }
-              } catch (msErr) {}
+              } catch (msErr) { }
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
@@ -645,9 +648,9 @@ Write-Output ($dt | ConvertTo-Json -Compress)
           if (match) {
             const visitId = Number(match[1]);
             try {
-              runPostgreSql(`UPDATE site_visits SET status = 'CONFIRMED' WHERE visit_id = ${visitId};`).catch(() => {});
-              runPowershell(`$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True"); $conn.Open(); $cmd = $conn.CreateCommand(); $cmd.CommandText = "UPDATE site_visits SET status = 'CONFIRMED' WHERE visit_id = ${visitId}"; [void]$cmd.ExecuteNonQuery(); $conn.Close();`).catch(() => {});
-              
+              runPostgreSql(`UPDATE site_visits SET status = 'CONFIRMED' WHERE visit_id = ${visitId};`).catch(() => { });
+              runPowershell(`$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True"); $conn.Open(); $cmd = $conn.CreateCommand(); $cmd.CommandText = "UPDATE site_visits SET status = 'CONFIRMED' WHERE visit_id = ${visitId}"; [void]$cmd.ExecuteNonQuery(); $conn.Close();`).catch(() => { });
+
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
@@ -1063,7 +1066,7 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
             try {
               const body = Buffer.concat(chunks).toString('utf8');
               const payload = JSON.parse(body || '{}');
-              
+
               let contractId = payload.contractId;
               if (!contractId) {
                 const match = url.match(/\/api\/(?:v1\/)?contracts\/(\d+)/);
@@ -1912,7 +1915,7 @@ LIMIT 1;
                 res.end(JSON.stringify(idData));
                 return;
               }
-            } catch (_) {}
+            } catch (_) { }
           }
 
           // Fallback từ PostgreSQL hoặc token id
@@ -1945,7 +1948,7 @@ LIMIT 1;
               res.end(JSON.stringify({ success: true, message: 'Thành công', data: u }));
               return;
             }
-          } catch (_) {}
+          } catch (_) { }
 
           // Fallback mặc định
           const defaultUser = {
@@ -2401,10 +2404,13 @@ SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
       )
       ELSE NULL 
     END AS "boundary",
-    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id) AS "totalPlots",
-    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'AVAIL') AS "availablePlots",
-    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'RENT') AS "rentedPlots",
-    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'MAINT') AS "maintenancePlots",
+    (SELECT COUNT(*)::int FROM plots WHERE land_id = l.land_id) AS "totalPlots",
+    (SELECT COUNT(*)::int FROM plots WHERE land_id = l.land_id AND status = 'AVAIL') AS "availablePlots",
+    (SELECT COUNT(*)::int FROM plots WHERE land_id = l.land_id AND status = 'RENT') AS "rentedPlots",
+    (SELECT COUNT(*)::int FROM plots WHERE land_id = l.land_id AND status = 'MAINT') AS "maintenancePlots",
+    (SELECT COUNT(*)::int FROM plots WHERE land_id = l.land_id AND is_published = true) AS "publishedPlots",
+    (SELECT COUNT(DISTINCT pvc.plot_id)::int FROM plots p JOIN plot_variety_compatibility pvc ON p.plot_id = pvc.plot_id WHERE p.land_id = l.land_id) AS "configuredPlots",
+    COALESCE(l.is_published, false) AS "isPublished",
     TO_CHAR(l.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
     TO_CHAR(l.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt"
   FROM lands l
@@ -2458,10 +2464,13 @@ SELECT row_to_json(l) FROM (
       )
       ELSE NULL 
     END AS "boundary",
-    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id) AS "totalPlots",
-    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'AVAIL') AS "availablePlots",
-    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'RENT') AS "rentedPlots",
-    (SELECT COUNT(*) FROM plots WHERE land_id = l.land_id AND status = 'MAINT') AS "maintenancePlots",
+    (SELECT COUNT(*)::int FROM plots WHERE land_id = l.land_id) AS "totalPlots",
+    (SELECT COUNT(*)::int FROM plots WHERE land_id = l.land_id AND status = 'AVAIL') AS "availablePlots",
+    (SELECT COUNT(*)::int FROM plots WHERE land_id = l.land_id AND status = 'RENT') AS "rentedPlots",
+    (SELECT COUNT(*)::int FROM plots WHERE land_id = l.land_id AND status = 'MAINT') AS "maintenancePlots",
+    (SELECT COUNT(*)::int FROM plots WHERE land_id = l.land_id AND is_published = true) AS "publishedPlots",
+    (SELECT COUNT(DISTINCT pvc.plot_id)::int FROM plots p JOIN plot_variety_compatibility pvc ON p.plot_id = pvc.plot_id WHERE p.land_id = l.land_id) AS "configuredPlots",
+    COALESCE(l.is_published, false) AS "isPublished",
     TO_CHAR(l.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
     TO_CHAR(l.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt",
     COALESCE(
@@ -2475,6 +2484,17 @@ SELECT row_to_json(l) FROM (
             p.status::text AS "status",
             p.is_published AS "isPublished",
             p.image_url AS "imageUrl",
+            (SELECT COUNT(*)::int FROM plot_variety_compatibility pvc WHERE pvc.plot_id = p.plot_id) AS "compatibleVarietiesCount",
+            (SELECT EXISTS(SELECT 1 FROM plot_variety_compatibility pvc JOIN process_templates pt ON pt.variety_id = pvc.variety_id WHERE pvc.plot_id = p.plot_id)) AS "hasStandardProcess",
+            COALESCE(
+              (
+                SELECT json_agg(DISTINCT v.variety_name)
+                FROM plot_variety_compatibility pvc
+                JOIN varieties v ON pvc.variety_id = v.variety_id
+                WHERE pvc.plot_id = p.plot_id
+              ),
+              '[]'::json
+            ) AS "crops",
             CASE 
               WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
               THEN (
@@ -2530,7 +2550,85 @@ SELECT row_to_json(l) FROM (
           return;
         }
 
-        // 8.3 POST /api/lands & /api/v1/lands (Create New Land with Boundary)
+        // 8.2B PATCH /api/lands/:id/publish (Admin chuyển trạng thái kích hoạt nông trại & thửa đất lên Marketplace)
+        if (req.method === 'PATCH' && (url.match(/^\/api\/lands\/(\d+)\/publish/) || url.match(/^\/api\/v1\/lands\/(\d+)\/publish/))) {
+          const match = url.match(/^\/api(?:\/v1)?\/lands\/(\d+)\/publish/);
+          const landId = parseInt(match[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const isPublished = payload.isPublished === true;
+
+              if (isPublished) {
+                const checkSql = `
+                  SELECT 
+                    (SELECT COUNT(*)::int FROM plots WHERE land_id = ${landId}) AS total_plots,
+                    (SELECT COUNT(DISTINCT pvc.plot_id)::int FROM plots p JOIN plot_variety_compatibility pvc ON p.plot_id = pvc.plot_id WHERE p.land_id = ${landId}) AS configured_plots;
+                `;
+                const checkOut = await runPostgreSql(checkSql);
+                const [totalPlots, configuredPlots] = String(checkOut || '0|0').trim().split('\n')[0].split('|').map(n => parseInt(n, 10) || 0);
+
+                if (totalPlots === 0) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.end(JSON.stringify({
+                    success: false,
+                    message: 'Nông trại chưa có thửa đất nào! Vui lòng tạo thửa đất và chờ Chuyên gia (Expert) thiết lập giống cây & quy trình trước khi kích hoạt lên Marketplace.'
+                  }));
+                  return;
+                }
+
+                if (configuredPlots === 0) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.end(JSON.stringify({
+                    success: false,
+                    message: 'Chưa thể kích hoạt lên Marketplace: Chuyên gia nông nghiệp (Expert) chưa gán giống cây tương thích (BR03) và quy trình canh tác (BR12) cho các thửa đất thuộc nông trại này!'
+                  }));
+                  return;
+                }
+
+                await runPostgreSql(`
+                  UPDATE lands SET is_published = true, updated_at = NOW() WHERE land_id = ${landId};
+                  UPDATE plots
+                  SET is_published = true,
+                      status = CASE WHEN status = 'MAINT' THEN 'AVAIL'::plot_status_enum ELSE status END,
+                      updated_at = NOW()
+                  WHERE land_id = ${landId}
+                    AND EXISTS (SELECT 1 FROM plot_variety_compatibility pvc WHERE pvc.plot_id = plots.plot_id);
+                `);
+              } else {
+                await runPostgreSql(`
+                  UPDATE lands SET is_published = false, updated_at = NOW() WHERE land_id = ${landId};
+                  UPDATE plots
+                  SET is_published = false,
+                      status = CASE WHEN status = 'AVAIL' THEN 'MAINT'::plot_status_enum ELSE status END,
+                      updated_at = NOW()
+                  WHERE land_id = ${landId};
+                `);
+              }
+
+              invalidatePlotsCache();
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: isPublished
+                  ? `Đã kích hoạt nông trại #${landId} và xuất bản các thửa đất đã cấu hình lên Marketplace!`
+                  : `Đã tạm ngưng niêm yết nông trại #${landId} khỏi Marketplace.`,
+                data: { landId, isPublished }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 8.3 POST /api/lands & /api/v1/lands (Create New Land with Boundary - default is_published = false)
         if (req.method === 'POST' && (url === '/api/lands' || url === '/api/v1/lands')) {
           let body = '';
           req.on('data', chunk => body += chunk);
@@ -2562,8 +2660,8 @@ SELECT row_to_json(l) FROM (
               const descSafe = description.replace(/'/g, "''");
 
               const insertPg = `
-INSERT INTO lands (land_name, address, description, boundary_geojson, created_at, updated_at)
-VALUES ('${nameSafe}', '${addrSafe}', '${descSafe}', ${boundarySqlVal}, NOW(), NOW())
+INSERT INTO lands (land_name, address, description, boundary_geojson, is_published, created_at, updated_at)
+VALUES ('${nameSafe}', '${addrSafe}', '${descSafe}', ${boundarySqlVal}, FALSE, NOW(), NOW())
 RETURNING land_id, land_name, address, description, created_at, updated_at;
 `;
               const pgOut = await runPostgreSql(insertPg);
@@ -2592,8 +2690,8 @@ $cmd.CommandText = "INSERT INTO lands (land_name, address, gps_lat, gps_lng, tot
 [void]$cmd.ExecuteNonQuery();
 $conn.Close();
 `;
-                runPowershell(msScript).catch(() => {});
-              } catch (e) {}
+                runPowershell(msScript).catch(() => { });
+              } catch (e) { }
 
               invalidatePlotsCache();
 
@@ -2758,6 +2856,8 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
       ELSE p.status::text
     END AS status_text,
     p.is_published AS "isPublished",
+    (SELECT COUNT(*)::int FROM plot_variety_compatibility pvc WHERE pvc.plot_id = p.plot_id) AS "compatibleVarietiesCount",
+    (SELECT EXISTS(SELECT 1 FROM plot_variety_compatibility pvc JOIN process_templates pt ON pt.variety_id = pvc.variety_id WHERE pvc.plot_id = p.plot_id)) AS "hasStandardProcess",
     CASE 
       WHEN p.boundary_geojson IS NOT NULL AND p.boundary_geojson != '' 
       THEN (
@@ -2779,6 +2879,22 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
       ),
       '[]'::json
     ) AS "crops",
+    COALESCE(
+      (
+        SELECT json_agg(json_build_object(
+          'varietyId', v.variety_id,
+          'varietyName', v.variety_name,
+          'cropId', v.crop_id,
+          'cropName', c.crop_name,
+          'expectedDuration', v.expected_duration
+        ))
+        FROM plot_variety_compatibility pvc
+        JOIN varieties v ON pvc.variety_id = v.variety_id
+        JOIN crops c ON v.crop_id = c.crop_id
+        WHERE pvc.plot_id = p.plot_id
+      ),
+      '[]'::json
+    ) AS "compatibleVarieties",
     TO_CHAR(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
     TO_CHAR(p.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt"
   FROM plots p
@@ -2845,6 +2961,47 @@ FROM (
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ success: false, error: String(err) }));
           }
+          return;
+        }
+
+        // 9.1c PUT / POST /api/plots/:id/compatibility (Expert gán danh mục giống cây tương thích BR03 & quy trình cho thửa đất)
+        if ((req.method === 'PUT' || req.method === 'POST') && url.match(/^\/api(?:\/v1)?\/plots\/(\d+)\/compatibility$/)) {
+          const plotId = parseInt(url.match(/^\/api(?:\/v1)?\/plots\/(\d+)\/compatibility$/)[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const rawIds = Array.isArray(payload.varietyIds)
+                ? payload.varietyIds
+                : (payload.varietyId ? [payload.varietyId] : []);
+              const varietyIds = rawIds.map(v => parseInt(v, 10)).filter(v => !isNaN(v) && v > 0);
+              const replaceAll = payload.replace !== false && Array.isArray(payload.varietyIds);
+
+              if (replaceAll) {
+                await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id = ${plotId};`);
+              }
+
+              if (varietyIds.length > 0) {
+                const insertCompatSql = `INSERT INTO plot_variety_compatibility (plot_id, variety_id) VALUES ` +
+                  varietyIds.map(vid => `(${plotId}, ${vid})`).join(', ') +
+                  ` ON CONFLICT DO NOTHING;`;
+                await runPostgreSql(insertCompatSql);
+              }
+
+              invalidatePlotsCache();
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: `Chuyên gia đã lưu cấu hình ${varietyIds.length} giống cây tương thích (BR03) cho thửa đất #${plotId}. Thửa đất đã sẵn sàng để Admin duyệt lên Marketplace!`,
+                data: { plotId, varietyIds }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: String(err) }));
+            }
+          });
           return;
         }
 
@@ -2965,8 +3122,8 @@ SELECT row_to_json(p) FROM (
               const landId = parseInt(payload.landId, 10);
               const plotCode = (payload.plotCode || '').trim().toUpperCase();
               const pricePerPeriod = parseFloat(payload.pricePerPeriod) || 1200000;
-              const status = (payload.status || 'AVAIL').toUpperCase();
-              const isPublished = payload.isPublished !== false;
+              const status = (payload.status || 'MAINT').toUpperCase();
+              const isPublished = payload.isPublished === true;
               const imageUrl = (payload.imageUrl || '').trim();
               const boundary = Array.isArray(payload.boundary) ? payload.boundary : null;
               let area = parseFloat(payload.area) || 0;
@@ -3051,8 +3208,8 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
               const landId = parseInt(payload.landId, 10);
               const plotCode = (payload.plotCode || '').trim().toUpperCase();
               const pricePerPeriod = parseFloat(payload.pricePerPeriod) || 1200000;
-              const status = (payload.status || 'AVAIL').toUpperCase();
-              const isPublished = payload.isPublished !== false;
+              const status = (payload.status || 'MAINT').toUpperCase();
+              const isPublished = payload.isPublished === true;
               const imageUrl = (payload.imageUrl || '').trim();
               const boundary = Array.isArray(payload.boundary) ? payload.boundary : null;
               let area = parseFloat(payload.area) || 0;
@@ -3162,7 +3319,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
               }
               await runPostgreSql(`UPDATE plots SET status = '${newStatus}' WHERE plot_id = ${plotId};`);
               // Sync SQL Server
-              runPowershell(`$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True"); $conn.Open(); $cmd = $conn.CreateCommand(); $cmd.CommandText = "UPDATE plots SET status = '${newStatus}' WHERE plot_id = ${plotId}"; [void]$cmd.ExecuteNonQuery(); $conn.Close();`).catch(() => {});
+              runPowershell(`$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True"); $conn.Open(); $cmd = $conn.CreateCommand(); $cmd.CommandText = "UPDATE plots SET status = '${newStatus}' WHERE plot_id = ${plotId}"; [void]$cmd.ExecuteNonQuery(); $conn.Close();`).catch(() => { });
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
@@ -3179,7 +3336,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
           return;
         }
 
-        // 11B. PATCH /api/plots/:id/publish (Toggle is_published: true/false)
+        // 11B. PATCH /api/plots/:id/publish (Toggle is_published: true/false + auto-activate status when Expert configured)
         if (req.method === 'PATCH' && (url.match(/^\/api\/plots\/(\d+)\/publish/) || url.match(/^\/api\/v1\/plots\/(\d+)\/publish/))) {
           const match = url.match(/^\/api(?:\/v1)?\/plots\/(\d+)\/publish/);
           const plotId = parseInt(match[1], 10);
@@ -3189,18 +3346,56 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
             try {
               const payload = JSON.parse(body || '{}');
               const isPublished = payload.isPublished === true;
-              await runPostgreSql(`UPDATE plots SET is_published = ${isPublished}, updated_at = NOW() WHERE plot_id = ${plotId};`);
+
+              if (isPublished) {
+                const compatCountOut = await runPostgreSql(`SELECT COUNT(*)::int FROM plot_variety_compatibility WHERE plot_id = ${plotId};`);
+                const compatCount = parseInt(String(compatCountOut || '0').trim().split('\n')[0], 10) || 0;
+                if (compatCount === 0) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.end(JSON.stringify({
+                    success: false,
+                    message: 'Chưa thể xuất bản lên Marketplace: Chuyên gia nông nghiệp (Expert) chưa gán giống cây tương thích (BR03) và quy trình canh tác (BR12) cho thửa đất này!'
+                  }));
+                  return;
+                }
+
+                await runPostgreSql(`
+                  UPDATE plots
+                  SET is_published = true,
+                      status = CASE WHEN status = 'MAINT' THEN 'AVAIL'::plot_status_enum ELSE status END,
+                      updated_at = NOW()
+                  WHERE plot_id = ${plotId};
+                  UPDATE lands
+                  SET is_published = true,
+                      updated_at = NOW()
+                  WHERE land_id = (SELECT land_id FROM plots WHERE plot_id = ${plotId});
+                `);
+              } else {
+                await runPostgreSql(`
+                  UPDATE plots
+                  SET is_published = false,
+                      status = CASE WHEN status = 'AVAIL' THEN 'MAINT'::plot_status_enum ELSE status END,
+                      updated_at = NOW()
+                  WHERE plot_id = ${plotId};
+                `);
+              }
+
               invalidatePlotsCache();
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: isPublished ? `Đã xuất bản (Publish) thửa đất #${plotId} lên Marketplace` : `Đã gỡ niêm yết thửa đất #${plotId} khỏi Marketplace`,
+                message: isPublished
+                  ? `Đã duyệt & chuyển trạng thái kích hoạt thửa đất #${plotId} hiển thị lên Marketplace!`
+                  : `Đã gỡ niêm yết thửa đất #${plotId} khỏi Marketplace (chuyển về trạng thái chuẩn bị).`,
                 plotId,
-                isPublished
+                isPublished,
+                status: isPublished ? 'AVAIL' : 'MAINT'
               }));
             } catch (err) {
               res.statusCode = 500;
-              res.end(JSON.stringify({ error: String(err) }));
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: String(err), error: String(err) }));
             }
           });
           return;
@@ -3843,6 +4038,67 @@ SELECT json_build_object(
           return;
         }
 
+        // 15.1 POST /api/compatibility & /api/v1/compatibility (Expert/Admin thêm quy tắc tương thích thổ nhưỡng BR03)
+        if (req.method === 'POST' && (url === '/api/compatibility' || url === '/api/v1/compatibility')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const plotId = parseInt(payload.plotId, 10);
+              const rawIds = Array.isArray(payload.varietyIds)
+                ? payload.varietyIds
+                : (payload.varietyId ? [payload.varietyId] : []);
+              const varietyIds = rawIds.map(v => parseInt(v, 10)).filter(v => !isNaN(v) && v > 0);
+
+              if (!plotId || varietyIds.length === 0) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Vui lòng chọn thửa đất và ít nhất 1 giống cây tương thích.' }));
+                return;
+              }
+
+              const insertSql = `INSERT INTO plot_variety_compatibility (plot_id, variety_id) VALUES ` +
+                varietyIds.map(vid => `(${plotId}, ${vid})`).join(', ') +
+                ` ON CONFLICT DO NOTHING;`;
+              await runPostgreSql(insertSql);
+              invalidatePlotsCache();
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Đã thêm quy tắc tương thích thổ nhưỡng (BR03) thành công!',
+                data: { plotId, varietyIds }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 15.2 DELETE /api/compatibility (Xoá quy tắc tương thích thổ nhưỡng)
+        if (req.method === 'DELETE' && (url.startsWith('/api/compatibility') || url.startsWith('/api/v1/compatibility'))) {
+          try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const plotId = parseInt(urlObj.searchParams.get('plotId') || '0', 10);
+            const varietyId = parseInt(urlObj.searchParams.get('varietyId') || '0', 10);
+            if (plotId && varietyId) {
+              await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id = ${plotId} AND variety_id = ${varietyId};`);
+              invalidatePlotsCache();
+            }
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, message: 'Đã xoá quy tắc tương thích.' }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: String(err) }));
+          }
+          return;
+        }
+
         // 16. KNOWLEDGE DOCUMENTS API (GET /api/v1/knowledge-documents & /api/knowledge-documents)
         if (req.method === 'GET' && (url === '/api/v1/knowledge-documents' || url === '/api/knowledge-documents' || url.startsWith('/api/v1/knowledge-documents?') || url.startsWith('/api/knowledge-documents?'))) {
           try {
@@ -4030,7 +4286,7 @@ VALUES (
 )
 ON CONFLICT DO NOTHING;
 `);
-                } catch (_) {}
+                } catch (_) { }
               }
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: true, message: `Đã cập nhật phân công nhân sự (Staff & Expert) cho thửa đất #${rentalId}` }));
@@ -4255,7 +4511,7 @@ RETURNING task_id, rental_id, status, step_order, title, notes, evidence_image_u
 `;
               const updateRes = await runPostgreSql(sql);
               let taskRow = null;
-              try { taskRow = Array.isArray(updateRes) ? updateRes[0] : (typeof updateRes === 'string' ? JSON.parse(updateRes) : updateRes); } catch {}
+              try { taskRow = Array.isArray(updateRes) ? updateRes[0] : (typeof updateRes === 'string' ? JSON.parse(updateRes) : updateRes); } catch { }
 
               // TỰ ĐỘNG ĐỒNG BỘ VÀO NHẬT KÝ NÔNG TRẠI (farm_diaries) KHI NGHIỆM THU HOÀN THÀNH (BR17) HOẶC CÓ MINH CHỨNG
               if (isComplete || payload.syncToDiary || proof) {
@@ -4275,7 +4531,7 @@ LIMIT 1;
 `;
                   const detailRes = await runPostgreSql(detailSql);
                   let taskDetail = null;
-                  try { taskDetail = Array.isArray(detailRes) ? detailRes[0] : (typeof detailRes === 'string' ? JSON.parse(detailRes) : detailRes); } catch {}
+                  try { taskDetail = Array.isArray(detailRes) ? detailRes[0] : (typeof detailRes === 'string' ? JSON.parse(detailRes) : detailRes); } catch { }
 
                   const rId = taskDetail?.rental_id || taskRow?.rental_id || payload.rentalId || 1;
                   const sOrder = taskDetail?.step_order || taskRow?.step_order || payload.stepOrder || 1;
@@ -4310,12 +4566,12 @@ END $$;
               }
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ 
-                success: true, 
-                message: isComplete 
+              res.end(JSON.stringify({
+                success: true,
+                message: isComplete
                   ? `Nghiệm thu nhiệm vụ #${taskId} thành công và đã tự động đồng bộ vào nhật ký nông trại`
                   : `Cập nhật nhiệm vụ #${taskId} thành công`,
-                data: taskRow 
+                data: taskRow
               }));
             } catch (err) {
               res.statusCode = 500;
@@ -4364,7 +4620,7 @@ SELECT json_build_object(
 `;
               const data = await runPostgreSql(sql);
               let parsedData = null;
-              try { parsedData = data ? JSON.parse(data) : null; } catch {}
+              try { parsedData = data ? JSON.parse(data) : null; } catch { }
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: true, message: 'Đã tạo nhiệm vụ mới thành công', data: parsedData || { taskId: 99, taskCode: 'TSK-99' } }));
             } catch (err) {
@@ -4490,8 +4746,8 @@ SELECT json_build_object(
 
               const row = insertResult.rows[0];
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ 
-                success: true, 
+              res.end(JSON.stringify({
+                success: true,
                 message: 'Thêm nhật ký canh tác thành công',
                 data: {
                   id: `DIR-${row.diary_id}`,
@@ -4717,7 +4973,7 @@ RETURNING message_id, conversation_id, sender_id, content, created_at;
                 const boundary = boundaryMatch[1].trim();
                 const boundaryBuffer = Buffer.from(`--${boundary}`);
                 const headerDelimiter = Buffer.from('\r\n\r\n');
-                
+
                 let startPos = fullBuffer.indexOf(boundaryBuffer);
                 if (startPos !== -1) {
                   const headerStart = startPos + boundaryBuffer.length + 2;
@@ -5045,7 +5301,7 @@ END $$;
               const status = payload.status || 'IN_PROG';
               const notes = payload.notes ? payload.notes.replace(/'/g, "''") : null;
               const workerId = payload.workerId ? parseInt(payload.workerId, 10) : null;
-              
+
               await runPostgreSql(`
 DO $$
 BEGIN
@@ -5525,9 +5781,9 @@ ORDER BY sr.plot_id ASC;
               if (allJson) {
                 try {
                   res.write(`event: SENSOR_ALL_UPDATE\ndata: ${allJson}\n\n`);
-                } catch {}
+                } catch { }
               }
-            }).catch(() => {});
+            }).catch(() => { });
           } else {
             const latestSql = `
 SELECT json_build_object(
@@ -5559,9 +5815,9 @@ LIMIT 1;
               if (latestJson) {
                 try {
                   res.write(`event: SENSOR_UPDATE\ndata: ${latestJson}\n\n`);
-                } catch {}
+                } catch { }
               }
-            }).catch(() => {});
+            }).catch(() => { });
           }
 
           req.on('close', () => {
@@ -5936,7 +6192,7 @@ GROUP BY p.plot_id, p.plot_code;
           req.on('data', chunk => { body += chunk; });
           req.on('end', () => {
             let payload = {};
-            try { payload = JSON.parse(body); } catch {}
+            try { payload = JSON.parse(body); } catch { }
             const userMsg = (payload.message || '').trim();
             const lower = userMsg.toLowerCase();
             const convId = payload.conversationId || `conv-${Date.now()}`;

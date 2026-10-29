@@ -87,18 +87,27 @@ export default function Marketplace() {
         ]);
         if (!active) return;
 
-        let landList = [];
-        if (landsRes.status === 'fulfilled' && Array.isArray(landsRes.value)) {
-          landList = landsRes.value;
-          setLands(landList);
-        }
-
         let plotList = [];
         if (plotsRes.status === 'fulfilled' && Array.isArray(plotsRes.value)) {
-          plotList = plotsRes.value;
+          // Chỉ hiển thị trên Marketplace các thửa đất đã được Admin kích hoạt (isPublished = true)
+          plotList = plotsRes.value.filter(
+            (p) => p.isPublished !== false && p.is_published !== false
+          );
           setDbPlots(plotList);
         } else {
           setDbPlots([]);
+        }
+
+        let landList = [];
+        if (landsRes.status === 'fulfilled' && Array.isArray(landsRes.value)) {
+          const publishedLandIds = new Set(plotList.map((p) => String(p.landId)));
+          // Chỉ hiển thị khu đất đã được Admin chuyển trạng thái Active/Published lên Marketplace
+          landList = landsRes.value.filter(
+            (l) =>
+              (l.isPublished !== false && l.is_published !== false) ||
+              publishedLandIds.has(String(l.landId))
+          );
+          setLands(landList);
         }
 
         if (landList.length > 0) {

@@ -69,18 +69,33 @@ export default function Compatibility() {
     return () => { active = false; };
   }, []);
 
-  const handleCreateRule = (e) => {
+  const handleCreateRule = async (e) => {
     e.preventDefault();
     const plotObj = dbPlots.find((p) => String(p.plotId) === String(plotId));
     const varObj = varietiesData.find((v) => String(v.id) === String(varietyId));
 
+    try {
+      await fetch('/api/compatibility', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plotId: Number(plotId),
+          varietyId: Number(varietyId),
+          status,
+          notes
+        })
+      });
+    } catch (err) {
+      console.warn('Could not persist compatibility rule to DB:', err);
+    }
+
     const newRule = {
       id: `COMP-00${rules.length + 1}`,
-      plotId,
+      plotId: Number(plotId),
       plotCode: plotObj ? (plotObj.plotCode || plotObj.code) : 'P-01',
       plotName: plotObj ? (plotObj.name || `Thửa đất ${plotObj.plotCode || plotObj.code}`) : 'Thửa đất',
       soilType: 'Đất phù sa bồi lắng giàu mùn',
-      varietyId,
+      varietyId: Number(varietyId),
       varietyName: varObj ? varObj.name : 'Giống cây',
       cropName: varObj ? varObj.cropName : 'Rau ăn lá',
       status,

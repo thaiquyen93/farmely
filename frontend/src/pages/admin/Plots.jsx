@@ -6,58 +6,66 @@ import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2, Clock } from 'lucide-react';
 
 export default function Plots() {
   const [plots, setPlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [flashMessage, setFlashMessage] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
-
-  const handleTogglePublish = async (plotId, currentPublished) => {
-    setTogglingId(plotId);
-    try {
-      const res = await fetch(`/api/plots/${plotId}/publish`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isPublished: !currentPublished })
-      });
-      if (res.ok) {
-        setPlots((prev) => prev.map((p) => p.id === plotId ? { ...p, isPublished: !currentPublished } : p));
-      }
-    } catch (e) {
-      console.warn('Lỗi cập nhật publish thửa đất:', e);
-    } finally {
-      setTogglingId(null);
-    }
-  };
 
   const load = useCallback(() => {
     setLoading(true);
     setLoadError('');
     farmApi.listPlots()
-      .then((rows) => setPlots((rows || []).map((p) => ({
-        id: p.plotId,
-        code: p.plotCode,
-        name: p.plotCode,
-        landId: p.landId,
-        landName: p.landName,
-        areaNum: Number(p.area) || 0,
-        area: formatArea(Number(p.area)),
-        rentalPrice: Number(p.pricePerPeriod) || 0,
-        formattedPrice: `${Number(p.pricePerPeriod || 0).toLocaleString('vi-VN')} đ`,
-        drawn: p.boundary?.length >= 3,
-        corners: p.boundary?.length || 0,
-        status: plotStatusBadge(p.status),
-        isPublished: p.isPublished,
-        imageUrl: p.imageUrl
-      }))))
+      .then((rows) => setPlots((rows || []).map((p) => {
+        const compatCount = Number(p.compatibleVarietiesCount) || (Array.isArray(p.compatibleVarieties) ? p.compatibleVarieties.length : (Array.isArray(p.crops) ? p.crops.length : 0));
+        return {
+          id: p.plotId,
+          code: p.plotCode,
+          name: p.plotCode,
+          landId: p.landId,
+          landName: p.landName,
+          areaNum: Number(p.area) || 0,
+          area: formatArea(Number(p.area)),
+          rentalPrice: Number(p.pricePerPeriod) || 0,
+          formattedPrice: `${Number(p.pricePerPeriod || 0).toLocaleString('vi-VN')} đ`,
+          drawn: p.boundary?.length >= 3,
+          corners: p.boundary?.length || 0,
+          status: plotStatusBadge(p.status),
+          isPublished: p.isPublished,
+          compatibleVarietiesCount: compatCount,
+          crops: Array.isArray(p.crops) ? p.crops : [],
+          imageUrl: p.imageUrl
+        };
+      })))
       .catch((e) => setLoadError(e.message))
       .finally(() => setLoading(false));
   }, []);
   useEffect(load, [load]);
+
+  const handleTogglePublish = async (row) => {
+    setTogglingId(row.id);
+    setLoadError('');
+    setFlashMessage('');
+    try {
+      const nextPublished = !row.isPublished;
+      await farmApi.publishPlot(row.id, nextPublished);
+      setFlashMessage(
+        nextPublished
+          ? `Đã duyệt & chuyển trạng thái thửa đất ${row.code} hiển thị công khai lên Marketplace!`
+          : `Đã gỡ niêm yết thửa đất ${row.code} khỏi Marketplace.`
+      );
+      load();
+    } catch (e) {
+      setLoadError(e.message);
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   const handleDelete = async () => {
     if (!confirmDeleteId) return;
@@ -95,23 +103,31 @@ export default function Plots() {
                 <button
                   type="button"
                   disabled={togglingId === row.id}
-                  onClick={() => handleTogglePublish(row.id, row.isPublished)}
+                  onClick={() => handleTogglePublish(row)}
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition cursor-pointer"
                   title="Thửa đất đang hiển thị công khai trên Marketplace. Bấm để gỡ niêm yết"
                 >
                   <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>Đang niêm yết (Gỡ)</span>
+                  <span>Đang hiện trên sàn (Gỡ)</span>
                 </button>
               ) : (
                 <button
                   type="button"
                   disabled={togglingId === row.id}
-                  onClick={() => handleTogglePublish(row.id, row.isPublished)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black bg-[#294C3B] hover:bg-[#1f3a2d] text-white shadow-xs transition cursor-pointer"
-                  title="Bấm để duyệt và xuất bản thửa đất này lên Marketplace ngay lập tức"
+                  onClick={() => handleTogglePublish(row)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black shadow-xs transition cursor-pointer ${
+                    row.compatibleVarietiesCount > 0
+                      ? 'bg-[#294C3B] hover:bg-[#1f3a2d] text-white'
+                      : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                  }`}
+                  title={
+                    row.compatibleVarietiesCount > 0
+                      ? 'Expert đã gán giống & quy trình. Bấm để duyệt và xuất bản thửa đất này lên Marketplace'
+                      : 'Chờ Expert gán giống cây tương thích & quy trình canh tác trước khi Publish'
+                  }
                 >
-                  <Sparkles className="w-3 h-3 text-lime-300" />
-                  <span>BẤM ĐỂ PUBLISH LÊN SÀN</span>
+                  <Sparkles className="w-3 h-3" />
+                  <span>{row.compatibleVarietiesCount > 0 ? 'BẤM ĐỂ PUBLISH LÊN SÀN' : 'CHỜ EXPERT CẤU HÌNH'}</span>
                 </button>
               )}
             </div>
@@ -127,6 +143,25 @@ export default function Plots() {
         <Link to={`/admin/master-data/lands/${row.landId}`} className="text-xs text-stone-700 font-medium hover:text-brand-green">
           {row.landName}
         </Link>
+      )
+    },
+    {
+      header: 'Giống & Quy Trình (Expert)',
+      key: 'compatibleVarietiesCount',
+      sortable: true,
+      render: (row) => row.compatibleVarietiesCount > 0 ? (
+        <div className="space-y-0.5">
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Đã gán {row.compatibleVarietiesCount} giống
+          </span>
+          {row.crops.length > 0 && (
+            <p className="text-[11px] text-stone-500 truncate max-w-[180px]">{row.crops.join(', ')}</p>
+          )}
+        </div>
+      ) : (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 border border-amber-200">
+          <Clock className="w-3 h-3 text-amber-600" /> Chưa gán giống (BR03)
+        </span>
       )
     },
     {
@@ -204,6 +239,12 @@ export default function Plots() {
         </Link>
       </div>
 
+      {flashMessage && (
+        <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+          <span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 shrink-0" />{flashMessage}</span>
+          <button type="button" onClick={() => setFlashMessage('')} className="shrink-0 text-xs font-semibold underline">Đóng</button>
+        </div>
+      )}
       {loadError && (
         <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           <span>{loadError}</span>

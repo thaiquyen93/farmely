@@ -1047,12 +1047,39 @@ export default function ExpertDashboard() {
   ]);
 
   const [isAddCompatibilityOpen, setIsAddCompatibilityOpen] = useState(false);
+  const [isSavingCompatibility, setIsSavingCompatibility] = useState(false);
   const [newCompData, setNewCompData] = useState({
+    plotId: '',
     soilType: '',
     phRange: 'pH 6.0 – 6.5',
-    moistureProfile: '',
-    cropsInput: ''
+    moistureProfile: 'Thoát nước tốt, giàu mùn hữu cơ',
+    cropsInput: '',
+    selectedVarietyIds: []
   });
+
+  const openPlotCompatibilityModal = (comp = null) => {
+    if (comp && comp.plotId) {
+      setNewCompData({
+        plotId: String(comp.plotId),
+        soilType: comp.soilType || '',
+        phRange: comp.phRange || 'pH 6.0 – 6.5',
+        moistureProfile: comp.moistureProfile || 'Thoát nước tốt, giàu mùn hữu cơ',
+        cropsInput: '',
+        selectedVarietyIds: Array.isArray(comp.varietyIds) ? comp.varietyIds : []
+      });
+    } else {
+      const firstUnconfigured = compatibilityList.find((c) => !c.isPublished || (c.compatibleCrops || []).length === 0) || compatibilityList[0];
+      setNewCompData({
+        plotId: firstUnconfigured?.plotId ? String(firstUnconfigured.plotId) : '',
+        soilType: firstUnconfigured?.soilType || '',
+        phRange: 'pH 6.0 – 6.5',
+        moistureProfile: 'Thoát nước tốt, giàu mùn hữu cơ',
+        cropsInput: '',
+        selectedVarietyIds: Array.isArray(firstUnconfigured?.varietyIds) ? firstUnconfigured.varietyIds : []
+      });
+    }
+    setIsAddCompatibilityOpen(true);
+  };
 
   // 5. Knowledge Library & AI RAG State (Screen 45)
   const [knowledgeDocs, setKnowledgeDocs] = useState([
@@ -1174,18 +1201,36 @@ export default function ExpertDashboard() {
         })));
       }
       if (plots.length > 0) {
-        setCompatibilityList(plots.map((plot) => ({
-          id: plot.plotId,
-          soilType: plot.landName || 'Thửa đất Farmely',
-          phRange: plot.landAddress || 'Chưa cập nhật địa chỉ',
-          moistureProfile: `${plot.area || 0} m² • trạng thái ${plot.status || 'chưa cập nhật'}`,
-          compatibleCrops: (plot.compatibleVarieties || []).map((variety) => ({
-            crop: variety.varietyName || variety.name,
-            rating: 'Đạt',
-            status: 'PHÙ HỢP'
-          })),
-          plotsApplied: `${plot.plotCode}${plot.landName ? ` (${plot.landName})` : ''}`
-        })));
+        const mappedPlots = plots.map((plot) => {
+          const compatVars = Array.isArray(plot.compatibleVarieties) ? plot.compatibleVarieties : [];
+          return {
+            id: plot.plotId,
+            plotId: plot.plotId,
+            plotCode: plot.plotCode,
+            landName: plot.landName || 'Thửa đất Farmely',
+            isPublished: Boolean(plot.isPublished),
+            status: plot.status || 'MAINT',
+            soilType: `${plot.plotCode} — ${plot.landName || 'Thửa đất Farmely'}`,
+            phRange: plot.isPublished ? 'ĐANG HIỆN TRÊN MARKETPLACE' : (compatVars.length > 0 ? 'ĐÃ GÁN GIỐNG • CHỜ ADMIN DUYỆT' : 'MỚI TẠO • CHỜ EXPERT CẤU HÌNH'),
+            moistureProfile: `${plot.area || 0} m² • Trạng thái: ${plot.status || 'MAINT'}`,
+            varietyIds: compatVars.map((v) => Number(v.varietyId)),
+            compatibleCrops: compatVars.map((variety) => ({
+              crop: variety.varietyName || variety.name,
+              rating: 'Đạt VietGAP',
+              status: 'PHÙ HỢP'
+            })),
+            plotsApplied: `${plot.plotCode}${plot.landName ? ` (${plot.landName})` : ''}`
+          };
+        });
+        // Ưu tiên hiển thị các thửa đất mới tạo / chưa niêm yết lên đầu để Expert dễ thấy và cấu hình
+        mappedPlots.sort((a, b) => {
+          if (a.isPublished !== b.isPublished) return a.isPublished ? 1 : -1;
+          if ((a.compatibleCrops.length === 0) !== (b.compatibleCrops.length === 0)) {
+            return a.compatibleCrops.length === 0 ? -1 : 1;
+          }
+          return Number(b.plotId) - Number(a.plotId);
+        });
+        setCompatibilityList(mappedPlots);
       }
       if (documents.length > 0) {
         setKnowledgeDocs(documents.map((document) => ({
@@ -1262,24 +1307,53 @@ export default function ExpertDashboard() {
     setProcessTemplates(prev => prev.filter(t => t.id !== templateId));
   };
 
-  const handleAddCompatibility = (e) => {
+  const handleAddCompatibility = async (e) => {
     e.preventDefault();
-    if (!newCompData.soilType) return;
-    const crops = newCompData.cropsInput
-      ? newCompData.cropsInput.split(',').map(c => ({ crop: c.trim(), rating: '95%', status: 'RẤT THÍCH HỢP' }))
-      : [{ crop: 'Rau ăn lá VietGAP', rating: '95%', status: 'RẤT THÍCH HỢP' }];
+    const targetPlotId = Number(newCompData.plotId);
+    const chosenVarIds = Array.isArray(newCompData.selectedVarietyIds)
+      ? newCompData.selectedVarietyIds.map(Number).filter((n) => n > 0)
+      : [];
+
+    if (targetPlotId && chosenVarIds.length > 0) {
+      setIsSavingCompatibility(true);
+      try {
+        await fetch(`/api/plots/${targetPlotId}/compatibility`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ varietyIds: chosenVarIds, replace: true })
+        });
+        setIsAddCompatibilityOpen(false);
+        await loadExpertData();
+        triggerSuccessToast(`Đã lưu ${chosenVarIds.length} giống cây tương thích (BR03) & quy trình cho thửa đất! Admin đã có thể bấm chuyển trạng thái hiện lên Marketplace.`);
+        return;
+      } catch (err) {
+        console.warn('Lỗi lưu compatibility vào DB:', err);
+      } finally {
+        setIsSavingCompatibility(false);
+      }
+    }
+
+    if (!newCompData.soilType && !targetPlotId) return;
+    const crops = chosenVarIds.length > 0
+      ? chosenVarIds.map((vid) => {
+          const found = varietiesList.find((v) => Number(v.varietyId) === vid);
+          return { crop: found?.varietyName || `Giống #${vid}`, rating: 'Đạt VietGAP', status: 'PHÙ HỢP' };
+        })
+      : (newCompData.cropsInput
+          ? newCompData.cropsInput.split(',').map(c => ({ crop: c.trim(), rating: '95%', status: 'RẤT THÍCH HỢP' }))
+          : [{ crop: 'Rau ăn lá VietGAP', rating: '95%', status: 'RẤT THÍCH HỢP' }]);
 
     const newComp = {
       id: `COMP-0${compatibilityList.length + 1}`,
-      soilType: newCompData.soilType,
+      soilType: newCompData.soilType || `Thửa đất #${targetPlotId}`,
       phRange: newCompData.phRange || 'pH 6.0 – 6.8',
       moistureProfile: newCompData.moistureProfile || 'Thoát nước tốt, giàu mùn hữu cơ',
       compatibleCrops: crops,
       plotsApplied: 'Các thửa đất đang áp dụng tại trang trại'
     };
-    setCompatibilityList(prev => [...prev, newComp]);
+    setCompatibilityList(prev => [newComp, ...prev]);
     setIsAddCompatibilityOpen(false);
-    setNewCompData({ soilType: '', phRange: 'pH 6.0 – 6.5', moistureProfile: '', cropsInput: '' });
+    setNewCompData({ plotId: '', soilType: '', phRange: 'pH 6.0 – 6.5', moistureProfile: '', cropsInput: '', selectedVarietyIds: [] });
   };
 
   const handleAddDoc = (e) => {
@@ -2507,16 +2581,16 @@ export default function ExpertDashboard() {
                       Ma Trận Tương Thích Thổ Nhưỡng – Giống Cây Trồng
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
-                      Căn cứ khoa học nông học để hệ thống tự động gợi ý giống cây phù hợp nhất khi khách hàng chọn thuê thửa đất.
+                      Gán danh mục giống cây phù hợp (BR03) & quy trình VietGAP (BR12) cho các thửa đất mới tạo trước khi Admin kích hoạt hiển thị lên Marketplace.
                     </p>
                   </div>
                   <Button
                     variant="primary"
                     size="sm"
-                    onClick={() => setIsAddCompatibilityOpen(true)}
+                    onClick={() => openPlotCompatibilityModal(null)}
                     className="font-bold gap-1.5 self-start sm:self-auto cursor-pointer"
                   >
-                    <span>+ Thêm Cấu Hình Thổ Nhưỡng</span>
+                    <span>+ Gán Giống Cây Cho Thửa Đất</span>
                   </Button>
                 </div>
 
@@ -2524,25 +2598,45 @@ export default function ExpertDashboard() {
                   {compatibilityList.map((comp) => (
                     <div
                       key={comp.id}
-                      className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white shadow-xs space-y-4 text-xs"
+                      className={`p-5 sm:p-6 rounded-2xl border shadow-xs space-y-4 text-xs ${
+                        !comp.isPublished && (comp.compatibleCrops || []).length === 0
+                          ? 'border-amber-300 bg-amber-50/30'
+                          : 'border-brand-border bg-white'
+                      }`}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border/60 pb-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-brand-green text-sm">{comp.id}</span>
+                            <span className="font-mono font-bold text-brand-green text-sm">#{comp.id}</span>
                             <h4 className="font-bold text-brand-dark text-base">{comp.soilType}</h4>
                           </div>
                           <p className="text-stone-500 text-[11px] mt-0.5">
                             Áp dụng tại: <strong>{comp.plotsApplied}</strong>
                           </p>
                         </div>
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
+                            comp.isPublished
+                              ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                              : (comp.compatibleCrops || []).length > 0
+                              ? 'bg-sky-50 text-sky-900 border-sky-200'
+                              : 'bg-amber-100 text-amber-900 border-amber-300'
+                          }`}>
                             {comp.phRange}
                           </span>
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
+                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-stone-100 text-stone-700 border border-stone-200">
                             {comp.moistureProfile}
                           </span>
+                          {comp.plotId && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => openPlotCompatibilityModal(comp)}
+                              className="font-bold text-xs cursor-pointer"
+                            >
+                              {(comp.compatibleCrops || []).length === 0 ? 'Thiết Lập Giống & Quy Trình' : 'Cập Nhật Giống Cây'}
+                            </Button>
+                          )}
                         </div>
                       </div>
 
@@ -2551,22 +2645,37 @@ export default function ExpertDashboard() {
                         <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
                           Giống Cây Trồng Tương Thích Tối Ưu:
                         </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                          {(comp.compatibleCrops || []).map((c, i) => (
-                            <div
-                              key={i}
-                              className="p-3 rounded-xl bg-stone-50/80 border border-brand-border/70 flex items-center justify-between"
-                            >
-                              <div className="min-w-0 pr-2">
-                                <span className="font-bold text-brand-dark block truncate">{c.crop}</span>
-                                <span className="text-[10px] text-emerald-700 font-bold">{c.status}</span>
+                        {(comp.compatibleCrops || []).length === 0 ? (
+                          <div className="p-4 rounded-xl border border-dashed border-amber-300 bg-white text-amber-800 flex items-center justify-between gap-3">
+                            <span>Thửa đất mới tạo đang ở trạng thái <strong>Chưa kích hoạt</strong>. Vui lòng gán giống cây tương thích & quy trình để Admin duyệt lên Marketplace!</span>
+                            {comp.plotId && (
+                              <button
+                                type="button"
+                                onClick={() => openPlotCompatibilityModal(comp)}
+                                className="shrink-0 px-3 py-1.5 rounded-lg bg-[#294C3B] text-white font-bold text-xs hover:bg-[#1f3a2d] cursor-pointer"
+                              >
+                                + Gán giống ngay
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            {(comp.compatibleCrops || []).map((c, i) => (
+                              <div
+                                key={i}
+                                className="p-3 rounded-xl bg-stone-50/80 border border-brand-border/70 flex items-center justify-between"
+                              >
+                                <div className="min-w-0 pr-2">
+                                  <span className="font-bold text-brand-dark block truncate">{c.crop}</span>
+                                  <span className="text-[10px] text-emerald-700 font-bold">{c.status}</span>
+                                </div>
+                                <span className="text-xs font-black text-brand-green px-2 py-0.5 rounded-lg bg-white border border-emerald-100 shadow-2xs">
+                                  {c.rating}
+                                </span>
                               </div>
-                              <span className="text-xs font-black text-brand-green px-2 py-0.5 rounded-lg bg-white border border-emerald-100 shadow-2xs">
-                                {c.rating}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -3552,15 +3661,92 @@ export default function ExpertDashboard() {
       <Modal
         isOpen={isAddCompatibilityOpen}
         onClose={() => setIsAddCompatibilityOpen(false)}
-        title="Thêm Cấu Hình Thổ Nhưỡng – Giống Cây Trồng"
-        subtitle="Mở rộng ma trận gợi ý giống cây cho hệ thống"
+        title="Thiết Lập Giống Cây Trồng & Quy Trình Cho Thửa Đất (BR03 / BR12)"
+        subtitle="Sau khi lưu, Admin có thể bấm Kích Hoạt để hiển thị thửa đất/nông trại lên Marketplace"
       >
         <form onSubmit={handleAddCompatibility} className="space-y-3 text-xs text-left">
+          <div>
+            <label className="block font-bold text-brand-dark mb-1">Chọn Thửa Đất Cần Gán Giống & Quy Trình:</label>
+            <select
+              value={newCompData.plotId || ''}
+              onChange={(e) => {
+                const pid = e.target.value;
+                const found = compatibilityList.find((c) => String(c.plotId) === String(pid));
+                if (found) {
+                  setNewCompData({
+                    ...newCompData,
+                    plotId: String(found.plotId),
+                    soilType: `${found.plotCode} — ${found.landName} (${found.soilType})`,
+                    selectedVarietyIds: Array.isArray(found.compatibleVarieties)
+                      ? found.compatibleVarieties.map((v) => Number(v.varietyId))
+                      : [],
+                    cropsInput: Array.isArray(found.crops) ? found.crops.join(', ') : '',
+                  });
+                } else {
+                  setNewCompData({ ...newCompData, plotId: pid });
+                }
+              }}
+              className="w-full p-2.5 rounded-xl border border-brand-border text-xs font-bold focus:ring-2 focus:ring-brand-green/20 bg-white"
+            >
+              <option value="">-- Chọn thửa đất từ cơ sở dữ liệu (hoặc nhập thủ công bên dưới) --</option>
+              {compatibilityList
+                .filter((c) => c.plotId)
+                .map((c) => (
+                  <option key={c.id} value={c.plotId}>
+                    [{c.plotCode}] {c.landName} ({c.soilType}) — {c.crops?.length || 0} giống đã gán
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {varietiesList.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block font-bold text-brand-dark">
+                  Chọn Giống Cây Tương Thích (Tự động liên kết Quy Trình VietGAP):
+                </label>
+                <span className="text-[11px] font-bold text-brand-green">
+                  Đã chọn: {(newCompData.selectedVarietyIds || []).length} giống
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto p-2.5 rounded-xl border border-brand-border bg-stone-50">
+                {varietiesList.map((v) => {
+                  const vid = Number(v.varietyId || v.id);
+                  const checked = (newCompData.selectedVarietyIds || []).includes(vid);
+                  return (
+                    <label
+                      key={vid}
+                      className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
+                        checked
+                          ? 'bg-emerald-50 border-emerald-400 text-emerald-900 font-bold'
+                          : 'bg-white border-stone-200 text-stone-700 hover:border-stone-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const current = newCompData.selectedVarietyIds || [];
+                          const next = checked ? current.filter((x) => x !== vid) : [...current, vid];
+                          setNewCompData({ ...newCompData, selectedVarietyIds: next });
+                        }}
+                        className="rounded text-brand-green focus:ring-brand-green"
+                      />
+                      <div className="truncate">
+                        <p className="text-xs truncate">{v.varietyName || v.name}</p>
+                        <p className="text-[10px] text-stone-500">Chu kỳ: {v.growthDurationDays || 45} ngày</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block font-bold text-brand-dark mb-1">Loại Đất & Khu Vực Thổ Nhưỡng:</label>
             <input
               type="text"
-              required
               placeholder="Đất phù sa sét nhẹ ven sông (Củ Chi Zone B)"
               value={newCompData.soilType}
               onChange={(e) => setNewCompData({ ...newCompData, soilType: e.target.value })}
@@ -3591,23 +3777,12 @@ export default function ExpertDashboard() {
             </div>
           </div>
 
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Các giống cây thích hợp (cách nhau bởi dấu phẩy):</label>
-            <textarea
-              rows={2}
-              placeholder="Cà chua bi Cherry, Xà lách Romaine, Dưa leo Baby, Bạc hà Âu"
-              value={newCompData.cropsInput}
-              onChange={(e) => setNewCompData({ ...newCompData, cropsInput: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
           <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
             <Button type="button" variant="outline" size="sm" onClick={() => setIsAddCompatibilityOpen(false)}>
               Hủy
             </Button>
             <Button type="submit" variant="primary" size="sm" className="font-bold">
-              Lưu Cấu Hình
+              Lưu Giống & Quy Trình (DB)
             </Button>
           </div>
         </form>

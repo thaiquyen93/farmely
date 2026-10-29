@@ -45,9 +45,9 @@ const qs = (params = {}) => {
 };
 
 export const PLOT_STATUS_OPTIONS = [
-  { value: 'AVAIL', label: 'AVAILABLE — Sẵn sàng cho thuê', badge: 'AVAILABLE' },
-  { value: 'RENT', label: 'RENTED — Đang được thuê', badge: 'RENTED' },
-  { value: 'MAINT', label: 'MAINTENANCE — Nghỉ đất / bảo trì', badge: 'MAINTENANCE' }
+  { value: 'MAINT', label: 'INACTIVE / PREP — Chưa kích hoạt / Chuẩn bị đất', badge: 'MAINTENANCE' },
+  { value: 'AVAIL', label: 'AVAILABLE — Đã kích hoạt (Sẵn sàng cho thuê)', badge: 'AVAILABLE' },
+  { value: 'RENT', label: 'RENTED — Đang được thuê', badge: 'RENTED' }
 ];
 export const plotStatusBadge = (s) => PLOT_STATUS_OPTIONS.find((o) => o.value === s)?.badge || s;
 
@@ -57,10 +57,13 @@ export const farmApi = {
   createLand: (body) => request('POST', '/api/lands', body),
   updateLand: (id, body) => request('PUT', `/api/lands/${id}`, body),
   deleteLand: (id) => request('DELETE', `/api/lands/${id}`),
+  publishLand: (id, isPublished) => request('PATCH', `/api/lands/${id}/publish`, { isPublished }),
 
   listPlots: (params) => request('GET', `/api/plots${qs(params)}`),
   getPlot: (id) => request('GET', `/api/plots/${id}`),
   createPlot: (body) => request('POST', '/api/plots', body),
   updatePlot: (id, body) => request('PUT', `/api/plots/${id}`, body),
-  deletePlot: (id) => request('DELETE', `/api/plots/${id}`)
+  deletePlot: (id) => request('DELETE', `/api/plots/${id}`),
+  publishPlot: (id, isPublished) => request('PATCH', `/api/plots/${id}/publish`, { isPublished }),
+  updatePlotCompatibility: (id, varietyIds) => request('PUT', `/api/plots/${id}/compatibility`, { varietyIds, replace: true })
 };
