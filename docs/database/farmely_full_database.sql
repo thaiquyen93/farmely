@@ -213,7 +213,7 @@ CREATE TABLE process_templates (
     template_id   SERIAL       PRIMARY KEY,
     variety_id    INT          NOT NULL REFERENCES varieties(variety_id),
     pt_created_by INT          NOT NULL REFERENCES users(user_id),
-    version       VARCHAR(20)  NOT NULL DEFAULT '1.0',
+    version       VARCHAR(100) NOT NULL DEFAULT '1.0',
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 COMMENT ON TABLE process_templates IS 'Standard cultivation process template per variety, authored by experts';

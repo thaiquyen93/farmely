@@ -1,6 +1,8 @@
 // Nguồn sự thật duy nhất cho giỏ thuê thửa (Marketplace -> BookPlot).
 // Khóa chuẩn = mã thửa (plot code) dạng "P-04"; plot_id số chỉ dùng khi gọi API.
 
+import { registerDynamicCrops } from '../data/safeCrops.js';
+
 export const CART_STORAGE_KEY = 'farmely_master_lease_selected_plots';
 export const CROP_STORAGE_KEY = 'farmely_selected_crop_by_plot';
 
@@ -15,7 +17,7 @@ export const normalizePlotCode = (value) => {
   return str;
 };
 
-const dedupeCodes = (codes) => {
+export const dedupeCodes = (codes) => {
   const seen = new Set();
   const out = [];
   (codes || []).forEach((c) => {
@@ -232,10 +234,14 @@ export const buildCartSummary = (plots, configMap, getCrop) => {
   };
 };
 
-export const buildBookingUrl = (codes) => {
+export const buildBookingUrl = (codes, primaryConfig = null) => {
   const clean = dedupeCodes(codes);
   if (clean.length === 0) return '/marketplace';
-  return `/marketplace/plot/${encodeURIComponent(clean[0])}/book?plots=${clean.map(encodeURIComponent).join(',')}`;
+  let url = `/marketplace/plot/${encodeURIComponent(clean[0])}/book?plots=${clean.map(encodeURIComponent).join(',')}`;
+  if (primaryConfig?.cropId) url += `&cropId=${encodeURIComponent(primaryConfig.cropId)}`;
+  if (primaryConfig?.cultivationMode) url += `&mode=${encodeURIComponent(primaryConfig.cultivationMode)}`;
+  if (primaryConfig?.termMonths) url += `&term=${encodeURIComponent(primaryConfig.termMonths)}`;
+  return url;
 };
 
 // Không có dữ liệu tương thích (null/rỗng) -> trả toàn bộ danh mục, hasData=false.
@@ -253,15 +259,16 @@ const compatibilityCache = new Map();
 export const clearCompatibilityCache = () => compatibilityCache.clear();
 
 // GET /api/plots/{id}/compatibility -> number[] varietyId, hoặc null khi lỗi.
-export const fetchCompatibleVarietyIds = (plotDbId) => {
+export const fetchCompatibleVarietyIds = (plotDbId, bypassCache = false) => {
   const key = String(plotDbId ?? '');
   if (!/^\d+$/.test(key)) return Promise.resolve(null);
-  if (compatibilityCache.has(key)) return compatibilityCache.get(key);
+  if (!bypassCache && compatibilityCache.has(key)) return compatibilityCache.get(key);
   const request = fetch(`/api/plots/${key}/compatibility`)
     .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
     .then((json) => {
       const rows = Array.isArray(json) ? json : json?.data;
       if (!Array.isArray(rows)) return null;
+      registerDynamicCrops(rows);
       return rows.map((r) => Number(r.varietyId ?? r.variety_id)).filter((n) => Number.isFinite(n));
     })
     .catch(() => {

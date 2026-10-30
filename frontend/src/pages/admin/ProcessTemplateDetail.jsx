@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { processTemplatesData } from '../../data/processTemplates';
 import Badge from '../../components/common/Badge';
@@ -23,12 +23,17 @@ import {
   Thermometer,
   Droplets,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  UploadCloud,
+  FileText,
+  Download
 } from 'lucide-react';
+import { parseProcessDocument } from '../../utils/processDocumentParser';
 
 export default function ProcessTemplateDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const bulkFileRef = useRef(null);
 
   // Template State
   const [template, setTemplate] = useState(() => {
@@ -41,6 +46,12 @@ export default function ProcessTemplateDetail() {
   const [showStepModal, setShowStepModal] = useState(false);
   const [editingStep, setEditingStep] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modal Bulk Upload State
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkSteps, setBulkSteps] = useState([]);
+  const [bulkFileName, setBulkFileName] = useState('');
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
 
   // Form Fields for Step
   const [stepName, setStepName] = useState('');
@@ -231,6 +242,65 @@ export default function ProcessTemplateDetail() {
     }));
   };
 
+  // Bulk File Handling
+  const handleBulkFileChange = (file) => {
+    if (!file) return;
+    setBulkFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const parsed = parseProcessDocument(text);
+        if (Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+          setBulkSteps(parsed.steps);
+        } else {
+          alert('Không tìm thấy bước kỹ thuật nào trong file tài liệu.');
+        }
+      } catch (err) {
+        alert('Lỗi đọc tài liệu: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleLoadSampleBulk = async () => {
+    try {
+      const res = await fetch('/templates/quy-trinh-chuan-vietgap-dua-leo-baby.txt');
+      const text = await res.text();
+      const parsed = parseProcessDocument(text);
+      if (Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+        setBulkSteps(parsed.steps);
+        setBulkFileName('quy-trinh-chuan-vietgap-dua-leo-baby.txt');
+      }
+    } catch (err) {
+      alert('Không thể tải file mẫu: ' + err.message);
+    }
+  };
+
+  const handleSaveBulkSteps = async () => {
+    if (!bulkSteps || bulkSteps.length === 0) return;
+    setIsBulkSubmitting(true);
+    try {
+      const res = await fetch(`/api/process-templates/${template.id}/steps`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ steps: bulkSteps })
+      });
+      const json = await res.json();
+      if (json.success) {
+        fetchTemplateDetail();
+        setShowBulkModal(false);
+        setBulkSteps([]);
+        setBulkFileName('');
+        return;
+      }
+    } catch (err) {
+      console.warn('Nạp hàng loạt bước kỹ thuật thất bại:', err);
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  };
+
   const getTaskTypeBadge = (type) => {
     switch (type) {
       case 'SOIL_PREP':
@@ -284,14 +354,25 @@ export default function ProcessTemplateDetail() {
           </div>
         </div>
 
-        <Button
-          variant="primary"
-          size="sm"
-          icon={Plus}
-          onClick={handleOpenAddModal}
-        >
-          Thêm Bước Kỹ Thuật (Day Offset)
-        </Button>
+        <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={UploadCloud}
+            onClick={() => setShowBulkModal(true)}
+          >
+            Nạp Từ File (.txt / .json)
+          </Button>
+
+          <Button
+            variant="primary"
+            size="sm"
+            icon={Plus}
+            onClick={handleOpenAddModal}
+          >
+            Thêm Bước Kỹ Thuật (Day Offset)
+          </Button>
+        </div>
       </div>
 
       {/* Template Overview Card */}
@@ -343,14 +424,24 @@ export default function ProcessTemplateDetail() {
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            icon={Plus}
-            onClick={handleOpenAddModal}
-          >
-            Thêm Mốc Mới
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={UploadCloud}
+              onClick={() => setShowBulkModal(true)}
+            >
+              Nạp File
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={Plus}
+              onClick={handleOpenAddModal}
+            >
+              Thêm Mốc Mới
+            </Button>
+          </div>
         </div>
 
         {/* Empty State */}
@@ -359,11 +450,16 @@ export default function ProcessTemplateDetail() {
             <Sprout className="w-12 h-12 text-stone-300 mx-auto" />
             <h4 className="font-bold text-stone-700 text-sm">Chưa có bước kỹ thuật nào trong quy trình</h4>
             <p className="text-xs text-stone-500 max-w-md mx-auto">
-              Hãy bấm nút "Thêm Bước Kỹ Thuật" bên trên để nhập các mốc Ngày 0 (Làm đất), Ngày 2 (Xuống giống), Ngày 7 (Bón thúc)... cho giống cây này.
+              Hãy bấm nút "Thêm Bước Kỹ Thuật" hoặc "Nạp Từ File" bên trên để đưa toàn bộ lộ trình VietGAP vào CSDL PostgreSQL.
             </p>
-            <Button variant="primary" size="sm" icon={Plus} onClick={handleOpenAddModal}>
-              Thêm Bước Đầu Tiên (Ngày 0)
-            </Button>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <Button variant="primary" size="sm" icon={UploadCloud} onClick={() => setShowBulkModal(true)}>
+                Nạp Lộ Trình Từ File Chuẩn
+              </Button>
+              <Button variant="outline" size="sm" icon={Plus} onClick={handleOpenAddModal}>
+                Thêm Thủ Công Bước Ngày 0
+              </Button>
+            </div>
           </div>
         )}
 
@@ -489,7 +585,7 @@ export default function ProcessTemplateDetail() {
         )}
       </div>
 
-      {/* MODAL THÊM / CHỈNH SỬA BƯỚC KỸ THUẬT */}
+      {/* MODAL THÊM / CHỈNH SỬA 1 BƯỚC KỸ THUẬT */}
       <Modal
         isOpen={showStepModal}
         onClose={() => setShowStepModal(false)}
@@ -624,6 +720,108 @@ export default function ProcessTemplateDetail() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* MODAL NẠP HÀNG LOẠT BƯỚC TỪ FILE TÀI LIỆU CHUẨN */}
+      <Modal
+        isOpen={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        title="Nạp Lộ Trình Kỹ Thuật Từ File Tài Liệu Chuẩn"
+        subtitle="Hỗ trợ đọc tự động danh sách các bước Day Offset từ file .txt hoặc .json"
+        maxWidth="max-w-2xl"
+      >
+        <div className="space-y-4">
+          {/* Dropzone */}
+          <div
+            onClick={() => bulkFileRef.current?.click()}
+            className="p-6 border-2 border-dashed border-stone-300 rounded-2xl bg-stone-50/50 hover:bg-stone-50 hover:border-brand-green cursor-pointer text-center transition-all"
+          >
+            <input
+              ref={bulkFileRef}
+              type="file"
+              accept=".txt,.json,.md"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleBulkFileChange(e.target.files[0]);
+                }
+              }}
+            />
+            <div className="w-12 h-12 rounded-2xl bg-white border border-brand-border flex items-center justify-center mx-auto text-brand-green shadow-xs mb-2">
+              <UploadCloud className="w-6 h-6" />
+            </div>
+            <h4 className="font-heading font-bold text-sm text-brand-dark">
+              {bulkFileName ? `Đã chọn file: ${bulkFileName}` : 'Kéo thả hoặc bấm để chọn file tài liệu (.txt / .json)'}
+            </h4>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Hệ thống tự động trích xuất các mốc Ngày 0, Ngày 2, Ngày 7... và hướng dẫn kỹ thuật
+            </p>
+          </div>
+
+          {/* Quick preset buttons */}
+          <div className="p-3 bg-brand-cream/60 rounded-xl border border-brand-border flex items-center justify-between gap-3 text-xs">
+            <span className="text-stone-700">Tài liệu kỹ thuật ban hành:</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleLoadSampleBulk}
+                className="px-3 py-1.5 bg-brand-green text-white rounded-lg font-bold hover:bg-emerald-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Nạp Tài Liệu Chuẩn VietGAP (Dưa Leo Baby F1)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Preview Parsed Steps */}
+          {bulkSteps.length > 0 && (
+            <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-3">
+              <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
+                <span className="font-bold text-xs text-emerald-900 uppercase">
+                  Danh sách {bulkSteps.length} bước kỹ thuật nhận diện:
+                </span>
+                <span className="text-[11px] font-bold text-emerald-800 bg-white px-2 py-0.5 rounded-md border border-emerald-200">
+                  Chu kỳ {Math.max(...bulkSteps.map(s => s.dayOffset)) + 7} ngày
+                </span>
+              </div>
+
+              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                {bulkSteps.map((s, idx) => (
+                  <div key={idx} className="p-2 bg-white rounded-xl border border-emerald-100 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded bg-brand-yellow font-black text-[10px] text-brand-dark">
+                        D+{s.dayOffset}
+                      </span>
+                      <span className="font-bold text-brand-dark">{s.stepName}</span>
+                    </div>
+                    <span className="text-[10px] text-stone-500">{s.taskType} • {s.durationMinutes}p</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-brand-border">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              onClick={() => setShowBulkModal(false)}
+              disabled={isBulkSubmitting}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              type="button"
+              onClick={handleSaveBulkSteps}
+              disabled={isBulkSubmitting || bulkSteps.length === 0}
+            >
+              {isBulkSubmitting ? 'Đang Lưu...' : `Lưu ${bulkSteps.length} Bước Vào CSDL PostgreSQL`}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

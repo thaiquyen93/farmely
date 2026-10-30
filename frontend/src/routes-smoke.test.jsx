@@ -22,10 +22,26 @@ import FieldWorkerDashboard from './pages/staff/FieldWorkerDashboard';
 import { useAuthStore } from './stores/authStore';
 import { useServiceStore } from './stores/serviceStore';
 
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 const customer = { id: '1', userId: '1', role: 'CUSTOMER', fullName: 'Test customer', email: 'customer@farmely.vn' };
 const expert = { id: '5', userId: '5', role: 'EXPERT', fullName: 'Test expert', email: 'expert@farmely.vn' };
 const staff = { id: '8', userId: '8', role: 'STAFF', fullName: 'Test staff', email: 'worker@farmely.vn' };
 const admin = { id: '11', userId: '11', role: 'ADMIN', fullName: 'Test admin', email: 'admin@farmely.vn' };
+
+if (typeof global.ResizeObserver === 'undefined') {
+  global.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
 
 const cases = [
   ['home', '/', null, Home], ['login', '/login', null, Login], ['register', '/register', null, Register],

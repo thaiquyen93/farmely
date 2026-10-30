@@ -7,13 +7,14 @@ import MarketplaceInteractiveMap from '../../components/marketplace/MarketplaceI
 import MarketplacePlotDetailPanel from '../../components/marketplace/MarketplacePlotDetailPanel';
 import { buildGeoJsonFromDbPlots } from '../../data/marketplaceGisData';
 import { farmApi } from '../../api/farm/farmApi';
-import { getSafeCropById, safeCrops } from '../../data/safeCrops';
+import { getSafeCropById, safeCrops, getSafeCropsList, registerDynamicCrops } from '../../data/safeCrops';
 import { getStatusConfig, isAvailableStatus } from '../../utils/mapTheme';
 import {
   normalizePlotCode,
   findPlotByCode,
   loadCartCodes,
   saveCartCodes,
+  dedupeCodes,
   buildBookingUrl,
   filterCompatibleCrops,
   fetchCompatibleVarietyIds,
@@ -320,7 +321,7 @@ export default function Marketplace() {
     }, 0);
   }, [contractSelectedPlots]);
 
-  // "Thuê ngay thửa này": chỉ thuê đúng thửa đang mở trong panel, không đụng tới giỏ thuê
+  // "Thuê ngay thửa này": thuê thửa này và kết hợp cùng các thửa đã chọn trong hợp đồng
   const handleBookPlot = (plot) => {
     if (!plot) return;
     const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE' || plot.statusCode === 'AVAIL';
@@ -329,12 +330,21 @@ export default function Marketplace() {
     const code = getPlotKey(plot);
     if (!code) return;
 
+    // Nếu người dùng đã có các thửa được chọn trong hợp đồng, kết hợp tất cả các thửa
+    const codes = cartCodes && cartCodes.length > 0
+      ? dedupeCodes([...cartCodes, code])
+      : [code];
+
+    saveLeaseConfigMap(leaseConfigByPlot);
+    const primaryCode = codes[0];
+    const cfg = leaseConfigByPlot[primaryCode];
+
     if (!isAuthenticated) {
-      setPlotToBook(plot);
-      setPendingBookingCodes([code]);
+      setPlotToBook(contractSelectedPlots[0] || plot);
+      setPendingBookingCodes(codes);
       setShowAuthModal(true);
     } else {
-      navigate(buildBookingUrl([code]));
+      navigate(buildBookingUrl(codes, cfg));
     }
   };
 
@@ -344,12 +354,16 @@ export default function Marketplace() {
     const codes = contractSelectedPlots.map(getPlotKey).filter(Boolean);
     if (codes.length === 0) return;
 
+    saveLeaseConfigMap(leaseConfigByPlot);
+    const primaryCode = codes[0];
+    const cfg = leaseConfigByPlot[primaryCode];
+
     if (!isAuthenticated) {
       setPlotToBook(contractSelectedPlots[0] || null);
       setPendingBookingCodes(codes);
       setShowAuthModal(true);
     } else {
-      navigate(buildBookingUrl(codes));
+      navigate(buildBookingUrl(codes, cfg));
     }
   };
 
@@ -357,19 +371,47 @@ export default function Marketplace() {
     await login('customer@farmely.vn', '123456');
     setShowAuthModal(false);
     if (pendingBookingCodes.length > 0) {
-      navigate(buildBookingUrl(pendingBookingCodes));
+      saveLeaseConfigMap(leaseConfigByPlot);
+      const primaryCode = pendingBookingCodes[0];
+      const cfg = leaseConfigByPlot[primaryCode];
+      navigate(buildBookingUrl(pendingBookingCodes, cfg));
     }
   };
 
   // BR03: chỉ hiển thị giống cây tương thích với thửa đang mở (theo plot_variety_compatibility)
   const [compatByPlotId, setCompatByPlotId] = useState({});
-  const selectedPlotDbId = selectedPlot?.plot_id;
+  const [allCrops, setAllCrops] = useState(getSafeCropsList);
+  const selectedPlotDbId =
+    selectedPlot?.plot_id ??
+    selectedPlot?.plotId ??
+    (selectedPlot?.code ? Number(String(selectedPlot.code).replace(/^P-?/i, '')) : null);
 
   useEffect(() => {
-    if (selectedPlotDbId === undefined || selectedPlotDbId === null) return;
     let active = true;
-    fetchCompatibleVarietyIds(selectedPlotDbId).then((ids) => {
-      if (active) setCompatByPlotId((prev) => ({ ...prev, [selectedPlotDbId]: ids }));
+    fetch('/api/varieties')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (!active) return;
+        const rows = json?.data || (Array.isArray(json) ? json : []);
+        if (Array.isArray(rows) && rows.length > 0) {
+          const merged = registerDynamicCrops(rows);
+          setAllCrops(merged);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (selectedPlotDbId === undefined || selectedPlotDbId === null || isNaN(selectedPlotDbId)) return;
+    let active = true;
+    fetchCompatibleVarietyIds(selectedPlotDbId, true).then((ids) => {
+      if (active) {
+        setAllCrops(getSafeCropsList());
+        setCompatByPlotId((prev) => ({ ...prev, [selectedPlotDbId]: ids }));
+      }
     });
     return () => {
       active = false;
@@ -377,8 +419,8 @@ export default function Marketplace() {
   }, [selectedPlotDbId]);
 
   const selectedPlotCompat = useMemo(() => {
-    return filterCompatibleCrops(safeCrops, selectedPlotDbId != null ? compatByPlotId[selectedPlotDbId] : null);
-  }, [compatByPlotId, selectedPlotDbId]);
+    return filterCompatibleCrops(allCrops, selectedPlotDbId != null ? compatByPlotId[selectedPlotDbId] : null);
+  }, [allCrops, compatByPlotId, selectedPlotDbId]);
   const selectedPlotCompatLoaded = selectedPlotDbId != null && selectedPlotDbId in compatByPlotId;
 
   const selectedPlotKey = getPlotKey(selectedPlot);
@@ -601,6 +643,7 @@ export default function Marketplace() {
         cropOptions={selectedPlotCompat.crops}
         compatibilityMissing={selectedPlotCompatLoaded && !selectedPlotCompat.hasData}
         onOpenSiteVisit={handleOpenSiteVisit}
+        cartPlotsCount={contractSelectedPlots.length}
       />
 
       {/* ─────────────────────────────────────────────────────────────────────────────
@@ -653,7 +696,9 @@ export default function Marketplace() {
               className="w-full font-bold uppercase tracking-wider text-xs bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl shadow-md cursor-pointer"
               onClick={() => {
                 setShowAuthModal(false);
-                navigate(`/login?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes))}`);
+                const primaryCode = pendingBookingCodes[0];
+                const cfg = primaryCode ? leaseConfigByPlot[primaryCode] : null;
+                navigate(`/login?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes, cfg))}`);
               }}
             >
               Đăng nhập ngay
@@ -672,7 +717,9 @@ export default function Marketplace() {
                 type="button"
                 onClick={() => {
                   setShowAuthModal(false);
-                  navigate(`/register?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes))}`);
+                  const primaryCode = pendingBookingCodes[0];
+                  const cfg = primaryCode ? leaseConfigByPlot[primaryCode] : null;
+                  navigate(`/register?redirect=${encodeURIComponent(buildBookingUrl(pendingBookingCodes, cfg))}`);
                 }}
                 className="text-brand-green font-bold hover:underline cursor-pointer"
               >

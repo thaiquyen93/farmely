@@ -1068,7 +1068,7 @@ export function buildGeoJsonFromDbPlots(plots = []) {
       type: 'Feature',
       properties: {
         id: plotId,
-        plot_id: p.plotId || p.id,
+        plot_id: p.plotId || p.plot_id || p.id,
         code: plotCode,
         label: plotId,
         name: p.name || `Thửa ${plotCode}`,

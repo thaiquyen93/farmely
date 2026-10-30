@@ -18,6 +18,22 @@ ALTER TABLE rentals ADD COLUMN IF NOT EXISTS staff_id INT;
 ALTER TABLE lands ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE;
 UPDATE plots SET is_published = TRUE WHERE plot_id <= 16 AND status IN ('AVAIL', 'RENT') AND EXISTS (SELECT 1 FROM plot_variety_compatibility pvc WHERE pvc.plot_id = plots.plot_id);
 UPDATE lands SET is_published = TRUE WHERE land_id <= 3 AND EXISTS (SELECT 1 FROM plots p WHERE p.land_id = lands.land_id AND p.is_published = TRUE);
+ALTER TABLE template_steps ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
+ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS title VARCHAR(255);
+ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
+ALTER TABLE farm_diaries ADD COLUMN IF NOT EXISTS title VARCHAR(255);
+ALTER TABLE farm_diaries ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
+ALTER TABLE farm_diaries DROP CONSTRAINT IF EXISTS farm_diaries_task_id_fkey;
+ALTER TABLE farm_diaries ADD CONSTRAINT farm_diaries_task_id_fkey FOREIGN KEY (task_id) REFERENCES care_tasks(task_id) ON DELETE SET NULL;
+
+-- Đồng bộ trạng thái: Thửa đất không có hợp đồng ACTIVE thì trở về AVAIL (trừ thửa đang nghỉ phơi ải MAINT)
+UPDATE plots SET status = 'AVAIL'
+WHERE status = 'RENT' AND plot_id NOT IN (
+  SELECT plot_id FROM rentals WHERE status = 'ACTIVE'
+);
+
+-- Dọn dẹp các tác vụ rác của các hợp đồng/thửa đã hủy
+DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE status = 'CANCELLED');
 
 CREATE OR REPLACE FUNCTION fn_resolve_expert_for_variety(p_variety_id INT)
 RETURNS INT AS $$
@@ -495,6 +511,106 @@ SELECT json_build_object(
           return;
         }
 
+        // 0.3 GET /api/admin/analytics or /api/v1/admin/analytics (SCR-AD-01: Thống Kê Tổng Hợp Doanh Thu & Vận Hành)
+        if (req.method === 'GET' && (url === '/api/admin/analytics' || url === '/api/v1/admin/analytics' || url.startsWith('/api/admin/analytics?') || url.startsWith('/api/v1/admin/analytics?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy dữ liệu thống kê doanh thu và vận hành thành công từ PostgreSQL',
+  'data', json_build_object(
+    'kpi', json_build_object(
+      'totalRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS'), 0),
+      'leaseRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND contract_id IS NOT NULL), 0),
+      'serviceRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND service_request_id IS NOT NULL), 0),
+      'pendingRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'PENDING'), 0),
+      'monthlyRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND created_at >= DATE_TRUNC('month', CURRENT_DATE)), 0),
+      'totalPlots', (SELECT count(*)::int FROM plots),
+      'rentedPlots', (SELECT count(*)::int FROM plots WHERE status = 'RENT'),
+      'availablePlots', (SELECT count(*)::int FROM plots WHERE status = 'AVAIL'),
+      'maintenancePlots', (SELECT count(*)::int FROM plots WHERE status = 'MAINT'),
+      'occupancyRate', ROUND(
+        ((SELECT count(*) FILTER (WHERE status = 'RENT')::numeric FROM plots) / 
+        NULLIF((SELECT count(*)::numeric FROM plots), 0)) * 100, 1
+      ),
+      'totalRentals', (SELECT count(*)::int FROM rentals),
+      'selfGrowingCount', (SELECT count(*)::int FROM rentals WHERE COALESCE(cultivation_mode, 'SELF') = 'SELF'),
+      'assistedGrowingCount', (SELECT count(*)::int FROM rentals WHERE cultivation_mode = 'ASSISTED'),
+      'selfGrowingPct', ROUND(
+        ((SELECT count(*) FILTER (WHERE COALESCE(cultivation_mode, 'SELF') = 'SELF')::numeric FROM rentals) / 
+        NULLIF((SELECT count(*)::numeric FROM rentals), 0)) * 100, 1
+      ),
+      'assistedGrowingPct', ROUND(
+        ((SELECT count(*) FILTER (WHERE cultivation_mode = 'ASSISTED')::numeric FROM rentals) / 
+        NULLIF((SELECT count(*)::numeric FROM rentals), 0)) * 100, 1
+      ),
+      'totalTasks', (SELECT count(*)::int FROM care_tasks),
+      'completedTasks', (SELECT count(*) FILTER (WHERE status = 'DONE')::int FROM care_tasks),
+      'inProgressTasks', (SELECT count(*) FILTER (WHERE status = 'IN_PROG')::int FROM care_tasks),
+      'pendingTasks', (SELECT count(*) FILTER (WHERE status = 'PENDING')::int FROM care_tasks),
+      'taskCompletionRate', ROUND(
+        ((SELECT count(*) FILTER (WHERE status = 'DONE')::numeric FROM care_tasks) / 
+        NULLIF((SELECT count(*)::numeric FROM care_tasks), 0)) * 100, 1
+      )
+    ),
+    'monthlyRevenue', (
+      SELECT COALESCE(json_agg(row_to_json(m)), '[]'::json) FROM (
+        SELECT 
+          TO_CHAR(pt.created_at, 'MM/YYYY') AS "month",
+          'Tháng ' || TO_CHAR(pt.created_at, 'MM') AS "monthLabel",
+          SUM(CASE WHEN pt.contract_id IS NOT NULL THEN pt.amount ELSE 0 END) AS "leaseRevenue",
+          SUM(CASE WHEN pt.service_request_id IS NOT NULL THEN pt.amount ELSE 0 END) AS "serviceRevenue",
+          SUM(pt.amount) AS "totalRevenue"
+        FROM payment_transactions pt
+        WHERE pt.status = 'SUCCESS'
+        GROUP BY TO_CHAR(pt.created_at, 'MM/YYYY'), 'Tháng ' || TO_CHAR(pt.created_at, 'MM')
+        ORDER BY "month" ASC
+      ) m
+    ),
+    'recentTransactions', (
+      SELECT COALESCE(json_agg(row_to_json(tx)), '[]'::json) FROM (
+        SELECT 
+          pt.transaction_id AS id,
+          '#TXN-' || LPAD(pt.transaction_id::text, 4, '0') AS code,
+          pt.type,
+          pt.amount,
+          pt.payment_method AS "paymentMethod",
+          COALESCE(pt.gateway_ref, 'VNPAY_SANDBOX') AS "gatewayRef",
+          pt.status,
+          TO_CHAR(pt.created_at, 'HH24:MI - DD/MM/YYYY') AS "createdAt",
+          COALESCE(c.contract_number, 'Dịch vụ phát sinh') AS "referenceCode",
+          COALESCE(u.full_name, 'Khách vãng lai') AS "customerName"
+        FROM payment_transactions pt
+        LEFT JOIN contracts c ON pt.contract_id = c.contract_id
+        LEFT JOIN users u ON c.renter_id = u.user_id
+        ORDER BY pt.created_at DESC
+        LIMIT 8
+      ) tx
+    ),
+    'cultivationBreakdown', (
+      SELECT COALESCE(json_agg(row_to_json(cb)), '[]'::json) FROM (
+        SELECT 
+          CASE WHEN COALESCE(cultivation_mode, 'SELF') = 'SELF' THEN 'Tự canh tác (Self-growing)' ELSE 'Ủy thác trọn gói (Assisted-growing)' END AS label,
+          count(*)::int AS count,
+          ROUND((count(*)::numeric / NULLIF((SELECT count(*)::numeric FROM rentals), 0)) * 100, 1) AS percentage
+        FROM rentals
+        GROUP BY COALESCE(cultivation_mode, 'SELF')
+      ) cb
+    )
+  )
+);
+`;
+            const pgResult = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(pgResult || '{}');
+          } catch (err) {
+            console.error('PostgreSQL error on admin analytics:', err);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
         // 1. GET /api/site-visits
         if (req.method === 'GET' && (url === '/api/site-visits' || url.startsWith('/api/site-visits?'))) {
           try {
@@ -767,20 +883,20 @@ BEGIN
 
     -- 1. TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP CỦA GIỐNG CÂY (CHỈ KHI THUÊ GÓI HỖ TRỢ)
     IF '${itemMode}' <> 'SELF' THEN
-        INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+        INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
         SELECT 
             v_rental_id,
             ts.step_id,
-            fn_resolve_staff_for_plot(v_plot_id), -- Tự động gán CVLĐ theo Zone của thửa
-            '${startDate}'::date + (ts.day_offset || ' days')::interval,
-            CASE WHEN '${startDate}'::date <= CURRENT_DATE AND ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
-            ts.step_name || ' - ' || ts.description,
+            v_staff_id,
+            DATE '${itemCultivationDate}' + (ts.day_offset || ' days')::INTERVAL,
+            'PENDING'::care_task_status_enum,
+            ts.step_name,
+            ts.description || ' (Vật tư: ' || COALESCE(ts.materials_required, 'Theo quy chuẩn VietGAP') || ')',
             NOW(),
             NOW()
-        FROM process_templates pt
-        JOIN template_steps ts ON pt.template_id = ts.template_id
-        WHERE pt.variety_id = ${varietyId}
-        ORDER BY ts.step_order;
+        FROM template_steps ts
+        WHERE ts.template_id = (SELECT pt.template_id FROM process_templates pt WHERE pt.variety_id = ${varietyId} ORDER BY pt.template_id DESC LIMIT 1)
+        ORDER BY ts.day_offset;
     END IF;
 
     -- Tự động mở kênh chat CUST_EXP
@@ -1020,6 +1136,9 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
     cn.cancelled_by AS "cancelledBy",
     COALESCE(u.full_name, 'Khách hàng #' || cn.cancelled_by) AS "cancellerName",
     COALESCE(u.full_name, 'Khách hàng #' || cn.cancelled_by) AS "customerName",
+    COALESCE(u.phone_number, '') AS "customerPhone",
+    COALESCE(plots_info.plot_codes, '') AS "plotCode",
+    COALESCE(plots_info.plot_names, '') AS "plotName",
     cn.reason,
     cn.status::text AS "status",
     COALESCE(c.total_amount, 0) AS "totalPaidAmount",
@@ -1044,6 +1163,14 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
   LEFT JOIN contracts c ON cn.contract_id = c.contract_id
   LEFT JOIN users u ON cn.cancelled_by = u.user_id
   LEFT JOIN LATERAL (SELECT MIN(start_date) AS start_date FROM rentals WHERE contract_id = cn.contract_id) dates ON true
+  LEFT JOIN LATERAL (
+    SELECT 
+      string_agg(p.plot_code, ', ') AS plot_codes,
+      string_agg('Thửa ' || p.plot_code, ', ') AS plot_names
+    FROM rentals r
+    JOIN plots p ON r.plot_id = p.plot_id
+    WHERE r.contract_id = cn.contract_id
+  ) plots_info ON true
   ORDER BY cn.cancellation_id DESC
 ) c;
 `;
@@ -1059,14 +1186,13 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
         }
 
         // 4.6. POST /api/contracts/:id/cancellation & /api/contracts/cancellations (Gửi yêu cầu hủy - PENDING chờ Admin duyệt)
-        if (req.method === 'POST' && (url.includes('/cancellation') || url.includes('/cancellations') || url.includes('/cancel')) && !url.includes('/approve')) {
+        if (req.method === 'POST' && (/^\/api\/(?:v1\/)?contracts\/cancellations\/?$/.test(url) || ((url.includes('/cancellation') || url.includes('/cancellations') || url.includes('/cancel')) && !url.includes('/approve')))) {
           const chunks = [];
           req.on('data', chunk => chunks.push(chunk));
           req.on('end', async () => {
             try {
               const body = Buffer.concat(chunks).toString('utf8');
               const payload = JSON.parse(body || '{}');
-
               let contractId = payload.contractId;
               if (!contractId) {
                 const match = url.match(/\/api\/(?:v1\/)?contracts\/(\d+)/);
@@ -1074,7 +1200,7 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
               }
               contractId = parseInt(contractId, 10);
 
-              const userId = parseInt(payload.cancelledBy || payload.userId, 10);
+              const userId = parseInt(payload.cancelledBy || payload.userId || 1, 10);
 
               if (!contractId || isNaN(contractId) || contractId <= 0) {
                 res.statusCode = 400;
@@ -1142,7 +1268,6 @@ WHERE c.contract_id = ${contractId};
 
               const refundPercentage = daysBeforeStart >= 3 ? 80 : daysBeforeStart > 0 ? 50 : 0;
               const refundAmount = Math.round((Number(contractInfo.totalAmount || 0) * refundPercentage) / 100);
-
               let fullReason = reason;
               if (refundAmount > 0 && bankAccountNumber) {
                 fullReason += ` [STK hoàn tiền: ${bankName} - ${bankAccountNumber} (${bankAccountName}) - Dự kiến hoàn: ${refundAmount.toLocaleString('vi-VN')} đ (${refundPercentage}%)]`;
@@ -1185,7 +1310,7 @@ LIMIT 1;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: 'Đã nhận yêu cầu hủy hợp đồng, đang chờ quản trị viên phê duyệt theo chính sách BR10.',
+message: 'Đã nhận yêu cầu hủy hợp đồng, đang chờ quản trị viên phê duyệt theo chính sách BR10.',
                 data: {
                   ...cancelData,
                   refundPercentage,
@@ -1256,6 +1381,11 @@ BEGIN
     UPDATE plots
     SET status = 'MAINT', updated_at = NOW()
     WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = v_contract_id);
+
+    -- 4.1 Xóa sạch các tác vụ chăm sóc thực địa chưa hoàn thành của hợp đồng bị hủy
+    DELETE FROM care_tasks
+    WHERE rental_id IN (SELECT rental_id FROM rentals WHERE contract_id = v_contract_id)
+      AND status IN ('PENDING', 'IN_PROG');
 
     -- 5. Ghi nhận giao dịch hoàn tiền nếu có refund_amount > 0
     IF v_refund_amount > 0 THEN
@@ -1576,13 +1706,14 @@ BEGIN
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
     
     -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa thuê gói Hỗ trợ (Assisted) nếu chưa có (tính ngày theo start_date)
-    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
     SELECT 
         r.rental_id,
         ts.step_id,
         r.staff_id,
         r.start_date + (ts.day_offset || ' days')::interval,
-        CASE WHEN r.start_date <= CURRENT_DATE AND ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        CASE WHEN r.start_date <= CURRENT_DATE AND COALESCE(ts.step_order, 1) = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        ts.step_name,
         ts.step_name || ' - ' || ts.description,
         NOW(),
         NOW()
@@ -1592,7 +1723,7 @@ BEGIN
     WHERE r.contract_id = ${contractId}
       AND COALESCE(r.cultivation_mode, 'ASSISTED') <> 'SELF'
       AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id)
-    ORDER BY ts.step_order;
+    ORDER BY COALESCE(ts.step_order, 1), ts.day_offset, ts.step_id;
 
     -- Tự động mở kênh chat CUST_EXP
     INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
@@ -3385,7 +3516,7 @@ SELECT json_build_object(
         'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80' AS "imageUrl",
         TO_CHAR(c.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "createdAt"
       FROM crops c
-      ORDER BY c.crop_id ASC
+      ORDER BY c.crop_id DESC -- ponytail: newest first so newly created crops appear immediately on top
     ) c
   )
 );
@@ -3415,10 +3546,10 @@ SELECT json_build_object(
               const sql = `INSERT INTO crops (crop_name) VALUES ('${name.replace(/'/g, "''")}') RETURNING crop_id, crop_name;`;
               const raw = await runPostgreSql(sql);
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true, message: 'Tạo mới danh mục cây thành công', data: { name } }));
+              res.end(JSON.stringify({ success: true, message: `Tạo mới danh mục cây "${name}" thành công`, data: { name } }));
             } catch (err) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ success: false, error: String(err) }));
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, message: 'Tên nhóm cây này đã tồn tại hoặc không hợp lệ', error: String(err) }));
             }
           });
           return;
@@ -3442,8 +3573,8 @@ SELECT json_build_object(
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: true, message: 'Cập nhật danh mục cây thành công' }));
             } catch (err) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ success: false, error: String(err) }));
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, message: 'Lỗi cập nhật hoặc tên đã tồn tại', error: String(err) }));
             }
           });
           return;
@@ -3457,8 +3588,8 @@ SELECT json_build_object(
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ success: true, message: `Đã xóa danh mục cây #${cropId}` }));
           } catch (err) {
-            res.statusCode = 500;
-            res.end(JSON.stringify({ success: false, error: String(err) }));
+            res.statusCode = 400;
+            res.end(JSON.stringify({ success: false, message: 'Không thể xóa nhóm cây này vì đang có giống cây liên kết. Vui lòng xóa các giống cây trước.', error: String(err) }));
           }
           return;
         }
@@ -3495,7 +3626,7 @@ SELECT json_build_object(
         TO_CHAR(v.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "createdAt"
       FROM varieties v
       JOIN crops c ON v.crop_id = c.crop_id
-      ORDER BY v.variety_id ASC
+      ORDER BY v.variety_id DESC -- ponytail: newest first so newly created varieties appear immediately on top
     ) v
   )
 );
@@ -3528,10 +3659,10 @@ SELECT json_build_object(
               const sql = `INSERT INTO varieties (crop_id, variety_name, expected_duration, buffer_time) VALUES (${cropId}, '${name.replace(/'/g, "''")}', ${duration}, ${buffer}) RETURNING variety_id;`;
               await runPostgreSql(sql);
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true, message: 'Tạo mới giống cây thành công' }));
+              res.end(JSON.stringify({ success: true, message: `Tạo mới giống cây "${name}" thành công` }));
             } catch (err) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ success: false, error: String(err) }));
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, message: 'Lỗi tạo giống cây hoặc tên đã tồn tại', error: String(err) }));
             }
           });
           return;
@@ -3575,8 +3706,13 @@ SELECT json_build_object(
         }
 
         // 14. PROCESS TEMPLATES API (GET, POST, PUT, DELETE)
-        // 14.1 GET /api/process-templates & /api/v1/process-templates
-        if (req.method === 'GET' && (url === '/api/process-templates' || url === '/api/v1/process-templates' || url.startsWith('/api/process-templates?') || url.startsWith('/api/v1/process-templates?'))) {
+        // 14.1 GET /api/process-templates & /api/templates
+        if (req.method === 'GET' && (
+          url === '/api/process-templates' || url === '/api/v1/process-templates' ||
+          url === '/api/templates' || url === '/api/v1/templates' ||
+          url.startsWith('/api/process-templates?') || url.startsWith('/api/v1/process-templates?') ||
+          url.startsWith('/api/templates?') || url.startsWith('/api/v1/templates?')
+        )) {
           try {
             const sql = `
 SELECT json_build_object(
@@ -3671,9 +3807,9 @@ SELECT json_build_object(
           return;
         }
 
-        // 14.2 GET /api/process-templates/:id (Template Detail with Steps)
-        if (req.method === 'GET' && (url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/))) {
-          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)[1];
+        // 14.2 GET /api/process-templates/:id & /api/templates/:id (Template Detail with Steps)
+        if (req.method === 'GET' && (url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/))) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
           try {
             const sql = `
@@ -3769,8 +3905,11 @@ SELECT json_build_object(
           return;
         }
 
-        // 14.3 POST /api/process-templates (Create New Process Template for a Variety)
-        if (req.method === 'POST' && (url === '/api/process-templates' || url === '/api/v1/process-templates')) {
+        // 14.3 POST /api/process-templates & /api/templates (Create New Process Template for a Variety)
+        if (req.method === 'POST' && (
+          url === '/api/process-templates' || url === '/api/v1/process-templates' ||
+          url === '/api/templates' || url === '/api/v1/templates'
+        )) {
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
@@ -3790,16 +3929,29 @@ RETURNING template_id;
 
               // Nếu có gửi kèm các bước ban đầu
               if (Array.isArray(payload.steps) && payload.steps.length > 0) {
+                let sIdx = 1;
                 for (const step of payload.steps) {
                   const sName = (step.stepName || step.taskName || 'Chăm sóc định kỳ').replace(/'/g, "''");
-                  const sDay = parseInt(step.dayOffset || step.day || 0, 10) || 0;
+                  const sDay = parseInt(step.dayOffset !== undefined ? step.dayOffset : (step.day || 0), 10) || 0;
                   const sType = (step.taskType || 'CARE').replace(/'/g, "''");
                   const sDesc = (step.description || '').replace(/'/g, "''");
-                  const sMat = (step.materialsNeeded || '').replace(/'/g, "''");
-                  const sDur = parseInt(step.durationDays || 1, 10) || 1;
+                  const sMat = (step.materialsNeeded || step.materialsRequired || '').replace(/'/g, "''");
+                  const sDur = parseInt(step.durationDays || Math.ceil((step.durationMinutes || 60) / 60) || 1, 10) || 1;
+                  const sOrder = parseInt(step.stepOrder || sIdx, 10) || sIdx;
+                  sIdx++;
+                  const sMinT = step.minTemp ? parseFloat(step.minTemp) : 'NULL';
+                  const sMaxT = step.maxTemp ? parseFloat(step.maxTemp) : 'NULL';
+                  const sMinH = step.minHumidity ? parseFloat(step.minHumidity) : 'NULL';
+                  const sMaxH = step.maxHumidity ? parseFloat(step.maxHumidity) : 'NULL';
                   await runPostgreSql(`
-INSERT INTO template_steps (template_id, step_name, day_offset, duration_days, task_type, description, materials_needed)
-VALUES (${templateId}, '${sName}', ${sDay}, ${sDur}, '${sType}', '${sDesc}', '${sMat}');
+INSERT INTO template_steps (
+  template_id, step_name, day_offset, duration_days, task_type, 
+  description, materials_needed, min_temp, max_temp, min_humidity, max_humidity, step_order
+)
+VALUES (
+  ${templateId}, '${sName}', ${sDay}, ${sDur}, '${sType}', 
+  '${sDesc}', '${sMat}', ${sMinT}, ${sMaxT}, ${sMinH}, ${sMaxH}, ${sOrder}
+);
                   `);
                 }
               }
@@ -3823,15 +3975,54 @@ VALUES (${templateId}, '${sName}', ${sDay}, ${sDur}, '${sType}', '${sDesc}', '${
           return;
         }
 
-        // 14.4 POST /api/process-templates/:id/steps (Add Step to Template)
-        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps$/)) {
-          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps$/)[1];
+        // 14.4 POST /api/process-templates/:id/steps (Add Step or Bulk Steps to Template)
+        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps$/)) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
+
+              // Trường hợp gửi danh sách nhiều bước (Bulk Import)
+              if (Array.isArray(payload.steps) && payload.steps.length > 0) {
+                let insertedCount = 0;
+                for (const step of payload.steps) {
+                  const sName = (step.stepName || step.taskName || 'Bước kỹ thuật mới').replace(/'/g, "''");
+                  const sDay = parseInt(step.dayOffset !== undefined ? step.dayOffset : (step.day || 0), 10) || 0;
+                  const sDur = parseInt(step.durationDays || Math.ceil((step.durationMinutes || 60) / 60) || 1, 10) || 1;
+                  const sType = (step.taskType || 'CARE').replace(/'/g, "''");
+                  const sDesc = (step.description || step.details || '').replace(/'/g, "''");
+                  const sMat = (step.materialsNeeded || step.materialsRequired || '').replace(/'/g, "''");
+                  const sMinT = step.minTemp !== undefined && step.minTemp !== null && step.minTemp !== '' ? parseFloat(step.minTemp) : 'NULL';
+                  const sMaxT = step.maxTemp !== undefined && step.maxTemp !== null && step.maxTemp !== '' ? parseFloat(step.maxTemp) : 'NULL';
+                  const sMinH = step.minHumidity !== undefined && step.minHumidity !== null && step.minHumidity !== '' ? parseFloat(step.minHumidity) : 'NULL';
+                  const sMaxH = step.maxHumidity !== undefined && step.maxHumidity !== null && step.maxHumidity !== '' ? parseFloat(step.maxHumidity) : 'NULL';
+
+                  await runPostgreSql(`
+INSERT INTO template_steps (
+  template_id, step_name, day_offset, duration_days, task_type, 
+  description, materials_needed, min_temp, max_temp, min_humidity, max_humidity
+)
+VALUES (
+  ${templateId}, '${sName}', ${sDay}, ${sDur}, '${sType}', 
+  '${sDesc}', '${sMat}', ${sMinT}, ${sMaxT}, ${sMinH}, ${sMaxH}
+);
+                  `);
+                  insertedCount++;
+                }
+
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({
+                  success: true,
+                  message: `Đã nạp thành công ${insertedCount} bước kỹ thuật vào quy trình`,
+                  data: { templateId, count: insertedCount }
+                }));
+                return;
+              }
+
+              // Trường hợp thêm 1 bước đơn lẻ
               const stepName = (payload.stepName || payload.taskName || 'Bước kỹ thuật mới').replace(/'/g, "''");
               const dayOffset = parseInt(payload.dayOffset !== undefined ? payload.dayOffset : (payload.day || 0), 10) || 0;
               const durationDays = parseInt(payload.durationDays || 1, 10) || 1;
@@ -3930,8 +4121,8 @@ WHERE step_id = ${stepId} AND template_id = ${templateId};
         }
 
         // 14.6 DELETE /api/process-templates/:id/steps/:stepId (Delete Step)
-        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/)) {
-          const match = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/);
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/)) {
+          const match = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/);
           const templateId = parseInt(match[1].replace(/\D/g, ''), 10) || 1;
           const stepId = parseInt(match[2], 10);
           try {
@@ -3946,8 +4137,8 @@ WHERE step_id = ${stepId} AND template_id = ${templateId};
         }
 
         // 14.7 DELETE /api/process-templates/:id (Delete Template)
-        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)) {
-          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)[1];
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/)) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
           try {
             await runPostgreSql(`DELETE FROM process_templates WHERE template_id = ${templateId};`);
@@ -3961,6 +4152,7 @@ WHERE step_id = ${stepId} AND template_id = ${templateId};
         }
 
         // 15. COMPATIBILITY MATRIX API (GET, POST, DELETE)
+        // 15.1 GET /api/compatibility & /api/v1/compatibility
         if (req.method === 'GET' && (url === '/api/compatibility' || url === '/api/v1/compatibility' || url.startsWith('/api/compatibility?') || url.startsWith('/api/v1/compatibility?'))) {
           try {
             const sql = `
@@ -3999,7 +4191,7 @@ SELECT json_build_object(
           return;
         }
 
-        // 15.1 POST /api/compatibility & /api/v1/compatibility (Expert/Admin thêm quy tắc tương thích thổ nhưỡng BR03)
+        // 15.2 POST /api/compatibility (Add single or bulk compatibility rule)
         if (req.method === 'POST' && (url === '/api/compatibility' || url === '/api/v1/compatibility')) {
           let body = '';
           req.on('data', chunk => body += chunk);
@@ -4007,60 +4199,90 @@ SELECT json_build_object(
             try {
               const payload = JSON.parse(body || '{}');
               const plotId = parseInt(payload.plotId, 10);
-              const rawIds = Array.isArray(payload.varietyIds)
-                ? payload.varietyIds
-                : (payload.varietyId ? [payload.varietyId] : []);
-              const varietyIds = rawIds.map(v => parseInt(v, 10)).filter(v => !isNaN(v) && v > 0);
-
-              if (!plotId || varietyIds.length === 0) {
+              if (!plotId) {
                 res.statusCode = 400;
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.end(JSON.stringify({ success: false, message: 'Vui lòng chọn thửa đất và ít nhất 1 giống cây tương thích.' }));
+                res.end(JSON.stringify({ success: false, error: 'Thiếu plotId' }));
                 return;
               }
 
-              const insertSql = `INSERT INTO plot_variety_compatibility (plot_id, variety_id) VALUES ` +
-                varietyIds.map(vid => `(${plotId}, ${vid})`).join(', ') +
-                ` ON CONFLICT DO NOTHING;`;
-              await runPostgreSql(insertSql);
-              invalidatePlotsCache();
+              let varIds = [];
+              if (Array.isArray(payload.varietyIds) && payload.varietyIds.length > 0) {
+                varIds = payload.varietyIds.map(v => parseInt(v, 10)).filter(Boolean);
+              } else if (payload.varietyId) {
+                const singleId = parseInt(payload.varietyId, 10);
+                if (singleId) varIds = [singleId];
+              }
+
+              if (varIds.length === 0) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, error: 'Thiếu varietyId hoặc varietyIds' }));
+                return;
+              }
+
+              if (payload.replace || Array.isArray(payload.varietyIds)) {
+                await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id = ${plotId};`);
+              }
+
+              for (const vId of varIds) {
+                await runPostgreSql(`
+                  INSERT INTO plot_variety_compatibility (plot_id, variety_id)
+                  VALUES (${plotId}, ${vId})
+                  ON CONFLICT (plot_id, variety_id) DO NOTHING;
+                `);
+              }
+
+              try {
+                invalidatePlotsCache();
+              } catch (_) {}
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: 'Đã thêm quy tắc tương thích thổ nhưỡng (BR03) thành công!',
-                data: { plotId, varietyIds }
+                message: `Đã thiết lập tương thích cho thửa #${plotId} với ${varIds.length} giống cây`,
+                data: { plotId, varietyIds: varIds }
               }));
             } catch (err) {
               res.statusCode = 500;
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: false, message: String(err) }));
+              res.end(JSON.stringify({ success: false, error: String(err) }));
             }
           });
           return;
         }
 
-        // 15.2 DELETE /api/compatibility (Xoá quy tắc tương thích thổ nhưỡng)
+        // 15.3 DELETE /api/compatibility/:plotId/:varietyId or DELETE /api/compatibility
         if (req.method === 'DELETE' && (url.startsWith('/api/compatibility') || url.startsWith('/api/v1/compatibility'))) {
           try {
-            const urlObj = new URL(url, 'http://localhost:3000');
-            const plotId = parseInt(urlObj.searchParams.get('plotId') || '0', 10);
-            const varietyId = parseInt(urlObj.searchParams.get('varietyId') || '0', 10);
+            const m = url.match(/^\/api\/(?:v1\/)?compatibility\/(\d+)\/(\d+)$/);
+            let plotId, varietyId;
+            if (m) {
+              plotId = parseInt(m[1], 10);
+              varietyId = parseInt(m[2], 10);
+            } else {
+              const q = new URL(url, 'http://localhost').searchParams;
+              plotId = parseInt(q.get('plotId'), 10);
+              varietyId = parseInt(q.get('varietyId'), 10);
+            }
+
             if (plotId && varietyId) {
               await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id = ${plotId} AND variety_id = ${varietyId};`);
-              invalidatePlotsCache();
+              try { invalidatePlotsCache(); } catch (_) {}
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: `Đã xóa quy tắc tương thích thửa #${plotId} - giống #${varietyId}` }));
+              return;
+            } else {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ success: false, error: 'Thiếu plotId hoặc varietyId' }));
+              return;
             }
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(JSON.stringify({ success: true, message: 'Đã xoá quy tắc tương thích.' }));
           } catch (err) {
             res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(JSON.stringify({ success: false, message: String(err) }));
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+            return;
           }
-          return;
         }
 
-        // 16. KNOWLEDGE DOCUMENTS API (GET /api/v1/knowledge-documents & /api/knowledge-documents)
+        // 16. KNOWLEDGE DOCUMENTS API (GET, POST, PUT, DELETE, UPLOAD, RAG)
+        // 16.1 GET /api/v1/knowledge-documents & /api/knowledge-documents
         if (req.method === 'GET' && (url === '/api/v1/knowledge-documents' || url === '/api/knowledge-documents' || url.startsWith('/api/v1/knowledge-documents?') || url.startsWith('/api/knowledge-documents?'))) {
           try {
             const sql = `
@@ -4074,27 +4296,255 @@ SELECT json_build_object(
         kd.document_id AS "document_id",
         'DOC-00' || kd.document_id AS id,
         kd.title,
-        kd.content AS description,
+        COALESCE(kd.content, 'Tài liệu hướng dẫn kỹ thuật nông nghiệp') AS description,
+        COALESCE(kd.content, 'Tài liệu hướng dẫn kỹ thuật nông nghiệp') AS content,
         kd.file_url AS "fileUrl",
         kd.file_url AS "file_url",
-        '3.5 MB (PDF)' AS "fileSize",
-        '3.5 MB (PDF)' AS "file_size",
-        COALESCE(u.full_name, 'Chuyên gia Nông nghiệp') AS "authorName",
-        COALESCE(u.full_name, 'Chuyên gia Nông nghiệp') AS "author_name",
-        'Áp dụng chung toàn trang trại' AS "varietyName",
-        'Áp dụng chung toàn trang trại' AS "variety_name",
-        'Tiêu Chuẩn VietGAP' AS "cropName",
-        'Tiêu Chuẩn VietGAP' AS "crop_name",
-        'CULTIVATION_GUIDE' AS "documentType",
-        'CULTIVATION_GUIDE' AS "document_type",
-        'v2.0' AS version,
-        'PUBLISHED' AS status,
-        true AS "isIndexedForRAG",
-        true AS "is_indexed_for_rag",
+        COALESCE(kd.file_size, '3.5 MB (PDF)') AS "fileSize",
+        COALESCE(kd.file_size, '3.5 MB (PDF)') AS "file_size",
+        COALESCE(kd.author_name, u.full_name, 'Chuyên gia Nông nghiệp') AS "authorName",
+        COALESCE(kd.author_name, u.full_name, 'Chuyên gia Nông nghiệp') AS "author_name",
+        COALESCE(v.variety_name, 'Áp dụng chung toàn trang trại') AS "varietyName",
+        COALESCE(v.variety_name, 'Áp dụng chung toàn trang trại') AS "variety_name",
+        COALESCE(c.crop_name, 'Tiêu Chuẩn VietGAP') AS "cropName",
+        COALESCE(c.crop_name, 'Tiêu Chuẩn VietGAP') AS "crop_name",
+        COALESCE(kd.document_type, 'CULTIVATION_GUIDE') AS "documentType",
+        COALESCE(kd.document_type, 'CULTIVATION_GUIDE') AS "document_type",
+        COALESCE(kd.version, 'v2.0') AS version,
+        COALESCE(kd.status, 'PUBLISHED') AS status,
+        COALESCE(kd.is_indexed_for_rag, true) AS "isIndexedForRAG",
+        COALESCE(kd.is_indexed_for_rag, true) AS "is_indexed_for_rag",
+        COALESCE(kd.sections_count, 5) AS "sectionsCount",
         TO_CHAR(kd.created_at, 'YYYY-MM-DD') AS "uploadedDate",
         TO_CHAR(kd.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "created_at"
       FROM knowledge_documents kd
       LEFT JOIN users u ON kd.kd_created_by = u.user_id
+      LEFT JOIN varieties v ON kd.variety_id = v.variety_id
+      LEFT JOIN crops c ON v.crop_id = c.crop_id
+      ORDER BY kd.document_id ASC
+    ) d
+  )
+);
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(data || '{"success":true,"data":[]}');
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 16.2 POST /api/v1/knowledge-documents/upload (Upload File PDF / DOCX / TXT)
+        if (req.method === 'POST' && (url === '/api/v1/knowledge-documents/upload' || url === '/api/knowledge-documents/upload')) {
+          const contentType = req.headers['content-type'] || '';
+          const chunks = [];
+          req.on('data', chunk => chunks.push(chunk));
+          req.on('end', async () => {
+            try {
+              const fullBuffer = Buffer.concat(chunks);
+              let savedFilename = `doc_${Date.now()}.pdf`;
+              let fileBuffer = fullBuffer;
+
+              const boundaryMatch = contentType.match(/boundary=([^\s;]+)/i);
+              if (boundaryMatch) {
+                const boundary = boundaryMatch[1];
+                const boundaryBuffer = Buffer.from('--' + boundary);
+                let start = fullBuffer.indexOf(boundaryBuffer);
+                if (start !== -1) {
+                  start += boundaryBuffer.length;
+                  const next = fullBuffer.indexOf(boundaryBuffer, start);
+                  if (next !== -1) {
+                    const partBuffer = fullBuffer.slice(start, next);
+                    const headerEnd = partBuffer.indexOf(Buffer.from([13, 10, 13, 10]));
+                    if (headerEnd !== -1) {
+                      const headerStr = partBuffer.slice(0, headerEnd).toString('utf8');
+                      let body = partBuffer.slice(headerEnd + 4);
+                      if (body.length >= 2 && body.slice(-2).equals(Buffer.from([13, 10]))) {
+                        body = body.slice(0, -2);
+                      }
+                      fileBuffer = body;
+                      const fnMatch = headerStr.match(/filename=\"([^\"]+)\"/i);
+                      if (fnMatch) {
+                        savedFilename = `${Date.now()}_${fnMatch[1].replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+                      }
+                    }
+                  }
+                }
+              }
+
+              const docsDir = path.join(process.cwd(), 'public', 'docs');
+              if (!fs.existsSync(docsDir)) {
+                fs.mkdirSync(docsDir, { recursive: true });
+              }
+              const targetPath = path.join(docsDir, savedFilename);
+              fs.writeFileSync(targetPath, fileBuffer);
+
+              const sizeMB = (fileBuffer.length / (1024 * 1024)).toFixed(1);
+              const sizeStr = sizeMB > 0.1 ? `${sizeMB} MB` : `${Math.max(1, Math.round(fileBuffer.length / 1024))} KB`;
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Tải tệp tài liệu thành công',
+                data: {
+                  fileUrl: `/docs/${savedFilename}`,
+                  filename: savedFilename,
+                  size: sizeStr
+                }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 16.3 POST /api/v1/knowledge-documents (Create Document Record)
+        if (req.method === 'POST' && (url === '/api/v1/knowledge-documents' || url === '/api/knowledge-documents')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const title = (payload.title || 'Tài liệu hướng dẫn mới').replace(/'/g, "''");
+              const content = (payload.content || payload.description || '').replace(/'/g, "''");
+              const author = (payload.authorName || payload.author || 'Chuyên gia Nông nghiệp Farmely').replace(/'/g, "''");
+              const version = (payload.version || 'v2.0').replace(/'/g, "''");
+              const docType = (payload.documentType || 'CULTIVATION_GUIDE').replace(/'/g, "''");
+              const fileSize = (payload.fileSize || '3.5 MB (PDF)').replace(/'/g, "''");
+              const fileUrl = (payload.fileUrl || '/docs/rau_an_toan_vietgap_huyen.pdf').replace(/'/g, "''");
+              const isIndexed = payload.isIndexedForRAG !== false;
+              const sectionsCount = parseInt(payload.sectionsCount || 5, 10) || 5;
+              const createdBy = parseInt(payload.createdBy || 5, 10) || 5;
+              const varietyId = payload.varietyId ? parseInt(payload.varietyId, 10) : 'NULL';
+
+              const insertSql = `
+INSERT INTO knowledge_documents (
+  title, content, author_name, version, document_type, file_size, 
+  file_url, is_indexed_for_rag, sections_count, status, variety_id, kd_created_by, created_at
+)
+VALUES (
+  '${title}', '${content}', '${author}', '${version}', '${docType}', '${fileSize}',
+  '${fileUrl}', ${isIndexed}, ${sectionsCount}, 'PUBLISHED', ${varietyId}, ${createdBy}, NOW()
+)
+RETURNING document_id;
+`;
+              const insertRes = await runPostgreSql(insertSql);
+              const docId = parseInt(String(insertRes).replace(/\D/g, ''), 10) || 1;
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Khởi tạo tài liệu tri thức RAG thành công',
+                data: {
+                  documentId: docId,
+                  document_id: docId,
+                  id: `DOC-00${docId}`,
+                  title,
+                  content,
+                  description: content,
+                  authorName: author,
+                  fileUrl,
+                  fileSize,
+                  documentType: docType,
+                  version,
+                  status: 'PUBLISHED',
+                  isIndexedForRAG: isIndexed,
+                  sectionsCount
+                }
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 16.4 PUT /api/v1/knowledge-documents/:id (Update Document)
+        if (req.method === 'PUT' && url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)$/)) {
+          const docId = parseInt(url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)$/)[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const setClauses = [];
+              if (payload.title) setClauses.push(`title = '${payload.title.replace(/'/g, "''")}'`);
+              if (payload.content !== undefined || payload.description !== undefined) {
+                setClauses.push(`content = '${(payload.content || payload.description || '').replace(/'/g, "''")}'`);
+              }
+              if (payload.authorName || payload.author) {
+                setClauses.push(`author_name = '${(payload.authorName || payload.author).replace(/'/g, "''")}'`);
+              }
+              if (payload.version) setClauses.push(`version = '${payload.version.replace(/'/g, "''")}'`);
+              if (payload.documentType) setClauses.push(`document_type = '${payload.documentType.replace(/'/g, "''")}'`);
+              if (payload.fileUrl) setClauses.push(`file_url = '${payload.fileUrl.replace(/'/g, "''")}'`);
+              if (payload.fileSize) setClauses.push(`file_size = '${payload.fileSize.replace(/'/g, "''")}'`);
+              if (payload.isIndexedForRAG !== undefined) setClauses.push(`is_indexed_for_rag = ${Boolean(payload.isIndexedForRAG)}`);
+              if (payload.varietyId) setClauses.push(`variety_id = ${parseInt(payload.varietyId, 10)}`);
+
+              if (setClauses.length > 0) {
+                await runPostgreSql(`UPDATE knowledge_documents SET ${setClauses.join(', ')} WHERE document_id = ${docId};`);
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: `Cập nhật tài liệu #${docId} thành công` }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 16.5 DELETE /api/v1/knowledge-documents/:id
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)$/)) {
+          const docId = parseInt(url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)$/)[1], 10);
+          try {
+            await runPostgreSql(`DELETE FROM knowledge_documents WHERE document_id = ${docId};`);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, message: `Đã xóa tài liệu #${docId} khỏi cơ sở dữ liệu` }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 16.6 POST /api/v1/knowledge-documents/:id/toggle-rag
+        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)\/toggle-rag$/)) {
+          const docId = parseInt(url.match(/^\/api\/(?:v1\/)?knowledge-documents\/(\d+)\/toggle-rag$/)[1], 10);
+          try {
+            await runPostgreSql(`UPDATE knowledge_documents SET is_indexed_for_rag = NOT COALESCE(is_indexed_for_rag, false) WHERE document_id = ${docId};`);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, message: `Đã thay đổi trạng thái index RAG cho tài liệu #${docId}` }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 16.7 GET /api/v1/knowledge-documents/rag-context
+        if (req.method === 'GET' && (url === '/api/v1/knowledge-documents/rag-context' || url === '/api/knowledge-documents/rag-context')) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(d)), '[]'::json) FROM (
+      SELECT 
+        kd.document_id,
+        kd.title,
+        kd.content,
+        kd.file_url,
+        kd.author_name
+      FROM knowledge_documents kd
+      WHERE COALESCE(kd.is_indexed_for_rag, true) = true
       ORDER BY kd.document_id ASC
     ) d
   )
@@ -4324,7 +4774,16 @@ END $$;
             const urlObj = new URL(url, 'http://localhost');
             const workerIdParam = urlObj.searchParams.get('workerId');
             const rentalIdParam = urlObj.searchParams.get('rentalId');
+            const allPlotsParam = urlObj.searchParams.get('allPlots');
             let taskWhere = [];
+
+            // STRICT BUSINESS RULE: Nhiệm vụ thực địa (Care Tasks) chỉ sinh ra và hiển thị cho các thửa ĐANG THUÊ thực tế!
+            // Thửa chưa thuê (AVAIL) hoặc Hợp đồng đã hủy (CANCELLED) tuyệt đối không có nhiệm vụ canh tác.
+            if (!allPlotsParam && !rentalIdParam) {
+              taskWhere.push(`rent.status = 'ACTIVE'`);
+              taskWhere.push(`c.status = 'ACTIVE'`);
+              taskWhere.push(`p.status = 'RENT'`);
+            }
             if (workerIdParam && parseInt(workerIdParam, 10)) {
               taskWhere.push(`ct.task_assigned_to = ${parseInt(workerIdParam, 10)}`);
             }
@@ -4368,7 +4827,7 @@ SELECT json_build_object(
         END AS status,
         CASE 
           WHEN ct.notes ILIKE '%[LÀM NGAY]%' OR ct.notes ILIKE '%[KHẨN CẤP]%' THEN 'EMERGENCY'
-          WHEN ct.service_request_id IS NOT NULL OR ct.notes ILIKE '%[ƯU TIÊN CAO]%' THEN 'HIGH'
+          WHEN ct.service_request_id IS NOT NULL OR ct.notes ILIKE '%[ƯU TIÊN CAO]%' OR ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN 'HIGH'
           ELSE 'NORMAL'
         END AS priority,
         TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS "dueDate",
@@ -4386,11 +4845,13 @@ SELECT json_build_object(
         'MORNING' AS session,
         ct.evidence_image_url AS "proofPhoto",
         ct.evidence_image_url AS "evidenceImageUrl",
+        ct.notes AS notes,
+        COALESCE(u_expert.full_name, 'Chuyên gia Nông nghiệp VietGAP') AS "expertName",
         CASE
-          WHEN ts.description IS NOT NULL AND ts.description <> '' THEN ts.description
-          WHEN ct.notes LIKE '% - %' THEN SUBSTRING(ct.notes FROM POSITION(' - ' IN ct.notes) + 3)
-          WHEN ct.notes LIKE '%' || CHR(10) || '%' THEN SUBSTRING(ct.notes FROM POSITION(CHR(10) IN ct.notes) + 1)
-          ELSE COALESCE(ct.notes, ts.description, 'Kiểm tra độ ẩm trạm IoT trước khi tưới. Ghi chép nhật ký đầy đủ.')
+          WHEN ts.description IS NOT NULL AND ts.description <> '' AND ts.description NOT LIKE '%Thửa%' THEN ts.description
+          WHEN ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN ct.notes
+          WHEN ct.notes IS NOT NULL AND ct.notes NOT LIKE '%Thửa ' || p.plot_code THEN ct.notes
+          ELSE 'Tuân thủ định mức kỹ thuật VietGAP và hướng dẫn chuyên gia. Kiểm tra độ ẩm đất qua trạm IoT trước khi thực hiện.'
         END AS instructions,
         TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') AS "completedAt"
       FROM care_tasks ct
@@ -4399,6 +4860,7 @@ SELECT json_build_object(
       JOIN contracts c ON rent.contract_id = c.contract_id
       LEFT JOIN users u_renter ON c.renter_id = u_renter.user_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
+      LEFT JOIN users u_expert ON rent.expert_id = u_expert.user_id
       LEFT JOIN varieties v ON rent.variety_id = v.variety_id
       LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
       LEFT JOIN service_requests sr ON ct.service_request_id = sr.request_id
@@ -4563,20 +5025,33 @@ END $$;
             try {
               const payload = JSON.parse(body || '{}');
               const rentalId = parseInt(payload.rentalId || payload.rental_id || 1, 10);
-              const workerId = parseInt(payload.workerId || payload.taskAssignedTo || 8, 10);
+              const workerId = parseInt(payload.workerId || payload.taskAssignedTo || payload.worker_id || 0, 10);
               const dueDate = payload.dueDate || payload.due_date || new Date().toISOString().split('T')[0];
-              const notes = (payload.title ? payload.title + (payload.notes ? ' - ' + payload.notes : '') : (payload.notes || 'Nhiệm vụ chăm sóc ngoài đồng')).replace(/'/g, "''");
+              const rawTitle = payload.title ? String(payload.title).trim() : '';
+              const cleanTitle = (rawTitle || 'Nhiệm vụ chăm sóc ngoài đồng').replace(/'/g, "''");
+              const cleanNotes = (payload.notes ? String(payload.notes).trim() : cleanTitle).replace(/'/g, "''");
               const sql = `
 WITH ins AS (
-  INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
-  VALUES (${rentalId}, ${workerId}, '${dueDate}', 'PENDING', '${notes}', NOW(), NOW())
-  RETURNING task_id, rental_id, status
+  INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+  VALUES (
+    ${rentalId}, 
+    COALESCE(${workerId > 0 ? workerId : 'NULL'}, (SELECT fn_resolve_staff_for_plot(r.plot_id) FROM rentals r WHERE r.rental_id = ${rentalId}), 8), 
+    '${dueDate}', 
+    'PENDING', 
+    '${cleanTitle}', 
+    '${cleanNotes}', 
+    NOW(), 
+    NOW()
+  )
+  RETURNING task_id, rental_id, status, title, due_date
 )
 SELECT json_build_object(
   'taskId', task_id,
   'taskCode', 'TSK-' || task_id,
   'rentalId', rental_id,
-  'status', status
+  'status', status,
+  'title', title,
+  'dueDate', due_date
 ) FROM ins;
 `;
               const data = await runPostgreSql(sql);
@@ -5093,8 +5568,12 @@ RETURNING issue_id, rental_id, issue_type, status;
               if (expertId) {
                 setClauses.push(`handled_by = ${parseInt(expertId, 10)}`);
               }
+              let isDiagnosed = false;
+              let diagnosisText = '';
               if (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes) {
                 const diag = (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes).replace(/'/g, "''");
+                diagnosisText = diag;
+                isDiagnosed = true;
                 const nextStatus = payload.markResolved ? 'RESOLVED' : 'OPEN';
                 setClauses.push(`status = '${nextStatus}'`);
                 setClauses.push(`resolution_notes = '${diag}'`);
@@ -5114,6 +5593,47 @@ WHERE issue_id = ${issueId}
 RETURNING issue_id, handled_by, status;
 `;
               await runPostgreSql(sql);
+
+              // Tự động sinh Care Task xử lý sự cố cho CVLĐ nếu chuyên gia vừa chỉ đạo kỹ thuật
+              if (isDiagnosed && diagnosisText) {
+                try {
+                  await runPostgreSql(`
+DO $$
+DECLARE
+  v_rental_id INT;
+  v_staff_id INT;
+  v_issue_type VARCHAR(100);
+  v_plot_code VARCHAR(20);
+BEGIN
+  SELECT ir.rental_id, COALESCE(r.staff_id, ir.reported_by, 8), ir.issue_type, p.plot_code
+  INTO v_rental_id, v_staff_id, v_issue_type, v_plot_code
+  FROM issue_reports ir
+  JOIN rentals r ON ir.rental_id = r.rental_id
+  JOIN plots p ON r.plot_id = p.plot_id
+  WHERE ir.issue_id = ${issueId};
+
+  IF v_rental_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM care_tasks WHERE rental_id = v_rental_id AND (notes LIKE '%[ISS-' || ${issueId} || ']%' OR notes LIKE '%[ISSUE-' || ${issueId} || ']%')
+  ) THEN
+    INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+    VALUES (
+      v_rental_id,
+      v_staff_id,
+      CURRENT_DATE,
+      'IN_PROG',
+      'Xử lý ' || LOWER(v_issue_type) || ' theo chỉ đạo CGNN',
+      '[CHỈ ĐẠO CGNN] Xử lý ' || v_issue_type || ' [ISS-' || ${issueId} || ']' || CHR(10) || 'Hướng dẫn kỹ thuật từ CGNN: ' || '${diagnosisText}' || CHR(10) || 'Hiện trường: Thửa ' || v_plot_code,
+      NOW(),
+      NOW()
+    );
+  END IF;
+END $$;
+                  `);
+                } catch (e) {
+                  console.error('Error auto-creating task for issue:', e);
+                }
+              }
+
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: true, message: `Đã cập nhật sự cố #${issueId}` }));
             } catch (err) {
@@ -6151,7 +6671,7 @@ GROUP BY p.plot_id, p.plot_code;
         if (url.startsWith('/api/ai/chat') && req.method === 'POST') {
           let body = '';
           req.on('data', chunk => { body += chunk; });
-          req.on('end', () => {
+          req.on('end', async () => {
             let payload = {};
             try { payload = JSON.parse(body); } catch { }
             const userMsg = (payload.message || '').trim();
@@ -6161,32 +6681,71 @@ GROUP BY p.plot_id, p.plot_code;
             let reply = '';
             let docs = [];
 
+            // Truy vấn động các tài liệu RAG từ bảng knowledge_documents trong PostgreSQL
+            let liveRagDocs = [];
+            try {
+              const rawRag = await runPostgreSql(`
+                SELECT json_agg(t) FROM (
+                  SELECT kd.document_id, kd.title, COALESCE(kd.file_url, '/docs/rau_an_toan_vietgap_huyen.pdf') AS file_url, 
+                         kd.content, COALESCE(kd.author_name, u.full_name, 'Chuyên gia Nông nghiệp') AS author_name
+                  FROM knowledge_documents kd
+                  LEFT JOIN users u ON kd.kd_created_by = u.user_id
+                  WHERE COALESCE(kd.is_indexed_for_rag, true) = true
+                  ORDER BY kd.document_id ASC
+                ) t;
+              `);
+              liveRagDocs = typeof rawRag === 'string' && rawRag ? JSON.parse(rawRag) : (Array.isArray(rawRag) ? rawRag : []);
+            } catch (e) {
+              liveRagDocs = [];
+            }
+
             if (lower.match(/^(chào|chao|hello|hi|xin chào|alo|farmely ai|ai|bot)(\s+bạn|\s+ạ)?/i) || (lower.includes('chào') && lower.length <= 15)) {
               reply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Tôi có thể hỗ trợ bạn về kỹ thuật gieo trồng chuẩn VietGAP, theo dõi độ ẩm vi khí hậu IoT và thủ tục thuê thửa đất. Bạn cần tôi giải đáp nội dung nào?';
-              docs.push({ docTitle: 'Cẩm nang Hướng dẫn Khách hàng Farmely 2026', source: 'Farmely General Guide', similarityScore: 0.95 });
+              const d = liveRagDocs.find(item => item.title.includes('VietGAP')) || liveRagDocs[0];
+              if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Hệ sinh thái Farmely RAG', similarityScore: 0.95, fileUrl: d.file_url });
             } else if (lower.includes('cảm ơn') || lower.includes('thank') || lower.includes('tks')) {
               reply = 'Rất vui được hỗ trợ bạn! Chúc bạn có những vụ mùa bội thu, rau sạch chuẩn VietGAP và trải nghiệm canh tác tuyệt vời trên Farmely. Cần hỗ trợ thêm, bạn cứ nhắn cho Farmely AI nhé!';
             } else if (lower.includes('tạm biệt') || lower.includes('bye') || lower.includes('hẹn gặp lại')) {
               reply = 'Tạm biệt bạn nhé! Chúc bạn một ngày làm việc hiệu quả. Khi nào cần tra cứu số liệu thửa đất hay kỹ thuật chăm sóc, Farmely AI luôn sẵn sàng hỗ trợ!';
             } else if (lower.includes('xà lách') || lower.includes('xa lach')) {
               reply = 'Rau xà lách tại Farmely phát triển tốt nhất ở nhiệt độ 18°C – 25°C, độ ẩm đất 65% – 75%. Nên tưới phun mưa mịn vào sáng sớm (6h30 - 7h30) và chiều mát (16h - 17h). Tránh tưới đẫm vào ban đêm để hạn chế nấm thối nhũn bẹ lá nhé!';
-              docs.push({ docTitle: 'Kỹ thuật Canh tác Rau Xà lách Thủy Canh & Thổ Canh', source: 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94 });
+              const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('xà lách') || item.title.toLowerCase().includes('rau')) || liveRagDocs[0];
+              if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94, fileUrl: d.file_url });
             } else if (lower.includes('độ ẩm') || lower.includes('ẩm đất') || lower.includes('tưới nước') || lower.includes('tưới bù') || lower.includes('mưa')) {
               reply = 'Theo quy tắc vi khí hậu BR18 của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
-              docs.push({ docTitle: 'Quy chuẩn Điều tiết Tưới & Vi khí hậu Thông minh (BR18)', source: 'Tài liệu Vận hành Trạm IoT Farmely', similarityScore: 0.96 });
+              const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('vi khí hậu') || item.title.toLowerCase().includes('tbkt')) || liveRagDocs[1] || liveRagDocs[0];
+              if (d) docs.push({ docTitle: d.title, source: 'Tài liệu Vận hành Trạm IoT Farmely (BR18)', similarityScore: 0.96, fileUrl: d ? d.file_url : '/docs/rau_an_toan_vietgap_huyen.pdf' });
             } else if (lower.includes('sâu') || lower.includes('rầy') || lower.includes('bọ trĩ') || lower.includes('ốc sên') || lower.includes('bệnh')) {
               reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Đối với bọ trĩ và rầy mềm thì phun dung dịch tỏi ớt gừng lên men vi sinh hoặc dầu khoáng sinh học SK Enspray 99EC. Đối với ốc sên thì rải vỏ trứng vụn hoặc bẫy sinh học men bia quanh gốc cây.';
-              docs.push({ docTitle: 'Phòng trừ Dịch hại Cây trồng Bằng Biện pháp Sinh học', source: 'Sổ tay Nông nghiệp Hữu cơ', similarityScore: 0.91 });
+              const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('ipm') || item.title.toLowerCase().includes('qlsb') || item.title.toLowerCase().includes('sâu')) || liveRagDocs[2] || liveRagDocs[0];
+              if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Sổ tay Nông nghiệp Hữu cơ', similarityScore: 0.92, fileUrl: d.file_url });
             } else if (lower.includes('thuê') || lower.includes('hợp đồng') || lower.includes('giá') || lower.includes('gia hạn')) {
               reply = 'Quy trình thuê đất tại Farmely: Bạn chọn thửa đất ưng ý trên Marketplace bản đồ vệ tinh, chọn giống rau và gói chăm sóc, thanh toán trực tuyến 100% qua VNPay/VietQR. Hợp đồng điện tử có hiệu lực ngay và bạn có thể gia hạn trước 3 ngày với chiết khấu từ 5% – 15%.';
-              docs.push({ docTitle: 'Quy chế Hợp đồng Thuê đất Nông nghiệp Công nghệ cao (BR11, BR12)', source: 'Trung tâm Pháp lý Farmely', similarityScore: 0.93 });
+              const d = liveRagDocs.find(item => item.title.includes('VietGAP')) || liveRagDocs[0];
+              if (d) docs.push({ docTitle: d.title, source: 'Trung tâm Pháp lý & Hợp đồng Farmely (BR11, BR12)', similarityScore: 0.93, fileUrl: d.file_url });
             } else {
-              if (userMsg.length <= 8) {
-                reply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm vi khí hậu hay muốn tìm hiểu thủ tục thuê đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi với ThS. Hoàng Nam nha.';
+              // Tìm kiếm theo từ khóa trong các tài liệu RAG
+              const matched = liveRagDocs.filter(item => {
+                const text = (item.title + ' ' + (item.content || '')).toLowerCase();
+                const words = lower.split(/\s+/).filter(w => w.length > 2);
+                return words.some(w => text.includes(w));
+              });
+
+              if (matched.length > 0) {
+                const top = matched[0];
+                reply = `Dựa trên tài liệu chuẩn "${top.title}": ${top.content ? top.content.slice(0, 220) + '...' : 'Tài liệu hướng dẫn kỹ thuật canh tác chuẩn của nông trại Farmely.'}\n\nBạn có thể tải hoặc mở xem trực tiếp tài liệu chi tiết ở phần nguồn tham chiếu bên dưới!`;
+                docs.push({ docTitle: top.title, source: top.author_name || 'Cơ sở tri thức Farmely RAG', similarityScore: 0.89, fileUrl: top.file_url });
               } else {
-                reply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+                if (userMsg.length <= 8) {
+                  reply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm vi khí hậu hay muốn tìm hiểu thủ tục thuê đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi với ThS. Hoàng Nam nha.';
+                } else {
+                  reply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+                }
+                const fallbackDoc = liveRagDocs[0];
+                if (fallbackDoc) {
+                  docs.push({ docTitle: fallbackDoc.title, source: fallbackDoc.author_name || 'Hệ sinh thái Nông nghiệp Thông minh', similarityScore: 0.88, fileUrl: fallbackDoc.file_url });
+                }
               }
-              docs.push({ docTitle: 'Cẩm nang Hướng dẫn Canh tác Toàn diện Farmely', source: 'Hệ sinh thái Nông nghiệp Thông minh', similarityScore: 0.88 });
             }
 
             res.setHeader('Content-Type', 'application/json; charset=utf-8');

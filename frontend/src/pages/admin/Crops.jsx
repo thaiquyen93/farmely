@@ -6,7 +6,7 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
-import { Sprout, Plus, Edit, Eye, Power, Trash2, Loader2 } from 'lucide-react';
+import { Sprout, Plus, Edit, Eye, Power, Trash2, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 export default function Crops() {
   const [crops, setCrops] = useState(initialCrops);
@@ -15,6 +15,8 @@ export default function Crops() {
   const [selectedCrop, setSelectedCrop] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [formError, setFormError] = useState('');
 
   // Form modal state
   const [showModal, setShowModal] = useState(false);
@@ -49,6 +51,7 @@ export default function Crops() {
     setCropCode('');
     setCropDesc('');
     setCropCycle('30 - 45 ngày');
+    setFormError('');
     setShowModal(true);
   };
 
@@ -59,44 +62,72 @@ export default function Crops() {
     setCropCode(c.code);
     setCropDesc(c.description);
     setCropCycle(c.standardGrowthCycle);
+    setFormError('');
     setShowModal(true);
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!cropName.trim()) return;
+    if (!cropName.trim()) {
+      setFormError('Vui lòng nhập tên nhóm cây trồng');
+      return;
+    }
     setIsSaving(true);
+    setFormError('');
 
     try {
-      if (isEditing && selectedCrop) {
-        await fetch(`/api/crops/${selectedCrop.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: cropName.trim(), description: cropDesc, cycle: cropCycle })
-        });
-      } else {
-        await fetch('/api/crops', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: cropName.trim(), description: cropDesc, cycle: cropCycle })
-        });
+      const url = isEditing && selectedCrop ? `/api/crops/${selectedCrop.id}` : '/api/crops';
+      const method = isEditing && selectedCrop ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: cropName.trim(), description: cropDesc, cycle: cropCycle })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Lỗi khi lưu danh mục cây');
       }
+      setToast({ type: 'success', message: data.message || `Đã lưu nhóm cây "${cropName}" thành công vào PostgreSQL!` });
       loadCrops();
+      try {
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_varieties_sync');
+          bc.postMessage({ type: 'VARIETIES_UPDATED' });
+          bc.close();
+        }
+      } catch {}
       setShowModal(false);
+      setTimeout(() => setToast(null), 5000);
     } catch (err) {
-      console.error('Error saving crop:', err);
+      setFormError(err.message || 'Không thể kết nối đến máy chủ');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa danh mục cây #${id}?`)) return;
+  const handleDelete = async (id, name) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa danh mục cây "${name || '#' + id}"?`)) return;
     try {
-      await fetch(`/api/crops/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/crops/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setToast({ type: 'error', message: data.message || 'Lỗi khi xóa nhóm cây' });
+        setTimeout(() => setToast(null), 5000);
+        return;
+      }
+      setToast({ type: 'success', message: `Đã xóa nhóm cây #${id} thành công khỏi PostgreSQL!` });
       loadCrops();
+      try {
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_varieties_sync');
+          bc.postMessage({ type: 'VARIETIES_UPDATED' });
+          bc.close();
+        }
+      } catch {}
+      setTimeout(() => setToast(null), 4000);
     } catch (err) {
-      console.error('Error deleting crop:', err);
+      setToast({ type: 'error', message: err.message || 'Lỗi kết nối khi xóa' });
+      setTimeout(() => setToast(null), 5000);
     }
   };
 
@@ -176,6 +207,13 @@ export default function Crops() {
           >
             <Power className="w-4 h-4" />
           </button>
+          <button
+            onClick={() => handleDelete(row.id, row.name)}
+            className="p-1.5 text-stone-500 hover:text-red-600 hover:bg-stone-100 rounded-lg transition-colors"
+            title="Xóa nhóm cây"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       )
     }
@@ -183,6 +221,25 @@ export default function Crops() {
 
   return (
     <div className="space-y-6">
+      {/* Toast Feedback */}
+      {toast && (
+        <div className={`p-4 rounded-xl flex items-center justify-between gap-3 text-sm font-medium border shadow-xs animate-in fade-in duration-200 ${
+          toast.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            {toast.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+            )}
+            <span>{toast.message}</span>
+          </div>
+          <button onClick={() => setToast(null)} className="p-1 hover:opacity-70">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -223,6 +280,13 @@ export default function Crops() {
         title={isEditing ? 'Chỉnh Sửa Nhóm Cây Trồng' : 'Thêm Nhóm Cây Trồng Mới'}
       >
         <form onSubmit={handleSave} className="space-y-4">
+          {formError && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{formError}</span>
+            </div>
+          )}
+
           <Input
             label="Tên Nhóm Cây Trồng"
             required

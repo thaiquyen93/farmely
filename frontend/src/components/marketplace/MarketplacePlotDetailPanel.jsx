@@ -24,7 +24,7 @@ import {
   Info,
   Clock
 } from 'lucide-react';
-import { safeCrops } from '../../data/safeCrops';
+import { safeCrops, getSafeCropsList } from '../../data/safeCrops';
 import PlotLeaseOptions from './PlotLeaseOptions';
 import { getLeaseConfigError, computePlotLeasePrice } from '../../utils/leaseSelection';
 import { CROP_STANDARDS, detectCropKey } from '../../services/cropStandardProcess';
@@ -43,7 +43,8 @@ export default function MarketplacePlotDetailPanel({
   onChangeLeaseConfig,
   cropOptions = [],
   compatibilityMissing = false,
-  onOpenSiteVisit
+  onOpenSiteVisit,
+  cartPlotsCount = 0
 }) {
   const [copied, setCopied] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -61,7 +62,8 @@ export default function MarketplacePlotDetailPanel({
     setShowTechnicalHandbookModal(false);
   }, [plot?.id, plot?.code]);
 
-  const effectiveCropOptions = cropOptions && cropOptions.length > 0 ? cropOptions : safeCrops;
+  const allSafeFallback = getSafeCropsList();
+  const effectiveCropOptions = cropOptions && cropOptions.length > 0 ? cropOptions : allSafeFallback;
   const selectedCrop = effectiveCropOptions.find((c) => c.id === leaseConfig?.cropId) || null;
   const currentTechnicalCrop = selectedCrop || effectiveCropOptions[0];
 
@@ -479,7 +481,7 @@ export default function MarketplacePlotDetailPanel({
                   }`}
                 >
                   <option value="">Chọn giống cây canh tác...</option>
-                  {cropOptions.map((crop) => (
+                  {effectiveCropOptions.map((crop) => (
                     <option key={crop.id} value={crop.id}>
                       {crop.name} — {crop.variety}
                     </option>
@@ -862,7 +864,7 @@ export default function MarketplacePlotDetailPanel({
           </div>
         )}
 
-        {/* Nút chính — Thuê ngay thửa này */}
+        {/* Nút chính — Thuê ngay thửa này hoặc Tiến hành thuê N thửa */}
         <button
           type="button"
           onClick={handleBookClick}
@@ -874,7 +876,13 @@ export default function MarketplacePlotDetailPanel({
           }`}
         >
           <Sparkles className="w-4 h-4" />
-          <span>{isVacant ? 'Thuê ngay thửa này' : 'Thửa đất đã có người thuê'}</span>
+          <span>
+            {isVacant
+              ? (cartPlotsCount > 1 || (isPlotSelectedForContract && cartPlotsCount > 0)
+                  ? `Tiến hành thuê (${Math.max(cartPlotsCount, isPlotSelectedForContract ? cartPlotsCount : cartPlotsCount + 1)} thửa đã chọn)`
+                  : 'Thuê ngay thửa này')
+              : 'Thửa đất đã có người thuê'}
+          </span>
         </button>
 
         {/* Nút phụ — Chọn thửa đất */}
