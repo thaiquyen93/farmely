@@ -76,6 +76,23 @@ function formatVnd(amount) {
   return Number(amount || 0).toLocaleString('vi-VN') + ' đ';
 }
 
+function isValidAnalytics(data) {
+  const requiredKpis = [
+    'totalRevenue', 'monthlyRevenue', 'leaseRevenue', 'serviceRevenue',
+    'pendingRevenue', 'totalPlots', 'rentedPlots', 'availablePlots',
+    'maintenancePlots', 'totalRentals', 'selfGrowingCount',
+    'assistedGrowingCount', 'totalTasks', 'completedTasks',
+    'inProgressTasks', 'pendingTasks'
+  ];
+
+  return data?.kpi && requiredKpis.every((key) =>
+    data.kpi[key] !== null && data.kpi[key] !== undefined &&
+    Number.isFinite(Number(data.kpi[key]))
+  ) && Array.isArray(data.monthlyRevenue) &&
+    Array.isArray(data.recentTransactions) &&
+    Array.isArray(data.paymentMethodBreakdown);
+}
+
 function CustomRevenueTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     const lease = payload.find(p => p.dataKey === 'leaseRevenue')?.value || 0;
@@ -212,6 +229,7 @@ export default function AdminDashboard() {
   // 12. Financial & Revenue Analytics (SCR-AD-01 / UC-AD12)
   const [analyticsData, setAnalyticsData] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState('');
 
   // Filtered staff and expert lists
   const staffUsers = useMemo(() => {
@@ -263,6 +281,9 @@ export default function AdminDashboard() {
 
   // Synchronize All Operational Admin Data
   const loadAdminData = async () => {
+    setLoadingAnalytics(true);
+    setAnalyticsData(null);
+    setAnalyticsError('');
     try {
       const [
         requestPayload,
@@ -302,8 +323,10 @@ export default function AdminDashboard() {
       const weatherPayloadData = unwrapData(weatherPayload) || null;
       const analyticsRes = unwrapData(analyticsPayload);
 
-      if (analyticsRes) {
+      if (analyticsPayload?.success !== false && isValidAnalytics(analyticsRes)) {
         setAnalyticsData(analyticsRes);
+      } else {
+        setAnalyticsError('Không thể tải số liệu doanh thu và vận hành. Vui lòng thử lại.');
       }
       setLoadingAnalytics(false);
 
@@ -478,6 +501,8 @@ export default function AdminDashboard() {
     } catch (error) {
       console.warn('Lỗi nạp dữ liệu Admin:', error);
       setDataError('Không thể đồng bộ toàn bộ dữ liệu quản trị.');
+      setAnalyticsError('Không thể tải số liệu doanh thu và vận hành. Vui lòng thử lại.');
+      setLoadingAnalytics(false);
     }
   };
 
@@ -1569,14 +1594,23 @@ export default function AdminDashboard() {
             {/* TAB 1: OVERVIEW & REVENUE ANALYTICS (SCR-AD-01: Thống Kê Tổng Hợp)        */}
             {/* ========================================================================= */}
             {activeTab === 'overview' && (() => {
-              const kpi = analyticsData?.kpi || {
-                totalRevenue: 0, monthlyRevenue: 0, leaseRevenue: 0, serviceRevenue: 0,
-                pendingRevenue: 0, totalPlots: 0, rentedPlots: 0, availablePlots: 0,
-                maintenancePlots: 0, occupancyRate: 0, totalRentals: 0,
-                selfGrowingCount: 0, assistedGrowingCount: 0, selfGrowingPct: 0,
-                assistedGrowingPct: 0, totalTasks: 0, completedTasks: 0,
-                inProgressTasks: 0, pendingTasks: 0, taskCompletionRate: 0
-              };
+              if (loadingAnalytics || analyticsError || !analyticsData) {
+                return (
+                  <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm" role="status">
+                    <h2 className="text-xl font-heading font-bold text-brand-dark">Tổng quan doanh thu và vận hành</h2>
+                    <p className="mt-3 text-sm text-brand-muted">
+                      {loadingAnalytics ? 'Đang tải số liệu từ hệ thống...' : analyticsError || 'Chưa có số liệu để hiển thị.'}
+                    </p>
+                    {!loadingAnalytics && (
+                      <Button variant="outline" size="sm" onClick={loadAdminData} className="mt-4">
+                        Tải lại số liệu
+                      </Button>
+                    )}
+                  </div>
+                );
+              }
+
+              const kpi = analyticsData.kpi;
 
               const monthlyChartData = analyticsData?.monthlyRevenue || [];
               const recentTransactions = analyticsData?.recentTransactions || [];
