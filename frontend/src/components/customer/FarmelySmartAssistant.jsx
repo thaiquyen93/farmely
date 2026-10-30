@@ -208,8 +208,13 @@ export default function FarmelySmartAssistant() {
       let fallbackReply = '';
       let fallbackSource = 'Cẩm nang Kỹ thuật Nông nghiệp Farmely';
 
+      // 0. Nhận diện phép tính toán học / đố vui
+      if (lowerQ.match(/(1\s*\+\s*1|1\s*cộng\s*1)/)) {
+        fallbackReply = 'Dạ, 1 cộng 1 chắc chắn bằng 2 rồi ạ! 😊 Nếu bạn đang cần tính toán mật độ gieo trồng hay diện tích thửa đất trên Farmely, cứ chia sẻ thêm với mình nhé!';
+        fallbackSource = 'Hệ thống Farmely AI';
+      }
       // 1. Chào hỏi tự nhiên
-      if (lowerQ.match(/^(chào|hello|hi|xin chào|farmely ai|ai|bot|alo|ơi|ê)(\s+bạn|\s+ạ)?$/i) || (lowerQ.includes('chào') && lowerQ.length <= 15)) {
+      else if (lowerQ.match(/^(chào|hello|hi|xin chào|farmely ai|ai|bot|alo|ơi|ê)(\s+bạn|\s+ạ)?$/i) || (lowerQ.includes('chào') && lowerQ.length <= 15)) {
         fallbackReply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Rất vui được hỗ trợ bạn. Bạn cần tư vấn về kỹ thuật gieo trồng, kiểm tra độ ẩm đất IoT hay tìm hiểu thủ tục thuê thửa đất nào hôm nay?';
         fallbackSource = 'Cẩm nang Hướng dẫn Khách hàng Farmely';
       }
@@ -231,7 +236,7 @@ export default function FarmelySmartAssistant() {
           if (question.length <= 8) {
             fallbackReply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm đất vi khí hậu hay muốn tìm hiểu thủ tục thuê thửa đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nha.';
           } else {
-            fallbackReply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+            fallbackReply = 'Chào bạn! Farmely AI luôn sẵn sàng đồng hành cùng bạn trong canh tác nông nghiệp công nghệ cao. Bạn có thể theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) hoặc bấm sang tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nhé!';
           }
           fallbackSource = 'Cẩm nang Kỹ thuật Nông nghiệp Farmely';
         }

@@ -8,7 +8,12 @@ def _mock_llm_response(user_query: str, rag_contexts: List[Dict[str, any]]) -> s
     """
     query_lower = user_query.lower()
 
-    if "thuê" in query_lower or "giá" in query_lower or "plot" in query_lower or "hợp đồng" in query_lower:
+    if "1 + 1" in query_lower or "1 cộng 1" in query_lower:
+        return (
+            "Chào bạn! 1 cộng 1 chắc chắn bằng 2 rồi ạ! 😊 "
+            "Cũng như tại Farmely: sự tận tâm của bạn cộng với nông nghiệp thông minh chuẩn VietGAP sẽ luôn mang lại những vụ mùa bội thu!"
+        )
+    elif "thuê" in query_lower or "giá" in query_lower or "plot" in query_lower or "hợp đồng" in query_lower:
         return (
             "Chào bạn! Về quy trình thuê Plot tại Farmely, bạn có thể thực hiện theo các bước sau:\n"
             "1. Khám phá và chọn Plot phù hợp trên hệ thống (diện tích, giá thuê, độ che phủ ánh sáng, giống cây tương thích).\n"
@@ -71,8 +76,9 @@ def generate_chat_response(prompt: str, user_query: str, rag_contexts: List[Dict
 
     try:
         import requests
-        model_name = settings.LLM_MODEL.replace("models/", "")
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
+        candidate_models = [settings.LLM_MODEL.replace("models/", ""), "gemini-3.5-flash-lite", "gemini-3-flash-preview"]
+        seen = set()
+        models_to_try = [m for m in candidate_models if not (m in seen or seen.add(m))]
         payload = {
             "contents": [
                 {
@@ -84,16 +90,18 @@ def generate_chat_response(prompt: str, user_query: str, rag_contexts: List[Dict
                 "maxOutputTokens": 800
             }
         }
-        res = requests.post(url, json=payload, timeout=15)
-        if res.status_code == 200:
-            data = res.json()
-            candidates = data.get("candidates", [])
-            if candidates:
-                parts = candidates[0].get("content", {}).get("parts", [])
-                if parts and "text" in parts[0]:
-                    return parts[0]["text"].strip()
-        else:
-            print(f"[WARN] Gemini API trả về mã {res.status_code}: {res.text[:120]}")
+        for model_name in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={settings.GEMINI_API_KEY}"
+            res = requests.post(url, json=payload, timeout=15)
+            if res.status_code == 200:
+                data = res.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts and "text" in parts[0]:
+                        return parts[0]["text"].strip()
+            else:
+                print(f"[WARN] Gemini API ({model_name}) trả về mã {res.status_code}: {res.text[:120]}")
         return _mock_llm_response(user_query, rag_contexts)
     except Exception as e:
         print(f"[WARN] Gọi Gemini LLM lỗi/timeout ({e}), chuyển sang Mock Response.")

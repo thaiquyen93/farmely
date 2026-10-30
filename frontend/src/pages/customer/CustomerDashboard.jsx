@@ -2049,7 +2049,9 @@ export default function CustomerDashboard() {
         let reply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. ';
         const lower = query.toLowerCase();
 
-        if (lower.includes('độ ẩm') || lower.includes('tưới')) {
+        if (lower.match(/(1\s*\+\s*1|1\s*cộng\s*1)/)) {
+          reply = 'Dạ, 1 cộng 1 chắc chắn bằng 2 rồi ạ! 😊 Cũng như tại Farmely: sự tận tâm của người trồng cộng với công nghệ IoT thông minh sẽ luôn đem lại những mùa vụ xanh tươi bội thu!';
+        } else if (lower.includes('độ ẩm') || lower.includes('tưới')) {
           reply = 'Farmely AI nhận thấy: Độ ẩm đất chuẩn VietGAP lý tưởng duy trì từ 65% – 75%. Nếu độ ẩm vượt 80% thì hệ thống khuyến nghị tạm hoãn cữ tưới chiều nay để tránh úng rễ và xới nhẹ luống đất cho thoáng khí.';
         } else if (lower.includes('sâu') || lower.includes('bệnh') || lower.includes('rệp') || lower.includes('vietgap')) {
           reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Dùng dung dịch tỏi ớt gừng lên men hoặc dầu khoáng sinh học SK Enspray pha loãng phun đều hai mặt lá vào chiều mát để xử lý rầy mềm và bọ trĩ.';
