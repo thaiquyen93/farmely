@@ -15,6 +15,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
+import { getStoredAuth } from '../../api/apiClient';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { useLocation } from 'react-router-dom';
 
@@ -166,11 +167,12 @@ export default function FarmelySmartAssistant() {
 
     try {
       // 1. Thử gọi Backend AI Microservice (/api/ai/chat)
+      const authToken = getStoredAuth()?.token;
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(localStorage.getItem('token') ? { Authorization: `Bearer ${localStorage.getItem('token')}` } : {})
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
         },
         body: JSON.stringify({
           userId: user?.id || 1,

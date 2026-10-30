@@ -6,7 +6,7 @@ import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
-import { apiFetch, unwrapData } from '../../api/apiClient';
+import { apiFetch, getStoredAuth, unwrapData } from '../../api/apiClient';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import {
   UserCheck,
@@ -64,7 +64,7 @@ const readPhoto = async (file, onLoad) => {
   try {
     const formData = new FormData();
     formData.append('file', file);
-    const token = localStorage.getItem('token');
+    const token = getStoredAuth()?.token;
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
 

@@ -4,7 +4,7 @@
  */
 
 async function request(method, url, body) {
-  const token = localStorage.getItem('farmely_token');
+  const token = sessionStorage.getItem('farmely_token');
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {})

@@ -73,10 +73,10 @@ const normalizeUser = (user, token) => {
 
 const readAuth = () => {
   try {
-    const auth = JSON.parse(localStorage.getItem('farmely_auth') || 'null');
+    const auth = JSON.parse(sessionStorage.getItem('farmely_auth') || 'null');
     if (auth?.token && auth?.user && !auth.token.startsWith('demo-token-')) return auth;
-    const user = JSON.parse(localStorage.getItem('farmely_user') || 'null');
-    const token = localStorage.getItem('farmely_token') || null;
+    const user = JSON.parse(sessionStorage.getItem('farmely_user') || 'null');
+    const token = sessionStorage.getItem('farmely_token') || null;
     if (user && token && !token.startsWith('demo-token-')) return { token, user: normalizeUser(user, token) };
     return null;
   } catch {
@@ -85,9 +85,16 @@ const readAuth = () => {
 };
 
 const persistAuth = (auth) => {
-  localStorage.setItem('farmely_auth', JSON.stringify(auth));
-  localStorage.setItem('farmely_user', JSON.stringify(auth.user));
-  if (auth.token) localStorage.setItem('farmely_token', auth.token);
+  sessionStorage.setItem('farmely_auth', JSON.stringify(auth));
+  sessionStorage.setItem('farmely_user', JSON.stringify(auth.user));
+  if (auth.token) sessionStorage.setItem('farmely_token', auth.token);
+};
+
+const clearAuth = () => {
+  for (const key of ['farmely_auth', 'farmely_user', 'farmely_token']) {
+    sessionStorage.removeItem(key);
+    localStorage.removeItem(key); // discard shared sessions saved by older app versions
+  }
 };
 
 const initialAuth = readAuth();
@@ -115,10 +122,12 @@ export const useAuthStore = create((set, get) => ({
         return { success: true, user };
       }
       // Fallback cho tài khoản demo kiểm thử nếu mật khẩu DB không khớp
+      clearAuth();
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       return { success: false, message: resData?.message || 'Email hoặc mật khẩu không chính xác.' };
     } catch (error) {
       // Fallback cho tài khoản demo khi Identity Service offline
+      clearAuth();
       set({ user: null, token: null, isAuthenticated: false, isLoading: false });
       return { success: false, message: error.message || 'Không thể kết nối đến máy chủ xác thực.' };
     }
@@ -180,9 +189,7 @@ export const useAuthStore = create((set, get) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('farmely_token');
-    localStorage.removeItem('farmely_user');
-    localStorage.removeItem('farmely_auth');
+    clearAuth();
     set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
 
@@ -190,7 +197,7 @@ export const useAuthStore = create((set, get) => ({
     const current = get().user;
     if (!current) return;
     const updated = { ...current, ...changes };
-    localStorage.setItem('farmely_user', JSON.stringify(updated));
+    sessionStorage.setItem('farmely_user', JSON.stringify(updated));
     const auth = readAuth();
     if (auth) persistAuth({ ...auth, user: updated });
     set({ user: updated, isAuthenticated: true });
