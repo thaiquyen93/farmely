@@ -6,7 +6,7 @@ import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { Plus, Eye, Edit, Trash2, MapPin, Grid3X3, Loader2, Sparkles, CheckCircle2, Clock } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, MapPin, Grid3X3, Loader2, Sparkles, CheckCircle2, Clock, EyeOff } from 'lucide-react';
 
 export default function Lands() {
   const [lands, setLands] = useState([]);
@@ -25,7 +25,7 @@ export default function Lands() {
         const totalPlots = Number(l.totalPlots) || 0;
         const publishedPlots = Number(l.publishedPlots) || 0;
         const configuredPlots = Number(l.configuredPlots) || 0;
-        const isPublished = Boolean(l.isPublished) && publishedPlots > 0;
+        const isPublished = Boolean(l.isPublished);
         return {
           id: l.landId,
           code: `LAND-${l.landId}`,
@@ -39,7 +39,7 @@ export default function Lands() {
           configuredPlots,
           isPublished,
           hasBoundary: Boolean(l.boundary && l.boundary.length >= 3),
-          status: isPublished ? 'ACTIVE' : 'DRAFT'
+          status: isPublished ? 'ACTIVE' : configuredPlots > 0 ? 'PENDING' : 'UNACTIVE'
         };
       })))
       .catch((e) => setLoadError(e.message))
@@ -152,62 +152,62 @@ export default function Lands() {
       )
     },
     {
-      header: 'Trạng Thái & Marketplace',
+      header: 'Trạng Thái',
       key: 'status',
       sortable: true,
-      render: (row) => (
-        <div className="space-y-1.5">
-          {row.isPublished ? (
-            <>
-              <Badge variant="ACTIVE" size="sm">ACTIVE · Đang hiện trên sàn</Badge>
-              <div>
-                <button
-                  type="button"
-                  disabled={togglingId === row.id}
-                  onClick={() => handleToggleLandPublish(row)}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-700 border border-stone-300 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition cursor-pointer"
-                >
-                  <span>Tạm ẩn khỏi Marketplace</span>
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <Badge variant="DRAFT" size="sm">
-                {row.configuredPlots > 0 ? 'CHỜ ADMIN DUYỆT' : 'CHƯA KÍCH HOẠT'}
-              </Badge>
-              <div>
-                <button
-                  type="button"
-                  disabled={togglingId === row.id}
-                  onClick={() => handleToggleLandPublish(row)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black shadow-xs transition cursor-pointer ${
-                    row.configuredPlots > 0
-                      ? 'bg-[#294C3B] hover:bg-[#1f3a2d] text-white'
-                      : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
-                  }`}
-                  title={
-                    row.configuredPlots > 0
-                      ? 'Expert đã gán giống & quy trình. Bấm để chuyển trạng thái hiện lên Marketplace'
-                      : 'Cần Expert gán giống cây & quy trình trước khi hiện lên Marketplace'
-                  }
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>
-                    {row.configuredPlots > 0 ? 'KÍCH HOẠT LÊN MARKETPLACE' : 'CHUYỂN TRẠNG THÁI (CẦN EXPERT)'}
-                  </span>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )
+      render: (row) => {
+        if (row.isPublished) {
+          return (
+            <Badge variant="ACTIVE" size="sm" className="font-bold">
+              ACTIVE
+            </Badge>
+          );
+        }
+        if (row.configuredPlots > 0) {
+          return (
+            <Badge variant="REVIEW_REQUIRED" size="sm" className="font-bold">
+              PENDING
+            </Badge>
+          );
+        }
+        return (
+          <Badge variant="ARCHIVED" size="sm" className="font-bold text-stone-600">
+            UNACTIVE
+          </Badge>
+        );
+      }
     },
     {
       header: 'Hành Động',
       key: 'actions',
       render: (row) => (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
+          {/* Nút bấm chuyển trạng thái Active / Unactive */}
+          <button
+            type="button"
+            disabled={togglingId === row.id}
+            onClick={() => handleToggleLandPublish(row)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer ${
+              row.isPublished
+                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+            }`}
+            title={
+              row.isPublished
+                ? 'Bấm để chuyển sang Unactive (Tạm ẩn khỏi Marketplace)'
+                : 'Bấm để chuyển sang Active (Kích hoạt hiển thị lên Marketplace)'
+            }
+          >
+            {togglingId === row.id ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : row.isPublished ? (
+              <EyeOff className="w-3.5 h-3.5" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            <span>{row.isPublished ? 'Chuyển Unactive' : 'Chuyển Active'}</span>
+          </button>
+
           <Link
             to={`/admin/master-data/lands/${row.id}`}
             className="p-1.5 text-stone-500 hover:text-brand-green hover:bg-stone-100 rounded-lg transition-colors"

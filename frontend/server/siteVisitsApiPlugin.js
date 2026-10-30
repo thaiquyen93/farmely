@@ -2562,42 +2562,15 @@ SELECT row_to_json(l) FROM (
               const isPublished = payload.isPublished === true;
 
               if (isPublished) {
-                const checkSql = `
-                  SELECT 
-                    (SELECT COUNT(*)::int FROM plots WHERE land_id = ${landId}) AS total_plots,
-                    (SELECT COUNT(DISTINCT pvc.plot_id)::int FROM plots p JOIN plot_variety_compatibility pvc ON p.plot_id = pvc.plot_id WHERE p.land_id = ${landId}) AS configured_plots;
-                `;
-                const checkOut = await runPostgreSql(checkSql);
-                const [totalPlots, configuredPlots] = String(checkOut || '0|0').trim().split('\n')[0].split('|').map(n => parseInt(n, 10) || 0);
-
-                if (totalPlots === 0) {
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                  res.end(JSON.stringify({
-                    success: false,
-                    message: 'Nông trại chưa có thửa đất nào! Vui lòng tạo thửa đất và chờ Chuyên gia (Expert) thiết lập giống cây & quy trình trước khi kích hoạt lên Marketplace.'
-                  }));
-                  return;
-                }
-
-                if (configuredPlots === 0) {
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                  res.end(JSON.stringify({
-                    success: false,
-                    message: 'Chưa thể kích hoạt lên Marketplace: Chuyên gia nông nghiệp (Expert) chưa gán giống cây tương thích (BR03) và quy trình canh tác (BR12) cho các thửa đất thuộc nông trại này!'
-                  }));
-                  return;
-                }
-
+                // Admin có toàn quyền tự chuyển trạng thái kích hoạt (Active) lên Marketplace.
+                // Nếu thửa đất có giống cây do Admin hoặc Expert thiết lập, tự động chuyển status sang AVAIL.
                 await runPostgreSql(`
                   UPDATE lands SET is_published = true, updated_at = NOW() WHERE land_id = ${landId};
                   UPDATE plots
                   SET is_published = true,
                       status = CASE WHEN status = 'MAINT' THEN 'AVAIL'::plot_status_enum ELSE status END,
                       updated_at = NOW()
-                  WHERE land_id = ${landId}
-                    AND EXISTS (SELECT 1 FROM plot_variety_compatibility pvc WHERE pvc.plot_id = plots.plot_id);
+                  WHERE land_id = ${landId};
                 `);
               } else {
                 await runPostgreSql(`
@@ -2615,8 +2588,8 @@ SELECT row_to_json(l) FROM (
               res.end(JSON.stringify({
                 success: true,
                 message: isPublished
-                  ? `Đã kích hoạt nông trại #${landId} và xuất bản các thửa đất đã cấu hình lên Marketplace!`
-                  : `Đã tạm ngưng niêm yết nông trại #${landId} khỏi Marketplace.`,
+                  ? `Đã chuyển trạng thái nông trại #${landId} sang ACTIVE (hiển thị lên Marketplace)!`
+                  : `Đã chuyển trạng thái nông trại #${landId} sang UNACTIVE (tạm ẩn khỏi Marketplace).`,
                 data: { landId, isPublished }
               }));
             } catch (err) {
@@ -3348,18 +3321,6 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
               const isPublished = payload.isPublished === true;
 
               if (isPublished) {
-                const compatCountOut = await runPostgreSql(`SELECT COUNT(*)::int FROM plot_variety_compatibility WHERE plot_id = ${plotId};`);
-                const compatCount = parseInt(String(compatCountOut || '0').trim().split('\n')[0], 10) || 0;
-                if (compatCount === 0) {
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                  res.end(JSON.stringify({
-                    success: false,
-                    message: 'Chưa thể xuất bản lên Marketplace: Chuyên gia nông nghiệp (Expert) chưa gán giống cây tương thích (BR03) và quy trình canh tác (BR12) cho thửa đất này!'
-                  }));
-                  return;
-                }
-
                 await runPostgreSql(`
                   UPDATE plots
                   SET is_published = true,

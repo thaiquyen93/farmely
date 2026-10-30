@@ -6,7 +6,7 @@ import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2, Clock } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2, Clock, EyeOff } from 'lucide-react';
 
 export default function Plots() {
   const [plots, setPlots] = useState([]);
@@ -90,47 +90,17 @@ export default function Plots() {
       render: (row) => (
         <div className="flex items-center gap-3">
           {row.imageUrl ? (
-            <img src={row.imageUrl} alt="" className="w-12 h-12 rounded-xl object-cover border border-brand-border" />
+            <img src={row.imageUrl} alt="" className="w-10 h-10 rounded-xl object-cover border border-brand-border" />
           ) : (
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-brand-border bg-brand-cream text-brand-green"><Map className="h-5 w-5" /></span>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-border bg-brand-cream text-brand-green"><Map className="h-5 w-5" /></span>
           )}
           <div>
             <span className="text-[11px] font-black font-mono text-brand-yellow bg-brand-dark px-1.5 py-0.5 rounded">
               {row.code}
             </span>
-            <div className="mt-1">
-              {row.isPublished ? (
-                <button
-                  type="button"
-                  disabled={togglingId === row.id}
-                  onClick={() => handleTogglePublish(row)}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition cursor-pointer"
-                  title="Thửa đất đang hiển thị công khai trên Marketplace. Bấm để gỡ niêm yết"
-                >
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>Đang hiện trên sàn (Gỡ)</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={togglingId === row.id}
-                  onClick={() => handleTogglePublish(row)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black shadow-xs transition cursor-pointer ${
-                    row.compatibleVarietiesCount > 0
-                      ? 'bg-[#294C3B] hover:bg-[#1f3a2d] text-white'
-                      : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
-                  }`}
-                  title={
-                    row.compatibleVarietiesCount > 0
-                      ? 'Expert đã gán giống & quy trình. Bấm để duyệt và xuất bản thửa đất này lên Marketplace'
-                      : 'Chờ Expert gán giống cây tương thích & quy trình canh tác trước khi Publish'
-                  }
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>{row.compatibleVarietiesCount > 0 ? 'BẤM ĐỂ PUBLISH LÊN SÀN' : 'CHỜ EXPERT CẤU HÌNH'}</span>
-                </button>
-              )}
-            </div>
+            <span className="text-[11px] text-stone-500 block mt-0.5">
+              {row.soilType || 'Đất phù sa'}
+            </span>
           </div>
         </div>
       )
@@ -191,13 +161,59 @@ export default function Plots() {
       header: 'Trạng Thái',
       key: 'status',
       sortable: true,
-      render: (row) => <Badge variant={row.status} size="sm">{row.status}</Badge>
+      render: (row) => {
+        if (row.isPublished) {
+          return (
+            <Badge variant="ACTIVE" size="sm" className="font-bold">
+              ACTIVE
+            </Badge>
+          );
+        }
+        if (row.compatibleVarietiesCount > 0) {
+          return (
+            <Badge variant="REVIEW_REQUIRED" size="sm" className="font-bold">
+              PENDING
+            </Badge>
+          );
+        }
+        return (
+          <Badge variant="ARCHIVED" size="sm" className="font-bold text-stone-600">
+            UNACTIVE
+          </Badge>
+        );
+      }
     },
     {
-      header: 'Thao Tác',
+      header: 'Hành Động',
       key: 'actions',
       render: (row) => (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
+          {/* Nút bấm chuyển trạng thái Active / Unactive */}
+          <button
+            type="button"
+            disabled={togglingId === row.id}
+            onClick={() => handleTogglePublish(row)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer ${
+              row.isPublished
+                ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+            }`}
+            title={
+              row.isPublished
+                ? 'Bấm để chuyển sang Unactive (Tạm ẩn khỏi Marketplace)'
+                : 'Bấm để chuyển sang Active (Kích hoạt hiển thị lên Marketplace)'
+            }
+          >
+            {togglingId === row.id ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : row.isPublished ? (
+              <EyeOff className="w-3.5 h-3.5" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            <span>{row.isPublished ? 'Chuyển Unactive' : 'Chuyển Active'}</span>
+          </button>
+
           <Link
             to={`/admin/master-data/plots/create?editId=${row.id}`}
             className="p-1.5 text-stone-500 hover:text-amber-600 hover:bg-stone-100 rounded-lg transition-colors"

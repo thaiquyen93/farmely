@@ -509,3 +509,4 @@ fs.writeFileSync(path.join(outDir, '09_Timeline_Rental_Operations.drawio'), draw
 console.log('Successfully generated:');
 console.log(' - 08_Timeline_Plot_Preparation.svg & .drawio');
 console.log(' - 09_Timeline_Rental_Operations.svg & .drawio');
+

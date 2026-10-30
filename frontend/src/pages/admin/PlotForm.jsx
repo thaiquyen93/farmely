@@ -132,9 +132,6 @@ export default function PlotForm() {
     if (!hasRing && !(Number(manualArea) > 0)) errs.area = 'Vẽ ranh giới trên bản đồ hoặc nhập diện tích.';
     if (!(Number(price) >= 0) || price === '') errs.price = 'Nhập giá thuê hợp lệ.';
     if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
-    if (isPublished && selectedVarietyIds.length === 0) {
-      errs.varieties = 'Chưa thể xuất bản lên Marketplace: Cần Chuyên gia (Expert) gán ít nhất 1 giống cây tương thích & quy trình canh tác (BR03/BR12) trước!';
-    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
