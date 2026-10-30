@@ -905,6 +905,14 @@ INSERT INTO rentals (rental_id, contract_id, service_id, plot_id, variety_id, cu
 (3, 3, NULL, 3, 5, 'SELF', 3, CURRENT_DATE - INTERVAL '10 days', CURRENT_DATE + INTERVAL '45 days', 1400000.00, 'ACTIVE')
 ON CONFLICT (rental_id) DO NOTHING;
 
+-- Stable three-role demo on the existing P-01 rental:
+-- customer@farmely.vn (1), expert@farmely.vn (5), worker@farmely.vn (8).
+-- Keep an admin reassignment if this seed is run against an existing database.
+UPDATE rentals
+SET expert_id = 5, staff_id = 8, updated_at = NOW()
+WHERE rental_id = 1 AND contract_id = 1 AND plot_id = 1
+  AND status = 'ACTIVE' AND expert_id IS NULL AND staff_id IS NULL;
+
 -- 10. PAYMENT TRANSACTIONS
 INSERT INTO payment_transactions (transaction_id, contract_id, service_request_id, type, amount, payment_method, gateway_ref, status, created_at) VALUES
 (1, 1, NULL, 'PAYMENT', 3000000.00, 'VIETQR', 'VQR-MBB-20261001-09823', 'SUCCESS', NOW() - INTERVAL '30 days'),

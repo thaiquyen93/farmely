@@ -112,6 +112,8 @@ export default function CustomerDashboard() {
 
   const {
     currentThread: customerChatThread,
+    threads: customerChatThreads,
+    setSelectedThreadId: setCustomerChatThreadId,
     sendMessage: sendCustomerMessage
   } = useRealtimeChat({
     role: 'customer',
@@ -3895,6 +3897,8 @@ export default function CustomerDashboard() {
               onOpen={() => { setChatOpenMode('expert'); setShowExpertChatModal(true); }}
               onClose={() => setShowExpertChatModal(false)}
               thread={customerChatThread}
+              threads={customerChatThreads.filter((thread) => thread.role === 'customer')}
+              onSelectThread={setCustomerChatThreadId}
               senderName={activeCustomerSenderName}
               input={customerChatInput}
               setInput={setCustomerChatInput}

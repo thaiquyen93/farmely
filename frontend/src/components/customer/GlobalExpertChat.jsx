@@ -19,7 +19,7 @@ export default function GlobalExpertChat() {
     () => `${isStaff ? 'WORK' : 'CONS'}-${user?.id || user?.email || (isStaff ? 'STAFF' : 'CUSTOMER')}`,
     [isStaff, user?.id, user?.email]
   );
-  const { currentThread, sendMessage } = useRealtimeChat({
+  const { currentThread, threads, setSelectedThreadId, sendMessage } = useRealtimeChat({
     role: chatRole,
     initialThreadId: threadId,
     senderName: user?.fullName || user?.name || fallbackName
@@ -59,6 +59,8 @@ export default function GlobalExpertChat() {
         onOpen={() => setActiveChat('expert')}
         onClose={() => setActiveChat(null)}
         thread={currentThread}
+        threads={threads.filter((thread) => thread.role === chatRole)}
+        onSelectThread={setSelectedThreadId}
         senderName={user.fullName || user.name || fallbackName}
         ownSenderRole={chatRole}
         bottomOffset={isStaff ? 92 : 24}

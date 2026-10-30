@@ -8,6 +8,8 @@ export default function FloatingExpertChat({
   onOpen,
   onClose,
   thread,
+  threads = [],
+  onSelectThread,
   senderName,
   ownSenderRole = 'customer',
   bottomOffset = 24,
@@ -113,6 +115,23 @@ export default function FloatingExpertChat({
         </div>
         <button type="button" onClick={onClose} onPointerDown={(event) => event.stopPropagation()} className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-white/10" aria-label="Thu nhỏ chat"><Minus className="h-5 w-5" /></button>
       </header>
+
+      {!isAi && threads.length > 1 && onSelectThread && (
+        <div className="border-b border-brand-border bg-white px-3 py-2">
+          <select
+            aria-label="Chọn thửa để chat với chuyên gia"
+            value={thread?.id || ''}
+            onChange={(event) => onSelectThread(event.target.value)}
+            className="w-full rounded-lg border border-brand-border bg-stone-50 px-2 py-1.5 text-xs text-brand-dark"
+          >
+            {threads.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.plotCode || 'Chưa có thửa'} · {item.expertName || 'Chuyên gia'}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-brand-cream/25 p-4">
         {!visibleMessages.length ? (
