@@ -6,7 +6,7 @@ import pg from 'pg';
 const { Pool } = pg;
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
 import { handleHarvestRequests } from './harvestRequestsApi.js';
-import { handleAssignedChat, handleAssignedNotifications } from './assignedChatApi.js';
+import { actorFromToken, handleAssignedChat, handleAssignedNotifications } from './assignedChatApi.js';
 
 let rentalLeaseColumnsEnsured = false;
 async function ensureRentalLeaseColumns() {
@@ -4458,6 +4458,13 @@ SELECT json_build_object(
         // 17B. ASSIGN PERSONNEL (STAFF & EXPERT) TO RENTAL
         if ((req.method === 'PUT' || req.method === 'PATCH' || req.method === 'POST') && url.match(/^\/api\/(?:v1\/)?rentals\/(\d+)\/(?:assign|assign-expert|assign-staff)/)) {
           const rentalId = url.match(/^\/api\/(?:v1\/)?rentals\/(\d+)\//)[1];
+          const actor = await actorFromToken(req).catch(() => null);
+          if (actor?.role !== 'ADMIN' || actor?.status !== 'ACTIVE') {
+            res.statusCode = 403;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: 'Chỉ quản trị viên được phân công nhân sự.' }));
+            return;
+          }
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
@@ -4466,6 +4473,16 @@ SELECT json_build_object(
               const expertId = parseInt(payload.expertId || payload.expert_id, 10);
               const staffId = parseInt(payload.staffId || payload.staff_id, 10);
               const setClauses = [];
+              if (expertId) {
+                const expert = await getPgPool().query(`SELECT 1 FROM users u JOIN roles r ON r.role_id = u.role_id
+                  WHERE u.user_id = $1 AND r.role_name = 'EXPERT' AND u.status = 'ACTIVE'`, [expertId]);
+                if (!expert.rows.length) throw new Error('Chuyên gia được chọn không hợp lệ.');
+              }
+              if (staffId) {
+                const staff = await getPgPool().query(`SELECT 1 FROM users u JOIN roles r ON r.role_id = u.role_id
+                  WHERE u.user_id = $1 AND r.role_name IN ('STAFF', 'FIELD_WORKER') AND u.status = 'ACTIVE'`, [staffId]);
+                if (!staff.rows.length) throw new Error('Nhân viên được chọn không hợp lệ.');
+              }
               if (expertId) setClauses.push(`expert_id = ${expertId}`);
               if (staffId) setClauses.push(`staff_id = ${staffId}`);
               if (setClauses.length === 0) throw new Error('Cần cung cấp expertId hoặc staffId để phân công');
