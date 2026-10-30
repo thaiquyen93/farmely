@@ -4476,16 +4476,16 @@ SELECT json_build_object(
               if (expertId) {
                 const expert = await getPgPool().query(`SELECT 1 FROM users u JOIN roles r ON r.role_id = u.role_id
                   WHERE u.user_id = $1 AND r.role_name = 'EXPERT' AND u.status = 'ACTIVE'`, [expertId]);
-                if (!expert.rows.length) throw new Error('Chuyên gia được chọn không hợp lệ.');
+                if (!expert.rows.length) throw Object.assign(new Error('Chuyên gia được chọn không hợp lệ.'), { status: 400 });
               }
               if (staffId) {
                 const staff = await getPgPool().query(`SELECT 1 FROM users u JOIN roles r ON r.role_id = u.role_id
                   WHERE u.user_id = $1 AND r.role_name IN ('STAFF', 'FIELD_WORKER') AND u.status = 'ACTIVE'`, [staffId]);
-                if (!staff.rows.length) throw new Error('Nhân viên được chọn không hợp lệ.');
+                if (!staff.rows.length) throw Object.assign(new Error('Nhân viên được chọn không hợp lệ.'), { status: 400 });
               }
               if (expertId) setClauses.push(`expert_id = ${expertId}`);
               if (staffId) setClauses.push(`staff_id = ${staffId}`);
-              if (setClauses.length === 0) throw new Error('Cần cung cấp expertId hoặc staffId để phân công');
+              if (setClauses.length === 0) throw Object.assign(new Error('Cần cung cấp expertId hoặc staffId để phân công'), { status: 400 });
               setClauses.push('updated_at = NOW()');
 
               const sql = `
@@ -4495,24 +4495,10 @@ WHERE rental_id = ${rentalId}
 RETURNING rental_id, expert_id, staff_id;
 `;
               await runPostgreSql(sql);
-              if (expertId) {
-                try {
-                  await runPostgreSql(`
-INSERT INTO conversations (participant_one, participant_two, rental_id, created_at)
-VALUES (
-  COALESCE((SELECT c.renter_id FROM contracts c JOIN rentals r ON r.contract_id = c.contract_id WHERE r.rental_id = ${rentalId}), 1),
-  ${expertId},
-  ${rentalId},
-  NOW()
-)
-ON CONFLICT DO NOTHING;
-`);
-                } catch (_) {}
-              }
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: true, message: `Đã cập nhật phân công nhân sự (Staff & Expert) cho thửa đất #${rentalId}` }));
             } catch (err) {
-              res.statusCode = 500;
+              res.statusCode = err.status || 500;
               res.end(JSON.stringify({ success: false, error: String(err) }));
             }
           });
