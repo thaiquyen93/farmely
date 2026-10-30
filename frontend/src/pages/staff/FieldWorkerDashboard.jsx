@@ -1202,7 +1202,7 @@ export default function FieldWorkerDashboard() {
           <div>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />Ca trực hiện trường</div>
             <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">
-              {activeTab === 'tasks' ? 'Việc hôm nay' : activeTab === 'services' ? 'Yêu cầu dịch vụ' : activeTab === 'harvest' ? 'Thu hoạch' : 'Lịch sử báo cáo'}
+              {activeTab === 'tasks' ? 'Việc hôm nay' : activeTab === 'services' ? 'Yêu cầu dịch vụ' : activeTab === 'harvest' ? 'Thu hoạch' : activeTab === 'chat' ? 'Chat chuyên gia' : 'Lịch sử báo cáo'}
             </h1>
             <p className="mt-1 text-xs text-brand-muted">
               {activeTab === 'tasks'
@@ -1211,6 +1211,8 @@ export default function FieldWorkerDashboard() {
                   ? `${serviceRequests.length} yêu cầu dịch vụ do khách hàng đặt mua theo yêu cầu`
                   : activeTab === 'harvest'
                     ? 'Chụp ảnh, nhập số cân và xác nhận kết quả thu hoạch tại thửa.'
+                    : activeTab === 'chat'
+                      ? 'Trao đổi với chuyên gia cùng phụ trách từng thửa đất.'
                     : 'Theo dõi các sự cố đã gửi và tiến độ xử lý từ chuyên gia.'}
             </p>
           </div>

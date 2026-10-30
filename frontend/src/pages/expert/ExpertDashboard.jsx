@@ -391,10 +391,12 @@ export default function ExpertDashboard() {
     apiFetch('/api/rentals')
       .then((res) => {
         const list = unwrapData(res) || [];
-        if (Array.isArray(list) && list.length > 0) {
-          setAssignedPlots(list.map((p) => ({
+        if (Array.isArray(list)) {
+          setAssignedPlots(list.filter((p) =>
+            p.status === 'ACTIVE' && Number(p.expertId) === Number(user?.userId)
+          ).map((p) => ({
             ...p,
-            crop: p.varietyName || p.crop || DEFAULT_PLOT_CROPS[p.plotCode] || 'Rau củ chuẩn VietGAP'
+            crop: p.varietyName || p.crop || 'Chưa rõ giống cây'
           })));
         }
       })
@@ -1482,7 +1484,7 @@ export default function ExpertDashboard() {
                   Thửa Đất Giám Sát
                 </span>
                 <div className="text-2xl font-heading font-black text-brand-dark">
-                  {assignedPlots.length > 0 ? assignedPlots.length : 16} Thửa
+                  {assignedPlots.length} Thửa
                 </div>
                 <span className="text-[10px] text-emerald-700 font-bold block">100% chuẩn VietGAP</span>
               </div>
