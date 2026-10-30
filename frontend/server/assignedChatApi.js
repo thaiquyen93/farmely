@@ -13,7 +13,7 @@ const readBody = (req) => new Promise((resolve, reject) => {
   req.on('error', reject);
 });
 
-const actorFromToken = async (req) => {
+export const actorFromToken = async (req) => {
   const authorization = req.headers.authorization || '';
   if (!/^Bearer\s+\S+$/i.test(authorization)) return null;
   const response = await fetch(`${process.env.IDENTITY_SERVICE_URL || 'http://localhost:8081'}/api/auth/me`, {
@@ -150,6 +150,48 @@ export async function handleAssignedChat(req, res, pool) {
       }
     }
     send(res, 405, { success: false, message: 'Thao tác chat không được hỗ trợ.' });
+    return true;
+  } catch (error) {
+    send(res, 500, { success: false, message: error.message });
+    return true;
+  }
+}
+
+export async function handleAssignedNotifications(req, res, pool) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (!url.pathname.startsWith('/api/v1/notifications')) return false;
+  try {
+    const actor = await actorFromToken(req);
+    if (!actor || actor.status !== 'ACTIVE') {
+      send(res, 401, { success: false, message: 'Vui lòng đăng nhập lại.' });
+      return true;
+    }
+    const actorId = Number(actor.userId);
+    if (req.method === 'GET' && url.pathname === '/api/v1/notifications') {
+      if (Number(url.searchParams.get('userId')) !== actorId) {
+        send(res, 403, { success: false, message: 'Không thể xem thông báo của người khác.' });
+        return true;
+      }
+      const { rows } = await pool.query(`
+        SELECT notification_id AS "notificationId", title, content,
+               is_read AS "isRead", created_at AS "createdAt"
+        FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50
+      `, [actorId]);
+      send(res, 200, { success: true, data: rows });
+      return true;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/v1/notifications/unread-count') {
+      const { rows } = await pool.query('SELECT COUNT(*)::int AS count FROM notifications WHERE user_id = $1 AND is_read = FALSE', [actorId]);
+      send(res, 200, { success: true, data: rows[0].count });
+      return true;
+    }
+    const read = /^\/api\/v1\/notifications\/(\d+)\/read$/.exec(url.pathname);
+    if (req.method === 'PATCH' && read) {
+      const result = await pool.query('UPDATE notifications SET is_read = TRUE WHERE notification_id = $1 AND user_id = $2', [Number(read[1]), actorId]);
+      send(res, result.rowCount ? 200 : 404, { success: Boolean(result.rowCount) });
+      return true;
+    }
+    send(res, 405, { success: false, message: 'Thao tác không được hỗ trợ.' });
     return true;
   } catch (error) {
     send(res, 500, { success: false, message: error.message });

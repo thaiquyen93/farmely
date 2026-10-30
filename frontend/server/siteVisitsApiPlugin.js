@@ -6,7 +6,7 @@ import pg from 'pg';
 const { Pool } = pg;
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
 import { handleHarvestRequests } from './harvestRequestsApi.js';
-import { handleAssignedChat } from './assignedChatApi.js';
+import { handleAssignedChat, handleAssignedNotifications } from './assignedChatApi.js';
 
 let rentalLeaseColumnsEnsured = false;
 async function ensureRentalLeaseColumns() {
@@ -411,6 +411,10 @@ JOIN plots p ON ins.plot_id = p.plot_id;
 
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
+        if (url.startsWith('/api/v1/notifications')) {
+          await handleAssignedNotifications(req, res, getPgPool());
+          return;
+        }
         if (url.startsWith('/api/conversations') || url.startsWith('/api/v1/conversations')) {
           await handleAssignedChat(req, res, getPgPool());
           return;

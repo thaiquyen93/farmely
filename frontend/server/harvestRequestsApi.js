@@ -1,3 +1,5 @@
+import { actorFromToken } from './assignedChatApi.js';
+
 const readBody = (req) => new Promise((resolve, reject) => {
   let body = '';
   req.on('data', (chunk) => { body += chunk; });
@@ -37,6 +39,12 @@ export async function handleHarvestRequests(req, res, pool) {
   const url = new URL(req.url || '/', 'http://localhost');
   if (!url.pathname.startsWith('/api/harvest-requests')) return false;
   try {
+    const actor = await actorFromToken(req);
+    if (!actor || actor.status !== 'ACTIVE') {
+      json(res, 401, { success: false, message: 'Vui lòng đăng nhập lại.' });
+      return true;
+    }
+    const authenticatedId = Number(actor.userId);
     if (req.method === 'GET' && url.pathname === '/api/harvest-requests') {
       const customerId = Number(url.searchParams.get('customerId'));
       const staffId = Number(url.searchParams.get('staffId'));
@@ -47,6 +55,10 @@ export async function handleHarvestRequests(req, res, pool) {
       else if (staffId > 0) { where = 'WHERE h.staff_id = $1'; params = [staffId]; }
       else if (expertId > 0) { where = 'WHERE r.expert_id = $1'; params = [expertId]; }
       else return json(res, 400, { success: false, message: 'Thiếu người dùng.' }), true;
+      if (params[0] !== authenticatedId) {
+        json(res, 403, { success: false, message: 'Không thể xem yêu cầu của người khác.' });
+        return true;
+      }
       const { rows } = await pool.query(`${requestRowsSql} ${where} ORDER BY h.created_at DESC`, params);
       json(res, 200, { success: true, data: rows });
       return true;
@@ -58,7 +70,7 @@ export async function handleHarvestRequests(req, res, pool) {
       const customerId = Number(payload.customerId);
       const date = String(payload.date || payload.requestedDate || '');
       const method = String(payload.method || '');
-      if (!Number.isInteger(rentalId) || !Number.isInteger(customerId) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !method) {
+      if (!Number.isInteger(rentalId) || customerId !== authenticatedId || actor.role !== 'CUSTOMER' || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !method) {
         json(res, 400, { success: false, message: 'Thông tin yêu cầu thu hoạch chưa hợp lệ.' });
         return true;
       }
@@ -100,6 +112,10 @@ export async function handleHarvestRequests(req, res, pool) {
       const kind = action[2];
       const payload = await readBody(req);
       const actorId = Number(payload.actorId || payload.staffId || payload.expertId || payload.customerId);
+      if (actorId !== authenticatedId) {
+        json(res, 403, { success: false, message: 'Người thực hiện không hợp lệ.' });
+        return true;
+      }
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
