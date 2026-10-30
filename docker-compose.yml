@@ -7,7 +7,7 @@ services:
     container_name: farmely-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-@Bin054206}
+      POSTGRES_PASSWORD: ${FARMELY_DB_PASSWORD:-password}
       POSTGRES_DB: ${DB_NAME:-farmely}
     ports:
       - "5432:5432"
@@ -257,6 +257,14 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: farmely-frontend
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=farmely
+      - DB_USER=postgres
+      - DB_PASSWORD=${FARMELY_DB_PASSWORD:-password}
+      - IDENTITY_SERVICE_URL=http://identity-service:8081
+      - DOCKER_ENV=true
     ports:
       - "3000:3000"
     depends_on:

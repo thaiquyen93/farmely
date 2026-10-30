@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react'
 import path from 'path'
 import { siteVisitsApiPlugin } from './server/siteVisitsApiPlugin.js'
 
+const serviceTarget = (service, port) => process.env.DOCKER_ENV === 'true'
+  ? `http://${service}:${port}`
+  : `http://localhost:${port}`
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), siteVisitsApiPlugin()],
@@ -31,30 +35,30 @@ export default defineConfig({
     },
     proxy: {
       '/api/sensors': {
-        target: 'http://localhost:8088',
+        target: serviceTarget('monitoring-service', 8088),
         changeOrigin: true,
       },
-      '/api/services': { target: 'http://localhost:8086', changeOrigin: true },
-      '/api/tasks': { target: 'http://localhost:8086', changeOrigin: true },
-      '/api/issues': { target: 'http://localhost:8086', changeOrigin: true },
-      '/api/harvest': { target: 'http://localhost:8086', changeOrigin: true },
-      '/api/plots': { target: 'http://localhost:8082', changeOrigin: true },
-      '/api/lands': { target: 'http://localhost:8082', changeOrigin: true },
-      '/api/crops': { target: 'http://localhost:8083', changeOrigin: true },
-      '/api/varieties': { target: 'http://localhost:8083', changeOrigin: true },
-      '/api/templates': { target: 'http://localhost:8083', changeOrigin: true },
-      '/api/knowledge-documents': { target: 'http://localhost:8083', changeOrigin: true },
-      '/api/contracts': { target: 'http://localhost:8084', changeOrigin: true },
-      '/api/reservations': { target: 'http://localhost:8084', changeOrigin: true },
-      '/api/cancellations': { target: 'http://localhost:8084', changeOrigin: true },
-      '/api/rentals': { target: 'http://localhost:8084', changeOrigin: true },
-      '/api/users': { target: 'http://localhost:8081', changeOrigin: true },
+      '/api/services': { target: serviceTarget('cultivation-service', 8086), changeOrigin: true },
+      '/api/tasks': { target: serviceTarget('cultivation-service', 8086), changeOrigin: true },
+      '/api/issues': { target: serviceTarget('cultivation-service', 8086), changeOrigin: true },
+      '/api/harvest': { target: serviceTarget('cultivation-service', 8086), changeOrigin: true },
+      '/api/plots': { target: serviceTarget('farm-service', 8082), changeOrigin: true },
+      '/api/lands': { target: serviceTarget('farm-service', 8082), changeOrigin: true },
+      '/api/crops': { target: serviceTarget('knowledge-service', 8083), changeOrigin: true },
+      '/api/varieties': { target: serviceTarget('knowledge-service', 8083), changeOrigin: true },
+      '/api/templates': { target: serviceTarget('knowledge-service', 8083), changeOrigin: true },
+      '/api/knowledge-documents': { target: serviceTarget('knowledge-service', 8083), changeOrigin: true },
+      '/api/contracts': { target: serviceTarget('rental-service', 8084), changeOrigin: true },
+      '/api/reservations': { target: serviceTarget('rental-service', 8084), changeOrigin: true },
+      '/api/cancellations': { target: serviceTarget('rental-service', 8084), changeOrigin: true },
+      '/api/rentals': { target: serviceTarget('rental-service', 8084), changeOrigin: true },
+      '/api/users': { target: serviceTarget('identity-service', 8081), changeOrigin: true },
       '/api/v1/payments': {
-        target: 'http://localhost:8085',
+        target: serviceTarget('payment-service', 8085),
         changeOrigin: true,
       },
       '/api': {
-        target: 'http://localhost:8080',
+        target: serviceTarget('api-gateway', 8080),
         changeOrigin: true,
       },
     },
