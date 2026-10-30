@@ -14,31 +14,31 @@ export const DEMO_ACCOUNTS = [
   },
   {
     id: "USR-002",
-    userId: 2,
+    userId: 5,
     fullName: "ThS. Nguyễn Hoàng Nam",
     email: "expert@farmely.vn",
     role: "EXPERT",
-    phone: "0912345678",
+    phone: "0903888999",
     roleTitle: "Chuyên gia nông nghiệp (CGNN)",
     avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80"
   },
   {
     id: "USR-003",
-    userId: 3,
+    userId: 8,
     fullName: "Trần Văn Lực",
     email: "worker@farmely.vn",
     role: "STAFF",
-    phone: "0923456789",
+    phone: "0933111222",
     roleTitle: "Nhân viên lao động (STAFF)",
     avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80"
   },
   {
     id: "USR-004",
-    userId: 4,
+    userId: 11,
     fullName: "Ban Quản Trị Farmely",
     email: "admin@farmely.vn",
     role: "ADMIN",
-    phone: "0934567890",
+    phone: "0909000111",
     roleTitle: "Quản trị viên hệ thống (Admin)",
     avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80"
   }

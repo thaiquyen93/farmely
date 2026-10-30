@@ -9,6 +9,7 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import SiteVisitForm from '../../components/public/SiteVisitForm';
 import { useAuthStore } from '../../stores/authStore';
+import { loadCartCodes, normalizePlotCode, dedupeCodes } from '../../utils/leaseSelection';
 import {
   MapPin,
   Maximize2,
@@ -97,7 +98,10 @@ export default function PlotDetail() {
     if (!isAuthenticated) {
       setShowSignInModal(true);
     } else if (plot) {
-      navigate(`/marketplace/plot/${plot.code || plot.id}/book`);
+      const code = normalizePlotCode(plot.code || plot.id);
+      const cart = loadCartCodes();
+      const codes = cart && cart.length > 0 ? dedupeCodes([...cart, code]) : [code];
+      navigate(`/marketplace/plot/${encodeURIComponent(code)}/book?plots=${codes.map(encodeURIComponent).join(',')}`);
     }
   };
   const handleStartBooking = handleBookPlotClick;

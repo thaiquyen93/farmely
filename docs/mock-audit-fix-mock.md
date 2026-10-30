@@ -16,9 +16,9 @@ Checked React source, the Vite API plugin, the running PostgreSQL data, and the 
 
 These are outside the expert operations and admin revenue changes above. They should not be presented as database backed:
 
-- Chat across customer, expert, and staff: `frontend/src/api/communication/chatStorage.js` seeds ten sample conversations in localStorage; `chatService.js` writes locally first and sends a best effort backend request with hardcoded sender IDs. The expert inbox still displays those sample threads.
+- Chat now loads assigned active rentals from PostgreSQL and stores messages there. The expert dashboard still contains static reference text and sample issue descriptions outside the chat flow.
 - Customer IoT charts and alerts: `frontend/src/pages/customer/CustomerDashboard.jsx` retains fixed chart datasets and fixed alert values as fallbacks.
-- Harvest plans and requests: the expert and customer dashboards share localStorage data and do not persist the full workflow in PostgreSQL.
+- Customer harvest requests and staff completion now persist in PostgreSQL. The old expert harvest panel, currently hidden by the integrated navigation, still contains browser-only localStorage logic and needs a separate cleanup if that panel is restored.
 - AI assistant: `frontend/src/components/customer/FarmelySmartAssistant.jsx` returns canned local replies when the AI endpoint fails. `frontend/src/pages/customer/CustomerDashboard.jsx` also has an AI fallback.
 - Site visit lounge: `frontend/src/components/customer/CustomerWelcomeLounge.jsx` can create a browser-only visit after an API failure.
 - Service and emergency request UI: `frontend/src/pages/customer/CustomerDashboard.jsx` still has browser-only fallback paths and localStorage order caching. The tested service checkout API itself persists correctly.

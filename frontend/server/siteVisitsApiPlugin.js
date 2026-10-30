@@ -6,6 +6,7 @@ import pg from 'pg';
 const { Pool } = pg;
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
 import { handleHarvestRequests } from './harvestRequestsApi.js';
+import { handleAssignedChat } from './assignedChatApi.js';
 
 let rentalLeaseColumnsEnsured = false;
 async function ensureRentalLeaseColumns() {
@@ -410,6 +411,10 @@ JOIN plots p ON ins.plot_id = p.plot_id;
 
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
+        if (url.startsWith('/api/conversations') || url.startsWith('/api/v1/conversations')) {
+          await handleAssignedChat(req, res, getPgPool());
+          return;
+        }
         if (url.startsWith('/api/harvest-requests')) {
           await handleHarvestRequests(req, res, getPgPool());
           return;
@@ -916,7 +921,7 @@ BEGIN
         NOW(),
         NOW()
     FROM template_steps ts
-    WHERE ts.template_id = (SELECT pt.template_id FROM process_templates pt WHERE pt.variety_id = ${varietyId} ORDER BY pt.template_id ASC LIMIT 1)
+    WHERE ts.template_id = (SELECT pt.template_id FROM process_templates pt WHERE pt.variety_id = ${varietyId} ORDER BY pt.template_id DESC LIMIT 1)
     ORDER BY ts.day_offset;
 
     -- Tự động mở kênh chat CUST_EXP
@@ -1688,13 +1693,14 @@ BEGIN
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
     
     -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa trong hợp đồng nếu chưa có (tính ngày theo start_date)
-    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
     SELECT 
         r.rental_id,
         ts.step_id,
         r.staff_id,
         r.start_date + (ts.day_offset || ' days')::interval,
-        CASE WHEN r.start_date <= CURRENT_DATE AND ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        CASE WHEN r.start_date <= CURRENT_DATE AND COALESCE(ts.step_order, 1) = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        ts.step_name,
         ts.step_name || ' - ' || ts.description,
         NOW(),
         NOW()
@@ -1703,7 +1709,7 @@ BEGIN
     JOIN template_steps ts ON pt.template_id = ts.template_id
     WHERE r.contract_id = ${contractId}
       AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id)
-    ORDER BY ts.step_order;
+    ORDER BY COALESCE(ts.step_order, 1), ts.day_offset, ts.step_id;
 
     -- Tự động mở kênh chat CUST_EXP
     INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
@@ -1912,7 +1918,7 @@ WHERE r.role_name IN ('EXPERT', 'FIELD_WORKER');
 
               // Gọi identity-service trước nếu đang chạy để nhận JWT thật
               try {
-                const idRes = await fetch(`${process.env.FARMELY_IDENTITY_TARGET || 'http://localhost:8081'}/api/auth/login`, {
+                const idRes = await fetch(`${process.env.IDENTITY_SERVICE_URL || 'http://localhost:8081'}/api/auth/login`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ email, password })
@@ -2017,7 +2023,7 @@ LIMIT 1;
           // Thử gọi identity-service trước nếu có token JWT chuẩn
           if (token && !token.startsWith('farmely-jwt-token-') && !token.startsWith('demo-token-')) {
             try {
-              const idRes = await fetch(`${process.env.FARMELY_IDENTITY_TARGET || 'http://localhost:8081'}/api/auth/me`, {
+              const idRes = await fetch(`${process.env.IDENTITY_SERVICE_URL || 'http://localhost:8081'}/api/auth/me`, {
                 headers: { 'Authorization': `Bearer ${token}` }
               });
               if (idRes.ok) {
@@ -3491,8 +3497,13 @@ SELECT json_build_object(
         }
 
         // 14. PROCESS TEMPLATES API (GET, POST, PUT, DELETE)
-        // 14.1 GET /api/process-templates & /api/v1/process-templates
-        if (req.method === 'GET' && (url === '/api/process-templates' || url === '/api/v1/process-templates' || url.startsWith('/api/process-templates?') || url.startsWith('/api/v1/process-templates?'))) {
+        // 14.1 GET /api/process-templates & /api/templates
+        if (req.method === 'GET' && (
+          url === '/api/process-templates' || url === '/api/v1/process-templates' ||
+          url === '/api/templates' || url === '/api/v1/templates' ||
+          url.startsWith('/api/process-templates?') || url.startsWith('/api/v1/process-templates?') ||
+          url.startsWith('/api/templates?') || url.startsWith('/api/v1/templates?')
+        )) {
           try {
             const sql = `
 SELECT json_build_object(
@@ -3587,9 +3598,9 @@ SELECT json_build_object(
           return;
         }
 
-        // 14.2 GET /api/process-templates/:id (Template Detail with Steps)
-        if (req.method === 'GET' && (url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/))) {
-          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)[1];
+        // 14.2 GET /api/process-templates/:id & /api/templates/:id (Template Detail with Steps)
+        if (req.method === 'GET' && (url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/))) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
           try {
             const sql = `
@@ -3685,8 +3696,11 @@ SELECT json_build_object(
           return;
         }
 
-        // 14.3 POST /api/process-templates (Create New Process Template for a Variety)
-        if (req.method === 'POST' && (url === '/api/process-templates' || url === '/api/v1/process-templates')) {
+        // 14.3 POST /api/process-templates & /api/templates (Create New Process Template for a Variety)
+        if (req.method === 'POST' && (
+          url === '/api/process-templates' || url === '/api/v1/process-templates' ||
+          url === '/api/templates' || url === '/api/v1/templates'
+        )) {
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
@@ -3706,6 +3720,7 @@ RETURNING template_id;
 
               // Nếu có gửi kèm các bước ban đầu
               if (Array.isArray(payload.steps) && payload.steps.length > 0) {
+                let sIdx = 1;
                 for (const step of payload.steps) {
                   const sName = (step.stepName || step.taskName || 'Chăm sóc định kỳ').replace(/'/g, "''");
                   const sDay = parseInt(step.dayOffset !== undefined ? step.dayOffset : (step.day || 0), 10) || 0;
@@ -3713,6 +3728,8 @@ RETURNING template_id;
                   const sDesc = (step.description || '').replace(/'/g, "''");
                   const sMat = (step.materialsNeeded || step.materialsRequired || '').replace(/'/g, "''");
                   const sDur = parseInt(step.durationDays || Math.ceil((step.durationMinutes || 60) / 60) || 1, 10) || 1;
+                  const sOrder = parseInt(step.stepOrder || sIdx, 10) || sIdx;
+                  sIdx++;
                   const sMinT = step.minTemp ? parseFloat(step.minTemp) : 'NULL';
                   const sMaxT = step.maxTemp ? parseFloat(step.maxTemp) : 'NULL';
                   const sMinH = step.minHumidity ? parseFloat(step.minHumidity) : 'NULL';
@@ -3720,11 +3737,11 @@ RETURNING template_id;
                   await runPostgreSql(`
 INSERT INTO template_steps (
   template_id, step_name, day_offset, duration_days, task_type, 
-  description, materials_needed, min_temp, max_temp, min_humidity, max_humidity
+  description, materials_needed, min_temp, max_temp, min_humidity, max_humidity, step_order
 )
 VALUES (
   ${templateId}, '${sName}', ${sDay}, ${sDur}, '${sType}', 
-  '${sDesc}', '${sMat}', ${sMinT}, ${sMaxT}, ${sMinH}, ${sMaxH}
+  '${sDesc}', '${sMat}', ${sMinT}, ${sMaxT}, ${sMinH}, ${sMaxH}, ${sOrder}
 );
                   `);
                 }
@@ -3750,8 +3767,8 @@ VALUES (
         }
 
         // 14.4 POST /api/process-templates/:id/steps (Add Step or Bulk Steps to Template)
-        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps$/)) {
-          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps$/)[1];
+        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps$/)) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
           let body = '';
           req.on('data', chunk => body += chunk);
@@ -3895,8 +3912,8 @@ WHERE step_id = ${stepId} AND template_id = ${templateId};
         }
 
         // 14.6 DELETE /api/process-templates/:id/steps/:stepId (Delete Step)
-        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/)) {
-          const match = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/);
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/)) {
+          const match = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/steps\/(\d+)$/);
           const templateId = parseInt(match[1].replace(/\D/g, ''), 10) || 1;
           const stepId = parseInt(match[2], 10);
           try {
@@ -3911,8 +3928,8 @@ WHERE step_id = ${stepId} AND template_id = ${templateId};
         }
 
         // 14.7 DELETE /api/process-templates/:id (Delete Template)
-        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)) {
-          const rawId = url.match(/^\/api\/(?:v1\/)?process-templates\/([A-Za-z0-9_-]+)$/)[1];
+        if (req.method === 'DELETE' && url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/)) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)$/)[1];
           const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 1;
           try {
             await runPostgreSql(`DELETE FROM process_templates WHERE template_id = ${templateId};`);
@@ -3993,6 +4010,10 @@ SELECT json_build_object(
                 return;
               }
 
+              if (payload.replace || Array.isArray(payload.varietyIds)) {
+                await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id = ${plotId};`);
+              }
+
               for (const vId of varIds) {
                 await runPostgreSql(`
                   INSERT INTO plot_variety_compatibility (plot_id, variety_id)
@@ -4000,6 +4021,10 @@ SELECT json_build_object(
                   ON CONFLICT (plot_id, variety_id) DO NOTHING;
                 `);
               }
+
+              try {
+                invalidatePlotsCache();
+              } catch (_) {}
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
@@ -4533,7 +4558,7 @@ SELECT json_build_object(
         END AS status,
         CASE 
           WHEN ct.notes ILIKE '%[LÀM NGAY]%' OR ct.notes ILIKE '%[KHẨN CẤP]%' THEN 'EMERGENCY'
-          WHEN ct.service_request_id IS NOT NULL OR ct.notes ILIKE '%[ƯU TIÊN CAO]%' THEN 'HIGH'
+          WHEN ct.service_request_id IS NOT NULL OR ct.notes ILIKE '%[ƯU TIÊN CAO]%' OR ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN 'HIGH'
           ELSE 'NORMAL'
         END AS priority,
         TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS "dueDate",
@@ -4551,11 +4576,13 @@ SELECT json_build_object(
         'MORNING' AS session,
         ct.evidence_image_url AS "proofPhoto",
         ct.evidence_image_url AS "evidenceImageUrl",
+        ct.notes AS notes,
+        COALESCE(u_expert.full_name, 'Chuyên gia Nông nghiệp VietGAP') AS "expertName",
         CASE
-          WHEN ts.description IS NOT NULL AND ts.description <> '' THEN ts.description
-          WHEN ct.notes LIKE '% - %' THEN SUBSTRING(ct.notes FROM POSITION(' - ' IN ct.notes) + 3)
-          WHEN ct.notes LIKE '%' || CHR(10) || '%' THEN SUBSTRING(ct.notes FROM POSITION(CHR(10) IN ct.notes) + 1)
-          ELSE COALESCE(ct.notes, ts.description, 'Kiểm tra độ ẩm trạm IoT trước khi tưới. Ghi chép nhật ký đầy đủ.')
+          WHEN ts.description IS NOT NULL AND ts.description <> '' AND ts.description NOT LIKE '%Thửa%' THEN ts.description
+          WHEN ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN ct.notes
+          WHEN ct.notes IS NOT NULL AND ct.notes NOT LIKE '%Thửa ' || p.plot_code THEN ct.notes
+          ELSE 'Tuân thủ định mức kỹ thuật VietGAP và hướng dẫn chuyên gia. Kiểm tra độ ẩm đất qua trạm IoT trước khi thực hiện.'
         END AS instructions,
         TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') AS "completedAt"
       FROM care_tasks ct
@@ -4564,6 +4591,7 @@ SELECT json_build_object(
       JOIN contracts c ON rent.contract_id = c.contract_id
       LEFT JOIN users u_renter ON c.renter_id = u_renter.user_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
+      LEFT JOIN users u_expert ON rent.expert_id = u_expert.user_id
       LEFT JOIN varieties v ON rent.variety_id = v.variety_id
       LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
       LEFT JOIN service_requests sr ON ct.service_request_id = sr.request_id
@@ -4724,20 +4752,33 @@ END $$;
             try {
               const payload = JSON.parse(body || '{}');
               const rentalId = parseInt(payload.rentalId || payload.rental_id || 1, 10);
-              const workerId = parseInt(payload.workerId || payload.taskAssignedTo || 8, 10);
+              const workerId = parseInt(payload.workerId || payload.taskAssignedTo || payload.worker_id || 0, 10);
               const dueDate = payload.dueDate || payload.due_date || new Date().toISOString().split('T')[0];
-              const notes = (payload.title ? payload.title + (payload.notes ? ' - ' + payload.notes : '') : (payload.notes || 'Nhiệm vụ chăm sóc ngoài đồng')).replace(/'/g, "''");
+              const rawTitle = payload.title ? String(payload.title).trim() : '';
+              const cleanTitle = (rawTitle || 'Nhiệm vụ chăm sóc ngoài đồng').replace(/'/g, "''");
+              const cleanNotes = (payload.notes ? String(payload.notes).trim() : cleanTitle).replace(/'/g, "''");
               const sql = `
 WITH ins AS (
-  INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
-  VALUES (${rentalId}, ${workerId}, '${dueDate}', 'PENDING', '${notes}', NOW(), NOW())
-  RETURNING task_id, rental_id, status
+  INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+  VALUES (
+    ${rentalId},
+    COALESCE(${workerId > 0 ? workerId : 'NULL'}, (SELECT fn_resolve_staff_for_plot(r.plot_id) FROM rentals r WHERE r.rental_id = ${rentalId}), 8),
+    '${dueDate}',
+    'PENDING',
+    '${cleanTitle}',
+    '${cleanNotes}',
+    NOW(),
+    NOW()
+  )
+  RETURNING task_id, rental_id, status, title, due_date
 )
 SELECT json_build_object(
   'taskId', task_id,
   'taskCode', 'TSK-' || task_id,
   'rentalId', rental_id,
-  'status', status
+  'status', status,
+  'title', title,
+  'dueDate', due_date
 ) FROM ins;
 `;
               const data = await runPostgreSql(sql);
@@ -5290,8 +5331,12 @@ RETURNING issue_id, rental_id, issue_type, status;
               if (expertId) {
                 setClauses.push(`handled_by = ${parseInt(expertId, 10)}`);
               }
+              let isDiagnosed = false;
+              let diagnosisText = '';
               if (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes) {
                 const diag = (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes).replace(/'/g, "''");
+                diagnosisText = diag;
+                isDiagnosed = true;
                 const nextStatus = payload.markResolved ? 'RESOLVED' : 'OPEN';
                 setClauses.push(`status = '${nextStatus}'`);
                 setClauses.push(`resolution_notes = '${diag}'`);
@@ -5311,6 +5356,47 @@ WHERE issue_id = ${issueId}
 RETURNING issue_id, handled_by, status;
 `;
               await runPostgreSql(sql);
+
+              // Tự động sinh Care Task xử lý sự cố cho CVLĐ nếu chuyên gia vừa chỉ đạo kỹ thuật
+              if (isDiagnosed && diagnosisText) {
+                try {
+                  await runPostgreSql(`
+DO $$
+DECLARE
+  v_rental_id INT;
+  v_staff_id INT;
+  v_issue_type VARCHAR(100);
+  v_plot_code VARCHAR(20);
+BEGIN
+  SELECT ir.rental_id, COALESCE(r.staff_id, ir.reported_by, 8), ir.issue_type, p.plot_code
+  INTO v_rental_id, v_staff_id, v_issue_type, v_plot_code
+  FROM issue_reports ir
+  JOIN rentals r ON ir.rental_id = r.rental_id
+  JOIN plots p ON r.plot_id = p.plot_id
+  WHERE ir.issue_id = ${issueId};
+
+  IF v_rental_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM care_tasks WHERE rental_id = v_rental_id AND (notes LIKE '%[ISS-' || ${issueId} || ']%' OR notes LIKE '%[ISSUE-' || ${issueId} || ']%')
+  ) THEN
+    INSERT INTO care_tasks (rental_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+    VALUES (
+      v_rental_id,
+      v_staff_id,
+      CURRENT_DATE,
+      'IN_PROG',
+      'Xử lý ' || LOWER(v_issue_type) || ' theo chỉ đạo CGNN',
+      '[CHỈ ĐẠO CGNN] Xử lý ' || v_issue_type || ' [ISS-' || ${issueId} || ']' || CHR(10) || 'Hướng dẫn kỹ thuật từ CGNN: ' || '${diagnosisText}' || CHR(10) || 'Hiện trường: Thửa ' || v_plot_code,
+      NOW(),
+      NOW()
+    );
+  END IF;
+END $$;
+                  `);
+                } catch (e) {
+                  console.error('Error auto-creating task for issue:', e);
+                }
+              }
+
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: true, message: `Đã cập nhật sự cố #${issueId}` }));
             } catch (err) {

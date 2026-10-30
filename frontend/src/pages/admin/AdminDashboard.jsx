@@ -576,6 +576,19 @@ export default function AdminDashboard() {
           status: 'IN_PROGRESS'
         })
       });
+
+      // Broadcast channel sync cho Staff
+      try {
+        localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
+        ['farmely_staff_activity_channel', 'farmely_staff_dispatch', 'farmely_staff_tasks'].forEach((ch) => {
+          try {
+            const bc = new BroadcastChannel(ch);
+            bc.postMessage({ type: 'TASK_ASSIGNED', taskId });
+            bc.close();
+          } catch {}
+        });
+      } catch {}
+
       triggerSuccessToast(`Đã giao nhiệm vụ #${taskId} cho chuyên viên lao động thành công!`);
       setSelectedCareTaskToAssign(null);
       setTaskAssignNotes('');
@@ -605,6 +618,19 @@ export default function AdminDashboard() {
           notes: newTaskNotes.trim() || 'Thực hiện chăm sóc chuẩn quy trình VietGAP'
         })
       });
+
+      // Broadcast channel sync cho Staff
+      try {
+        localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
+        ['farmely_staff_activity_channel', 'farmely_staff_dispatch', 'farmely_staff_tasks'].forEach((ch) => {
+          try {
+            const bc = new BroadcastChannel(ch);
+            bc.postMessage({ type: 'NEW_TASK_DISPATCHED', workerId: targetWorkerId });
+            bc.close();
+          } catch {}
+        });
+      } catch {}
+
       triggerSuccessToast('Đã tạo và giao nhiệm vụ mới ra thực địa thành công!');
       setShowCreateCareTaskModal(false);
       setNewTaskTitle('');

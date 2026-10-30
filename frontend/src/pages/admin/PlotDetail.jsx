@@ -293,7 +293,12 @@ export default function PlotDetail() {
               </div>
             ))
           ) : (
-            <p className="text-xs text-amber-700 italic col-span-3">Chưa cấu hình giống cây tương thích cho thửa đất này.</p>
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 col-span-3 text-xs text-amber-900 space-y-1">
+              <p className="font-bold">⚠️ Chưa phân bổ giống cây tương thích cho thửa đất này</p>
+              <p className="text-amber-800">
+                Theo quy trình nghiệp vụ, Chuyên Gia Nông Nghiệp (CGNN) phụ trách thửa đất này sẽ tiến hành khảo nghiệm thổ nhưỡng và phê duyệt danh mục giống cây được phép canh tác tại <strong>Bàn Làm Việc Chuyên Gia &gt; Ma Trận Thổ Nhưỡng – Giống Cây Trồng</strong>.
+              </p>
+            </div>
           )}
         </div>
 

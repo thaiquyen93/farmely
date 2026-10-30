@@ -73,11 +73,10 @@ export default function Login() {
       if (res.success) {
         setSuccessMessage(`Chào mừng ${res.user.fullName}.`);
         const userRole = String(res.user.role || '').toUpperCase();
-        if (redirectParam) navigate(redirectParam);
-        else if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
+        if (userRole === 'CUSTOMER') navigate('/customer/dashboard');
         else if (userRole === 'ADMIN') navigate('/admin/dashboard');
         else if (userRole === 'EXPERT') navigate('/expert/dashboard');
-        else if (userRole === 'STAFF') navigate('/staff/dashboard');
+        else if (userRole === 'STAFF' || userRole === 'FIELD_WORKER') navigate('/staff/dashboard');
         else navigate('/');
         return;
       }
@@ -108,8 +107,6 @@ export default function Login() {
         setTimeout(() => {
           if (res.user.role === 'CUSTOMER') {
             navigate('/customer/dashboard');
-          } else if (redirectParam) {
-            navigate(redirectParam);
           } else if (res.user.role === 'ADMIN') {
             navigate('/admin/dashboard');
           } else if (res.user.role === 'EXPERT') {
