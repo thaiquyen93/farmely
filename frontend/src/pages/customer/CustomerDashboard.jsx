@@ -3759,18 +3759,7 @@ export default function CustomerDashboard() {
                         }`}
                       >
                         <div className="whitespace-pre-line">{msg.text}</div>
-                        {msg.sources && msg.sources.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-brand-border/60 text-[10px] text-stone-600">
-                            <span className="font-bold text-brand-green">📖 Trích xuất từ tài liệu (RAG):</span>
-                            <div className="mt-0.5 space-y-0.5">
-                              {msg.sources.map((s, sIdx) => (
-                                <div key={sIdx} className="italic text-stone-500">
-                                  • {s.docTitle || s.source} {s.sectionTitle ? `- ${s.sectionTitle}` : ''}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+
                       </div>
                       <span className="text-[10px] text-stone-400 mt-1 px-1">{msg.time}</span>
                     </div>

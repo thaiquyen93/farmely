@@ -8,7 +8,6 @@ import {
   Minus,
   RefreshCw,
   ExternalLink,
-  BookOpen,
   ChevronRight,
   ShieldCheck,
   CheckCircle2,
@@ -472,26 +471,6 @@ export default function FarmelySmartAssistant() {
                         }`}
                       >
                         <p className="whitespace-pre-wrap">{msg.text}</p>
-
-                        {/* Tài liệu trích dẫn nếu có */}
-                        {msg.referencedDocs && msg.referencedDocs.length > 0 && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1">
-                            <span className="text-[10px] font-extrabold text-emerald-800 flex items-center gap-1">
-                              <BookOpen className="w-3 h-3" />
-                              Nguồn trích dẫn cẩm nang:
-                            </span>
-                            {msg.referencedDocs.map((doc, idx) => (
-                              <div key={idx} className="text-[10px] text-slate-600 bg-emerald-50/60 px-2 py-1 rounded-lg border border-emerald-100 flex items-center justify-between">
-                                <span className="truncate">{doc.docTitle || doc.sectionTitle || 'Cẩm nang kỹ thuật'}</span>
-                                {doc.similarityScore && (
-                                   <span className="text-[9px] font-bold text-emerald-700 ml-1 shrink-0">
-                                    {(doc.similarityScore * 100).toFixed(0)}% khớp
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                       <span className="text-[9px] text-slate-400 mt-1 px-1">{msg.time}</span>
                     </div>

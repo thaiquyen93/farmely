@@ -6733,7 +6733,7 @@ GROUP BY p.plot_id, p.plot_code;
 
               if (matched.length > 0) {
                 const top = matched[0];
-                reply = `Dựa trên tài liệu chuẩn "${top.title}": ${top.content ? top.content.slice(0, 220) + '...' : 'Tài liệu hướng dẫn kỹ thuật canh tác chuẩn của nông trại Farmely.'}\n\nBạn có thể tải hoặc mở xem trực tiếp tài liệu chi tiết ở phần nguồn tham chiếu bên dưới!`;
+                reply = `Dựa trên tài liệu chuẩn "${top.title}": ${top.content ? top.content.slice(0, 260) + '...' : 'Tài liệu hướng dẫn kỹ thuật canh tác chuẩn của nông trại Farmely.'}`;
                 docs.push({ docTitle: top.title, source: top.author_name || 'Cơ sở tri thức Farmely RAG', similarityScore: 0.89, fileUrl: top.file_url });
               } else {
                 if (userMsg.length <= 8) {
