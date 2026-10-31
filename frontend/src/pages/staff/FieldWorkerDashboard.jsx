@@ -1925,7 +1925,7 @@ export default function FieldWorkerDashboard() {
                 <div className="flex flex-wrap gap-2">
                   {[
                     { id: 'tasks', label: 'Công việc', icon: CheckCircle2, count: todayTasks.length > 0 ? todayTasks.length : pendingTasks.length },
-                    { id: 'iot', label: 'IoT & Vi khí hậu', icon: Activity },
+                    { id: 'iot', label: 'Thời Tiết & Khí Tượng', icon: Activity },
                     { id: 'services', label: 'Yêu cầu dịch vụ', icon: ShoppingBag, count: plotServices.filter(s => s.status !== 'DONE' && s.status !== 'COMPLETED').length },
                     { id: 'harvest', label: 'Thu hoạch', icon: PackageCheck }
                   ].map((subTab) => {
@@ -2291,22 +2291,22 @@ export default function FieldWorkerDashboard() {
                 </div>
               )}
 
-              {/* SUBTAB 2: IOT & VI KHÍ HẬU */}
+              {/* SUBTAB 2: THỜI TIẾT & KHÍ TƯỢNG */}
               {plotModalTab === 'iot' && (
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200 pb-2">
                     <div>
                       <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
                         <Activity className="w-4 h-4 text-emerald-700" />
-                        <span>Trạm Quan Trắc Vi Khí Hậu IoT Thực Địa</span>
+                        <span>Dữ Liệu Thời Tiết &amp; Khí Tượng Nông Trại (Weather API)</span>
                       </h4>
                       <p className="text-xs text-stone-500">
-                        Cảm biến tự động đo đạc mỗi 10 phút, kết nối vệ tinh LoRaWAN với độ trễ cực thấp.
+                        Cập nhật tự động theo tọa độ địa lý nông trại (10.97°N, 106.49°E), hỗ trợ kiểm soát vi khí hậu và cảnh báo BR18.
                       </p>
                     </div>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 self-start sm:self-auto">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      Trạm {activePlot.stationId || `IOT-${activePlot.plotCode}`} · Trực tuyến
+                      Weather API · Trực tuyến
                     </span>
                   </div>
 
@@ -2632,7 +2632,7 @@ export default function FieldWorkerDashboard() {
                 </div>
 
                 <div className="pt-1 flex items-center justify-between text-[11px] text-amber-900 font-semibold">
-                  <span>💡 Khuyến cáo: Luôn kiểm tra ẩm độ đất trạm IoT trước khi tưới hoặc bón phân.</span>
+                  <span>💡 Khuyến cáo: Luôn kiểm tra ẩm độ đất và dự báo mưa từ Weather API trước khi tưới hoặc bón phân.</span>
                   <span className="text-emerald-800">BR15 - Bắt buộc chụp ảnh minh chứng</span>
                 </div>
               </div>
@@ -2644,7 +2644,7 @@ export default function FieldWorkerDashboard() {
                   <span>Hướng Dẫn Thao Tác Chuẩn VietGAP Tại Hiện Trường:</span>
                 </div>
                 <p className="text-xs text-emerald-900 leading-relaxed">
-                  {selectedTaskDetail.instructions || 'Tuân thủ định mức và kỹ thuật VietGAP, kiểm tra cảm biến IoT trước và sau ca trực.'}
+                  {selectedTaskDetail.instructions || 'Tuân thủ định mức và kỹ thuật VietGAP, kiểm tra dữ liệu thời tiết trước và sau ca trực.'}
                 </p>
               </div>
 
