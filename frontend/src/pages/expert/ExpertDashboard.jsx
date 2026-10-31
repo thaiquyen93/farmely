@@ -391,12 +391,27 @@ export default function ExpertDashboard() {
     apiFetch('/api/rentals')
       .then((res) => {
         const list = unwrapData(res) || [];
-        if (Array.isArray(list) && list.length > 0) {
-          setAssignedPlots(list.map((p) => ({
-            ...p,
-            crop: p.varietyName || p.crop || DEFAULT_PLOT_CROPS[p.plotCode] || 'Rau củ chuẩn VietGAP'
-          })));
+        if (!Array.isArray(list)) return;
+        const email = user?.email?.trim().toLowerCase();
+        const expertId = Number(user?.userId);
+        const plotsById = new Map();
+
+        for (const rental of list) {
+          if (rental.status !== 'ACTIVE') continue;
+          const assignedToCurrentExpert = email && rental.expertEmail
+            ? rental.expertEmail.trim().toLowerCase() === email
+            : expertId > 0 && Number(rental.expertId) === expertId;
+          if (!assignedToCurrentExpert) continue;
+
+          const plotKey = rental.plotId || rental.plotCode;
+          if (!plotKey || plotsById.has(plotKey)) continue;
+          plotsById.set(plotKey, {
+            ...rental,
+            crop: rental.varietyName || rental.crop || DEFAULT_PLOT_CROPS[rental.plotCode] || 'Rau củ chuẩn VietGAP'
+          });
         }
+
+        setAssignedPlots([...plotsById.values()]);
       })
       .catch((err) => console.warn('Could not fetch live rentals:', err));
   };
@@ -1482,9 +1497,9 @@ export default function ExpertDashboard() {
                   Thửa Đất Giám Sát
                 </span>
                 <div className="text-2xl font-heading font-black text-brand-dark">
-                  {assignedPlots.length > 0 ? assignedPlots.length : 16} Thửa
+                  {assignedPlots.length} Thửa
                 </div>
-                <span className="text-[10px] text-emerald-700 font-bold block">100% chuẩn VietGAP</span>
+                <span className="text-[10px] text-emerald-700 font-bold block">Đang hoạt động và được phân công</span>
               </div>
 
               <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
@@ -2106,7 +2121,7 @@ export default function ExpertDashboard() {
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
                       <Layers className="w-5 h-5 text-sky-700" />
-                      <span>Thửa Đất Giám Sát Kỹ Thuật (BR24)</span>
+                      <span>Thửa Đất Giám Sát Kỹ Thuật</span>
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh sách các thửa đất canh tác do Ban Quản Trị chỉ định cho Chuyên Gia Nông Nghiệp phụ trách chuyên môn.

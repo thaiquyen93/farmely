@@ -81,7 +81,7 @@ function CustomRevenueTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     const lease = payload.find(p => p.dataKey === 'leaseRevenue')?.value || 0;
     const service = payload.find(p => p.dataKey === 'serviceRevenue')?.value || 0;
-    const total = lease + service;
+    const total = payload[0]?.payload?.totalRevenue ?? lease + service;
     return (
       <div className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-xl shadow-xl border border-slate-700 text-xs space-y-1.5 z-50">
         <p className="font-bold text-emerald-400 border-b border-slate-700 pb-1">{label}</p>
@@ -266,6 +266,7 @@ export default function AdminDashboard() {
 
   // Synchronize All Operational Admin Data
   const loadAdminData = async () => {
+    setLoadingAnalytics(true);
     try {
       const [
         requestPayload,
@@ -305,9 +306,7 @@ export default function AdminDashboard() {
       const weatherPayloadData = unwrapData(weatherPayload) || null;
       const analyticsRes = unwrapData(analyticsPayload);
 
-      if (analyticsRes) {
-        setAnalyticsData(analyticsRes);
-      }
+      setAnalyticsData(analyticsRes?.kpi ? analyticsRes : null);
       setLoadingAnalytics(false);
 
       setIotAlerts(alertsData);
@@ -485,6 +484,8 @@ export default function AdminDashboard() {
     } catch (error) {
       console.warn('Lỗi nạp dữ liệu Admin:', error);
       setDataError('Không thể đồng bộ toàn bộ dữ liệu quản trị.');
+      setAnalyticsData(null);
+      setLoadingAnalytics(false);
     }
   };
 
@@ -1598,35 +1599,16 @@ export default function AdminDashboard() {
             {/* TAB 1: OVERVIEW & REVENUE ANALYTICS (SCR-AD-01: Thống Kê Tổng Hợp)        */}
             {/* ========================================================================= */}
             {activeTab === 'overview' && (() => {
-              const kpi = analyticsData?.kpi || {
-                totalRevenue: 19595000,
-                monthlyRevenue: 13745000,
-                leaseRevenue: 19400000,
-                serviceRevenue: 195000,
-                pendingRevenue: 3600000,
-                totalPlots: landStats.total || 17,
-                rentedPlots: landStats.rented || 6,
-                availablePlots: 10,
-                maintenancePlots: 1,
-                occupancyRate: 35.3,
-                totalRentals: 19,
-                selfGrowingCount: 18,
-                assistedGrowingCount: 1,
-                selfGrowingPct: 94.7,
-                assistedGrowingPct: 5.3,
-                totalTasks: 12,
-                completedTasks: 1,
-                inProgressTasks: 5,
-                pendingTasks: 6,
-                taskCompletionRate: 92.5
-              };
-
-              const monthlyChartData = (analyticsData?.monthlyRevenue && analyticsData.monthlyRevenue.length > 0)
-                ? analyticsData.monthlyRevenue
-                : [
-                    { month: '09/2026', monthLabel: 'Tháng 09', leaseRevenue: 5850000, serviceRevenue: 0, totalRevenue: 5850000 },
-                    { month: '10/2026', monthLabel: 'Tháng 10', leaseRevenue: 13550000, serviceRevenue: 195000, totalRevenue: 13745000 }
-                  ];
+              if (!analyticsData?.kpi) {
+                return (
+                  <div role={loadingAnalytics ? 'status' : 'alert'} className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+                    <p className="font-bold">{loadingAnalytics ? 'Đang tải số liệu doanh thu...' : 'Không tải được số liệu doanh thu.'}</p>
+                    {!loadingAnalytics && <Button variant="outline" size="sm" onClick={loadAdminData} className="mt-3">Làm mới</Button>}
+                  </div>
+                );
+              }
+              const kpi = analyticsData.kpi;
+              const monthlyChartData = analyticsData.monthlyRevenue || [];
 
               const recentTransactions = analyticsData?.recentTransactions || [];
 
@@ -1691,7 +1673,7 @@ export default function AdminDashboard() {
                       <div className="pt-2 border-t border-brand-border/60 flex items-center justify-between text-[11px]">
                         <span className="text-stone-500">Master Lease: {formatVnd(kpi.leaseRevenue)}</span>
                         <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md">
-                          +134.9%
+                          Sau hoàn tiền
                         </span>
                       </div>
                     </div>
@@ -1916,7 +1898,7 @@ export default function AdminDashboard() {
                           <tr className="border-b border-brand-border text-stone-500 font-bold uppercase tracking-wider text-[11px]">
                             <th className="pb-3 px-3">Mã GD</th>
                             <th className="pb-3 px-3">Khách Hàng / Hợp Đồng</th>
-                            <th className="pb-3 px-3">Khoản Thu</th>
+                            <th className="pb-3 px-3">Loại giao dịch</th>
                             <th className="pb-3 px-3">Cổng TT</th>
                             <th className="pb-3 px-3 text-right">Số Tiền</th>
                             <th className="pb-3 px-3">Thời Gian</th>
@@ -1934,7 +1916,11 @@ export default function AdminDashboard() {
                                 <div className="text-[11px] text-stone-500">{tx.referenceCode}</div>
                               </td>
                               <td className="py-3 px-3">
-                                {tx.referenceCode && tx.referenceCode.startsWith('HD-') ? (
+                                {tx.type === 'REFUND' ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                                    Hoàn tiền
+                                  </span>
+                                ) : tx.referenceCode && tx.referenceCode.startsWith('HD-') ? (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                                     Thuê đất (Master Lease)
                                   </span>
@@ -1953,8 +1939,8 @@ export default function AdminDashboard() {
                                   {tx.paymentMethod}
                                 </span>
                               </td>
-                              <td className="py-3 px-3 text-right font-mono font-black text-sm text-stone-900">
-                                {formatVnd(tx.amount)}
+                              <td className={`py-3 px-3 text-right font-mono font-black text-sm ${tx.type === 'REFUND' ? 'text-rose-700' : 'text-stone-900'}`}>
+                                {tx.type === 'REFUND' ? `-${formatVnd(tx.amount)}` : formatVnd(tx.amount)}
                               </td>
                               <td className="py-3 px-3 text-stone-500 whitespace-nowrap">
                                 {tx.createdAt}

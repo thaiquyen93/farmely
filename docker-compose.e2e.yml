@@ -1,0 +1,126 @@
+name: farmelye2e
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: farmely_e2e
+    ports:
+      - "5544:5432"
+    volumes:
+      - e2e_postgres_data:/var/lib/postgresql/data
+      - ./Database/farmely_full_database.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d farmely_e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [e2e-net]
+
+  api-gateway:
+    image: farmely-api-gateway:latest
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [e2e-net]
+
+  identity-service:
+    image: farmely-identity-service:latest
+    environment: &db-env
+      DB_URL: jdbc:postgresql://postgres:5432/farmely_e2e
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: farmely_e2e
+      DB_USER: postgres
+      DB_PASS: password
+      DB_PASSWORD: password
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [e2e-net]
+
+  farm-service:
+    image: farmely-farm-service:latest
+    environment: *db-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [e2e-net]
+
+  knowledge-service:
+    image: farmely-knowledge-service:latest
+    environment: *db-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [e2e-net]
+
+  rental-service:
+    image: farmely-rental-service:latest
+    environment: *db-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [e2e-net]
+
+  payment-service:
+    image: farmely-payment-service:latest
+    environment:
+      <<: *db-env
+      VNP_RETURN_URL: http://localhost:3300/payment/vnpay-return
+      VNP_PAY_URL: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [e2e-net]
+
+  cultivation-service:
+    image: farmely-cultivation-service:latest
+    environment: *db-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [e2e-net]
+
+  communication-service:
+    image: farmely-communication-service:latest
+    environment: *db-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [e2e-net]
+
+  monitoring-service:
+    image: farmely-monitoring-service:latest
+    environment:
+      <<: *db-env
+      FARMELY_SENSOR_SIMULATION_ENABLED: "false"
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [e2e-net]
+
+  frontend:
+    image: farmely-frontend:e2e-local
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      <<: *db-env
+      DOCKER_ENV: "true"
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: farmely_e2e
+      IDENTITY_SERVICE_URL: http://identity-service:8081
+    ports:
+      - "3300:3000"
+    depends_on:
+      - api-gateway
+      - identity-service
+      - farm-service
+      - knowledge-service
+      - rental-service
+      - payment-service
+      - cultivation-service
+      - communication-service
+      - monitoring-service
+    networks: [e2e-net]
+
+networks:
+  e2e-net: {}
+
+volumes:
+  e2e_postgres_data: {}
