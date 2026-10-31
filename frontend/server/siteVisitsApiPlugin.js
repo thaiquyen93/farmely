@@ -137,38 +137,22 @@ DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE s
 CREATE OR REPLACE FUNCTION fn_resolve_expert_for_variety(p_variety_id INT)
 RETURNS INT AS $$
 BEGIN
-  IF p_variety_id IN (4, 5, 7, 9) THEN
-    RETURN 5; -- ThS. Nguyễn Hoàng Nam (Cây ăn quả: Cà chua, Dưa baby, Mướp, Ớt)
-  ELSIF p_variety_id IN (1, 2, 3, 8, 10) THEN
-    RETURN 6; -- ThS. Trần Phương Thảo (Rau ăn lá VietGAP)
-  ELSE
-    RETURN 7; -- TS. Lê Hoàng Đức (Cây đặc thù / Họ đậu)
-  END IF;
+  RETURN 5; -- ThS. Nguyễn Hoàng Nam (CGNN) đảm nhiệm toàn diện full giống / thửa đất
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION fn_resolve_staff_for_plot(p_plot_id INT)
 RETURNS INT AS $$
-DECLARE
-  v_code TEXT;
-  v_clean TEXT;
-  v_num INT := 1;
 BEGIN
-  SELECT plot_code INTO v_code FROM plots WHERE plot_id = p_plot_id;
-  v_clean := regexp_replace(COALESCE(v_code, '1'), '[^0-9]', '', 'g');
-  IF v_clean <> '' THEN
-    v_num := v_clean::INT;
-  END IF;
-  
-  IF v_num <= 5 THEN
-    RETURN 8; -- Trần Văn Lực (Zone A: P-01 -> P-05)
-  ELSIF v_num <= 10 THEN
-    RETURN 9; -- Nguyễn Văn Đạt (Zone B: P-06 -> P-10)
-  ELSE
-    RETURN 10; -- Hoàng Thanh Hải (Zone C: P-11 -> P-20)
-  END IF;
+  RETURN 8; -- Trần Văn Lực (CVLĐ) đảm nhiệm toàn diện full plots
 END;
 $$ LANGUAGE plpgsql;
+
+-- Đồng bộ toàn bộ hợp đồng, nhiệm vụ và hội thoại sang ThS. Nam (5) và Trần Văn Lực (8)
+UPDATE rentals SET expert_id = 5, staff_id = 8 WHERE status = 'ACTIVE';
+UPDATE care_tasks SET task_assigned_to = 8;
+UPDATE conversations SET participant_two = 5 WHERE type = 'CUST_EXP';
+UPDATE conversations SET participant_one = 8, participant_two = 5 WHERE type = 'STAFF_EXP';
 
 -- Dọn dẹp dữ liệu test thừa và chuẩn hóa chuỗi mô tả
 DELETE FROM care_tasks WHERE task_id IN (11, 12, 14);
@@ -4696,11 +4680,19 @@ SELECT json_build_object(
             const urlObj = new URL(url, 'http://localhost:3000');
             const emailFilter = (urlObj.searchParams.get('email') || '').trim().toLowerCase();
             const customerIdParam = parseInt(urlObj.searchParams.get('customerId') || urlObj.searchParams.get('renter_id') || '0', 10);
+            const statusParam = (urlObj.searchParams.get('status') || '').trim().toUpperCase();
             let whereSql = '';
+            const conditions = [];
             if (emailFilter) {
-              whereSql = `WHERE LOWER(u.email) = '${emailFilter.replace(/'/g, "''")}'`;
+              conditions.push(`LOWER(u.email) = '${emailFilter.replace(/'/g, "''")}'`);
             } else if (customerIdParam > 0) {
-              whereSql = `WHERE c.renter_id = ${customerIdParam}`;
+              conditions.push(`c.renter_id = ${customerIdParam}`);
+            }
+            if (statusParam) {
+              conditions.push(`rent.status = '${statusParam.replace(/'/g, "''")}'`);
+            }
+            if (conditions.length > 0) {
+              whereSql = 'WHERE ' + conditions.join(' AND ');
             }
 
             const sql = `

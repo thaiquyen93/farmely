@@ -59,7 +59,8 @@ import {
   ArrowUpRight,
   Wallet,
   Landmark,
-  PieChart
+  PieChart,
+  CloudSun
 } from 'lucide-react';
 
 function cleanText(str) {
@@ -113,7 +114,9 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('tab');
-      if (['overview', 'dispatch', 'contracts', 'visits', 'users', 'iot-alerts', 'audit-logs'].includes(p)) return p;
+      if (['overview', 'dispatch', 'contracts', 'visits', 'users', 'weather-alerts', 'iot-alerts', 'audit-logs'].includes(p)) {
+        return p === 'iot-alerts' ? 'weather-alerts' : p;
+      }
     }
     return 'overview'; // SCR-AD-01: Default to Tổng Quan & Doanh Thu
   });
@@ -787,32 +790,36 @@ export default function AdminDashboard() {
     return careTasks;
   }, [careTasks, careTaskFilter]);
 
-  // Filtered Plot Rentals Personnel Assignment (Staff & Expert)
+  // Filtered Plot Rentals Personnel Assignment (Staff & Expert) - Chỉ lấy thửa đang thuê thật sự (ACTIVE)
+  const activeRentalsList = useMemo(() => {
+    return rentals.filter((r) => r.status === 'ACTIVE');
+  }, [rentals]);
+
   const unassignedRentals = useMemo(() => {
-    return rentals.filter(
+    return activeRentalsList.filter(
       (r) =>
         String(r.staffName).includes('Chưa') ||
         String(r.expertName).includes('Chưa') ||
         !r.staffId ||
         !r.expertId
     );
-  }, [rentals]);
+  }, [activeRentalsList]);
 
   const fullyAssignedRentals = useMemo(() => {
-    return rentals.filter(
+    return activeRentalsList.filter(
       (r) =>
         !String(r.staffName).includes('Chưa') &&
         !String(r.expertName).includes('Chưa') &&
         Boolean(r.staffId) &&
         Boolean(r.expertId)
     );
-  }, [rentals]);
+  }, [activeRentalsList]);
 
   const displayedRentals = useMemo(() => {
     if (plotAssignFilter === 'UNASSIGNED') return unassignedRentals;
     if (plotAssignFilter === 'ASSIGNED') return fullyAssignedRentals;
-    return rentals;
-  }, [plotAssignFilter, rentals, unassignedRentals, fullyAssignedRentals]);
+    return activeRentalsList;
+  }, [plotAssignFilter, activeRentalsList, unassignedRentals, fullyAssignedRentals]);
 
   return (
     <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
@@ -911,7 +918,7 @@ export default function AdminDashboard() {
               { id: 'contracts', label: 'Hợp Đồng & Hoàn Cọc', icon: FileText, count: refundRequests.filter(r => r.status === 'PENDING').length },
               { id: 'visits', label: 'Lịch Hẹn Tham Quan', icon: Calendar, count: siteVisits.filter(v => v.status === 'PENDING').length },
               { id: 'users', label: 'Người Dùng & Phân Quyền', icon: Users, count: systemUsers.length },
-              { id: 'iot-alerts', label: 'Trạm IoT & Cảnh Báo', icon: Radio, count: alertOverview.activeAlerts || iotAlerts.filter(a => a.status === 'ACTIVE').length },
+              { id: 'weather-alerts', label: 'Thời Tiết & Cảnh Báo', icon: CloudSun, count: alertOverview.activeAlerts || iotAlerts.filter(a => a.status === 'ACTIVE').length },
               { id: 'audit-logs', label: 'Nhật Ký & Báo Cáo', icon: ShieldCheck, count: null }
             ].map((tab) => {
               const Icon = tab.icon;
@@ -1183,19 +1190,25 @@ export default function AdminDashboard() {
                                       </span>
                                     </td>
                                     <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                                      <Button
-                                        variant={task.status === 'PENDING' || isUnassigned ? 'primary' : 'outline'}
-                                        size="sm"
-                                        onClick={() => {
-                                          setSelectedCareTaskToAssign(task);
-                                          setTaskAssignWorkerId(task.workerId || (staffUsers[0] ? staffUsers[0].id : 8));
-                                          setTaskAssignDueDate(task.dueDate || '');
-                                          setTaskAssignNotes(task.instructions || '');
-                                        }}
-                                        className="font-bold text-[11px] px-2.5 py-1"
-                                      >
-                                        {isUnassigned ? 'Giao việc' : 'Đổi người'}
-                                      </Button>
+                                      {task.status === 'COMPLETED' ? (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Đã hoàn tất
+                                        </span>
+                                      ) : (
+                                        <Button
+                                          variant={task.status === 'PENDING' || isUnassigned ? 'primary' : 'outline'}
+                                          size="sm"
+                                          onClick={() => {
+                                            setSelectedCareTaskToAssign(task);
+                                            setTaskAssignWorkerId(task.workerId || (staffUsers[0] ? staffUsers[0].id : 8));
+                                            setTaskAssignDueDate(task.dueDate || '');
+                                            setTaskAssignNotes(task.instructions || '');
+                                          }}
+                                          className="font-bold text-[11px] px-2.5 py-1"
+                                        >
+                                          {isUnassigned ? 'Giao việc' : 'Đổi người'}
+                                        </Button>
+                                      )}
                                     </td>
                                   </tr>
                                 );
@@ -1288,18 +1301,24 @@ export default function AdminDashboard() {
                                       </span>
                                     </td>
                                     <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                                      <Button
-                                        variant={isPending ? 'primary' : 'outline'}
-                                        size="sm"
-                                        onClick={() => {
-                                          setSelectedDispatchToAssign(disp);
-                                          setAssignedWorkerId(disp.assignedWorkerId || (staffUsers[0] ? staffUsers[0].id : 8));
-                                          setServiceAssignNotes(disp.note || '');
-                                        }}
-                                        className="font-bold text-[11px] px-2.5 py-1"
-                                      >
-                                        {isPending ? 'Chỉ định' : 'Đổi người'}
-                                      </Button>
+                                      {disp.status === 'COMPLETED' || disp.status === 'DONE' ? (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Đã hoàn tất
+                                        </span>
+                                      ) : (
+                                        <Button
+                                          variant={isPending ? 'primary' : 'outline'}
+                                          size="sm"
+                                          onClick={() => {
+                                            setSelectedDispatchToAssign(disp);
+                                            setAssignedWorkerId(disp.assignedWorkerId || (staffUsers[0] ? staffUsers[0].id : 8));
+                                            setServiceAssignNotes(disp.note || '');
+                                          }}
+                                          className="font-bold text-[11px] px-2.5 py-1"
+                                        >
+                                          {isPending ? 'Chỉ định' : 'Đổi người'}
+                                        </Button>
+                                      )}
                                     </td>
                                   </tr>
                                 );
@@ -1333,7 +1352,7 @@ export default function AdminDashboard() {
                               : 'text-stone-600 hover:text-stone-900'
                           }`}
                         >
-                          Tất cả ({rentals.length})
+                          Tất cả ({activeRentalsList.length})
                         </button>
                         <button
                           type="button"
@@ -1373,7 +1392,7 @@ export default function AdminDashboard() {
                                 <th className="py-3 px-4">Thửa & Hợp Đồng</th>
                                 <th className="py-3 px-4">Cây Trồng & Giai Đoạn</th>
                                 <th className="py-3 px-4">Khách Thuê</th>
-                                <th className="py-3 px-4">Vi Khí Hậu IoT</th>
+                                <th className="py-3 px-4">Thời Tiết & Khí Tượng</th>
                                 <th className="py-3 px-4">CVLĐ Hiện Trường</th>
                                 <th className="py-3 px-4">CGNN Giám Sát</th>
                                 <th className="py-3 px-4 text-right">Thao Tác</th>
@@ -1543,18 +1562,24 @@ export default function AdminDashboard() {
                                       </span>
                                     </td>
                                     <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                                      <Button
-                                        variant={isExpertUnassigned ? 'primary' : 'outline'}
-                                        size="sm"
-                                        onClick={() => {
-                                          setSelectedIssueToAssignExpert(issue);
-                                          setIssueAssignExpertId(issue.expertId || (expertUsers[0] ? expertUsers[0].id : 5));
-                                          setIssueAssignNotes('');
-                                        }}
-                                        className="font-bold text-[11px] px-2.5 py-1"
-                                      >
-                                        {isExpertUnassigned ? 'Giao Chuyên gia' : 'Đổi người'}
-                                      </Button>
+                                      {isResolved ? (
+                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Đã xử lý
+                                        </span>
+                                      ) : (
+                                        <Button
+                                          variant={isExpertUnassigned ? 'primary' : 'outline'}
+                                          size="sm"
+                                          onClick={() => {
+                                            setSelectedIssueToAssignExpert(issue);
+                                            setIssueAssignExpertId(issue.expertId || (expertUsers[0] ? expertUsers[0].id : 5));
+                                            setIssueAssignNotes('');
+                                          }}
+                                          className="font-bold text-[11px] px-2.5 py-1"
+                                        >
+                                          {isExpertUnassigned ? 'Giao Chuyên gia' : 'Đổi người'}
+                                        </Button>
+                                      )}
                                     </td>
                                   </tr>
                                 );
@@ -2063,7 +2088,7 @@ export default function AdminDashboard() {
                           {kpi.rentedPlots || landStats.rented} / {kpi.totalPlots || landStats.total || 17} Thửa Đang Thuê
                         </p>
                         <p className="text-stone-600">
-                          Đất phù sa bồi lắng giàu mùn, đã lắp trạm quan trắc IoT vi khí hậu tự động.
+                          Đất phù sa bồi lắng giàu mùn, cập nhật dữ liệu khí tượng & vi khí hậu tự động qua Weather API.
                         </p>
                       </div>
                       <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 space-y-1">
@@ -2311,20 +2336,20 @@ export default function AdminDashboard() {
             )}
 
             {/* ========================================================================= */}
-            {/* TAB 6: IOT ALERTS, WEATHER & HARDWARE HEALTH (SCR-AD-08 / UC13 / BR18)   */}
+            {/* TAB 6: WEATHER ALERTS & AGRO-CLIMATE MONITORING (SCR-AD-08 / UC13 / BR18) */}
             {/* ========================================================================= */}
-            {activeTab === 'iot-alerts' && (
+            {(activeTab === 'weather-alerts' || activeTab === 'iot-alerts') && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6 text-left">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Radio className="w-5 h-5 text-brand-green animate-pulse" />
+                      <CloudSun className="w-5 h-5 text-sky-600 animate-pulse" />
                       <h3 className="font-heading font-black text-xl text-brand-dark">
-                        Trạm Quan Trắc IoT, Thời Tiết &amp; Cảnh Báo Vi Khí Hậu (SCR-AD-08 / BR18)
+                        Dữ Liệu Thời Tiết Thực Địa &amp; Cảnh Báo Khí Tượng (SCR-AD-08 / BR18)
                       </h3>
                     </div>
                     <p className="text-xs text-brand-muted mt-0.5">
-                      Theo dõi vi khí hậu thời gian thực 24/7, tự động phát hiện vượt ngưỡng an toàn thực vật và tự động điều tiết lịch tưới nước theo thời tiết.
+                      Cập nhật dữ liệu vi khí hậu thời gian thực qua Weather API theo tọa độ nông trại 24/7, tự động phát hiện thời tiết cực đoan (nắng nóng, sương giá, mưa lớn) và tự động điều tiết hoãn lịch tưới nước (BR18).
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -2332,24 +2357,24 @@ export default function AdminDashboard() {
                       variant="secondary"
                       size="sm"
                       onClick={() => handleSimulateAlert(1, 'HIGH_TEMPERATURE')}
-                      className="text-xs font-bold gap-1.5 border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100"
+                      className="text-xs font-bold gap-1.5 border-amber-200 text-amber-800 bg-amber-50 hover:bg-amber-100"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-rose-600" />
-                      <span>Giả Lập Sốc Nhiệt</span>
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Giả Lập Sốc Nhiệt Thời Tiết</span>
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={loadAdminData}
-                      className="text-xs font-bold gap-1.5"
+                      className="text-xs font-bold gap-1.5 border-sky-200 text-sky-800 bg-sky-50 hover:bg-sky-100"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Đồng Bộ IoT</span>
+                      <span>Cập Nhật Weather API</span>
                     </Button>
                   </div>
                 </div>
 
-                {/* IoT Key Performance Indicators */}
+                {/* Weather & Climate Key Performance Indicators */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                   <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200 space-y-1">
                     <p className="font-bold text-rose-900">Cảnh Báo Kích Hoạt</p>
@@ -2368,9 +2393,9 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-1">
-                    <p className="font-bold text-emerald-900">Trạm Cảm Biến Trực Tuyến</p>
-                    <p className="text-2xl font-black text-emerald-700">16 / 16 Trạm</p>
-                    <p className="text-[11px] text-emerald-800 font-medium">Kết nối 4G / LoRaWAN 100%</p>
+                    <p className="font-bold text-emerald-900">API Thời Tiết Thực Địa</p>
+                    <p className="text-2xl font-black text-emerald-700">Trực Tuyến 100%</p>
+                    <p className="text-[11px] text-emerald-800 font-medium">Tọa độ Củ Chi (10.97°N, 106.49°E)</p>
                   </div>
 
                   <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-1">
@@ -2443,12 +2468,12 @@ export default function AdminDashboard() {
                   </div>
                 )}
 
-                {/* IoT Alerts Filter & Table */}
+                {/* Weather & Climate Alerts Filter & Table */}
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h4 className="font-heading font-black text-base text-brand-dark flex items-center gap-1.5">
                       <AlertTriangle className="w-4 h-4 text-amber-600" />
-                      <span>Danh Sách Cảnh Báo Ngưỡng Vi Khí Hậu Hiện Trường</span>
+                      <span>Danh Sách Cảnh Báo Khí Tượng Nông Nghiệp &amp; Thời Tiết Cực Đoan</span>
                     </h4>
                     <div className="flex items-center gap-1.5">
                       {[
