@@ -517,11 +517,11 @@ SELECT json_build_object(
   'message', 'Lấy dữ liệu thống kê doanh thu và vận hành thành công từ PostgreSQL',
   'data', json_build_object(
     'kpi', json_build_object(
-      'totalRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS'), 0),
-      'leaseRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND contract_id IS NOT NULL), 0),
-      'serviceRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND service_request_id IS NOT NULL), 0),
+      'totalRevenue', COALESCE((SELECT SUM(CASE WHEN type = 'REFUND' THEN -amount ELSE amount END) FROM payment_transactions WHERE status = 'SUCCESS'), 0),
+      'leaseRevenue', COALESCE((SELECT SUM(CASE WHEN type = 'REFUND' THEN -amount ELSE amount END) FROM payment_transactions WHERE status = 'SUCCESS' AND contract_id IS NOT NULL AND service_request_id IS NULL), 0),
+      'serviceRevenue', COALESCE((SELECT SUM(CASE WHEN type = 'REFUND' THEN -amount ELSE amount END) FROM payment_transactions WHERE status = 'SUCCESS' AND service_request_id IS NOT NULL), 0),
       'pendingRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'PENDING'), 0),
-      'monthlyRevenue', COALESCE((SELECT SUM(amount) FROM payment_transactions WHERE status = 'SUCCESS' AND created_at >= DATE_TRUNC('month', CURRENT_DATE)), 0),
+      'monthlyRevenue', COALESCE((SELECT SUM(CASE WHEN type = 'REFUND' THEN -amount ELSE amount END) FROM payment_transactions WHERE status = 'SUCCESS' AND created_at AT TIME ZONE 'Asia/Bangkok' >= DATE_TRUNC('month', NOW() AT TIME ZONE 'Asia/Bangkok') AND created_at AT TIME ZONE 'Asia/Bangkok' < DATE_TRUNC('month', NOW() AT TIME ZONE 'Asia/Bangkok') + INTERVAL '1 month'), 0),
       'totalPlots', (SELECT count(*)::int FROM plots),
       'rentedPlots', (SELECT count(*)::int FROM plots WHERE status = 'RENT'),
       'availablePlots', (SELECT count(*)::int FROM plots WHERE status = 'AVAIL'),
@@ -553,15 +553,15 @@ SELECT json_build_object(
     'monthlyRevenue', (
       SELECT COALESCE(json_agg(row_to_json(m)), '[]'::json) FROM (
         SELECT 
-          TO_CHAR(pt.created_at, 'MM/YYYY') AS "month",
-          'Tháng ' || TO_CHAR(pt.created_at, 'MM') AS "monthLabel",
-          SUM(CASE WHEN pt.contract_id IS NOT NULL THEN pt.amount ELSE 0 END) AS "leaseRevenue",
-          SUM(CASE WHEN pt.service_request_id IS NOT NULL THEN pt.amount ELSE 0 END) AS "serviceRevenue",
-          SUM(pt.amount) AS "totalRevenue"
+          TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM/YYYY') AS "month",
+          'Tháng ' || TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM') AS "monthLabel",
+          SUM(CASE WHEN pt.contract_id IS NOT NULL AND pt.service_request_id IS NULL THEN CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END ELSE 0 END) AS "leaseRevenue",
+          SUM(CASE WHEN pt.service_request_id IS NOT NULL THEN CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END ELSE 0 END) AS "serviceRevenue",
+          SUM(CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END) AS "totalRevenue"
         FROM payment_transactions pt
         WHERE pt.status = 'SUCCESS'
-        GROUP BY TO_CHAR(pt.created_at, 'MM/YYYY'), 'Tháng ' || TO_CHAR(pt.created_at, 'MM')
-        ORDER BY "month" ASC
+        GROUP BY TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM/YYYY'), 'Tháng ' || TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM')
+        ORDER BY MIN(pt.created_at) ASC
       ) m
     ),
     'recentTransactions', (
@@ -1463,19 +1463,16 @@ LIMIT 1;
                 const startDate = it.startDate || new Date().toISOString().split('T')[0];
 
                 // Ràng buộc thời gian bắt đầu canh tác: tối thiểu 5 ngày, tối đa 14 ngày kể từ ngày đặt
-                const toIsoLocalDate = (d) => {
-                  const local = new Date(d);
-                  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
-                  return local.toISOString().slice(0, 10);
-                };
-                const addDaysHelper = (d, n) => {
-                  const target = new Date(d);
-                  target.setHours(12, 0, 0, 0);
-                  target.setDate(target.getDate() + n);
-                  return toIsoLocalDate(target);
-                };
-                const minAllowedDate = addDaysHelper(new Date(), 5);
-                const maxAllowedDate = addDaysHelper(new Date(), 14);
+                const bangkokParts = new Intl.DateTimeFormat('en-US', {
+                  timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
+                }).formatToParts(new Date());
+                const bangkokDatePart = (type) => Number(bangkokParts.find((part) => part.type === type)?.value);
+                const bangkokToday = Date.UTC(
+                  bangkokDatePart('year'), bangkokDatePart('month') - 1, bangkokDatePart('day')
+                );
+                const addDaysHelper = (days) => new Date(bangkokToday + days * 86400000).toISOString().slice(0, 10);
+                const minAllowedDate = addDaysHelper(5);
+                const maxAllowedDate = addDaysHelper(14);
 
                 if (startDate < minAllowedDate) {
                   res.statusCode = 400;
