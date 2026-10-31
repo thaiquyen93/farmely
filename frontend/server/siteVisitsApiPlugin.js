@@ -3710,8 +3710,14 @@ SELECT json_build_object(
         v.variety_name AS "varietyName",
         v.crop_id AS "cropId",
         c.crop_name AS "cropName",
-        v.expected_duration AS "growthDuration",
-        v.expected_duration AS "expectedDuration",
+        COALESCE(
+          (SELECT MAX(ts.day_offset) FROM template_steps ts JOIN process_templates pt ON ts.template_id = pt.template_id WHERE pt.variety_id = v.variety_id),
+          v.expected_duration
+        ) AS "growthDuration",
+        COALESCE(
+          (SELECT MAX(ts.day_offset) FROM template_steps ts JOIN process_templates pt ON ts.template_id = pt.template_id WHERE pt.variety_id = v.variety_id),
+          v.expected_duration
+        ) AS "expectedDuration",
         v.buffer_time AS "bufferTime",
         '4.0 kg/m²' AS "expectedYield",
         'Giống cây thuần chủng F1 đạt chuẩn VietGAP, kháng sâu bệnh tốt.' AS description,
@@ -3805,6 +3811,26 @@ SELECT json_build_object(
         }
 
         // 14. PROCESS TEMPLATES API (GET, POST, PUT, DELETE)
+        const syncVarietyDurationFromTemplate = async (templateId) => {
+          if (!templateId) return;
+          try {
+            await runPostgreSql(`
+              UPDATE varieties v
+              SET expected_duration = sub.max_day
+              FROM (
+                SELECT pt.variety_id, COALESCE(MAX(ts.day_offset), 45) AS max_day
+                FROM process_templates pt
+                LEFT JOIN template_steps ts ON ts.template_id = pt.template_id
+                WHERE pt.template_id = ${templateId}
+                GROUP BY pt.variety_id
+              ) sub
+              WHERE v.variety_id = sub.variety_id AND sub.max_day > 0;
+            `);
+          } catch (e) {
+            console.warn('[Sync Variety Duration Warning]:', e.message);
+          }
+        };
+
         // 14.1 GET /api/process-templates & /api/templates
         if (req.method === 'GET' && (
           url === '/api/process-templates' || url === '/api/v1/process-templates' ||
@@ -4053,6 +4079,7 @@ VALUES (
 );
                   `);
                 }
+                await syncVarietyDurationFromTemplate(templateId);
               }
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -4111,6 +4138,7 @@ VALUES (
                   `);
                   insertedCount++;
                 }
+                await syncVarietyDurationFromTemplate(templateId);
 
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
                 res.end(JSON.stringify({
@@ -4146,6 +4174,7 @@ RETURNING step_id;
 `;
               const stepRes = await runPostgreSql(insertStepSql);
               const stepId = parseInt(String(stepRes).replace(/\D/g, ''), 10);
+              await syncVarietyDurationFromTemplate(templateId);
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
@@ -4207,6 +4236,7 @@ UPDATE template_steps
 SET ${setClauses.join(', ')}
 WHERE step_id = ${stepId} AND template_id = ${templateId};
                 `);
+                await syncVarietyDurationFromTemplate(templateId);
               }
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -4226,6 +4256,7 @@ WHERE step_id = ${stepId} AND template_id = ${templateId};
           const stepId = parseInt(match[2], 10);
           try {
             await runPostgreSql(`DELETE FROM template_steps WHERE step_id = ${stepId} AND template_id = ${templateId};`);
+            await syncVarietyDurationFromTemplate(templateId);
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ success: true, message: `Đã xóa bước #${stepId}` }));
           } catch (err) {
