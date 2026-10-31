@@ -28,11 +28,6 @@ export default function PlotForm() {
   const [originalStatus, setOriginalStatus] = useState(null);
   const [originalCode, setOriginalCode] = useState('');
 
-  // BR03: Danh mục giống cây tương thích thổ nhưỡng
-  const [availableVarieties, setAvailableVarieties] = useState([]);
-  const [selectedVarietyIds, setSelectedVarietyIds] = useState([]);
-  const [varietySearch, setVarietySearch] = useState('');
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [landLoading, setLandLoading] = useState(false);
@@ -40,19 +35,16 @@ export default function PlotForm() {
   const [serverError, setServerError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Danh sách nông trại + giống cây + (nếu sửa) dữ liệu thửa hiện tại
+  // Danh sách nông trại + (nếu sửa) dữ liệu thửa hiện tại
   useEffect(() => {
     let alive = true;
     Promise.all([
       farmApi.listLands(),
-      editId ? farmApi.getPlot(editId) : Promise.resolve(null),
-      fetch('/api/varieties').then((r) => r.json()).catch(() => ({ data: [] }))
+      editId ? farmApi.getPlot(editId) : Promise.resolve(null)
     ])
-      .then(([landList, plot, varietiesRes]) => {
+      .then(([landList, plot]) => {
         if (!alive) return;
         setLands(landList || []);
-        const varList = Array.isArray(varietiesRes?.data) ? varietiesRes.data : [];
-        setAvailableVarieties(varList);
 
         if (plot) {
           setLandId(String(plot.landId));
@@ -65,12 +57,6 @@ export default function PlotForm() {
           setIsPublished(Boolean(plot.isPublished));
           setImageUrl(plot.imageUrl || '');
           setBoundary(plot.boundary || []);
-
-          if (Array.isArray(plot.compatibleVarieties) && plot.compatibleVarieties.length > 0) {
-            setSelectedVarietyIds(plot.compatibleVarieties.map((v) => Number(v.varietyId)));
-          } else {
-            setSelectedVarietyIds([]);
-          }
         } else {
           if (!defaultLandId && landList?.length) {
             setLandId(String(landList[0].landId));
@@ -78,7 +64,6 @@ export default function PlotForm() {
           // Thửa mới tạo: mặc định chưa kích hoạt (MAINT, isPublished=false) và chờ Expert gán giống cây & quy trình
           setStatus('MAINT');
           setIsPublished(false);
-          setSelectedVarietyIds([]);
         }
       })
       .catch((e) => alive && setLoadError(e.message))
@@ -111,20 +96,6 @@ export default function PlotForm() {
   const ringCheck = hasRing ? validateRing(ring, { outer: outer?.ring, outerName: outer?.label, others }) : null;
   const lockedBoundary = editId && originalStatus === 'RENT';
 
-  const toggleVariety = (id) => {
-    setSelectedVarietyIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const filteredVarieties = useMemo(() => {
-    if (!varietySearch.trim()) return availableVarieties;
-    const q = varietySearch.toLowerCase().trim();
-    return availableVarieties.filter(
-      (v) => (v.name && v.name.toLowerCase().includes(q)) || (v.cropName && v.cropName.toLowerCase().includes(q))
-    );
-  }, [availableVarieties, varietySearch]);
-
   const validate = () => {
     const errs = {};
     if (!landId) errs.landId = 'Chọn nông trại chứa thửa đất.';
@@ -151,8 +122,7 @@ export default function PlotForm() {
         status: effectiveStatus,
         isPublished,
         imageUrl: imageUrl.trim() || null,
-        boundary: lockedBoundary ? undefined : ring,
-        varietyIds: selectedVarietyIds
+        boundary: lockedBoundary ? undefined : ring
       };
       const saved = editId ? await farmApi.updatePlot(editId, body) : await farmApi.createPlot(body);
       clearCompatibilityCache();
@@ -275,110 +245,20 @@ export default function PlotForm() {
           </div>
         </div>
 
-        {/* SSoT BR03: Phân Bổ Giống Cây Trồng Theo Thổ Nhưỡng (Nghiệp Vụ CGNN) */}
-        <section className="space-y-3 rounded-2xl border border-brand-border bg-stone-50/50 p-4 sm:p-5">
-          <div className="p-3 bg-sky-50 rounded-xl border border-sky-200 text-xs text-sky-900 flex items-start gap-2.5">
-            <Sprout className="w-4 h-4 text-sky-700 shrink-0 mt-0.5" />
-            <div>
-              <strong className="font-bold block">Quy trình Nông học Chuẩn (BR03 / BR24):</strong>
-              <span className="leading-relaxed block mt-0.5">
-                Master Data tại Admin chỉ thiết lập hạ tầng vật lý (mã thửa, diện tích, giá thuê, ranh giới). Danh mục giống cây tương thích sẽ do <strong>Chuyên Gia Nông Nghiệp (CGNN)</strong> phụ trách trực tiếp khảo nghiệm thổ nhưỡng (loại đất, dải pH, độ mùn) và phê duyệt tại <strong>Bàn Làm Việc Chuyên Gia &gt; Ma Trận Thổ Nhưỡng – Giống Cây Trồng</strong>.
-              </span>
-            </div>
+        {/* SSoT BR03 & RBAC: Ma Trận Thổ Nhưỡng & Giống Cây Trồng (Nghiệp Vụ Độc Quyền Của CGNN) */}
+        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 space-y-2.5">
+          <div className="flex items-center gap-2">
+            <Sprout className="h-5 w-5 text-emerald-700 shrink-0" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-950">
+              Ma Trận Thổ Nhưỡng &amp; Giống Cây Trồng (Nghiệp Vụ Chuyên Môn Độc Quyền Của CGNN - BR03)
+            </h3>
           </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <Sprout className="h-4 w-4 text-brand-green" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-brand-dark">
-                  Gợi ý giống cây trồng sơ bộ (Tùy chọn - Không bắt buộc)
-                </h3>
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
-                  Chuẩn VietGAP
-                </span>
-              </div>
-              <p className="text-xs text-stone-500">
-                Admin có thể gán sơ bộ nếu cần; Chuyên gia phụ trách thửa đất sẽ khảo nghiệm thực địa và phê duyệt danh mục chính thức trước khi mở thuê.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedVarietyIds(availableVarieties.map((v) => Number(v.id)))}
-                className="rounded-lg border border-brand-border bg-white px-2.5 py-1 text-xs font-semibold text-brand-dark hover:bg-stone-50 transition-colors cursor-pointer"
-              >
-                Chọn tất cả ({availableVarieties.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedVarietyIds([])}
-                className="rounded-lg border border-brand-border bg-white px-2.5 py-1 text-xs font-semibold text-stone-600 hover:bg-stone-50 transition-colors cursor-pointer"
-              >
-                Bỏ chọn
-              </button>
-            </div>
-          </div>
-
-          {/* Ô tìm kiếm nhanh giống cây */}
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm giống cây (ví dụ: Xà lách, Cải ngọt, Cà chua...)"
-              value={varietySearch}
-              onChange={(e) => setVarietySearch(e.target.value)}
-              className="w-full rounded-xl border border-brand-border bg-white py-1.5 pl-8 pr-3 text-xs text-brand-dark placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
-          {/* Lưới các giống cây để tick chọn */}
-          {filteredVarieties.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-stone-300 bg-white p-4 text-center text-xs text-stone-500">
-              Không tìm thấy giống cây nào khớp với từ khóa "{varietySearch}".
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredVarieties.map((v) => {
-                const vid = Number(v.id);
-                const isChecked = selectedVarietyIds.includes(vid);
-                return (
-                  <label
-                    key={vid}
-                    className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-all select-none ${
-                      isChecked
-                        ? 'border-brand-green bg-emerald-50/70 shadow-xs ring-1 ring-brand-green/20'
-                        : 'border-brand-border bg-white hover:border-stone-400'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => toggleVariety(vid)}
-                      className="mt-0.5 h-4 w-4 rounded border-brand-border text-brand-green focus:ring-brand-green cursor-pointer"
-                    />
-                    <div className="min-w-0 flex-1 text-xs">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-brand-dark truncate">{v.name}</span>
-                        {isChecked && <CheckCircle2 className="h-3.5 w-3.5 text-brand-green shrink-0" />}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-stone-500">
-                        <span className="rounded bg-stone-100 px-1.5 py-0.5 font-medium text-stone-700">
-                          {v.cropName || 'Rau củ'}
-                        </span>
-                        <span>⏱️ {v.growthDuration || 30} ngày</span>
-                      </div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between text-xs text-stone-500 pt-1">
-            <span>
-              Đã gán sơ bộ: <strong className="text-brand-dark">{selectedVarietyIds.length}</strong> / {availableVarieties.length} giống cây (CGNN sẽ khảo nghiệm và duyệt chính thức)
+          <p className="text-xs text-emerald-900 leading-relaxed">
+            Theo nguyên tắc phân quyền và chuẩn SSoT (BR03 / BR24), <strong>Quản trị viên (Admin)</strong> chỉ quản trị các thông số hạ tầng vật lý (mã thửa, diện tích, giá thuê, ranh giới GIS). Việc khảo nghiệm thực địa thổ nhưỡng (loại đất, dải pH, độ mùn, tầng canh tác) và phê duyệt danh mục giống cây tương thích được thực hiện độc quyền bởi <strong>Chuyên Gia Nông Nghiệp (CGNN)</strong>.
+          </p>
+          <div className="pt-1 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-300 text-xs font-bold text-emerald-800 shadow-2xs">
+              🌿 Bàn Làm Việc Chuyên Gia &gt; Ma Trận Thổ Nhưỡng – Giống (plot_variety_compatibility)
             </span>
           </div>
         </section>
