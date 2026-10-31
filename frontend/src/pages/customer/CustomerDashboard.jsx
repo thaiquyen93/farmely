@@ -2097,8 +2097,8 @@ export default function CustomerDashboard() {
     },
     {
       id: 'iot',
-      label: 'Dữ liệu vi khí hậu IoT',
-      desc: 'Biểu đồ trạm đo theo giờ, ngày, tuần',
+      label: 'Thời tiết & Vi khí hậu',
+      desc: 'Biểu đồ khí tượng theo giờ, ngày, tuần từ Weather API',
       icon: Radio
     },
     {
@@ -2968,10 +2968,10 @@ export default function CustomerDashboard() {
                     <Radio className="h-8 w-8" />
                   </div>
                   <h3 className="mt-4 font-heading text-xl font-bold text-[#18352b]">
-                    Chưa có trạm đo IoT
+                    Chưa có dữ liệu thời tiết thực địa
                   </h3>
                   <p className="mx-auto mt-2 max-w-md text-sm text-stone-500">
-                    Bạn chưa có thửa đất canh tác nào được kết nối cảm biến IoT. Hãy thuê thửa đất tại Marketplace để theo dõi chỉ số nhiệt độ, độ ẩm đất vi khí hậu theo thời gian thực.
+                    Bạn chưa có thửa đất canh tác nào. Hãy thuê thửa đất tại Marketplace để theo dõi chỉ số nhiệt độ, độ ẩm không khí và độ ẩm đất từ Weather API theo thời gian thực.
                   </p>
                   <div className="mt-6">
                     <Link
@@ -2992,11 +2992,11 @@ export default function CustomerDashboard() {
                     <button type="button" onClick={() => { if (iotReturnPlotId) { navigate(`/customer/dashboard?plot=${iotReturnPlotId}`); } else { navigate('/customer/dashboard'); } }} className="mb-3 flex items-center gap-1.5 text-xs font-black text-brand-green hover:underline"><ArrowLeft className="h-4 w-4" />Quay lại {iotReturnPlotId ? 'chi tiết thửa' : 'tổng quan'}</button>
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-cream text-brand-green border border-brand-border mb-2">
                       <Radio className="w-3.5 h-3.5 text-brand-green" />
-                      <span>Trạm Quan Trắc IoT Không Dây</span>
+                      <span>Dữ Liệu Khí Tượng Nông Trại (Weather API)</span>
                       {isIotConnected ? (
                         <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full ml-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
-                          Trực tiếp (SSE) {currentIotPlot.lastUpdated ? `· ${currentIotPlot.lastUpdated}` : ''}
+                          Trực tiếp (Weather API) {currentIotPlot.lastUpdated ? `· ${currentIotPlot.lastUpdated}` : ''}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[11px] text-stone-600 bg-stone-200/60 px-2 py-0.5 rounded-full ml-1">
@@ -3006,10 +3006,10 @@ export default function CustomerDashboard() {
                       )}
                     </div>
                     <h2 className="font-heading font-black text-2xl text-brand-dark">
-                      Dữ Liệu Vi Khí Hậu IoT
+                      Thời Tiết &amp; Vi Khí Hậu Thực Địa
                     </h2>
                     <p className="text-xs text-brand-muted mt-1">
-                      Thông tin thổ nhưỡng, độ ẩm đất và nhiệt độ môi trường theo thời gian thực từ trạm cảm biến.
+                      Thông tin nhiệt độ, độ ẩm không khí và độ ẩm đất cập nhật liên tục từ Weather API theo tọa độ nông trại.
                     </p>
                   </div>
 

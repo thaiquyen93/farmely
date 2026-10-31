@@ -23,7 +23,7 @@ export default function Footer() {
               </span>
             </div>
             <p className="text-sm text-stone-300 leading-relaxed max-w-sm">
-              Nền tảng thuê thửa đất và theo dõi trải nghiệm canh tác. Trải nghiệm tự tay canh tác hoặc ủy thác trọn gói, giám sát bằng trạm quan trắc IoT vi khí hậu và thu hoạch nông sản chuẩn VietGAP.
+              Nền tảng thuê thửa đất và theo dõi trải nghiệm canh tác. Trải nghiệm tự tay canh tác hoặc ủy thác trọn gói, giám sát qua dữ liệu thời tiết & vi khí hậu thực địa và thu hoạch nông sản chuẩn VietGAP.
             </p>
           </div>
 

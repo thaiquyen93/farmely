@@ -48,7 +48,7 @@
 │   ├── SCR-KH-07: Xem Cultivation Plan & Phê duyệt
 │   ├── SCR-KH-08: Farm Diary Timeline
 │   ├── SCR-KH-09: Tạo nhật ký mới (Self-growing)
-│   ├── SCR-KH-10: Dashboard IoT & Thời tiết
+│   ├── SCR-KH-10: Dashboard Thời Tiết & Vi Khí Hậu Thực Địa
 │   ├── SCR-KH-11: Đặt Service Request (Dịch vụ lẻ)
 │   ├── SCR-KH-12: Chat tư vấn 1-1 với CGNN
 │   ├── SCR-KH-13: AI Chatbot
@@ -61,13 +61,13 @@
 │   ├── SCR-AD-01: Dashboard AD (Thống kê tổng hợp)
 │   ├── SCR-AD-02: Quản lý User & Phân quyền RBAC
 │   ├── SCR-AD-03: Quản lý Land (Danh sách + Form)
-│   ├── SCR-AD-04: Quản lý Plot (Danh sách + Form + IoT)
+│   ├── SCR-AD-04: Quản lý Plot (Danh sách + Form)
 │   ├── SCR-AD-05: Cấu hình Marketplace (Published/Hidden)
 │   ├── SCR-AD-06: Quản lý danh mục Dịch vụ phát sinh
 │   ├── SCR-AD-07: Giám sát Reservation & Rental
 │   ├── SCR-AD-08: Phân công Care Task cho CVLĐ
 │   ├── SCR-AD-09: Tiếp nhận & Phân công Service Request
-│   ├── SCR-AD-10: Giám sát Cảnh báo IoT
+│   ├── SCR-AD-10: Giám Sát Cảnh Báo Khí Tượng & Thời Tiết Thực Địa
 │   └── SCR-AD-11: Tra cứu Audit Log
 │
 ├── CHUYÊN GIA NÔNG NGHIỆP (CGNN)
@@ -75,7 +75,7 @@
 │   ├── SCR-CGNN-02: Quản lý Crop & Variety
 │   ├── SCR-CGNN-03: Thiết lập Plot–Crop Compatibility
 │   ├── SCR-CGNN-04: Soạn Standard Process Template
-│   ├── SCR-CGNN-05: Cấu hình ngưỡng IoT theo giai đoạn
+│   ├── SCR-CGNN-05: Cấu hình ngưỡng Khí tượng & Vi Khí Hậu theo giai đoạn
 │   ├── SCR-CGNN-06: Quản lý kho tài liệu chuyên môn
 │   ├── SCR-CGNN-07: Lập & Hiệu chỉnh Kế hoạch Canh tác
 │   ├── SCR-CGNN-08: Đề xuất Plan Revision
@@ -521,20 +521,20 @@
 
 ---
 
-### SCR-KH-10: Dashboard IoT & Thời tiết
+### SCR-KH-10: Dashboard Thời Tiết & Vi Khí Hậu Thực Địa (Weather API)
 
 | Thuộc tính | Mô tả |
 |---|---|
-| **Mục đích** | Giám sát vi khí hậu Plot đang thuê + dự báo thời tiết |
+| **Mục đích** | Giám sát vi khí hậu Plot đang thuê + dự báo thời tiết qua Weather API |
 | **Actor** | KH |
-| **URL** | `/customer/rental/{rentalId}/iot` |
+| **URL** | `/customer/rental/{rentalId}/weather` |
 | **UC liên quan** | UC-KH11, UC-KH12, US7.4, US7.6 |
 
 **Thành phần UI:**
 
 | # | Component | Loại | Mô tả |
 |---|---|---|---|
-| 1 | 3 Gauge thời gian thực | Gauge Charts | Nhiệt độ (°C), Ẩm đất (%), Ẩm khí (%) – màu Xanh/Vàng/Đỏ |
+| 1 | 3 Gauge thời gian thực | Gauge Charts | Nhiệt độ (°C), Ẩm đất (%), Ẩm khí (%) – cập nhật từ Weather API |
 | 2 | Thời điểm đo | Timestamp | "Lần đo gần nhất: 18/09/2026 15:00" |
 | 3 | Biểu đồ lịch sử | Line Chart (Recharts) | Toggle: 24 giờ / 7 ngày. Đường ngưỡng min/max |
 | 4 | Widget thời tiết | Weather Card | Hôm nay: Icon, Nhiệt độ, Gió, Xác suất mưa |
@@ -826,11 +826,11 @@
 
 ---
 
-### SCR-AD-09: Giám sát Cảnh báo IoT
+### SCR-AD-09: Giám sát Cảnh Báo Khí Tượng & Thời Tiết Thực Địa
 
 | Thuộc tính | Mô tả |
 |---|---|
-| **Mục đích** | Xem tất cả cảnh báo môi trường vượt ngưỡng trên toàn hệ thống |
+| **Mục đích** | Xem tất cả cảnh báo thời tiết cực đoan (nhiệt độ, ẩm độ) và điều tiết tưới BR18 từ Weather API |
 | **Actor** | AD |
 | **URL** | `/admin/alerts` |
 | **UC liên quan** | UC-AD11 |

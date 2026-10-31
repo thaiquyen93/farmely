@@ -608,7 +608,7 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
                   </div>
 
                   <p className="text-[11px] text-stone-600 mt-2 leading-relaxed">
-                    Kiểm tra cường độ ánh sáng, khả năng giữ nước của đất và vận hành trạm quan trắc IoT lúc chiều tà.
+                    Kiểm tra cường độ ánh sáng, khả năng giữ nước của đất và cập nhật dữ liệu vi khí hậu thực địa lúc chiều tà.
                   </p>
                 </button>
               </div>
@@ -753,7 +753,7 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
             {[
               '🌱 Cần tư vấn chọn giống cây',
               '💧 Kiểm tra hệ thống tưới ngầm',
-              '📡 Xem trạm quan trắc IoT',
+              '⛅ Xem dữ liệu thời tiết & vi khí hậu thực địa',
               '👨‍👩‍👧‍👦 Đi cùng người lớn tuổi & trẻ em',
               '🚗 Cần hỗ trợ xe điện nội bộ'
             ].map((tag) => (

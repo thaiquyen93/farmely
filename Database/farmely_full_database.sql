@@ -152,7 +152,7 @@ CREATE TABLE sensor_readings (
     soil_humidity DECIMAL(5,2),
     recorded_at   TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
-COMMENT ON TABLE sensor_readings IS 'IoT sensor data per plot -- simulated every 3 hours';
+COMMENT ON TABLE sensor_readings IS 'Dữ liệu thời tiết & vi khí hậu lưu cache theo thửa đất từ Weather API';
 
 
 CREATE TABLE crops (
@@ -984,7 +984,7 @@ INSERT INTO issue_reports (issue_id, rental_id, reported_by, handled_by, issue_t
  NOW() - INTERVAL '1 day', NOW() - INTERVAL '3 days'),
 
 (2, 2, 2, 6, 'ẨM ĐỘ - CẢNH BÁO TƯỚI', 
- 'Cảm biến IoT báo độ ẩm đất thửa P-02 giảm xuống 52%, thấp hơn ngưỡng khuyến nghị 65%.', 
+ 'Dữ liệu khí tượng báo độ ẩm đất thửa P-02 giảm xuống 52%, thấp hơn ngưỡng khuyến nghị 65%.', 
  '/images/issues/do-am-p02.jpg', 'OPEN', 
  NULL, NULL, NOW() - INTERVAL '4 hours')
 ON CONFLICT (issue_id) DO NOTHING;
@@ -993,7 +993,7 @@ ON CONFLICT (issue_id) DO NOTHING;
 INSERT INTO notifications (notification_id, user_id, title, content, is_read, created_at) VALUES
 (1, 1, 'Hợp đồng FML-2026-001 đã kích hoạt', 'Thửa đất P-01 của bạn đã bắt đầu chu kỳ canh tác cà chua bi Cherry VietGAP.', FALSE, NOW() - INTERVAL '12 days'),
 (2, 1, 'Nhật ký đồng ruộng vừa cập nhật', 'Kỹ thuật viên Lê Văn Bảy vừa hoàn thành và đăng tải ảnh tưới phân hữu cơ.', TRUE, NOW() - INTERVAL '2 days'),
-(3, 2, 'Cảnh báo cảm biến độ ẩm thửa P-02', 'Độ ẩm đất thửa P-02 hiện tại là 52%. Kỹ sư Đặng Thị Thu Thảo đang xử lý.', FALSE, NOW() - INTERVAL '4 hours'),
+(3, 2, 'Cảnh báo thời tiết & độ ẩm thửa P-02', 'Độ ẩm đất thửa P-02 hiện tại là 52%. Kỹ sư Đặng Thị Thu Thảo đang xử lý.', FALSE, NOW() - INTERVAL '4 hours'),
 (4, 7, 'Nhiệm vụ mới được giao', 'Bạn có nhiệm vụ tưới nước bổ sung cho thửa P-01 vào sáng mai.', FALSE, NOW() - INTERVAL '6 hours'),
 (5, 4, 'Yêu cầu hủy hợp đồng được phê duyệt', 'Yêu cầu hủy hợp đồng FML-2026-003 đã được duyệt theo chính sách hoàn tiền Farmely.', TRUE, NOW() - INTERVAL '1 day')
 ON CONFLICT (notification_id) DO NOTHING;

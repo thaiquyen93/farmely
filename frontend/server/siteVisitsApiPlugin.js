@@ -59,7 +59,7 @@ function callGeminiLlm({ message, contextDocs = [] }) {
           text: 'Bạn là Farmely AI — Trợ lý Nông Nghiệp Thông Minh, Thân Thiện và Có Tâm của nền tảng số Farmely (farmely.vn). ' +
             'Phong cách giao tiếp: Tự nhiên, ấm áp, thông minh, lịch sự, nói chuyện như một chuyên gia nông nghiệp công nghệ cao thân thiện, có cảm xúc và "tính người" (human-like). Tuyệt đối không trả lời máy móc, dập khuôn. ' +
             'Nếu người dùng hỏi câu hỏi thông thường, đố vui hoặc toán học đời thường (như "1 cộng 1 bằng mấy?", "hôm nay thời tiết đẹp không?", v.v.), hãy trả lời chính xác, duyên dáng, vui vẻ và có thể khéo léo gắn kết nhẹ nhàng với nông trại Farmely nếu thích hợp. ' +
-            'Nếu người dùng hỏi về kỹ thuật trồng trọt, sâu bệnh, độ ẩm, vi khí hậu, giống rau, thuê thửa đất, hãy dựa trên kiến thức cẩm nang được cung cấp (nếu có) để giải thích cặn kẽ, đưa ra phác đồ thực hành rõ ràng và hướng dẫn họ xem cảm biến IoT hoặc liên hệ kênh Chuyên gia khi cần.'
+            'Nếu người dùng hỏi về kỹ thuật trồng trọt, sâu bệnh, độ ẩm, vi khí hậu, giống rau, thuê thửa đất, hãy dựa trên kiến thức cẩm nang được cung cấp (nếu có) để giải thích cặn kẽ, đưa ra phác đồ thực hành rõ ràng và hướng dẫn họ xem dữ liệu thời tiết & độ ẩm đất hoặc liên hệ kênh Chuyên gia khi cần.'
         }]
       },
       contents: [
@@ -3215,7 +3215,7 @@ SELECT row_to_json(p) FROM (
     TO_CHAR(p.price_per_period, 'FM999,999,999') || ' đ/tháng' AS "formattedPrice",
     p.status::text AS "status", 
     p.is_published AS "isPublished",
-    'Thửa đất canh tác tiêu chuẩn VietGAP thuộc phân vùng ' || l.land_name || '. Hệ thống cấp thoát nước và trạm cảm biến IoT kết nối trực tiếp.' AS "description",
+    'Thửa đất canh tác tiêu chuẩn VietGAP thuộc phân vùng ' || l.land_name || '. Hệ thống cấp thoát nước và dữ liệu thời tiết Weather API kết nối trực tiếp.' AS "description",
     'Đất thịt nhẹ pha cát, tầng canh tác dày > 40cm, pH 6.0 - 6.5 thích hợp cho rau ăn lá và quả mọng' AS "soilType",
     'IOT-' || CASE WHEN p.land_id = 2 THEN 'DD' WHEN p.land_id = 3 THEN 'BL' ELSE 'CC' END || '-' || LPAD(p.plot_id::text, 2, '0') AS "iotStationId",
     CASE 
@@ -3872,7 +3872,7 @@ SELECT json_build_object(
               'method', CASE 
                 WHEN ts.task_type = 'SOIL_PREP' THEN 'Làm đất, đánh luống cao ráo & bón lót vi sinh Trichoderma'
                 WHEN ts.task_type = 'PLANTING' THEN 'Cấy cây con giống F1 đạt chuẩn tỷ lệ sống'
-                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo cảm biến trạm IoT'
+                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo dữ liệu thời tiết Weather API (BR18)'
                 WHEN ts.task_type = 'FERTILIZATION' THEN 'Bón thúc đạm hữu cơ vi sinh / phân trùn quế quanh tán'
                 WHEN ts.task_type = 'PEST_CONTROL' THEN 'Phun phòng sinh học tỏi ớt gừng / thảo mộc Matrine'
                 WHEN ts.task_type = 'PRUNING' THEN 'Cắm giàn cọc & tỉa chồi nách, cắt bỏ lá già chân'
@@ -3970,7 +3970,7 @@ SELECT json_build_object(
               'method', CASE 
                 WHEN ts.task_type = 'SOIL_PREP' THEN 'Làm đất, đánh luống cao ráo & bón lót vi sinh Trichoderma'
                 WHEN ts.task_type = 'PLANTING' THEN 'Cấy cây con giống F1 đạt chuẩn tỷ lệ sống'
-                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo cảm biến trạm IoT'
+                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo dữ liệu thời tiết Weather API (BR18)'
                 WHEN ts.task_type = 'FERTILIZATION' THEN 'Bón thúc đạm hữu cơ vi sinh / phân trùn quế quanh tán'
                 WHEN ts.task_type = 'PEST_CONTROL' THEN 'Phun phòng sinh học tỏi ớt gừng / thảo mộc Matrine'
                 WHEN ts.task_type = 'PRUNING' THEN 'Cắm giàn cọc & tỉa chồi nách, cắt bỏ lá già chân'

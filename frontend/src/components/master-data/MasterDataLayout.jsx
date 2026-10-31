@@ -13,7 +13,7 @@ export default function MasterDataLayout() {
   const getPageTitle = (pathname) => {
     if (pathname.includes('/lands')) return 'Quản Lý Nông Trại (Land Properties)';
     if (pathname.includes('/plots')) return 'Quản Lý Thửa Đất Canh Tác';
-    if (pathname.includes('/iot-stations')) return 'Trạm Cảm Biến Môi Trường IoT';
+    if (pathname.includes('/iot-stations')) return 'Trạm Khí Tượng & Dữ Liệu Thời Tiết Thực Địa (Weather API)';
     if (pathname.includes('/crops')) return 'Danh Mục Cây Trồng (Crops)';
     if (pathname.includes('/varieties')) return 'Danh Mục Giống Cây (Varieties)';
     if (pathname.includes('/compatibility')) return 'Ma Trận Tương Thích Thổ Nhưỡng – Giống Cây';

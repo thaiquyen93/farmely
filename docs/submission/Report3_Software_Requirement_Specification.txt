@@ -168,9 +168,9 @@ The Farmely Urban Farming Management System is a new software platform that digi
 
 2. User Requirements
 2.1 Actors
-An actor represents a role played by a human user, an external software system, or a hardware device that interacts directly with the Farmely platform. Based on the system boundaries, the identified actors are categorized below:
-* Who is notified when events occur: Customers (IoT alerts, task sync), Field Workers (new task dispatches), Agricultural Experts (field issues), Administrators (cancellations, overdue tasks).
-* Who provides information or services: Agricultural Experts (agronomic templates), Field Workers (yield measurements, photo evidence), IoT Stations (telemetry), Weather API (forecasts), Payment Gateway (transaction callbacks).
+An actor represents a role played by a human user or an external software system that interacts directly with the Farmely platform. Based on the system boundaries, the identified actors are categorized below:
+* Who is notified when events occur: Customers (weather alerts, task sync), Field Workers (new task dispatches), Agricultural Experts (field issues), Administrators (cancellations, overdue tasks).
+* Who provides information or services: Agricultural Experts (agronomic templates), Field Workers (yield measurements, photo evidence), Weather & Agro-climate API Service (meteorological observations and forecasts), Payment Gateway (transaction callbacks).
 * Who helps respond to and complete tasks: Field Workers (on-site farming execution), Payment Gateway (financial settlement), AI Service (informational farming Q&A).
 
 
@@ -205,14 +205,10 @@ An actor represents a role played by a human user, an external software system, 
 	External System
 	Third-party financial gateway (VietQR / Banking Mock) that processes 100% upfront lease payments, collects service fees, and executes authorized refunds.
 	7
-	IoT Sensor Station
-	Hardware Device
-	On-plot hardware microclimate station providing real-time soil moisture, ambient temperature, and air humidity readings every 10–180 minutes.
-	8
-	Weather Service
+	Weather & Agro-climate API Service
 	External System
-	External meteorological service (OpenWeatherMap API) providing local weather forecasts to trigger automatic watering task postponements during rainfall.
-	9
+	Third-party meteorological and agro-climatic service (e.g. Open-Meteo / OpenWeatherMap) providing real-time ambient temperature, air humidity, precipitation, and soil moisture index based on farm geolocation coordinates to trigger automatic watering task postponements during rainfall (BR18).
+	8
 	AI Knowledge Service
 	External System
 	External LLM engine that powers the 24/7 informational agricultural assistant using Retrieval-Augmented Generation (RAG) over farm knowledge documents.
@@ -282,9 +278,9 @@ ID
 	Field Worker
 	Allows field technicians to log crop anomalies (pests, disease, irrigation failure) with photos directly to the assigned expert.
 	UC13
-	Monitor Microclimate Telemetry
-	Customer, Expert, IoT Station
-	Displays near-real-time sensor readings (temperature, humidity, soil moisture) and 24-hour historical trend charts for leased plots.
+	Monitor Microclimate & Weather Observations
+	Customer, Expert, Weather Service
+	Displays real-time meteorological observations (temperature, air humidity, soil moisture index, rain forecast) from Weather API and 24-hour historical trend charts for leased plots.
 	UC14
 	Synchronize Automated Farm Diary
 	Customer, Field Worker

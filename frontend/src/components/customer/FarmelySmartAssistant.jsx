@@ -28,8 +28,8 @@ const FALLBACK_KNOWLEDGE_BASE = [
   },
   {
     keywords: ['độ ẩm', 'ẩm đất', 'tưới nước', 'tưới bù', 'hạn'],
-    reply: 'Theo quy chuẩn vi khí hậu Farmely (Quy tắc BR18): Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Nếu cảm biến báo dưới 40%, hệ thống sẽ kích hoạt cảnh báo tưới bổ sung. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ.',
-    source: 'Quy trình Vi khí hậu & Tự động hóa IoT Farmely'
+    reply: 'Theo quy chuẩn vi khí hậu Farmely (Quy tắc BR18): Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Nếu dữ liệu khí tượng báo độ ẩm dưới 40%, hệ thống sẽ kích hoạt cảnh báo tưới bổ sung. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa từ Weather API ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ.',
+    source: 'Quy trình Khí tượng Nông nghiệp Farmely'
   },
   {
     keywords: ['sâu', 'rầy', 'bọ trĩ', 'ốc sên', 'bệnh'],
@@ -215,7 +215,7 @@ export default function FarmelySmartAssistant() {
       }
       // 1. Chào hỏi tự nhiên
       else if (lowerQ.match(/^(chào|hello|hi|xin chào|farmely ai|ai|bot|alo|ơi|ê)(\s+bạn|\s+ạ)?$/i) || (lowerQ.includes('chào') && lowerQ.length <= 15)) {
-        fallbackReply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Rất vui được hỗ trợ bạn. Bạn cần tư vấn về kỹ thuật gieo trồng, kiểm tra độ ẩm đất IoT hay tìm hiểu thủ tục thuê thửa đất nào hôm nay?';
+        fallbackReply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Rất vui được hỗ trợ bạn. Bạn cần tư vấn về kỹ thuật gieo trồng, kiểm tra dữ liệu thời tiết & độ ẩm đất hay tìm hiểu thủ tục thuê thửa đất nào hôm nay?';
         fallbackSource = 'Cẩm nang Hướng dẫn Khách hàng Farmely';
       }
       // 2. Cảm ơn, tạm biệt
@@ -236,7 +236,7 @@ export default function FarmelySmartAssistant() {
           if (question.length <= 8) {
             fallbackReply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm đất vi khí hậu hay muốn tìm hiểu thủ tục thuê thửa đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nha.';
           } else {
-            fallbackReply = 'Chào bạn! Farmely AI luôn sẵn sàng đồng hành cùng bạn trong canh tác nông nghiệp công nghệ cao. Bạn có thể theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) hoặc bấm sang tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nhé!';
+            fallbackReply = 'Chào bạn! Farmely AI luôn sẵn sàng đồng hành cùng bạn trong canh tác nông nghiệp công nghệ cao. Bạn có thể theo dõi biểu đồ thời tiết & vi khí hậu thời gian thực từ Weather API của thửa đất (độ ẩm đất, nhiệt độ, độ ẩm không khí) hoặc bấm sang tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nhé!';
           }
           fallbackSource = 'Cẩm nang Kỹ thuật Nông nghiệp Farmely';
         }

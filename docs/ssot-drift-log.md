@@ -126,3 +126,15 @@ ightarrow$ cập nhật `cancellation` sang `APPROVED`, cập nhật `contracts`
   - Lưu và đồng bộ 100% dữ liệu thực tế vào bảng `plot_variety_compatibility` của PostgreSQL qua API `POST /api/plots` và `PUT /api/plots/:id`.
   - Dữ liệu giống cây tương thích được đồng bộ tức thì trên WebGIS Marketplace (`/marketplace`), màn hình Thuê đất (`/book-plot`) và màn hình chi tiết Thửa đất của Admin (`PlotDetail.jsx`).
 - **Trạng thái:** ✅ Đã hoàn thiện và kiểm thử đồng bộ 100% với PostgreSQL live.
+
+### [DRIFT-010] Loại Bỏ Hoàn Toàn Phần Cứng IoT Mô Phỏng — Thay Bằng Dịch Vụ API Thời Tiết Thực Địa (Weather API & Agro-climate Service)
+- **Ngày:** 2026-10-31
+- **File:** `CLAUDE.md`, `frontend/src/pages/admin/AdminDashboard.jsx`, `frontend/src/pages/staff/FieldWorkerDashboard.jsx`, `frontend/src/pages/admin/IoTStations.jsx`, `docs/requirements/screen-description.md`, `docs/requirements/user-stories.md`, `docs/academic/RP39 (NEW).md`, `docs/submission/Report3_Software_Requirement_Specification.txt`, `docs/submission/Report4_Software_Design_Document.txt`
+- **Docs cũ nói:** Tài liệu cũ đề cập đến Actor "IoT Sensor Station (Hardware Device)", cảm biến đo độ ẩm đất, LoRaWAN/4G, trạm quan trắc IoT vi khí hậu mô phỏng.
+- **Vấn đề / Lý do đổi:** Đồ án là phần mềm Web/Cloud, việc đưa khái niệm phần cứng IoT/cảm biến vật lý hoặc mô phỏng phần cứng gây khó hiểu và bị hội đồng chất vấn tính khả thi của phần cứng ngoài phạm vi phần mềm. Thay vào đó, việc tích hợp **Dịch vụ API Thời Tiết Thực Địa & Khí Tượng Nông Nghiệp (Weather API & Agro-meteorological Service - ví dụ Open-Meteo / OpenWeatherMap)** dựa trên tọa độ GPS thực tế của từng trang trại là hoàn toàn thực tế, giải quyết 100% bài toán phần mềm kỹ nghệ.
+- **Quy chuẩn mới thống nhất:**
+  - Thay thế toàn bộ Actor "IoT Station (Hardware Device)" thành "Weather & Agro-climate API Service (External System)".
+  - Dữ liệu vi khí hậu (Nhiệt độ, Độ ẩm không khí, Lượng mưa, Tốc độ gió, Độ ẩm đất ước tính theo cân bằng ẩm khí tượng) được cập nhật tự động từ API thời tiết theo tọa độ địa lý (GPS) của từng nông trại.
+  - Quy tắc **BR18**: Tự động phát hiện điều kiện cực đoan (sốc nhiệt, hạn hán) và tự động hoãn lịch tưới khi lượng mưa hoặc xác suất mưa dự báo từ Weather API $\ge 70\%$.
+  - Toàn bộ UI (Admin Dashboard, Field Worker Dashboard, Marketplace Plot Detail) đổi nhãn từ "Trạm IoT" sang "Thời Tiết & Khí Tượng Nông Nghiệp (Weather API)".
+- **Trạng thái:** ✅ Đã đồng bộ toàn bộ tài liệu và mã nguồn hệ thống.

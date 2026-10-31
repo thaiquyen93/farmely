@@ -306,12 +306,12 @@ export default function IoTStations() {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-              Thực thể: IoT Station (Telemetry Master Configuration)
+              Dịch vụ Khí Tượng: Weather &amp; Agro-Climate API
             </span>
             {isLiveDb && (
               <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live DB: {stations.length} Trạm cảm biến (Realtime 10s)</span>
+                <span>Live DB: {stations.length} Thửa kết nối Weather API (Đồng bộ thời gian thực)</span>
               </span>
             )}
             {lastSyncTime && (
@@ -321,10 +321,10 @@ export default function IoTStations() {
             )}
           </div>
           <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
-            Trạm Cảm Biến Môi Trường IoT
+            Trạm Khí Tượng &amp; Dữ Liệu Thời Tiết Thực Địa
           </h2>
           <p className="text-xs text-brand-muted mt-0.5">
-            Cấu hình thiết bị trạm vi khí hậu gắn trên từng thửa đất. Quản trị chu kỳ 3 giờ và kiểm soát ngưỡng an toàn sinh học.
+            Cập nhật dữ liệu vi khí hậu từ Weather API theo tọa độ địa lý nông trại. Tự động kiểm soát ngưỡng an toàn sinh học và hoãn tưới khi có mưa lớn theo quy tắc BR18.
           </p>
         </div>
 

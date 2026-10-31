@@ -83,7 +83,7 @@ Khi đặt câu hỏi về kỹ thuật hoặc vibe code:
    - **2 Hình thức canh tác:** `Self-growing` (Tự canh tác) & `Assisted-growing` (Ủy thác trọn gói).
    - **Hợp đồng & Thanh toán:** `contracts` (Master Lease Agreement) $
 ightarrow$ `rentals` (Phụ lục từng thửa). Thanh toán 100% trọn gói Lump-sum (BR09). Không giỏ hàng, không tracking vật tư tiêu hao.
-   - **IoT & Vi khí hậu:** *"Trạm quan trắc IoT vi khí hậu"* (đo nhiệt độ, độ ẩm không khí, độ ẩm đất; chu kỳ mock RP §10.3; hoãn tưới khi độ ẩm đất $\ge 80\%$ hoặc mưa lớn theo BR18).
+   - **Khí tượng & Vi khí hậu (thay thế hoàn toàn IoT):** *"Dịch vụ API Thời Tiết Thực Địa & Khí Tượng Nông Nghiệp"* (nhiệt độ, độ ẩm không khí, lượng mưa, chỉ số bốc thoát ẩm đất; cập nhật tự động theo tọa độ GPS của từng khu nông trại; hoãn tưới khi xác suất mưa lớn hoặc độ ẩm đất $\ge 80\%$ theo BR18). TUYỆT ĐỐI KHÔNG dùng thuật ngữ thiết bị/cảm biến/phần cứng IoT.
    - **Nhật ký & Nghiệm thu:** `Farm Diary`, `Care Task` (bắt buộc $\ge 1$ ảnh thực địa BR15), `harvest_results` (kèm `staff_id` BR20).
    - **Quy trình chuẩn:** *"Quy trình canh tác chuẩn VietGAP"* (`template_steps` do CGNN biên soạn).
 3. **TRUY VẾT GIAO DIỆN CHUẨN SCREEN SPEC (SCR-xxx):**

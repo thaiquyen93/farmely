@@ -189,9 +189,9 @@ export default function MarketplacePlotDetailPanel({
     },
     {
       icon: Cpu,
-      label: 'Cảm biến IoT',
-      value: 'Vi khí hậu',
-      statusText: 'Online',
+      label: 'Thời Tiết API',
+      value: 'Khí tượng 24/7',
+      statusText: 'Trực tuyến',
       iconBg: 'bg-violet-50',
       iconColor: 'text-violet-500',
       iconBorder: 'border-violet-100'

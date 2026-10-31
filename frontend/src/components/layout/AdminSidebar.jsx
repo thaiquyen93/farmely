@@ -5,6 +5,7 @@ import {
   Map,
   Grid3X3,
   Radio,
+  CloudSun,
   Sprout,
   Wheat,
   SlidersHorizontal,
@@ -37,8 +38,8 @@ const masterDataNavItems = [
   },
   {
     path: '/admin/master-data/iot-stations',
-    name: 'Trạm Cảm Biến IoT',
-    icon: Radio
+    name: 'Trạm Khí Tượng & Thời Tiết',
+    icon: CloudSun
   },
   {
     path: '/admin/master-data/crops',

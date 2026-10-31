@@ -79,8 +79,7 @@ Hệ thống số hóa chu trình khép kín: Marketplace → Consultation (Tùy
 | **Human Actor** | CVLĐ | Chuyên viên lao động | Thực hiện Care Task hiện trường, tải ảnh minh chứng, báo cáo vật tư và sự cố tại vườn. |
 | **Human Actor** | AD | Administrator | Quản trị hệ thống, quản lý Plot, cấu hình giá, phân công CVLĐ, giám sát giao dịch và Audit Log. |
 | **Supporting** | AI | AI Service | Chatbot hỗ trợ hỏi đáp kiến thức nông nghiệp 24/7 (LLM \+ RAG). |
-| **Supporting** | IoT | IoT Sensor Service | Thu thập và mô phỏng dữ liệu nhiệt độ, độ ẩm không khí, độ ẩm đất. |
-| **Supporting** | WTH | Weather Service | Cung cấp thông tin dự báo thời tiết địa phương. |
+| **Supporting** | WTH | Weather & Agro-climate API Service | Thu thập dữ liệu thời tiết & vi khí hậu thực địa (nhiệt độ, ẩm khí, ẩm đất ước tính, lượng mưa) theo tọa độ GPS trang trại. |
 | **Supporting** | PAY | Payment Service | Xử lý giao dịch thanh toán tiền thuê trọn gói và các chi phí phát sinh. |
 
 ## **3.1. KH – Khách hàng / Người thuê**
