@@ -988,9 +988,9 @@ BEGIN
             ts.step_id,
             v_staff_id,
             DATE '${itemCultivationDate}' + (ts.day_offset || ' days')::INTERVAL,
-            'PENDING'::care_task_status_enum,
+            'PENDING'::task_status_enum,
             ts.step_name,
-            ts.description || ' (Vật tư: ' || COALESCE(ts.materials_required, 'Theo quy chuẩn VietGAP') || ')',
+            ts.description || ' (Vật tư: ' || COALESCE(ts.materials_needed, 'Theo quy chuẩn VietGAP') || ')',
             NOW(),
             NOW()
         FROM template_steps ts
@@ -1817,7 +1817,7 @@ BEGIN
         NOW(),
         NOW()
     FROM rentals r
-    JOIN process_templates pt ON pt.variety_id = r.variety_id
+    JOIN (SELECT DISTINCT ON (variety_id) template_id, variety_id FROM process_templates ORDER BY variety_id, template_id DESC) pt ON pt.variety_id = r.variety_id
     JOIN template_steps ts ON pt.template_id = ts.template_id
     WHERE r.contract_id = ${contractId}
       AND COALESCE(r.cultivation_mode, 'ASSISTED') <> 'SELF'
