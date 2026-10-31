@@ -39,7 +39,7 @@ Nguồn chân lý duy nhất (SSoT): `docs/academic/RP39 (NEW).md` (v2.2) & `doc
 * **Database:** SQL Server / PostgreSQL. DDL & Seed chuẩn ở `docs/database/`.
 * **Distributed Lock / Trùng lịch:** Ưu tiên Database constraint / pessimistic locking (`SELECT ... FOR UPDATE` hoặc `ROWLOCK`) trước. Chỉ dùng Redis `SET NX EX` khi kiểm tra hiệu năng cao.
 * **Async / Background:** Dùng `@Scheduled` / Spring Task Scheduler cho cron 10-phút grace period, không cần dựng RabbitMQ nếu bài toán chưa yêu cầu cụm microservices.
-* **IoT:** Mock-only (RP §10.3) via scheduled sensor telemetry generator hoặc table `iot_metrics`.
+* **Khí tượng & Thời tiết thực địa:** KHÔNG DÙNG PHẦN CỨNG IOT MÔ PHỎNG. Tích hợp trực tiếp Dịch vụ API Thời Tiết Thực Địa (Weather API / Open-Meteo) theo tọa độ GPS trang trại (đo nhiệt độ, độ ẩm không khí, lượng mưa, độ ẩm đất ước tính; tự động hoãn lịch tưới khi xác suất mưa/lượng mưa lớn theo BR18).
 
 ---
 
