@@ -362,21 +362,10 @@ export default function FieldWorkerDashboard() {
   }, []);
 
   const loadTasksAndData = useCallback(() => {
-    const effectiveWorkerId = Number(user?.userId || user?.id);
     setDataError('');
-    const taskQuery = Number.isFinite(effectiveWorkerId) && user?.role === 'STAFF'
-      ? `/api/tasks?workerId=${effectiveWorkerId}`
-      : `/api/tasks`;
 
     Promise.all([
-      apiFetch(taskQuery).then(async (res) => {
-        const data = unwrapData(res) || [];
-        if (Array.isArray(data) && data.length === 0 && taskQuery !== '/api/tasks') {
-          const fallbackRes = await apiFetch('/api/tasks');
-          return unwrapData(fallbackRes) || [];
-        }
-        return data;
-      }),
+      apiFetch('/api/tasks').then((res) => unwrapData(res) || []),
       apiFetch('/api/issues'),
       apiFetch('/api/harvest'),
       apiFetch('/api/services/requests').catch(() => ({ data: [] }))
@@ -405,7 +394,11 @@ export default function FieldWorkerDashboard() {
           notes: task.notes || '',
           expertName: task.expertName || 'Chuyên gia Nông nghiệp VietGAP',
           stepOrder: task.stepOrder || 1,
-          cropDay: task.cropDay || null,
+          cropDay: task.cropDay || task.dayOffset || null,
+          dayOffset: task.dayOffset || task.cropDay || null,
+          workerName: task.workerName || task.assignedTo || 'Kỹ thuật viên hiện trường chuyên trách',
+          assignedTo: task.assignedTo || task.workerName || 'Kỹ thuật viên hiện trường chuyên trách',
+          taskAssignedTo: task.taskAssignedTo || task.workerId,
           status: normalizeTaskStatus(task.displayStatus || task.status),
           priority: task.priority || (task.serviceRequestId ? 'HIGH' : (task.isOverdue ? 'OVERDUE' : 'NORMAL')),
           completedAt: task.completedAt || (task.updatedAt ? new Date(task.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null),
@@ -2035,12 +2028,22 @@ export default function FieldWorkerDashboard() {
                                       <span className={`h-1.5 w-1.5 rounded-full ${timing.dot}`} />
                                       {timing.label}
                                     </span>
+                                    {(task.cropDay || task.dayOffset) ? (
+                                      <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300">
+                                        Ngày tuổi {task.cropDay || task.dayOffset}
+                                      </span>
+                                    ) : null}
                                     <span className="text-xs font-semibold text-stone-600">
                                       ⏰ {task.deadline || '08:30 AM'}
                                     </span>
                                     {task.dueDate && (
                                       <span className="text-xs font-mono font-bold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-200">
                                         📅 {formatDateVN(task.dueDate)}
+                                      </span>
+                                    )}
+                                    {task.workerName && (
+                                      <span className="text-[11px] text-stone-500 font-medium">
+                                        👤 {task.workerName}
                                       </span>
                                     )}
                                   </div>
@@ -2137,6 +2140,11 @@ export default function FieldWorkerDashboard() {
                                       <span className="h-1.5 w-1.5 rounded-full bg-stone-400" />
                                       {timing.label}
                                     </span>
+                                    {(task.cropDay || task.dayOffset) ? (
+                                      <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                        Ngày tuổi {task.cropDay || task.dayOffset}
+                                      </span>
+                                    ) : null}
                                     {task.dueDate && (
                                       <span className="text-[11px] font-mono font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-md border border-sky-100 flex items-center gap-1">
                                         <Calendar className="w-3 h-3 text-sky-600" />
@@ -2146,6 +2154,11 @@ export default function FieldWorkerDashboard() {
                                     <span className="text-xs text-stone-500">
                                       ⏰ {task.deadline || '08:30 AM'}
                                     </span>
+                                    {task.workerName && (
+                                      <span className="text-[11px] text-stone-500 font-medium">
+                                        👤 {task.workerName}
+                                      </span>
+                                    )}
                                   </div>
 
                                   <h5 className="font-heading font-bold text-sm text-stone-800 group-hover:text-emerald-900 transition-colors">
