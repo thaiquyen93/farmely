@@ -3486,7 +3486,26 @@ export default function ExpertDashboard() {
               <label className="block font-bold text-brand-dark mb-1">Giống Cây Trồng Áp Dụng:</label>
               <select
                 value={newTemplateData.varietyId}
-                onChange={(e) => setNewTemplateData({ ...newTemplateData, varietyId: Number(e.target.value) })}
+                onChange={(e) => {
+                  const targetVId = Number(e.target.value);
+                  const selectedV = (allAvailableVarieties.length > 0 ? allAvailableVarieties : varietiesList).find(
+                    (v) => Number(v.varietyId || v.id) === targetVId
+                  );
+                  const targetDuration = Number(selectedV?.growthDuration) || 45;
+                  setNewTemplateData((prev) => {
+                    const updatedSteps = (prev.steps || []).map((step, idx, arr) => {
+                      if (idx === arr.length - 1) {
+                        return { ...step, dayOffset: targetDuration };
+                      }
+                      return step;
+                    });
+                    return {
+                      ...prev,
+                      varietyId: targetVId,
+                      steps: updatedSteps
+                    };
+                  });
+                }}
                 className="w-full p-2.5 rounded-xl border border-brand-border text-xs font-bold bg-white"
               >
                 {(allAvailableVarieties.length > 0 ? allAvailableVarieties : varietiesList).map((v) => {
