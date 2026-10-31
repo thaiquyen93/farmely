@@ -174,6 +174,3 @@ test('F3-18 Invalid harvest without proof or positive quantity creates no record
     await cleanup(fixture);
   }
 });
-
-
-\n

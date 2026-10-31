@@ -4403,34 +4403,62 @@ SELECT json_build_object(
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const expertId = parseInt(payload.expertId || payload.expert_id, 10);
-              const staffId = parseInt(payload.staffId || payload.staff_id, 10);
-              const setClauses = [];
-              if (expertId) setClauses.push(`expert_id = ${expertId}`);
-              if (staffId) setClauses.push(`staff_id = ${staffId}`);
-              if (setClauses.length === 0) throw new Error('Cần cung cấp expertId hoặc staffId để phân công');
-              setClauses.push('updated_at = NOW()');
+              const requestedExpert = payload.expertId ?? payload.expert_id;
+              const requestedStaff = payload.staffId ?? payload.staff_id;
+              const expertId = requestedExpert == null ? null : Number(requestedExpert);
+              const staffId = requestedStaff == null ? null : Number(requestedStaff);
+              if (expertId == null && staffId == null) throw new Error('Cần cung cấp expertId hoặc staffId để phân công');
+              if ((expertId != null && !Number.isSafeInteger(expertId)) || (staffId != null && !Number.isSafeInteger(staffId))) {
+                throw new Error('ID nhân sự không hợp lệ');
+              }
 
-              const sql = `
-UPDATE rentals
-SET ${setClauses.join(', ')}
-WHERE rental_id = ${rentalId}
-RETURNING rental_id, expert_id, staff_id;
-`;
-              await runPostgreSql(sql);
-              if (expertId) {
-                try {
-                  await runPostgreSql(`
-INSERT INTO conversations (participant_one, participant_two, rental_id, created_at)
-VALUES (
-  COALESCE((SELECT c.renter_id FROM contracts c JOIN rentals r ON r.contract_id = c.contract_id WHERE r.rental_id = ${rentalId}), 1),
-  ${expertId},
-  ${rentalId},
-  NOW()
-)
-ON CONFLICT DO NOTHING;
-`);
-                } catch (_) {}
+              const client = await getPgPool().connect();
+              try {
+                await client.query('BEGIN');
+                const assignment = await client.query(`
+                  UPDATE rentals
+                  SET expert_id = COALESCE($2, expert_id), staff_id = COALESCE($3, staff_id), updated_at = NOW()
+                  WHERE rental_id = $1
+                  RETURNING rental_id, contract_id, plot_id, expert_id, staff_id
+                `, [Number(rentalId), expertId, staffId]);
+                if (assignment.rowCount !== 1) throw new Error('Không tìm thấy hợp đồng thuê để phân công');
+
+                const rental = assignment.rows[0];
+                if (rental.expert_id) {
+                  const renter = await client.query('SELECT renter_id FROM contracts WHERE contract_id = $1', [rental.contract_id]);
+                  if (renter.rowCount !== 1) throw new Error('Không tìm thấy khách thuê của hợp đồng');
+
+                  await client.query(`
+                    UPDATE conversations SET status = 'CLOSED'
+                    WHERE rental_id = $1 AND type IN ('CUST_EXP', 'STAFF_EXP')
+                      AND (participant_two <> $2 OR (type = 'STAFF_EXP' AND participant_one <> $3))
+                  `, [rental.rental_id, rental.expert_id, rental.staff_id]);
+                  await client.query(`
+                    INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status)
+                    SELECT $2, $3, $1, $4, 'CUST_EXP', 'OPEN'
+                    WHERE NOT EXISTS (
+                      SELECT 1 FROM conversations
+                      WHERE rental_id = $1 AND participant_one = $2 AND participant_two = $3 AND type = 'CUST_EXP' AND status = 'OPEN'
+                    )
+                  `, [rental.rental_id, renter.rows[0].renter_id, rental.expert_id, rental.plot_id]);
+                  if (rental.staff_id) {
+                    await client.query(`
+                      INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status)
+                      SELECT $2, $3, $1, $4, 'STAFF_EXP', 'OPEN'
+                      WHERE NOT EXISTS (
+                        SELECT 1 FROM conversations
+                        WHERE rental_id = $1 AND participant_one = $2 AND participant_two = $3 AND type = 'STAFF_EXP' AND status = 'OPEN'
+                      )
+                    `, [rental.rental_id, rental.staff_id, rental.expert_id, rental.plot_id]);
+                  }
+                  await client.query('UPDATE conversations SET plot_id = $2 WHERE rental_id = $1 AND plot_id IS NULL', [rental.rental_id, rental.plot_id]);
+                }
+                await client.query('COMMIT');
+              } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+              } finally {
+                client.release();
               }
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: true, message: `Đã cập nhật phân công nhân sự (Staff & Expert) cho thửa đất #${rentalId}` }));

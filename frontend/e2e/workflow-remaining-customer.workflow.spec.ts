@@ -201,5 +201,3 @@ test('F2-24 Active rental renewal creates one linked period and rejects invalid 
     expect(await db('select rental_id from rentals where parent_rental_id = $1', [rental.rental_id])).toHaveLength(1);
   } finally { await cleanup(fixture); }
 });
-
-\n

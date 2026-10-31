@@ -274,6 +274,3 @@ test('F3-06 Task cannot be completed without proof image', async ({ request }) =
     await cleanup(fixture);
   }
 });
-
-
-\n

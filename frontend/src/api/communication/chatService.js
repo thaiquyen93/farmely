@@ -11,6 +11,7 @@ import {
   appendMessage,
   markThreadAsReadInStorage,
   updateThreadRentalInStorage,
+  getSafeAvatar,
   DEMO_CUSTOMERS,
   DEMO_WORKERS,
   DEMO_EXPERTS
@@ -55,23 +56,20 @@ export const chatService = {
         timestamp: Date.now()
       });
 
-      // Asynchronously sync with Backend PostgreSQL / Spring Boot service
+      // Only database-backed conversations have a real conversation ID.
       try {
-        const numericConvId = parseInt(String(threadId).replace(/\D/g, ''), 10) || 1;
-        fetch(`/api/conversations/${numericConvId}/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            senderId: sender === 'expert' ? 5 : (sender === 'worker' ? 8 : 1),
-            senderName,
-            content: text.trim(),
-            attachmentUrl: meta?.photoUrl || null
-          })
-        }).catch(() => {
-          // Gracefully fallback to local storage if backend service is not running
-        });
+        const conversationId = Number(result.thread.conversationId);
+        const auth = JSON.parse(window.localStorage.getItem('farmely_auth') || '{}');
+        const senderId = Number(auth.user?.userId);
+        if (Number.isSafeInteger(conversationId) && conversationId > 0 && Number.isSafeInteger(senderId) && senderId > 0) {
+          fetch(`/api/conversations/${conversationId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ senderId, senderName, content: text.trim(), attachmentUrl: meta?.photoUrl || null })
+          }).catch(() => {});
+        }
       } catch (e) {
-        // ignore
+        // Keep the local draft when the backend is unavailable.
       }
     }
 
@@ -145,61 +143,51 @@ export const chatService = {
     return DEMO_EXPERTS;
   },
 
-  async syncBackendMessages() {
+  async syncBackendMessages(userId) {
     try {
-      const res = await fetch('/api/conversations');
+      const url = Number.isSafeInteger(Number(userId)) && Number(userId) > 0
+        ? `/api/conversations?userId=${Number(userId)}`
+        : '/api/conversations';
+      const res = await fetch(url);
       if (!res.ok) return;
       const json = await res.json();
       const backendConvs = json?.data;
       if (!Array.isArray(backendConvs) || backendConvs.length === 0) return;
 
       const threads = getStoredThreads();
-      let hasNewOverall = false;
-
       backendConvs.forEach((bConv) => {
-        const threadIndex = threads.findIndex((t) =>
-          t.id === bConv.id ||
-          (bConv.conversationId && (t.id === `CONS-${bConv.conversationId}` || t.conversationId === bConv.conversationId)) ||
-          (bConv.customerName && t.customerName && t.customerName.toLowerCase() === bConv.customerName.toLowerCase())
-        );
-
-        if (threadIndex >= 0) {
-          const thread = { ...threads[threadIndex] };
-          thread.conversationId = bConv.conversationId;
-          if (bConv.role) thread.role = bConv.role;
-          if (bConv.roleLabel) thread.roleLabel = bConv.roleLabel;
-          if (bConv.plotCode) thread.plotCode = bConv.plotCode;
-          if (bConv.plotName) thread.plotName = bConv.plotName;
-          if (bConv.crop) thread.crop = bConv.crop;
-
-          if (Array.isArray(bConv.messages) && bConv.messages.length > 0) {
-            const currentTexts = new Set(thread.messages.map((m) => m.text));
-            bConv.messages.forEach((bMsg) => {
-              if (!currentTexts.has(bMsg.text)) {
-                hasNewOverall = true;
-                thread.messages.push({
-                  id: bMsg.id || Date.now() + Math.random(),
-                  sender: bMsg.sender,
-                  senderId: bMsg.senderId,
-                  senderName: bMsg.senderName,
-                  text: bMsg.text,
-                  time: bMsg.time || 'Vừa xong',
-                  seen: true
-                });
-              }
-            });
-          }
-          threads[threadIndex] = thread;
-        }
+        const threadId = `CONS-${bConv.conversationId}`;
+        const threadIndex = threads.findIndex((t) => t.id === threadId || Number(t.conversationId) === Number(bConv.conversationId));
+        const previous = threadIndex >= 0 ? threads[threadIndex] : {};
+        const messages = Array.isArray(bConv.messages) ? bConv.messages : [];
+        const thread = {
+          ...previous,
+          id: threadId,
+          conversationId: bConv.conversationId,
+          participantOneId: bConv.participantOneId,
+          participantTwoId: bConv.participantTwoId,
+          rentalId: bConv.rentalId,
+          plotId: bConv.plotId,
+          type: bConv.type,
+          backendStatus: bConv.status,
+          role: bConv.role,
+          roleLabel: bConv.roleLabel,
+          customerName: bConv.customerName,
+          customerAvatar: previous.customerAvatar || getSafeAvatar(null, bConv.role),
+          plotCode: bConv.plotCode,
+          plotName: bConv.plotName,
+          crop: bConv.crop,
+          messages,
+          lastTime: messages.at(-1)?.time || previous.lastTime || '',
+          status: previous.status || 'REPLIED',
+          unread: previous.unread || false
+        };
+        if (threadIndex >= 0) threads[threadIndex] = thread;
+        else threads.unshift(thread);
       });
 
-      if (hasNewOverall) {
-        saveThreads(threads);
-        communicationBus.postMessage({
-          type: CHAT_EVENTS.SYNC_COMPLETED,
-          timestamp: Date.now()
-        });
-      }
+      saveThreads(threads);
+      communicationBus.postMessage({ type: CHAT_EVENTS.SYNC_COMPLETED, timestamp: Date.now() });
     } catch (_) {
       // offline fallback
     }

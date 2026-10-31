@@ -8,3 +8,4 @@ node_modules/
 /test-results-*/
 /playwright/.cache/
 /playwright/.auth/
+vite.config.js.timestamp-*.mjs

@@ -151,5 +151,3 @@ test('F1-15 Customer cannot open Admin land page or create land through API', as
     expect(await db('select land_id from lands where land_name = $1', [name])).toHaveLength(0);
   } finally { await db('delete from lands where land_name = $1 and not exists (select 1 from plots where plots.land_id = lands.land_id)', [name]); }
 });
-
-\n

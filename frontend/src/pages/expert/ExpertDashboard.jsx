@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
@@ -156,7 +156,7 @@ export default function ExpertDashboard() {
   const expertSenderName = isExpertUser && user?.fullName ? user.fullName : 'ThS. Nguyễn Hoàng Nam';
 
   const {
-    threads: chatThreads,
+    threads: allChatThreads,
     selectedThreadId,
     setSelectedThreadId,
     currentThread: activeRealtimeThread,
@@ -165,18 +165,18 @@ export default function ExpertDashboard() {
     refreshThreads
   } = useRealtimeChat({
     role: 'expert',
-    initialThreadId: 'CONS-401',
-    senderName: expertSenderName
+    initialThreadId: null,
+    senderName: expertSenderName,
+    userId: user?.userId
   });
   const [chatSearchQuery, setChatSearchQuery] = useState('');
-  const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'pre_rental' | 'worker' | 'pending'
+  const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'worker' | 'pending'
   const [chatInputText, setChatInputText] = useState('');
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
   const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
-  const preRentalCount = chatThreads.filter(isPreRentalThread).length;
 
   const formatPlotCode = (raw) => {
     if (!raw) return '';
@@ -370,6 +370,23 @@ export default function ExpertDashboard() {
   };
 
   const [assignedPlots, setAssignedPlots] = useState([]);
+  const chatThreads = useMemo(() => {
+    const assignedRentalIds = new Set(assignedPlots.map((plot) => Number(plot.rentalId)));
+    const expertId = Number(user?.userId);
+    return allChatThreads.filter((thread) => {
+      if (thread.id === 'ADMIN-01' && thread.role === 'admin') return true;
+      return Number(thread.participantTwoId) === expertId
+        && assignedRentalIds.has(Number(thread.rentalId))
+        && thread.backendStatus === 'OPEN'
+        && (thread.type === 'CUST_EXP' || thread.type === 'STAFF_EXP');
+    });
+  }, [allChatThreads, assignedPlots, user?.userId]);
+
+  useEffect(() => {
+    if (chatThreads.length > 0 && !chatThreads.some((thread) => thread.id === selectedThreadId)) {
+      setSelectedThreadId(chatThreads[0].id);
+    }
+  }, [chatThreads, selectedThreadId, setSelectedThreadId]);
 
   // Quản lý Yêu cầu Thu hoạch & Thẩm định VietGAP (PHI Check)
   const [harvestRequests, setHarvestRequests] = useState(() => {
@@ -1345,7 +1362,7 @@ export default function ExpertDashboard() {
                   {pendingChatCount} Tin nhắn
                 </div>
                 <span className="text-[10px] text-stone-500 font-semibold block">
-                  {preRentalCount > 0 ? `${preRentalCount} khách chưa thuê` : 'Cần phản hồi'}
+                  Cần phản hồi
                 </span>
               </div>
 
@@ -1512,16 +1529,6 @@ export default function ExpertDashboard() {
                           Đã thuê ({chatThreads.filter(c => c.role === 'customer' && !isPreRentalThread(c) && !/Ban Quản Trị|Admin/i.test(c.customerName || '')).length})
                         </button>
                         <button
-                          onClick={() => setChatFilter('pre_rental')}
-                          className={`min-h-9 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
-                            chatFilter === 'pre_rental'
-                              ? 'bg-sky-700 text-white shadow-xs'
-                              : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
-                          }`}
-                        >
-                          Chưa thuê ({preRentalCount})
-                        </button>
-                        <button
                           onClick={() => setChatFilter('worker')}
                           className={`min-h-9 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
                             chatFilter === 'worker'
@@ -1555,7 +1562,6 @@ export default function ExpertDashboard() {
                             (thread.crop || '').toLowerCase().includes(q) ||
                             (thread.roleLabel || '').toLowerCase().includes(q);
                           if (chatFilter === 'customer') return matchesQuery && thread.role === 'customer' && !isPreRentalThread(thread) && !/Ban Quản Trị|Admin/i.test(thread.customerName || '');
-                          if (chatFilter === 'pre_rental') return matchesQuery && isPreRentalThread(thread);
                           if (chatFilter === 'worker') return matchesQuery && thread.role === 'worker';
                           if (chatFilter === 'pending') return matchesQuery && thread.status === 'PENDING';
                           return matchesQuery;

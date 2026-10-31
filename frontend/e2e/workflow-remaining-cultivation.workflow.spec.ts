@@ -220,5 +220,3 @@ test('F3-22 Maintenance plot blocks booking until four day recovery ends', async
     expect(after.status()).toBe(201);
   } finally { await cleanup(fixture); }
 });
-
-\n

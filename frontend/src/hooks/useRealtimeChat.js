@@ -8,7 +8,7 @@ import { chatService } from '../api/communication/chatService';
  * @param {string} [options.initialThreadId]
  * @param {string} [options.senderName]
  */
-export function useRealtimeChat({ role = 'customer', initialThreadId = null, senderName = '' } = {}) {
+export function useRealtimeChat({ role = 'customer', initialThreadId = null, senderName = '', userId = null } = {}) {
   const [threads, setThreads] = useState(() => chatService.getThreads());
   const [selectedThreadId, setSelectedThreadId] = useState(initialThreadId);
   const [activeFilter, setActiveFilter] = useState('all');
@@ -22,11 +22,11 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
   // Sync backend messages on mount if available
   useEffect(() => {
     if (typeof chatService.syncBackendMessages === 'function') {
-      chatService.syncBackendMessages().then(() => {
+      chatService.syncBackendMessages(userId).then(() => {
         refreshThreads();
       }).catch(() => {});
     }
-  }, [refreshThreads]);
+  }, [refreshThreads, userId]);
 
   // Update selectedThreadId if initialThreadId changes
   useEffect(() => {

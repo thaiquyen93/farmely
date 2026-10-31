@@ -116,6 +116,3 @@ export function startInDays(days: number) {
 export function startInTenDays() {
   return startInDays(10);
 }
-
-
-\n
