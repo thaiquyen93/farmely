@@ -202,37 +202,6 @@ export default function SiteVisitBooking() {
               </div>
             </div>
           </div>
-
-          {/* Value Prop Highlights Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-white/15 text-xs">
-            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
-              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-4 h-4 text-brand-yellow" />
-              </div>
-              <span className="font-semibold text-[11px] sm:text-xs">Miễn phí 100% trải nghiệm</span>
-            </div>
-
-            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
-              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4 text-brand-yellow" />
-              </div>
-              <span className="font-semibold text-[11px] sm:text-xs">Xác nhận trong 2 giờ</span>
-            </div>
-
-            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
-              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-4 h-4 text-brand-yellow" />
-              </div>
-              <span className="font-semibold text-[11px] sm:text-xs">Không ràng buộc thuê đất</span>
-            </div>
-
-            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
-              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
-                <Car className="w-4 h-4 text-brand-yellow" />
-              </div>
-              <span className="font-semibold text-[11px] sm:text-xs">Xe điện nội khu đưa đón</span>
-            </div>
-          </div>
         </div>
       </section>
 
