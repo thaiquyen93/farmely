@@ -3001,6 +3001,7 @@ export default function CustomerPlotWorkspace({
   }, [pickerOpen]);
 
   const goTab = (id) => {
+    setInternalTab(id);
     onTabChange?.(id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -3214,16 +3215,28 @@ export default function CustomerPlotWorkspace({
                   : "Mọi công việc tưới nước, bón phân, tỉa cành, phòng ngừa sâu bệnh của nhân viên tại vườn đều được lưu trữ persistent, có ảnh minh chứng thực tế và số đo cảm biến tại thời điểm thực hiện."}
               </p>
               <div className="mt-5">
-                <StaffActivitiesTab
-                  activities={isSelf ? selfTasks : staffActivities}
-                  isSelf={isSelf}
-                  onToggleTask={handleToggleSelfTask}
-                  onAddTask={handleAddSelfTask}
-                  onDeleteTask={handleDeleteSelfTask}
-                  totalDays={cropProcess.totalDays || 60}
-                  onOpenPhoto={setSelectedPhotoActivity}
-                  plot={activePlot}
-                />
+                {(() => {
+                  const mergedSelfActivities = isSelf
+                    ? [
+                        ...(staffActivities || []).filter((a) => a.serviceRequestId || (a.notes && a.notes.includes('[DỊCH VỤ KHÁCH YÊU CẦU]'))),
+                        ...selfTasks
+                      ]
+                    : staffActivities;
+                  return (
+                    <StaffActivitiesTab
+                      activities={mergedSelfActivities}
+                      isSelf={isSelf}
+                      onToggleTask={handleToggleSelfTask}
+                      onAddTask={handleAddSelfTask}
+                      onDeleteTask={handleDeleteSelfTask}
+                      totalDays={cropProcess.totalDays || 60}
+                      onOpenPhoto={setSelectedPhotoActivity}
+                      plot={activePlot}
+                      plots={plots}
+                      onSelectPlot={onSelectPlot}
+                    />
+                  );
+                })()}
               </div>
             </Card>
           </div>

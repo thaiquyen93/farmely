@@ -1367,6 +1367,18 @@ export default function CustomerDashboard() {
         loadOperationsFromDb();
       }
 
+      // Lưu lại thửa đất vừa đặt dịch vụ để ưu tiên hiển thị công việc
+      try {
+        if (targetPlot?.id) {
+          localStorage.setItem('farmely_selected_task_plot', targetPlot.id);
+        }
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_staff_activity_channel');
+          bc.postMessage({ type: 'SERVICE_PAID', plotId: targetPlot?.id, rentalId: targetRentalId });
+          bc.close();
+        }
+      } catch {}
+
       window.dispatchEvent(new CustomEvent('farmely_service_paid', { detail: resultInfo }));
       setSelectedServiceToBuy(null);
       setShowCheckoutSuccessModal(true);
@@ -2294,7 +2306,17 @@ export default function CustomerDashboard() {
                     ].map(([label, Icon, id]) => (
                       <button key={id} type="button" onClick={() => {
                         if (id === 'overview') { setSelectedPlotId(null); setActiveTab('yards'); }
-                        else if (id === 'yards' || id === 'tasks') { setSelectedPlotId(customerPlots[0]?.id || null); }
+                        else if (id === 'yards') { setSelectedPlotId(customerPlots[0]?.id || null); }
+                        else if (id === 'tasks') {
+                          const savedPlotId = localStorage.getItem('farmely_selected_task_plot') || checkoutPlotId;
+                          const targetPlot = customerPlots.find(p => p.id === savedPlotId || (p.rentalId && `RENTAL-${p.rentalId}` === savedPlotId)) ||
+                                             customerPlots.find(p => p.rentalId === 5) ||
+                                             customerPlots[0];
+                          if (targetPlot) {
+                            setSelectedPlotId(targetPlot.rentalId ? `RENTAL-${targetPlot.rentalId}` : targetPlot.id);
+                            navigate(`/customer/dashboard?plot=${targetPlot.id}&tab=tasks`);
+                          }
+                        }
                         else if (id === 'chat') { setShowExpertChatModal(true); }
                         else { setActiveTab(id); }
                       }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-white/85 transition hover:bg-white/10">
@@ -4429,9 +4451,10 @@ export default function CustomerDashboard() {
                 setLastPaymentResult(null);
                 setActiveTab('yards');
                 if (targetPlot) {
-                  setSelectedPlotId(targetPlot.id);
+                  setSelectedPlotId(targetPlot.rentalId ? `RENTAL-${targetPlot.rentalId}` : targetPlot.id);
                   setCheckoutPlotId(targetPlot.id);
-                  navigate(`/customer/dashboard?plot=${targetPlot.id}`);
+                  try { localStorage.setItem('farmely_selected_task_plot', targetPlot.id); } catch {}
+                  navigate(`/customer/dashboard?plot=${targetPlot.id}&tab=tasks`);
                 } else {
                   setSelectedPlotId(null);
                   navigate('/customer/dashboard');
