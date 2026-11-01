@@ -2073,8 +2073,8 @@ export default function FieldWorkerDashboard() {
                       }}
                       className="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-800 hover:bg-emerald-900 text-white transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                     >
-                      <Scale className="h-3.5 w-3.5" />
-                      <span>Thu hoạch</span>
+                      <PackageCheck className="h-3.5 w-3.5" />
+                      <span>Báo cáo thu hoạch</span>
                     </button>
                   </div>
                 </div>
@@ -2518,10 +2518,10 @@ export default function FieldWorkerDashboard() {
                   <div className="flex items-center justify-between border-b border-stone-200 pb-2">
                     <div>
                       <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
-                        <Scale className="w-4 h-4 text-emerald-700" />
-                        <span>Kế Hoạch & Trạm Cân Thu Hoạch Thửa {activePlot.plotCode}</span>
+                        <PackageCheck className="w-4 h-4 text-emerald-700" />
+                        <span>Kế Hoạch & Báo Cáo Thu Hoạch Thửa {activePlot.plotCode}</span>
                       </h4>
-                      <p className="text-xs text-stone-500">Ghi nhận sản lượng thực tế, kết nối cân điện tử và in tem QR truy xuất.</p>
+                      <p className="text-xs text-stone-500">Ghi nhận sản lượng thực tế và cập nhật báo cáo thu hoạch.</p>
                     </div>
                   </div>
 
@@ -2548,8 +2548,8 @@ export default function FieldWorkerDashboard() {
 
                     <div className="p-4 rounded-xl bg-white border border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <strong className="font-heading font-black text-stone-900 text-sm block">Vận hành trạm cân điện tử</strong>
-                        <p className="text-xs text-stone-500">Mở giao diện trạm cân Bluetooth/Serial để ghi nhận số cân thực tế và đóng gói.</p>
+                        <strong className="font-heading font-black text-stone-900 text-sm block">Báo cáo thu hoạch</strong>
+                        <p className="text-xs text-stone-500">Ghi nhận khối lượng thực tế, chụp ảnh nông sản và hoàn tất báo cáo thu hoạch.</p>
                       </div>
                       <Button
                         variant="primary"
@@ -2561,8 +2561,8 @@ export default function FieldWorkerDashboard() {
                         }}
                         className="font-bold text-xs gap-2 bg-[#07533d] hover:bg-[#053d2d] text-white shrink-0"
                       >
-                        <Scale className="w-4 h-4" />
-                        <span>Mở Trạm Cân Điện Tử</span>
+                        <PackageCheck className="w-4 h-4" />
+                        <span>Báo Cáo Thu Hoạch</span>
                       </Button>
                     </div>
                   </div>
