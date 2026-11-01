@@ -3094,6 +3094,36 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
       ),
       '[]'::json
     ) AS "compatibleVarieties",
+    (
+      SELECT row_to_json(act_rent) FROM (
+        SELECT 
+          r.rental_id AS "rentalId",
+          r.contract_id AS "contractId",
+          r.variety_id AS "varietyId",
+          COALESCE(v.variety_name, 'Cây trồng') AS "varietyName",
+          COALESCE(v.expected_duration, 45) AS "expectedDuration",
+          TO_CHAR(r.start_date, 'YYYY-MM-DD') AS "startDate",
+          TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "endDate",
+          r.status,
+          COALESCE(u.full_name, 'Khách thuê') AS "renterName",
+          CASE 
+            WHEN CURRENT_DATE < r.start_date THEN 0
+            ELSE (CURRENT_DATE - r.start_date) + 1
+          END AS "currentDay",
+          COALESCE(v.expected_duration, 45) AS "totalDays",
+          CASE
+            WHEN CURRENT_DATE < r.start_date THEN 0
+            ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - r.start_date + 1)::numeric / NULLIF(COALESCE(v.expected_duration, 45), 0)::numeric) * 100)))
+          END AS "progressPercent"
+        FROM rentals r
+        LEFT JOIN varieties v ON r.variety_id = v.variety_id
+        LEFT JOIN contracts c ON r.contract_id = c.contract_id
+        LEFT JOIN users u ON c.renter_id = u.user_id
+        WHERE r.plot_id = p.plot_id AND r.status IN ('ACTIVE', 'CONFIRMED', 'RENTED', 'IN_PROGRESS', 'PENDING')
+        ORDER BY r.rental_id DESC
+        LIMIT 1
+      ) act_rent
+    ) AS "activeRental",
     TO_CHAR(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
     TO_CHAR(p.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt"
   FROM plots p
