@@ -2573,36 +2573,36 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* IoT Hardware Stations Status */}
+                {/* Telemetry Stations Status */}
                 <div className="space-y-3 pt-2">
                   <h4 className="font-heading font-black text-base text-brand-dark">
-                    Trạng Thái Trạm Quan Trắc Thực Địa (Hardware Telemetry)
+                    Trạng Thái Trạm Quan Trắc Thực Địa (Weather Telemetry)
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                     <div className="p-4 rounded-2xl bg-brand-cream/60 border border-brand-border space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-brand-dark">Trạm IOT-P-01 (Thửa Sen Vàng A1)</span>
+                        <span className="font-bold text-brand-dark">Trạm KT-P-01 (Thửa Sen Vàng A1)</span>
                         <span className="text-emerald-700 font-bold">● Online</span>
                       </div>
-                      <p className="text-stone-600">Pin năng lượng mặt trời: 98% • Sóng: 4G LTE</p>
+                      <p className="text-stone-600">Pin năng lượng mặt trời: 98% • Trực tuyến GPS</p>
                       <p className="text-stone-500">Độ ẩm đất: 68% • Nhiệt độ: 28.5°C</p>
                     </div>
 
                     <div className="p-4 rounded-2xl bg-brand-cream/60 border border-brand-border space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-brand-dark">Trạm IOT-P-02 (Thửa Mộc Châu B2)</span>
+                        <span className="font-bold text-brand-dark">Trạm KT-P-02 (Thửa Mộc Châu B2)</span>
                         <span className="text-emerald-700 font-bold">● Online</span>
                       </div>
-                      <p className="text-stone-600">Pin năng lượng mặt trời: 95% • Sóng: LoRaWAN</p>
+                      <p className="text-stone-600">Pin năng lượng mặt trời: 95% • Trực tuyến GPS</p>
                       <p className="text-stone-500">Độ ẩm đất: 62% • Nhiệt độ: 22.0°C</p>
                     </div>
 
                     <div className="p-4 rounded-2xl bg-brand-cream/60 border border-brand-border space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-brand-dark">Trạm IOT-P-03 (Thửa Rừng Sác C3)</span>
+                        <span className="font-bold text-brand-dark">Trạm KT-P-03 (Thửa Rừng Sác C3)</span>
                         <span className="text-emerald-700 font-bold">● Online</span>
                       </div>
-                      <p className="text-stone-600">Pin năng lượng mặt trời: 100% • Sóng: 4G LTE</p>
+                      <p className="text-stone-600">Pin năng lượng mặt trời: 100% • Trực tuyến GPS</p>
                       <p className="text-stone-500">Độ ẩm đất: 72% • Nhiệt độ: 27.8°C</p>
                     </div>
                   </div>
@@ -3073,7 +3073,7 @@ export default function AdminDashboard() {
                 ))}
               </select>
               <p className="text-[11px] text-stone-500 mt-1">
-                Chuyên gia có toàn quyền theo dõi trạm IoT vi khí hậu, nhật ký canh tác và trực tiếp tư vấn 1-1 cho khách hàng.
+                Chuyên gia có toàn quyền theo dõi trạm vi khí hậu thực địa, nhật ký canh tác và trực tiếp tư vấn 1-1 cho khách hàng.
               </p>
             </div>
 
