@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
+import IssueAssignmentPanel from '../../components/expert/IssueAssignmentPanel';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { getSafeAvatar } from '../../api/communication/chatStorage';
 import { apiFetch, unwrapData } from '../../api/apiClient';
@@ -3145,247 +3146,256 @@ export default function ExpertDashboard() {
       <Modal
         isOpen={Boolean(selectedIssueDetail)}
         onClose={() => setSelectedIssueDetail(null)}
-        title={`Chi Tiết Báo Cáo Sự Cố Hiện Trường • ${selectedIssueDetail?.issueCode || selectedIssueDetail?.id}`}
+        title="Chi Tiết Báo Cáo Sự Cố Hiện Trường"
         subtitle={`${selectedIssueDetail?.issueType || 'Sự cố'} · ${selectedIssueDetail?.plotName} (${selectedIssueDetail?.plotCode})`}
+        maxWidth="max-w-4xl"
       >
-        {selectedIssueDetail && (
-          <div className="space-y-4 text-xs text-left max-h-[78vh] overflow-y-auto pr-1">
-            {/* Header info bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-stone-50 rounded-2xl border border-brand-border/70">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono font-black text-brand-green text-sm">{selectedIssueDetail.issueCode || selectedIssueDetail.id}</span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                  selectedIssueDetail.urgency === 'HIGH' ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-stone-200 text-stone-700'
-                }`}>
-                  {selectedIssueDetail.urgency === 'HIGH' ? '⚡ Mức độ: Khẩn cấp' : '🌱 Mức độ: Bình thường'}
+        {selectedIssueDetail && (() => {
+          const isUrgentIssue = selectedIssueDetail.urgency === 'HIGH' || selectedIssueDetail.urgency === 'CRITICAL';
+          const issueSteps = [
+            { label: 'Xem hiện trường', done: true },
+            { label: 'Chẩn đoán & chỉ đạo', done: Boolean(selectedIssueDetail.diagnosis) },
+            { label: 'Giao việc cho CVLĐ', done: Boolean(selectedIssueDetail.assignedTaskCode) },
+          ];
+          const renderSectionHeader = (index, title, done, extra = null) => (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="flex items-center gap-2 font-heading text-sm font-bold text-brand-dark">
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    done ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-700'
+                  }`}
+                  aria-hidden="true"
+                >
+                  {done ? <CheckCircle2 className="h-4 w-4" /> : index}
                 </span>
-                <span className="text-stone-500 text-[11px]">• Gửi lúc: {selectedIssueDetail.reportedTime || 'Hôm nay'}</span>
+                <span>
+                  <span className="sr-only">Bước {index}: </span>
+                  {title}
+                </span>
+              </h4>
+              {extra}
+            </div>
+          );
+
+          return (
+          <div className="space-y-5 text-left text-sm">
+            {/* Thanh tóm tắt: mã sự cố, trạng thái, thông tin nhanh */}
+            <div className="space-y-3 rounded-2xl border border-brand-border/70 bg-stone-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-base font-black text-brand-green break-all">
+                  {selectedIssueDetail.issueCode || selectedIssueDetail.id}
+                </span>
+                <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                  selectedIssueDetail.status === 'RESOLVED'
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : selectedIssueDetail.assignedTaskCode
+                    ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                    : 'bg-amber-100 text-amber-900 border border-amber-300'
+                }`}>
+                  {selectedIssueDetail.status === 'RESOLVED'
+                    ? '✓ Đã ban hành phác đồ'
+                    : selectedIssueDetail.assignedTaskCode
+                    ? '⚡ Đã phát lệnh giao việc'
+                    : '⏳ Chờ chuyên gia chẩn đoán'}
+                </span>
               </div>
-              <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
-                selectedIssueDetail.status === 'RESOLVED'
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                  : selectedIssueDetail.assignedTaskCode
-                  ? 'bg-sky-100 text-sky-800 border border-sky-300'
-                  : 'bg-amber-100 text-amber-900 border border-amber-300'
-              }`}>
-                {selectedIssueDetail.status === 'RESOLVED'
-                  ? '✓ Đã ban hành phác đồ'
-                  : selectedIssueDetail.assignedTaskCode
-                  ? '⚡ Đã phát lệnh giao việc'
-                  : '⏳ Chờ chuyên gia chẩn đoán'}
-              </span>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className={`rounded-full px-2.5 py-1 font-bold ${
+                  isUrgentIssue ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-stone-200 text-stone-700'
+                }`}>
+                  {isUrgentIssue ? '⚡ Khẩn cấp' : '🌱 Bình thường'}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white px-2.5 py-1 font-semibold text-stone-700">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+                  {selectedIssueDetail.plotName} ({selectedIssueDetail.plotCode})
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white px-2.5 py-1 font-semibold text-stone-700">
+                  <UserCheck className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+                  {selectedIssueDetail.workerName || 'Trần Văn Lực (CVLĐ)'}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] text-stone-600">
+                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                  Gửi lúc: {selectedIssueDetail.reportedTime || 'Hôm nay'}
+                </span>
+              </div>
             </div>
 
-            {/* Bố cục 2 cột */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-              {/* Cột trái: Ảnh hiện trường & Bối cảnh thửa đất */}
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-brand-border overflow-hidden bg-stone-900 shadow-inner group relative">
+            {/* Tiến trình xử lý 3 bước */}
+            <ol className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs" aria-label="Tiến trình xử lý sự cố">
+              {issueSteps.map((step, idx) => (
+                <li key={step.label} className="flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold ${
+                    step.done ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-white text-stone-600 border border-stone-200'
+                  }`}>
+                    {step.done ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                    ) : (
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-stone-200 text-[10px] font-bold text-stone-700" aria-hidden="true">{idx + 1}</span>
+                    )}
+                    {step.label}
+                    <span className="sr-only">{step.done ? ' (đã xong)' : ' (chưa xong)'}</span>
+                  </span>
+                  {idx < issueSteps.length - 1 && <ChevronRight className="h-3.5 w-3.5 text-stone-400" aria-hidden="true" />}
+                </li>
+              ))}
+            </ol>
+
+            {/* Bước 1: Xem hiện trường */}
+            <section className="space-y-3">
+              {renderSectionHeader(1, 'Xem hiện trường', true)}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+                <div className="relative overflow-hidden rounded-2xl border border-brand-border bg-stone-900 shadow-inner md:col-span-2">
                   <img
                     src={selectedIssueDetail.photoUrl}
                     alt="Ảnh hiện trường"
-                    className="w-full h-48 object-cover"
+                    className="h-56 w-full object-cover md:h-full md:min-h-[14rem]"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80';
                     }}
                   />
-                  <div className="absolute bottom-2 left-2 right-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl text-white text-[11px] flex items-center justify-between">
+                  <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 rounded-xl bg-black/70 px-3 py-1.5 text-[11px] text-white backdrop-blur-md">
                     <span className="flex items-center gap-1.5 font-bold">
-                      <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                      <Camera className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden="true" />
                       Minh chứng thực địa từ hiện trường
                     </span>
-                    <span className="text-[10px] text-stone-300">BR16</span>
+                    <span className="text-[11px] text-stone-200">BR16</span>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-brand-border bg-white shadow-2xs space-y-2">
-                  <h5 className="font-bold text-brand-dark uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-emerald-700" />
-                    Bối Cảnh Thửa Đất Canh Tác
-                  </h5>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div>
-                      <span className="text-stone-400 block text-[10px]">Thửa đất:</span>
-                      <strong className="text-brand-dark">{selectedIssueDetail.plotName} ({selectedIssueDetail.plotCode})</strong>
-                    </div>
-                    <div>
-                      <span className="text-stone-400 block text-[10px]">Giống cây:</span>
-                      <strong className="text-emerald-800">{selectedIssueDetail.cropName || selectedIssueDetail.crop || 'Cà chua bi đỏ F1'}</strong>
-                    </div>
-                    <div>
-                      <span className="text-stone-400 block text-[10px]">Người phát hiện:</span>
-                      <strong className="text-stone-700">{selectedIssueDetail.workerName || 'Trần Văn Lực (CVLĐ)'}</strong>
-                    </div>
-                    <div>
-                      <span className="text-stone-400 block text-[10px]">Chuyên gia phụ trách:</span>
-                      <strong className="text-sky-800">{selectedIssueDetail.expertName || 'ThS. Nguyễn Hoàng Nam'}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                {/* IoT Sensor Context */}
-                <div className="p-3 rounded-2xl border border-sky-200 bg-sky-50/60 text-sky-950 space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-sky-600" />
-                    Trạm Vi Khí Hậu Tại Thửa
-                  </span>
-                  <div className="flex items-center justify-between text-xs font-mono font-bold">
-                    <span>🌡️ Nhiệt độ: 28.5°C</span>
-                    <span>💧 Độ ẩm đất: 68%</span>
-                    <span>💨 Ẩm khí: 74%</span>
-                  </div>
-                  <p className="text-[10px] text-sky-700">Độ ẩm đất ổn định trong ngưỡng an toàn VietGAP (60-70%).</p>
-                </div>
-              </div>
-
-              {/* Cột phải: Mô tả hiện trường, Chỉ đạo kỹ thuật và Giao việc */}
-              <div className="space-y-3">
-                {/* 1. Lời báo cáo của công nhân */}
-                <div className="p-3 rounded-2xl border border-amber-200 bg-amber-50/70 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-amber-900 text-xs flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 text-amber-600" />
-                      Phản ánh từ hiện trường:
-                    </span>
-                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
-                      {selectedIssueDetail.issueType}
-                    </span>
-                  </div>
-                  <p className="text-xs text-stone-800 italic leading-relaxed bg-white/80 p-2.5 rounded-xl border border-amber-200/60">
-                    "{selectedIssueDetail.description}"
-                  </p>
-                </div>
-
-                {/* 2. Chỉ đạo kỹ thuật của chuyên gia */}
-                <div className="p-3 rounded-2xl border border-brand-border bg-white space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-brand-dark text-xs flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-emerald-700" />
-                      Chỉ Đạo Kỹ Thuật Can Thiệp:
-                    </label>
-                    {selectedIssueDetail.diagnosis && (
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        ✓ Đã có phác đồ
+                <div className="space-y-3 md:col-span-3">
+                  <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="flex items-center gap-1.5 text-sm font-bold text-amber-900">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+                        Phản ánh từ hiện trường
                       </span>
-                    )}
-                  </div>
-                  <textarea
-                    rows={2}
-                    value={detailDiagnosisText}
-                    onChange={(e) => setDetailDiagnosisText(e.target.value)}
-                    placeholder="Nhập phác đồ xử lý (ví dụ: Pha dung dịch thảo mộc tỏi ớt 1:200, phun sương đều 2 mặt lá sau 16:30, ngưng tưới gốc 1 ngày...)"
-                    className="w-full p-2.5 rounded-xl border border-brand-border text-xs leading-relaxed focus:ring-2 focus:ring-brand-green/20 outline-none"
-                  />
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSaveDetailDiagnosis}
-                      disabled={!detailDiagnosisText.trim() || isSavingDiagnosis}
-                      className="font-bold text-xs gap-1"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      {isSavingDiagnosis ? 'Đang lưu...' : 'Lưu Chỉ Đạo Kỹ Thuật'}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* 3. Giao nhiệm vụ khắc phục cho CVLĐ (Xong mới giao task) */}
-                <div className="p-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/60 space-y-2.5">
-                  <h5 className="font-bold text-brand-dark text-xs flex items-center gap-1.5">
-                    <UserCheck className="w-4 h-4 text-emerald-700" />
-                    Phân Công Nhiệm Vụ Khắc Phục Hiện Trường Cho CVLĐ
-                  </h5>
-
-                  {selectedIssueDetail.assignedTaskCode && (
-                    <div className="p-2.5 rounded-xl bg-white border border-emerald-300 text-emerald-900 space-y-1">
-                      <div className="flex items-center gap-2 font-bold text-xs text-emerald-800">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Đã phát lệnh: {selectedIssueDetail.assignedTaskCode}</span>
-                      </div>
-                      <p className="text-[11px] text-stone-600">
-                        Giao cho: <strong>{selectedIssueDetail.workerName || 'Chuyên viên hiện trường'}</strong> • Hạn: <strong>{selectedIssueDetail.assignedDueDate || 'Trong ca trực'}</strong>
-                      </p>
+                      {selectedIssueDetail.issueType && (
+                        <span className="self-start whitespace-normal rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-900 sm:self-auto">
+                          {selectedIssueDetail.issueType}
+                        </span>
+                      )}
                     </div>
-                  )}
+                    <p className="rounded-xl border border-amber-200/60 bg-white/80 p-3 text-sm italic leading-relaxed text-stone-800">
+                      "{selectedIssueDetail.description}"
+                    </p>
+                  </div>
 
-                  <div className="space-y-2 bg-white p-3 rounded-xl border border-brand-border/80">
-                    <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2 rounded-2xl border border-brand-border bg-white p-3.5">
+                    <h5 className="flex items-center gap-1.5 text-xs font-bold text-brand-dark">
+                      <Layers className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+                      Bối cảnh thửa đất canh tác
+                    </h5>
+                    <dl className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[10px] font-bold text-stone-600 block mb-1">CVLĐ Nhận Lệnh:</label>
-                        <select
-                          value={detailAssignWorkerId}
-                          onChange={(e) => setDetailAssignWorkerId(Number(e.target.value))}
-                          className="w-full p-2 rounded-lg border border-brand-border text-xs bg-white font-bold"
-                        >
-                          {availableFieldWorkers.map((w) => (
-                            <option key={w.id} value={w.id}>
-                              {w.name} ({w.role})
-                            </option>
-                          ))}
-                        </select>
+                        <dt className="text-xs text-stone-500">Thửa đất</dt>
+                        <dd className="text-sm font-bold text-brand-dark">{selectedIssueDetail.plotName} ({selectedIssueDetail.plotCode})</dd>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-stone-600 block mb-1">Hạn hoàn thành:</label>
-                        <input
-                          type="date"
-                          value={detailDueDate}
-                          onChange={(e) => setDetailDueDate(e.target.value)}
-                          className="w-full p-2 rounded-lg border border-brand-border text-xs bg-white font-bold"
-                        />
+                        <dt className="text-xs text-stone-500">Giống cây</dt>
+                        <dd className="text-sm font-bold text-emerald-800">{selectedIssueDetail.cropName || selectedIssueDetail.crop || 'Cà chua bi đỏ F1'}</dd>
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold text-stone-600 block mb-1">Mức độ ưu tiên giao việc:</label>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {[
-                          { id: 'EMERGENCY', label: '⚡ LÀM NGAY', sub: 'Khẩn cấp 2h' },
-                          { id: 'HIGH', label: '🔥 ƯU TIÊN CAO', sub: 'Trong ngày' },
-                          { id: 'NORMAL', label: '🌱 BÌNH THƯỜNG', sub: 'Ca tới' }
-                        ].map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => setDetailPriority(p.id)}
-                            className={`p-1.5 rounded-lg border text-center transition ${
-                              detailPriority === p.id
-                                ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold ring-1 ring-emerald-500'
-                                : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
-                            }`}
-                          >
-                            <div className="text-[10px] leading-tight font-extrabold">{p.label}</div>
-                            <div className="text-[9px] text-stone-500">{p.sub}</div>
-                          </button>
-                        ))}
+                      <div>
+                        <dt className="text-xs text-stone-500">Người phát hiện</dt>
+                        <dd className="text-sm font-bold text-stone-700">{selectedIssueDetail.workerName || 'Trần Văn Lực (CVLĐ)'}</dd>
                       </div>
-                    </div>
+                      <div>
+                        <dt className="text-xs text-stone-500">Chuyên gia phụ trách</dt>
+                        <dd className="text-sm font-bold text-sky-800">{selectedIssueDetail.expertName || 'ThS. Nguyễn Hoàng Nam'}</dd>
+                      </div>
+                    </dl>
+                  </div>
 
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="sm"
-                      onClick={handleDispatchTaskFromDetail}
-                      disabled={isDispatchingFromDetail}
-                      className="w-full bg-[#064b37] hover:bg-[#085a43] text-white font-bold text-xs py-2.5 gap-1.5 cursor-pointer mt-1"
-                    >
-                      <UserCheck className="w-4 h-4" />
-                      {isDispatchingFromDetail ? 'Đang phát lệnh...' : 'PHÁT LỆNH & GIAO TASK CHO CVLĐ'}
-                    </Button>
+                  <div className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50/60 p-3.5 text-sky-950">
+                    <h5 className="flex items-center gap-1.5 text-xs font-bold text-sky-900">
+                      <Activity className="h-3.5 w-3.5 text-sky-700" aria-hidden="true" />
+                      Khí tượng thực địa tại thửa
+                    </h5>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { icon: Thermometer, value: '28.5°C', label: 'Nhiệt độ', color: 'text-rose-600' },
+                        { icon: Droplets, value: '68%', label: 'Độ ẩm đất', color: 'text-sky-600' },
+                        { icon: Activity, value: '74%', label: 'Ẩm khí', color: 'text-emerald-700' },
+                      ].map(({ icon: StatIcon, value, label, color }) => (
+                        <div key={label} className="min-w-0 rounded-xl border border-sky-100 bg-white px-2.5 py-2 text-center">
+                          <StatIcon className={`mx-auto h-4 w-4 ${color}`} aria-hidden="true" />
+                          <div className="text-base font-bold text-brand-dark">{value}</div>
+                          <div className="text-[11px] text-stone-600">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-sky-800">Độ ẩm đất ổn định trong ngưỡng an toàn VietGAP (60-70%).</p>
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
 
-            <div className="flex justify-end pt-2 border-t border-brand-border">
+            {/* Bước 2: Chẩn đoán & chỉ đạo kỹ thuật */}
+            <section className="space-y-3 rounded-2xl border border-brand-border bg-white p-4">
+              {renderSectionHeader(
+                2,
+                'Chẩn đoán & chỉ đạo kỹ thuật',
+                Boolean(selectedIssueDetail.diagnosis),
+                selectedIssueDetail.diagnosis && (
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                    ✓ Đã có phác đồ
+                  </span>
+                )
+              )}
+              <label htmlFor="issue-detail-diagnosis" className="block text-xs font-semibold text-stone-700">
+                Phác đồ xử lý gửi CVLĐ
+              </label>
+              <textarea
+                id="issue-detail-diagnosis"
+                rows={4}
+                value={detailDiagnosisText}
+                onChange={(e) => setDetailDiagnosisText(e.target.value)}
+                placeholder="Nhập phác đồ xử lý (ví dụ: Pha dung dịch thảo mộc tỏi ớt 1:200, phun sương đều 2 mặt lá sau 16:30, ngưng tưới gốc 1 ngày...)"
+                className="w-full rounded-xl border border-brand-border p-3 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-brand-green/20"
+              />
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveDetailDiagnosis}
+                  disabled={!detailDiagnosisText.trim() || isSavingDiagnosis}
+                  className="gap-1.5"
+                >
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                  {isSavingDiagnosis ? 'Đang lưu...' : 'Lưu chỉ đạo kỹ thuật'}
+                </Button>
+              </div>
+            </section>
+
+            {/* Bước 3: Giao việc khắc phục cho CVLĐ */}
+            <section className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+              {renderSectionHeader(3, 'Giao việc cho CVLĐ', Boolean(selectedIssueDetail.assignedTaskCode))}
+              <IssueAssignmentPanel
+                workers={availableFieldWorkers}
+                workerId={detailAssignWorkerId}
+                onWorkerChange={setDetailAssignWorkerId}
+                dueDate={detailDueDate}
+                onDueDateChange={setDetailDueDate}
+                priority={detailPriority}
+                onPriorityChange={setDetailPriority}
+                onSubmit={handleDispatchTaskFromDetail}
+                isSubmitting={isDispatchingFromDetail}
+                assignedTaskCode={selectedIssueDetail.assignedTaskCode}
+                assignedWorkerName={selectedIssueDetail.workerName}
+                assignedDueDate={selectedIssueDetail.assignedDueDate}
+                hasDiagnosis={Boolean(detailDiagnosisText.trim())}
+              />
+            </section>
+
+            <div className="flex justify-end border-t border-brand-border pt-3">
               <Button type="button" variant="outline" size="sm" onClick={() => setSelectedIssueDetail(null)}>
                 Đóng
               </Button>
             </div>
           </div>
-        )}
+          );
+        })()}
       </Modal>
 
       <Modal
