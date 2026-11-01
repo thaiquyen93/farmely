@@ -3228,7 +3228,7 @@ export default function ExpertDashboard() {
                 <div className="p-3 rounded-2xl border border-sky-200 bg-sky-50/60 text-sky-950 space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
                     <Activity className="w-3.5 h-3.5 text-sky-600" />
-                    Trạm Vi Khí Hậu IoT Tại Thửa
+                    Trạm Vi Khí Hậu Tại Thửa
                   </span>
                   <div className="flex items-center justify-between text-xs font-mono font-bold">
                     <span>🌡️ Nhiệt độ: 28.5°C</span>
