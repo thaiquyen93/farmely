@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { farmApi, plotStatusBadge } from '../../api/farm/farmApi';
 import { formatArea } from '../../utils/polygonGeometry';
@@ -6,10 +6,12 @@ import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2, Clock, EyeOff } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2, Clock, EyeOff, Building2 } from 'lucide-react';
 
 export default function Plots() {
   const [plots, setPlots] = useState([]);
+  const [lands, setLands] = useState([]);
+  const [selectedLandId, setSelectedLandId] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [flashMessage, setFlashMessage] = useState('');
@@ -20,28 +22,35 @@ export default function Plots() {
   const load = useCallback(() => {
     setLoading(true);
     setLoadError('');
-    farmApi.listPlots()
-      .then((rows) => setPlots((rows || []).map((p) => {
-        const compatCount = Number(p.compatibleVarietiesCount) || (Array.isArray(p.compatibleVarieties) ? p.compatibleVarieties.length : (Array.isArray(p.crops) ? p.crops.length : 0));
-        return {
-          id: p.plotId,
-          code: p.plotCode,
-          name: p.plotCode,
-          landId: p.landId,
-          landName: p.landName,
-          areaNum: Number(p.area) || 0,
-          area: formatArea(Number(p.area)),
-          rentalPrice: Number(p.pricePerPeriod) || 0,
-          formattedPrice: `${Number(p.pricePerPeriod || 0).toLocaleString('vi-VN')} đ`,
-          drawn: p.boundary?.length >= 3,
-          corners: p.boundary?.length || 0,
-          status: plotStatusBadge(p.status),
-          isPublished: p.isPublished,
-          compatibleVarietiesCount: compatCount,
-          crops: Array.isArray(p.crops) ? p.crops : [],
-          imageUrl: p.imageUrl
-        };
-      })))
+    Promise.all([
+      farmApi.listPlots(),
+      farmApi.listLands().catch(() => [])
+    ])
+      .then(([rows, landsData]) => {
+        const rawLands = Array.isArray(landsData) ? landsData : (landsData?.data || []);
+        setLands(rawLands);
+        setPlots((rows || []).map((p) => {
+          const compatCount = Number(p.compatibleVarietiesCount) || (Array.isArray(p.compatibleVarieties) ? p.compatibleVarieties.length : (Array.isArray(p.crops) ? p.crops.length : 0));
+          return {
+            id: p.plotId,
+            code: p.plotCode,
+            name: p.plotCode,
+            landId: p.landId,
+            landName: p.landName,
+            areaNum: Number(p.area) || 0,
+            area: formatArea(Number(p.area)),
+            rentalPrice: Number(p.pricePerPeriod) || 0,
+            formattedPrice: `${Number(p.pricePerPeriod || 0).toLocaleString('vi-VN')} đ`,
+            drawn: p.boundary?.length >= 3,
+            corners: p.boundary?.length || 0,
+            status: plotStatusBadge(p.status),
+            isPublished: p.isPublished,
+            compatibleVarietiesCount: compatCount,
+            crops: Array.isArray(p.crops) ? p.crops : [],
+            imageUrl: p.imageUrl
+          };
+        }));
+      })
       .catch((e) => setLoadError(e.message))
       .finally(() => setLoading(false));
   }, []);
@@ -233,6 +242,53 @@ export default function Plots() {
     }
   ];
 
+  const filteredPlots = useMemo(() => {
+    if (selectedLandId === 'ALL') return plots;
+    return plots.filter((p) => String(p.landId) === String(selectedLandId));
+  }, [plots, selectedLandId]);
+
+  const filterComponent = (
+    <div className="flex items-center gap-2 w-full sm:w-auto">
+      <div className="relative flex-1 sm:w-72">
+        <select
+          value={selectedLandId}
+          onChange={(e) => setSelectedLandId(e.target.value)}
+          className="w-full appearance-none pl-9 pr-8 py-2 text-xs font-bold rounded-xl border border-brand-border/80 bg-brand-cream/40 hover:bg-brand-cream/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-green/20 focus:border-brand-green text-brand-dark cursor-pointer transition-all truncate"
+          aria-label="Lọc theo khu nông trại (Land)"
+        >
+          <option value="ALL">
+            Tất cả khu nông trại ({plots.length} thửa / {lands.length} khu)
+          </option>
+          {lands.map((land) => {
+            const lId = land.landId || land.id;
+            const count = plots.filter((p) => String(p.landId) === String(lId)).length;
+            return (
+              <option key={lId} value={lId}>
+                {land.landName || land.name} ({count} thửa)
+              </option>
+            );
+          })}
+        </select>
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand-green">
+          <Building2 className="w-3.5 h-3.5" />
+        </span>
+        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-[10px]">
+          ▼
+        </span>
+      </div>
+      {selectedLandId !== 'ALL' && (
+        <button
+          type="button"
+          onClick={() => setSelectedLandId('ALL')}
+          className="px-2 py-1 text-[11px] font-bold text-stone-500 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition shrink-0"
+          title="Xóa bộ lọc khu"
+        >
+          Bỏ lọc
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -272,9 +328,10 @@ export default function Plots() {
       ) : (
       <DataTable
         columns={columns}
-        data={plots}
+        data={filteredPlots}
         searchPlaceholder="Tìm theo mã thửa..."
         searchField="code"
+        filterComponent={filterComponent}
       />
       )}
 
