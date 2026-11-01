@@ -156,14 +156,86 @@ try {
     $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
     $dockerReady = if ($dockerCommand) { Test-DockerReady -cmdPath $dockerCommand.Source } else { $false }
 
+    function Test-PortListening {
+        param([int]$port)
+        try {
+            $client = New-Object System.Net.Sockets.TcpClient
+            $async = $client.BeginConnect('127.0.0.1', $port, $null, $null)
+            $wait = $async.AsyncWaitHandle.WaitOne(400, $false)
+            if ($wait) {
+                $client.EndConnect($async)
+                $client.Close()
+                return $true
+            }
+            $client.Close()
+        } catch {}
+        return $false
+    }
+
     $configuredPort = if ($env:DB_PORT) { [int]$env:DB_PORT } else { 5432 }
     $localPostgresPort = $null
-    if (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue) {
+    if (Test-PortListening -port 5432) {
         $localPostgresPort = 5432
-    } elseif (Get-NetTCPConnection -LocalPort $configuredPort -State Listen -ErrorAction SilentlyContinue) {
+    } elseif (Test-PortListening -port $configuredPort) {
         $localPostgresPort = $configuredPort
-    } elseif (Get-NetTCPConnection -LocalPort 5433 -State Listen -ErrorAction SilentlyContinue) {
+    } elseif (Test-PortListening -port 5433) {
         $localPostgresPort = 5433
+    }
+
+    # Tu dong khoi dong PostgreSQL neu chua chay tren may
+    if (-not $localPostgresPort) {
+        $pgCtlCandidates = @(
+            'D:\S5\PostgreSQL\bin\pg_ctl.exe',
+            'C:\Program Files\PostgreSQL\18\bin\pg_ctl.exe',
+            'C:\Program Files\PostgreSQL\17\bin\pg_ctl.exe',
+            'C:\Program Files\PostgreSQL\16\bin\pg_ctl.exe',
+            'C:\Program Files\PostgreSQL\15\bin\pg_ctl.exe'
+        )
+        $cmdPgCtl = Get-Command pg_ctl.exe -ErrorAction SilentlyContinue
+        if ($cmdPgCtl) { $pgCtlCandidates = @($cmdPgCtl.Source) + $pgCtlCandidates }
+        $pgCtlBin = $pgCtlCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+
+        $pgDataCandidates = @(
+            'D:\S5\PostgreSQL\data',
+            'C:\Program Files\PostgreSQL\18\data',
+            'C:\Program Files\PostgreSQL\17\data',
+            'C:\Program Files\PostgreSQL\16\data',
+            'C:\Program Files\PostgreSQL\15\data'
+        )
+        $pgDataDir = $pgDataCandidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ 'global') } | Select-Object -First 1
+
+        # 1. Thu khoi dong Windows Service
+        $svc = Get-Service -Name *postgres* -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($svc -and $svc.Status -ne 'Running') {
+            try {
+                Start-Service -Name $svc.Name -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 2
+            } catch {}
+        }
+
+        # 2. Neu van chua chay va co pg_ctl, tu dong khoi dong truc tiep
+        if ((-not (Test-PortListening -port 5432)) -and $pgCtlBin -and $pgDataDir) {
+            $pidPath = Join-Path $pgDataDir 'postmaster.pid'
+            if (Test-Path -LiteralPath $pidPath) {
+                $runningPostgres = Get-Process -Name postgres -ErrorAction SilentlyContinue
+                if (-not $runningPostgres) {
+                    Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
+                }
+            }
+            Write-Host 'Dang tu dong khoi dong PostgreSQL local...' -ForegroundColor Yellow
+            $logFile = Join-Path $pgDataDir 'server_local.log'
+            Start-Process -FilePath $pgCtlBin -ArgumentList @('start', '-D', $pgDataDir, '-o', '-h 127.0.0.1 -p 5432', '-l', $logFile) -WindowStyle Hidden
+            for ($attempt = 0; $attempt -lt 15; $attempt++) {
+                Start-Sleep -Seconds 1
+                if (Test-PortListening -port 5432) {
+                    break
+                }
+            }
+        }
+
+        if (Test-PortListening -port 5432) {
+            $localPostgresPort = 5432
+        }
     }
     $localPostgres = ($null -ne $localPostgresPort)
 
@@ -368,7 +440,7 @@ SIMILARITY_THRESHOLD=0.10
     $rmPass = if ($env:RABBITMQ_PASSWORD) { $env:RABBITMQ_PASSWORD } else { 'guest' }
 
     foreach ($service in $services) {
-        $existing = Get-NetTCPConnection -LocalPort $service.Port -State Listen -ErrorAction SilentlyContinue
+        $existing = Test-PortListening -port $service.Port
         if ($existing) {
             Write-Host "$($service.Name) already listening on port $($service.Port)."
             continue
@@ -411,7 +483,7 @@ SIMILARITY_THRESHOLD=0.10
     }
 
     $frontendPort = if ($env:PORT_FRONTEND) { [int]$env:PORT_FRONTEND } else { 3000 }
-    $frontendExisting = Get-NetTCPConnection -LocalPort $frontendPort -State Listen -ErrorAction SilentlyContinue
+    $frontendExisting = Test-PortListening -port $frontendPort
     if ($frontendExisting) {
         Write-Host "frontend already listening on port $frontendPort."
     }
@@ -450,14 +522,14 @@ SIMILARITY_THRESHOLD=0.10
     Write-Host 'Dang doi cac dich vu khoi dong...' -ForegroundColor Cyan
     while ($pendingPorts.Count -gt 0 -and (Get-Date) -lt $deadline) {
         $justReady = @($pendingPorts | Where-Object {
-            Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue
+            Test-PortListening -port $_
         })
         foreach ($p in $justReady) {
             $svcName = Get-ServiceNameByPort -targetPort $p
             Write-Host "  -> Cong $p ($svcName) da san sang!" -ForegroundColor Green
         }
         $pendingPorts = @($pendingPorts | Where-Object {
-            -not (Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue)
+            -not (Test-PortListening -port $_)
         })
         if ($pendingPorts.Count -gt 0) {
             Start-Sleep -Seconds 2

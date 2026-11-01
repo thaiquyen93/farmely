@@ -8,7 +8,7 @@ echo                 HE THONG NONG NGHIEP THONG MINH FARMELY
 echo =======================================================================
 echo.
 echo [1/3] Dang kiem tra PostgreSQL Database Service...
-powershell -NoProfile -Command "if ((Get-Service -Name postgresql-x64-18 -ErrorAction SilentlyContinue).Status -ne 'Running') { Write-Host '    -> Dang bat service PostgreSQL...'; Start-Service postgresql-x64-18 -ErrorAction SilentlyContinue }"
+powershell -NoProfile -Command "$c = New-Object System.Net.Sockets.TcpClient; $running = $false; try { $a = $c.BeginConnect('127.0.0.1', 5432, $null, $null); if ($a.AsyncWaitHandle.WaitOne(300, $false)) { $c.EndConnect($a); $running = $true } } catch {} finally { $c.Close() }; if (-not $running) { Write-Host '    -> Dang bat PostgreSQL local...'; Start-Service postgresql-x64-18 -ErrorAction SilentlyContinue; if (Test-Path 'D:\S5\PostgreSQL\bin\pg_ctl.exe') { $pidFile = 'D:\S5\PostgreSQL\data\postmaster.pid'; if ((Test-Path $pidFile) -and (-not (Get-Process -Name postgres -ErrorAction SilentlyContinue))) { Remove-Item -Force $pidFile -ErrorAction SilentlyContinue }; & 'D:\S5\PostgreSQL\bin\pg_ctl.exe' start -D 'D:\S5\PostgreSQL\data' -o \"'-h 127.0.0.1 -p 5432'\" -l 'D:\S5\PostgreSQL\data\server_local.log' | Out-Null; Start-Sleep -Seconds 2 } }"
 
 echo.
 echo [2/3] Dang khoi chay 10 Backend Services va Frontend...

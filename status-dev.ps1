@@ -1,4 +1,20 @@
-﻿$ErrorActionPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
+
+function Test-PortListening {
+    param([int]$port)
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $async = $client.BeginConnect('127.0.0.1', $port, $null, $null)
+        $wait = $async.AsyncWaitHandle.WaitOne(350, $false)
+        if ($wait) {
+            $client.EndConnect($async)
+            $client.Close()
+            return $true
+        }
+        $client.Close()
+    } catch {}
+    return $false
+}
 
 $services = @(
     [pscustomobject]@{ Port = 3000; Name = 'frontend'; Type = 'React Vite Dev Server'; Url = 'http://localhost:3000' },
@@ -21,7 +37,7 @@ Write-Host '====================================================================
 
 $onlineCount = 0
 foreach ($s in $services) {
-    $conn = Get-NetTCPConnection -LocalPort $s.Port -State Listen -ErrorAction SilentlyContinue
+    $conn = Test-PortListening -port $s.Port
     if ($conn) {
         $onlineCount++
         Write-Host ('  [ONLINE]  Cong {0,-4} : {1,-22} ({2})' -f $s.Port, $s.Name, $s.Type) -ForegroundColor Green
