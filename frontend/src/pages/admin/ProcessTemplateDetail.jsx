@@ -502,7 +502,7 @@ export default function ProcessTemplateDetail() {
                           {duration} phút
                         </span>
                         <Badge variant={step.status || 'SCHEDULED'} size="sm">
-                          {step.status === 'COMPLETED' ? 'Đã nghiệm thu' : step.status === 'ACTIVE' ? 'Đang thực hiện' : 'Theo lịch trình'}
+                          {step.status === 'COMPLETED' ? 'Đã xong' : step.status === 'ACTIVE' ? 'Đang thực hiện' : 'Theo lịch trình'}
                         </Badge>
 
                         {/* Actions: Edit & Delete */}
@@ -573,7 +573,7 @@ export default function ProcessTemplateDetail() {
                     <div className="pt-1 flex items-center justify-between text-[11px] text-brand-muted border-t border-stone-100">
                       <span className="flex items-center gap-1 text-emerald-800 font-semibold">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Nghiệm thu bắt buộc: Tải tối thiểu 1 ảnh minh chứng thực địa
+                        Bắt buộc: Tải tối thiểu 1 ảnh minh chứng thực địa
                       </span>
                       <span className="text-stone-400">Tự động đồng bộ Farm Diary sau khi duyệt</span>
                     </div>

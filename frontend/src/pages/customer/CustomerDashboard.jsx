@@ -290,7 +290,7 @@ export default function CustomerDashboard() {
         feedback: harvestFeedback
       });
       setShowHarvestAcceptModal(false);
-      alert('Cảm ơn bạn đã nghiệm thu và đánh giá chất lượng nông sản vụ mùa!');
+      alert('Cảm ơn bạn đã xác nhận và đánh giá chất lượng nông sản vụ mùa!');
     } catch (err) {
       console.warn('Lỗi xác nhận thu hoạch:', err);
       setHarvestAcceptance({
@@ -982,7 +982,7 @@ export default function CustomerDashboard() {
       unit: '/ trọn vụ (65 ngày)',
       icon: Sprout,
       color: 'bg-emerald-50 text-emerald-800 border-emerald-200',
-      description: 'Chuyển đổi hoàn hảo khi bạn chọn Self-growing nhưng bận rộn. Đội ngũ Farmely chăm sóc 100% từ gieo giống, tưới tiêu, bón phân đến nghiệm thu thu hoạch.',
+      description: 'Chuyển đổi hoàn hảo khi bạn chọn Self-growing nhưng bận rộn. Đội ngũ Farmely chăm sóc 100% từ gieo giống, tưới tiêu, bón phân đến thu hoạch.',
       features: [
         'Công nhân trực tiếp chăm sóc theo phác đồ Chuyên gia',
         'Cập nhật Farm Diary hằng ngày có ảnh chụp đối chứng',
@@ -1079,7 +1079,7 @@ export default function CustomerDashboard() {
       id: 'SVC-HARVEST-PACK',
       name: 'Dịch Vụ Hỗ Trợ Thu Hoạch & Đóng Thùng QR',
       category: 'SINGLE',
-      tag: 'Nghiệm thu nông sản',
+      tag: 'Thu hoạch nông sản',
       price: 90000,
       formattedPrice: '90.000 đ',
       unit: '/ đợt thu hoạch',
@@ -1763,7 +1763,7 @@ export default function CustomerDashboard() {
               }
             });
 
-            // SSoT: Mọi nhiệm vụ chăm sóc thực địa đã nghiệm thu (DONE / COMPLETED) tự động trở thành một mục nhật ký canh tác
+            // SSoT: Mọi nhiệm vụ chăm sóc thực địa đã hoàn thành (DONE / COMPLETED) tự động trở thành một mục nhật ký canh tác
             if (t.status === 'DONE' || t.status === 'COMPLETED') {
               const formattedDiaryFromTask = {
                 id: `TASK-DIR-${t.id || t.taskId}`,
@@ -1771,7 +1771,7 @@ export default function CustomerDashboard() {
                 date: t.date || (t.completedAt ? t.completedAt.split(' - ')[1] : t.dueDate),
                 time: t.completedAt || (t.dueDate ? `${t.dueDate} (08:30)` : 'Hôm nay'),
                 title: t.title || 'Nhiệm vụ chăm sóc hiện trường',
-                note: t.instructions || t.notes || 'Đã hoàn tất nghiệm thu kỹ thuật theo quy trình VietGAP.',
+                note: t.instructions || t.notes || 'Đã hoàn tất công việc theo quy trình kỹ thuật.',
                 author: t.workerName || t.assignedTo || 'Trần Văn Lực (Kỹ thuật viên Farmely)',
                 authorName: t.workerName || t.assignedTo || 'Trần Văn Lực (Kỹ thuật viên Farmely)',
                 image: t.proofPhoto || t.evidenceImageUrl || null,
@@ -2400,10 +2400,10 @@ export default function CustomerDashboard() {
                   ))}
                 </dl>
 
-                {/* Mobile không có sidebar: lối vào Kế hoạch thu hoạch & nghiệm thu */}
-                <nav aria-label="Kế hoạch thu hoạch & nghiệm thu" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
+                {/* Mobile không có sidebar: lối vào Kế hoạch thu hoạch */}
+                <nav aria-label="Kế hoạch thu hoạch" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 no-scrollbar lg:hidden">
                   <button type="button" onClick={() => navigate('/customer/dashboard?view=harvest')} className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-2xs">
-                    <Apple className="h-4 w-4 text-emerald-700" /> Kế hoạch thu hoạch & nghiệm thu
+                    <Apple className="h-4 w-4 text-emerald-700" /> Kế hoạch thu hoạch
                   </button>
                 </nav>
 
@@ -3376,7 +3376,7 @@ export default function CustomerDashboard() {
               )
             )}
 
-            {/* TAB 5: THU HOẠCH & NGHIỆM THU */}
+            {/* TAB 5: THU HOẠCH & BÀN GIAO NÔNG SẢN */}
             {activeTab === 'harvest' && !selectedPlotId && (() => {
               const displayedHarvests = scopedPlot
                 ? dbHarvestResults.filter(
@@ -3396,10 +3396,10 @@ export default function CustomerDashboard() {
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
                       <Apple className="w-6 h-6 text-emerald-700" />
-                      <span>Kế Hoạch Thu Hoạch & Nghiệm Thu Nông Sản</span>
+                      <span>Kế Hoạch Thu Hoạch Nông Sản</span>
                     </h3>
                     <p className="text-xs text-brand-muted mt-1">
-                      Đăng ký lịch hái theo dõi phê duyệt từ Kỹ sư nông nghiệp và nghiệm thu khối lượng thực tế đối chứng cân điện tử.
+                      Đăng ký lịch hái theo dõi xác nhận từ nông trại và nhận bàn giao khối lượng thực tế đối chứng cân điện tử.
                     </p>
                   </div>
                 </div>
@@ -3509,13 +3509,13 @@ export default function CustomerDashboard() {
                   )}
                 </div>
 
-                {/* PHẦN 2: KẾT QUẢ THU HOẠCH & NGHIỆM THU THỰC ĐỊA */}
+                {/* PHẦN 2: KẾT QUẢ THU HOẠCH & BÀN GIAO THỰC ĐỊA */}
                 <div className="space-y-4 pt-4 border-t border-brand-border/60">
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="font-heading font-black text-base text-brand-dark flex items-center gap-2">
                         <Apple className="w-4 h-4 text-emerald-700" />
-                        <span>2. Biên Bản Nghiệm Thu & Cân Đối Chứng Nông Sản (Thực tế sau khi thu hoạch)</span>
+                        <span>2. Biên Bản Bàn Giao & Cân Đối Chứng Nông Sản (Thực tế sau khi thu hoạch)</span>
                       </h4>
                       <p className="text-xs text-stone-500">
                         Đối chứng ảnh số cân điện tử do Chuyên viên lao động gửi về và xác nhận bàn giao nông sản.
@@ -3527,7 +3527,7 @@ export default function CustomerDashboard() {
                   <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center">
                     <Apple className="mx-auto h-10 w-10 text-stone-400" />
                     <p className="mt-2 font-bold text-stone-700">Chưa có kết quả cân thu hoạch nào</p>
-                    <p className="mt-1 text-xs text-stone-500">Sau khi hoàn tất đăng ký và chuyên viên lao động cắt cân nông sản tại vườn, biên bản nghiệm thu sẽ xuất hiện ở đây.</p>
+                    <p className="mt-1 text-xs text-stone-500">Sau khi hoàn tất đăng ký và chuyên viên lao động cắt cân nông sản tại vườn, biên bản bàn giao sẽ xuất hiện ở đây.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -3541,10 +3541,10 @@ export default function CustomerDashboard() {
                             <span className="font-bold text-brand-dark text-sm">{hr.plotName} · {hr.crop}</span>
                             <span className="text-emerald-700 font-black text-base">{hr.formattedYield || '35.0 kg'}</span>
                           </div>
-                          <p className="text-stone-600">Ngày thu hoạch: <strong>{hr.harvestDateFormatted || hr.harvestDate}</strong>. Chuyên viên phụ trách nghiệm thu: <strong>{hr.enteredByWorker || 'Trần Văn Lực'}</strong>.</p>
+                          <p className="text-stone-600">Ngày thu hoạch: <strong>{hr.harvestDateFormatted || hr.harvestDate}</strong>. Chuyên viên phụ trách: <strong>{hr.enteredByWorker || 'Trần Văn Lực'}</strong>.</p>
                           <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-brand-border/60">
                             <div className="flex flex-wrap gap-2">
-                              <span className="rounded-full bg-white px-3 py-1 font-bold text-stone-600 border border-brand-border">Mã nghiệm thu: {hr.id}</span>
+                              <span className="rounded-full bg-white px-3 py-1 font-bold text-stone-600 border border-brand-border">Mã biên bản: {hr.id}</span>
                               <span className={`rounded-full px-3 py-1 font-bold ${isConfirmed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
                                 {isConfirmed ? `✓ Đã xác nhận · ${hr.deliveryType === 'FARM' || hr.deliveryType === 'PICKUP' ? 'Nhận tại nông trại' : 'Giao tận nhà'}` : 'Chờ khách xác nhận'}
                               </span>
@@ -3558,7 +3558,7 @@ export default function CustomerDashboard() {
                                   setShowHarvestAcceptModal(true);
                                 }}
                               >
-                                Xác nhận nghiệm thu vụ mùa
+                                Xác nhận nhận nông sản
                               </Button>
                             )}
                           </div>
@@ -4748,7 +4748,7 @@ export default function CustomerDashboard() {
       <Modal
         isOpen={showHarvestAcceptModal}
         onClose={() => setShowHarvestAcceptModal(false)}
-        title="Nghiệm Thu Sản Lượng & Đánh Giá Chất Lượng Vụ Mùa"
+        title="Xác Nhận Sản Lượng & Đánh Giá Chất Lượng Vụ Mùa"
         subtitle="Đối chứng cân điện tử, chọn phương thức giao nhận và đánh giá chất lượng nông sản từ CSDL PostgreSQL"
       >
         <form onSubmit={handleConfirmHarvestAcceptance} className="space-y-4 text-left text-xs max-h-[75vh] overflow-y-auto pr-1">

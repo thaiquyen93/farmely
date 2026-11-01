@@ -35,7 +35,7 @@ export function getHarvestMethods(plot) {
     {
       id: 'EXPERIENCE_HARVEST',
       label: 'Tới nông trại trải nghiệm & tự tay thu hoạch',
-      note: 'Trực tiếp trải nghiệm hái nông sản sạch tại vườn cùng gia đình. Farmely chuẩn bị sẵn dụng cụ hái, nón lá, sọt VietGAP và cân điện tử nghiệm thu tại thửa.',
+      note: 'Trực tiếp trải nghiệm hái nông sản sạch tại vườn cùng gia đình. Farmely chuẩn bị sẵn dụng cụ hái, nón lá, sọt và cân điện tử tại thửa.',
       icon: Scissors,
       needsAddress: false
     },
@@ -49,7 +49,7 @@ export function getHarvestMethods(plot) {
   ];
 }
 
-const STEPS = ['Đang chăm sóc', 'Sắp thu hoạch', 'Thu hoạch tại vườn', 'Nghiệm thu'];
+const STEPS = ['Đang chăm sóc', 'Sắp thu hoạch', 'Thu hoạch tại vườn', 'Hoàn tất'];
 
 export default function PlotHarvestModal({ plot, isOpen, onClose, existingPlan = null, onConfirm, onCancelPlan }) {
   const methods = useMemo(() => getHarvestMethods(plot), [plot]);
@@ -211,7 +211,7 @@ export default function PlotHarvestModal({ plot, isOpen, onClose, existingPlan =
 
         <p className="flex items-start gap-2 text-xs text-brand-muted">
           <Package className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
-          Kế hoạch trải nghiệm sẽ ở trạng thái "Chờ xác nhận" để kỹ sư nông trại sắp xếp nhân sự đón tiếp, chuẩn bị dụng cụ thu hái và cân đo nghiệm thu.
+          Kế hoạch trải nghiệm sẽ ở trạng thái "Chờ xác nhận" để kỹ sư nông trại sắp xếp nhân sự đón tiếp, chuẩn bị dụng cụ thu hái và cân đo sản lượng.
         </p>
 
         <div className="flex flex-col-reverse gap-2 border-t border-brand-border pt-4 sm:flex-row sm:items-center sm:justify-between">

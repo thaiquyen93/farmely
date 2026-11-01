@@ -775,7 +775,7 @@ function StandardProcessTimeline({
                 <div className="rounded-xl border border-emerald-200 bg-emerald-100/40 p-3.5 shadow-2xs space-y-1">
                   <div className="flex items-center gap-2 font-bold text-emerald-900 text-xs">
                     <span className="text-base leading-none">🔍</span>
-                    <span>Tiêu chuẩn nghiệm thu VietGAP</span>
+                    <span>Tiêu chuẩn hoàn thành kỹ thuật</span>
                   </div>
                   <p className="text-emerald-800 text-xs font-medium leading-relaxed pl-6">
                     {activeStage.inspectionCriteria}
@@ -1000,7 +1000,7 @@ function StageDetailModal({ stage, cropProcess, onClose }) {
           {stage.inspectionCriteria && (
             <div className="rounded-2xl bg-blue-50/80 p-3.5 border border-blue-200">
               <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-blue-600" />Tiêu chí nghiệm thu của Kỹ sư
+                <ShieldCheck className="h-4 w-4 text-blue-600" />Tiêu chí hoàn thành của Kỹ sư
               </span>
               <p className="mt-1 text-xs text-blue-800 leading-relaxed">{stage.inspectionCriteria}</p>
             </div>
@@ -2099,7 +2099,7 @@ function DiaryTab({ plot, operations, staffActivities = [], onAddDiary }) {
             time: act.timestamp || (act.date ? `${act.date} • Ca sáng` : 'Hôm nay'),
             date: act.date,
             title: act.title,
-            note: act.notes || 'Nhiệm vụ đã được kỹ thuật viên hoàn tất và nghiệm thu đạt chuẩn VietGAP.',
+            note: act.notes || 'Nhiệm vụ đã được kỹ thuật viên hoàn tất.',
             author: act.workerName || 'Trần Văn Lực (Kỹ thuật viên Farmely)',
             authorRole: act.workerRole || 'Kỹ thuật viên hiện trường chuyên trách',
             image: act.proofPhoto || null,
@@ -2137,7 +2137,7 @@ function DiaryTab({ plot, operations, staffActivities = [], onAddDiary }) {
                   <div className="flex items-center gap-1.5">
                     {(e.isStaffTask || e.author?.includes('Lực') || e.author?.includes('Kỹ thuật') || e.status === 'COMPLETED') && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
-                        <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Nghiệm thu VietGAP
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Đã hoàn thành
                       </span>
                     )}
                     <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-100">
@@ -2223,7 +2223,7 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200/80 pb-3">
           <div>
             <SectionTitle eyebrow={`${orders.length} đơn dịch vụ`} title="Lịch sử mua & sử dụng dịch vụ" />
-            <p className="text-xs text-stone-500 mt-0.5">Theo dõi chi tiết tiến độ thực hiện, nhân viên phụ trách và ảnh nghiệm thu thực địa.</p>
+            <p className="text-xs text-stone-500 mt-0.5">Theo dõi chi tiết tiến độ thực hiện, nhân viên phụ trách và ảnh hoàn thành thực địa.</p>
           </div>
           <div className="flex items-center gap-1.5 self-start sm:self-auto bg-stone-100 p-1 rounded-xl text-xs font-semibold">
             <button
@@ -2310,7 +2310,7 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
                               <Camera className="w-3 h-3" />
                               Minh chứng hiện trường
                             </span>
-                            <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-1">{o.proofNotes || 'Đã nghiệm thu đạt chuẩn'}</p>
+                            <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-1">{o.proofNotes || 'Đã hoàn thành đạt chuẩn'}</p>
                           </div>
                         </div>
                       ) : (
@@ -2901,7 +2901,7 @@ export default function CustomerPlotWorkspace({
         ? 'Chờ ngày xuống giống'
         : (isSelf
           ? `${selfTasks.filter(t => t.status !== 'COMPLETED').length} việc cần làm`
-          : (openTaskCount > 0 ? `${openTaskCount} việc đang làm` : 'Đã nghiệm thu đủ')),
+          : (openTaskCount > 0 ? `${openTaskCount} việc đang làm` : 'Đã hoàn thành đủ')),
       icon: CalendarCheck,
       tab: 'tasks'
     }

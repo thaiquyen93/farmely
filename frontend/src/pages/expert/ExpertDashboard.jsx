@@ -137,7 +137,7 @@ const DEFAULT_HARVEST_REQUESTS = [
     phiDays: 7,
     phiStandardDays: 5,
     status: 'COMPLETED',
-    notes: 'Đã hoàn tất nghiệm thu và giao sọt dưa leo sạch cho khách tại nông trại.',
+    notes: 'Đã hoàn tất thu hoạch và bàn giao sọt dưa leo sạch cho khách tại nông trại.',
     createdAt: '2026-10-09T10:00:00Z',
     workerName: 'TS. Lê Hoàng Đức',
     approvedAt: '2026-10-09T11:00:00Z',
@@ -1055,7 +1055,7 @@ export default function ExpertDashboard() {
       // 2. Gửi tin nhắn thông báo vào cuộc trò chuyện
       if (directTaskModal.notifyCustomerInChat && selectedThreadId) {
         const sysNotice = directTaskModal.isWorkerThread
-          ? `📋 [LỆNH NHIỆM VỤ HIỆN TRƯỜNG]\nChuyên gia ${expertSenderName} đã giao nhiệm vụ ${priorityTag}:\n👉 "${directTaskModal.title.trim()}"\n⏳ Hạn xử lý: ${directTaskModal.dueDate}. Đề nghị đồng chí ${targetWorker.name} thực hiện và chụp ảnh báo cáo nghiệm thu qua hệ thống.`
+          ? `📋 [LỆNH NHIỆM VỤ HIỆN TRƯỜNG]\nChuyên gia ${expertSenderName} đã giao nhiệm vụ ${priorityTag}:\n👉 "${directTaskModal.title.trim()}"\n⏳ Hạn xử lý: ${directTaskModal.dueDate}. Đề nghị đồng chí ${targetWorker.name} thực hiện và chụp ảnh báo cáo xong việc qua hệ thống.`
           : `📋 [LỆNH ĐIỀU PHỐI HIỆN TRƯỜNG]\nChuyên gia ${expertSenderName} đã phát lệnh công việc ${priorityTag} tới CVLĐ ${targetWorker.name}:\n👉 "${directTaskModal.title.trim()}"\n⏳ Hạn xử lý: ${directTaskModal.dueDate}. Nhân viên sẽ kiểm tra thực địa và chụp ảnh báo cáo sau khi xử lý.`;
         sendExpertMessage(sysNotice, expertSenderName, { prescriptionTag: 'LỆNH GIAO VIỆC CVLĐ' });
       }
@@ -3072,7 +3072,7 @@ export default function ExpertDashboard() {
                 required
                 value={directTaskModal.instructions}
                 onChange={(e) => setDirectTaskModal((c) => ({ ...c, instructions: e.target.value }))}
-                placeholder="Ghi rõ liều lượng, vị trí xử lý, yêu cầu chụp ảnh nghiệm thu hiện trường..."
+                placeholder="Ghi rõ liều lượng, vị trí xử lý, yêu cầu chụp ảnh báo cáo xong việc..."
                 className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs text-stone-800 leading-relaxed outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10"
               />
             </label>

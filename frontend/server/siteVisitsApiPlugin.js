@@ -134,13 +134,13 @@ WHERE status = 'RENT' AND plot_id NOT IN (
 -- Dọn dẹp các tác vụ rác của các hợp đồng/thửa đã hủy
 DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE status = 'CANCELLED');
 
--- SSoT: Tự động đồng bộ các nhiệm vụ chăm sóc thực địa đã nghiệm thu (DONE) vào nhật ký farm_diaries
+-- SSoT: Tự động đồng bộ các nhiệm vụ chăm sóc thực địa đã hoàn thành (DONE) vào nhật ký farm_diaries
 INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
 SELECT 
   ct.rental_id,
   ct.task_id,
   COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
-  COALESCE(ct.notes, ts.description, 'Đã hoàn tất nghiệm thu kỹ thuật theo quy trình VietGAP.'),
+  COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
   COALESCE(ct.step_order, ts.step_order, 1),
   COALESCE(ct.evidence_image_url, 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=600&q=80'),
   COALESCE(ct.updated_at, NOW())
@@ -1011,7 +1011,7 @@ BEGIN
         NOW()
     FROM varieties v WHERE v.variety_id = ${varietyId};
 
-    -- 3. TỰ ĐỘNG KHỞI TẠO HỒ SƠ THU HOẠCH & NGHIỆM THU (HARVEST RESULTS)
+    -- 3. TỰ ĐỘNG KHỞI TẠO HỒ SƠ THU HOẠCH & BÀN GIAO (HARVEST RESULTS)
     INSERT INTO harvest_results (rental_id, entered_by, harvest_date, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at)
     VALUES (
         v_rental_id,
@@ -2590,7 +2590,7 @@ RETURNING harvest_id, rental_id, customer_confirmed, delivery_type;
 `;
               await runPostgreSql(sql);
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true, message: 'Xác nhận nghiệm thu nông sản thành công vào CSDL' }));
+              res.end(JSON.stringify({ success: true, message: 'Xác nhận nhận nông sản thành công vào CSDL' }));
             } catch (err) {
               console.error('Error on /api/customer/harvest-results/confirm:', err);
               res.statusCode = 500;
@@ -5070,7 +5070,7 @@ RETURNING task_id, rental_id, status, step_order, title, notes, evidence_image_u
               let taskRow = null;
               try { taskRow = Array.isArray(updateRes) ? updateRes[0] : (typeof updateRes === 'string' ? JSON.parse(updateRes) : updateRes); } catch { }
 
-              // TỰ ĐỘNG ĐỒNG BỘ VÀO NHẬT KÝ NÔNG TRẠI (farm_diaries) KHI NGHIỆM THU HOÀN THÀNH (BR17) HOẶC CÓ MINH CHỨNG
+              // TỰ ĐỘNG ĐỒNG BỘ VÀO NHẬT KÝ NÔNG TRẠI (farm_diaries) KHI HOÀN THÀNH HOẶC CÓ MINH CHỨNG
               if (isComplete || payload.syncToDiary || proof) {
                 try {
                   const detailSql = `
@@ -5079,7 +5079,7 @@ SELECT
   ct.rental_id,
   COALESCE(ct.step_order, ts.step_order, 1) AS step_order,
   COALESCE(ct.title, ts.step_name, ct.notes, 'Nhiệm vụ chăm sóc hiện trường') AS title,
-  COALESCE(ct.notes, ts.description, 'Đã hoàn tất nghiệm thu đạt chuẩn VietGAP') AS notes,
+  COALESCE(ct.notes, ts.description, 'Đã hoàn thành công việc') AS notes,
   COALESCE(ct.evidence_image_url, '${proof ? proof.replace(/'/g, "''") : ''}') AS evidence_image_url
 FROM care_tasks ct
 LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
@@ -5096,7 +5096,7 @@ LIMIT 1;
                   const rId = taskDetail?.rental_id || taskRow?.rental_id || payload.rentalId || 1;
                   const sOrder = taskDetail?.step_order || taskRow?.step_order || payload.stepOrder || 1;
                   const taskTitle = (taskDetail?.title || taskRow?.title || payload.title || 'Nhiệm vụ chăm sóc hiện trường').replace(/'/g, "''");
-                  const taskContent = (payload.notes || payload.taskProofNote || taskDetail?.notes || 'Nhiệm vụ đã được hoàn tất và nghiệm thu đạt tiêu chuẩn VietGAP.').replace(/'/g, "''");
+                  const taskContent = (payload.notes || payload.taskProofNote || taskDetail?.notes || 'Nhiệm vụ đã được hoàn tất.').replace(/'/g, "''");
                   const diaryImg = (proof || taskDetail?.evidence_image_url || taskRow?.evidence_image_url || '').replace(/'/g, "''");
 
                   const syncDiarySql = `
@@ -5129,7 +5129,7 @@ END $$;
               res.end(JSON.stringify({
                 success: true,
                 message: isComplete
-                  ? `Nghiệm thu nhiệm vụ #${taskId} thành công và đã tự động đồng bộ vào nhật ký nông trại`
+                  ? `Hoàn thành nhiệm vụ #${taskId} thành công và đã tự động đồng bộ vào nhật ký nông trại`
                   : `Cập nhật nhiệm vụ #${taskId} thành công`,
                 data: taskRow
               }));

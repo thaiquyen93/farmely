@@ -208,26 +208,19 @@ function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onTo
   const description = task.instructions || '';
   const isLong = description.length > 120;
   const showNote = !isDone && shouldShowExpertNote(task.notes, description);
-  const metaParts = [dayAge ? `Ngày tuổi ${dayAge}` : null, task.workerName || fallbackWorker].filter(Boolean);
+  // Overdue tasks from earlier days sit in "Hôm nay"; keep their original due date visible.
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+  const overdueSince = variant === 'today' && task.dueDate && task.dueDate < todayStr ? `Hạn ${formatAgendaDate(task.dueDate)}` : null;
+  const metaParts = [overdueSince, dayAge ? `Ngày tuổi ${dayAge}` : null, task.workerName || fallbackWorker].filter(Boolean);
   const timeLabel = isDone ? (task.completedAt || '—') : (task.deadline || '—');
 
-  const handleKey = (e) => {
-    if (e.target !== e.currentTarget) return;
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onOpenDetail(task);
-    }
-  };
-
+  // The title button is the single detail trigger; its ::after overlay makes the whole card clickable.
+  // Action controls sit above the overlay (relative z-10) so they are siblings, not nested in a button.
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onOpenDetail(task)}
-      onKeyDown={handleKey}
-      className={`group flex w-full min-w-0 flex-wrap items-start gap-3 rounded-xl border border-stone-200 border-l-4 ${accent.border} ${isDone ? 'bg-white/70' : variant === 'upcoming' ? 'bg-stone-50/60' : 'bg-white shadow-2xs'} p-3 transition hover:border-stone-300 hover:shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 cursor-pointer sm:flex-nowrap sm:items-center`}
+    <article
+      className={`group relative flex w-full min-w-0 flex-wrap items-start gap-3 rounded-xl border border-stone-200 border-l-4 ${accent.border} ${isDone ? 'bg-white/70' : variant === 'upcoming' ? 'bg-stone-50/60' : 'bg-white shadow-2xs'} p-3 transition hover:border-stone-300 hover:shadow-xs has-[.task-detail-trigger:focus-visible]:ring-2 has-[.task-detail-trigger:focus-visible]:ring-emerald-500/40 sm:flex-nowrap sm:items-center`}
     >
-      <div className={`w-14 shrink-0 self-start pt-0.5 font-mono text-xs font-bold ${isDone ? 'text-stone-400' : 'text-stone-700'}`}>
+      <div className={`w-14 shrink-0 self-start pt-0.5 font-mono text-xs font-bold ${isDone ? 'text-stone-500' : 'text-stone-700'}`}>
         {isDone ? <Check className="mb-0.5 h-3.5 w-3.5 text-emerald-600" /> : null}
         {timeLabel}
       </div>
@@ -240,7 +233,13 @@ function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onTo
             </span>
           ) : null}
           <h5 className={`font-heading text-sm ${isDone ? 'font-bold text-stone-500' : 'font-black text-stone-900 group-hover:text-emerald-900'}`}>
-            {titleText || task.title}
+            <button
+              type="button"
+              onClick={() => onOpenDetail(task)}
+              className="task-detail-trigger text-left cursor-pointer focus:outline-none after:absolute after:inset-0 after:rounded-xl after:content-['']"
+            >
+              {titleText || task.title}
+            </button>
           </h5>
         </div>
 
@@ -252,7 +251,7 @@ function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onTo
               {metaParts.length ? <span className="text-stone-300">·</span> : null}
             </>
           ) : null}
-          <span className="min-w-0 truncate">{isDone ? `Nghiệm thu: ${task.workerName || fallbackWorker}` : metaParts.join(' · ')}</span>
+          <span className="min-w-0 truncate">{isDone ? `Hoàn thành: ${task.workerName || fallbackWorker}` : metaParts.join(' · ')}</span>
         </p>
 
         {!isDone && description ? (
@@ -265,7 +264,8 @@ function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onTo
                   e.stopPropagation();
                   onToggleExpand(task.id);
                 }}
-                className="mt-0.5 text-[11px] font-bold text-emerald-700 hover:underline"
+                aria-expanded={isExpanded}
+                className="relative z-10 mt-0.5 text-[11px] font-bold text-emerald-700 hover:underline"
               >
                 {isExpanded ? 'Thu gọn' : 'Xem thêm'}
               </button>
@@ -291,11 +291,11 @@ function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onTo
               e.stopPropagation();
               onExecute(task);
             }}
-            title={isHarvest ? 'Mở màn thu hoạch' : 'Nghiệm thu & chụp ảnh minh chứng'}
-            className="flex-1 sm:flex-none"
+            title={isHarvest ? 'Mở màn thu hoạch' : 'Báo cáo xong việc & chụp ảnh minh chứng'}
+            className="relative z-10 flex-1 sm:flex-none"
           >
             {isHarvest ? <Scale className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />}
-            <span>{isHarvest ? 'Thu hoạch' : 'Nghiệm thu'}</span>
+            <span>{isHarvest ? 'Thu hoạch' : 'Xong việc'}</span>
           </Button>
         ) : variant === 'upcoming' ? (
           <Button
@@ -305,25 +305,28 @@ function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onTo
               e.stopPropagation();
               onExecute(task);
             }}
-            title="Thực hiện sớm và nghiệm thu"
-            className="flex-1 border border-stone-200 text-stone-600 hover:text-emerald-800 sm:flex-none"
+            title="Thực hiện sớm và báo cáo xong việc"
+            className="relative z-10 flex-1 border border-stone-200 text-stone-600 hover:text-emerald-800 sm:flex-none"
           >
             Làm sớm
           </Button>
         ) : task.proofPhoto ? (
-          <img
-            src={task.proofPhoto}
-            alt="Ảnh nghiệm thu"
-            className="h-10 w-10 cursor-pointer rounded-lg border border-emerald-200 object-cover transition hover:scale-105"
-            onClick={(e) => {
-              e.stopPropagation();
-              window.open(task.proofPhoto, '_blank');
-            }}
-          />
+          <button
+            type="button"
+            onClick={() => window.open(task.proofPhoto, '_blank')}
+            title="Xem ảnh hoàn thành"
+            className="relative z-10 shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+          >
+            <img
+              src={task.proofPhoto}
+              alt="Ảnh hoàn thành"
+              className="h-10 w-10 rounded-lg border border-emerald-200 object-cover transition hover:scale-105"
+            />
+          </button>
         ) : null}
-        <ChevronRight aria-label="Chi tiết" className="hidden h-4 w-4 shrink-0 text-stone-300 group-hover:text-emerald-700 sm:block" />
+        <ChevronRight aria-hidden="true" className="hidden h-4 w-4 shrink-0 text-stone-300 group-hover:text-emerald-700 sm:block" />
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -737,7 +740,7 @@ export default function FieldWorkerDashboard() {
     e.preventDefault();
     if (!selectedTaskToExecute) return;
     if (!taskProofPhoto) {
-      setDataError('Ảnh minh chứng là bắt buộc theo quy trình nghiệm thu công việc.');
+      setDataError('Ảnh minh chứng là bắt buộc khi báo cáo xong việc.');
       return;
     }
 
@@ -773,7 +776,7 @@ export default function FieldWorkerDashboard() {
           title: selectedTaskToExecute.title || 'Chăm sóc luống cây trồng',
           timestamp: `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Hôm nay`,
           status: 'COMPLETED',
-          notes: taskProofNote || 'Nhiệm vụ đã được hoàn tất và nghiệm thu đạt tiêu chuẩn VietGAP.',
+          notes: taskProofNote || 'Nhiệm vụ đã được hoàn tất và báo cáo xong việc.',
           proofPhoto: taskProofPhoto,
           sensorSnapshot: {
             temp: matchedPlot?.temp || '28.0°C',
@@ -865,7 +868,7 @@ export default function FieldWorkerDashboard() {
       setTaskProofNote('');
       setTaskProofPhoto('');
       setDataError('');
-      setDataSuccess('Đã nghiệm thu hoàn tất và tự động đồng bộ ảnh minh chứng vào nhật ký của khách hàng.');
+      setDataSuccess('Đã báo cáo xong việc và tự động cập nhật ảnh minh chứng vào nhật ký của khách hàng.');
     } catch (error) {
       setDataError(error.message || 'Không thể cập nhật nhiệm vụ lên hệ thống.');
     } finally {
@@ -1402,7 +1405,7 @@ export default function FieldWorkerDashboard() {
               <strong className="font-heading text-2xl font-black text-amber-900 mt-1 block">{todayActionableCount}</strong>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-2xs">
-              <span className="block text-xs font-bold text-emerald-800 uppercase tracking-wider">Đã nghiệm thu</span>
+              <span className="block text-xs font-bold text-emerald-800 uppercase tracking-wider">Đã hoàn thành</span>
               <strong className="font-heading text-2xl font-black text-emerald-900 mt-1 block">{completedCount}</strong>
             </div>
           </div>
@@ -1523,7 +1526,7 @@ export default function FieldWorkerDashboard() {
                         <span>Thửa đất phụ trách ca trực</span>
                       </h3>
                       <p className="text-xs text-stone-500">
-                        Bấm vào từng thửa đất để mở cửa sổ popup chi tiết công việc cần làm hôm nay, thực hiện nghiệm thu hoặc báo sự cố.
+                        Bấm vào từng thửa đất để mở cửa sổ popup chi tiết công việc cần làm hôm nay, báo cáo xong việc hoặc báo sự cố.
                       </p>
                     </div>
                     <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">
@@ -1657,7 +1660,7 @@ export default function FieldWorkerDashboard() {
                       <span>Yêu Cầu Dịch Vụ Canh Tác Từ Khách Hàng</span>
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
-                      Danh sách dịch vụ nông nghiệp khách thuê đặt mua cho thửa đất. Bạn có thể tiếp nhận và nghiệm thu kết quả kèm ảnh chứng thực.
+                      Danh sách dịch vụ nông nghiệp khách thuê đặt mua cho thửa đất. Bạn có thể tiếp nhận và báo cáo xong việc kèm ảnh chứng thực.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -1786,8 +1789,8 @@ export default function FieldWorkerDashboard() {
                                 onClick={() => window.open(req.proofPhoto, '_blank')}
                               />
                               <div>
-                                <span className="font-bold text-emerald-900 block">Đã nghiệm thu có ảnh minh chứng</span>
-                                <span className="text-stone-500 text-[11px]">{req.completedAt ? `Hoàn tất lúc: ${req.completedAt}` : 'Đã nghiệm thu chuẩn VietGAP'}</span>
+                                <span className="font-bold text-emerald-900 block">Đã hoàn thành có ảnh minh chứng</span>
+                                <span className="text-stone-500 text-[11px]">{req.completedAt ? `Hoàn tất lúc: ${req.completedAt}` : 'Đã hoàn thành'}</span>
                               </div>
                             </div>
                           )}
@@ -1814,7 +1817,7 @@ export default function FieldWorkerDashboard() {
                                 className="font-bold text-xs gap-1.5 bg-[#07533d] hover:bg-[#053d2d] text-white"
                               >
                                 <Camera className="w-3.5 h-3.5" />
-                                <span>Nghiệm Thu & Hoàn Tất (Chụp Ảnh)</span>
+                                <span>Báo Cáo Xong Việc (Chụp Ảnh)</span>
                               </Button>
                             )}
 
@@ -1987,7 +1990,7 @@ export default function FieldWorkerDashboard() {
 
                       <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-brand-border bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:justify-end sm:border-0 sm:bg-transparent sm:p-0">
                         <Button type="button" variant="outline"><Save className="mr-1 h-4 w-4" />Lưu tạm</Button>
-                        <Button type="submit" variant="secondary" disabled={totalBatchWeight <= 0 || boxCount <= 0}><CheckCircle2 className="mr-1 h-4 w-4" />Hoàn tất & gửi nghiệm thu</Button>
+                        <Button type="submit" variant="secondary" disabled={totalBatchWeight <= 0 || boxCount <= 0}><CheckCircle2 className="mr-1 h-4 w-4" />Hoàn tất & gửi báo cáo</Button>
                       </div>
                     </form>
                   )}
@@ -2170,7 +2173,7 @@ export default function FieldWorkerDashboard() {
                 </div>
               </div>
 
-              {/* SUBTAB 1: CÔNG VIỆC (TASKS) - agenda: Hôm nay / Sắp tới (theo ngày) / Đã nghiệm thu */}
+              {/* SUBTAB 1: CÔNG VIỆC (TASKS) - agenda: Hôm nay / Sắp tới (theo ngày) / Đã hoàn thành */}
               {plotModalTab === 'tasks' && (() => {
                 const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
                 const todayLabel = `${todayStr.slice(8, 10)}/${todayStr.slice(5, 7)}`;
@@ -2199,7 +2202,7 @@ export default function FieldWorkerDashboard() {
                   </div>
                 ) : null);
                 const emptyLine = (text) => (
-                  <p className="rounded-xl border border-dashed border-stone-200 px-3 py-3 text-center text-xs text-stone-400">{text}</p>
+                  <p className="rounded-xl border border-dashed border-stone-200 px-3 py-3 text-center text-xs text-stone-500">{text}</p>
                 );
                 const dateGroupLabel = (group) => {
                   const base = group.date ? formatAgendaDate(group.date) : 'Chưa xếp ngày';
@@ -2211,7 +2214,7 @@ export default function FieldWorkerDashboard() {
                   { id: 'ALL', label: 'Tất cả', count: plotTasks.length },
                   { id: 'TODAY', label: 'Hôm nay', count: todayTasks.length, emphasize: true },
                   { id: 'UPCOMING', label: 'Sắp tới', count: upcomingTasks.length },
-                  { id: 'COMPLETED', label: 'Đã nghiệm thu', count: completedTasks.length }
+                  { id: 'COMPLETED', label: 'Đã hoàn thành', count: completedTasks.length }
                 ];
 
                 return (
@@ -2241,7 +2244,7 @@ export default function FieldWorkerDashboard() {
                       <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-stone-200 px-4 py-10 text-center">
                         <ListTodo className="h-8 w-8 text-stone-300" />
                         <p className="text-sm font-bold text-stone-600">Thửa này chưa có công việc nào được giao</p>
-                        <p className="text-xs text-stone-400">Lịch chăm sóc từ CGNN sẽ hiển thị tại đây.</p>
+                        <p className="text-xs text-stone-500">Lịch chăm sóc từ CGNN sẽ hiển thị tại đây.</p>
                       </div>
                     ) : (
                       <>
@@ -2289,7 +2292,7 @@ export default function FieldWorkerDashboard() {
                           </section>
                         )}
 
-                        {/* ĐÃ NGHIỆM THU - thu gọn mặc định ở chế độ Tất cả */}
+                        {/* ĐÃ HOÀN THÀNH - thu gọn mặc định ở chế độ Tất cả */}
                         {(isAll || plotTaskFilter === 'COMPLETED') && (!isAll || completedTasks.length > 0) && (
                           <section className="space-y-2 pt-1">
                             {isAll && (
@@ -2300,11 +2303,11 @@ export default function FieldWorkerDashboard() {
                                 className="flex w-full items-center gap-2 border-t border-stone-100 pt-3 text-[11px] font-black uppercase tracking-wider text-stone-500 hover:text-stone-800 cursor-pointer"
                               >
                                 {completedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                                <span>Đã nghiệm thu ({completedTasks.length})</span>
+                                <span>Đã hoàn thành ({completedTasks.length})</span>
                               </button>
                             )}
                             {completedOpen && (completedTasks.length === 0
-                              ? emptyLine('Chưa có việc nào được nghiệm thu tại thửa này.')
+                              ? emptyLine('Chưa có việc nào hoàn thành tại thửa này.')
                               : <div className="grid gap-1.5">{completedTasks.map((task) => renderCard(task, 'done'))}</div>)}
                           </section>
                         )}
@@ -2349,14 +2352,14 @@ export default function FieldWorkerDashboard() {
                       <span className="text-[10px] text-sky-700 font-medium">Độ ẩm tối ưu</span>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/40 border border-emerald-200/80 text-center space-y-1">
-                      <CloudRain className="w-5 h-5 text-teal-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Lượng mưa</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.rainfall || '0 mm'}</strong>
-                      <span className="text-[10px] text-teal-700 font-medium">Không mưa</span>
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-cyan-50 to-teal-50/40 border border-cyan-200/80 text-center space-y-1">
+                      <Droplets className="w-5 h-5 text-cyan-600 mx-auto" />
+                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ ẩm không khí</span>
+                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.airHumidity || '74%'}</strong>
+                      <span className="text-[10px] text-cyan-700 font-medium">Ẩm độ thích hợp</span>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-yellow-50/40 border border-amber-200/80 text-center space-y-1">
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-yellow-50 to-amber-50/40 border border-yellow-200/80 text-center space-y-1">
                       <Sun className="w-5 h-5 text-yellow-600 mx-auto" />
                       <span className="text-[10px] text-stone-500 uppercase font-bold block">Cường độ sáng</span>
                       <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.light || '45.000 Lux'}</strong>
@@ -2468,8 +2471,8 @@ export default function FieldWorkerDashboard() {
                                   onClick={() => window.open(req.proofPhoto, '_blank')}
                                 />
                                 <div>
-                                  <span className="font-bold text-emerald-900 block text-xs">Đã chụp ảnh nghiệm thu</span>
-                                  <span className="text-[10px] text-stone-500">{req.completedAt ? `Hoàn tất: ${req.completedAt}` : 'Nghiệm thu đạt chuẩn'}</span>
+                                  <span className="font-bold text-emerald-900 block text-xs">Đã chụp ảnh hoàn thành</span>
+                                  <span className="text-[10px] text-stone-500">{req.completedAt ? `Hoàn tất: ${req.completedAt}` : 'Hoàn thành đạt chuẩn'}</span>
                                 </div>
                               </div>
                             )}
@@ -2497,7 +2500,7 @@ export default function FieldWorkerDashboard() {
                                   className="font-bold text-xs gap-1.5 bg-[#07533d] hover:bg-[#053d2d] text-white"
                                 >
                                   <Camera className="w-3.5 h-3.5" />
-                                  <span>Nghiệm thu ảnh</span>
+                                  <span>Báo cáo xong việc</span>
                                 </Button>
                               )}
                             </div>
@@ -2518,7 +2521,7 @@ export default function FieldWorkerDashboard() {
                         <Scale className="w-4 h-4 text-emerald-700" />
                         <span>Kế Hoạch & Trạm Cân Thu Hoạch Thửa {activePlot.plotCode}</span>
                       </h4>
-                      <p className="text-xs text-stone-500">Nghiệm thu sản lượng thực tế, kết nối cân điện tử tử và in tem QR truy xuất.</p>
+                      <p className="text-xs text-stone-500">Ghi nhận sản lượng thực tế, kết nối cân điện tử và in tem QR truy xuất.</p>
                     </div>
                   </div>
 
@@ -2676,7 +2679,7 @@ export default function FieldWorkerDashboard() {
               {/* 4. ẢNH MINH CHỨNG (NẾU ĐÃ HOÀN THÀNH) */}
               {isDone && selectedTaskDetail.proofPhoto && (
                 <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
-                  <span className="font-bold text-stone-700 text-xs block">Ảnh minh chứng nghiệm thu thực địa:</span>
+                  <span className="font-bold text-stone-700 text-xs block">Ảnh minh chứng hoàn thành công việc:</span>
                   <div className="flex items-center gap-3">
                     <img
                       src={selectedTaskDetail.proofPhoto}
@@ -2685,7 +2688,7 @@ export default function FieldWorkerDashboard() {
                       onClick={() => window.open(selectedTaskDetail.proofPhoto, '_blank')}
                     />
                     <div className="space-y-1 text-xs text-stone-600">
-                      <p className="font-bold text-emerald-800">✓ Đã nghiệm thu vào nhật ký canh tác của khách hàng.</p>
+                      <p className="font-bold text-emerald-800">✓ Đã hoàn thành và cập nhật vào nhật ký của khách hàng.</p>
                       <p className="text-[11px] text-stone-500">Thời gian: {selectedTaskDetail.completedAt || 'Gần đây'}</p>
                     </div>
                   </div>
@@ -2717,7 +2720,7 @@ export default function FieldWorkerDashboard() {
                     className="text-xs font-bold gap-1.5 bg-[#07533d] hover:bg-[#053d2d] text-white cursor-pointer"
                   >
                     {isHarvest ? <Scale className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
-                    <span>{isHarvest ? 'Mở Màn Thu Hoạch' : 'Nghiệm Thu & Chụp Ảnh'}</span>
+                    <span>{isHarvest ? 'Mở Màn Thu Hoạch' : 'Báo Cáo Xong Việc & Chụp Ảnh'}</span>
                   </Button>
                 )}
               </div>

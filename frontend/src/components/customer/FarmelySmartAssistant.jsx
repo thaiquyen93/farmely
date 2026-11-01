@@ -43,8 +43,8 @@ const FALLBACK_KNOWLEDGE_BASE = [
   },
   {
     keywords: ['thu hoạch', 'sản lượng', 'chất lượng', 'khiếu nại'],
-    reply: 'Khi đến kỳ thu hoạch, nhân viên hiện trường sẽ cân sản lượng thực tế, dán mã QR truy xuất và chụp ảnh đối chứng. Khách hàng nghiệm thu đánh giá chất lượng (Độ tươi, Bao gói). Nếu sản lượng thiếu hụt do lỗi vận hành, bạn có quyền gửi hồ sơ khiếu nại để nhận bồi thường hoàn tiền hoặc bù vụ tiếp theo.',
-    source: 'Quy chế Nghiệm thu & Bảo hiểm Nông sản Farmely'
+    reply: 'Khi đến kỳ thu hoạch, nhân viên hiện trường sẽ cân sản lượng thực tế, dán mã QR truy xuất và chụp ảnh đối chứng. Khách hàng nhận bàn giao và đánh giá chất lượng (Độ tươi, Bao gói). Nếu sản lượng thiếu hụt do lỗi vận hành, bạn có quyền gửi hồ sơ khiếu nại để nhận bồi thường hoàn tiền hoặc bù vụ tiếp theo.',
+    source: 'Quy chế Bàn giao & Bảo hiểm Nông sản Farmely'
   }
 ];
 

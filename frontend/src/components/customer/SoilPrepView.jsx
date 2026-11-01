@@ -63,7 +63,7 @@ export default function SoilPrepView({
           <div>
             <h3 className="font-heading font-black text-base text-stone-900 flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-emerald-700" />
-              Quy Trình Xử Lý Đất Nghiệm Thu Bắt Buộc (Fallow Protocol)
+              Quy Trình Xử Lý Đất Phơi Ải (Fallow Protocol)
             </h3>
             <p className="text-xs text-stone-500 mt-0.5">
               Toàn bộ các khâu được thực hiện bởi kỹ thuật viên phụ trách thửa đất và được giám sát qua ảnh chụp thời gian thực.

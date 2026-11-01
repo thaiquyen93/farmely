@@ -744,7 +744,7 @@ export default function MarketplacePlotDetailPanel({
                                 <div className="p-1.5 rounded-lg bg-teal-50/60 border border-teal-100 flex items-start gap-1.5">
                                   <ShieldCheck className="w-3.5 h-3.5 text-teal-600 shrink-0 mt-0.5" />
                                   <div className="min-w-0">
-                                    <span className="font-bold text-teal-900 block text-[9px]">Tiêu chí nghiệm thu VietGAP:</span>
+                                    <span className="font-bold text-teal-900 block text-[9px]">Tiêu chí hoàn thành kỹ thuật:</span>
                                     <span className="text-slate-600 text-[10px] leading-tight block">{stage.inspectionCriteria}</span>
                                   </div>
                                 </div>
@@ -1059,7 +1059,7 @@ function TechnicalHandbookModal({ isOpen, onClose, cropData, onSelectCrop, isSel
                   )}
                 </div>
 
-                {/* Sâu bệnh & Nghiệm thu */}
+                {/* Sâu bệnh & Tiêu chuẩn hoàn thành */}
                 {st.pestAlert && (
                   <div className="p-2.5 rounded-xl bg-rose-50/60 border border-rose-100">
                     <span className="text-[11px] font-bold text-rose-800 flex items-center gap-1 mb-0.5">
@@ -1074,7 +1074,7 @@ function TechnicalHandbookModal({ isOpen, onClose, cropData, onSelectCrop, isSel
                   <div className="p-2.5 rounded-xl bg-teal-50/60 border border-teal-100">
                     <span className="text-[11px] font-bold text-teal-800 flex items-center gap-1 mb-0.5">
                       <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                      Tiêu chí nghiệm thu VietGAP của Kỹ sư
+                      Tiêu chí hoàn thành của Kỹ sư
                     </span>
                     <p className="text-teal-950 text-xs leading-relaxed">{st.inspectionCriteria}</p>
                   </div>

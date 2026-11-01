@@ -92,7 +92,7 @@ export default function MasterDataDashboard() {
           title = `Ký hợp đồng ${log.details?.contract_number || ''} (${Number(log.details?.amount || 0).toLocaleString('vi-VN')} đ)`;
           type = 'Hợp đồng';
         } else if (log.action === 'TASK_FINISH') {
-          title = `Nghiệm thu: ${log.details?.step_name || ''} tại ${log.details?.plot || ''}`;
+          title = `Hoàn thành: ${log.details?.step_name || ''} tại ${log.details?.plot || ''}`;
           type = 'Hiện trường';
         } else if (log.action === 'CANCEL_REQUEST') {
           title = `Yêu cầu thanh lý: ${log.details?.reason || ''}`;
@@ -112,7 +112,7 @@ export default function MasterDataDashboard() {
         { title: 'Cập nhật ngưỡng an toàn trạm KT-CC-01', time: '15 phút trước', user: 'CGNN. Nguyễn Hoàng Nam', type: 'Weather Config' },
         { title: 'Phê duyệt quy trình VietGAP Cà chua bi v2.3', time: '2 giờ trước', user: 'Hội đồng Nông học', type: 'Template' },
         { title: 'Thêm giống mới: Dâu tây Nhật Hana chịu nhiệt', time: 'Hôm qua, 16:30', user: 'CGNN. Đặng Thu Thảo', type: 'Variety' },
-        { title: 'Hoàn tất nghiệm thu nghỉ đất 4 ngày thửa P-16', time: '2 ngày trước', user: 'Admin Hệ Thống', type: 'Fallow Protocol' },
+        { title: 'Hoàn tất bảo dưỡng nghỉ đất 4 ngày thửa P-16', time: '2 ngày trước', user: 'Admin Hệ Thống', type: 'Fallow Protocol' },
       ];
 
   return (

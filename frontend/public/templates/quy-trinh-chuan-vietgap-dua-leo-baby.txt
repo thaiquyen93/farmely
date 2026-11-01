@@ -16,7 +16,7 @@ TÊN: Làm đất xử lý giá thể & Đánh luống bón lót vi sinh
 LOẠI: SOIL_PREP
 THỜI_LƯỢNG: 120 phút
 VẬT_TƯ: Phân trùn quế vi sinh 2kg/m2, Vôi bột nông nghiệp khử chua, Chế phẩm nấm đối kháng Trichoderma
-HƯỚNG_DẪN: Xới đất sâu 25cm cho tơi xốp, rải vôi bột khử chua nâng độ pH đạt 6.0 - 6.8. Đánh luống cao 30cm, rộng 1m rãnh thoát nước tốt. Bón lót phân trùn quế đã ủ nấm Trichoderma. San phẳng mặt luống và phủ bạt nông nghiệp phản quang đục lỗ sẵn khoảng cách 40cm. Chụp ảnh mặt luống hoàn thiện nghiệm thu BR15.
+HƯỚNG_DẪN: Xới đất sâu 25cm cho tơi xốp, rải vôi bột khử chua nâng độ pH đạt 6.0 - 6.8. Đánh luống cao 30cm, rộng 1m rãnh thoát nước tốt. Bón lót phân trùn quế đã ủ nấm Trichoderma. San phẳng mặt luống và phủ bạt nông nghiệp phản quang đục lỗ sẵn khoảng cách 40cm. Chụp ảnh mặt luống hoàn thiện hoàn thành công việc.
 NHIỆT_ĐỘ: 25 - 34
 ĐỘ_ẨM: 65 - 80
 

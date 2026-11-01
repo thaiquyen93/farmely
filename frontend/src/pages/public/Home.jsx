@@ -254,10 +254,10 @@ export default function Home() {
                 04
               </div>
               <h3 className="font-heading text-lg font-bold text-brand-dark mb-2">
-                Thu Hoạch & Nghiệm Thu
+                Thu Hoạch & Nhận Nông Sản
               </h3>
               <p className="text-xs text-stone-600 leading-relaxed">
-                Cân đo sản lượng bằng cân điện tử có ảnh chụp đối chứng. Bạn có thể tự đến thu hoạch hoặc yêu cầu giao tươi tới tận nhà.
+                Cân đo sản lượng bằng cân điện tử có ảnh chụp đối chứng. Bạn có thể tự đến trải nghiệm thu hoạch hoặc nhận tại nông trại.
               </p>
             </div>
           </div>

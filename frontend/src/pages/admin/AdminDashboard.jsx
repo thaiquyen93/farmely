@@ -1629,8 +1629,8 @@ export default function AdminDashboard() {
                       <h2 className="text-xl sm:text-2xl font-heading font-black text-brand-dark mt-1">
                         Tổng Quan Doanh Thu & Chỉ Số Vận Hành
                       </h2>
-                      <p className="text-xs text-brand-muted mt-0.5">
-                        Theo dõi dòng tiền thanh toán 100% trọn gói, tỷ lệ lấp đầy quỹ đất và tiến độ nghiệm thu thực địa.
+                      <p className="text-xs text-brand-muted mt-1">
+                        Theo dõi dòng tiền thanh toán 100% trọn gói, tỷ lệ lấp đầy quỹ đất và tiến độ hoàn thành thực địa.
                       </p>
                     </div>
 
@@ -1734,7 +1734,7 @@ export default function AdminDashboard() {
                     <div className="bg-white p-5 rounded-3xl border border-brand-border shadow-sm space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-                          Nghiệm Thu Thực Địa
+                          Tiến Độ Hoàn Thành
                         </span>
                         <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
                           <CheckCircle2 className="w-4 h-4" />
@@ -2836,7 +2836,7 @@ export default function AdminDashboard() {
                 rows={2}
                 value={serviceAssignNotes}
                 onChange={(e) => setServiceAssignNotes(e.target.value)}
-                placeholder="Ví dụ: Bón phân hữu cơ quanh tán, tưới sương nhẹ và chụp ảnh nghiệm thu..."
+                placeholder="Ví dụ: Bón phân hữu cơ quanh tán, tưới sương nhẹ và chụp ảnh hoàn thành..."
                 className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs text-stone-800"
               />
             </div>
@@ -2907,7 +2907,7 @@ export default function AdminDashboard() {
                 rows={2}
                 value={taskAssignNotes}
                 onChange={(e) => setTaskAssignNotes(e.target.value)}
-                placeholder="Ví dụ: Kiểm tra ẩm độ đất trước khi tưới, chụp ảnh tán lá nghiệm thu..."
+                placeholder="Ví dụ: Kiểm tra ẩm độ đất trước khi tưới, chụp ảnh tán lá hoàn thành..."
                 className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs"
               />
             </div>
@@ -3004,7 +3004,7 @@ export default function AdminDashboard() {
               rows={2}
               value={newTaskNotes}
               onChange={(e) => setNewTaskNotes(e.target.value)}
-              placeholder="Chụp 01 ảnh nghiệm thu hiện trường sau khi hoàn thành công việc."
+              placeholder="Chụp 01 ảnh hoàn thành hiện trường sau khi hoàn thành công việc."
               className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs"
             />
           </div>
