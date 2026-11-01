@@ -469,6 +469,7 @@ export default function FieldWorkerDashboard() {
   // Harvest records loaded from the cultivation service.
   const [harvestTasks, setHarvestTasks] = useState([]);
   const [selectedHarvestTask, setSelectedHarvestTask] = useState(null);
+  const [selectedHarvestProofModal, setSelectedHarvestProofModal] = useState(null);
   const [harvestPhotos, setHarvestPhotos] = useState([]);
   const [harvestWeight, setHarvestWeight] = useState('');
   const [harvestConfirmed, setHarvestConfirmed] = useState(false);
@@ -1328,6 +1329,14 @@ export default function FieldWorkerDashboard() {
     ...harvestTasks.filter((item) => !candidateRentalIds.has(item.rentalId))
   ];
 
+  // Danh sách các đợt thu hoạch đã hoàn tất đối chứng cân thực tế (BR20)
+  const completedHarvests = useMemo(() => {
+    return harvestTasks.filter((item) => {
+      const weightNum = Number(String(item.actualWeight || item.yieldAmount || '').replace(/[^\d.]/g, ''));
+      return item.status === 'COMPLETED' || weightNum > 0 || Boolean(item.photoUrl);
+    });
+  }, [harvestTasks]);
+
   // Sidebar badge counts (display only)
   const todayActionableCount = tasks.filter(isTaskToday).length;
   const overdueTodayCount = tasks.filter((t) => isTaskToday(t) && ['OVERDUE', 'URGENT'].includes(getTaskTimingMeta(t).key)).length;
@@ -1876,123 +1885,117 @@ export default function FieldWorkerDashboard() {
             )}
 
             {activeTab === 'harvest' && (
-              <HarvestRecorder
-                workItems={harvestWorkItems}
-                selected={selectedHarvestTask}
-                onSelect={openHarvestWorkspace}
-                photos={harvestPhotos}
-                onPhotos={handleHarvestPhotos}
-                onRemovePhoto={(index) => setHarvestPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index))}
-                weight={harvestWeight}
-                onWeight={setHarvestWeight}
-                confirmed={harvestConfirmed}
-                onConfirmed={setHarvestConfirmed}
-                user={user}
-                onSubmit={handleConfirmHarvestScale}
-              />
-            )}
+              <div className="space-y-6">
+                <HarvestRecorder
+                  workItems={harvestWorkItems}
+                  selected={selectedHarvestTask}
+                  onSelect={openHarvestWorkspace}
+                  photos={harvestPhotos}
+                  onPhotos={handleHarvestPhotos}
+                  onRemovePhoto={(index) => setHarvestPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index))}
+                  weight={harvestWeight}
+                  onWeight={setHarvestWeight}
+                  confirmed={harvestConfirmed}
+                  onConfirmed={setHarvestConfirmed}
+                  user={user}
+                  onSubmit={handleConfirmHarvestScale}
+                />
 
-            {/* Legacy weighing workspace retained temporarily for data migration, never rendered. */}
-            {false && activeTab === 'harvest' && (
-              <div className="grid min-h-[680px] overflow-hidden rounded-3xl border border-brand-border bg-white shadow-sm xl:grid-cols-[minmax(260px,0.75fr)_minmax(430px,1.25fr)]">
-                <aside className="border-b border-brand-border bg-[#faf9f4] p-4 sm:p-6 xl:border-b-0 xl:border-r">
-                  <div className="mb-5">
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Thu hoạch & đóng gói</p>
-                    <h3 className="mt-1 font-heading text-xl font-black text-brand-dark">Đợt cần xử lý</h3>
-                    <p className="mt-1 text-xs text-brand-muted">Chọn thửa để mở cân điện tử và hồ sơ đóng thùng.</p>
+                {/* KHỐI LỊCH SỬ THU HOẠCH & BIÊN BẢN ĐỐI CHỨNG THEO VỤ MÙA (BR20) */}
+                <section className="rounded-3xl border border-brand-border bg-white p-5 sm:p-7 shadow-sm space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/70 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-800">
+                          <Scale className="h-4 w-4" />
+                        </span>
+                        <h3 className="font-heading text-lg font-black text-brand-dark">
+                          Lịch Sử Thu Hoạch & Biên Bản Đối Chứng Theo Vụ Mùa (BR20)
+                        </h3>
+                      </div>
+                      <p className="mt-1 text-xs text-brand-muted">
+                        Danh sách các đợt thu hoạch đã hoàn tất cân thực tế, lưu ảnh minh chứng tại thửa và bàn giao cho khách hàng nghiệm thu.
+                      </p>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      {completedHarvests.length} Đợt Thu Hoạch Đã Ghi Nhận
+                    </span>
                   </div>
-                  <div className="space-y-3">
-                    {harvestWorkItems.length === 0 && <div className="rounded-2xl border border-dashed border-brand-border p-6 text-center text-xs text-brand-muted">Chưa có nhiệm vụ thu hoạch từ hệ thống.</div>}
-                    {harvestWorkItems.map((task) => {
-                      const active = selectedHarvestTask?.id === task.id;
-                      return (
-                        <button key={task.id} type="button" onClick={() => openHarvestWorkspace(task)} className={`w-full rounded-2xl border p-4 text-left transition ${active ? 'border-emerald-600 bg-emerald-50 shadow-sm' : 'border-brand-border bg-white hover:border-emerald-300'}`}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="font-heading text-sm font-black text-brand-dark">{task.plotName}</p>
-                              <p className="mt-0.5 truncate text-[11px] text-stone-500">{task.plotCode} · {task.crop}</p>
-                            </div>
-                            <ChevronRight className="h-4 w-4 shrink-0 text-stone-400" />
-                          </div>
-                          <div className="mt-3 flex items-center justify-between gap-2">
-                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${task.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{task.status === 'COMPLETED' ? 'Đã ghi nhận' : 'Sẵn sàng cân'}</span>
-                            {task.actualWeight && <strong className="text-xs text-emerald-800">{task.actualWeight}</strong>}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </aside>
 
-                <section className="min-w-0 p-4 sm:p-6">
-                  {!selectedHarvestTask ? (
-                    <div className="flex min-h-[520px] flex-col items-center justify-center text-center">
-                      <Scale className="h-12 w-12 text-emerald-200" />
-                      <h4 className="mt-3 font-heading text-lg font-black text-brand-dark">Chọn một đợt thu hoạch</h4>
-                      <p className="mt-1 max-w-sm text-xs text-brand-muted">Dữ liệu cân, đóng thùng và QR sẽ được ghi nhận theo đúng thửa đã chọn.</p>
+                  {completedHarvests.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/50 p-8 text-center text-xs text-stone-500">
+                      Chưa có đợt thu hoạch nào được hoàn tất ghi nhận tại nông trại.
                     </div>
                   ) : (
-                    <form onSubmit={handleConfirmHarvestScale} className="space-y-4">
-                      <div className="flex flex-col gap-3 border-b border-brand-border pb-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-sky-500" /><span className="text-xs font-bold text-sky-700">Đang làm</span></div>
-                          <h3 className="mt-1 font-heading text-xl font-black text-brand-dark">Cân và đóng thùng</h3>
-                          <p className="mt-1 text-xs text-stone-500">{selectedHarvestTask.plotName} ({selectedHarvestTask.plotCode}) · {selectedHarvestTask.crop}</p>
-                        </div>
-                        <Button type="button" variant="danger" size="sm" onClick={() => { setNewIssuePlot(selectedHarvestTask.plotCode); setShowNewIssueModal(true); }}><AlertTriangle className="mr-1 h-3.5 w-3.5" />Báo sự cố</Button>
-                      </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {completedHarvests.map((h, idx) => {
+                        const seasonLabel = h.seasonName || `Vụ ${idx % 2 === 0 ? 1 : 2}: ${h.crop || 'Nông sản VietGAP'}`;
+                        const isConfirmed = h.customerConfirmed || h.status === 'CONFIRMED';
+                        return (
+                          <div
+                            key={h.id || h.apiId || idx}
+                            className="p-4 sm:p-5 rounded-2xl border border-brand-border bg-stone-50/60 hover:bg-white hover:border-emerald-300 transition-all flex flex-col justify-between space-y-3.5 text-xs"
+                          >
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between gap-2 border-b border-stone-200/60 pb-2.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-lg bg-emerald-800 text-white">
+                                    {h.plotCode || 'P-01'}
+                                  </span>
+                                  <strong className="text-brand-dark font-heading text-sm">{h.plotName}</strong>
+                                </div>
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                  isConfirmed
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                }`}>
+                                  {isConfirmed ? '✓ Khách đã nghiệm thu' : '⏳ Chờ khách xác nhận'}
+                                </span>
+                              </div>
 
-                      <div className="rounded-2xl border border-brand-border bg-stone-50 p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800"><Scale className="h-6 w-6" /></div>
-                            <div><p className="font-heading text-sm font-black text-brand-dark">Cân điện tử</p><p className="text-[11px] text-stone-500">{scaleDeviceLabel}</p></div>
+                              <div className="grid grid-cols-[100px_minmax(0,1fr)] gap-3 items-center">
+                                <img
+                                  src={h.photoUrl || '/images/harvest/rau-muong-p03.jpg'}
+                                  alt="Ảnh cân thu hoạch"
+                                  className="h-24 w-full rounded-xl object-cover border border-stone-200"
+                                />
+                                <div className="space-y-1.5 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-lime-100 text-lime-900 border border-lime-200">
+                                      {seasonLabel}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-stone-400 block font-bold">Khối lượng cân thực tế:</span>
+                                    <strong className="text-emerald-800 font-heading text-base font-black">
+                                      {h.actualWeight || `${h.yieldAmount || '35.0'} kg`}
+                                    </strong>
+                                  </div>
+                                  <p className="text-[11px] text-stone-500 truncate">
+                                    👤 Người cân: <strong className="text-stone-700">{h.staffName || user?.fullName || 'Trần Văn Lực'}</strong>
+                                  </p>
+                                  <p className="text-[10px] text-stone-400">
+                                    🕒 Ngày ghi nhận: {h.verifiedAt || h.harvestDate || 'Hôm nay'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1 border-t border-stone-200/50">
+                              <span className="font-mono text-[10px] text-stone-400">Mã biên bản: {h.id}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setSelectedHarvestProofModal(h)}
+                                className="text-[11px] font-bold h-7 px-2.5"
+                              >
+                                Xem biên bản đối chứng
+                              </Button>
+                            </div>
                           </div>
-                          <Button type="button" variant={scaleStatus === 'CONNECTED' ? 'secondary' : 'outline'} size="sm" onClick={connectElectronicScale} disabled={scaleStatus === 'CONNECTING'}>
-                            {scaleStatus === 'CONNECTED' ? <Wifi className="mr-1 h-3.5 w-3.5" /> : <WifiOff className="mr-1 h-3.5 w-3.5" />}
-                            {scaleStatus === 'CONNECTED' ? 'Đã kết nối' : scaleStatus === 'CONNECTING' ? 'Đang kết nối...' : 'Kết nối cân'}
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
-                        <p className="text-xs font-bold text-brand-dark">Khối lượng hiện tại</p>
-                        <div className="mt-2 grid gap-3 sm:grid-cols-[minmax(0,1fr)_110px_110px] sm:items-end">
-                          <label className="block"><span className="sr-only">Khối lượng tổng</span><div className="relative"><input type="number" min="0" step="0.01" value={scaleWeightInput} onChange={(event) => setScaleWeightInput(event.target.value)} placeholder="0.00" className="w-full rounded-xl border border-emerald-200 bg-white px-4 py-3 pr-14 font-heading text-3xl font-black text-emerald-800 outline-none focus:ring-2 focus:ring-emerald-300" /><span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-stone-400">kg</span></div></label>
-                          <label className="text-[10px] font-bold text-stone-500">Bì (kg)<input type="number" min="0" step="0.01" value={scaleTareInput} onChange={(event) => setScaleTareInput(event.target.value)} className="mt-1 w-full rounded-xl border border-brand-border bg-white px-3 py-3 text-sm font-black text-brand-dark" /></label>
-                          <div className="rounded-xl border border-emerald-200 bg-white px-3 py-2.5"><span className="block text-[10px] font-bold text-stone-500">Tịnh</span><strong className="text-lg text-emerald-800">{currentNetWeight.toFixed(2)} kg</strong></div>
-                        </div>
-                        <Button type="button" variant="secondary" onClick={addWeightBatch} className="mt-3 w-full"><Save className="mr-1.5 h-4 w-4" />Lưu mẻ cân</Button>
-                      </div>
-
-                      <div className="rounded-2xl border border-brand-border p-4">
-                        <div className="mb-3 flex items-center justify-between"><h4 className="font-heading text-sm font-black text-brand-dark">Danh sách mẻ cân</h4><span className="text-[11px] font-bold text-stone-400">{weightBatches.length} mẻ</span></div>
-                        {weightBatches.length === 0 ? <p className="rounded-xl bg-stone-50 p-4 text-center text-xs text-stone-400">Chưa lưu mẻ cân nào.</p> : <div className="divide-y divide-brand-border/60">{weightBatches.map((batch) => <div key={batch.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 py-2.5 text-xs"><span className="font-bold text-brand-dark">Mẻ #{String(batch.order).padStart(2, '0')}</span><strong className="text-emerald-800">{batch.netWeight.toFixed(2)} kg</strong><span className="text-stone-400">{batch.time}</span><button type="button" onClick={() => removeWeightBatch(batch.id)} className="rounded-lg p-2 text-stone-400 hover:bg-rose-50 hover:text-rose-600" aria-label={`Xóa mẻ cân ${batch.order}`}><Trash2 className="h-4 w-4" /></button></div>)}</div>}
-                        <div className="mt-2 flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2.5"><span className="text-xs font-black text-brand-dark">Tổng tịnh</span><strong className="text-lg text-emerald-800">{totalBatchWeight.toFixed(2)} kg</strong></div>
-                      </div>
-
-                      <div className="rounded-2xl border border-brand-border p-4">
-                        <h4 className="font-heading text-sm font-black text-brand-dark">Đóng thùng & tạo QR</h4>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-                          <label className="text-[10px] font-bold text-stone-500">Loại thùng<select value={boxSize} onChange={(event) => { const next = Number(event.target.value); setBoxSize(next); setBoxCount(totalBatchWeight ? Math.ceil(totalBatchWeight / next) : 0); setQrReady(false); }} className="mt-1 w-full rounded-xl border border-brand-border bg-white px-3 py-3 text-sm font-bold text-brand-dark"><option value={2}>2 kg</option><option value={5}>5 kg</option><option value={10}>10 kg</option></select></label>
-                          <label className="text-[10px] font-bold text-stone-500">Số lượng thùng<input type="number" min="0" value={boxCount} onChange={(event) => { setBoxCount(Number(event.target.value)); setQrReady(false); }} className="mt-1 w-full rounded-xl border border-brand-border px-3 py-3 text-sm font-bold text-brand-dark" /></label>
-                          <Button type="button" variant="outline" onClick={() => {
-                            if (totalBatchWeight <= 0 || boxCount <= 0) {
-                              alert('Vui lòng lưu mẻ cân và chọn số lượng thùng.');
-                              return;
-                            }
-                            if (qrReady) window.print();
-                            else setQrReady(true);
-                          }}><Printer className="mr-1.5 h-4 w-4" />{qrReady ? 'In tem QR' : 'Tạo tem QR'}</Button>
-                        </div>
-                        {qrReady && <div className="mt-3 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3"><QrCode className="h-12 w-12 text-brand-dark" /><div><p className="text-xs font-black text-brand-dark">Tem truy xuất đã sẵn sàng</p><p className="text-[10px] text-emerald-700">{boxCount} thùng · {boxSize} kg/thùng · {selectedHarvestTask.plotCode}</p></div></div>}
-                      </div>
-
-                      <div className="sticky bottom-0 -mx-4 flex flex-col-reverse gap-2 border-t border-brand-border bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:flex-row sm:justify-end sm:border-0 sm:bg-transparent sm:p-0">
-                        <Button type="button" variant="outline"><Save className="mr-1 h-4 w-4" />Lưu tạm</Button>
-                        <Button type="submit" variant="secondary" disabled={totalBatchWeight <= 0 || boxCount <= 0}><CheckCircle2 className="mr-1 h-4 w-4" />Hoàn tất & gửi báo cáo</Button>
-                      </div>
-                    </form>
+                        );
+                      })}
+                    </div>
                   )}
                 </section>
               </div>
@@ -2894,6 +2897,90 @@ export default function FieldWorkerDashboard() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal 3: Chi Tiết Biên Bản Đối Chứng Thu Hoạch (BR20) */}
+      <Modal
+        isOpen={Boolean(selectedHarvestProofModal)}
+        onClose={() => setSelectedHarvestProofModal(null)}
+        title="Biên Bản Bàn Giao & Cân Đối Chứng Thu Hoạch (BR20)"
+        subtitle={selectedHarvestProofModal ? `${selectedHarvestProofModal.plotCode} • ${selectedHarvestProofModal.plotName}` : ''}
+        maxWidth="max-w-xl"
+        headerVariant="green"
+        zIndex="z-[110]"
+      >
+        {selectedHarvestProofModal && (() => {
+          const isConfirmed = selectedHarvestProofModal.customerConfirmed || selectedHarvestProofModal.status === 'CONFIRMED';
+          return (
+            <div className="space-y-4 text-left text-xs max-h-[75vh] overflow-y-auto pr-1">
+              {/* 1. Header Khối lượng & Vụ mùa */}
+              <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-between gap-3">
+                <div>
+                  <span className="font-mono text-[10px] text-emerald-800 font-bold block">
+                    Mã biên bản: {selectedHarvestProofModal.id}
+                  </span>
+                  <h4 className="font-heading text-lg font-black text-emerald-950 mt-0.5">
+                    {selectedHarvestProofModal.seasonName || `Vụ canh tác: ${selectedHarvestProofModal.crop || 'Nông sản VietGAP'}`}
+                  </h4>
+                  <p className="text-[11px] text-emerald-800 mt-0.5">
+                    👤 Khách hàng: <strong>{selectedHarvestProofModal.customerName || 'Khách thuê Farmely'}</strong>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-emerald-700 block font-bold">Khối lượng cân:</span>
+                  <strong className="text-xl font-heading font-black text-emerald-900">
+                    {selectedHarvestProofModal.actualWeight || `${selectedHarvestProofModal.yieldAmount || '35.0'} kg`}
+                  </strong>
+                </div>
+              </div>
+
+              {/* 2. Ảnh cân đối chứng thực địa */}
+              <div className="space-y-1.5">
+                <span className="font-bold text-stone-700 block">Ảnh chụp cân đối chứng thực tế tại vườn (BR20):</span>
+                <img
+                  src={selectedHarvestProofModal.photoUrl || '/images/harvest/rau-muong-p03.jpg'}
+                  alt="Ảnh cân đối chứng"
+                  className="w-full max-h-72 object-cover rounded-2xl border border-stone-200 shadow-2xs"
+                />
+              </div>
+
+              {/* 3. Chi tiết nghiệm thu */}
+              <div className="grid grid-cols-2 gap-2.5 bg-stone-50 p-3.5 rounded-xl border border-stone-200 text-stone-700">
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-bold">Chuyên viên cân:</span>
+                  <strong className="text-stone-900">{selectedHarvestProofModal.staffName || 'Trần Văn Lực'}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-bold">Ngày giờ ghi nhận:</span>
+                  <strong className="text-stone-900">{selectedHarvestProofModal.verifiedAt || selectedHarvestProofModal.harvestDate || 'Hôm nay'}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-bold">Phương thức nhận (BR21):</span>
+                  <strong className="text-stone-900">
+                    {selectedHarvestProofModal.deliveryType === 'DELIVERY' || selectedHarvestProofModal.deliveryType === 'HOME' ? 'Giao tận nhà' : 'Tự nhận tại nông trại'}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-stone-400 block font-bold">Trạng thái nghiệm thu:</span>
+                  <span className={`inline-block font-bold mt-0.5 ${isConfirmed ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {isConfirmed ? '✓ Đã nghiệm thu nhận hàng' : '⏳ Chờ khách xác nhận (SCR-Customer-14)'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedHarvestProofModal(null)}
+                >
+                  Đóng
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">

@@ -2432,40 +2432,130 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
   );
 }
 
-function HarvestTab({ plot, harvestPlan, onOpenHarvest, cropProcess }) {
+function HarvestTab({ plot, harvestPlan, harvestResults = [], onAcceptHarvest, onOpenHarvest, cropProcess }) {
   const daysLeft = cropProcess?.daysLeft || Math.max(plot.totalDays - plot.currentDay, 0);
   const planDate = harvestPlan?.date ? harvestPlan.date.split('-').reverse().join('/') : '';
+
+  const relevantHarvests = useMemo(() => {
+    if (!Array.isArray(harvestResults)) return [];
+    return harvestResults.filter((h) => {
+      const pCode = (plot.plotCode || plot.mapPlotId || plot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+      const hCode = (h.plotCode || h.plotScopeId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+      if (hCode && pCode && hCode === pCode) return true;
+      if (plot.rentalId && Number(h.rentalId) === Number(plot.rentalId)) return true;
+      return false;
+    });
+  }, [harvestResults, plot]);
+
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Card className="p-5">
-        <SectionTitle eyebrow="Dự kiến thu hoạch" title={daysLeft > 0 ? `Còn ${daysLeft} ngày nữa` : 'Đã đến mùa thu hoạch'} />
-        <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Ngày thu hoạch</dt><dd className="font-semibold text-[#18352b]">{plot.expectedHarvestDate || 'Sau 19 ngày'}</dd></div>
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Sản lượng tiêu chuẩn</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.expectedYield || plot.expectedYield}</dd></div>
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Cây trồng</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.cropName || plot.crop}</dd></div>
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Hợp đồng thuê</dt><dd className="truncate font-semibold text-[#18352b]">{plot.contractCode || 'HD-2026'}</dd></div>
-        </dl>
-      </Card>
-      <Card className="flex flex-col p-5">
-        <SectionTitle eyebrow="Kế hoạch của bạn" title={harvestPlan ? 'Đã đăng ký thu hoạch' : 'Chưa đăng ký'} />
-        {harvestPlan ? (
-          <div className="mt-4 space-y-2 text-sm">
-            <p className="flex items-center gap-2 text-[#18352b]"><CalendarCheck className="h-4 w-4 text-emerald-700" />Ngày dự kiến đến hái: <strong>{planDate}</strong></p>
-            <p className="flex items-center gap-2 text-[#18352b]"><Scissors className="h-4 w-4 text-emerald-700" />{harvestPlan.methodLabel}</p>
-            {harvestPlan.status === 'APPROVED' ? (
-              <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã duyệt lịch hái · Nông trại sẵn sàng đón tiếp</p>
-            ) : (
-              <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ kỹ sư xác nhận</p>
-            )}
+    <div className="space-y-6">
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card className="p-5">
+          <SectionTitle eyebrow="Dự kiến thu hoạch" title={daysLeft > 0 ? `Còn ${daysLeft} ngày nữa` : 'Đã đến mùa thu hoạch'} />
+          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Ngày thu hoạch</dt><dd className="font-semibold text-[#18352b]">{plot.expectedHarvestDate || 'Sau 19 ngày'}</dd></div>
+            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Sản lượng tiêu chuẩn</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.expectedYield || plot.expectedYield}</dd></div>
+            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Cây trồng</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.cropName || plot.crop}</dd></div>
+            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Hợp đồng thuê</dt><dd className="truncate font-semibold text-[#18352b]">{plot.contractCode || 'HD-2026'}</dd></div>
+          </dl>
+        </Card>
+        <Card className="flex flex-col p-5">
+          <SectionTitle eyebrow="Kế hoạch của bạn" title={harvestPlan ? 'Đã đăng ký thu hoạch' : 'Chưa đăng ký'} />
+          {harvestPlan ? (
+            <div className="mt-4 space-y-2 text-sm">
+              <p className="flex items-center gap-2 text-[#18352b]"><CalendarCheck className="h-4 w-4 text-emerald-700" />Ngày dự kiến đến hái: <strong>{planDate}</strong></p>
+              <p className="flex items-center gap-2 text-[#18352b]"><Scissors className="h-4 w-4 text-emerald-700" />{harvestPlan.methodLabel}</p>
+              {harvestPlan.status === 'APPROVED' ? (
+                <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã duyệt lịch hái · Nông trại sẵn sàng đón tiếp</p>
+              ) : (
+                <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ kỹ sư xác nhận</p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-stone-600">Đăng ký ngày tới nông trại để trải nghiệm và tự tay thu hoạch nông sản của bạn. Farmely sẽ nhắc bạn trước 3 ngày.</p>
+          )}
+          <button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5 cursor-pointer">
+            <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800">
+              <Wheat className="h-4 w-4" />{harvestPlan ? 'Sửa lịch trải nghiệm thu hoạch' : 'Đăng ký tới nông trại thu hoạch'}
+            </span>
+          </button>
+        </Card>
+      </div>
+
+      {/* Lịch sử & Biên bản đối chứng các đợt thu hoạch theo vụ mùa */}
+      <Card className="p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200/60 pb-3">
+          <div>
+            <h4 className="font-heading font-black text-base text-[#18352b] flex items-center gap-2">
+              <Apple className="h-4 w-4 text-emerald-700" />
+              Lịch Sử Thu Hoạch & Biên Bản Đối Chứng Theo Vụ Mùa (BR20)
+            </h4>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Kết quả cân thực tế tại vườn, lưu ảnh minh chứng và tem QR truy xuất nguồn gốc nông sản của thửa đất này.
+            </p>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+            {relevantHarvests.length} Đợt Thu Hoạch Đã Ghi Nhận
+          </span>
+        </div>
+
+        {relevantHarvests.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/50 p-6 text-center text-xs text-stone-500">
+            Chưa có đợt thu hoạch nào được hoàn tất cho thửa đất này. Khi đến ngày thu hoạch và chuyên viên lao động cắt cân nông sản, biên bản và ảnh đối chứng sẽ hiển thị tại đây.
           </div>
         ) : (
-          <p className="mt-4 text-sm text-stone-600">Đăng ký ngày tới nông trại để trải nghiệm và tự tay thu hoạch nông sản của bạn. Farmely sẽ nhắc bạn trước 3 ngày.</p>
+          <div className="space-y-3">
+            {relevantHarvests.map((hr, idx) => {
+              const isConfirmed = hr.customerConfirmed || hr.status === 'CONFIRMED';
+              const seasonLabel = hr.seasonName || `Vụ ${idx % 2 === 0 ? 1 : 2}: ${hr.crop || cropProcess?.cropName || plot.crop || 'Nông sản VietGAP'}`;
+              return (
+                <div key={hr.id || hr.harvestId || idx} className="grid gap-4 rounded-2xl border border-stone-200 bg-stone-50/60 p-4 sm:grid-cols-[140px_minmax(0,1fr)]">
+                  <img
+                    src={hr.evidenceImageUrl || '/images/harvest/rau-muong-p03.jpg'}
+                    alt="Ảnh cân đối chứng"
+                    className="h-28 w-full rounded-xl object-cover border border-stone-200 sm:h-full"
+                  />
+                  <div className="space-y-2 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-[#18352b] text-sm">{hr.plotName || plot.name}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-lime-100 text-lime-900 border border-lime-200">
+                          {seasonLabel}
+                        </span>
+                      </div>
+                      <span className="text-emerald-700 font-heading font-black text-base">{hr.formattedYield || `${hr.yieldAmount || '35.0'} kg`}</span>
+                    </div>
+                    <p className="text-stone-600">
+                      Ngày thu hoạch: <strong>{hr.harvestDateFormatted || hr.harvestDate || 'Hôm nay'}</strong> • Chuyên viên cân: <strong>{hr.enteredByWorker || hr.staffName || 'Trần Văn Lực (CVLĐ)'}</strong>
+                    </p>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-200/60">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-white px-2.5 py-0.5 font-bold text-stone-600 border border-stone-200 text-[10px]">
+                          Mã biên bản: {hr.id}
+                        </span>
+                        <span className={`rounded-full px-2.5 py-0.5 font-bold text-[10px] ${
+                          isConfirmed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {isConfirmed ? '✓ Đã nghiệm thu nhận hàng' : '⏳ Chờ xác nhận'}
+                        </span>
+                      </div>
+                      {!isConfirmed && onAcceptHarvest && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => onAcceptHarvest(hr)}
+                          className="text-xs font-bold"
+                        >
+                          Xác nhận nhận nông sản
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
-        <button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5 cursor-pointer">
-          <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800">
-            <Wheat className="h-4 w-4" />{harvestPlan ? 'Sửa lịch trải nghiệm thu hoạch' : 'Đăng ký tới nông trại thu hoạch'}
-          </span>
-        </button>
       </Card>
     </div>
   );
@@ -2485,6 +2575,8 @@ export default function CustomerPlotWorkspace({
   services = [],
   serviceOrders = [],
   harvestPlan = null,
+  harvestResults = [],
+  onAcceptHarvest,
   activeTab = 'overview',
   onTabChange,
   onSelectPlot,
@@ -3130,6 +3222,8 @@ export default function CustomerPlotWorkspace({
           <HarvestTab
             plot={activePlot}
             harvestPlan={harvestPlan}
+            harvestResults={harvestResults}
+            onAcceptHarvest={onAcceptHarvest}
             onOpenHarvest={onOpenHarvest}
             cropProcess={cropProcess}
           />

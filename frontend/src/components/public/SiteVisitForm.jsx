@@ -234,11 +234,25 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
       };
 
       const result = await siteVisitsService.create(bookingPayload);
-      setCreatedBooking(result);
+      const createdObj = {
+        ...result,
+        plot_code: selectedPlotObj?.plotCode || (selectedPlot ? (selectedPlot.startsWith('P-') ? selectedPlot : `P-${selectedPlot}`) : 'P-01'),
+        group_size: Number(groupSize) || 2,
+        notes: notes.trim()
+      };
+      setCreatedBooking(createdObj);
+
+      try {
+        const stored = JSON.parse(localStorage.getItem('farmely_my_site_visits') || '[]');
+        const updated = [createdObj, ...stored.filter(x => (x.visit_id || x.id) !== (createdObj.visit_id || createdObj.id))];
+        localStorage.setItem('farmely_my_site_visits', JSON.stringify(updated));
+        window.dispatchEvent(new Event('farmely_site_visits_updated'));
+      } catch {}
+
       if (!inModal) {
         setShowSuccessModal(true);
       }
-      if (onSuccess) onSuccess(result);
+      if (onSuccess) onSuccess(createdObj);
     } catch (err) {
       console.error('Error creating site visit booking:', err);
       alert('Có lỗi xảy ra khi lưu lịch hẹn. Vui lòng thử lại!');

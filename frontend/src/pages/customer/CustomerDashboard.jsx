@@ -2210,6 +2210,16 @@ export default function CustomerDashboard() {
                   return false;
                 })}
                 harvestPlan={harvestPlans[currentSelectedPlot.id] || dbHarvestResults.find(h => h.plotScopeId === currentSelectedPlot.id || h.plotCode === currentSelectedPlot.plotCode || h.rentalId === currentSelectedPlot.rentalId) || null}
+                harvestResults={dbHarvestResults.filter(h => 
+                  h.plotScopeId === currentSelectedPlot.id || 
+                  h.plotCode === currentSelectedPlot.plotCode || 
+                  h.plotCode === currentSelectedPlot.mapPlotId ||
+                  (currentSelectedPlot.rentalId && Number(h.rentalId) === Number(currentSelectedPlot.rentalId))
+                )}
+                onAcceptHarvest={(hr) => {
+                  setSelectedHarvestForAccept(hr);
+                  setShowHarvestAcceptModal(true);
+                }}
                 activeTab={plotTabFromUrl}
                 onTabChange={(tab) => navigate(`/customer/dashboard?plot=${selectedPlotId || (currentSelectedPlot.rentalId ? `RENTAL-${currentSelectedPlot.rentalId}` : currentSelectedPlot.id)}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
                 onBack={() => navigate('/customer/dashboard')}
@@ -3531,14 +3541,20 @@ export default function CustomerDashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {displayedHarvests.map((hr) => {
+                    {displayedHarvests.map((hr, idx) => {
                       const isConfirmed = hr.customerConfirmed || hr.status === 'CONFIRMED';
+                      const seasonLabel = hr.seasonName || `Vụ ${idx % 2 === 0 ? 1 : 2}: ${hr.crop || 'Nông sản VietGAP'}`;
                       return (
                       <div key={hr.id || hr.harvestId} className="grid gap-4 rounded-2xl border border-brand-border bg-brand-cream/40 p-4 sm:grid-cols-[160px_minmax(0,1fr)] sm:p-5">
                         <img src={hr.evidenceImageUrl || '/images/Mucangchai3.jpg'} alt="Ảnh cân đối chứng" className="h-32 w-full rounded-xl object-cover sm:h-full" />
                         <div className="space-y-3 text-xs">
                           <div className="flex flex-wrap justify-between items-center gap-2">
-                            <span className="font-bold text-brand-dark text-sm">{hr.plotName} · {hr.crop}</span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-brand-dark text-sm">{hr.plotName} · {hr.crop}</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-lime-100 text-lime-900 border border-lime-200">
+                                {seasonLabel}
+                              </span>
+                            </div>
                             <span className="text-emerald-700 font-black text-base">{hr.formattedYield || '35.0 kg'}</span>
                           </div>
                           <p className="text-stone-600">Ngày thu hoạch: <strong>{hr.harvestDateFormatted || hr.harvestDate}</strong>. Chuyên viên phụ trách: <strong>{hr.enteredByWorker || 'Trần Văn Lực'}</strong>.</p>
