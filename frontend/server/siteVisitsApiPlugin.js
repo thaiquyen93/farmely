@@ -2794,7 +2794,7 @@ SELECT row_to_json(l) FROM (
                   UPDATE lands SET is_published = true, updated_at = NOW() WHERE land_id = ${landId};
                   UPDATE plots
                   SET is_published = true,
-                      status = CASE WHEN status = 'MAINT' THEN 'AVAIL'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'MAINT' THEN 'AVAIL' ELSE status END,
                       updated_at = NOW()
                   WHERE land_id = ${landId};
                 `);
@@ -2803,7 +2803,7 @@ SELECT row_to_json(l) FROM (
                   UPDATE lands SET is_published = false, updated_at = NOW() WHERE land_id = ${landId};
                   UPDATE plots
                   SET is_published = false,
-                      status = CASE WHEN status = 'AVAIL' THEN 'MAINT'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'AVAIL' THEN 'MAINT' ELSE status END,
                       updated_at = NOW()
                   WHERE land_id = ${landId};
                 `);
@@ -3550,7 +3550,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                 await runPostgreSql(`
                   UPDATE plots
                   SET is_published = true,
-                      status = CASE WHEN status = 'MAINT' THEN 'AVAIL'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'MAINT' THEN 'AVAIL' ELSE status END,
                       updated_at = NOW()
                   WHERE plot_id = ${plotId};
                   UPDATE lands
@@ -3562,7 +3562,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                 await runPostgreSql(`
                   UPDATE plots
                   SET is_published = false,
-                      status = CASE WHEN status = 'AVAIL' THEN 'MAINT'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'AVAIL' THEN 'MAINT' ELSE status END,
                       updated_at = NOW()
                   WHERE plot_id = ${plotId};
                 `);
