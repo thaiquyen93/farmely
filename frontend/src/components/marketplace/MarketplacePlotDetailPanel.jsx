@@ -544,7 +544,7 @@ export default function MarketplacePlotDetailPanel({
               <div className="leading-snug">
                 <p className="font-black text-emerald-900 text-xs">Bảo chứng chất lượng Farmely</p>
                 <p className="text-[10px] text-emerald-700/80 mt-0.5">
-                  Kỹ sư VietGAP hỗ trợ • Đóng gói giao tận nhà
+                  Kỹ sư VietGAP hỗ trợ • Trải nghiệm thu hoạch tại vườn
                 </p>
               </div>
             </div>

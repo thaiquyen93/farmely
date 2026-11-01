@@ -1762,6 +1762,38 @@ export default function CustomerDashboard() {
                 next[key].tasks.push(formattedTask);
               }
             });
+
+            // SSoT: Mọi nhiệm vụ chăm sóc thực địa đã nghiệm thu (DONE / COMPLETED) tự động trở thành một mục nhật ký canh tác
+            if (t.status === 'DONE' || t.status === 'COMPLETED') {
+              const formattedDiaryFromTask = {
+                id: `TASK-DIR-${t.id || t.taskId}`,
+                taskId: t.taskId || t.id,
+                date: t.date || (t.completedAt ? t.completedAt.split(' - ')[1] : t.dueDate),
+                time: t.completedAt || (t.dueDate ? `${t.dueDate} (08:30)` : 'Hôm nay'),
+                title: t.title || 'Nhiệm vụ chăm sóc hiện trường',
+                note: t.instructions || t.notes || 'Đã hoàn tất nghiệm thu kỹ thuật theo quy trình VietGAP.',
+                author: t.workerName || t.assignedTo || 'Trần Văn Lực (Kỹ thuật viên Farmely)',
+                authorName: t.workerName || t.assignedTo || 'Trần Văn Lực (Kỹ thuật viên Farmely)',
+                image: t.proofPhoto || t.evidenceImageUrl || null,
+                imageUrl: t.proofPhoto || t.evidenceImageUrl || null,
+                photo: t.proofPhoto || t.evidenceImageUrl || null,
+                cropDay: resolvedTaskDay,
+                dayOffset: t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null,
+                day: resolvedTaskDay,
+                isStaffTask: true,
+                status: 'COMPLETED'
+              };
+
+              targetKeys.forEach((key) => {
+                if (!next[key]) next[key] = { tasks: [], diary: [] };
+                const diaryIdx = next[key].diary.findIndex((d) => d.id === formattedDiaryFromTask.id || (t.taskId && d.taskId === t.taskId) || d.title === t.title);
+                if (diaryIdx >= 0) {
+                  next[key].diary[diaryIdx] = { ...next[key].diary[diaryIdx], ...formattedDiaryFromTask };
+                } else {
+                  next[key].diary.push(formattedDiaryFromTask);
+                }
+              });
+            }
           });
 
           liveDiaries.forEach((d) => {
@@ -2732,7 +2764,7 @@ export default function CustomerDashboard() {
                                       <button type="button" onClick={() => openPlot(plot.id, null, plot.rentalId)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
                                         Mở thửa<ChevronRight className="h-4 w-4" />
                                       </button>
-                                      {[['iot', Radio, 'IoT'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
+                                      {[['iot', Radio, 'Vi khí hậu'], ['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
                                         <button key={tab} type="button" onClick={() => openPlot(plot.id, tab, plot.rentalId)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
                                           <Icon className="h-4 w-4" />
                                         </button>
@@ -3123,7 +3155,7 @@ export default function CustomerDashboard() {
                 </div>
 
                 <section className="rounded-3xl border border-brand-border bg-white p-5 shadow-sm sm:p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-orange-600">Theo dõi bất thường</p><h3 className="mt-1 font-heading text-xl font-black text-brand-dark">Cảnh báo IoT · {currentIotPlot.name}</h3></div><span className="rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black text-orange-700">{(iotAlerts[currentIotPlot.id] || []).length} cảnh báo</span></div>
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-orange-600">Theo dõi bất thường</p><h3 className="mt-1 font-heading text-xl font-black text-brand-dark">Cảnh báo vi khí hậu · {currentIotPlot.name}</h3></div><span className="rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black text-orange-700">{(iotAlerts[currentIotPlot.id] || []).length} cảnh báo</span></div>
                   <div className="mt-4 space-y-2">{(iotAlerts[currentIotPlot.id] || []).map((alert) => <div key={`${currentIotPlot.id}-${alert.title}`} className="flex flex-wrap items-center gap-3 rounded-2xl border border-brand-border bg-brand-cream/35 p-3"><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${alert.level === 'HIGH' ? 'bg-rose-100 text-rose-700' : alert.level === 'MEDIUM' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>{alert.level === 'HIGH' ? 'Cao' : alert.level === 'MEDIUM' ? 'Trung bình' : 'Thấp'}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-brand-dark">{alert.title}</p><p className="mt-0.5 text-xs text-brand-muted">{alert.metric} · {alert.time}</p></div></div>)}</div>
                   {currentIotPlot.mode === 'Self-Growing' && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4"><div><p className="text-sm font-black text-rose-900">Cần Farmely hỗ trợ ngay?</p><p className="mt-1 text-xs text-rose-800/80">Gửi yêu cầu chăm sóc khẩn cấp cho thửa tự trồng này.</p></div><button type="button" onClick={() => handleEmergencyCareRequest(currentIotPlot)} disabled={emergencyRequests[currentIotPlot.id]?.status === 'PROCESSING'} className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-rose-300">{emergencyRequests[currentIotPlot.id]?.status === 'PROCESSING' ? 'Đã gửi · Đang xử lý' : 'Yêu cầu chăm sóc khẩn cấp'}</button></div>}
                   {emergencyRequests[currentIotPlot.id] && <div className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-800">Service Request {emergencyRequests[currentIotPlot.id].id} · Đang tiếp nhận và điều phối nhân sự Farmely.</div>}
@@ -3134,7 +3166,7 @@ export default function CustomerDashboard() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border/60 pb-3">
                     <div>
                       <h3 className="font-heading font-black text-lg text-brand-dark">
-                        Biểu Đồ Quan Trắc IoT • {currentIotPlot.name}
+                        Biểu Đồ Quan Trắc Khí Tượng & Vi Khí Hậu • {currentIotPlot.name}
                       </h3>
                       <p className="text-xs text-brand-muted mt-0.5">
                         Hiển thị theo: <strong>{iotTimeframe === 'hourly' ? 'Từng giờ trong ngày' : iotTimeframe === 'daily' ? 'Các ngày trong tuần' : 'Từng tuần trong tháng'}</strong>
@@ -3276,7 +3308,7 @@ export default function CustomerDashboard() {
                         )}
                       </div>
                       <div className="grid gap-2 p-3 md:grid-cols-2">
-                        {((plotOperations[plot.id]?.diary) || defaultOperationsForPlot(plot).diary || []).map((entry, index) => (
+                        {((plotOperations[plot.id]?.diary) || (plot.rentalId && plotOperations[`RENTAL-${plot.rentalId}`]?.diary) || defaultOperationsForPlot(plot).diary || []).map((entry, index) => (
                           <article key={`${plot.id}-${index}`} className="rounded-xl bg-brand-cream/45 p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                               <span className="font-bold text-brand-dark">{entry.time}</span>
@@ -3306,7 +3338,7 @@ export default function CustomerDashboard() {
                   <aside className="sticky top-24 rounded-3xl border border-brand-border bg-white p-5 shadow-sm">
                     <div className="flex items-center gap-3">
                       <img src={diaryFocusPlot.image} alt="" className="h-14 w-20 rounded-xl object-cover" />
-                      <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-wider text-emerald-600">IoT theo thửa</p><h3 className="truncate font-heading text-lg font-black text-brand-dark">{diaryFocusPlot.name}</h3><p className="truncate text-xs text-brand-muted">{diaryFocusPlot.stationId || 'IOT'}</p></div>
+                      <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Vi khí hậu theo thửa</p><h3 className="truncate font-heading text-lg font-black text-brand-dark">{diaryFocusPlot.name}</h3><p className="truncate text-xs text-brand-muted">{diaryFocusPlot.stationId || 'KT'}</p></div>
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       {[
@@ -3317,7 +3349,7 @@ export default function CustomerDashboard() {
                       ].map(([label, value, Icon, tone]) => <div key={label} className="rounded-xl border border-brand-border p-3"><span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tone}`}><Icon className="h-4 w-4" /></span><p className="mt-2 text-[10px] text-brand-muted">{label}</p><p className="text-sm font-black text-brand-dark">{value}</p></div>)}
                     </div>
                     <div className="mt-3 rounded-xl bg-amber-50 p-3"><p className="text-xs font-black text-amber-900">Cảnh báo thời tiết đang được theo dõi</p><p className="mt-1 text-[11px] text-amber-800">Dữ liệu mới nhất được đồng bộ từ trạm của {diaryFocusPlot.name}.</p></div>
-                    <button type="button" onClick={() => { setSelectedIotPlotId(diaryFocusPlot.id); setIotReturnPlotId(scopedPlot ? scopedPlot.id : null); setPlotScopeId(null); setActiveTab('iot'); }} className="mt-4 w-full rounded-xl bg-brand-green px-4 py-3 text-xs font-black text-white transition hover:bg-brand-dark">Xem dashboard IoT chi tiết</button>
+                    <button type="button" onClick={() => { setSelectedIotPlotId(diaryFocusPlot.id); setIotReturnPlotId(scopedPlot ? scopedPlot.id : null); setPlotScopeId(null); setActiveTab('iot'); }} className="mt-4 w-full rounded-xl bg-brand-green px-4 py-3 text-xs font-black text-white transition hover:bg-brand-dark">Xem dashboard vi khí hậu chi tiết</button>
                   </aside>
                 )}
               </div>
@@ -3361,7 +3393,7 @@ export default function CustomerDashboard() {
                         <span>1. Kế Hoạch Thu Hoạch Của Bạn</span>
                       </h4>
                       <p className="text-xs text-stone-500">
-                        Chọn ngày thu hái và phương thức nhận hàng (Farmely giao tận nhà hoặc tự đến nông trại).
+                        Đăng ký ngày tới nông trại để trải nghiệm và tự tay thu hoạch nông sản của bạn.
                       </p>
                     </div>
                     <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
@@ -3426,17 +3458,11 @@ export default function CustomerDashboard() {
                                       </strong>
                                     </div>
                                     <div>
-                                      <span className="text-[10px] text-stone-400 block font-bold">Phương thức nhận:</span>
+                                      <span className="text-[10px] text-stone-400 block font-bold">Hình thức trải nghiệm:</span>
                                       <strong className="text-brand-dark flex items-center gap-1">
-                                        <Truck className="w-3.5 h-3.5" /> {plan.methodLabel || plan.method}
+                                        <Scissors className="w-3.5 h-3.5 text-emerald-700" /> {plan.methodLabel || plan.method}
                                       </strong>
                                     </div>
-                                    {plan.address && (
-                                      <div className="col-span-2 pt-1 border-t border-stone-100">
-                                        <span className="text-[10px] text-stone-400 block font-bold">Địa chỉ giao:</span>
-                                        <span className="text-stone-600 truncate block">{plan.address}</span>
-                                      </div>
-                                    )}
                                   </>
                                 )}
                               </div>

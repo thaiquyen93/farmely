@@ -134,6 +134,21 @@ WHERE status = 'RENT' AND plot_id NOT IN (
 -- Dọn dẹp các tác vụ rác của các hợp đồng/thửa đã hủy
 DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE status = 'CANCELLED');
 
+-- SSoT: Tự động đồng bộ các nhiệm vụ chăm sóc thực địa đã nghiệm thu (DONE) vào nhật ký farm_diaries
+INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
+SELECT 
+  ct.rental_id,
+  ct.task_id,
+  COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
+  COALESCE(ct.notes, ts.description, 'Đã hoàn tất nghiệm thu kỹ thuật theo quy trình VietGAP.'),
+  COALESCE(ct.step_order, ts.step_order, 1),
+  COALESCE(ct.evidence_image_url, 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=600&q=80'),
+  COALESCE(ct.updated_at, NOW())
+FROM care_tasks ct
+LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+WHERE ct.status = 'DONE'
+  AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.task_id = ct.task_id);
+
 CREATE OR REPLACE FUNCTION fn_resolve_expert_for_variety(p_variety_id INT)
 RETURNS INT AS $$
 BEGIN
@@ -5073,7 +5088,10 @@ LIMIT 1;
 `;
                   const detailRes = await runPostgreSql(detailSql);
                   let taskDetail = null;
-                  try { taskDetail = Array.isArray(detailRes) ? detailRes[0] : (typeof detailRes === 'string' ? JSON.parse(detailRes) : detailRes); } catch { }
+                  try {
+                    const parsed = typeof detailRes === 'string' ? JSON.parse(detailRes) : detailRes;
+                    taskDetail = Array.isArray(parsed) ? parsed[0] : parsed;
+                  } catch { }
 
                   const rId = taskDetail?.rental_id || taskRow?.rental_id || payload.rentalId || 1;
                   const sOrder = taskDetail?.step_order || taskRow?.step_order || payload.stepOrder || 1;
@@ -5191,12 +5209,18 @@ SELECT json_build_object(
           try {
             const parsedUrl = new URL(url, 'http://localhost');
             const rentalParam = parsedUrl.searchParams.get('rentalId') || parsedUrl.searchParams.get('rental_id');
-            const plotParam = parsedUrl.searchParams.get('plotId') || parsedUrl.searchParams.get('plot_id');
+            const plotParam = parsedUrl.searchParams.get('plotId') || parsedUrl.searchParams.get('plot_id') || parsedUrl.searchParams.get('plotCode') || parsedUrl.searchParams.get('code');
             let whereClause = '';
             if (rentalParam) {
               whereClause = `WHERE fd.rental_id = ${parseInt(rentalParam, 10)}`;
             } else if (plotParam) {
-              whereClause = `WHERE rent.plot_id = ${parseInt(plotParam, 10)}`;
+              const cleanPlot = String(plotParam).replace(/^PLOT-/i, '').trim();
+              const numPlot = parseInt(cleanPlot.replace(/\D/g, ''), 10);
+              if (cleanPlot.toUpperCase().startsWith('P-') || isNaN(numPlot)) {
+                whereClause = `WHERE UPPER(p.plot_code) = '${cleanPlot.toUpperCase().replace(/'/g, "''")}'`;
+              } else {
+                whereClause = `WHERE (rent.plot_id = ${numPlot} OR UPPER(p.plot_code) = '${cleanPlot.toUpperCase().replace(/'/g, "''")}' OR UPPER(p.plot_code) = 'P-${numPlot < 10 ? '0' + numPlot : numPlot}')`;
+              }
             }
 
             const sql = `
@@ -5232,11 +5256,11 @@ SELECT json_build_object(
         TO_CHAR(fd.created_at, 'DD/MM/YYYY HH24:MI') AS "dateFormatted",
         CASE
           WHEN rent.cultivation_mode = 'SELF' AND ct.service_request_id IS NULL THEN COALESCE(u_cust.full_name, 'Chủ vườn (Tự canh tác)')
-          ELSE COALESCE(u_worker.full_name, u_cust.full_name, 'Chủ vườn')
+          ELSE COALESCE(u_worker.full_name, u_staff.full_name, 'Trần Văn Lực (Kỹ thuật viên Farmely)')
         END AS author,
         CASE
           WHEN rent.cultivation_mode = 'SELF' AND ct.service_request_id IS NULL THEN COALESCE(u_cust.full_name, 'Chủ vườn (Tự canh tác)')
-          ELSE COALESCE(u_worker.full_name, u_cust.full_name, 'Chủ vườn')
+          ELSE COALESCE(u_worker.full_name, u_staff.full_name, 'Trần Văn Lực (Kỹ thuật viên Farmely)')
         END AS "authorName",
         'Chăm sóc & theo dõi' AS stage
       FROM farm_diaries fd
@@ -5248,6 +5272,7 @@ SELECT json_build_object(
       LEFT JOIN care_tasks ct ON fd.task_id = ct.task_id
       LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
       LEFT JOIN users u_worker ON ct.task_assigned_to = u_worker.user_id
+      LEFT JOIN users u_staff ON rent.staff_id = u_staff.user_id
       ${whereClause}
       ORDER BY fd.created_at DESC
     ) d

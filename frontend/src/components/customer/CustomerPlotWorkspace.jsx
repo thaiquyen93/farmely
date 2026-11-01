@@ -11,7 +11,7 @@ import {
   AlertTriangle, ArrowLeft, BookOpen, Calendar, CalendarCheck, CalendarRange, Check, ChevronDown, ChevronRight, ChevronLeft,
   Clock, Clock3, Droplets, ExternalLink, Eye, Filter, Info, LayoutDashboard, Leaf,
   MapPin, Maximize2, PenLine, Radio, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
-  Sun, Thermometer, Truck, UserRound, Wheat, Wind, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame
+  Sun, Thermometer, Truck, UserRound, Wheat, Wind, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame, Scissors
 } from 'lucide-react';
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -2072,32 +2072,87 @@ function OverviewTab({
   );
 }
 
-function DiaryTab({ plot, operations, onAddDiary }) {
+function DiaryTab({ plot, operations, staffActivities = [], onAddDiary }) {
   const canWrite = plot.mode === 'Self-Growing';
+
+  // SSoT: Tự động hợp nhất nhật ký khách hàng và toàn bộ công việc chăm sóc đã hoàn tất của Staff
+  const mergedDiaryEntries = useMemo(() => {
+    const list = [...(operations?.diary || [])];
+    const seen = new Set();
+    list.forEach((e) => {
+      if (e.taskId) seen.add(String(e.taskId));
+      if (e.id) seen.add(String(e.id));
+      if (e.title) seen.add(e.title.trim().toLowerCase());
+    });
+
+    (staffActivities || []).forEach((act) => {
+      const isCompleted = act.status === 'COMPLETED' || act.status === 'DONE' || Boolean(act.proofPhoto);
+      if (isCompleted) {
+        const titleKey = (act.title || '').trim().toLowerCase();
+        const actId = String(act.activityId || act.id || '');
+        if (!seen.has(actId) && !seen.has(titleKey)) {
+          seen.add(actId);
+          seen.add(titleKey);
+          list.push({
+            id: act.activityId || act.id,
+            taskId: act.activityId || act.id,
+            time: act.timestamp || (act.date ? `${act.date} • Ca sáng` : 'Hôm nay'),
+            date: act.date,
+            title: act.title,
+            note: act.notes || 'Nhiệm vụ đã được kỹ thuật viên hoàn tất và nghiệm thu đạt chuẩn VietGAP.',
+            author: act.workerName || 'Trần Văn Lực (Kỹ thuật viên Farmely)',
+            authorRole: act.workerRole || 'Kỹ thuật viên hiện trường chuyên trách',
+            image: act.proofPhoto || null,
+            imageUrl: act.proofPhoto || null,
+            photo: act.proofPhoto || null,
+            sensorSnapshot: act.sensorSnapshot || null,
+            isStaffTask: true,
+            status: 'COMPLETED'
+          });
+        }
+      }
+    });
+
+    return list;
+  }, [operations?.diary, staffActivities]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-stone-600">
-          {canWrite ? 'Bạn tự canh tác thửa này — hãy ghi lại mỗi lần chăm sóc và hình ảnh hiện trường.' : 'Farmely lưu trữ nhật ký chăm sóc kèm ảnh minh chứng từ kỹ thuật viên & ghi chú của bạn.'}
+          {canWrite ? 'Bạn tự canh tác thửa này — hãy ghi lại mỗi lần chăm sóc và hình ảnh hiện trường.' : 'Farmely tự động đồng bộ toàn bộ nhật ký chăm sóc kèm ảnh minh chứng từ kỹ thuật viên & ghi chú của bạn.'}
         </p>
-        <button type="button" onClick={() => onAddDiary?.(plot)} className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 shadow-sm transition">
+        <button type="button" onClick={() => onAddDiary?.(plot)} className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 shadow-sm transition cursor-pointer">
           <PenLine className="h-4 w-4" />+ Thêm nhật ký
         </button>
       </div>
-      {operations.diary?.length ? (
+      {mergedDiaryEntries.length ? (
         <ol className="relative space-y-3 border-l-2 border-emerald-100 pl-5">
-          {operations.diary.map((e, idx) => (
+          {mergedDiaryEntries.map((e, idx) => (
             <li key={e.id || `${e.time}-${idx}`} className="relative">
               <span className="absolute -left-[27px] top-4 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow" aria-hidden="true" />
               <Card className="p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-stone-500">{e.time}</span>
-                  <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-                    <UserRound className="h-3.5 w-3.5" />{e.author}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {(e.isStaffTask || e.author?.includes('Lực') || e.author?.includes('Kỹ thuật') || e.status === 'COMPLETED') && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Nghiệm thu VietGAP
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-100">
+                      <UserRound className="h-3.5 w-3.5" />{e.author}
+                    </span>
+                  </div>
                 </div>
-                <p className="mt-2 text-sm font-semibold text-[#18352b]">{e.title}</p>
+                <p className="mt-2 text-sm font-bold text-[#18352b]">{e.title}</p>
                 <p className="mt-1 text-sm leading-relaxed text-stone-600 whitespace-pre-line">{e.note}</p>
+                {e.sensorSnapshot && (
+                  <div className="mt-2.5 flex items-center gap-3 text-[11px] text-stone-500 bg-stone-50/80 px-3 py-1.5 rounded-xl border border-stone-100 max-w-md">
+                    <span>🌡️ Nhiệt độ: <strong className="text-stone-700">{e.sensorSnapshot.temp}</strong></span>
+                    <span>💧 Ẩm đất: <strong className="text-stone-700">{e.sensorSnapshot.soilMoisture}</strong></span>
+                  </div>
+                )}
                 {(e.image || e.imageUrl || e.photo) && (
                   <div className="mt-3 overflow-hidden rounded-xl border border-stone-200/80 bg-stone-50 max-w-md">
                     <img
@@ -2108,7 +2163,7 @@ function DiaryTab({ plot, operations, onAddDiary }) {
                       loading="lazy"
                     />
                     <div className="p-2 bg-white/80 text-[11px] text-stone-500 flex items-center justify-between border-t border-stone-100">
-                      <span>📸 Ảnh minh chứng thực tế</span>
+                      <span>📸 Ảnh minh chứng thực tế ca trực</span>
                       <span className="text-[10px] text-emerald-700 font-semibold cursor-pointer hover:underline" onClick={() => window.open(e.image || e.imageUrl || e.photo, '_blank')}>Mở ảnh phóng to ↗</span>
                     </div>
                   </div>
@@ -2395,21 +2450,20 @@ function HarvestTab({ plot, harvestPlan, onOpenHarvest, cropProcess }) {
         <SectionTitle eyebrow="Kế hoạch của bạn" title={harvestPlan ? 'Đã đăng ký thu hoạch' : 'Chưa đăng ký'} />
         {harvestPlan ? (
           <div className="mt-4 space-y-2 text-sm">
-            <p className="flex items-center gap-2 text-[#18352b]"><CalendarCheck className="h-4 w-4 text-emerald-700" />Ngày hái: <strong>{planDate}</strong></p>
-            <p className="flex items-center gap-2 text-[#18352b]"><Truck className="h-4 w-4 text-emerald-700" />{harvestPlan.methodLabel}</p>
-            {harvestPlan.address && <p className="flex items-start gap-2 text-stone-600"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />{harvestPlan.address}</p>}
+            <p className="flex items-center gap-2 text-[#18352b]"><CalendarCheck className="h-4 w-4 text-emerald-700" />Ngày dự kiến đến hái: <strong>{planDate}</strong></p>
+            <p className="flex items-center gap-2 text-[#18352b]"><Scissors className="h-4 w-4 text-emerald-700" />{harvestPlan.methodLabel}</p>
             {harvestPlan.status === 'APPROVED' ? (
-              <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã duyệt lịch hái · Đang điều phối thu hoạch</p>
+              <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã duyệt lịch hái · Nông trại sẵn sàng đón tiếp</p>
             ) : (
               <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ kỹ sư xác nhận</p>
             )}
           </div>
         ) : (
-          <p className="mt-4 text-sm text-stone-600">Chọn ngày và phương thức nhận nông sản. Farmely sẽ nhắc bạn trước 3 ngày.</p>
+          <p className="mt-4 text-sm text-stone-600">Đăng ký ngày tới nông trại để trải nghiệm và tự tay thu hoạch nông sản của bạn. Farmely sẽ nhắc bạn trước 3 ngày.</p>
         )}
-        <button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5">
+        <button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5 cursor-pointer">
           <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800">
-            <Wheat className="h-4 w-4" />{harvestPlan ? 'Sửa kế hoạch thu hoạch' : 'Đăng ký thu hoạch'}
+            <Wheat className="h-4 w-4" />{harvestPlan ? 'Sửa lịch trải nghiệm thu hoạch' : 'Đăng ký tới nông trại thu hoạch'}
           </span>
         </button>
       </Card>
@@ -3058,6 +3112,7 @@ export default function CustomerPlotWorkspace({
           <DiaryTab
             plot={activePlot}
             operations={operations}
+            staffActivities={staffActivities}
             onAddDiary={onAddDiary}
           />
         )}
