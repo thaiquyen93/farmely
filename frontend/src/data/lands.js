@@ -8,7 +8,7 @@ export const landsData = [
     landId: 1,
     name: "Trang trại Happy Valley Củ Chi",
     location: "Đường Nhuận Đức, Xã Nhuận Đức, Huyện Củ Chi, TP. Hồ Chí Minh",
-    description: "Khu trang trại hữu cơ công nghệ cao ven sông Sài Gòn, đất phù sa màu mỡ đã được cải tạo theo tiêu chuẩn VietGAP và lắp đặt hệ thống trạm quan trắc IoT vi khí hậu tự động.",
+    description: "Khu trang trại hữu cơ công nghệ cao ven sông Sài Gòn, đất phù sa màu mỡ đã được cải tạo theo tiêu chuẩn VietGAP và kết nối hệ thống trạm quan trắc vi khí hậu tự động.",
     totalArea: "25,000 m² (2.5 ha)",
     totalPlots: 16,
     activePlots: 13,

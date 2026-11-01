@@ -76,7 +76,7 @@ export default function MasterDataDashboard() {
     { label: 'Thửa Đất Khả Dụng', value: availablePlots, icon: CheckCircle2, link: '/admin/master-data/plots', color: 'text-brand-yellow' },
     { label: 'Danh Mục Cây (Crops)', value: totalCrops, icon: Sprout, link: '/admin/master-data/crops', color: 'text-brand-green' },
     { label: 'Giống Cây (Varieties)', value: totalVarieties, icon: Wheat, link: '/admin/master-data/varieties', color: 'text-amber-700' },
-    { label: 'Trạm Cảm Biến IoT', value: totalIoT, icon: Radio, link: '/admin/master-data/iot-stations', color: 'text-sky-700' },
+    { label: 'Trạm Khí Tượng & Vi Khí Hậu', value: totalIoT, icon: Radio, link: '/admin/master-data/iot-stations', color: 'text-sky-700' },
     { label: 'Quy Trình Chuẩn VietGAP', value: activeTemplates, icon: FileSpreadsheet, link: '/admin/master-data/process-templates', color: 'text-emerald-700' },
     { label: 'Tài Liệu Kỹ Thuật (RAG)', value: totalDocs, icon: BookOpen, link: '/admin/master-data/knowledge-documents', color: 'text-indigo-700' },
   ];
@@ -109,7 +109,7 @@ export default function MasterDataDashboard() {
         };
       })
     : [
-        { title: 'Cập nhật ngưỡng an toàn trạm IoT-CC-01', time: '15 phút trước', user: 'CGNN. Nguyễn Hoàng Nam', type: 'IoT Config' },
+        { title: 'Cập nhật ngưỡng an toàn trạm KT-CC-01', time: '15 phút trước', user: 'CGNN. Nguyễn Hoàng Nam', type: 'Weather Config' },
         { title: 'Phê duyệt quy trình VietGAP Cà chua bi v2.3', time: '2 giờ trước', user: 'Hội đồng Nông học', type: 'Template' },
         { title: 'Thêm giống mới: Dâu tây Nhật Hana chịu nhiệt', time: 'Hôm qua, 16:30', user: 'CGNN. Đặng Thu Thảo', type: 'Variety' },
         { title: 'Hoàn tất nghiệm thu nghỉ đất 4 ngày thửa P-16', time: '2 ngày trước', user: 'Admin Hệ Thống', type: 'Fallow Protocol' },
@@ -228,8 +228,8 @@ export default function MasterDataDashboard() {
             <div className="p-3.5 rounded-xl bg-sky-50/80 border border-sky-200 flex items-start gap-3">
               <Radio className="w-4 h-4 text-sky-600 mt-0.5 shrink-0" />
               <div>
-                <strong className="text-sky-900 block font-semibold">Trạm quan trắc IoT vi khí hậu đang vận hành</strong>
-                <span className="text-sky-800 text-[11px]">{totalIoT} trạm cảm biến đo nhiệt độ, độ ẩm không khí và độ ẩm đất tự động (Tự động hoãn tưới khi độ ẩm đất ≥ 80%).</span>
+                <strong className="text-sky-900 block font-semibold">Trạm quan trắc vi khí hậu đang vận hành</strong>
+                <span className="text-sky-800 text-[11px]">{totalIoT} trạm quan trắc đo nhiệt độ, độ ẩm không khí và độ ẩm đất tự động (Tự động hoãn tưới khi độ ẩm đất ≥ 80%).</span>
               </div>
             </div>
           </div>

@@ -81,7 +81,7 @@ export default function PlotDetail() {
               price: Number(found.pricePerPeriod),
               formattedPrice: `${Number(found.pricePerPeriod || 0).toLocaleString('vi-VN')} đ/tháng`,
               soilType: 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
-              description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát IoT 24/7.',
+              description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát vi khí hậu 24/7.',
               iotStationId: `IOT-${found.plotCode}`,
               compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby'],
               recentSensorReadings: {
@@ -208,7 +208,7 @@ export default function PlotDetail() {
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-brand-green uppercase tracking-wider flex items-center gap-1.5">
                 <Radio className="w-4 h-4" />
-                Trạm Quan Trắc IoT
+                Trạm Quan Trắc Vi Khí Hậu
               </span>
               {station && <Badge variant={station.status} size="sm">{station.status}</Badge>}
             </div>

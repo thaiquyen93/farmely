@@ -244,7 +244,7 @@ export default function Plots() {
             Quản Lý Thửa Đất Canh Tác
           </h2>
           <p className="text-xs text-brand-muted mt-0.5">
-            Mỗi thửa đất quản lý độc lập về diện tích, trạm IoT, danh mục giống tương thích và trạng thái lịch khả dụng.
+            Mỗi thửa đất quản lý độc lập về diện tích, trạm vi khí hậu, danh mục giống tương thích và trạng thái lịch khả dụng.
           </p>
         </div>
 

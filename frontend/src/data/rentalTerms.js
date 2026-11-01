@@ -28,7 +28,7 @@ export const RENTAL_TERMS = [
   },
   {
     title: 'Điều 3. Mục đích sử dụng và quy trình canh tác',
-    content: 'Thửa đất chỉ được dùng cho mục đích canh tác đã đăng ký. Khách hàng không tự ý thay đổi cây trồng, dùng vật tư ngoài danh mục được chấp thuận, chuyển giao quyền sử dụng hoặc thực hiện hoạt động có thể gây thiệt hại cho đất, hệ thống tưới, thiết bị IoT hay các thửa lân cận.'
+    content: 'Thửa đất chỉ được dùng cho mục đích canh tác đã đăng ký. Khách hàng không tự ý thay đổi cây trồng, dùng vật tư ngoài danh mục được chấp thuận, chuyển giao quyền sử dụng hoặc thực hiện hoạt động có thể gây thiệt hại cho đất, hệ thống tưới, thiết bị kỹ thuật hay các thửa lân cận.'
   },
   {
     title: 'Điều 4. Dịch vụ chăm sóc và nhật ký vận hành',
