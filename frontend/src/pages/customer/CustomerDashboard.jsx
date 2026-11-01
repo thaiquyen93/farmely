@@ -824,20 +824,22 @@ export default function CustomerDashboard() {
 
     loadCustomerData();
 
-    // Tự động đồng bộ ngay khi Admin thêm/sửa/tắt dịch vụ từ tab khác hoặc khi quay lại tab
+    // Tự động đồng bộ ngay khi Admin thêm/sửa/tắt dịch vụ hoặc giả lập thời gian từ tab khác hoặc khi quay lại tab
     const handleStorageChange = (e) => {
-      if (e.key === 'farmely_services_updated_at') {
+      if (e.key === 'farmely_services_updated_at' || e.key === 'farmely_time_simulated_at' || e.key === 'farmely_task_sync') {
         loadCustomerData();
       }
     };
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('farmely_services_updated', loadCustomerData);
+    window.addEventListener('farmely_time_simulated', loadCustomerData);
     window.addEventListener('focus', loadCustomerData);
 
     return () => {
       cancelled = true;
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('farmely_services_updated', loadCustomerData);
+      window.removeEventListener('farmely_time_simulated', loadCustomerData);
       window.removeEventListener('focus', loadCustomerData);
     };
   }, []);

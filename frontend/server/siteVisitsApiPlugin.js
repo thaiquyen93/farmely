@@ -4931,6 +4931,174 @@ END $$;
           return;
         }
 
+        // 17D. SIMULATE CULTIVATION TIME FOR DEMO (POST /api/rentals/:id/simulate-time & POST /api/plots/:id/simulate-time)
+        if (req.method === 'POST' && (url.match(/^\/api\/(?:v1\/)?rentals\/(\d+)\/simulate-time/) || url.match(/^\/api\/(?:v1\/)?plots\/(\d+)\/simulate-time/))) {
+          const isPlotRoute = url.includes('/plots/');
+          const rawId = parseInt(url.match(/^\/api\/(?:v1\/)?(?:rentals|plots)\/(\d+)\/simulate-time/)[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const action = String(payload.action || 'START_NOW').toUpperCase();
+
+              // Resolve rental_id
+              let rentalId = rawId;
+              if (isPlotRoute) {
+                const findRentSql = `
+                  SELECT COALESCE(
+                    (
+                      SELECT json_build_object('rentalId', rental_id)
+                      FROM rentals 
+                      WHERE plot_id = ${rawId} AND status IN ('ACTIVE', 'CONFIRMED', 'RENTED', 'IN_PROGRESS', 'PENDING')
+                      ORDER BY rental_id DESC 
+                      LIMIT 1
+                    ),
+                    '{}'::json
+                  );
+                `;
+                const rentRes = await runPostgreSql(findRentSql);
+                const parsed = typeof rentRes === 'string' ? JSON.parse(rentRes || '{}') : rentRes;
+                rentalId = Number(parsed?.rentalId || (Array.isArray(parsed) ? parsed[0]?.rentalId : parsed));
+                if (!rentalId || isNaN(rentalId)) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.end(JSON.stringify({ success: false, message: 'Thửa đất này hiện chưa có hợp đồng thuê hoặc chưa canh tác' }));
+                  return;
+                }
+              }
+
+              // Fetch current rental details
+              const rentalSql = `
+                SELECT row_to_json(r) FROM (
+                  SELECT 
+                    r.rental_id, r.plot_id, r.start_date, r.end_date, r.variety_id,
+                    COALESCE(v.expected_duration, 45) AS expected_duration,
+                    COALESCE(v.variety_name, 'Cây trồng') AS variety_name,
+                    p.plot_code
+                  FROM rentals r
+                  JOIN plots p ON r.plot_id = p.plot_id
+                  LEFT JOIN varieties v ON r.variety_id = v.variety_id
+                  WHERE r.rental_id = ${rentalId}
+                ) r;
+              `;
+              const rentalRaw = await runPostgreSql(rentalSql);
+              const rental = typeof rentalRaw === 'string' ? JSON.parse(rentalRaw || '{}') : rentalRaw;
+              if (!rental || !rental.rental_id) {
+                res.statusCode = 404;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Không tìm thấy thông tin hợp đồng thuê' }));
+                return;
+              }
+
+              const totalDays = Number(rental.expected_duration) || 45;
+              let message = '';
+
+              if (action === 'START_NOW') {
+                await runPostgreSql(`
+                  UPDATE rentals 
+                  SET start_date = CURRENT_DATE, status = 'ACTIVE' 
+                  WHERE rental_id = ${rentalId};
+                `);
+                await runPostgreSql(`UPDATE plots SET status = 'RENT' WHERE plot_id = ${rental.plot_id};`);
+                await runPostgreSql(`
+                  UPDATE care_tasks 
+                  SET status = 'IN_PROG', due_date = CURRENT_DATE 
+                  WHERE rental_id = ${rentalId} AND (step_order = 1 OR task_id = (SELECT MIN(task_id) FROM care_tasks WHERE rental_id = ${rentalId}));
+                `);
+                message = `Đã kích hoạt canh tác ngay hôm nay cho thửa ${rental.plot_code} (Ngày 1/${totalDays})`;
+              } else if (action === 'ADD_DAYS') {
+                const days = Math.max(1, Number(payload.days) || 7);
+                await runPostgreSql(`
+                  UPDATE rentals 
+                  SET start_date = start_date - INTERVAL '${days} days' 
+                  WHERE rental_id = ${rentalId};
+                `);
+                message = `Đã tua nhanh +${days} ngày canh tác cho thửa ${rental.plot_code}`;
+              } else if (action === 'HARVEST') {
+                const offset = totalDays - 1;
+                await runPostgreSql(`
+                  UPDATE rentals 
+                  SET start_date = CURRENT_DATE - INTERVAL '${offset} days', status = 'ACTIVE' 
+                  WHERE rental_id = ${rentalId};
+                `);
+                await runPostgreSql(`
+                  UPDATE care_tasks 
+                  SET status = 'DONE' 
+                  WHERE rental_id = ${rentalId} AND step_order < 4;
+                `);
+                await runPostgreSql(`
+                  UPDATE care_tasks 
+                  SET status = 'IN_PROG', due_date = CURRENT_DATE 
+                  WHERE rental_id = ${rentalId} AND step_order >= 4;
+                `);
+                message = `Đã giả lập thửa ${rental.plot_code} đến ngày thu hoạch (Ngày ${totalDays}/${totalDays})! Nhiệm vụ thu hoạch đã sẵn sàng cho CVLĐ và Khách hàng.`;
+              } else if (action === 'RESET') {
+                await runPostgreSql(`
+                  UPDATE rentals 
+                  SET start_date = CURRENT_DATE, status = 'ACTIVE' 
+                  WHERE rental_id = ${rentalId};
+                `);
+                await runPostgreSql(`
+                  UPDATE care_tasks 
+                  SET status = CASE WHEN step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END 
+                  WHERE rental_id = ${rentalId};
+                `);
+                message = `Đã đặt lại tiến độ thửa ${rental.plot_code} về Ngày 1`;
+              } else if (action === 'SET_DAY') {
+                const day = Math.max(1, Math.min(totalDays, Number(payload.day) || 1));
+                const offset = day - 1;
+                await runPostgreSql(`
+                  UPDATE rentals 
+                  SET start_date = CURRENT_DATE - INTERVAL '${offset} days', status = 'ACTIVE' 
+                  WHERE rental_id = ${rentalId};
+                `);
+                message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays}`;
+              }
+
+              const checkSql = `
+                SELECT row_to_json(r) FROM (
+                  SELECT 
+                    r.rental_id AS "rentalId",
+                    r.plot_id AS "plotId",
+                    p.plot_code AS "plotCode",
+                    COALESCE(v.variety_name, 'Cây trồng') AS "varietyName",
+                    TO_CHAR(r.start_date, 'YYYY-MM-DD') AS "startDate",
+                    TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "endDate",
+                    CASE 
+                      WHEN CURRENT_DATE < r.start_date THEN 0
+                      ELSE (CURRENT_DATE - r.start_date) + 1
+                    END AS "currentDay",
+                    COALESCE(v.expected_duration, 45) AS "totalDays",
+                    CASE
+                      WHEN CURRENT_DATE < r.start_date THEN 0
+                      ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - r.start_date + 1)::numeric / NULLIF(COALESCE(v.expected_duration, 45), 0)::numeric) * 100)))
+                    END AS "progressPercent"
+                  FROM rentals r
+                  JOIN plots p ON r.plot_id = p.plot_id
+                  LEFT JOIN varieties v ON r.variety_id = v.variety_id
+                  WHERE r.rental_id = ${rentalId}
+                ) r;
+              `;
+              const updatedRaw = await runPostgreSql(checkSql);
+              const updatedData = typeof updatedRaw === 'string' ? JSON.parse(updatedRaw || '{}') : updatedRaw;
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message,
+                data: updatedData
+              }));
+            } catch (err) {
+              console.error('Lỗi khi giả lập thời gian canh tác:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Lỗi server: ' + err.message }));
+            }
+          });
+          return;
+        }
+
         // 18. CARE TASKS API (GET, POST, PATCH /api/care-tasks)
         if (req.method === 'GET' && (url === '/api/care-tasks' || url === '/api/v1/care-tasks' || url === '/api/tasks' || url.startsWith('/api/care-tasks?') || url.startsWith('/api/v1/care-tasks?') || url.startsWith('/api/tasks?'))) {
           try {

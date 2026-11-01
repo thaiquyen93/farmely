@@ -6,7 +6,7 @@ import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2, Clock, EyeOff, Building2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2, Clock, EyeOff, Building2, FastForward, X } from 'lucide-react';
 
 export default function Plots() {
   const [plots, setPlots] = useState([]);
@@ -18,6 +18,9 @@ export default function Plots() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
+  const [simulatingPlot, setSimulatingPlot] = useState(null);
+  const [simulatingLoading, setSimulatingLoading] = useState(false);
+  const [simFeedback, setSimFeedback] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -47,7 +50,8 @@ export default function Plots() {
             isPublished: p.isPublished,
             compatibleVarietiesCount: compatCount,
             crops: Array.isArray(p.crops) ? p.crops : [],
-            imageUrl: p.imageUrl
+            imageUrl: p.imageUrl,
+            activeRental: p.activeRental
           };
         }));
       })
@@ -88,6 +92,56 @@ export default function Plots() {
       setLoadError(e.message);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleSimulateTime = async (action, days = 7) => {
+    if (!simulatingPlot) return;
+    setSimulatingLoading(true);
+    setSimFeedback('');
+    try {
+      const res = await fetch(`/api/plots/${simulatingPlot.id}/simulate-time`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, days })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSimFeedback(data.message);
+        setSimulatingPlot((prev) => ({
+          ...prev,
+          activeRental: {
+            ...prev.activeRental,
+            currentDay: data.data.currentDay,
+            totalDays: data.data.totalDays,
+            progressPercent: data.data.progressPercent,
+            startDate: data.data.startDate
+          }
+        }));
+        setPlots((prev) => prev.map((p) => p.id === simulatingPlot.id ? {
+          ...p,
+          activeRental: {
+            ...p.activeRental,
+            currentDay: data.data.currentDay,
+            totalDays: data.data.totalDays,
+            progressPercent: data.data.progressPercent,
+            startDate: data.data.startDate
+          }
+        } : p));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('farmely_time_simulated'));
+          try {
+            localStorage.setItem('farmely_time_simulated_at', String(Date.now()));
+            localStorage.setItem('farmely_task_sync', String(Date.now()));
+          } catch {}
+        }
+      } else {
+        setSimFeedback(`Lỗi: ${data.message}`);
+      }
+    } catch (err) {
+      setSimFeedback(`Lỗi kết nối: ${err.message}`);
+    } finally {
+      setSimulatingLoading(false);
     }
   };
 
@@ -191,6 +245,41 @@ export default function Plots() {
           </Badge>
         );
       }
+    },
+    {
+      header: 'Tiến Trình Canh Tác (Demo)',
+      key: 'cultivation',
+      render: (row) => row.activeRental ? (
+        <div className="space-y-1 min-w-[145px]">
+          <div className="flex items-center justify-between gap-1 text-[11px]">
+            <span className="font-semibold text-stone-700 truncate max-w-[90px]" title={row.activeRental.varietyName}>
+              🌱 {row.activeRental.varietyName}
+            </span>
+            <span className="font-bold text-amber-700">
+              {row.activeRental.currentDay}/{row.activeRental.totalDays} ngày
+            </span>
+          </div>
+          <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${
+                row.activeRental.progressPercent >= 100 ? 'bg-emerald-500' : 'bg-amber-500'
+              }`}
+              style={{ width: `${Math.min(100, Math.max(5, row.activeRental.progressPercent))}%` }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => { setSimulatingPlot(row); setSimFeedback(''); }}
+            className="w-full inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition shadow-xs cursor-pointer"
+            title="Mở bộ giả lập thời gian canh tác (Time Simulator)"
+          >
+            <FastForward className="w-3 h-3 text-amber-700" />
+            Tua thời gian
+          </button>
+        </div>
+      ) : (
+        <span className="text-xs text-stone-400 italic">Đất trống</span>
+      )
     },
     {
       header: 'Hành Động',
@@ -343,6 +432,163 @@ export default function Plots() {
         title="Xác nhận xóa Thửa Đất"
         message="Hành động này sẽ gỡ bỏ thửa đất khỏi hệ thống. Chỉ cho phép nếu thửa đất chưa có hợp đồng Active."
       />
+
+      {/* MODAL GIẢ LẬP TIẾN ĐỘ THỜI GIAN CANH TÁC (TIME SIMULATOR FOR DEMO) */}
+      {simulatingPlot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-stone-200 space-y-4">
+            <div className="flex items-start justify-between border-b border-stone-200 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                  <FastForward className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-stone-900">
+                      Bộ Giả Lập Thời Gian Canh Tác
+                    </h3>
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-extrabold text-amber-800">
+                      DEMO MODE
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    Thửa {simulatingPlot.name} · {simulatingPlot.landName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setSimulatingPlot(null); setSimFeedback(''); }}
+                className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Thông tin tiến độ hiện tại */}
+            <div className="rounded-xl bg-stone-50 p-4 border border-stone-200 text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-stone-500">Giống cây trồng:</span>
+                <span className="font-bold text-stone-900">{simulatingPlot.activeRental?.varietyName || 'Chưa rõ'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Khách thuê:</span>
+                <span className="font-bold text-stone-900">{simulatingPlot.activeRental?.renterName || 'Khách hàng'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Chu kỳ chuẩn VietGAP:</span>
+                <span className="font-bold text-stone-900">{simulatingPlot.activeRental?.totalDays || 45} ngày</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-stone-200">
+                <span className="text-stone-500 font-medium">Tiến độ mô phỏng:</span>
+                <span className="text-sm font-extrabold text-amber-700">
+                  Ngày {simulatingPlot.activeRental?.currentDay || 0} / {simulatingPlot.activeRental?.totalDays || 45} ({simulatingPlot.activeRental?.progressPercent || 0}%)
+                </span>
+              </div>
+              <div className="w-full bg-stone-200 rounded-full h-2.5 overflow-hidden">
+                <div
+                  className="bg-brand-green h-full rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(100, Math.max(3, simulatingPlot.activeRental?.progressPercent || 0))}%` }}
+                />
+              </div>
+            </div>
+
+            {simFeedback && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{simFeedback}</span>
+              </div>
+            )}
+
+            {/* Các tùy chọn giả lập */}
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold text-stone-700 uppercase tracking-wider">
+                Chọn mốc thời gian muốn tua nhanh:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  disabled={simulatingLoading}
+                  onClick={() => handleSimulateTime('START_NOW')}
+                  className="flex flex-col items-start p-3 rounded-xl border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-300 transition text-left group cursor-pointer shadow-2xs"
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-stone-900 group-hover:text-emerald-700">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Bắt đầu ngay (Ngày 1)</span>
+                  </div>
+                  <span className="text-[11px] text-stone-500 mt-1">
+                    Bỏ 5 ngày chờ kỹ thuật, kích hoạt canh tác ngay hôm nay
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={simulatingLoading}
+                  onClick={() => handleSimulateTime('ADD_DAYS', 7)}
+                  className="flex flex-col items-start p-3 rounded-xl border border-stone-200 bg-white hover:bg-blue-50 hover:border-blue-300 transition text-left group cursor-pointer shadow-2xs"
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-stone-900 group-hover:text-blue-700">
+                    <FastForward className="w-3.5 h-3.5 text-blue-600" />
+                    <span>+7 Ngày (Tăng trưởng)</span>
+                  </div>
+                  <span className="text-[11px] text-stone-500 mt-1">
+                    Tua nhanh 1 tuần xem cây lớn và cập nhật task
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={simulatingLoading}
+                  onClick={() => handleSimulateTime('ADD_DAYS', 15)}
+                  className="flex flex-col items-start p-3 rounded-xl border border-stone-200 bg-white hover:bg-purple-50 hover:border-purple-300 transition text-left group cursor-pointer shadow-2xs"
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-stone-900 group-hover:text-purple-700">
+                    <FastForward className="w-3.5 h-3.5 text-purple-600" />
+                    <span>+15 Ngày (Ra hoa/kết trái)</span>
+                  </div>
+                  <span className="text-[11px] text-stone-500 mt-1">
+                    Đẩy tiến trình đến giai đoạn đậu quả VietGAP
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={simulatingLoading}
+                  onClick={() => handleSimulateTime('HARVEST')}
+                  className="flex flex-col items-start p-3 rounded-xl border border-amber-300 bg-amber-50/60 hover:bg-amber-100 transition text-left group cursor-pointer shadow-2xs"
+                >
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
+                    <span>🌾 Nhảy đến Thu Hoạch</span>
+                  </div>
+                  <span className="text-[11px] text-amber-700 mt-1">
+                    Đạt 100% ngày thu hoạch, mở nút Cân & Nghiệm thu
+                  </span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                disabled={simulatingLoading}
+                onClick={() => handleSimulateTime('RESET')}
+                className="w-full py-2 px-3 text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition text-center cursor-pointer border border-dashed border-stone-300"
+              >
+                🔄 Đặt lại tiến độ về Ngày 1
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-stone-200">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setSimulatingPlot(null); setSimFeedback(''); }}
+              >
+                Đóng
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
