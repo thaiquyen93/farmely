@@ -404,7 +404,7 @@ export default function ProcessTemplateDetail() {
         <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-3">
           <Sparkles className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
           <p className="text-xs text-amber-900 leading-relaxed">
-            <strong>Cơ chế tự động sinh việc (Auto-dispatch BR12):</strong> Khi khách hàng kích hoạt hợp đồng thuê thửa với giống này theo hình thức <em>Assisted-growing</em>, hệ thống sẽ tự động quét toàn bộ danh sách các bước dưới đây và sinh <strong>Care Task</strong> giao cho Chuyên viên lao động (CVLĐ) đúng vào ngày thứ <em>Day Offset</em> kể từ ngày bắt đầu vụ.
+            <strong>Cơ chế tự động sinh việc:</strong> Khi khách hàng kích hoạt hợp đồng thuê thửa với giống này theo hình thức <em>Assisted-growing</em>, hệ thống sẽ tự động quét toàn bộ danh sách các bước dưới đây và sinh <strong>Care Task</strong> giao cho Chuyên viên lao động (CVLĐ) đúng vào ngày thứ <em>Day Offset</em> kể từ ngày bắt đầu vụ.
           </p>
         </div>
       </div>
@@ -573,7 +573,7 @@ export default function ProcessTemplateDetail() {
                     <div className="pt-1 flex items-center justify-between text-[11px] text-brand-muted border-t border-stone-100">
                       <span className="flex items-center gap-1 text-emerald-800 font-semibold">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Nghiệm thu bắt buộc: Tải tối thiểu 1 ảnh minh chứng thực địa (BR15)
+                        Nghiệm thu bắt buộc: Tải tối thiểu 1 ảnh minh chứng thực địa
                       </span>
                       <span className="text-stone-400">Tự động đồng bộ Farm Diary sau khi duyệt</span>
                     </div>

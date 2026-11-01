@@ -553,7 +553,7 @@ export default function PlotRenewalModal({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block font-black uppercase tracking-wider text-stone-700">
-                  2. Chọn giống rau củ cho vụ kế tiếp (BR03):
+                  2. Chọn giống rau củ cho vụ kế tiếp:
                 </label>
                 <span className="text-[11px] font-medium text-emerald-700">
                   Đã kiểm tra tương thích thổ nhưỡng ✓

@@ -1252,8 +1252,8 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
         ELSE 0 
       END), 2) AS "refundAmount",
     CASE 
-      WHEN dates.start_date - cn.created_at::date >= 3 THEN 'Trước ngày bắt đầu ≥ 3 ngày: Khấu trừ 20%, hoàn trả 80% (Theo BR10)'
-      WHEN dates.start_date > cn.created_at::date THEN 'Trước ngày bắt đầu 1–2 ngày: Khấu trừ 50%, hoàn trả 50% (Theo BR10)'
+      WHEN dates.start_date - cn.created_at::date >= 3 THEN 'Trước ngày bắt đầu ≥ 3 ngày: Khấu trừ 20%, hoàn trả 80%'
+      WHEN dates.start_date > cn.created_at::date THEN 'Trước ngày bắt đầu 1–2 ngày: Khấu trừ 50%, hoàn trả 50%'
       ELSE 'Đã đến hoặc qua ngày bắt đầu canh tác: Khấu trừ 100%, không hoàn tiền'
     END AS "refundPolicyNote",
     TO_CHAR(cn.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt"
@@ -1408,7 +1408,7 @@ LIMIT 1;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-message: 'Đã nhận yêu cầu hủy hợp đồng, đang chờ quản trị viên phê duyệt theo chính sách BR10.',
+                message: 'Đã nhận yêu cầu hủy hợp đồng, đang chờ quản trị viên phê duyệt theo chính sách hoàn tiền.',
                 data: {
                   ...cancelData,
                   refundPercentage,
@@ -1442,17 +1442,17 @@ BEGIN
     SELECT contract_id INTO v_contract_id
     FROM contract_cancellations
     WHERE cancellation_id = ${cancellationId} AND status = 'PENDING';
-
-    IF v_contract_id IS NULL THEN
-        RAISE EXCEPTION 'Không tìm thấy yêu cầu hủy đang chờ duyệt';
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Yêu cầu hủy không tồn tại hoặc đã xử lý';
     END IF;
 
     SELECT total_amount INTO v_total_amount FROM contracts WHERE contract_id = v_contract_id;
     SELECT MIN(start_date) INTO v_start_date FROM rentals WHERE contract_id = v_contract_id;
 
-    IF v_start_date IS NOT NULL AND (v_start_date - CURRENT_DATE) >= 3 THEN
+    -- Tính tỷ lệ hoàn tiền theo chính sách
+    IF v_start_date - CURRENT_DATE >= 3 THEN
         v_refund_rate := 0.8;
-    ELSIF v_start_date IS NOT NULL AND (v_start_date - CURRENT_DATE) > 0 THEN
+    ELSIF v_start_date > CURRENT_DATE THEN
         v_refund_rate := 0.5;
     ELSE
         v_refund_rate := 0.0;
@@ -1460,41 +1460,41 @@ BEGIN
 
     v_refund_amount := ROUND(COALESCE(v_total_amount, 0) * v_refund_rate, 2);
 
-    -- 1. Cập nhật cancellation status -> APPROVED
+    -- 1. Cập nhật contract_cancellations
     UPDATE contract_cancellations
-    SET status = 'APPROVED'
+    SET status = 'APPROVED',
+        refund_amount = v_refund_amount,
+        processed_at = NOW()
     WHERE cancellation_id = ${cancellationId};
 
-    -- 2. Cập nhật contract status -> CANCELLED
+    -- 2. Cập nhật contracts
     UPDATE contracts
-    SET status = 'CANCELLED', updated_at = NOW()
+    SET status = 'CANCELLED',
+        updated_at = NOW()
     WHERE contract_id = v_contract_id;
 
-    -- 3. Cập nhật rentals status -> CANCELLED
+    -- 3. Cập nhật rentals
     UPDATE rentals
-    SET status = 'CANCELLED', updated_at = NOW()
+    SET status = 'CANCELLED',
+        updated_at = NOW()
     WHERE contract_id = v_contract_id;
 
-    -- 4. Chuyển các plots sang MAINTENANCE 4 ngày (BR23)
+    -- 4. Chuyển các plots sang MAINTENANCE 4 ngày
     UPDATE plots
-    SET status = 'MAINT', updated_at = NOW()
-    WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = v_contract_id);
+    SET status = 'MAINT',
+        is_published = false,
+        updated_at = NOW()
+    WHERE plot_id IN (
+        SELECT plot_id FROM rentals WHERE contract_id = v_contract_id
+    );
 
-    -- 4.1 Xóa sạch các tác vụ chăm sóc thực địa chưa hoàn thành của hợp đồng bị hủy
-    DELETE FROM care_tasks
-    WHERE rental_id IN (SELECT rental_id FROM rentals WHERE contract_id = v_contract_id)
-      AND status IN ('PENDING', 'IN_PROG');
-
-    -- 5. Ghi nhận giao dịch hoàn tiền nếu có refund_amount > 0
-    IF v_refund_amount > 0 THEN
-        INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status, created_at)
-        VALUES (v_contract_id, 'REFUND', v_refund_amount, 'VNPAY', 'REF-' || TO_CHAR(NOW(), 'YYYYMMDDHH24MISS'), 'SUCCESS', NOW());
-    END IF;
-
-    -- 6. Ghi log kiểm toán vận hành
-    INSERT INTO audit_logs (user_id, action, entity_name, entity_id, details, ip_address, created_at)
-    VALUES (1, 'APPROVE_CANCELLATION', 'contracts', v_contract_id::text, 
-      json_build_object('cancellationId', ${cancellationId}, 'refundRate', v_refund_rate, 'refundAmount', v_refund_amount), '127.0.0.1', NOW());
+    -- 5. Huỷ các care_tasks chưa hoàn thành
+    UPDATE care_tasks
+    SET status = 'CANCELLED',
+        updated_at = NOW()
+    WHERE rental_id IN (
+        SELECT rental_id FROM rentals WHERE contract_id = v_contract_id
+    ) AND status NOT IN ('COMPLETED', 'CANCELLED');
 END $$;
 `;
             await runPostgreSql(approveSql);
@@ -1502,7 +1502,7 @@ END $$;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
-              message: `Phê duyệt yêu cầu hủy #${cancellationId} thành công. Thửa đất đã chuyển sang bảo dưỡng 4 ngày (BR23).`
+              message: `Phê duyệt yêu cầu hủy #${cancellationId} thành công. Thửa đất đã chuyển sang bảo dưỡng 4 ngày.`
             }));
           } catch (err) {
             console.error('Error on POST /api/contracts/cancellations/:id/approve:', err);
@@ -1580,7 +1580,7 @@ LIMIT 1;
                   res.setHeader('Content-Type', 'application/json; charset=utf-8');
                   res.end(JSON.stringify({
                     success: false,
-                    message: `Giống cây '${varietyName}' không tương thích với thửa đất '${plotCode}' (Theo BR03)`
+                    message: `Giống cây '${varietyName}' không tương thích với thửa đất '${plotCode}'`
                   }));
                   return;
                 }
@@ -1730,7 +1730,7 @@ LIMIT 1;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: 'Tạo đơn giữ chỗ thành công (Hiệu lực 15 phút theo quy định BR08)',
+                message: 'Tạo đơn giữ chỗ thành công (Hiệu lực giữ chỗ 15 phút)',
                 data: {
                   contractId: createdData?.contractId || Date.now(),
                   contractNumber: createdData?.contractNumber || contractNumber,
@@ -1769,7 +1769,7 @@ WHERE contract_id = ${contractId};
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
-              message: 'Cộng thời gian ân hạn 10 phút thành công (BR08)',
+              message: 'Cộng thời gian ân hạn 10 phút thành công',
               data: { contractId }
             }));
           } catch (err) {
@@ -1838,7 +1838,7 @@ END $$;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
-              message: 'Kích hoạt hợp đồng và nhận bàn giao thửa đất thành công (BR09)',
+              message: 'Kích hoạt hợp đồng và nhận bàn giao thửa đất thành công',
               data: { contractId, status: 'ACTIVE' }
             }));
           } catch (err) {
@@ -3192,7 +3192,7 @@ FROM (
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: `Chuyên gia đã lưu cấu hình ${varietyIds.length} giống cây tương thích (BR03) cho thửa đất #${plotId}. Thửa đất đã sẵn sàng để Admin duyệt lên Marketplace!`,
+                message: `Chuyên gia đã lưu cấu hình ${varietyIds.length} giống cây tương thích cho thửa đất #${plotId}. Thửa đất đã sẵn sàng để Admin duyệt lên Marketplace!`,
                 data: { plotId, varietyIds }
               }));
             } catch (err) {
@@ -3884,7 +3884,7 @@ SELECT json_build_object(
               'method', CASE 
                 WHEN ts.task_type = 'SOIL_PREP' THEN 'Làm đất, đánh luống cao ráo & bón lót vi sinh Trichoderma'
                 WHEN ts.task_type = 'PLANTING' THEN 'Cấy cây con giống F1 đạt chuẩn tỷ lệ sống'
-                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo dữ liệu thời tiết Weather API (BR18)'
+                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo dữ liệu thời tiết Weather API'
                 WHEN ts.task_type = 'FERTILIZATION' THEN 'Bón thúc đạm hữu cơ vi sinh / phân trùn quế quanh tán'
                 WHEN ts.task_type = 'PEST_CONTROL' THEN 'Phun phòng sinh học tỏi ớt gừng / thảo mộc Matrine'
                 WHEN ts.task_type = 'PRUNING' THEN 'Cắm giàn cọc & tỉa chồi nách, cắt bỏ lá già chân'
@@ -3982,7 +3982,7 @@ SELECT json_build_object(
               'method', CASE 
                 WHEN ts.task_type = 'SOIL_PREP' THEN 'Làm đất, đánh luống cao ráo & bón lót vi sinh Trichoderma'
                 WHEN ts.task_type = 'PLANTING' THEN 'Cấy cây con giống F1 đạt chuẩn tỷ lệ sống'
-                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo dữ liệu thời tiết Weather API (BR18)'
+                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo dữ liệu thời tiết Weather API'
                 WHEN ts.task_type = 'FERTILIZATION' THEN 'Bón thúc đạm hữu cơ vi sinh / phân trùn quế quanh tán'
                 WHEN ts.task_type = 'PEST_CONTROL' THEN 'Phun phòng sinh học tỏi ớt gừng / thảo mộc Matrine'
                 WHEN ts.task_type = 'PRUNING' THEN 'Cắm giàn cọc & tỉa chồi nách, cắt bỏ lá già chân'
@@ -4888,7 +4888,7 @@ END $$;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: 'Gia hạn hợp đồng thuê thửa đất theo vụ mùa thành công (BR12)',
+                message: 'Gia hạn hợp đồng thuê thửa đất theo vụ mùa thành công',
                 data: { rentalId, newEndDate, additionalAmount }
               }));
             } catch (err) {
@@ -6798,7 +6798,7 @@ GROUP BY p.plot_id, p.plot_code;
               rainfallProbability: 85,
               windSpeed: 14.2,
               wateringPostponementRecommended: true,
-              recommendationMessage: 'Quy tắc BR18: Xác suất mưa dông đạt 85% chiều nay (kết hợp độ ẩm đất 76%). Hệ thống đề xuất tạm hoãn ca tưới 16:30 để tiết kiệm nước và phòng ngừa ngập úng gốc rễ.',
+              recommendationMessage: 'Xác suất mưa dông đạt 85% chiều nay (kết hợp độ ẩm đất 76%). Hệ thống đề xuất tạm hoãn ca tưới 16:30 để tiết kiệm nước và phòng ngừa ngập úng gốc rễ.',
               forecastDays: [
                 { date: '2026-10-21', dayOfWeek: 'Hôm nay', condition: 'Mưa dông chiều', iconCode: 'RAIN', minTemp: 26.0, maxTemp: 32.5, rainProb: 85 },
                 { date: '2026-10-22', dayOfWeek: 'Thứ Năm', condition: 'Nắng ráo gián đoạn', iconCode: 'PARTLY_CLOUDY', minTemp: 25.5, maxTemp: 34.0, rainProb: 40 },
@@ -6889,9 +6889,9 @@ GROUP BY p.plot_id, p.plot_code;
                 const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('xà lách') || item.title.toLowerCase().includes('rau')) || liveRagDocs[0];
                 if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94, fileUrl: d.file_url });
               } else if (lower.includes('độ ẩm') || lower.includes('ẩm đất') || lower.includes('tưới nước') || lower.includes('tưới bù') || lower.includes('mưa')) {
-                reply = 'Theo quy tắc vi khí hậu BR18 của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
+                reply = 'Theo quy chuẩn vi khí hậu của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
                 const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('vi khí hậu') || item.title.toLowerCase().includes('tbkt')) || liveRagDocs[1] || liveRagDocs[0];
-                if (d) docs.push({ docTitle: d.title, source: 'Tài liệu Vận hành Trạm IoT Farmely (BR18)', similarityScore: 0.96, fileUrl: d ? d.file_url : '/docs/rau_an_toan_vietgap_huyen.pdf' });
+                if (d) docs.push({ docTitle: d.title, source: 'Tài liệu Vận hành Trạm Khí Tượng Nông Nghiệp Farmely', similarityScore: 0.96, fileUrl: d ? d.file_url : '/docs/rau_an_toan_vietgap_huyen.pdf' });
               } else if (lower.includes('sâu') || lower.includes('rầy') || lower.includes('bọ trĩ') || lower.includes('ốc sên') || lower.includes('bệnh')) {
                 reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Đối với bọ trĩ và rầy mềm thì phun dung dịch tỏi ớt gừng lên men vi sinh hoặc dầu khoáng sinh học SK Enspray 99EC. Đối với ốc sên thì rải vỏ trứng vụn hoặc bẫy sinh học men bia quanh gốc cây.';
                 const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('ipm') || item.title.toLowerCase().includes('qlsb') || item.title.toLowerCase().includes('sâu')) || liveRagDocs[2] || liveRagDocs[0];
@@ -6899,7 +6899,7 @@ GROUP BY p.plot_id, p.plot_code;
               } else if (lower.includes('thuê') || lower.includes('hợp đồng') || lower.includes('giá') || lower.includes('gia hạn')) {
                 reply = 'Quy trình thuê đất tại Farmely: Bạn chọn thửa đất ưng ý trên Marketplace bản đồ vệ tinh, chọn giống rau và gói chăm sóc, thanh toán trực tuyến 100% qua VNPay/VietQR. Hợp đồng điện tử có hiệu lực ngay và bạn có thể gia hạn trước 3 ngày với chiết khấu từ 5% – 15%.';
                 const d = liveRagDocs.find(item => item.title.includes('VietGAP')) || liveRagDocs[0];
-                if (d) docs.push({ docTitle: d.title, source: 'Trung tâm Pháp lý & Hợp đồng Farmely (BR11, BR12)', similarityScore: 0.93, fileUrl: d.file_url });
+                if (d) docs.push({ docTitle: d.title, source: 'Trung tâm Pháp lý & Hợp đồng Farmely', similarityScore: 0.93, fileUrl: d.file_url });
               } else if (matchedDocs.length > 0) {
                 const top = matchedDocs[0];
                 reply = `Dựa trên cẩm nang kỹ thuật "${top.title}": ${top.content ? top.content.slice(0, 260) + '...' : 'Tài liệu hướng dẫn kỹ thuật canh tác chuẩn của nông trại Farmely.'}`;

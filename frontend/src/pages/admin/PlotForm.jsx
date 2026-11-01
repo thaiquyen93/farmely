@@ -250,11 +250,11 @@ export default function PlotForm() {
           <div className="flex items-center gap-2">
             <Sprout className="h-5 w-5 text-emerald-700 shrink-0" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-950">
-              Ma Trận Thổ Nhưỡng &amp; Giống Cây Trồng (Nghiệp Vụ Chuyên Môn Độc Quyền Của CGNN - BR03)
+              Ma Trận Thổ Nhưỡng &amp; Giống Cây Trồng (Nghiệp Vụ Chuyên Môn Độc Quyền Của CGNN)
             </h3>
           </div>
           <p className="text-xs text-emerald-900 leading-relaxed">
-            Theo nguyên tắc phân quyền và chuẩn SSoT (BR03 / BR24), <strong>Quản trị viên (Admin)</strong> chỉ quản trị các thông số hạ tầng vật lý (mã thửa, diện tích, giá thuê, ranh giới GIS). Việc khảo nghiệm thực địa thổ nhưỡng (loại đất, dải pH, độ mùn, tầng canh tác) và phê duyệt danh mục giống cây tương thích được thực hiện độc quyền bởi <strong>Chuyên Gia Nông Nghiệp (CGNN)</strong>.
+            Theo nguyên tắc phân quyền hệ thống, <strong>Quản trị viên (Admin)</strong> chỉ quản trị các thông số hạ tầng vật lý (mã thửa, diện tích, giá thuê, ranh giới GIS). Việc khảo nghiệm thực địa thổ nhưỡng (loại đất, dải pH, độ mùn, tầng canh tác) và phê duyệt danh mục giống cây tương thích được thực hiện độc quyền bởi <strong>Chuyên Gia Nông Nghiệp (CGNN)</strong>.
           </p>
           <div className="pt-1 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-300 text-xs font-bold text-emerald-800 shadow-2xs">

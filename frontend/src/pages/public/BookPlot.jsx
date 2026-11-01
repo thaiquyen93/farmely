@@ -996,7 +996,7 @@ export default function BookPlot() {
                 <Clock className="w-5 h-5 text-brand-yellow animate-pulse" />
                 <div>
                   <span className="text-[10px] text-stone-300 block font-bold uppercase tracking-wider">
-                    Khóa giữ chỗ 15 phút (BR08)
+                    Khóa giữ chỗ 15 phút
                   </span>
                   <span className="font-mono text-lg font-black text-brand-yellow">
                     {formattedTimer}
@@ -1008,7 +1008,7 @@ export default function BookPlot() {
                     onClick={handleExtendGracePeriod}
                     disabled={isExtendingGrace}
                     className="ml-2 px-2.5 py-1 text-[11px] font-bold bg-brand-yellow text-brand-dark rounded-lg hover:bg-yellow-400 transition-colors shadow-2xs flex items-center gap-1 cursor-pointer"
-                    title="Cộng thêm 10 phút ân hạn khi chuẩn bị thanh toán (BR08)"
+                    title="Cộng thêm 10 phút ân hạn khi chuẩn bị thanh toán"
                   >
                     {isExtendingGrace ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                     <span>+10p Ân Hạn</span>
@@ -1457,7 +1457,7 @@ export default function BookPlot() {
                             </label>
                             {pMinMonths > 1 && (
                               <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                Tối thiểu {pMinMonths} tháng (BR04)
+                                Tối thiểu {pMinMonths} tháng
                               </span>
                             )}
                           </div>
@@ -1486,7 +1486,7 @@ export default function BookPlot() {
                                   }`}
                                 >
                                   <div className="text-xs font-bold">{opt.label}</div>
-                                  <div className="text-[9px] text-stone-400 mt-0.5">{isDisabled ? 'Khóa BR04' : opt.tag}</div>
+                                  <div className="text-[9px] text-stone-400 mt-0.5">{isDisabled ? 'Chu kỳ dài' : opt.tag}</div>
                                 </button>
                               );
                             })}

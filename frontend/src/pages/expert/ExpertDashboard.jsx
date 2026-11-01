@@ -1559,7 +1559,7 @@ export default function ExpertDashboard() {
 
             {[
               { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
-              { id: 'plots', label: 'Thửa Đất Giám Sát (BR24)', icon: Layers, count: assignedPlots.length },
+              { id: 'plots', label: 'Thửa Đất Giám Sát', icon: Layers, count: assignedPlots.length },
               { id: 'issues', label: 'Xử Lý Sự Cố Hiện Trường', icon: AlertTriangle, count: fieldIssues.filter(i => i.status === 'PENDING' || i.status === 'OPEN').length },
               { id: 'crops', label: 'Danh Mục Cây Trồng (Crops)', icon: Sprout, count: null },
               { id: 'varieties', label: 'Giống Cây Trồng (Varieties)', icon: Wheat, count: null },
@@ -2188,7 +2188,7 @@ export default function ExpertDashboard() {
                           <div>
                             <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Vi Khí Hậu:</span>
                             <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
-                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu ẩm &gt;= 80% (BR18)</span>
+                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu độ ẩm &gt;= 80%</span>
                           </div>
                         </div>
 
@@ -2212,12 +2212,12 @@ export default function ExpertDashboard() {
               </div>
             )}
 
-            {/* TAB 2: FIELD ISSUES (Chẩn đoán sự cố hiện trường do công nhân gửi - UC12 / UC48) */}
+            {/* TAB 2: FIELD ISSUES (Chẩn đoán sự cố hiện trường do công nhân gửi) */}
             {activeTab === 'issues' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div>
                   <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Xử Lý Báo Cáo Sự Cố Hiện Trường (UC12 / UC48)
+                    Xử Lý Báo Cáo Sự Cố Hiện Trường
                   </h3>
                   <p className="text-xs text-brand-muted mt-0.5">
                     Tiếp nhận ảnh chụp và phản ánh từ Chuyên viên lao động hiện trường để chẩn đoán sâu và ban hành chỉ đạo can thiệp kỹ thuật.
@@ -2354,13 +2354,13 @@ export default function ExpertDashboard() {
               </div>
             )}
 
-            {/* TAB 3: VIETGAP PROCESS TEMPLATES (Quản lý Phác đồ canh tác chuẩn VietGAP - UC09) */}
+            {/* TAB 3: VIETGAP PROCESS TEMPLATES (Quản lý Phác đồ canh tác chuẩn VietGAP) */}
             {activeTab === 'templates' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Quy Trình Canh Tác Chuẩn VietGAP (UC09)
+                      Quy Trình Canh Tác Chuẩn VietGAP
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh mục phác đồ tiêu chuẩn cho từng giống cây, phân định ngày tuổi, mốc bón phân vi sinh và cách ly an toàn.
@@ -3259,7 +3259,7 @@ export default function ExpertDashboard() {
                       <Camera className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden="true" />
                       Minh chứng thực địa từ hiện trường
                     </span>
-                    <span className="text-[11px] text-stone-200">BR16</span>
+                    <span className="text-[11px] text-stone-200">Ảnh hiện trường</span>
                   </div>
                 </div>
 
@@ -3502,7 +3502,7 @@ export default function ExpertDashboard() {
       <Modal
         isOpen={isCreateTemplateOpen}
         onClose={() => setIsCreateTemplateOpen(false)}
-        title="Soạn Thảo Quy Trình Canh Tác Chuẩn VietGAP (UC23)"
+        title="Soạn Thảo Quy Trình Canh Tác Chuẩn VietGAP"
         subtitle="Ban hành quy trình kỹ thuật mới cho nông trại Farmely"
       >
         <form onSubmit={handleCreateTemplate} className="space-y-3.5 text-xs text-left max-h-[75vh] overflow-y-auto pr-1">

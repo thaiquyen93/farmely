@@ -50,6 +50,7 @@ import {
   Gauge
 } from 'lucide-react';
 import { recordStaffActivity, resolveStandardCropProcess } from '../../services/cropStandardProcess';
+import { shouldShowExpertNote, splitLeadingTag, formatAgendaDate, groupTasksByDueDate } from '../../utils/staffTaskDisplay';
 
 
 
@@ -175,6 +176,157 @@ const getTaskTimingMeta = (task) => {
   };
 };
 
+const isTaskToday = (t) => {
+  if (t.status === 'COMPLETED') return false;
+  const rawDate = t.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(t.deadline || '') ? t.deadline : null);
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+  if (rawDate && rawDate > todayStr) return false;
+  const meta = getTaskTimingMeta(t);
+  return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
+};
+
+const isHarvestTaskTitle = (title) => /thu hoạch|cân|đóng thùng/i.test(title);
+
+// Left accent + status word for a task card. Default "Hôm nay" shows no status word.
+const getTaskCardAccent = (task, variant) => {
+  if (variant === 'done') return { border: 'border-l-emerald-300', dot: 'bg-emerald-500', label: null };
+  if (variant === 'upcoming') return { border: 'border-l-stone-300', dot: 'bg-stone-400', label: null };
+  const timing = getTaskTimingMeta(task);
+  if (timing.key === 'URGENT') return { border: 'border-l-rose-500', dot: 'bg-rose-500', label: 'Khẩn cấp', text: 'text-rose-700' };
+  if (timing.key === 'OVERDUE') return { border: 'border-l-rose-500', dot: 'bg-rose-500', label: 'Quá hạn', text: 'text-rose-700' };
+  if (task.status === 'IN_PROGRESS') return { border: 'border-l-sky-500', dot: 'bg-sky-500', label: 'Đang làm trong ca', text: 'text-sky-700' };
+  if (timing.label === 'Ưu tiên hôm nay') return { border: 'border-l-amber-400', dot: 'bg-amber-500', label: 'Ưu tiên hôm nay', text: 'text-amber-800' };
+  return { border: 'border-l-emerald-500', dot: 'bg-emerald-500', label: null };
+};
+
+function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onToggleExpand, fallbackWorker }) {
+  const { tag, text: titleText } = splitLeadingTag(task.title);
+  const accent = getTaskCardAccent(task, variant);
+  const isDone = variant === 'done';
+  const isHarvest = isHarvestTaskTitle(task.title);
+  const dayAge = task.cropDay || task.dayOffset;
+  const description = task.instructions || '';
+  const isLong = description.length > 120;
+  const showNote = !isDone && shouldShowExpertNote(task.notes, description);
+  const metaParts = [dayAge ? `Ngày tuổi ${dayAge}` : null, task.workerName || fallbackWorker].filter(Boolean);
+  const timeLabel = isDone ? (task.completedAt || '—') : (task.deadline || '—');
+
+  const handleKey = (e) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onOpenDetail(task);
+    }
+  };
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpenDetail(task)}
+      onKeyDown={handleKey}
+      className={`group flex flex-wrap items-start gap-3 rounded-xl border border-stone-200 border-l-4 ${accent.border} ${isDone ? 'bg-white/70' : variant === 'upcoming' ? 'bg-stone-50/60' : 'bg-white shadow-2xs'} p-3 transition hover:border-stone-300 hover:shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 cursor-pointer sm:flex-nowrap sm:items-center`}
+    >
+      <div className={`w-14 shrink-0 pt-0.5 font-mono text-xs font-bold ${isDone ? 'text-stone-400' : 'text-stone-700'}`}>
+        {isDone ? <Check className="mb-0.5 h-3.5 w-3.5 text-emerald-600" /> : null}
+        {timeLabel}
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {tag ? (
+            <span className="rounded-md bg-stone-100 px-1.5 py-0.5 text-[10px] font-bold text-stone-600">
+              {tag.charAt(0).toUpperCase() + tag.slice(1).toLowerCase()}
+            </span>
+          ) : null}
+          <h5 className={`font-heading text-sm ${isDone ? 'font-bold text-stone-500' : 'font-black text-stone-900 group-hover:text-emerald-900'}`}>
+            {titleText || task.title}
+          </h5>
+        </div>
+
+        <p className="flex items-center gap-1.5 truncate text-[11px] text-stone-500">
+          {accent.label ? (
+            <>
+              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${accent.dot}`} />
+              <span className={`font-bold ${accent.text}`}>{accent.label}</span>
+              {metaParts.length ? <span className="text-stone-300">·</span> : null}
+            </>
+          ) : null}
+          <span className="truncate">{isDone ? `Nghiệm thu: ${task.workerName || fallbackWorker}` : metaParts.join(' · ')}</span>
+        </p>
+
+        {!isDone && description ? (
+          <div className="text-xs leading-relaxed text-stone-600">
+            <p className={isExpanded ? '' : 'line-clamp-2'}>{description}</p>
+            {isLong ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleExpand(task.id);
+                }}
+                className="mt-0.5 text-[11px] font-bold text-emerald-700 hover:underline"
+              >
+                {isExpanded ? 'Thu gọn' : 'Xem thêm'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {showNote ? (
+          <p className="flex items-center gap-1 truncate text-[11px] text-amber-800">
+            <BookOpen className="h-3 w-3 shrink-0" />
+            <span className="font-bold">CGNN:</span>
+            <span className="truncate">{task.notes}</span>
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
+        {variant === 'today' ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onExecute(task);
+            }}
+            title={isHarvest ? 'Mở màn thu hoạch' : 'Nghiệm thu & chụp ảnh minh chứng'}
+            className="flex-1 sm:flex-none"
+          >
+            {isHarvest ? <Scale className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />}
+            <span>{isHarvest ? 'Thu hoạch' : 'Nghiệm thu'}</span>
+          </Button>
+        ) : variant === 'upcoming' ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onExecute(task);
+            }}
+            title="Thực hiện sớm và nghiệm thu"
+            className="flex-1 border border-stone-200 text-stone-600 hover:text-emerald-800 sm:flex-none"
+          >
+            Làm sớm
+          </Button>
+        ) : task.proofPhoto ? (
+          <img
+            src={task.proofPhoto}
+            alt="Ảnh nghiệm thu"
+            className="h-10 w-10 cursor-pointer rounded-lg border border-emerald-200 object-cover transition hover:scale-105"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(task.proofPhoto, '_blank');
+            }}
+          />
+        ) : null}
+        <ChevronRight aria-label="Chi tiết" className="hidden h-4 w-4 shrink-0 text-stone-300 group-hover:text-emerald-700 sm:block" />
+      </div>
+    </div>
+  );
+}
+
 const issueStatusMeta = (issue) => {
   if (issue.status === 'RESOLVED') return { key: 'CLOSED', label: 'Đã đóng', tone: 'bg-emerald-100 text-emerald-800' };
   if (issue.expertAdvice && !issue.expertAdvice.startsWith('Đang chờ')) return { key: 'ASSIGNED', label: 'Đã giao việc', tone: 'bg-amber-100 text-amber-800' };
@@ -194,7 +346,7 @@ const formatCleanArea = (val) => {
   return num ? `${num} m²` : '—';
 };
 
-function IssueHistory({ issues, filter, onFilter, search, onSearch, selectedIssue, onSelect, onOpenTask }) {
+function IssueHistory({ issues, filter, onFilter, search, onSearch, selectedIssue, onSelect, onOpenTask, onCreate }) {
   const normalizedSearch = search.trim().toLowerCase();
   const visibleIssues = issues.filter((issue) => {
     const status = issueStatusMeta(issue).key;
@@ -210,7 +362,15 @@ function IssueHistory({ issues, filter, onFilter, search, onSearch, selectedIssu
           <label className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Tìm theo mã báo cáo, nội dung, thửa đất..." className="w-full rounded-xl border border-brand-border py-3 pl-10 pr-3 text-sm outline-none focus:border-emerald-500" /></label>
           <div className="flex gap-2 overflow-x-auto pb-1">{filters.map(([key, label]) => <button key={key} type="button" onClick={() => onFilter(key)} className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold ${filter === key ? 'bg-[#07533d] text-white' : 'bg-stone-100 text-stone-600'}`}>{label}</button>)}</div>
         </div>
-        <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800">Để báo sự cố mới, mở thửa đất liên quan trong Việc hôm nay.</div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800">
+          <span>Phát hiện bất thường tại thửa đất? Gửi báo cáo kèm ảnh cho CGNN.</span>
+          {onCreate ? (
+            <button type="button" onClick={onCreate} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-50">
+              <PlusCircle className="h-3.5 w-3.5" />
+              Báo sự cố mới
+            </button>
+          ) : null}
+        </div>
         <div className="mt-4 space-y-3">
           {visibleIssues.length === 0 ? <div className="rounded-2xl border border-dashed border-brand-border p-10 text-center text-sm text-brand-muted">Không có báo cáo phù hợp bộ lọc.</div> : visibleIssues.map((issue) => {
             const meta = issueStatusMeta(issue);
@@ -261,6 +421,16 @@ export default function FieldWorkerDashboard() {
   const [serviceStatusFilter, setServiceStatusFilter] = useState('ALL');
   const [plotModalTab, setPlotModalTab] = useState('tasks');
   const [plotTaskFilter, setPlotTaskFilter] = useState('ALL');
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+  const [expandedTaskIds, setExpandedTaskIds] = useState(() => new Set());
+  const toggleTaskExpanded = (taskId) => {
+    setExpandedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
   const [isUpdatingService, setIsUpdatingService] = useState(false);
 
   // Assigned care tasks loaded from the cultivation service.
@@ -965,6 +1135,17 @@ export default function FieldWorkerDashboard() {
     setDataSuccess('Đã lưu hình ảnh, số cân và người ghi nhận thu hoạch tại thửa.');
   };
 
+  const handleExecuteTask = (task) => {
+    if (isHarvestTaskTitle(task.title)) {
+      const hItem = harvestWorkItems.find((item) => item.plotCode === task.plotCode);
+      setSelectedPlotModalCode(null);
+      if (hItem) openHarvestWorkspace(hItem);
+      else handleTaskAction(task);
+    } else {
+      handleTaskAction(task);
+    }
+  };
+
   const completedCount = tasks.filter((t) => t.status === 'COMPLETED').length;
   const pendingCount = tasks.length - completedCount;
   const overdueCount = tasks.filter((task) => task.status === 'OVERDUE').length;
@@ -1144,6 +1325,18 @@ export default function FieldWorkerDashboard() {
     ...harvestTasks.filter((item) => !candidateRentalIds.has(item.rentalId))
   ];
 
+  // Sidebar badge counts (display only)
+  const todayActionableCount = tasks.filter(isTaskToday).length;
+  const overdueTodayCount = tasks.filter((t) => isTaskToday(t) && ['OVERDUE', 'URGENT'].includes(getTaskTimingMeta(t).key)).length;
+  const servicesOpenCount = serviceRequests.filter((s) => s.status !== 'DONE' && s.status !== 'COMPLETED').length;
+  const servicesAwaitingAcceptCount = serviceRequests.filter((s) => ['PENDING', 'PAID', 'ASSIGNED'].includes(s.status)).length;
+  const harvestOpenCount = harvestWorkItems.filter((h) => h.status !== 'COMPLETED').length;
+  const openIssueCount = myIssues.filter((i) => issueStatusMeta(i).key !== 'CLOSED').length;
+  const openNewIssueModal = () => {
+    setNewIssuePlot(newIssuePlot || plotSummaryList[0]?.plotCode || '');
+    setShowNewIssueModal(true);
+  };
+
   useEffect(() => {
     if (!harvestWorkItems.length) {
       setSelectedHarvestTask(null);
@@ -1162,7 +1355,7 @@ export default function FieldWorkerDashboard() {
           <div>
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />Ca trực hiện trường</div>
             <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">
-              {activeTab === 'tasks' ? 'Việc hôm nay' : activeTab === 'services' ? 'Yêu cầu dịch vụ' : activeTab === 'harvest' ? 'Thu hoạch' : 'Lịch sử báo cáo'}
+              {activeTab === 'tasks' ? 'Thửa đất phụ trách' : activeTab === 'services' ? 'Yêu cầu dịch vụ' : activeTab === 'harvest' ? 'Thu hoạch' : 'Lịch sử báo cáo'}
             </h1>
             <p className="mt-1 text-xs text-brand-muted">
               {activeTab === 'tasks'
@@ -1206,7 +1399,7 @@ export default function FieldWorkerDashboard() {
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-2xs">
               <span className="block text-xs font-bold text-amber-800 uppercase tracking-wider">Cần làm hôm nay</span>
-              <strong className="font-heading text-2xl font-black text-amber-900 mt-1 block">{pendingCount}</strong>
+              <strong className="font-heading text-2xl font-black text-amber-900 mt-1 block">{todayActionableCount}</strong>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-2xs">
               <span className="block text-xs font-bold text-emerald-800 uppercase tracking-wider">Đã nghiệm thu</span>
@@ -1248,43 +1441,71 @@ export default function FieldWorkerDashboard() {
           {/* Worker Menu */}
           <div className="hidden lg:block">
           <DashboardRail user={user} fallbackName="Trần Văn Lực" roleLabel="Nhân sự hiện trường" collapsed={sidebarCollapsed} setCollapsed={setSidebarCollapsed}>
-            <div className={`px-2 pb-2 text-xs font-bold text-emerald-100/70 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Nghiệp Vụ Hiện Trường</div>
-
-            {[
-              { id: 'tasks', label: 'Việc hôm nay', icon: CheckCircle2, count: pendingCount },
-              { id: 'services', label: 'Yêu cầu dịch vụ', icon: ShoppingBag, count: serviceRequests.filter(s => s.status !== 'DONE' && s.status !== 'COMPLETED').length },
-              { id: 'harvest', label: 'Thu hoạch & đóng gói', icon: PackageCheck, count: harvestWorkItems.filter(h => h.status !== 'COMPLETED').length },
-              { id: 'issues', label: 'Báo cáo sự cố', icon: AlertTriangle, count: myIssues.length }
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  title={sidebarCollapsed ? tab.label : undefined}
-                  aria-label={sidebarCollapsed ? tab.label : undefined}
-                  className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
-                    isActive
-                      ? 'bg-white text-[#064b37] shadow-sm'
-                      : 'text-emerald-50 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-700' : 'text-emerald-100/80'}`} />
-                    <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{tab.label}</span>
-                  </div>
-                  {tab.count !== null && tab.count > 0 && (
-                    <span className={`${sidebarCollapsed ? 'lg:hidden' : ''} px-2 py-0.5 rounded-full text-xs font-bold ${
-                      isActive ? 'bg-brand-yellow text-brand-dark' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                  {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">{tab.label}</span>}
-                </button>
+            {(() => {
+              const badgeTones = {
+                urgent: { pill: 'bg-rose-500 text-white', dot: 'bg-rose-400' },
+                action: { pill: 'bg-amber-400/90 text-brand-dark', dot: 'bg-amber-300' },
+                info: { pill: 'bg-white/15 text-emerald-50', dot: null }
+              };
+              const groupHeader = (label) => (
+                <div className={`px-2 pb-1.5 pt-3 text-[11px] font-bold uppercase tracking-wider text-emerald-100/60 first:pt-0 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>{label}</div>
               );
-            })}
+              const renderNavItem = (tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                const tone = badgeTones[tab.tone] || badgeTones.info;
+                const hasCount = tab.count > 0;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    aria-label={sidebarCollapsed ? tab.label : undefined}
+                    className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
+                      isActive ? 'bg-white/[0.12] text-white' : 'text-emerald-50/90 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    {isActive && <span aria-hidden="true" className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-brand-yellow" />}
+                    <div className="relative flex items-center gap-2.5">
+                      <Icon className={`w-4 h-4 ${isActive ? 'text-brand-yellow' : 'text-emerald-100/80'}`} />
+                      {sidebarCollapsed && hasCount && tone.dot && <span aria-hidden="true" className={`absolute -right-1 -top-1 hidden h-2 w-2 rounded-full ring-2 ring-[#064b37] lg:block ${tone.dot}`} />}
+                      <span className={sidebarCollapsed ? 'lg:hidden' : ''}>{tab.label}</span>
+                    </div>
+                    {hasCount && (
+                      <span title={tab.countTitle} className={`${sidebarCollapsed ? 'lg:hidden' : ''} min-w-6 px-2 py-0.5 rounded-full text-center text-xs font-bold ${tone.pill}`}>
+                        {tab.count}
+                      </span>
+                    )}
+                    {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">{tab.label}{hasCount ? ` · ${tab.count}` : ''}</span>}
+                  </button>
+                );
+              };
+
+              return (
+                <div className="flex flex-col gap-0.5">
+                  {groupHeader('Công việc')}
+                  {[
+                    { id: 'tasks', label: 'Thửa đất phụ trách', icon: Layers, count: todayActionableCount, tone: overdueTodayCount > 0 ? 'urgent' : todayActionableCount > 0 ? 'action' : 'info', countTitle: `${todayActionableCount} việc cần làm hôm nay` },
+                    { id: 'services', label: 'Yêu cầu dịch vụ', icon: ShoppingBag, count: servicesOpenCount, tone: servicesAwaitingAcceptCount > 0 ? 'action' : 'info', countTitle: servicesAwaitingAcceptCount > 0 ? `${servicesAwaitingAcceptCount} yêu cầu chờ tiếp nhận` : `${servicesOpenCount} yêu cầu chưa hoàn tất` },
+                    { id: 'harvest', label: 'Thu hoạch', icon: PackageCheck, count: harvestOpenCount, tone: 'info', countTitle: `${harvestOpenCount} thửa chưa ghi nhận thu hoạch` }
+                  ].map(renderNavItem)}
+
+                  {groupHeader('Sự cố hiện trường')}
+                  <button
+                    type="button"
+                    onClick={openNewIssueModal}
+                    aria-label={sidebarCollapsed ? 'Báo sự cố mới' : undefined}
+                    className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2.5 cursor-pointer border border-amber-300/40 text-amber-100 hover:bg-amber-300/10 ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''}`}
+                  >
+                    <PlusCircle className="w-4 h-4 text-amber-200" />
+                    <span className={sidebarCollapsed ? 'lg:hidden' : ''}>Báo sự cố mới</span>
+                    {sidebarCollapsed && <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-brand-dark px-3 py-2 text-xs text-white shadow-lg group-hover:lg:block">Báo sự cố mới</span>}
+                  </button>
+                  {renderNavItem({ id: 'issues', label: 'Lịch sử báo cáo', icon: FileText, count: openIssueCount, tone: 'info', countTitle: `${openIssueCount} báo cáo chưa đóng` })}
+                </div>
+              );
+            })()}
           </DashboardRail>
           </div>
 
@@ -1302,7 +1523,7 @@ export default function FieldWorkerDashboard() {
                         <span>Thửa đất phụ trách ca trực</span>
                       </h3>
                       <p className="text-xs text-stone-500">
-                        Bấm vào từng thửa đất để mở cửa sổ popup chi tiết công việc cần làm hôm nay, thực hiện nghiệm thu (BR15) hoặc báo sự cố (BR16).
+                        Bấm vào từng thửa đất để mở cửa sổ popup chi tiết công việc cần làm hôm nay, thực hiện nghiệm thu hoặc báo sự cố.
                       </p>
                     </div>
                     <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">
@@ -1628,6 +1849,7 @@ export default function FieldWorkerDashboard() {
                 onSearch={setIssueSearch}
                 selectedIssue={selectedIssue}
                 onSelect={setSelectedIssue}
+                onCreate={openNewIssueModal}
                 onOpenTask={(issue) => {
                   const issueKey = issue.id || `ISS-${issue.apiId}`;
                   const linked = tasks.find(
@@ -1786,15 +2008,6 @@ export default function FieldWorkerDashboard() {
         const plotTasks = activePlot.tasks || [];
         const completedTasks = plotTasks.filter((t) => t.status === 'COMPLETED');
         const pendingTasks = plotTasks.filter((t) => t.status !== 'COMPLETED');
-
-        const isTaskToday = (t) => {
-          if (t.status === 'COMPLETED') return false;
-          const rawDate = t.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(t.deadline || '') ? t.deadline : null);
-          const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-          if (rawDate && rawDate > todayStr) return false;
-          const meta = getTaskTimingMeta(t);
-          return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
-        };
 
         const todayTasks = pendingTasks.filter(isTaskToday);
         const upcomingTasks = pendingTasks.filter((t) => !isTaskToday(t));
@@ -1957,339 +2170,149 @@ export default function FieldWorkerDashboard() {
                 </div>
               </div>
 
-              {/* SUBTAB 1: CÔNG VIỆC (TASKS) */}
-              {plotModalTab === 'tasks' && (
-                <div className="space-y-4">
-                  {/* Thanh bộ lọc con cho Công việc */}
-                  <div className="flex items-center justify-between gap-3 flex-wrap border-b border-stone-200/80 pb-2.5">
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                      {[
-                        { id: 'ALL', label: `Tất cả (${plotTasks.length})` },
-                        { id: 'TODAY', label: `🔥 Việc hôm nay (${todayTasks.length})`, highlight: todayTasks.length > 0 },
-                        { id: 'UPCOMING', label: `⏳ Kế hoạch sắp tới (${upcomingTasks.length})` },
-                        { id: 'COMPLETED', label: `✅ Đã nghiệm thu (${completedTasks.length})` }
-                      ].map((chip) => (
-                        <button
-                          key={chip.id}
-                          type="button"
-                          onClick={() => setPlotTaskFilter(chip.id)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                            plotTaskFilter === chip.id
-                              ? 'bg-[#07533d] text-white shadow-xs'
-                              : chip.highlight
-                              ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
-                              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                          }`}
-                        >
-                          <span>{chip.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <span className="text-[11px] text-stone-500 font-medium hidden sm:inline-block">
-                      💡 Bấm vào từng nhiệm vụ để xem chi tiết &amp; chỉ đạo CGNN
-                    </span>
+              {/* SUBTAB 1: CÔNG VIỆC (TASKS) - agenda: Hôm nay / Sắp tới (theo ngày) / Đã nghiệm thu */}
+              {plotModalTab === 'tasks' && (() => {
+                const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+                const todayLabel = `${todayStr.slice(8, 10)}/${todayStr.slice(5, 7)}`;
+                const isAll = plotTaskFilter === 'ALL';
+                const upcomingGroups = groupTasksByDueDate(upcomingTasks);
+                const visibleUpcomingGroups = isAll ? upcomingGroups.slice(0, 3) : upcomingGroups;
+                const hiddenUpcomingCount = upcomingTasks.length - visibleUpcomingGroups.reduce((sum, group) => sum + group.tasks.length, 0);
+                const completedOpen = plotTaskFilter === 'COMPLETED' || showCompletedTasks;
+                const fallbackWorker = user?.fullName || 'Trần Văn Lực (CVLĐ)';
+                const renderCard = (task, variant) => (
+                  <PlotTaskCard
+                    key={task.id}
+                    task={task}
+                    variant={variant}
+                    onOpenDetail={setSelectedTaskDetail}
+                    onExecute={handleExecuteTask}
+                    isExpanded={expandedTaskIds.has(task.id)}
+                    onToggleExpand={toggleTaskExpanded}
+                    fallbackWorker={fallbackWorker}
+                  />
+                );
+                const sectionHeader = (label, accent) => (isAll ? (
+                  <div className="flex items-center gap-2 pb-0.5">
+                    <span className={`h-2 w-2 rounded-full ${accent}`} />
+                    <h4 className="text-[11px] font-black uppercase tracking-wider text-stone-500">{label}</h4>
                   </div>
+                ) : null);
+                const emptyLine = (text) => (
+                  <p className="rounded-xl border border-dashed border-stone-200 px-3 py-3 text-center text-xs text-stone-400">{text}</p>
+                );
+                const dateGroupLabel = (group) => {
+                  const base = group.date ? formatAgendaDate(group.date) : 'Chưa xếp ngày';
+                  const ages = new Set(group.tasks.map((t) => t.cropDay || t.dayOffset || null));
+                  const [age] = [...ages];
+                  return ages.size === 1 && age ? `${base} · Ngày tuổi ${age}` : base;
+                };
+                const chips = [
+                  { id: 'ALL', label: 'Tất cả', count: plotTasks.length },
+                  { id: 'TODAY', label: 'Hôm nay', count: todayTasks.length, emphasize: true },
+                  { id: 'UPCOMING', label: 'Sắp tới', count: upcomingTasks.length },
+                  { id: 'COMPLETED', label: 'Đã nghiệm thu', count: completedTasks.length }
+                ];
 
-                  {/* PHẦN 1: 🔥 VIỆC CẦN LÀM HÔM NAY */}
-                  {(plotTaskFilter === 'ALL' || plotTaskFilter === 'TODAY') && (
-                    <div className="space-y-2.5">
-                      {todayTasks.length > 0 ? (
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
-                            <Flame className="w-4 h-4 text-amber-600" />
-                            <span>Việc Cần Thực Hiện Hôm Nay ({todayTasks.length})</span>
-                          </h4>
-                          <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
-                            Ưu tiên ca trực
-                          </span>
-                        </div>
-                      ) : plotTaskFilter === 'TODAY' ? (
-                        <div className="p-4 text-center bg-emerald-50/60 rounded-xl border border-emerald-200 text-xs text-emerald-800 flex items-center justify-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          <span>Hôm nay không có việc tồn đọng tại thửa này.</span>
-                        </div>
-                      ) : null}
-
-                      {todayTasks.length > 0 && (
-                        <div className="grid gap-2.5">
-                          {todayTasks.map((task) => {
-                            const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(task.title);
-                            const timing = getTaskTimingMeta(task);
-
-                            return (
-                              <div
-                                key={task.id}
-                                onClick={() => setSelectedTaskDetail(task)}
-                                className="p-3.5 rounded-2xl border-2 border-amber-300 bg-amber-50/20 hover:border-emerald-500 hover:bg-white hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer group"
-                              >
-                                <div className="space-y-1.5 min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${timing.tone}`}>
-                                      <span className={`h-1.5 w-1.5 rounded-full ${timing.dot}`} />
-                                      {timing.label}
-                                    </span>
-                                    {(task.cropDay || task.dayOffset) ? (
-                                      <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300">
-                                        Ngày tuổi {task.cropDay || task.dayOffset}
-                                      </span>
-                                    ) : null}
-                                    <span className="text-xs font-semibold text-stone-600">
-                                      ⏰ {task.deadline || '08:30 AM'}
-                                    </span>
-                                    {task.dueDate && (
-                                      <span className="text-xs font-mono font-bold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-200">
-                                        📅 {formatDateVN(task.dueDate)}
-                                      </span>
-                                    )}
-                                    {task.workerName && (
-                                      <span className="text-[11px] text-stone-500 font-medium">
-                                        👤 {task.workerName}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <h5 className="font-heading font-black text-sm text-stone-900 group-hover:text-emerald-900 transition-colors">
-                                    {task.title}
-                                  </h5>
-
-                                  <p className="text-xs text-stone-600 leading-relaxed line-clamp-2">
-                                    <span className="font-semibold text-stone-700">VietGAP: </span>
-                                    {task.instructions}
-                                  </p>
-
-                                  {task.notes && (
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-100/90 px-2.5 py-1 rounded-lg border border-amber-300">
-                                      <span className="text-amber-800">👨‍🌾 Lưu ý CGNN:</span>
-                                      <span className="font-normal truncate max-w-[360px]">{task.notes}</span>
-                                      <span className="text-[11px] underline text-amber-800 ml-auto shrink-0">Chi tiết &gt;</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedTaskDetail(task);
-                                    }}
-                                    className="px-3 py-2 rounded-xl text-xs font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-200 flex items-center gap-1 transition-colors cursor-pointer"
-                                  >
-                                    <FileText className="w-3.5 h-3.5 text-stone-500" />
-                                    <span>Chi tiết</span>
-                                  </button>
-
-                                  <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (isHarvestTask) {
-                                        const hItem = harvestWorkItems.find((item) => item.plotCode === task.plotCode);
-                                        setSelectedPlotModalCode(null);
-                                        if (hItem) openHarvestWorkspace(hItem);
-                                        else handleTaskAction(task);
-                                      } else {
-                                        handleTaskAction(task);
-                                      }
-                                    }}
-                                    className="gap-1.5 font-bold px-3 py-2 bg-[#07533d] hover:bg-[#053d2d] text-white shadow-xs text-xs"
-                                  >
-                                    {isHarvestTask ? <Scale className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
-                                    <span>{isHarvestTask ? 'Thu hoạch' : 'Nghiệm thu (BR15)'}</span>
-                                  </Button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                return (
+                  <div className="space-y-4">
+                    {/* Bộ lọc dạng segmented control */}
+                    <div className="no-scrollbar flex max-w-full gap-1 overflow-x-auto rounded-xl bg-stone-100 p-1 sm:inline-flex">
+                      {chips.map((chip) => {
+                        const active = plotTaskFilter === chip.id;
+                        return (
+                          <button
+                            key={chip.id}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => setPlotTaskFilter(chip.id)}
+                            className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${active ? 'bg-white text-emerald-900 shadow-2xs' : 'text-stone-500 hover:text-stone-800'}`}
+                          >
+                            <span>{chip.label}</span>
+                            <span className={`min-w-5 rounded-full px-1.5 text-center text-[10px] leading-4 ${chip.emphasize && chip.count > 0 ? 'bg-emerald-600 text-white' : active ? 'bg-stone-100 text-stone-600' : 'bg-stone-200/80 text-stone-500'}`}>
+                              {chip.count}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
-                  )}
 
-                  {/* PHẦN 2: ⏳ DANH SÁCH VIỆC KẾ HOẠCH SẮP TỚI */}
-                  {(plotTaskFilter === 'ALL' || plotTaskFilter === 'UPCOMING') && (
-                    <div className="space-y-2.5 pt-1">
-                      <div className="flex items-center justify-between border-b border-stone-200/80 pb-1.5">
-                        <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-sky-700" />
-                          <span>Kế Hoạch Sắp Tới ({upcomingTasks.length})</span>
-                        </h4>
-                        <span className="text-[11px] text-stone-500">Chuẩn bị trước ca</span>
+                    {isAll && plotTasks.length === 0 ? (
+                      <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-stone-200 px-4 py-10 text-center">
+                        <ListTodo className="h-8 w-8 text-stone-300" />
+                        <p className="text-sm font-bold text-stone-600">Thửa này chưa có công việc nào được giao</p>
+                        <p className="text-xs text-stone-400">Lịch chăm sóc từ CGNN sẽ hiển thị tại đây.</p>
                       </div>
+                    ) : (
+                      <>
+                        {/* HÔM NAY */}
+                        {(isAll || plotTaskFilter === 'TODAY') && (
+                          <section className="space-y-2">
+                            {sectionHeader(`Hôm nay · ${todayLabel}`, 'bg-emerald-600')}
+                            {todayTasks.length > 0 ? (
+                              <div className="grid gap-2">{todayTasks.map((task) => renderCard(task, 'today'))}</div>
+                            ) : (
+                              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2.5 text-xs font-semibold text-emerald-800">
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                                <span>Đã xong việc hôm nay tại thửa này</span>
+                              </div>
+                            )}
+                          </section>
+                        )}
 
-                      {upcomingTasks.length === 0 ? (
-                        <p className="text-xs text-stone-400 italic p-3 text-center bg-stone-50 rounded-xl">
-                          Không có nhiệm vụ kế hoạch sắp tới nào.
-                        </p>
-                      ) : (
-                        <div className="grid gap-2.5">
-                          {upcomingTasks.map((task) => {
-                            const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(task.title);
-                            const timing = getTaskTimingMeta(task);
-
-                            return (
-                              <div
-                                key={task.id}
-                                onClick={() => setSelectedTaskDetail(task)}
-                                className="p-3.5 rounded-2xl border border-stone-200/90 bg-stone-50/40 hover:bg-white hover:border-emerald-500 hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer group"
-                              >
-                                <div className="space-y-1.5 min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-stone-100 text-stone-600 border border-stone-200">
-                                      <span className="h-1.5 w-1.5 rounded-full bg-stone-400" />
-                                      {timing.label}
-                                    </span>
-                                    {(task.cropDay || task.dayOffset) ? (
-                                      <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                                        Ngày tuổi {task.cropDay || task.dayOffset}
-                                      </span>
-                                    ) : null}
-                                    {task.dueDate && (
-                                      <span className="text-[11px] font-mono font-bold text-sky-800 bg-sky-50 px-2.5 py-0.5 rounded-md border border-sky-100 flex items-center gap-1">
-                                        <Calendar className="w-3 h-3 text-sky-600" />
-                                        Ngày {formatDateVN(task.dueDate)}
-                                      </span>
-                                    )}
-                                    <span className="text-xs text-stone-500">
-                                      ⏰ {task.deadline || '08:30 AM'}
-                                    </span>
-                                    {task.workerName && (
-                                      <span className="text-[11px] text-stone-500 font-medium">
-                                        👤 {task.workerName}
-                                      </span>
-                                    )}
+                        {/* SẮP TỚI - nhóm theo ngày */}
+                        {(isAll || plotTaskFilter === 'UPCOMING') && (
+                          <section className="space-y-3 pt-1">
+                            {sectionHeader('Sắp tới', 'bg-stone-400')}
+                            {upcomingTasks.length === 0
+                              ? emptyLine('Chưa có việc kế hoạch sắp tới.')
+                              : visibleUpcomingGroups.map((group) => (
+                                <div key={group.date || 'undated'} className="space-y-1.5">
+                                  <div className="flex items-center gap-2 text-[11px] font-bold text-stone-600">
+                                    <Calendar className="h-3.5 w-3.5 text-stone-400" />
+                                    <span>{dateGroupLabel(group)}</span>
+                                    <span className="h-px flex-1 bg-stone-200" />
                                   </div>
-
-                                  <h5 className="font-heading font-bold text-sm text-stone-800 group-hover:text-emerald-900 transition-colors">
-                                    {task.title}
-                                  </h5>
-
-                                  <p className="text-xs text-stone-600 leading-relaxed line-clamp-2">
-                                    <span className="font-semibold text-stone-700">VietGAP: </span>
-                                    {task.instructions}
-                                  </p>
-
-                                  {task.notes && (
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 bg-amber-100/90 px-2.5 py-1 rounded-lg border border-amber-300">
-                                      <span className="text-amber-800">👨‍🌾 Lưu ý CGNN:</span>
-                                      <span className="font-normal truncate max-w-[360px]">{task.notes}</span>
-                                      <span className="text-[11px] underline text-amber-800 ml-auto shrink-0">Chi tiết &gt;</span>
-                                    </div>
-                                  )}
+                                  <div className="grid gap-2">{group.tasks.map((task) => renderCard(task, 'upcoming'))}</div>
                                 </div>
+                              ))}
+                            {hiddenUpcomingCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setPlotTaskFilter('UPCOMING')}
+                                className="flex items-center gap-1 text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
+                              >
+                                Xem tất cả {upcomingTasks.length} việc sắp tới
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </section>
+                        )}
 
-                                <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedTaskDetail(task);
-                                    }}
-                                    className="px-3 py-2 rounded-xl text-xs font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-200 flex items-center gap-1 transition-colors cursor-pointer"
-                                  >
-                                    <FileText className="w-3.5 h-3.5 text-stone-500" />
-                                    <span>Chi tiết</span>
-                                  </button>
-
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (isHarvestTask) {
-                                        const hItem = harvestWorkItems.find((item) => item.plotCode === task.plotCode);
-                                        setSelectedPlotModalCode(null);
-                                        if (hItem) openHarvestWorkspace(hItem);
-                                        else handleTaskAction(task);
-                                      } else {
-                                        handleTaskAction(task);
-                                      }
-                                    }}
-                                    className="gap-1.5 text-xs font-semibold text-stone-700 hover:text-emerald-800 hover:border-emerald-500 cursor-pointer"
-                                  >
-                                    <Camera className="h-3.5 w-3.5 text-stone-500" />
-                                    Làm sớm
-                                  </Button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* PHẦN 3: ✅ DANH SÁCH VIỆC ĐÃ HOÀN THÀNH */}
-                  {(plotTaskFilter === 'ALL' || plotTaskFilter === 'COMPLETED') && (
-                    <div className="space-y-2.5 pt-1">
-                      <div className="flex items-center justify-between border-b border-stone-200/80 pb-1.5">
-                        <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-700" />
-                          <span>Lịch Sử Đã Nghiệm Thu ({completedTasks.length})</span>
-                        </h4>
-                      </div>
-
-                      {completedTasks.length === 0 ? (
-                        <p className="text-xs text-stone-400 italic p-3 text-center bg-stone-50 rounded-xl">
-                          Chưa có nhiệm vụ nào hoàn tất trong ca trực này.
-                        </p>
-                      ) : (
-                        <div className="grid gap-2">
-                          {completedTasks.map((task) => (
-                            <div
-                              key={task.id}
-                              onClick={() => setSelectedTaskDetail(task)}
-                              className="p-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 flex items-center justify-between gap-3 transition hover:bg-emerald-50/70 cursor-pointer group"
-                            >
-                              <div className="space-y-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800">
-                                    <Check className="w-4 h-4 text-emerald-600" />
-                                    {task.title}
-                                  </span>
-                                  <span className="text-xs font-mono text-stone-500">
-                                    {task.completedAt ? `• ${task.completedAt}` : ''}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-stone-600">{task.instructions}</p>
-                                <p className="text-[11px] text-emerald-800 font-semibold">
-                                  👷 Nghiệm thu: <strong>{task.workerName || user?.fullName || 'Trần Văn Lực (CVLĐ)'}</strong>
-                                </p>
-                              </div>
-
-                              <div className="flex items-center gap-2 shrink-0">
-                                {task.proofPhoto && (
-                                  <img
-                                    src={task.proofPhoto}
-                                    alt="Ảnh nghiệm thu"
-                                    className="w-12 h-12 object-cover rounded-xl border border-emerald-300 shadow-2xs hover:scale-105 transition cursor-pointer"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      window.open(task.proofPhoto, '_blank');
-                                    }}
-                                  />
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTaskDetail(task);
-                                  }}
-                                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-stone-600 bg-white hover:bg-stone-100 border border-stone-200 shadow-2xs flex items-center gap-1"
-                                >
-                                  <FileText className="w-3.5 h-3.5 text-stone-400" />
-                                  <span>Chi tiết</span>
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+                        {/* ĐÃ NGHIỆM THU - thu gọn mặc định ở chế độ Tất cả */}
+                        {(isAll || plotTaskFilter === 'COMPLETED') && (!isAll || completedTasks.length > 0) && (
+                          <section className="space-y-2 pt-1">
+                            {isAll && (
+                              <button
+                                type="button"
+                                aria-expanded={completedOpen}
+                                onClick={() => setShowCompletedTasks((open) => !open)}
+                                className="flex w-full items-center gap-2 border-t border-stone-100 pt-3 text-[11px] font-black uppercase tracking-wider text-stone-500 hover:text-stone-800 cursor-pointer"
+                              >
+                                {completedOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                <span>Đã nghiệm thu ({completedTasks.length})</span>
+                              </button>
+                            )}
+                            {completedOpen && (completedTasks.length === 0
+                              ? emptyLine('Chưa có việc nào được nghiệm thu tại thửa này.')
+                              : <div className="grid gap-1.5">{completedTasks.map((task) => renderCard(task, 'done'))}</div>)}
+                          </section>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* SUBTAB 2: THỜI TIẾT & KHÍ TƯỢNG */}
               {plotModalTab === 'iot' && (
@@ -2301,7 +2324,7 @@ export default function FieldWorkerDashboard() {
                         <span>Dữ Liệu Thời Tiết &amp; Khí Tượng Nông Trại (Weather API)</span>
                       </h4>
                       <p className="text-xs text-stone-500">
-                        Cập nhật tự động theo tọa độ địa lý nông trại (10.97°N, 106.49°E), hỗ trợ kiểm soát vi khí hậu và cảnh báo BR18.
+                        Cập nhật tự động theo tọa độ địa lý nông trại (10.97°N, 106.49°E), hỗ trợ kiểm soát vi khí hậu và cảnh báo kịp thời.
                       </p>
                     </div>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 self-start sm:self-auto">
@@ -2326,14 +2349,14 @@ export default function FieldWorkerDashboard() {
                       <span className="text-[10px] text-sky-700 font-medium">Độ ẩm tối ưu</span>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-cyan-50 to-teal-50/40 border border-cyan-200/80 text-center space-y-1">
-                      <Droplets className="w-5 h-5 text-cyan-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ ẩm không khí</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.airHumidity || '74%'}</strong>
-                      <span className="text-[10px] text-cyan-700 font-medium">Ẩm độ thích hợp</span>
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50/40 border border-emerald-200/80 text-center space-y-1">
+                      <CloudRain className="w-5 h-5 text-teal-600 mx-auto" />
+                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Lượng mưa</span>
+                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.rainfall || '0 mm'}</strong>
+                      <span className="text-[10px] text-teal-700 font-medium">Không mưa</span>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-yellow-50 to-amber-50/40 border border-yellow-200/80 text-center space-y-1">
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-yellow-50/40 border border-amber-200/80 text-center space-y-1">
                       <Sun className="w-5 h-5 text-yellow-600 mx-auto" />
                       <span className="text-[10px] text-stone-500 uppercase font-bold block">Cường độ sáng</span>
                       <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.light || '45.000 Lux'}</strong>
@@ -2348,11 +2371,11 @@ export default function FieldWorkerDashboard() {
                     </div>
                   </div>
 
-                  {/* BR18 Irrigation Rule Notice */}
+                  {/* Irrigation Rule Notice */}
                   <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-sky-950 space-y-1.5">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-4 h-4 text-sky-700" />
-                      <strong className="font-heading font-black text-sky-900">Quy tắc tự động hóa BR18:</strong>
+                      <strong className="font-heading font-black text-sky-900">Quy tắc điều tiết tưới tự động:</strong>
                     </div>
                     <p className="text-sky-800 leading-relaxed">
                       Trạm quan trắc sẽ <strong>tự động tạm hoãn lệnh tưới</strong> nếu độ ẩm đất đo được vượt ngưỡng <strong>80%</strong> để chống ngập úng rễ và ngăn ngừa nấm bệnh. Hệ thống sẽ kích hoạt lại khi độ ẩm đất hạ về dưới 65%.
@@ -2633,11 +2656,12 @@ export default function FieldWorkerDashboard() {
 
                 <div className="pt-1 flex items-center justify-between text-[11px] text-amber-900 font-semibold">
                   <span>💡 Khuyến cáo: Luôn kiểm tra ẩm độ đất và dự báo mưa từ Weather API trước khi tưới hoặc bón phân.</span>
-                  <span className="text-emerald-800">BR15 - Bắt buộc chụp ảnh minh chứng</span>
+                  <span className="text-emerald-800">Bắt buộc chụp ảnh minh chứng</span>
                 </div>
               </div>
 
-              {/* 3. QUY TRÌNH KỸ THUẬT TIÊU CHUẨN VIETGAP */}
+              {/* 3. QUY TRÌNH KỸ THUẬT TIÊU CHUẨN VIETGAP (ẩn khi trùng nội dung với ghi chú CGNN ở trên) */}
+              {shouldShowExpertNote(selectedTaskDetail.notes, selectedTaskDetail.instructions) && (
               <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-2">
                 <div className="flex items-center gap-2 text-emerald-950 font-bold text-xs border-b border-emerald-200/70 pb-1.5">
                   <BookOpen className="w-4 h-4 text-emerald-700" />
@@ -2647,11 +2671,12 @@ export default function FieldWorkerDashboard() {
                   {selectedTaskDetail.instructions || 'Tuân thủ định mức và kỹ thuật VietGAP, kiểm tra dữ liệu thời tiết trước và sau ca trực.'}
                 </p>
               </div>
+              )}
 
               {/* 4. ẢNH MINH CHỨNG (NẾU ĐÃ HOÀN THÀNH) */}
               {isDone && selectedTaskDetail.proofPhoto && (
                 <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
-                  <span className="font-bold text-stone-700 text-xs block">Ảnh minh chứng nghiệm thu thực địa (BR15):</span>
+                  <span className="font-bold text-stone-700 text-xs block">Ảnh minh chứng nghiệm thu thực địa:</span>
                   <div className="flex items-center gap-3">
                     <img
                       src={selectedTaskDetail.proofPhoto}
@@ -2687,19 +2712,12 @@ export default function FieldWorkerDashboard() {
                     onClick={() => {
                       const taskToExec = selectedTaskDetail;
                       setSelectedTaskDetail(null);
-                      if (isHarvest) {
-                        const hItem = harvestWorkItems.find((item) => item.plotCode === taskToExec.plotCode);
-                        setSelectedPlotModalCode(null);
-                        if (hItem) openHarvestWorkspace(hItem);
-                        else handleTaskAction(taskToExec);
-                      } else {
-                        handleTaskAction(taskToExec);
-                      }
+                      handleExecuteTask(taskToExec);
                     }}
                     className="text-xs font-bold gap-1.5 bg-[#07533d] hover:bg-[#053d2d] text-white cursor-pointer"
                   >
                     {isHarvest ? <Scale className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
-                    <span>{isHarvest ? 'Mở Màn Thu Hoạch' : 'Nghiệm Thu & Chụp Ảnh (BR15)'}</span>
+                    <span>{isHarvest ? 'Mở Màn Thu Hoạch' : 'Nghiệm Thu & Chụp Ảnh'}</span>
                   </Button>
                 )}
               </div>
@@ -2877,14 +2895,22 @@ export default function FieldWorkerDashboard() {
 
       <nav className="fixed inset-x-3 bottom-3 z-50 grid grid-cols-5 rounded-2xl border border-brand-border bg-white/95 p-1.5 shadow-elevated backdrop-blur lg:hidden" aria-label="Điều hướng nhân viên hiện trường">
         {[
-          { id: 'tasks', label: 'Công việc', icon: ListTodo },
+          { id: 'tasks', label: 'Thửa đất', icon: Layers, count: todayActionableCount, dot: overdueTodayCount > 0 ? 'bg-rose-500 text-white' : 'bg-amber-400 text-brand-dark' },
           { id: 'services', label: 'Dịch vụ', icon: ShoppingBag },
-          { id: 'harvest', label: 'Thu hoạch', icon: Camera },
+          { id: 'harvest', label: 'Thu hoạch', icon: PackageCheck },
           { id: 'issues', label: 'Sự cố', icon: FileText }
         ].map((item) => {
           const Icon = item.icon;
           const active = activeTab === item.id;
-          return <button key={item.id} type="button" onClick={() => setActiveTab(item.id)} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold transition ${active ? 'bg-[#064b37] text-white' : 'text-stone-500 hover:bg-stone-50'}`}><Icon className="h-5 w-5" />{item.label}</button>;
+          return (
+            <button key={item.id} type="button" onClick={() => setActiveTab(item.id)} aria-current={active ? 'page' : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold transition ${active ? 'bg-[#064b37] text-white' : 'text-stone-500 hover:bg-stone-50'}`}>
+              <span className="relative">
+                <Icon className="h-5 w-5" />
+                {item.count > 0 && <span title={`${item.count} việc cần làm hôm nay`} className={`absolute -right-2.5 -top-1.5 min-w-4 rounded-full px-1 text-center text-[9px] font-black leading-4 ${item.dot}`}>{item.count}</span>}
+              </span>
+              {item.label}
+            </button>
+          );
         })}
         <button type="button" onClick={() => window.dispatchEvent(new Event('farmely:open-profile'))} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-bold text-stone-500 hover:bg-stone-50"><UserCheck className="h-5 w-5" />Tài khoản</button>
       </nav>

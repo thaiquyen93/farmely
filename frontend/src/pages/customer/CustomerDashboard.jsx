@@ -2847,7 +2847,7 @@ export default function CustomerDashboard() {
                       }}
                       className="font-bold text-xs gap-1 border-emerald-600 text-emerald-800 hover:bg-emerald-50 whitespace-nowrap cursor-pointer"
                     >
-                      + Yêu cầu dịch vụ riêng (UC10)
+                      + Yêu cầu dịch vụ riêng
                     </Button>
                     <button
                       onClick={() => setServiceCategoryFilter('ALL')}
@@ -3636,9 +3636,8 @@ export default function CustomerDashboard() {
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold px-2.5 py-0.5 border border-emerald-200">
-                            SSoT: Master Lease Agreement
+                            Hợp đồng thuê tổng thể
                           </span>
-                          <span className="text-xs text-stone-500">Mã màn hình: SCR-KH-08 / SCR-AD-10</span>
                         </div>
                         <h3 className="font-heading font-black text-xl text-brand-dark mt-1 flex items-center gap-2">
                           <FileText className="w-5 h-5 text-brand-green" />
@@ -4745,11 +4744,11 @@ export default function CustomerDashboard() {
         onCancelPlan={handleCancelHarvestPlan}
       />
 
-      {/* Modal: Accept Harvest & Quality Rating (UC19 / BR16) */}
+      {/* Modal: Accept Harvest & Quality Rating */}
       <Modal
         isOpen={showHarvestAcceptModal}
         onClose={() => setShowHarvestAcceptModal(false)}
-        title="Nghiệm Thu Sản Lượng & Đánh Giá Chất Lượng Vụ Mùa (UC19)"
+        title="Nghiệm Thu Sản Lượng & Đánh Giá Chất Lượng Vụ Mùa"
         subtitle="Đối chứng cân điện tử, chọn phương thức giao nhận và đánh giá chất lượng nông sản từ CSDL PostgreSQL"
       >
         <form onSubmit={handleConfirmHarvestAcceptance} className="space-y-4 text-left text-xs max-h-[75vh] overflow-y-auto pr-1">
@@ -4933,11 +4932,11 @@ export default function CustomerDashboard() {
         }}
       />
 
-      {/* Modal: Gửi Yêu Cầu Dịch Vụ Riêng & Chăm Sóc Đặc Biệt (UC10 / BR13) */}
+      {/* Modal: Gửi Yêu Cầu Dịch Vụ Riêng & Chăm Sóc Đặc Biệt */}
       <Modal
         isOpen={showCustomServiceModal}
         onClose={() => setShowCustomServiceModal(false)}
-        title="Gửi Yêu Cầu Dịch Vụ Theo Nhu Cầu Riêng (UC10)"
+        title="Gửi Yêu Cầu Dịch Vụ Theo Nhu Cầu Riêng"
         subtitle="Ban Quản Trị & Chuyên Gia sẽ khảo sát, tư vấn giải pháp và báo giá chi tiết"
       >
         <form onSubmit={handleCreateCustomServiceRequest} className="space-y-3.5 text-xs text-left max-h-[75vh] overflow-y-auto pr-1">

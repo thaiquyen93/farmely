@@ -1619,7 +1619,7 @@ export default function AdminDashboard() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                          Báo Cáo Điều Hành SCR-AD-01
+                          Báo Cáo Điều Hành Hệ Thống
                         </span>
                         <span className="text-stone-300">•</span>
                         <span className="text-xs text-brand-muted font-medium">
@@ -1630,7 +1630,7 @@ export default function AdminDashboard() {
                         Tổng Quan Doanh Thu & Chỉ Số Vận Hành
                       </h2>
                       <p className="text-xs text-brand-muted mt-0.5">
-                        Theo dõi dòng tiền thanh toán 100% Lump-sum (BR09), tỷ lệ lấp đầy quỹ đất và tiến độ nghiệm thu thực địa.
+                        Theo dõi dòng tiền thanh toán 100% trọn gói, tỷ lệ lấp đầy quỹ đất và tiến độ nghiệm thu thực địa.
                       </p>
                     </div>
 
@@ -1751,7 +1751,7 @@ export default function AdminDashboard() {
                       <div className="pt-2 border-t border-brand-border/60 flex items-center justify-between text-[11px]">
                         <span className="text-stone-500">{kpi.inProgressTasks} Đang làm • {kpi.pendingTasks} Chờ</span>
                         <span className="font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md">
-                          ≥1 ảnh BR15
+                          ≥1 ảnh thực địa
                         </span>
                       </div>
                     </div>
@@ -1827,7 +1827,7 @@ export default function AdminDashboard() {
                             <div className="bg-emerald-600 h-full rounded-full" style={{ width: '99%' }}></div>
                           </div>
                           <div className="flex justify-between text-[11px] text-stone-500">
-                            <span>Hợp đồng trọn gói 100% (BR09)</span>
+                            <span>Hợp đồng trọn gói 100%</span>
                             <span className="font-bold text-stone-800">{formatVnd(kpi.leaseRevenue)}</span>
                           </div>
                         </div>
@@ -1845,7 +1845,7 @@ export default function AdminDashboard() {
                             <div className="bg-amber-500 h-full rounded-full" style={{ width: '5%' }}></div>
                           </div>
                           <div className="flex justify-between text-[11px] text-stone-500">
-                            <span>Services Master (BR27)</span>
+                            <span>Danh mục dịch vụ phát sinh</span>
                             <span className="font-bold text-stone-800">{formatVnd(kpi.serviceRevenue)}</span>
                           </div>
                         </div>
@@ -1869,7 +1869,7 @@ export default function AdminDashboard() {
 
                         {/* Note SSoT */}
                         <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-[11px] text-stone-600 leading-relaxed">
-                          💡 <span className="font-bold text-stone-800">Quy tắc BR09:</span> 100% tiền thuê đất được thanh toán trọn gói trước khi kích hoạt canh tác. Giữ chỗ 15 phút + 10 phút Grace Period (BR08).
+                          💡 <span className="font-bold text-stone-800">Quy tắc thanh toán:</span> 100% tiền thuê đất được thanh toán trọn gói trước khi kích hoạt canh tác. Giữ chỗ 15 phút + 10 phút gia hạn thanh toán.
                         </div>
                       </div>
                     </div>
@@ -2331,11 +2331,11 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-2">
                       <CloudSun className="w-5 h-5 text-sky-600 animate-pulse" />
                       <h3 className="font-heading font-black text-xl text-brand-dark">
-                        Dữ Liệu Thời Tiết Thực Địa &amp; Cảnh Báo Khí Tượng (SCR-AD-08 / BR18)
+                        Dữ Liệu Thời Tiết Thực Địa &amp; Cảnh Báo Khí Tượng
                       </h3>
                     </div>
                     <p className="text-xs text-brand-muted mt-0.5">
-                      Cập nhật dữ liệu vi khí hậu thời gian thực qua Weather API theo tọa độ nông trại 24/7, tự động phát hiện thời tiết cực đoan (nắng nóng, sương giá, mưa lớn) và tự động điều tiết hoãn lịch tưới nước (BR18).
+                      Cập nhật dữ liệu vi khí hậu thời gian thực qua Weather API theo tọa độ nông trại 24/7, tự động phát hiện thời tiết cực đoan (nắng nóng, sương giá, mưa lớn) và tự động điều tiết hoãn lịch tưới nước.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -2385,7 +2385,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-1">
-                    <p className="font-bold text-sky-900">Điều Tiết Tưới BR18</p>
+                    <p className="font-bold text-sky-900">Điều Tiết Tưới Tự Động</p>
                     <p className="text-2xl font-black text-sky-700">
                       {weatherData?.wateringPostponementRecommended ? 'HOÃN TƯỚI' : 'BÌNH THƯỜNG'}
                     </p>
@@ -2432,7 +2432,7 @@ export default function AdminDashboard() {
                     <div className="p-3.5 rounded-xl bg-sky-900 text-white text-xs flex items-start gap-2.5">
                       <ShieldAlert className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
                       <div>
-                        <strong className="text-amber-200 block mb-0.5">Quy tắc sinh học BR18: Tự động hoãn ca tưới khi độ ẩm đất &gt;= 80% hoặc xác suất mưa &gt;= 70%</strong>
+                        <strong className="text-amber-200 block mb-0.5">Quy tắc sinh học: Tự động hoãn ca tưới khi độ ẩm đất &gt;= 80% hoặc xác suất mưa &gt;= 70%</strong>
                         <p className="text-white/90 leading-relaxed text-[11px]">
                           {weatherData.recommendationMessage}
                         </p>
@@ -2620,7 +2620,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-5 h-5 text-brand-green" />
                       <h3 className="font-heading font-black text-xl text-brand-dark">
-                        Nhật Ký Hoạt Động & Báo Cáo Hệ Thống (SCR-AD-14 / UC21)
+                        Nhật Ký Hoạt Động & Báo Cáo Hệ Thống
                       </h3>
                     </div>
                     <p className="text-xs text-brand-muted mt-0.5">
