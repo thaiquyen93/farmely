@@ -91,9 +91,14 @@ export default function Login() {
         ...demoAcc,
         userId: demoAcc.userId || parseInt(String(demoAcc.id).replace(/\D/g, ''), 10) || 1
       };
-      localStorage.setItem('farmely_token', fallbackToken);
-      localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
-      localStorage.setItem('farmely_auth', JSON.stringify({ token: fallbackToken, user: mappedUser }));
+      try {
+        sessionStorage.setItem('farmely_token', fallbackToken);
+        sessionStorage.setItem('farmely_user', JSON.stringify(mappedUser));
+        sessionStorage.setItem('farmely_auth', JSON.stringify({ token: fallbackToken, user: mappedUser }));
+        localStorage.setItem('farmely_token', fallbackToken);
+        localStorage.setItem('farmely_user', JSON.stringify(mappedUser));
+        localStorage.setItem('farmely_auth', JSON.stringify({ token: fallbackToken, user: mappedUser }));
+      } catch {}
       useAuthStore.setState({ user: mappedUser, token: fallbackToken, isAuthenticated: true, isLoading: false });
 
       setSuccessMessage(`Chào mừng ${mappedUser.fullName}.`);

@@ -73,11 +73,33 @@ const normalizeUser = (user, token) => {
 
 const readAuth = () => {
   try {
+    // 1. Ưu tiên đọc từ sessionStorage: Cách ly phiên đăng nhập độc lập cho từng tab trình duyệt
+    const sessionAuth = JSON.parse(sessionStorage.getItem('farmely_auth') || 'null');
+    if (sessionAuth?.token && sessionAuth?.user) return sessionAuth;
+    const sessionUser = JSON.parse(sessionStorage.getItem('farmely_user') || 'null');
+    const sessionToken = sessionStorage.getItem('farmely_token') || null;
+    if (sessionUser) return { token: sessionToken, user: normalizeUser(sessionUser, sessionToken) };
+
+    // 2. Dự phòng: Khi mở tab mới chưa có sessionStorage, lấy từ localStorage và clone sang tab này
     const auth = JSON.parse(localStorage.getItem('farmely_auth') || 'null');
-    if (auth?.token && auth?.user) return auth;
+    if (auth?.token && auth?.user) {
+      try {
+        sessionStorage.setItem('farmely_auth', JSON.stringify(auth));
+        sessionStorage.setItem('farmely_user', JSON.stringify(auth.user));
+        if (auth.token) sessionStorage.setItem('farmely_token', auth.token);
+      } catch {}
+      return auth;
+    }
     const user = JSON.parse(localStorage.getItem('farmely_user') || 'null');
     const token = localStorage.getItem('farmely_token') || null;
-    if (user) return { token, user: normalizeUser(user, token) };
+    if (user) {
+      const normalized = normalizeUser(user, token);
+      try {
+        sessionStorage.setItem('farmely_user', JSON.stringify(normalized));
+        if (token) sessionStorage.setItem('farmely_token', token);
+      } catch {}
+      return { token, user: normalized };
+    }
     return null;
   } catch {
     return null;
@@ -85,9 +107,17 @@ const readAuth = () => {
 };
 
 const persistAuth = (auth) => {
-  localStorage.setItem('farmely_auth', JSON.stringify(auth));
-  localStorage.setItem('farmely_user', JSON.stringify(auth.user));
-  if (auth.token) localStorage.setItem('farmely_token', auth.token);
+  try {
+    // Luôn lưu vào sessionStorage của Tab hiện tại (cách ly độc lập từng tab)
+    sessionStorage.setItem('farmely_auth', JSON.stringify(auth));
+    sessionStorage.setItem('farmely_user', JSON.stringify(auth.user));
+    if (auth.token) sessionStorage.setItem('farmely_token', auth.token);
+
+    // Đồng thời lưu vào localStorage làm tài khoản mặc định cho tab mới mở
+    localStorage.setItem('farmely_auth', JSON.stringify(auth));
+    localStorage.setItem('farmely_user', JSON.stringify(auth.user));
+    if (auth.token) localStorage.setItem('farmely_token', auth.token);
+  } catch {}
 };
 
 const initialAuth = readAuth();
@@ -199,9 +229,14 @@ export const useAuthStore = create((set, get) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('farmely_token');
-    localStorage.removeItem('farmely_user');
-    localStorage.removeItem('farmely_auth');
+    try {
+      sessionStorage.removeItem('farmely_token');
+      sessionStorage.removeItem('farmely_user');
+      sessionStorage.removeItem('farmely_auth');
+      localStorage.removeItem('farmely_token');
+      localStorage.removeItem('farmely_user');
+      localStorage.removeItem('farmely_auth');
+    } catch {}
     set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
 
@@ -209,7 +244,10 @@ export const useAuthStore = create((set, get) => ({
     const current = get().user;
     if (!current) return;
     const updated = { ...current, ...changes };
-    localStorage.setItem('farmely_user', JSON.stringify(updated));
+    try {
+      sessionStorage.setItem('farmely_user', JSON.stringify(updated));
+      localStorage.setItem('farmely_user', JSON.stringify(updated));
+    } catch {}
     const auth = readAuth();
     if (auth) persistAuth({ ...auth, user: updated });
     set({ user: updated, isAuthenticated: true });

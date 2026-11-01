@@ -2,6 +2,8 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, ''
 
 export const getStoredAuth = () => {
   try {
+    const sessionAuth = JSON.parse(sessionStorage.getItem('farmely_auth') || 'null');
+    if (sessionAuth?.token) return sessionAuth;
     return JSON.parse(localStorage.getItem('farmely_auth') || 'null');
   } catch {
     return null;

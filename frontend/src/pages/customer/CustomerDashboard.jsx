@@ -1019,7 +1019,7 @@ export default function CustomerDashboard() {
       color: 'bg-sky-50 text-sky-800 border-sky-200',
       description: 'Đặt lịch chăm sóc linh hoạt cho những ngày bạn bận đột xuất. Công nhân sẽ tưới ẩm đủ định mức và chụp ảnh đối chứng sau ca trực.',
       features: [
-        'Tưới ẩm vi sinh theo đúng chỉ số trạm IoT',
+        'Tưới ẩm vi sinh theo đúng chỉ số trạm quan trắc',
         'Kiểm tra sâu bệnh mặt lá',
         'Gửi 01 ảnh ca trực vào Farm Diary của bạn'
       ]
@@ -1160,7 +1160,7 @@ export default function CustomerDashboard() {
     if (emergencyRequests[plot.id]?.status === 'PROCESSING') return;
     const request = {
       id: `REQ-EMERGENCY-${Date.now()}`,
-      serviceName: 'Chăm sóc khẩn cấp theo cảnh báo IoT',
+      serviceName: 'Chăm sóc khẩn cấp theo cảnh báo vi khí hậu',
       plotName: plot.name,
       price: 'Liên hệ xác nhận',
       date: 'Vừa gửi',
@@ -1179,7 +1179,7 @@ export default function CustomerDashboard() {
           rentalId: plot.id === 'PLOT-CC-01' ? 1 : plot.id === 'PLOT-MC-02' ? 2 : 3,
           serviceId: 1,
           scheduledDate: new Date().toISOString().slice(0, 10),
-          notes: `Yêu cầu chăm sóc khẩn cấp từ cảnh báo IoT cho ${plot.name}`
+          notes: `Yêu cầu chăm sóc khẩn cấp từ cảnh báo vi khí hậu cho ${plot.name}`
         })
       });
       const data = await response.json().catch(() => null);
@@ -1931,7 +1931,7 @@ export default function CustomerDashboard() {
       return {
         tasks: [
           { id: `TSK-${plot?.id || '1'}-01`, title: `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`, time: '07:30 hôm nay', status: 'IN_PROGRESS', owner: 'Chủ vườn (Tự canh tác)' },
-          { id: `TSK-${plot?.id || '1'}-02`, title: 'Kiểm tra sinh trưởng và chỉ số vi khí hậu IoT', time: '14:00 hôm nay', status: 'PENDING', owner: 'Chủ vườn (Tự canh tác)' },
+          { id: `TSK-${plot?.id || '1'}-02`, title: 'Kiểm tra sinh trưởng và chỉ số vi khí hậu thực địa', time: '14:00 hôm nay', status: 'PENDING', owner: 'Chủ vườn (Tự canh tác)' },
           { id: `TSK-${plot?.id || '1'}-03`, title: 'Cắt tỉa lá gốc và vệ sinh luống canh tác', time: '09:00 hôm qua', status: 'COMPLETED', owner: 'Chủ vườn (Tự canh tác)' }
         ],
         diary: []
@@ -1944,7 +1944,7 @@ export default function CustomerDashboard() {
     return {
       tasks: [
         { id: `TSK-${plot?.id || '1'}-01`, title: `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`, time: '07:30 hôm nay', status: 'IN_PROGRESS', owner: defaultTaskOwner },
-        { id: `TSK-${plot?.id || '1'}-02`, title: 'Kiểm tra sinh trưởng và chỉ số vi khí hậu IoT', time: '14:00 hôm nay', status: 'PENDING', owner: 'Farmely Smart Monitor' },
+        { id: `TSK-${plot?.id || '1'}-02`, title: 'Kiểm tra sinh trưởng và chỉ số vi khí hậu thực địa', time: '14:00 hôm nay', status: 'PENDING', owner: 'Farmely Smart Monitor' },
         { id: `TSK-${plot?.id || '1'}-03`, title: 'Cắt tỉa lá gốc và vệ sinh luống canh tác', time: '09:00 hôm qua', status: 'COMPLETED', owner: defaultTaskOwner }
       ],
       diary: [
@@ -2050,7 +2050,7 @@ export default function CustomerDashboard() {
         const lower = query.toLowerCase();
 
         if (lower.match(/(1\s*\+\s*1|1\s*cộng\s*1)/)) {
-          reply = 'Dạ, 1 cộng 1 chắc chắn bằng 2 rồi ạ! 😊 Cũng như tại Farmely: sự tận tâm của người trồng cộng với công nghệ IoT thông minh sẽ luôn đem lại những mùa vụ xanh tươi bội thu!';
+          reply = 'Dạ, 1 cộng 1 chắc chắn bằng 2 rồi ạ! 😊 Cũng như tại Farmely: sự tận tâm của người trồng cộng với công nghệ nông nghiệp thông minh sẽ luôn đem lại những mùa vụ xanh tươi bội thu!';
         } else if (lower.includes('độ ẩm') || lower.includes('tưới')) {
           reply = 'Farmely AI nhận thấy: Độ ẩm đất chuẩn VietGAP lý tưởng duy trì từ 65% – 75%. Nếu độ ẩm vượt 80% thì hệ thống khuyến nghị tạm hoãn cữ tưới chiều nay để tránh úng rễ và xới nhẹ luống đất cho thoáng khí.';
         } else if (lower.includes('sâu') || lower.includes('bệnh') || lower.includes('rệp') || lower.includes('vietgap')) {

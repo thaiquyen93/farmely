@@ -19,13 +19,13 @@ import {
    Đảm bảo:
    1. Phản ánh chân thực hiện trạng khu vườn và cây trồng theo Quy trình chuẩn tính theo ngày.
    2. Lưu trữ và truy xuất đầy đủ, minh bạch toàn bộ hoạt động của Staff (Field Workers).
-   3. Kết nối dữ liệu vi khí hậu & IoT trực tiếp từ 3rd-Party API thực tế (Open-Meteo Agro API).
+   3. Kết nối dữ liệu khí tượng & vi khí hậu trực tiếp từ 3rd-Party API thực tế (Open-Meteo Agro API).
    ────────────────────────────────────────────────────────────────────────── */
 
 export const PLOT_TABS = [
   { id: 'overview', label: 'Tổng quan', short: 'Tổng quan', icon: LayoutDashboard },
   { id: 'tasks', label: 'Hoạt động Staff', short: 'Staff', icon: CalendarCheck },
-  { id: 'iot', label: 'IoT & vi khí hậu', short: 'IoT', icon: Radio },
+  { id: 'iot', label: 'Thời tiết & Vi khí hậu', short: 'Vi khí hậu', icon: Radio },
   { id: 'diary', label: 'Nhật ký', short: 'Nhật ký', icon: BookOpen },
   { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag },
   { id: 'harvest', label: 'Thu hoạch', short: 'Thu hoạch', icon: Wheat }
@@ -1710,7 +1710,7 @@ function HealthHero({ plot, alerts = [], onMore, liveProviderInfo }) {
         </div>
         {onMore && (
           <button type="button" onClick={onMore} className="flex shrink-0 items-center justify-center gap-1 self-start rounded-xl bg-lime-300 px-4 py-2.5 text-sm font-semibold text-[#17372c] transition hover:bg-lime-200 sm:self-center">
-            Chi tiết IoT<ChevronRight className="h-4 w-4" />
+            Chi tiết vi khí hậu<ChevronRight className="h-4 w-4" />
           </button>
         )}
       </div>
