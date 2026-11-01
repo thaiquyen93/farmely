@@ -1487,69 +1487,6 @@ export default function ExpertDashboard() {
 
       <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
         
-        {/* Top Agronomy Metrics */}
-        {(() => {
-          const pendingIssuesCount = fieldIssues.filter(i => i.status === 'PENDING').length;
-          const pendingChatCount = chatThreads.filter(c => c.status === 'PENDING').length;
-          return (
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-              <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
-                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-                  Thửa Đất Giám Sát
-                </span>
-                <div className="text-2xl font-heading font-black text-brand-dark">
-                  {assignedPlots.length} Thửa
-                </div>
-                <span className="text-[10px] text-emerald-700 font-bold block">Đang hoạt động và được phân công</span>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
-                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-                  Hộp Thư Chờ Xử Lý
-                </span>
-                <div className={`text-2xl font-heading font-black ${pendingChatCount > 0 ? 'text-amber-700' : 'text-brand-dark'}`}>
-                  {pendingChatCount} Tin nhắn
-                </div>
-                <span className="text-[10px] text-stone-500 font-semibold block">
-                  {preRentalCount > 0 ? `${preRentalCount} khách chưa thuê` : 'Cần phản hồi'}
-                </span>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
-                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-                  Sự Cố Hiện Trường
-                </span>
-                <div className={`text-2xl font-heading font-black ${pendingIssuesCount > 0 ? 'text-rose-600' : 'text-brand-dark'}`}>
-                  {pendingIssuesCount} Cần chỉ đạo
-                </div>
-                <span className={`text-[10px] font-bold block ${pendingIssuesCount > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                  {pendingIssuesCount > 0 ? 'Cần phát lệnh xử lý' : '● Hiện trường ổn định'}
-                </span>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
-                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-                  Quy Trình Chuẩn
-                </span>
-                <div className="text-2xl font-heading font-black text-brand-dark">
-                  0{processTemplates.length} Phác Đồ
-                </div>
-                <span className="text-[10px] text-stone-500 font-semibold block">Đang áp dụng thực địa</span>
-              </div>
-
-              <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5 col-span-2 lg:col-span-1">
-                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-                  Kho Tri Thức & AI
-                </span>
-                <div className="text-2xl font-heading font-black text-brand-dark">
-                  0{knowledgeDocs.length} Tài Liệu
-                </div>
-                <span className="text-[10px] text-stone-500 font-semibold block">Đã nạp RAG AI</span>
-              </div>
-            </div>
-          );
-        })()}
-
         {/* Layout Left Sidebar + Content */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           
