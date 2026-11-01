@@ -67,11 +67,11 @@ export default function FarmAerialMap2D({ plots = [], selectedPlot, onSelectPlot
           </React.Fragment>
         ))}
 
-        {/* Central IoT weather station */}
+        {/* Central weather station */}
         <g transform="translate(340, 290)">
           <circle cx="0" cy="0" r="18" fill="#294C38" stroke="#F6D365" strokeWidth="2" />
-          <text x="0" y="5" textAnchor="middle" fill="#F6D365" fontSize="14" fontWeight="bold">
-            IoT
+          <text x="0" y="5" textAnchor="middle" fill="#F6D365" fontSize="13" fontWeight="bold">
+            KT
           </text>
           <text x="0" y="-28" textAnchor="middle" fill="#294C38" fontSize="10" fontWeight="600">
             Trạm Vi Khí Hậu
