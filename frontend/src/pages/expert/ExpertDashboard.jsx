@@ -2185,7 +2185,7 @@ export default function ExpertDashboard() {
                             </div>
                           </div>
                           <div>
-                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Quan Trắc IoT:</span>
+                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Vi Khí Hậu:</span>
                             <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
                             <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu ẩm &gt;= 80% (BR18)</span>
                           </div>
@@ -2309,7 +2309,7 @@ export default function ExpertDashboard() {
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-brand-border/60">
                         <span className="text-[11px] text-stone-400 group-hover:text-emerald-700 font-medium flex items-center gap-1 transition">
                           <Eye className="w-3.5 h-3.5" />
-                          Bấm vào thẻ để xem chi tiết ảnh, trạm IoT & giao nhiệm vụ
+                          Bấm vào thẻ để xem chi tiết ảnh, dữ liệu vi khí hậu & giao nhiệm vụ
                         </span>
 
                         <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
