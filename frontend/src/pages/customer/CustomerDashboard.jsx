@@ -761,61 +761,85 @@ export default function CustomerDashboard() {
   useEffect(() => {
     let cancelled = false;
     const unwrap = (body) => Array.isArray(body) ? body : (body?.data || []);
-    Promise.all([
-      fetch('/api/services?status=ACTIVE').then((r) => r.ok ? r.json() : { data: [] }),
-      fetch('/api/rentals').then((r) => r.ok ? r.json() : { data: [] }),
-      fetch('/api/services/requests').then((r) => r.ok ? r.json() : { data: [] })
-    ]).then(([servicesBody, rentalsBody, requestsBody]) => {
-      if (cancelled) return;
-      const services = unwrap(servicesBody).map((s) => ({
-        id: s.serviceId || s.id,
-        name: s.serviceName || s.name || 'Dịch vụ nông nghiệp',
-        price: Number(s.price || 0),
-        unit: s.unit || '/ lần thực hiện',
-        description: s.description || 'Dịch vụ chăm sóc theo tiêu chuẩn Farmely.',
-        active: String(s.status || 'ACTIVE') === 'ACTIVE',
-        customerCategory: String(s.serviceType || '').includes('FULL') ? 'FULL' : 'SINGLE',
-        tag: String(s.serviceType || '').includes('FULL') ? 'Gói chăm sóc' : 'Dịch vụ lẻ',
-        iconKey: 'sprout',
-        tasks: Array.isArray(s.tasks) ? s.tasks : []
-      }));
-      setApiServices(services);
-      const rentals = unwrap(rentalsBody);
-      setApiCustomerPlots(rentals.map((r, index) => ({
-        id: `PLOT-${r.plotCode || r.plotId || r.rentalId}`,
-        rentalId: r.rentalId,
-        mapPlotId: r.plotCode,
-        name: r.plotCode ? `Thửa ${r.plotCode}` : `Thửa đất ${index + 1}`,
-        location: 'Khu canh tác Farmely',
-        area: `${r.plotArea || 0}m²`,
-        mode: r.cultivationMode === 'SELF_GROWING' ? 'Self-Growing' : 'Assisted-Growing',
-        crop: r.varietyName || 'Chưa có giống cây',
-        stage: r.displayStatus || 'Đang canh tác',
-        currentDay: 0,
-        totalDays: r.durationDays || 0,
-        progressPercent: 0,
-        image: r.plotImageUrl || '/images/Mucangchai3.jpg',
-        temp: '—', soilMoisture: '—', airHumidity: '—', light: '—', ph: '—',
-        stationId: '—', status: r.status || 'ACTIVE', worker: 'Farmely điều phối',
-        contractCode: r.contractId ? `CTR-${r.contractId}` : '—',
-        startDate: r.startDate || r.start_date || '—',
-        expectedHarvestDate: r.endDate || '—', expectedYield: 'Chưa có dữ liệu'
-      })));
-      setActiveServiceOrders(unwrap(requestsBody).map((request) => ({
-        id: `REQ-${request.requestId}`,
-        serviceName: request.service?.serviceName || 'Dịch vụ canh tác',
-        plotName: request.plotName || request.plotCode || 'Chưa có dữ liệu thửa',
-        price: `${Number(request.service?.price || 0).toLocaleString('vi-VN')} đ`,
-        date: request.scheduledDate || (request.createdAt ? new Date(request.createdAt).toLocaleDateString('vi-VN') : 'Chưa có ngày'),
-        status: request.status || 'PENDING',
-        statusLabel: request.status === 'DONE' ? 'Đã hoàn thành' : request.status === 'ASSIGNED' ? 'Đã tiếp nhận & phân công' : request.status === 'IN_PROG' ? 'Đang thực hiện' : 'Đang chờ xử lý',
-        worker: request.status === 'ASSIGNED' || request.status === 'DONE' ? 'Farmely điều phối' : 'Chưa phân công',
-        paymentMethod: 'Theo giao dịch hệ thống'
-      })));
-    }).catch(() => {
-      if (!cancelled) { setApiServices([]); setApiCustomerPlots([]); setActiveServiceOrders([]); }
-    });
-    return () => { cancelled = true; };
+
+    const loadCustomerData = () => {
+      Promise.all([
+        fetch('/api/services?status=ACTIVE').then((r) => r.ok ? r.json() : { data: [] }),
+        fetch('/api/rentals').then((r) => r.ok ? r.json() : { data: [] }),
+        fetch('/api/services/requests').then((r) => r.ok ? r.json() : { data: [] })
+      ]).then(([servicesBody, rentalsBody, requestsBody]) => {
+        if (cancelled) return;
+        const services = unwrap(servicesBody).map((s) => ({
+          id: s.serviceId || s.id,
+          serviceId: s.serviceId || s.id,
+          name: s.serviceName || s.name || 'Dịch vụ nông nghiệp',
+          serviceName: s.serviceName || s.name || 'Dịch vụ nông nghiệp',
+          price: Number(s.price || 0),
+          unit: s.unit || '/ lần thực hiện',
+          description: s.description || 'Dịch vụ chăm sóc theo tiêu chuẩn Farmely.',
+          status: s.status || 'ACTIVE',
+          active: String(s.status || 'ACTIVE') === 'ACTIVE',
+          customerCategory: String(s.serviceType || '').includes('FULL') ? 'FULL' : 'SINGLE',
+          tag: String(s.serviceType || '').includes('FULL') ? 'Gói chăm sóc' : 'Dịch vụ lẻ',
+          iconKey: 'sprout',
+          tasks: Array.isArray(s.tasks) ? s.tasks : []
+        }));
+        setApiServices(services);
+        const rentals = unwrap(rentalsBody);
+        setApiCustomerPlots(rentals.map((r, index) => ({
+          id: `PLOT-${r.plotCode || r.plotId || r.rentalId}`,
+          rentalId: r.rentalId,
+          mapPlotId: r.plotCode,
+          name: r.plotCode ? `Thửa ${r.plotCode}` : `Thửa đất ${index + 1}`,
+          location: 'Khu canh tác Farmely',
+          area: `${r.plotArea || 0}m²`,
+          mode: r.cultivationMode === 'SELF_GROWING' ? 'Self-Growing' : 'Assisted-Growing',
+          crop: r.varietyName || 'Chưa có giống cây',
+          stage: r.displayStatus || 'Đang canh tác',
+          currentDay: 0,
+          totalDays: r.durationDays || 0,
+          progressPercent: 0,
+          image: r.plotImageUrl || '/images/Mucangchai3.jpg',
+          temp: '—', soilMoisture: '—', airHumidity: '—', light: '—', ph: '—',
+          stationId: '—', status: r.status || 'ACTIVE', worker: 'Farmely điều phối',
+          contractCode: r.contractId ? `CTR-${r.contractId}` : '—',
+          startDate: r.startDate || r.start_date || '—',
+          expectedHarvestDate: r.endDate || '—', expectedYield: 'Chưa có dữ liệu'
+        })));
+        setActiveServiceOrders(unwrap(requestsBody).map((request) => ({
+          id: `REQ-${request.requestId}`,
+          serviceName: request.service?.serviceName || 'Dịch vụ canh tác',
+          plotName: request.plotName || request.plotCode || 'Chưa có dữ liệu thửa',
+          price: `${Number(request.service?.price || 0).toLocaleString('vi-VN')} đ`,
+          date: request.scheduledDate || (request.createdAt ? new Date(request.createdAt).toLocaleDateString('vi-VN') : 'Chưa có ngày'),
+          status: request.status || 'PENDING',
+          statusLabel: request.status === 'DONE' ? 'Đã hoàn thành' : request.status === 'ASSIGNED' ? 'Đã tiếp nhận & phân công' : request.status === 'IN_PROG' ? 'Đang thực hiện' : 'Đang chờ xử lý',
+          worker: request.status === 'ASSIGNED' || request.status === 'DONE' ? 'Farmely điều phối' : 'Chưa phân công',
+          paymentMethod: 'Theo giao dịch hệ thống'
+        })));
+      }).catch(() => {
+        if (!cancelled) { setApiServices([]); setApiCustomerPlots([]); setActiveServiceOrders([]); }
+      });
+    };
+
+    loadCustomerData();
+
+    // Tự động đồng bộ ngay khi Admin thêm/sửa/tắt dịch vụ từ tab khác hoặc khi quay lại tab
+    const handleStorageChange = (e) => {
+      if (e.key === 'farmely_services_updated_at') {
+        loadCustomerData();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('farmely_services_updated', loadCustomerData);
+    window.addEventListener('focus', loadCustomerData);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('farmely_services_updated', loadCustomerData);
+      window.removeEventListener('focus', loadCustomerData);
+    };
   }, []);
 
   // IoT Data for Different Timeframes (Hourly, Daily, Weekly)

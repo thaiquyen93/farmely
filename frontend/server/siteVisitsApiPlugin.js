@@ -5955,6 +5955,15 @@ END $$;
         // 21. SERVICES API (GET /api/services)
         if (req.method === 'GET' && (url === '/api/services' || url === '/api/v1/services' || url.startsWith('/api/services?') || url.startsWith('/api/v1/services?'))) {
           try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const statusParam = (urlObj.searchParams.get('status') || '').toUpperCase();
+            let whereClause = '';
+            if (statusParam === 'ACTIVE') {
+              whereClause = "WHERE status = 'ACTIVE'";
+            } else if (statusParam === 'INACTIVE') {
+              whereClause = "WHERE status = 'INACTIVE'";
+            }
+
             const sql = `
 SELECT json_build_object(
   'success', true,
@@ -5967,6 +5976,7 @@ SELECT json_build_object(
         'SVC-' || LPAD(service_id::text, 2, '0') AS id,
         service_code AS "serviceCode",
         service_name AS name,
+        service_name AS "serviceName",
         service_type AS "serviceType",
         CASE 
           WHEN service_type = 'FULL' THEN 'Trọn vụ'
@@ -5981,10 +5991,12 @@ SELECT json_build_object(
         price,
         unit,
         description,
+        status,
         (status = 'ACTIVE') AS active,
         1 AS duration,
         json_build_array(json_build_object('offset', 0, 'title', 'Thực hiện ' || service_name, 'assignee', 'STAFF', 'evidence', true)) AS tasks
       FROM services
+      ${whereClause}
       ORDER BY service_id ASC
     ) s
   )
@@ -5996,6 +6008,255 @@ SELECT json_build_object(
           } catch (err) {
             res.statusCode = 500;
             res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 21.0A POST /api/services & /api/v1/services (Create New Master Service)
+        if (req.method === 'POST' && (url === '/api/services' || url === '/api/v1/services' || url.startsWith('/api/services?') || url.startsWith('/api/v1/services?'))) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const name = (payload.serviceName || payload.name || '').trim();
+              if (!name) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Tên dịch vụ không được để trống' }));
+                return;
+              }
+
+              const rawType = String(payload.serviceType || payload.customerCategory || 'A_LA_CARTE').toUpperCase();
+              const serviceType = rawType.includes('FULL') ? 'FULL' : 'A_LA_CARTE';
+              const price = Math.max(0, Number(payload.price) || 0);
+              const unit = (payload.unit || 'lần/luống').trim();
+              const desc = (payload.description || '').trim();
+              const status = (payload.status === 'INACTIVE' || payload.active === false) ? 'INACTIVE' : 'ACTIVE';
+
+              // Synchronize sequence with current max ID
+              await runPostgreSql(`SELECT setval('services_service_id_seq', (SELECT COALESCE(MAX(service_id), 1) FROM services));`).catch(() => {});
+
+              // Auto-generate next service_code SXX
+              const maxRes = await runPostgreSql(`SELECT COALESCE(MAX(service_id), 0) + 1 AS next_id FROM services;`);
+              let nextId = 16;
+              try {
+                const parsed = typeof maxRes === 'string' ? JSON.parse(maxRes) : maxRes;
+                nextId = Number(parsed[0]?.next_id || parsed?.next_id) || 16;
+              } catch {
+                nextId = 16;
+              }
+              const serviceCode = payload.serviceCode || `S${String(nextId).padStart(2, '0')}`;
+
+              const sql = `
+WITH inserted AS (
+  INSERT INTO services (service_code, service_name, service_type, price, unit, description, status)
+  VALUES (
+    '${serviceCode.replace(/'/g, "''")}',
+    '${name.replace(/'/g, "''")}',
+    '${serviceType}',
+    ${price},
+    '${unit.replace(/'/g, "''")}',
+    '${desc.replace(/'/g, "''")}',
+    '${status}'
+  )
+  RETURNING *
+)
+SELECT row_to_json(s) FROM (
+  SELECT 
+    service_id AS "serviceId",
+    service_id AS "dbId",
+    'SVC-' || LPAD(service_id::text, 2, '0') AS id,
+    service_code AS "serviceCode",
+    service_name AS name,
+    service_name AS "serviceName",
+    service_type AS "serviceType",
+    CASE 
+      WHEN service_type = 'FULL' THEN 'Trọn vụ'
+      WHEN service_type = 'CYCLE' THEN 'Chăm sóc định kỳ'
+      ELSE 'Dịch vụ một lần'
+    END AS category,
+    CASE 
+      WHEN service_type = 'FULL' THEN 'FULL'
+      WHEN service_type = 'CYCLE' THEN 'CYCLE'
+      ELSE 'SINGLE'
+    END AS "customerCategory",
+    price,
+    unit,
+    description,
+    status,
+    (status = 'ACTIVE') AS active,
+    1 AS duration,
+    json_build_array(json_build_object('offset', 0, 'title', 'Thực hiện ' || service_name, 'assignee', 'STAFF', 'evidence', true)) AS tasks
+  FROM inserted
+) s;
+`;
+              const rawCreated = await runPostgreSql(sql);
+              let createdRow = {};
+              try {
+                createdRow = typeof rawCreated === 'string' ? JSON.parse(rawCreated) : rawCreated;
+              } catch {
+                createdRow = { name, serviceName: name, price, unit, status, serviceCode };
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: `Tạo dịch vụ "${name}" thành công và đã lưu vào CSDL`,
+                data: createdRow
+              }));
+            } catch (err) {
+              console.error('Lỗi khi tạo dịch vụ:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Lỗi khi lưu dịch vụ vào CSDL: ' + err.message }));
+            }
+          });
+          return;
+        }
+
+        // 21.0B PUT /api/services/:id & /api/v1/services/:id (Update or Toggle Service)
+        if (req.method === 'PUT' && (url.startsWith('/api/services/') || url.startsWith('/api/v1/services/')) && !url.includes('/requests') && !url.includes('/checkout')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const urlPath = url.split('?')[0];
+              const idRaw = urlPath.split('/').pop();
+              const numId = parseInt(String(idRaw).replace(/\D/g, ''), 10);
+              if (!numId) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Mã dịch vụ không hợp lệ' }));
+                return;
+              }
+
+              const payload = JSON.parse(body || '{}');
+              const updates = [];
+              if (payload.serviceName || payload.name) {
+                const name = (payload.serviceName || payload.name).trim();
+                updates.push(`service_name = '${name.replace(/'/g, "''")}'`);
+              }
+              if (payload.serviceType) {
+                const rawType = String(payload.serviceType).toUpperCase();
+                const sType = rawType.includes('FULL') ? 'FULL' : 'A_LA_CARTE';
+                updates.push(`service_type = '${sType}'`);
+              }
+              if (payload.price !== undefined) {
+                updates.push(`price = ${Math.max(0, Number(payload.price) || 0)}`);
+              }
+              if (payload.unit !== undefined) {
+                updates.push(`unit = '${String(payload.unit).trim().replace(/'/g, "''")}'`);
+              }
+              if (payload.description !== undefined) {
+                updates.push(`description = '${String(payload.description).trim().replace(/'/g, "''")}'`);
+              }
+              if (payload.status !== undefined) {
+                const sStatus = String(payload.status).toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+                updates.push(`status = '${sStatus}'`);
+              }
+
+              if (updates.length === 0) {
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: true, message: 'Không có thông tin cần cập nhật' }));
+                return;
+              }
+
+              const sql = `
+WITH updated AS (
+  UPDATE services
+  SET ${updates.join(', ')}
+  WHERE service_id = ${numId}
+  RETURNING *
+)
+SELECT row_to_json(s) FROM (
+  SELECT 
+    service_id AS "serviceId",
+    service_id AS "dbId",
+    'SVC-' || LPAD(service_id::text, 2, '0') AS id,
+    service_code AS "serviceCode",
+    service_name AS name,
+    service_name AS "serviceName",
+    service_type AS "serviceType",
+    CASE 
+      WHEN service_type = 'FULL' THEN 'Trọn vụ'
+      WHEN service_type = 'CYCLE' THEN 'Chăm sóc định kỳ'
+      ELSE 'Dịch vụ một lần'
+    END AS category,
+    CASE 
+      WHEN service_type = 'FULL' THEN 'FULL'
+      WHEN service_type = 'CYCLE' THEN 'CYCLE'
+      ELSE 'SINGLE'
+    END AS "customerCategory",
+    price,
+    unit,
+    description,
+    status,
+    (status = 'ACTIVE') AS active,
+    1 AS duration,
+    json_build_array(json_build_object('offset', 0, 'title', 'Thực hiện ' || service_name, 'assignee', 'STAFF', 'evidence', true)) AS tasks
+  FROM updated
+) s;
+`;
+              const rawUpdated = await runPostgreSql(sql);
+              let updatedRow = {};
+              try {
+                updatedRow = typeof rawUpdated === 'string' ? JSON.parse(rawUpdated) : rawUpdated;
+              } catch {
+                updatedRow = { serviceId: numId };
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Cập nhật dịch vụ thành công',
+                data: updatedRow
+              }));
+            } catch (err) {
+              console.error('Lỗi khi cập nhật dịch vụ:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Lỗi khi cập nhật dịch vụ: ' + err.message }));
+            }
+          });
+          return;
+        }
+
+        // 21.0C DELETE /api/services/:id & /api/v1/services/:id (Delete or Inactivate Service)
+        if (req.method === 'DELETE' && (url.startsWith('/api/services/') || url.startsWith('/api/v1/services/')) && !url.includes('/requests')) {
+          try {
+            const urlPath = url.split('?')[0];
+            const idRaw = urlPath.split('/').pop();
+            const numId = parseInt(String(idRaw).replace(/\D/g, ''), 10);
+            if (!numId) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Mã dịch vụ không hợp lệ' }));
+              return;
+            }
+
+            const checkSql = `SELECT count(*)::int AS cnt FROM service_requests WHERE service_id = ${numId};`;
+            const checkRes = await runPostgreSql(checkSql);
+            let hasRequests = false;
+            try {
+              const parsed = typeof checkRes === 'string' ? JSON.parse(checkRes) : checkRes;
+              hasRequests = (parsed[0]?.cnt || parsed?.cnt || 0) > 0;
+            } catch {}
+
+            if (hasRequests) {
+              await runPostgreSql(`UPDATE services SET status = 'INACTIVE' WHERE service_id = ${numId};`);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Dịch vụ đã có đơn yêu cầu nên đã chuyển sang trạng thái tạm ẩn (INACTIVE)' }));
+            } else {
+              await runPostgreSql(`DELETE FROM services WHERE service_id = ${numId};`);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Đã xóa dịch vụ khỏi CSDL' }));
+            }
+          } catch (err) {
+            console.error('Lỗi khi xóa dịch vụ:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: 'Lỗi khi xóa dịch vụ: ' + err.message }));
           }
           return;
         }
