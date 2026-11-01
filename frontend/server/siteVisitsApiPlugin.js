@@ -115,8 +115,6 @@ ALTER TABLE rentals ADD COLUMN IF NOT EXISTS term_months INTEGER;
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS expert_id INT;
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS staff_id INT;
 ALTER TABLE lands ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE;
-UPDATE plots SET is_published = TRUE WHERE plot_id <= 16 AND status IN ('AVAIL', 'RENT') AND EXISTS (SELECT 1 FROM plot_variety_compatibility pvc WHERE pvc.plot_id = plots.plot_id);
-UPDATE lands SET is_published = TRUE WHERE land_id <= 3 AND EXISTS (SELECT 1 FROM plots p WHERE p.land_id = lands.land_id AND p.is_published = TRUE);
 ALTER TABLE template_steps ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
 ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS title VARCHAR(255);
 ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
@@ -124,15 +122,6 @@ ALTER TABLE farm_diaries ADD COLUMN IF NOT EXISTS title VARCHAR(255);
 ALTER TABLE farm_diaries ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
 ALTER TABLE farm_diaries DROP CONSTRAINT IF EXISTS farm_diaries_task_id_fkey;
 ALTER TABLE farm_diaries ADD CONSTRAINT farm_diaries_task_id_fkey FOREIGN KEY (task_id) REFERENCES care_tasks(task_id) ON DELETE SET NULL;
-
--- Đồng bộ trạng thái: Thửa đất không có hợp đồng ACTIVE thì trở về AVAIL (trừ thửa đang nghỉ phơi ải MAINT)
-UPDATE plots SET status = 'AVAIL'
-WHERE status = 'RENT' AND plot_id NOT IN (
-  SELECT plot_id FROM rentals WHERE status = 'ACTIVE'
-);
-
--- Dọn dẹp các tác vụ rác của các hợp đồng/thửa đã hủy
-DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE status = 'CANCELLED');
 
 CREATE OR REPLACE FUNCTION fn_resolve_expert_for_variety(p_variety_id INT)
 RETURNS INT AS $$
@@ -147,30 +136,6 @@ BEGIN
   RETURN 8; -- Trần Văn Lực (CVLĐ) đảm nhiệm toàn diện full plots
 END;
 $$ LANGUAGE plpgsql;
-
--- Đồng bộ toàn bộ hợp đồng, nhiệm vụ và hội thoại sang ThS. Nam (5) và Trần Văn Lực (8)
-UPDATE rentals SET expert_id = 5, staff_id = 8 WHERE status = 'ACTIVE';
-UPDATE care_tasks SET task_assigned_to = 8;
-UPDATE conversations SET participant_two = 5 WHERE type = 'CUST_EXP';
-UPDATE conversations SET participant_one = 8, participant_two = 5 WHERE type = 'STAFF_EXP';
-
--- Dọn dẹp dữ liệu test thừa và chuẩn hóa chuỗi mô tả
-DELETE FROM care_tasks WHERE task_id IN (11, 12, 14);
-UPDATE care_tasks SET notes = 'Bón thúc đợt 2 phân trùn quế quanh vùng rễ' WHERE notes LIKE '%Test auto assign Zone B%';
-UPDATE care_tasks SET notes = '[LÀM NGAY] Xử lý rệp sáp bùng phát mặt dưới lá - Pha chế phẩm sinh học thảo mộc tỏi ớt 1:200, phun đều 2 mặt lá sau 16:30.' WHERE task_id = 15;
-
--- Chuẩn hóa chỉ đạo chuyên gia cho sự cố
-UPDATE issue_reports 
-SET resolution_notes = 'Pha chế phẩm sinh học thảo mộc tỏi ớt 1:200, phun sương đều 2 mặt lá sau 16:30. Đã phát lệnh giao việc #TSK-15 cho CVLĐ.',
-    handled_by = 5,
-    status = 'OPEN'
-WHERE issue_id = 3;
-
-UPDATE issue_reports 
-SET resolution_notes = 'Kích hoạt van tưới nhỏ giọt 20 phút để nâng độ ẩm đất từ 52% về ngưỡng an toàn 65-70%.',
-    handled_by = 5,
-    status = 'OPEN'
-WHERE issue_id = 2;
 `);
     rentalLeaseColumnsEnsured = true;
   } catch (err) {
@@ -966,10 +931,11 @@ BEGIN
 
     -- 1. TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP CỦA GIỐNG CÂY (CHỈ KHI THUÊ GÓI HỖ TRỢ)
     IF '${itemMode}' <> 'SELF' THEN
-        INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+        INSERT INTO care_tasks (rental_id, step_id, step_order, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
         SELECT 
             v_rental_id,
             ts.step_id,
+            COALESCE(ts.step_order, 1),
             v_staff_id,
             DATE '${itemCultivationDate}' + (ts.day_offset || ' days')::INTERVAL,
             'PENDING'::task_status_enum,
@@ -1786,10 +1752,11 @@ BEGIN
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
     
     -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa thuê gói Hỗ trợ (Assisted) nếu chưa có (tính ngày theo start_date)
-    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+    INSERT INTO care_tasks (rental_id, step_id, step_order, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
     SELECT 
         r.rental_id,
         ts.step_id,
+        COALESCE(ts.step_order, 1),
         r.staff_id,
         r.start_date + (ts.day_offset || ' days')::interval,
         CASE WHEN r.start_date <= CURRENT_DATE AND COALESCE(ts.step_order, 1) = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
@@ -2779,7 +2746,7 @@ SELECT row_to_json(l) FROM (
                   UPDATE lands SET is_published = true, updated_at = NOW() WHERE land_id = ${landId};
                   UPDATE plots
                   SET is_published = true,
-                      status = CASE WHEN status = 'MAINT' THEN 'AVAIL'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'MAINT' THEN 'AVAIL' ELSE status::text END,
                       updated_at = NOW()
                   WHERE land_id = ${landId};
                 `);
@@ -2788,7 +2755,7 @@ SELECT row_to_json(l) FROM (
                   UPDATE lands SET is_published = false, updated_at = NOW() WHERE land_id = ${landId};
                   UPDATE plots
                   SET is_published = false,
-                      status = CASE WHEN status = 'AVAIL' THEN 'MAINT'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'AVAIL' THEN 'MAINT' ELSE status::text END,
                       updated_at = NOW()
                   WHERE land_id = ${landId};
                 `);
@@ -3535,7 +3502,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                 await runPostgreSql(`
                   UPDATE plots
                   SET is_published = true,
-                      status = CASE WHEN status = 'MAINT' THEN 'AVAIL'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'MAINT' THEN 'AVAIL' ELSE status::text END,
                       updated_at = NOW()
                   WHERE plot_id = ${plotId};
                   UPDATE lands
@@ -3547,7 +3514,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                 await runPostgreSql(`
                   UPDATE plots
                   SET is_published = false,
-                      status = CASE WHEN status = 'AVAIL' THEN 'MAINT'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'AVAIL' THEN 'MAINT' ELSE status::text END,
                       updated_at = NOW()
                   WHERE plot_id = ${plotId};
                 `);
@@ -4958,7 +4925,7 @@ SELECT json_build_object(
           WHEN rent.start_date IS NOT NULL AND ct.due_date IS NOT NULL THEN GREATEST(1, DATE(ct.due_date) - DATE(rent.start_date) + 1)
           ELSE 1
         END AS "cropDay",
-        COALESCE(ct.step_order, ts.step_order, 1) AS "stepOrder",
+        COALESCE(ts.step_order, ct.step_order, 1) AS "stepOrder",
         ts.duration_days AS "durationDays",
         '08:30 AM' AS deadline,
         'MORNING' AS session,

@@ -788,23 +788,6 @@ export default function BookPlot() {
     });
   };
 
-  const markPlotsAsBookedLocally = () => {
-    try {
-      localStorage.removeItem('farmely_master_lease_selected_plots');
-      const recent = JSON.parse(localStorage.getItem('farmely_recently_booked_plots') || '[]');
-      selectedPlots.forEach((sp) => {
-        const c1 = sp.code || sp.id;
-        const c2 = sp.id;
-        if (c1 && !recent.includes(c1)) recent.push(c1);
-        if (c2 && !recent.includes(c2)) recent.push(c2);
-      });
-      localStorage.setItem('farmely_recently_booked_plots', JSON.stringify(recent));
-      window.dispatchEvent(new CustomEvent('farmely_plot_booked', { detail: selectedPlots }));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const buildPendingBookingPayload = (contractIdToUse) => ({
     contractId: contractIdToUse || createdContractId || null,
     customerId: user?.userId || user?.id || 1,
@@ -933,7 +916,8 @@ export default function BookPlot() {
       }
 
       syncRentalToChat();
-      markPlotsAsBookedLocally();
+      localStorage.removeItem('farmely_master_lease_selected_plots');
+      window.dispatchEvent(new CustomEvent('farmely_plot_booked', { detail: selectedPlots }));
 
       // Thông báo cho toàn bộ các tab và component làm mới dữ liệu
       window.dispatchEvent(new Event('farmely_plot_booked'));
