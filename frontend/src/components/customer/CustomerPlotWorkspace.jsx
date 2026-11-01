@@ -1182,6 +1182,8 @@ function StaffActivitiesTab({
   activities = [],
   onOpenPhoto,
   plot,
+  plots = [],
+  onSelectPlot,
   isSelf = false,
   onToggleTask,
   onAddTask,
@@ -1344,7 +1346,7 @@ function StaffActivitiesTab({
                   </span>
                   <div>
                     <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
-                      <span>Việc Cần Thực Hiện Hôm Nay ({todayList.length})</span>
+                      <span>Việc Cần Thực Hiện Hôm Nay ({todayList.length}) {plot?.plotCode ? `• Thửa ${plot.plotCode}` : ''}</span>
                     </h4>
                     <p className="text-[11px] text-amber-800 font-medium">
                       {isSelf
@@ -1365,12 +1367,39 @@ function StaffActivitiesTab({
               </div>
 
               {todayList.length === 0 ? (
-                <div className="p-6 text-center bg-emerald-50/40 rounded-2xl border border-dashed border-emerald-300 flex flex-col items-center gap-1.5">
+                <div className="p-6 text-center bg-emerald-50/40 rounded-2xl border border-dashed border-emerald-300 flex flex-col items-center gap-2">
                   <CheckCircle2 className="w-7 h-7 text-emerald-600" />
-                  <p className="font-heading font-black text-stone-900 text-sm">Hôm nay không có việc tồn đọng!</p>
-                  <p className="text-xs text-stone-500">
-                    Toàn bộ nhiệm vụ chăm sóc ngày hôm nay đã được thực hiện chu đáo. Cây trồng đang phát triển rất tốt.
+                  <p className="font-heading font-black text-stone-900 text-sm">
+                    Hôm nay không có việc tồn đọng tại {plot?.plotCode ? `Thửa ${plot.plotCode}` : (plot?.name || 'thửa đất này')}!
                   </p>
+                  <p className="text-xs text-stone-500 max-w-md">
+                    Toàn bộ nhiệm vụ chăm sóc ngày hôm nay của thửa đất này đã được thực hiện chu đáo. Cây trồng đang phát triển rất tốt.
+                  </p>
+                  {plots && plots.length > 1 && (
+                    <div className="mt-3 pt-3 border-t border-emerald-200/60 w-full max-w-md flex flex-col items-center gap-2">
+                      <span className="text-[11px] font-semibold text-stone-600">Chọn thửa đất canh tác khác của bạn để kiểm tra công việc:</span>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        {plots.map((p) => {
+                          const isCurrent = p.id === plot?.id || (p.rentalId && plot?.rentalId && p.rentalId === plot?.rentalId);
+                          return (
+                            <button
+                              key={p.id || p.rentalId}
+                              type="button"
+                              onClick={() => onSelectPlot?.(p.id)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                                isCurrent
+                                  ? 'bg-[#294C3B] text-white shadow-sm'
+                                  : 'bg-white border border-emerald-300 text-[#294C3B] hover:bg-emerald-50'
+                              }`}
+                            >
+                              <span>{p.plotCode ? `Thửa ${p.plotCode}` : p.name}</span>
+                              {isCurrent && <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full font-normal">(Đang xem)</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -2589,7 +2618,13 @@ export default function CustomerPlotWorkspace({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef(null);
-  const tab = PLOT_TABS.some((t) => t.id === activeTab) ? activeTab : 'overview';
+  const [internalTab, setInternalTab] = useState(activeTab || 'overview');
+  useEffect(() => {
+    if (activeTab && PLOT_TABS.some(t => t.id === activeTab)) {
+      setInternalTab(activeTab);
+    }
+  }, [activeTab]);
+  const tab = PLOT_TABS.some((t) => t.id === (onTabChange ? activeTab : internalTab)) ? (onTabChange ? activeTab : internalTab) : 'overview';
   const isSelf = plot.mode === 'Self-Growing' || plot.cultivationMode === 'SELF' || plot.cultivationMode === 'SELF_GROWING';
 
   // Dynamic Tabs definition for Self-Growing vs Assisted (Requirement #3)
@@ -2811,6 +2846,8 @@ export default function CustomerPlotWorkspace({
                   plotId: m.plotCode || plot.id,
                   plotCode: m.plotCode || plot.plotCode || 'P-01',
                   rentalId: m.rentalId,
+                  serviceRequestId: m.serviceRequestId || null,
+                  priority: m.priority || 'NORMAL',
                   day: resolvedDay,
                   cropDay: resolvedDay,
                   dayOffset: m.dayOffset !== undefined && m.dayOffset !== null ? Number(m.dayOffset) : null,
@@ -2851,15 +2888,20 @@ export default function CustomerPlotWorkspace({
     }
 
     const onStorage = (e) => {
-      if (e.key === 'farmely_persisted_staff_activities_v2') {
+      if (e.key === 'farmely_persisted_staff_activities_v2' || e.key === 'farmely_customer_service_orders') {
         reloadStaffActivities();
       }
     };
+    const onServicePaid = () => {
+      reloadStaffActivities();
+    };
     window.addEventListener('storage', onStorage);
+    window.addEventListener('farmely_service_paid', onServicePaid);
 
     return () => {
       isMounted = false;
       window.removeEventListener('storage', onStorage);
+      window.removeEventListener('farmely_service_paid', onServicePaid);
       if (bc) bc.close();
     };
   }, [plot.id, plot.plotCode, plot.rentalId]);
