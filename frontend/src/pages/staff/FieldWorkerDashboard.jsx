@@ -225,9 +225,9 @@ function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onTo
       tabIndex={0}
       onClick={() => onOpenDetail(task)}
       onKeyDown={handleKey}
-      className={`group flex flex-wrap items-start gap-3 rounded-xl border border-stone-200 border-l-4 ${accent.border} ${isDone ? 'bg-white/70' : variant === 'upcoming' ? 'bg-stone-50/60' : 'bg-white shadow-2xs'} p-3 transition hover:border-stone-300 hover:shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 cursor-pointer sm:flex-nowrap sm:items-center`}
+      className={`group flex w-full min-w-0 flex-wrap items-start gap-3 rounded-xl border border-stone-200 border-l-4 ${accent.border} ${isDone ? 'bg-white/70' : variant === 'upcoming' ? 'bg-stone-50/60' : 'bg-white shadow-2xs'} p-3 transition hover:border-stone-300 hover:shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 cursor-pointer sm:flex-nowrap sm:items-center`}
     >
-      <div className={`w-14 shrink-0 pt-0.5 font-mono text-xs font-bold ${isDone ? 'text-stone-400' : 'text-stone-700'}`}>
+      <div className={`w-14 shrink-0 self-start pt-0.5 font-mono text-xs font-bold ${isDone ? 'text-stone-400' : 'text-stone-700'}`}>
         {isDone ? <Check className="mb-0.5 h-3.5 w-3.5 text-emerald-600" /> : null}
         {timeLabel}
       </div>
@@ -244,15 +244,15 @@ function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onTo
           </h5>
         </div>
 
-        <p className="flex items-center gap-1.5 truncate text-[11px] text-stone-500">
+        <p className="flex min-w-0 items-center gap-1.5 text-[11px] text-stone-500">
           {accent.label ? (
             <>
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${accent.dot}`} />
-              <span className={`font-bold ${accent.text}`}>{accent.label}</span>
+              <span className={`shrink-0 whitespace-nowrap font-bold ${accent.text}`}>{accent.label}</span>
               {metaParts.length ? <span className="text-stone-300">·</span> : null}
             </>
           ) : null}
-          <span className="truncate">{isDone ? `Nghiệm thu: ${task.workerName || fallbackWorker}` : metaParts.join(' · ')}</span>
+          <span className="min-w-0 truncate">{isDone ? `Nghiệm thu: ${task.workerName || fallbackWorker}` : metaParts.join(' · ')}</span>
         </p>
 
         {!isDone && description ? (
@@ -274,10 +274,10 @@ function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onTo
         ) : null}
 
         {showNote ? (
-          <p className="flex items-center gap-1 truncate text-[11px] text-amber-800">
+          <p className="flex min-w-0 items-center gap-1 text-[11px] text-amber-800">
             <BookOpen className="h-3 w-3 shrink-0" />
-            <span className="font-bold">CGNN:</span>
-            <span className="truncate">{task.notes}</span>
+            <span className="shrink-0 font-bold">CGNN:</span>
+            <span className="min-w-0 truncate">{task.notes}</span>
           </p>
         ) : null}
       </div>
