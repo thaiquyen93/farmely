@@ -731,6 +731,11 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
   const cropKey = detectCropKey(plot.crop || plot.name || '');
   const standardTemplate = CROP_STANDARDS[cropKey] || CROP_STANDARDS.tomato;
 
+  // Tên cây trồng ưu tiên 100% từ thông tin plot / hợp đồng thực tế của người dùng
+  const resolvedCropName = (plot.crop && String(plot.crop).trim() !== '')
+    ? String(plot.crop).trim()
+    : (plot.varietyName || plot.variety_name || standardTemplate.cropName);
+
   const totalDays = Number(plot.totalDays) || standardTemplate.totalDays || 45;
 
   // Kiểm tra vụ mùa đã bắt đầu hay chưa (currentDay = 0 hoặc status = 'SCHEDULED' hoặc isScheduled hoặc startDate trong tương lai)
@@ -754,69 +759,122 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
     progressPercent = Math.min(100, Math.round((currentDay / totalDays) * 100));
   }
 
-  const baseTotal = standardTemplate.totalDays || 45;
-  const scale = totalDays > 0 ? totalDays / baseTotal : 1;
-  const shouldScale = Math.abs(scale - 1) > 0.05 && (!dbStages || dbStages.length === 0);
+  let computedStages = [];
 
-  let currentCursor = 1;
-  // Tính toán trạng thái các giai đoạn (tự động co giãn theo tổng ngày chu kỳ)
-  const computedStages = standardTemplate.stages.map((st, sIdx) => {
-    let dayStart = st.dayStart;
-    let dayEnd = st.dayEnd;
+  // Nếu có danh sách các bước quy trình thực tế từ CSDL (template_steps của giống cây này)
+  if (Array.isArray(dbStages) && dbStages.length > 0) {
+    const sortedDb = [...dbStages].sort((a, b) => {
+      const oA = a.dayOffset !== undefined && a.dayOffset !== null ? Number(a.dayOffset) : (a.stepOrder || 0);
+      const oB = b.dayOffset !== undefined && b.dayOffset !== null ? Number(b.dayOffset) : (b.stepOrder || 0);
+      return oA - oB;
+    });
 
-    if (shouldScale) {
-      dayStart = currentCursor;
-      if (sIdx === standardTemplate.stages.length - 1) {
-        dayEnd = totalDays;
-      } else {
-        const rawDur = Math.max(1, st.dayEnd - st.dayStart + 1);
-        const scaledDur = Math.max(2, Math.round(rawDur * scale));
-        dayEnd = Math.min(totalDays - (standardTemplate.stages.length - 1 - sIdx), currentCursor + scaledDur - 1);
+    computedStages = sortedDb.map((d, sIdx) => {
+      const rawStart = d.dayOffset !== undefined && d.dayOffset !== null
+        ? Math.max(1, Number(d.dayOffset))
+        : (d.dayStart || (sIdx === 0 ? 1 : Math.round((sIdx / sortedDb.length) * totalDays)));
+
+      let dayEnd = totalDays;
+      if (sIdx < sortedDb.length - 1) {
+        const nextStart = sortedDb[sIdx + 1].dayOffset !== undefined && sortedDb[sIdx + 1].dayOffset !== null
+          ? Math.max(rawStart, Number(sortedDb[sIdx + 1].dayOffset))
+          : Math.round(((sIdx + 1) / sortedDb.length) * totalDays);
+        dayEnd = Math.max(rawStart, nextStart - 1);
       }
-      currentCursor = dayEnd + 1;
-    }
 
-    let status = 'PENDING';
-    if (!isNotStarted) {
-      if (currentDay > dayEnd) {
-        status = 'COMPLETED';
-      } else if (currentDay >= dayStart && currentDay <= dayEnd) {
-        status = 'IN_PROGRESS';
+      let status = 'PENDING';
+      if (!isNotStarted) {
+        if (d.status === 'DONE' || d.status === 'COMPLETED') {
+          status = 'COMPLETED';
+        } else if (d.status === 'IN_PROG' || d.status === 'IN_PROGRESS') {
+          status = 'IN_PROGRESS';
+        } else if (currentDay > dayEnd) {
+          status = 'COMPLETED';
+        } else if (currentDay >= rawStart && currentDay <= dayEnd) {
+          status = 'IN_PROGRESS';
+        }
       }
-    }
 
-    // Nếu có dữ liệu từ DB (template_steps), merge thông tin
-    const matchingDb = dbStages.find((d) => 
-      d.stepOrder === st.stepOrder || 
-      (d.stage && d.stage.toLowerCase().includes(st.name.slice(0, 10).toLowerCase()))
-    );
+      const stageName = d.stage || d.name || d.stepName || d.title || `Giai đoạn ${sIdx + 1}`;
+      const guide = d.guide || d.description || d.instructions || 'Tuân thủ định mức và kỹ thuật chuẩn VietGAP.';
+      const materials = d.materials || d.materialsNeeded || d.materialsRequired || 'Phân bón & chế phẩm sinh học VietGAP';
 
-    return {
-      ...st,
-      dayStart,
-      dayEnd,
-      label: `Ngày ${dayStart} - ${dayEnd}`,
-      status: matchingDb?.status || status,
-      guide: matchingDb?.guide || st.guide,
-      materials: matchingDb?.materials || st.nutrition,
-      isCurrent: !isNotStarted && status === 'IN_PROGRESS',
-      daysUntil: currentDay < dayStart ? dayStart - currentDay : 0,
-      daysElapsed: currentDay > dayEnd ? (dayEnd - dayStart + 1) : Math.max(0, currentDay - dayStart + 1)
-    };
-  });
+      return {
+        id: d.id || `STAGE-${d.stepId || sIdx + 1}`,
+        stepOrder: d.stepOrder || sIdx + 1,
+        name: stageName,
+        dayStart: rawStart,
+        dayEnd: dayEnd,
+        label: rawStart === dayEnd ? `Ngày ${rawStart}` : `Ngày ${rawStart} - ${dayEnd}`,
+        statusDesc: guide,
+        waterRegime: d.waterRegime || '1.5 - 2.0 L/m²/ngày (tưới nhỏ giọt bổ sung độ ẩm theo thời tiết)',
+        nutrition: materials,
+        guide: guide,
+        pestAlert: d.pestAlert || 'Phòng trừ sinh học tỏi ớt gừng, thảo mộc VietGAP.',
+        inspectionCriteria: d.inspectionCriteria || 'Kiểm tra tỷ lệ sinh trưởng và nghiệm thu ảnh hiện trường.',
+        status,
+        materials,
+        isCurrent: !isNotStarted && status === 'IN_PROGRESS',
+        daysUntil: currentDay < rawStart ? rawStart - currentDay : 0,
+        daysElapsed: currentDay > dayEnd ? (dayEnd - rawStart + 1) : Math.max(0, currentDay - rawStart + 1)
+      };
+    });
+  } else {
+    const baseTotal = standardTemplate.totalDays || 45;
+    const scale = totalDays > 0 ? totalDays / baseTotal : 1;
+    const shouldScale = Math.abs(scale - 1) > 0.05;
+
+    let currentCursor = 1;
+    computedStages = standardTemplate.stages.map((st, sIdx) => {
+      let dayStart = st.dayStart;
+      let dayEnd = st.dayEnd;
+
+      if (shouldScale) {
+        dayStart = currentCursor;
+        if (sIdx === standardTemplate.stages.length - 1) {
+          dayEnd = totalDays;
+        } else {
+          const rawDur = Math.max(1, st.dayEnd - st.dayStart + 1);
+          const scaledDur = Math.max(2, Math.round(rawDur * scale));
+          dayEnd = Math.min(totalDays - (standardTemplate.stages.length - 1 - sIdx), currentCursor + scaledDur - 1);
+        }
+        currentCursor = dayEnd + 1;
+      }
+
+      let status = 'PENDING';
+      if (!isNotStarted) {
+        if (currentDay > dayEnd) {
+          status = 'COMPLETED';
+        } else if (currentDay >= dayStart && currentDay <= dayEnd) {
+          status = 'IN_PROGRESS';
+        }
+      }
+
+      return {
+        ...st,
+        dayStart,
+        dayEnd,
+        label: `Ngày ${dayStart} - ${dayEnd}`,
+        status,
+        isCurrent: !isNotStarted && status === 'IN_PROGRESS',
+        daysUntil: currentDay < dayStart ? dayStart - currentDay : 0,
+        daysElapsed: currentDay > dayEnd ? (dayEnd - dayStart + 1) : Math.max(0, currentDay - dayStart + 1)
+      };
+    });
+  }
 
   const currentStageObj = isNotStarted
     ? {
         ...computedStages[0],
-        name: `Sắp tới: ${computedStages[0].name}`,
+        name: `Sắp tới: ${computedStages[0]?.name || 'Giai đoạn 1'}`,
         statusDesc: `Vụ mùa sắp tới (Khởi động ngày ${plot.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'Kỳ tới'}). Đất đang trong giai đoạn nghỉ hoặc hoàn thiện chuẩn bị xuống giống theo lịch canh tác.`,
         isCurrent: false
       }
-    : (computedStages.find((s) => s.isCurrent) || computedStages[computedStages.length - 1]);
+    : (computedStages.find((s) => s.isCurrent) || computedStages.find((s) => s.status === 'IN_PROGRESS') || computedStages[computedStages.length - 1] || computedStages[0]);
 
   return {
     cropKey,
-    cropName: standardTemplate.cropName,
+    cropName: resolvedCropName,
     plotName: plot.name,
     plotCode: plot.plotCode || plot.id,
     totalDays,

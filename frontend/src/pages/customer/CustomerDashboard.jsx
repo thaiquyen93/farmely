@@ -1892,6 +1892,7 @@ export default function CustomerDashboard() {
           const keys = [
             item.plotId,
             item.plotCode,
+            `PLOT-${item.plotCode}`,
             `RENTAL-${item.rentalId}`,
             String(item.rentalId)
           ];
@@ -1899,12 +1900,23 @@ export default function CustomerDashboard() {
             if (k) {
               if (!grouped[k]) grouped[k] = [];
               grouped[k].push({
+                ...item,
+                id: item.stepId ? `STAGE-${item.stepId}` : undefined,
+                stepId: item.stepId,
                 stage: item.stage,
+                name: item.stage,
                 date: item.date,
                 guide: item.guide,
                 status: item.status,
                 stepOrder: item.stepOrder,
-                materials: item.materialsNeeded
+                materials: item.materialsNeeded,
+                materialsNeeded: item.materialsNeeded,
+                dayOffset: item.dayOffset,
+                durationDays: item.durationDays,
+                minTemp: item.minTemp,
+                maxTemp: item.maxTemp,
+                minHumidity: item.minHumidity,
+                maxHumidity: item.maxHumidity
               });
             }
           });
@@ -2173,7 +2185,15 @@ export default function CustomerDashboard() {
                 operations={currentPlotOperations}
                 iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
                 alerts={iotAlerts[currentSelectedPlot.id] || iotAlerts['PLOT-CC-01'] || []}
-                stages={cultivationProcesses[currentSelectedPlot.id] || cultivationProcesses[currentSelectedPlot.mapPlotId] || cultivationProcesses[`RENTAL-${currentSelectedPlot.rentalId}`] || []}
+                stages={
+                  cultivationProcesses[currentSelectedPlot.id] ||
+                  cultivationProcesses[currentSelectedPlot.plotCode] ||
+                  cultivationProcesses[`PLOT-${currentSelectedPlot.plotCode}`] ||
+                  cultivationProcesses[currentSelectedPlot.mapPlotId] ||
+                  cultivationProcesses[`RENTAL-${currentSelectedPlot.rentalId}`] ||
+                  cultivationProcesses[String(currentSelectedPlot.rentalId)] ||
+                  []
+                }
                 services={customerServiceCatalog}
                 serviceOrders={activeServiceOrders.filter((o) => {
                   if (!currentSelectedPlot) return false;
