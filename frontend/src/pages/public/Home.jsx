@@ -182,7 +182,7 @@ export default function Home() {
                 id: String(land.landId),
                 name: land.landName,
                 location: land.address,
-                description: land.description || 'Khu nông trại sinh thái chuẩn VietGAP với hệ thống quan trắc IoT 24/7.',
+                description: land.description || 'Khu nông trại sinh thái chuẩn VietGAP với hệ thống quan trắc vi khí hậu 24/7.',
                 totalArea: land.boundaryAreaM2 ? `${Math.round(land.boundaryAreaM2).toLocaleString('vi-VN')} m²` : '25.000 m²',
                 totalPlots: land.totalPlots || 16,
                 activePlots: land.availablePlots || 10,
@@ -241,7 +241,7 @@ export default function Home() {
                 03
               </div>
               <h3 className="font-heading text-lg font-bold text-brand-dark mb-2">
-                Theo Dõi Từ Xa Qua IoT
+                Theo Dõi Vi Khí Hậu Từ Xa
               </h3>
               <p className="text-xs text-stone-600 leading-relaxed">
                 Cập nhật độ ẩm đất, nhiệt độ, Farm Diary có ảnh chụp minh chứng của công nhân và hỏi đáp trực tiếp với Chuyên gia Nông nghiệp.
@@ -274,7 +274,7 @@ export default function Home() {
             </div>
             <h2 className="text-section-title font-heading font-black text-brand-dark">Các thửa đất nổi bật</h2>
             <p className="text-sm sm:text-base text-brand-muted mt-2 max-w-xl">
-              Các thửa đã được đo đạc thổ nhưỡng, lắp nguồn nước sạch và kết nối trạm quan trắc IoT theo chuẩn VietGAP.
+              Các thửa đã được đo đạc thổ nhưỡng, lắp nguồn nước sạch và kết nối trạm quan trắc vi khí hậu theo chuẩn VietGAP.
             </p>
           </div>
           <Link to="/marketplace">
@@ -304,7 +304,7 @@ export default function Home() {
             <div className="space-y-6">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 text-brand-yellow text-xs font-bold uppercase tracking-wider border border-white/15">
                 <Radio className="w-3.5 h-3.5 animate-pulse" />
-                <span>CÔNG NGHỆ QUAN TRẮC IOT VI KHÍ HẬU</span>
+                <span>CÔNG NGHỆ QUAN TRẮC VI KHÍ HẬU & THỜI TIẾT</span>
               </div>
 
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-heading font-black text-white text-balance tracking-tight leading-tight">
@@ -313,14 +313,14 @@ export default function Home() {
               </h2>
 
               <p className="text-sm sm:text-base text-stone-300 leading-relaxed">
-                Mỗi thửa đất được trang bị trạm cảm biến IoT thu thập dữ liệu nhiệt độ, độ ẩm không khí và độ ẩm đất. Hệ thống kết hợp dữ liệu vi khí hậu thực tế cùng dự báo thời tiết để tự động điều phối chu trình tưới và kích hoạt cảnh báo kỹ thuật theo đúng quy chuẩn vận hành trang trại.
+                Mỗi thửa đất được kết nối hệ thống trạm quan trắc thu thập dữ liệu nhiệt độ, độ ẩm không khí và độ ẩm đất theo thời gian thực. Hệ thống kết hợp dữ liệu vi khí hậu thực tế cùng dự báo thời tiết để tự động điều phối chu trình tưới và kích hoạt cảnh báo kỹ thuật theo đúng quy chuẩn vận hành trang trại.
               </p>
 
               {/* Interactive Weather Simulator Controls */}
               <div className="p-4 rounded-2xl bg-white/5 border border-white/15 space-y-3">
                 <span className="text-xs font-bold uppercase tracking-wider text-brand-yellow flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4" />
-                  MÔ PHỎNG PHẢN ỨNG DỮ LIỆU IOT & ĐIỀU PHỐI TƯỚI:
+                  MÔ PHỎNG PHẢN ỨNG DỮ LIỆU VI KHÍ HẬU & ĐIỀU PHỐI TƯỚI:
                 </span>
                 
                 <div className="grid grid-cols-3 gap-2">
@@ -384,7 +384,7 @@ export default function Home() {
               <div className="pt-2">
                 <Link to="/marketplace">
                   <Button variant="primary" size="lg" className="uppercase font-black text-xs tracking-wider shadow-yellow-glow">
-                    XEM CÁC THỬA ĐẤT KẾT NỐI IOT THÔNG MINH
+                    XEM CÁC THỬA ĐẤT QUAN TRẮC THÔNG MINH
                   </Button>
                 </Link>
               </div>
@@ -398,7 +398,7 @@ export default function Home() {
                     <span className="text-[10px] uppercase font-bold text-brand-yellow tracking-wider">Trạm quan trắc thực địa</span>
                     <span className="text-[10px] text-stone-400">• Vừa cập nhật 2 phút trước</span>
                   </div>
-                  <h4 className="font-heading text-lg font-bold text-white">IOT-CC-01 – Thửa Sen Vàng A1</h4>
+                  <h4 className="font-heading text-lg font-bold text-white">KT-CC-01 – Thửa Sen Vàng A1</h4>
                 </div>
                 
                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${currentSim.badgeBg}`}>
@@ -557,7 +557,7 @@ export default function Home() {
                 </li>
                 <li className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-brand-green shrink-0" />
-                  <span>Cảnh báo IoT kéo dài tự động tạo Emergency Task cứu hộ</span>
+                  <span>Cảnh báo vi khí hậu kéo dài tự động tạo Emergency Task cứu hộ</span>
                 </li>
               </ul>
             </div>

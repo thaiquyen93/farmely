@@ -181,7 +181,7 @@ export function createPlotBadge({
 
   const facIot = document.createElement('span');
   facIot.className = 'leading-none';
-  facIot.title = 'Cảm biến IoT';
+  facIot.title = 'Trạm vi khí hậu';
   facIot.textContent = '📡';
 
   const facSoil = document.createElement('span');

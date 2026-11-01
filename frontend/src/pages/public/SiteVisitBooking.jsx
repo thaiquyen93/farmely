@@ -56,7 +56,7 @@ export default function SiteVisitBooking() {
                 Đặt Lịch Khảo Sát Nông Trại
               </h1>
               <p className="text-xs sm:text-sm text-emerald-100/90 mt-2 max-w-2xl leading-relaxed">
-                Trực tiếp đặt chân lên cánh đồng, cảm nhận chất đất phù sa, kiểm tra nguồn nước tưới ngầm và trạm quan trắc IoT vi khí hậu trước khi đưa ra quyết định canh tác.
+                Trực tiếp đặt chân lên cánh đồng, cảm nhận chất đất phù sa, kiểm tra nguồn nước tưới ngầm và trạm quan trắc vi khí hậu trước khi đưa ra quyết định canh tác.
               </p>
             </div>
 
@@ -183,10 +183,10 @@ export default function SiteVisitBooking() {
                   <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-emerald-600 ring-3 ring-white" />
                   <div className="flex items-center justify-between">
                     <strong className="text-xs font-bold text-stone-900">09:15 / 15:15</strong>
-                    <span className="text-[10px] text-stone-500">Trạm quan trắc IoT</span>
+                    <span className="text-[10px] text-stone-500">Trạm quan trắc vi khí hậu</span>
                   </div>
                   <p className="text-[11px] text-stone-600 mt-0.5 leading-relaxed">
-                    Đo kiểm độ ẩm đất thực địa, kiểm tra đường ống nước tưới ngầm và quan sát số liệu cảm biến IoT.
+                    Đo kiểm độ ẩm đất thực địa, kiểm tra đường ống nước tưới ngầm và quan sát số liệu vi khí hậu thực tế.
                   </p>
                 </div>
 

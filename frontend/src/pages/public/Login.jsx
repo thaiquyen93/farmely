@@ -182,7 +182,7 @@ export default function Login() {
             Đồng hành cùng bạn trên từng luống rau sạch.
           </h2>
           <p className="text-sm text-stone-300 leading-relaxed max-w-md">
-            Hệ thống IoT quan trắc vi khí hậu liên tục, quy trình VietGAP khép kín và minh bạch tối đa dữ liệu canh tác.
+            Hệ thống quan trắc vi khí hậu liên tục, quy trình VietGAP khép kín và minh bạch tối đa dữ liệu canh tác.
           </p>
         </div>
       </div>

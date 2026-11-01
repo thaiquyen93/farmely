@@ -53,7 +53,7 @@ export default function About() {
           </h1>
 
           <p className="max-w-2xl mx-auto text-sm sm:text-base text-stone-300 leading-relaxed">
-            Farmely là giải pháp nông nghiệp số chuẩn hóa, trao cho bạn quyền sở hữu trải nghiệm tự tay hoặc ủy thác canh tác rau sạch hữu cơ VietGAP trên từng thửa đất được giám sát IoT 24/7.
+            Farmely là giải pháp nông nghiệp số chuẩn hóa, trao cho bạn quyền sở hữu trải nghiệm tự tay hoặc ủy thác canh tác rau sạch hữu cơ VietGAP trên từng thửa đất được giám sát vi khí hậu 24/7.
           </p>
         </div>
       </section>
@@ -87,7 +87,7 @@ export default function About() {
             <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-700 flex items-center justify-center">
               <Radio className="w-6 h-6" />
             </div>
-            <h3 className="font-heading text-xl font-bold text-brand-dark">Công Nghệ IoT 4.0</h3>
+            <h3 className="font-heading text-xl font-bold text-brand-dark">Công Nghệ Vi Khí Hậu 4.0</h3>
             <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
               Trạm cảm biến quan trắc vi khí hậu thu thập nhiệt độ, độ ẩm đất và dự báo thời tiết, tự động cảnh báo cứu hộ khi môi trường có biến động bất thường.
             </p>
@@ -191,7 +191,7 @@ export default function About() {
                   id: String(land.landId),
                   name: land.landName,
                   location: land.address,
-                  description: land.description || 'Khu nông trại sinh thái chuẩn VietGAP với hệ thống quan trắc IoT 24/7.',
+                  description: land.description || 'Khu nông trại sinh thái chuẩn VietGAP với hệ thống quan trắc vi khí hậu 24/7.',
                   totalArea: land.boundaryAreaM2 ? `${Math.round(land.boundaryAreaM2).toLocaleString('vi-VN')} m²` : '25.000 m²',
                   totalPlots: land.totalPlots || 16,
                   activePlots: land.availablePlots || 10,

@@ -24,13 +24,13 @@ export default function SelfGrowingDashboard({ plot }) {
 
   return (
     <div className="space-y-5 animate-fadeIn">
-      {/* 1. THÔNG SỐ VI KHÍ HẬU IOT */}
+      {/* 1. THÔNG SỐ VI KHÍ HẬU THỰC ĐỊA */}
       <div className="bg-white rounded-2xl p-5 border border-brand-border shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-brand-green" />
             <h4 className="font-heading font-black text-sm text-brand-dark">
-              Vi Khí Hậu IoT • Trạm {plot.stationId}
+              Vi Khí Hậu Thực Địa • Trạm {plot.stationId}
             </h4>
           </div>
           {isMoistureLow ? (

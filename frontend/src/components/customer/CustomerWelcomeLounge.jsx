@@ -335,7 +335,7 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
                   <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
                     <strong>Quyền lợi trong chuyến đi:</strong> Xe đón 2 chiều có máy lạnh, nước uống thảo mộc, nón bảo hộ
-                    và bộ kit thử pH thổ nhưỡng tại chỗ. Có xe điện đưa tham quan trạm bơm vi khí hậu IoT.
+                    và bộ kit thử pH thổ nhưỡng tại chỗ. Có xe điện đưa tham quan trạm bơm vi khí hậu tự động.
                   </div>
                 </div>
               </div>
@@ -479,7 +479,7 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
                   className="w-full h-11 px-3 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-800 focus:border-emerald-500 focus:outline-none"
                 >
                   <option value="P-01">Thửa P-01 (150 m² - Đất phù sa ven sông)</option>
-                  <option value="P-02">Thửa P-02 (150 m² - Gần trạm IoT trung tâm)</option>
+                  <option value="P-02">Thửa P-02 (150 m² - Gần trạm quan trắc trung tâm)</option>
                   <option value="P-04">Thửa P-04 (150 m² - Thoát nước tốt, đón nắng)</option>
                   <option value="P-07">Thửa P-07 (200 m² - Lô góc diện tích lớn)</option>
                 </select>
@@ -578,7 +578,7 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
               code: 'P-02',
               name: 'Thửa Đất P-02 (Happy Valley)',
               area: '150 m²',
-              soil: 'Độ mùn cao, gần trạm IoT trung tâm',
+              soil: 'Độ mùn cao, gần trạm quan trắc trung tâm',
               crop: 'Cải xoăn Kale, Rau muống VietGAP',
               price: '1.200.000 đ/tháng',
               tag: 'Đất màu mỡ'
