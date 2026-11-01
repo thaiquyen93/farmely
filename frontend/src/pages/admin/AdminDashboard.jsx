@@ -2342,15 +2342,6 @@ export default function AdminDashboard() {
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => handleSimulateAlert(1, 'HIGH_TEMPERATURE')}
-                      className="text-xs font-bold gap-1.5 border-amber-200 text-amber-800 bg-amber-50 hover:bg-amber-100"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Giả Lập Sốc Nhiệt Thời Tiết</span>
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
                       onClick={loadAdminData}
                       className="text-xs font-bold gap-1.5 border-sky-200 text-sky-800 bg-sky-50 hover:bg-sky-100"
                     >

@@ -245,24 +245,6 @@ export default function PlotForm() {
           </div>
         </div>
 
-        {/* SSoT BR03 & RBAC: Ma Trận Thổ Nhưỡng & Giống Cây Trồng (Nghiệp Vụ Độc Quyền Của CGNN) */}
-        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 space-y-2.5">
-          <div className="flex items-center gap-2">
-            <Sprout className="h-5 w-5 text-emerald-700 shrink-0" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-950">
-              Ma Trận Thổ Nhưỡng &amp; Giống Cây Trồng (Nghiệp Vụ Chuyên Môn Độc Quyền Của CGNN)
-            </h3>
-          </div>
-          <p className="text-xs text-emerald-900 leading-relaxed">
-            Theo nguyên tắc phân quyền hệ thống, <strong>Quản trị viên (Admin)</strong> chỉ quản trị các thông số hạ tầng vật lý (mã thửa, diện tích, giá thuê, ranh giới GIS). Việc khảo nghiệm thực địa thổ nhưỡng (loại đất, dải pH, độ mùn, tầng canh tác) và phê duyệt danh mục giống cây tương thích được thực hiện độc quyền bởi <strong>Chuyên Gia Nông Nghiệp (CGNN)</strong>.
-          </p>
-          <div className="pt-1 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-300 text-xs font-bold text-emerald-800 shadow-2xs">
-              🌿 Bàn Làm Việc Chuyên Gia &gt; Ma Trận Thổ Nhưỡng – Giống (plot_variety_compatibility)
-            </span>
-          </div>
-        </section>
-
         <section className="space-y-2">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
