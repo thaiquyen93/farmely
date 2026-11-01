@@ -140,7 +140,7 @@ export default function MarketplacePlotCards({
                       {plot.facilities?.iot && (
                         <span className="flex items-center gap-1 bg-brand-cream/80 px-2 py-0.5 rounded-md border border-brand-border/60">
                           <Radio className="w-3 h-3 text-emerald-500" />
-                          <span>IoT</span>
+                          <span>Thời tiết API</span>
                         </span>
                       )}
                     </div>

@@ -9,6 +9,7 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import SiteVisitForm from '../../components/public/SiteVisitForm';
 import { useAuthStore } from '../../stores/authStore';
+import { loadCartCodes, normalizePlotCode, dedupeCodes } from '../../utils/leaseSelection';
 import {
   MapPin,
   Maximize2,
@@ -66,9 +67,9 @@ export default function PlotDetail() {
             formattedPrice: `${Number(found.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
             careServicePrice: Math.round(Number(found.pricePerPeriod) * 0.5),
             iotStationId: `IOT-${found.plotCode}`,
-            iotStationName: `Trạm Cảm Biến ${found.plotCode}`,
+            iotStationName: `Trạm Vi Khí Hậu ${found.plotCode}`,
             compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby'],
-            description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát IoT 24/7.',
+            description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát vi khí hậu 24/7.',
             imageUrl: img,
             gallery: [
               img,
@@ -97,7 +98,10 @@ export default function PlotDetail() {
     if (!isAuthenticated) {
       setShowSignInModal(true);
     } else if (plot) {
-      navigate(`/marketplace/plot/${plot.code || plot.id}/book`);
+      const code = normalizePlotCode(plot.code || plot.id);
+      const cart = loadCartCodes();
+      const codes = cart && cart.length > 0 ? dedupeCodes([...cart, code]) : [code];
+      navigate(`/marketplace/plot/${encodeURIComponent(code)}/book?plots=${codes.map(encodeURIComponent).join(',')}`);
     }
   };
   const handleStartBooking = handleBookPlotClick;
@@ -248,7 +252,7 @@ export default function PlotDetail() {
                   <span className="text-xs text-brand-muted">/ tháng canh tác</span>
                 </div>
                 <p className="text-[11px] text-stone-500 mt-1">
-                  Mặt bằng canh tác chuẩn hóa, kết nối trọn gói trạm quan trắc IoT vi khí hậu.
+                  Mặt bằng canh tác chuẩn hóa, kết nối trọn gói trạm quan trắc vi khí hậu.
                 </p>
               </div>
 
@@ -327,7 +331,7 @@ export default function PlotDetail() {
               <div>
                 <span className="text-xs font-bold text-brand-green uppercase tracking-wider flex items-center gap-1.5">
                   <Radio className="w-4 h-4" />
-                  Trạm cảm biến gắn trên thửa đất ({plot.iotStationName})
+                  Trạm quan trắc gắn trên thửa đất ({plot.iotStationName})
                 </span>
                 <h3 className="font-heading text-xl font-bold text-brand-dark mt-1">
                   Chỉ Số Vi Khí Hậu Ghi Nhận Thực Tế

@@ -390,7 +390,7 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
                   <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
                     <strong>Quyền lợi trong chuyến đi:</strong> Xe đón 2 chiều có máy lạnh, nước uống thảo mộc, nón bảo hộ
-                    và bộ kit thử pH thổ nhưỡng tại chỗ. Có xe điện đưa tham quan trạm bơm vi khí hậu IoT.
+                    và bộ kit thử pH thổ nhưỡng tại chỗ. Có xe điện đưa tham quan trạm bơm vi khí hậu tự động.
                   </div>
                 </div>
               </div>
@@ -533,7 +533,7 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
                   onChange={(e) => setSelectedPlotCode(e.target.value)}
                   className="w-full h-11 px-3 rounded-xl border border-stone-200 bg-white text-xs font-semibold text-stone-800 focus:border-emerald-500 focus:outline-none"
                 >
-                  {availablePlots.length === 0 ? (
+{availablePlots.length === 0 ? (
                     <option value="">{isLoadingPlots ? 'Đang tải danh sách thửa đất...' : 'Không có thửa đất khả dụng'}</option>
                   ) : (
                     availablePlots.map((p) => {
@@ -631,7 +631,7 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
 
         {/* Danh sách Thửa đất khả dụng (Available) gợi ý thuê từ Marketplace */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {availablePlots.length === 0 ? (
+{availablePlots.length === 0 ? (
             <div className="col-span-full rounded-3xl border border-stone-200 bg-white p-8 text-center text-stone-500 text-xs">
               Hiện tại tất cả các thửa đất đều đã có khách thuê hoặc đang trong kỳ bảo dưỡng đất. Quý khách vui lòng xem Bản đồ Marketplace để cập nhật thông tin mới nhất!
             </div>

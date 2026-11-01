@@ -7,7 +7,7 @@ import BoundaryDrawMap from '../../components/admin/BoundaryDrawMap';
 import { farmApi, PLOT_STATUS_OPTIONS } from '../../api/farm/farmApi';
 import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import { areaM2, cleanRing, formatArea, validateRing } from '../../utils/polygonGeometry';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, Lock, Save, Search, Sprout } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Globe, Loader2, Lock, Save, Search, Sparkles, Sprout } from 'lucide-react';
 
 export default function PlotForm() {
   const [searchParams] = useSearchParams();
@@ -21,17 +21,12 @@ export default function PlotForm() {
   const [code, setCode] = useState('');
   const [manualArea, setManualArea] = useState('');
   const [price, setPrice] = useState('1200000');
-  const [status, setStatus] = useState('AVAIL');
+  const [status, setStatus] = useState('MAINT');
   const [isPublished, setIsPublished] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [boundary, setBoundary] = useState([]);
   const [originalStatus, setOriginalStatus] = useState(null);
   const [originalCode, setOriginalCode] = useState('');
-
-  // BR03: Danh mục giống cây tương thích thổ nhưỡng
-  const [availableVarieties, setAvailableVarieties] = useState([]);
-  const [selectedVarietyIds, setSelectedVarietyIds] = useState([]);
-  const [varietySearch, setVarietySearch] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -40,19 +35,16 @@ export default function PlotForm() {
   const [serverError, setServerError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Danh sách nông trại + giống cây + (nếu sửa) dữ liệu thửa hiện tại
+  // Danh sách nông trại + (nếu sửa) dữ liệu thửa hiện tại
   useEffect(() => {
     let alive = true;
     Promise.all([
       farmApi.listLands(),
-      editId ? farmApi.getPlot(editId) : Promise.resolve(null),
-      fetch('/api/varieties').then((r) => r.json()).catch(() => ({ data: [] }))
+      editId ? farmApi.getPlot(editId) : Promise.resolve(null)
     ])
-      .then(([landList, plot, varietiesRes]) => {
+      .then(([landList, plot]) => {
         if (!alive) return;
         setLands(landList || []);
-        const varList = Array.isArray(varietiesRes?.data) ? varietiesRes.data : [];
-        setAvailableVarieties(varList);
 
         if (plot) {
           setLandId(String(plot.landId));
@@ -60,24 +52,18 @@ export default function PlotForm() {
           setOriginalCode(plot.plotCode || '');
           setManualArea(plot.area != null ? String(plot.area) : '');
           setPrice(plot.pricePerPeriod != null ? String(plot.pricePerPeriod) : '');
-          setStatus(plot.status || 'AVAIL');
+          setStatus(plot.status || 'MAINT');
           setOriginalStatus(plot.status);
           setIsPublished(Boolean(plot.isPublished));
           setImageUrl(plot.imageUrl || '');
-          setBoundary(cleanRing(plot.boundary || []));
-
-          if (Array.isArray(plot.compatibleVarieties) && plot.compatibleVarieties.length > 0) {
-            setSelectedVarietyIds(plot.compatibleVarieties.map((v) => Number(v.varietyId)));
-          } else {
-            // Thửa chưa có dữ liệu tương thích: mặc định chọn tất cả giống cây có sẵn
-            setSelectedVarietyIds(varList.map((v) => Number(v.id)));
-          }
+setBoundary(plot.boundary || []);
         } else {
           if (!defaultLandId && landList?.length) {
             setLandId(String(landList[0].landId));
           }
-          // Thửa mới: mặc định chọn tất cả các giống cây sẵn có
-          setSelectedVarietyIds(varList.map((v) => Number(v.id)));
+          // Thửa mới tạo: mặc định chưa kích hoạt (MAINT, isPublished=false) và chờ Expert gán giống cây & quy trình
+          setStatus('MAINT');
+          setIsPublished(false);
         }
       })
       .catch((e) => alive && setLoadError(e.message))
@@ -111,30 +97,13 @@ export default function PlotForm() {
   const ringCheck = hasRing ? validateRing(ring, { outer: outer?.ring, outerName: outer?.label, others }) : null;
   const lockedBoundary = editId && originalStatus === 'RENT';
 
-  const toggleVariety = (id) => {
-    setSelectedVarietyIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const filteredVarieties = useMemo(() => {
-    if (!varietySearch.trim()) return availableVarieties;
-    const q = varietySearch.toLowerCase().trim();
-    return availableVarieties.filter(
-      (v) => (v.name && v.name.toLowerCase().includes(q)) || (v.cropName && v.cropName.toLowerCase().includes(q))
-    );
-  }, [availableVarieties, varietySearch]);
-
   const validate = () => {
     const errs = {};
     if (!landId) errs.landId = 'Chọn nông trại chứa thửa đất.';
     if (!code.trim()) errs.code = 'Nhập mã thửa đất (vd P-17).';
     if (!hasRing && !(Number(manualArea) > 0) && !lockedBoundary) errs.area = 'Vẽ ranh giới trên bản đồ hoặc nhập diện tích.';
     if (!(Number(price) >= 0) || price === '') errs.price = 'Nhập giá thuê hợp lệ.';
-    if (!lockedBoundary && ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
-    if (selectedVarietyIds.length === 0) {
-      errs.varieties = 'Vui lòng chọn ít nhất 1 giống cây phù hợp thổ nhưỡng cho thửa đất này (BR03).';
-    }
+if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -145,23 +114,30 @@ export default function PlotForm() {
     if (!validate()) return;
     setIsSaving(true);
     try {
+      const effectiveStatus = isPublished && status === 'MAINT' ? 'AVAIL' : status;
       const body = {
         landId: Number(landId),
         plotCode: code.trim(),
         area: hasRing ? null : Number(manualArea),
         pricePerPeriod: Number(price),
-        status,
+        status: effectiveStatus,
         isPublished,
         imageUrl: imageUrl.trim() || null,
-        boundary: lockedBoundary ? undefined : ring,
-        varietyIds: selectedVarietyIds
+        boundary: lockedBoundary ? undefined : ring
       };
       const saved = editId ? await farmApi.updatePlot(editId, body) : await farmApi.createPlot(body);
       clearCompatibilityCache();
       if (saved?.landId) {
         localStorage.setItem('farmely_selected_land_id', String(saved.landId));
       }
-      navigate(`/admin/master-data/lands/${saved.landId}`, { state: { flash: `${editId ? 'Đã lưu' : 'Đã tạo'} thửa ${saved.plotCode} (${formatArea(Number(saved.area))}).`, highlightPlotId: saved.plotId } });
+      navigate(`/admin/master-data/lands/${saved.landId}`, {
+        state: {
+          flash: isPublished
+            ? `Đã duyệt & xuất bản thửa ${saved.plotCode} (${formatArea(Number(saved.area))}) lên Marketplace!`
+            : `${editId ? 'Đã lưu' : 'Đã tạo'} thửa ${saved.plotCode} ở trạng thái Chưa kích hoạt (chờ Expert thiết lập giống cây & quy trình).`,
+          highlightPlotId: saved.plotId
+        }
+      });
     } catch (err) {
       setServerError(err.message);
     } finally {
@@ -215,114 +191,60 @@ export default function PlotForm() {
           <Input label="Ảnh đại diện (URL)" placeholder="https://…" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
         </div>
 
-        <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-brand-dark">
-          <input type="checkbox" checked={isPublished} onChange={(e) => setIsPublished(e.target.checked)} className="h-4 w-4 rounded border-brand-border text-brand-green focus:ring-brand-green" />
-          Niêm yết lên Marketplace
-        </label>
-
-        {/* SSoT BR03: Chọn Giống Cây Trồng Tương Thích Thổ Nhưỡng */}
-        <section className="space-y-3 rounded-2xl border border-brand-border bg-stone-50/50 p-4 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <Sprout className="h-4 w-4 text-brand-green" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-brand-dark">
-                  Giống cây trồng phù hợp thổ nhưỡng (Quy tắc BR03)
-                </h3>
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
-                  Chuẩn VietGAP
-                </span>
+        {/* Cấu hình Niêm Yết Marketplace */}
+        <div className={`p-4 rounded-xl border transition-all ${
+          isPublished 
+            ? 'bg-emerald-50/90 border-emerald-300 shadow-sm' 
+            : 'bg-stone-50 border-stone-200'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className={`mt-0.5 p-2 rounded-lg ${isPublished ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-600'}`}>
+                <Globe className="h-5 w-5" />
               </div>
-              <p className="text-xs text-stone-500">
-                Tick chọn các giống cây được phép canh tác trên thửa đất này. Khách hàng chỉ có thể chọn các giống cây này khi thuê đất.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-stone-900">
+                    Trạng thái Niêm yết (Publish lên Marketplace)
+                  </span>
+                  {isPublished ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-300">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Đang hiển thị cho khách thuê
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full bg-stone-200 px-2.5 py-0.5 text-xs font-medium text-stone-700">
+                      Chưa niêm yết (Khách chưa thấy)
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-stone-600 mt-0.5">
+                  Khi bật & lưu, thửa đất này sẽ được đẩy lên Sàn giao dịch (Marketplace) để khách hàng có thể chọn thuê và chọn gói dịch vụ.
+                </p>
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedVarietyIds(availableVarieties.map((v) => Number(v.id)))}
-                className="rounded-lg border border-brand-border bg-white px-2.5 py-1 text-xs font-semibold text-brand-dark hover:bg-stone-50 transition-colors cursor-pointer"
-              >
-                Chọn tất cả ({availableVarieties.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedVarietyIds([])}
-                className="rounded-lg border border-brand-border bg-white px-2.5 py-1 text-xs font-semibold text-stone-600 hover:bg-stone-50 transition-colors cursor-pointer"
-              >
-                Bỏ chọn
-              </button>
-            </div>
-          </div>
-
-          {/* Ô tìm kiếm nhanh giống cây */}
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-stone-400" />
-            <input
-              type="text"
-              placeholder="Tìm kiếm giống cây (ví dụ: Xà lách, Cải ngọt, Cà chua...)"
-              value={varietySearch}
-              onChange={(e) => setVarietySearch(e.target.value)}
-              className="w-full rounded-xl border border-brand-border bg-white py-1.5 pl-8 pr-3 text-xs text-brand-dark placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
-          {/* Lưới các giống cây để tick chọn */}
-          {filteredVarieties.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-stone-300 bg-white p-4 text-center text-xs text-stone-500">
-              Không tìm thấy giống cây nào khớp với từ khóa "{varietySearch}".
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredVarieties.map((v) => {
-                const vid = Number(v.id);
-                const isChecked = selectedVarietyIds.includes(vid);
-                return (
-                  <label
-                    key={vid}
-                    className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-all select-none ${
-                      isChecked
-                        ? 'border-brand-green bg-emerald-50/70 shadow-xs ring-1 ring-brand-green/20'
-                        : 'border-brand-border bg-white hover:border-stone-400'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => toggleVariety(vid)}
-                      className="mt-0.5 h-4 w-4 rounded border-brand-border text-brand-green focus:ring-brand-green cursor-pointer"
-                    />
-                    <div className="min-w-0 flex-1 text-xs">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-brand-dark truncate">{v.name}</span>
-                        {isChecked && <CheckCircle2 className="h-3.5 w-3.5 text-brand-green shrink-0" />}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-stone-500">
-                        <span className="rounded bg-stone-100 px-1.5 py-0.5 font-medium text-stone-700">
-                          {v.cropName || 'Rau củ'}
-                        </span>
-                        <span>⏱️ {v.growthDuration || 30} ngày</span>
-                      </div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between text-xs text-stone-500 pt-1">
-            <span>
-              Đã chọn: <strong className="text-brand-dark">{selectedVarietyIds.length}</strong> / {availableVarieties.length} giống cây phù hợp
-            </span>
-            {errors.varieties && (
-              <span className="font-medium text-rose-600 flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                {errors.varieties}
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={isPublished}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsPublished(checked);
+                  if (checked && status === 'MAINT') {
+                    setStatus('AVAIL');
+                  } else if (!checked && status === 'AVAIL') {
+                    setStatus('MAINT');
+                  }
+                }}
+                className="sr-only peer"
+              />
+              <div className="w-14 h-7 bg-stone-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-600"></div>
+              <span className="ml-3 text-sm font-bold text-stone-900">
+                {isPublished ? 'BẬT NIÊM YẾT' : 'TẮT NIÊM YẾT'}
               </span>
-            )}
+            </label>
           </div>
-        </section>
+        </div>
 
         <section className="space-y-2">
           <div className="flex flex-wrap items-end justify-between gap-2">
@@ -367,3 +289,4 @@ export default function PlotForm() {
     </div>
   );
 }
+

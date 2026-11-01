@@ -17,7 +17,8 @@ import Terms from './pages/public/Terms';
 import RentalTerms from './pages/public/RentalTerms';
 import VnPayReturn from './pages/payment/VnPayReturn';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
-
+import CustomerProfile from './pages/customer/CustomerProfile';
+import CustomerSettings from './pages/customer/CustomerSettings';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ExpertDashboard from './pages/expert/ExpertDashboard';
 import FieldWorkerDashboard from './pages/staff/FieldWorkerDashboard';
@@ -104,9 +105,12 @@ export default function App() {
 
         {/* Role-Specific Dashboards */}
         <Route path="/customer/dashboard" element={<RoleRoute role="CUSTOMER"><CustomerDashboard /></RoleRoute>} />
-
+        <Route path="/customer/profile" element={<RoleRoute role="CUSTOMER"><CustomerProfile /></RoleRoute>} />
+        <Route path="/customer/settings" element={<RoleRoute role="CUSTOMER"><CustomerSettings /></RoleRoute>} />
         <Route path="/admin/dashboard" element={<RoleRoute role="ADMIN"><AdminDashboard /></RoleRoute>} />
         <Route path="/expert/dashboard" element={<RoleRoute role="EXPERT"><ExpertDashboard /></RoleRoute>} />
+        <Route path="/expert/crops" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=crops" replace /></RoleRoute>} />
+        <Route path="/expert/varieties" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=varieties" replace /></RoleRoute>} />
         <Route path="/staff/dashboard" element={<RoleRoute role="STAFF"><FieldWorkerDashboard /></RoleRoute>} />
         <Route path="/worker/dashboard" element={<Navigate to="/staff/dashboard" replace />} />
 

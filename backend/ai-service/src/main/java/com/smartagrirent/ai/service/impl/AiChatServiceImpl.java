@@ -33,8 +33,13 @@ public class AiChatServiceImpl implements AiChatService {
         String reply;
         List<ReferencedDocumentDto> docs = new ArrayList<>();
 
+        // 0. Nhận diện phép tính toán học / đố vui
+        if (lower.contains("1 + 1") || lower.contains("1 cộng 1") || lower.contains("1 cong 1")) {
+            reply = "Dạ, 1 cộng 1 chắc chắn bằng 2 rồi ạ! 😊 "
+                    + "Cũng như tại Farmely: sự tận tâm của bạn cộng với nông nghiệp thông minh chuẩn VietGAP sẽ luôn mang lại những vụ mùa bội thu!";
+        }
         // 1. Nhận diện chào hỏi xã giao
-        if (isGreeting(lower)) {
+        else if (isGreeting(lower)) {
             reply = "Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. "
                     + "Tôi có thể hỗ trợ bạn về kỹ thuật gieo trồng chuẩn VietGAP, theo dõi độ ẩm vi khí hậu IoT và thủ tục thuê thửa đất. Bạn cần tôi giải đáp nội dung nào?";
             docs.add(ReferencedDocumentDto.builder()

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
@@ -6,9 +6,13 @@ import { useAuthStore } from '../../stores/authStore';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
+import IssueAssignmentPanel from '../../components/expert/IssueAssignmentPanel';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { getSafeAvatar } from '../../api/communication/chatStorage';
 import { apiFetch, unwrapData } from '../../api/apiClient';
+import { clearCompatibilityCache } from '../../utils/leaseSelection';
+import Crops from '../admin/Crops';
+import Varieties from '../admin/Varieties';
 import {
   Sprout,
   Wheat,
@@ -83,15 +87,15 @@ const DEFAULT_HARVEST_REQUESTS = [
     renterName: 'Lô Thái Quyền',
     renterEmail: 'customer@farmely.vn',
     phone: '0901234567',
-    address: '123 Nguyễn Huệ, P. Bến Nghé, Quận 1, TP.HCM',
+    address: '',
     requestedDate: '2026-10-23',
-    method: 'DELIVERY',
-    methodLabel: 'Farmely thu hoạch & giao tận nhà (trong 24h)',
+    method: 'EXPERIENCE_HARVEST',
+    methodLabel: 'Tới nông trại trải nghiệm & tự tay thu hoạch',
     expectedYield: '12.0 kg',
     phiDays: 6,
     phiStandardDays: 5,
     status: 'PENDING',
-    notes: 'Nhờ kỹ sư kiểm tra độ chín đồng đều của các chùm quả trước khi cho cắt.',
+    notes: 'Khách đăng ký cùng gia đình xuống trải nghiệm hái cà chua bi vào sáng thứ Bảy.',
     createdAt: '2026-10-22T08:30:00Z',
     workerName: 'Trần Văn Lực (CVLĐ)'
   },
@@ -105,8 +109,8 @@ const DEFAULT_HARVEST_REQUESTS = [
     phone: '0912345678',
     address: '',
     requestedDate: '2026-10-25',
-    method: 'FARM_PICKUP',
-    methodLabel: 'Khách đến nông trại tự thu hoạch & trải nghiệm',
+    method: 'FARM_ASSISTED_PICKUP',
+    methodLabel: 'Nông trại hỗ trợ thu hái & nhận trực tiếp tại vườn',
     expectedYield: '8.5 kg',
     phiDays: 5,
     phiStandardDays: 5,
@@ -124,16 +128,16 @@ const DEFAULT_HARVEST_REQUESTS = [
     renterName: 'Tạ Nguyễn Khôi Nguyên',
     renterEmail: 'tanguyen@farmely.vn',
     phone: '0934567890',
-    address: '456 Lê Duẩn, Quận 1, TP.HCM',
+    address: '',
     requestedDate: '2026-10-10',
-    method: 'DELIVERY',
-    methodLabel: 'Farmely thu hoạch & giao tận nhà',
+    method: 'EXPERIENCE_HARVEST',
+    methodLabel: 'Tới nông trại trải nghiệm & tự tay thu hoạch',
     expectedYield: '30.0 kg',
     actualYield: '32.5 kg',
     phiDays: 7,
     phiStandardDays: 5,
     status: 'COMPLETED',
-    notes: 'Đã hoàn tất nghiệm thu và giao hàng tươi trong ngày.',
+    notes: 'Đã hoàn tất thu hoạch và bàn giao sọt dưa leo sạch cho khách tại nông trại.',
     createdAt: '2026-10-09T10:00:00Z',
     workerName: 'TS. Lê Hoàng Đức',
     approvedAt: '2026-10-09T11:00:00Z',
@@ -146,7 +150,7 @@ export default function ExpertDashboard() {
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('tab');
-      if (['chat', 'plots', 'harvest', 'issues', 'templates', 'compatibility', 'knowledge'].includes(p)) return p;
+      if (['chat', 'plots', 'issues', 'crops', 'varieties', 'templates', 'compatibility', 'knowledge'].includes(p)) return p;
     }
     return 'chat';
   });
@@ -388,12 +392,27 @@ export default function ExpertDashboard() {
     apiFetch('/api/rentals')
       .then((res) => {
         const list = unwrapData(res) || [];
-        if (Array.isArray(list) && list.length > 0) {
-          setAssignedPlots(list.map((p) => ({
-            ...p,
-            crop: p.varietyName || p.crop || DEFAULT_PLOT_CROPS[p.plotCode] || 'Rau củ chuẩn VietGAP'
-          })));
+        if (!Array.isArray(list)) return;
+        const email = user?.email?.trim().toLowerCase();
+        const expertId = Number(user?.userId);
+        const plotsById = new Map();
+
+        for (const rental of list) {
+          if (rental.status !== 'ACTIVE') continue;
+          const assignedToCurrentExpert = email && rental.expertEmail
+            ? rental.expertEmail.trim().toLowerCase() === email
+            : expertId > 0 && Number(rental.expertId) === expertId;
+          if (!assignedToCurrentExpert) continue;
+
+          const plotKey = rental.plotId || rental.plotCode;
+          if (!plotKey || plotsById.has(plotKey)) continue;
+          plotsById.set(plotKey, {
+            ...rental,
+            crop: rental.varietyName || rental.crop || DEFAULT_PLOT_CROPS[rental.plotCode] || 'Rau củ chuẩn VietGAP'
+          });
         }
+
+        setAssignedPlots([...plotsById.values()]);
       })
       .catch((err) => console.warn('Could not fetch live rentals:', err));
   };
@@ -490,8 +509,10 @@ export default function ExpertDashboard() {
     loadFieldIssues();
     loadTemplates();
     loadAssignedPlots();
+    loadExpertData();
 
     let bc = null;
+    let varBc = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         bc = new BroadcastChannel('farmely_iot_telemetry');
@@ -499,6 +520,11 @@ export default function ExpertDashboard() {
           if (msg.data?.type === 'TELEMETRY_UPDATED') {
             loadAssignedPlots();
           }
+        };
+
+        varBc = new BroadcastChannel('farmely_varieties_sync');
+        varBc.onmessage = () => {
+          loadExpertData();
         };
       }
     } catch {}
@@ -515,9 +541,16 @@ export default function ExpertDashboard() {
     return () => {
       clearInterval(pollInterval);
       if (bc) try { bc.close(); } catch {}
+      if (varBc) try { varBc.close(); } catch {}
       window.removeEventListener('storage', handleStorage);
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'compatibility' || activeTab === 'varieties' || activeTab === 'crops') {
+      loadExpertData();
+    }
+  }, [activeTab]);
 
   // Open detailed issue view (UC12 / UC48)
   const handleOpenIssueDetail = (issue) => {
@@ -576,11 +609,11 @@ export default function ExpertDashboard() {
     const targetWorker = availableFieldWorkers.find((w) => w.id === targetWorkerId) || availableFieldWorkers[0];
     const dueDate = detailDueDate || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const priorityTag = detailPriority === 'EMERGENCY' ? '[LÀM NGAY]' : detailPriority === 'HIGH' ? '[ƯU TIÊN CAO]' : '[BÌNH THƯỜNG]';
-    const taskTitle = `${priorityTag} Xử lý ${String(selectedIssueDetail.issueType || 'sự cố hiện trường').toLowerCase()}`;
+    const taskTitle = `Xử lý ${String(selectedIssueDetail.issueType || 'sự cố hiện trường').toLowerCase()} theo chỉ đạo CGNN`;
     const instructions = detailDiagnosisText.trim() || selectedIssueDetail.diagnosis || selectedIssueDetail.description || 'Tiến hành xử lý khắc phục theo quy chuẩn VietGAP.';
     const notes = [
       `${priorityTag} [${selectedIssueDetail.issueCode || selectedIssueDetail.id}] ${taskTitle}`,
-      `Hướng dẫn kỹ thuật từ CGNN: ${instructions}`,
+      `Hướng dẫn kỹ thuật từ CGNN (${expertSenderName}): ${instructions}`,
       `Hiện trường: Thửa ${selectedIssueDetail.plotCode} - ${selectedIssueDetail.plotName}`
     ].join('\n');
 
@@ -604,29 +637,32 @@ export default function ExpertDashboard() {
       const expertId = Number(String(user?.userId || user?.id || '5').replace(/\D/g, '')) || 5;
 
       // Update issue with diagnosis & link task
-      await fetch(`/api/issues/${issueId}/diagnose`, {
+      await fetch(`/api/issue-reports/${issueId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           handledBy: expertId,
           diagnosis: instructions,
-          resolutionNotes: `${priorityTag} Đã giao nhiệm vụ ${assignedTaskCode} cho ${targetWorker.name}.`,
+          resolutionNotes: `Đã giao nhiệm vụ ${assignedTaskCode} cho ${targetWorker.name}.`,
           markResolved: false
         })
       }).catch(() => {});
 
       // Broadcast channel sync
       try {
-        if (typeof window !== 'undefined' && window.BroadcastChannel) {
-          const bc = new BroadcastChannel('farmely_staff_dispatch');
-          bc.postMessage({
-            type: 'NEW_TASK_DISPATCHED',
-            workerId: targetWorkerId,
-            taskCode: assignedTaskCode,
-            plotCode: selectedIssueDetail.plotCode
-          });
-          bc.close();
-        }
+        localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
+        ['farmely_staff_activity_channel', 'farmely_staff_dispatch', 'farmely_staff_tasks'].forEach((ch) => {
+          try {
+            const bc = new BroadcastChannel(ch);
+            bc.postMessage({
+              type: 'NEW_TASK_DISPATCHED',
+              workerId: targetWorkerId,
+              taskCode: assignedTaskCode,
+              plotCode: selectedIssueDetail.plotCode
+            });
+            bc.close();
+          } catch {}
+        });
       } catch {}
 
       // Update state
@@ -660,38 +696,82 @@ export default function ExpertDashboard() {
     }
   };
 
-  // Submit diagnosis for worker field issue
+  // Submit diagnosis for worker field issue and automatically dispatch task to staff
   const handleSendIssueDiagnosis = async (e) => {
     e.preventDefault();
     if (!selectedIssueToDiagnose || !diagnosisAdvice.trim()) return;
 
     const issueId = selectedIssueToDiagnose.issueId || selectedIssueToDiagnose.apiId || parseInt(String(selectedIssueToDiagnose.id).replace(/\D/g, ''), 10) || 1;
+    const rentalId = selectedIssueToDiagnose.rentalId || (assignedPlots.find((p) => p.plotCode === selectedIssueToDiagnose.plotCode)?.rentalId) || 2;
+    const targetWorkerId = Number(selectedIssueToDiagnose.reportedBy || selectedIssueToDiagnose.workerId || 8);
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+    const expertId = Number(String(user?.userId || user?.id || '5').replace(/\D/g, '')) || 5;
+    const taskTitle = `Xử lý ${String(selectedIssueToDiagnose.issueType || 'sự cố hiện trường').toLowerCase()} theo chỉ đạo CGNN`;
+    const instructions = diagnosisAdvice.trim();
+
     try {
+      // 1. Tạo care_task thực sự trong PostgreSQL cho CVLĐ
+      const taskRes = unwrapData(await apiFetch('/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          rentalId,
+          taskAssignedTo: targetWorkerId,
+          workerId: targetWorkerId,
+          dueDate: todayStr,
+          priority: 'HIGH',
+          title: taskTitle,
+          status: 'PENDING',
+          notes: `[CHỈ ĐẠO CGNN] ${taskTitle}\nHướng dẫn kỹ thuật từ CGNN (${expertSenderName}): ${instructions}\nHiện trường: Thửa ${selectedIssueToDiagnose.plotCode}`
+        })
+      }));
+
+      const assignedTaskCode = taskRes?.taskCode || `TSK-${taskRes?.taskId || Date.now().toString().slice(-3)}`;
+
+      // 2. Cập nhật issue report
       await fetch(`/api/issue-reports/${issueId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ diagnosis: diagnosisAdvice })
+        body: JSON.stringify({
+          diagnosis: instructions,
+          handledBy: expertId,
+          resolutionNotes: `Đã giao nhiệm vụ ${assignedTaskCode} cho CVLĐ thực hiện.`,
+          markResolved: false
+        })
       });
-      if (selectedIssueToDiagnose.apiId) {
-        const expertId = Number(String(user?.userId || user?.id || '').replace(/\D/g, ''));
-        await fetch(`/api/issues/${selectedIssueToDiagnose.apiId}/diagnose`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ handledBy: expertId, resolutionNotes: diagnosisAdvice, markResolved: true })
-        }).catch(() => {});
-      }
+
+      // 3. Realtime Broadcast tới toàn bộ các tab của Staff
+      try {
+        localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
+        ['farmely_staff_activity_channel', 'farmely_staff_dispatch', 'farmely_staff_tasks'].forEach((ch) => {
+          try {
+            const bc = new BroadcastChannel(ch);
+            bc.postMessage({
+              type: 'NEW_TASK_DISPATCHED',
+              workerId: targetWorkerId,
+              taskCode: assignedTaskCode,
+              plotCode: selectedIssueToDiagnose.plotCode
+            });
+            bc.close();
+          } catch {}
+        });
+      } catch {}
+
+      setFieldIssues((prev) =>
+        prev.map((i) =>
+          i.id === selectedIssueToDiagnose.id
+            ? { ...i, diagnosis: instructions, status: 'IN_PROGRESS', assignedTaskCode }
+            : i
+        )
+      );
+
+      triggerSuccessToast(`Đã ban hành chỉ đạo và giao nhiệm vụ ${assignedTaskCode} cho CVLĐ!`);
     } catch (err) {
-      console.warn('Could not update diagnosis to DB:', err);
+      console.warn('Lỗi ban hành chỉ đạo:', err);
+      setDataError(err.message || 'Không thể giao task cho nhân viên.');
+    } finally {
+      setSelectedIssueToDiagnose(null);
+      setDiagnosisAdvice('');
     }
-    setFieldIssues((prev) =>
-      prev.map((i) =>
-        i.id === selectedIssueToDiagnose.id
-          ? { ...i, diagnosis: diagnosisAdvice, status: 'RESOLVED' }
-          : i
-      )
-    );
-    setSelectedIssueToDiagnose(null);
-    setDiagnosisAdvice('');
   };
 
   // 3. VietGAP Process Templates State (UC09 / Screen 43)
@@ -831,6 +911,24 @@ export default function ExpertDashboard() {
       setFieldIssues((current) => current.map((issue) => issue.id === selectedIssueToAssign.id
         ? { ...issue, assignedTaskCode: task?.taskCode || `TSK-${task?.taskId}`, assignedDueDate: taskAssignment.dueDate, diagnosis: `${priorityTag} Đã giao nhiệm vụ cho ${issue.workerName}.` }
         : issue));
+
+      // Broadcast channel sync
+      try {
+        localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
+        ['farmely_staff_activity_channel', 'farmely_staff_dispatch', 'farmely_staff_tasks'].forEach((ch) => {
+          try {
+            const bc = new BroadcastChannel(ch);
+            bc.postMessage({
+              type: 'NEW_TASK_DISPATCHED',
+              workerId,
+              taskCode: task?.taskCode || `TSK-${task?.taskId}`,
+              plotCode: selectedIssueToAssign.plotCode
+            });
+            bc.close();
+          } catch {}
+        });
+      } catch {}
+
       setSelectedIssueToAssign(null);
       setDataError('');
       triggerSuccessToast(`Đã giao nhiệm vụ ${priorityTag} cho chuyên viên hiện trường!`);
@@ -957,7 +1055,7 @@ export default function ExpertDashboard() {
       // 2. Gửi tin nhắn thông báo vào cuộc trò chuyện
       if (directTaskModal.notifyCustomerInChat && selectedThreadId) {
         const sysNotice = directTaskModal.isWorkerThread
-          ? `📋 [LỆNH NHIỆM VỤ HIỆN TRƯỜNG]\nChuyên gia ${expertSenderName} đã giao nhiệm vụ ${priorityTag}:\n👉 "${directTaskModal.title.trim()}"\n⏳ Hạn xử lý: ${directTaskModal.dueDate}. Đề nghị đồng chí ${targetWorker.name} thực hiện và chụp ảnh báo cáo nghiệm thu qua hệ thống.`
+          ? `📋 [LỆNH NHIỆM VỤ HIỆN TRƯỜNG]\nChuyên gia ${expertSenderName} đã giao nhiệm vụ ${priorityTag}:\n👉 "${directTaskModal.title.trim()}"\n⏳ Hạn xử lý: ${directTaskModal.dueDate}. Đề nghị đồng chí ${targetWorker.name} thực hiện và chụp ảnh báo cáo xong việc qua hệ thống.`
           : `📋 [LỆNH ĐIỀU PHỐI HIỆN TRƯỜNG]\nChuyên gia ${expertSenderName} đã phát lệnh công việc ${priorityTag} tới CVLĐ ${targetWorker.name}:\n👉 "${directTaskModal.title.trim()}"\n⏳ Hạn xử lý: ${directTaskModal.dueDate}. Nhân viên sẽ kiểm tra thực địa và chụp ảnh báo cáo sau khi xử lý.`;
         sendExpertMessage(sysNotice, expertSenderName, { prescriptionTag: 'LỆNH GIAO VIỆC CVLĐ' });
       }
@@ -965,11 +1063,13 @@ export default function ExpertDashboard() {
       // 3. Đồng bộ BroadcastChannel & localStorage cho màn hình Staff
       try {
         localStorage.setItem('farmely_staff_sync_ping', String(Date.now()));
-        if (typeof window !== 'undefined' && window.BroadcastChannel) {
-          const staffBc = new BroadcastChannel('farmely_staff_tasks');
-          staffBc.postMessage({ type: 'TASK_ASSIGNED', taskId: taskRes?.taskId, priority: directTaskModal.priority });
-          staffBc.close();
-        }
+        ['farmely_staff_activity_channel', 'farmely_staff_dispatch', 'farmely_staff_tasks'].forEach((ch) => {
+          try {
+            const staffBc = new BroadcastChannel(ch);
+            staffBc.postMessage({ type: 'TASK_ASSIGNED', taskId: taskRes?.taskId, priority: directTaskModal.priority });
+            staffBc.close();
+          } catch {}
+        });
       } catch {}
 
       triggerSuccessToast(`Đã phát lệnh thành công! Nhiệm vụ ${priorityTag} đã chuyển tới CVLĐ ${targetWorker.name}.`);
@@ -1004,55 +1104,69 @@ export default function ExpertDashboard() {
     ]
   });
 
-  // 4. Plot-Crop Compatibility Matrix State (Screen 42)
-  const [compatibilityList, setCompatibilityList] = useState([
-    {
-      id: 'COMP-01',
-      soilType: 'Đất phù sa bồi lắng ven sông (Củ Chi)',
-      phRange: 'pH 6.0 – 6.8',
-      moistureProfile: 'Thoát nước tốt, giàu mùn hữu cơ',
-      compatibleCrops: [
-        { crop: 'Cà chua bi Cherry F1', rating: '98%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Xà lách Romaine VietGAP', rating: '100%', status: 'HOÀN HẢO' },
-        { crop: 'Dưa leo Baby Đà Lạt', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Rau mồng tơi hữu cơ', rating: '96%', status: 'RẤT THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-01 (Sen Vàng A1), P-02 (Mộc Châu B2)'
-    },
-    {
-      id: 'COMP-02',
-      soilType: 'Đất đỏ Bazan cao nguyên (Mộc Châu)',
-      phRange: 'pH 5.5 – 6.5',
-      moistureProfile: 'Giữ ẩm trung bình, giàu khoáng vi lượng',
-      compatibleCrops: [
-        { crop: 'Dâu tây Hana chịu nhiệt', rating: '96%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cải xoăn Kale xoăn', rating: '95%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cà rốt baby giòn ngọt', rating: '92%', status: 'THÍCH HỢP' },
-        { crop: 'Xà lách búp Mỹ', rating: '90%', status: 'THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-03 (Rừng Sác C3), P-04 (Đất Đỏ D4)'
-    },
-    {
-      id: 'COMP-03',
-      soilType: 'Đất cát pha phối giá thể hữu cơ (Đà Lạt)',
-      phRange: 'pH 6.2 – 7.0',
-      moistureProfile: 'Thoát nước cực nhanh, tơi xốp tối ưu',
-      compatibleCrops: [
-        { crop: 'Ớt chuông Sweet Pepper', rating: '97%', status: 'RẤT THÍCH HỢP' },
-        { crop: 'Cần tây lá giòn', rating: '94%', status: 'THÍCH HỢP' },
-        { crop: 'Bông cải xanh Baby Broccolini', rating: '92%', status: 'THÍCH HỢP' }
-      ],
-      plotsApplied: 'P-05 (Happy Valley E5), P-06 (An Nhiên F6)'
-    }
-  ]);
+  // 4. Plot-Crop Compatibility Matrix State (BR03 SSoT)
+  // Danh mục giống cây trồng đồng bộ 100% với PostgreSQL và Master Data
+  const DEFAULT_SYSTEM_VARIETIES = [
+    { id: 1, varietyId: 1, name: 'Rau muống lá tre F1', cropName: 'Rau muống cạn', growthDuration: 25 },
+    { id: 2, varietyId: 2, name: 'Cải ngọt bông F1', cropName: 'Cải ngọt / Cải bẹ', growthDuration: 30 },
+    { id: 3, varietyId: 3, name: 'Xà lách Romaine VietGAP', cropName: 'Xà lách xoăn', growthDuration: 35 },
+    { id: 4, varietyId: 4, name: 'Cà chua bi đỏ F1', cropName: 'Cà chua bi (Cherry)', growthDuration: 75 },
+    { id: 5, varietyId: 5, name: 'Dưa leo baby F1', cropName: 'Dưa leo baby', growthDuration: 45 },
+    { id: 6, varietyId: 6, name: 'Đậu cô ve lùn / leo F1', cropName: 'Đậu cô ve', growthDuration: 55 },
+    { id: 7, varietyId: 7, name: 'Mướp hương cao sản F1', cropName: 'Mướp hương', growthDuration: 60 },
+    { id: 8, varietyId: 8, name: 'Mồng tơi lá to F1', cropName: 'Rau mồng tơi', growthDuration: 30 },
+    { id: 9, varietyId: 9, name: 'Ớt chỉ thiên F1', cropName: 'Ớt cay / Ớt chỉ thiên', growthDuration: 70 },
+    { id: 10, varietyId: 10, name: 'Rau dền đỏ F1', cropName: 'Rau dền (đỏ/cơm)', growthDuration: 25 },
+    { id: 13, varietyId: 13, name: 'giống mèo khỉ f1', cropName: 'cây mèo khỉ', growthDuration: 45 },
+    { id: 14, varietyId: 14, name: 'giống mèo khỉ f123123', cropName: 'cây mèo mèo', growthDuration: 45 }
+  ];
 
-  const [isAddCompatibilityOpen, setIsAddCompatibilityOpen] = useState(false);
-  const [newCompData, setNewCompData] = useState({
-    soilType: '',
-    phRange: 'pH 6.0 – 6.5',
-    moistureProfile: '',
-    cropsInput: ''
-  });
+  const [plotCompatibilityList, setPlotCompatibilityList] = useState([]);
+  const [activeCompatPlotId, setActiveCompatPlotId] = useState(1);
+  const [selectedCompatVarietyIds, setSelectedCompatVarietyIds] = useState([]);
+  const [compatSearch, setCompatSearch] = useState('');
+  const [varietySearchQuery, setVarietySearchQuery] = useState('');
+  const [isSavingCompatibility, setIsSavingCompatibility] = useState(false);
+
+  // Đồng bộ 1:1 với Danh Mục Giống Cây Trồng (Varieties)
+  const allAvailableVarieties = useMemo(() => {
+    const list = Array.isArray(varietiesList) && varietiesList.length > 0 ? varietiesList : DEFAULT_SYSTEM_VARIETIES;
+    return list.map((v) => ({
+      id: Number(v.id || v.varietyId),
+      varietyId: Number(v.id || v.varietyId),
+      name: v.name || v.varietyName,
+      cropId: v.cropId,
+      cropName: v.cropName || 'Rau sạch',
+      growthDuration: Number(v.growthDuration) || 45,
+      expectedYield: v.expectedYield || '4.0 kg/m²'
+    }));
+  }, [varietiesList]);
+
+  const activeCompatPlot = useMemo(() => {
+    return plotCompatibilityList.find((p) => p.plotId === activeCompatPlotId) || plotCompatibilityList[0] || null;
+  }, [plotCompatibilityList, activeCompatPlotId]);
+
+  useEffect(() => {
+    if (activeCompatPlot) {
+      const vIds = (activeCompatPlot.compatibleVarieties || []).map((v) => Number(v.varietyId || v.id));
+      setSelectedCompatVarietyIds(vIds);
+    }
+  }, [activeCompatPlot?.plotId, activeCompatPlot?.compatibleVarieties]);
+
+  const handleToggleVariety = (varietyId) => {
+    const vid = Number(varietyId);
+    setSelectedCompatVarietyIds((prev) =>
+      prev.includes(vid) ? prev.filter((id) => id !== vid) : [...prev, vid]
+    );
+  };
+
+  const handleSelectAllVarieties = () => {
+    setSelectedCompatVarietyIds(allAvailableVarieties.map((v) => Number(v.id || v.varietyId)));
+  };
+
+  const handleDeselectAllVarieties = () => {
+    setSelectedCompatVarietyIds([]);
+  };
 
   // 5. Knowledge Library & AI RAG State (Screen 45)
   const [knowledgeDocs, setKnowledgeDocs] = useState([
@@ -1110,13 +1224,14 @@ export default function ExpertDashboard() {
 
   const loadExpertData = async () => {
     try {
-      const [issuePayload, templatePayload, plotPayload, documentPayload, userPayload, varietyPayload] = await Promise.all([
+      const [issuePayload, templatePayload, plotPayload, documentPayload, userPayload, varietyPayload, compatPayload] = await Promise.all([
         apiFetch('/api/issues').catch(() => ({ data: [] })),
         apiFetch('/api/templates').catch(() => ({ data: [] })),
         apiFetch('/api/plots').catch(() => ({ data: [] })),
         apiFetch('/api/v1/knowledge-documents').catch(() => ({ data: [] })),
         apiFetch('/api/users').catch(() => ({ data: [] })),
-        apiFetch('/api/varieties').catch(() => ({ data: [] }))
+        apiFetch('/api/varieties').catch(() => ({ data: [] })),
+        apiFetch('/api/compatibility').catch(() => ({ data: [] }))
       ]);
       const issues = unwrapData(issuePayload) || [];
       const templates = unwrapData(templatePayload) || [];
@@ -1124,9 +1239,26 @@ export default function ExpertDashboard() {
       const documents = unwrapData(documentPayload) || [];
       const users = unwrapData(userPayload) || [];
       const varieties = unwrapData(varietyPayload) || [];
+      const compatList = unwrapData(compatPayload) || [];
       if (varieties.length > 0) {
-        setVarietiesList(varieties);
+        setVarietiesList(varieties.map((v) => ({
+          ...v,
+          varietyId: Number(v.id || v.varietyId),
+          varietyName: v.name || v.varietyName,
+          id: Number(v.id || v.varietyId),
+          name: v.name || v.varietyName
+        })));
       }
+      const compatByPlotId = {};
+      compatList.forEach((c) => {
+        const pId = Number(c.plotId);
+        if (!compatByPlotId[pId]) compatByPlotId[pId] = [];
+        compatByPlotId[pId].push({
+          varietyId: Number(c.varietyId),
+          varietyName: c.varietyName,
+          cropName: c.cropName
+        });
+      });
       const userById = new Map(users.map((account) => [Number(account.userId || account.id), account]));
 
       if (issues.length > 0) {
@@ -1174,18 +1306,30 @@ export default function ExpertDashboard() {
         })));
       }
       if (plots.length > 0) {
-        setCompatibilityList(plots.map((plot) => ({
-          id: plot.plotId,
-          soilType: plot.landName || 'Thửa đất Farmely',
-          phRange: plot.landAddress || 'Chưa cập nhật địa chỉ',
-          moistureProfile: `${plot.area || 0} m² • trạng thái ${plot.status || 'chưa cập nhật'}`,
-          compatibleCrops: (plot.compatibleVarieties || []).map((variety) => ({
-            crop: variety.varietyName || variety.name,
-            rating: 'Đạt',
-            status: 'PHÙ HỢP'
-          })),
-          plotsApplied: `${plot.plotCode}${plot.landName ? ` (${plot.landName})` : ''}`
-        })));
+        const mappedPlots = plots.map((plot) => {
+          const pId = Number(plot.plotId || plot.id);
+          const vars = compatByPlotId[pId] || (Array.isArray(plot.compatibleVarieties) && plot.compatibleVarieties.length > 0
+            ? plot.compatibleVarieties.map((v) => ({
+                varietyId: Number(v.varietyId || v.id),
+                varietyName: v.varietyName || v.name,
+                cropName: v.cropName || 'Rau sạch'
+              }))
+            : []);
+          return {
+            plotId: pId,
+            plotCode: plot.plotCode || plot.code,
+            plotName: plot.name || plot.plotName || `Thửa ${plot.plotCode}`,
+            landName: plot.landName || 'Trang trại Farmely',
+            area: plot.area || 100,
+            status: plot.status || 'AVAIL',
+            isAssignedToMe: true,
+            compatibleVarieties: vars
+          };
+        });
+        setPlotCompatibilityList(mappedPlots);
+        if (mappedPlots.length > 0) {
+          setActiveCompatPlotId((prev) => (prev && mappedPlots.some((p) => p.plotId === prev) ? prev : mappedPlots[0].plotId));
+        }
       }
       if (documents.length > 0) {
         setKnowledgeDocs(documents.map((document) => ({
@@ -1210,27 +1354,28 @@ export default function ExpertDashboard() {
     if (!newTemplateData.varietyId) return;
     setIsSubmittingTemplate(true);
     try {
-      await apiFetch('/api/templates', {
+      await apiFetch('/api/process-templates', {
         method: 'POST',
         body: JSON.stringify({
           varietyId: Number(newTemplateData.varietyId),
-          ptCreatedBy: user?.id || 5,
+          ptCreatedBy: user?.userId || user?.id || 5,
           version: newTemplateData.version || '1.0',
           steps: newTemplateData.steps
         })
       });
-      triggerSuccessToast('Đã ban hành quy trình canh tác VietGAP mới thành công!');
+      triggerSuccessToast('Đã ban hành quy trình canh tác VietGAP mới thành công vào cơ sở dữ liệu!');
       setIsCreateTemplateOpen(false);
       await loadExpertData();
+      loadTemplates();
     } catch (err) {
       console.warn('Lỗi gọi API templates, fallback lưu local:', err);
-      const chosenVar = varietiesList.find(v => v.varietyId === Number(newTemplateData.varietyId));
+      const chosenVar = (allAvailableVarieties.length > 0 ? allAvailableVarieties : varietiesList).find(v => Number(v.varietyId || v.id) === Number(newTemplateData.varietyId));
       const newTmpl = {
         id: `TMPL-${Date.now()}`,
         code: newTemplateData.code || `TMPL-${Math.floor(1000 + Math.random() * 9000)}`,
         version: newTemplateData.version || 'v1.0',
-        name: `Quy trình ${chosenVar?.varietyName || 'canh tác VietGAP'}`,
-        variety: chosenVar?.varietyName || 'Rau hữu cơ',
+        name: `Quy trình ${chosenVar?.varietyName || chosenVar?.name || 'canh tác VietGAP'}`,
+        variety: chosenVar?.varietyName || chosenVar?.name || 'Rau hữu cơ',
         durationDays: Math.max(...newTemplateData.steps.map(s => Number(s.dayOffset) || 0)),
         stagesCount: newTemplateData.steps.length,
         stepsCount: newTemplateData.steps.length,
@@ -1262,24 +1407,60 @@ export default function ExpertDashboard() {
     setProcessTemplates(prev => prev.filter(t => t.id !== templateId));
   };
 
-  const handleAddCompatibility = (e) => {
-    e.preventDefault();
-    if (!newCompData.soilType) return;
-    const crops = newCompData.cropsInput
-      ? newCompData.cropsInput.split(',').map(c => ({ crop: c.trim(), rating: '95%', status: 'RẤT THÍCH HỢP' }))
-      : [{ crop: 'Rau ăn lá VietGAP', rating: '95%', status: 'RẤT THÍCH HỢP' }];
+  const handleSavePlotCompatibility = async (plotId, varietyIds) => {
+    if (!plotId) return;
+    setIsSavingCompatibility(true);
+    try {
+      const targetPlot = plotCompatibilityList.find((p) => p.plotId === Number(plotId));
+      const targetPlotCode = targetPlot?.plotCode || `P-${plotId}`;
 
-    const newComp = {
-      id: `COMP-0${compatibilityList.length + 1}`,
-      soilType: newCompData.soilType,
-      phRange: newCompData.phRange || 'pH 6.0 – 6.8',
-      moistureProfile: newCompData.moistureProfile || 'Thoát nước tốt, giàu mùn hữu cơ',
-      compatibleCrops: crops,
-      plotsApplied: 'Các thửa đất đang áp dụng tại trang trại'
-    };
-    setCompatibilityList(prev => [...prev, newComp]);
-    setIsAddCompatibilityOpen(false);
-    setNewCompData({ soilType: '', phRange: 'pH 6.0 – 6.5', moistureProfile: '', cropsInput: '' });
+      await apiFetch('/api/compatibility', {
+        method: 'POST',
+        body: JSON.stringify({
+          plotId: Number(plotId),
+          varietyIds: varietyIds.map(Number),
+          replace: true
+        })
+      });
+
+      const selectedVars = allAvailableVarieties
+        .filter((v) => varietyIds.includes(Number(v.id || v.varietyId)))
+        .map((v) => ({
+          varietyId: Number(v.id || v.varietyId),
+          varietyName: v.name || v.varietyName,
+          cropName: v.cropName || 'Rau sạch'
+        }));
+
+      setPlotCompatibilityList((prev) =>
+        prev.map((p) =>
+          p.plotId === Number(plotId)
+            ? { ...p, compatibleVarieties: selectedVars }
+            : p
+        )
+      );
+
+      clearCompatibilityCache();
+
+      try {
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_compatibility_sync');
+          bc.postMessage({
+            type: 'COMPATIBILITY_UPDATED',
+            plotId: Number(plotId),
+            plotCode: targetPlotCode,
+            varietyIds: varietyIds.map(Number)
+          });
+          bc.close();
+        }
+      } catch {}
+
+      triggerSuccessToast(`Đã lưu ${varietyIds.length} giống cây thích hợp cho thửa ${targetPlotCode} thành công!`);
+    } catch (err) {
+      console.error('Lỗi khi lưu tương thích giống:', err);
+      setDataError('Không thể lưu cấu hình giống cây. Vui lòng thử lại.');
+    } finally {
+      setIsSavingCompatibility(false);
+    }
   };
 
   const handleAddDoc = (e) => {
@@ -1317,9 +1498,9 @@ export default function ExpertDashboard() {
                   Thửa Đất Giám Sát
                 </span>
                 <div className="text-2xl font-heading font-black text-brand-dark">
-                  {assignedPlots.length > 0 ? assignedPlots.length : 16} Thửa
+                  {assignedPlots.length} Thửa
                 </div>
-                <span className="text-[10px] text-emerald-700 font-bold block">100% chuẩn VietGAP</span>
+                <span className="text-[10px] text-emerald-700 font-bold block">Đang hoạt động và được phân công</span>
               </div>
 
               <div className="bg-white p-3.5 rounded-2xl border border-brand-border shadow-xs text-center space-y-0.5">
@@ -1378,9 +1559,10 @@ export default function ExpertDashboard() {
 
             {[
               { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
-              { id: 'plots', label: 'Thửa Đất Giám Sát (BR24)', icon: Layers, count: assignedPlots.length },
-              { id: 'harvest', label: 'Duyệt Kế Hoạch Thu Hoạch', icon: Wheat, count: pendingHarvestCount },
+              { id: 'plots', label: 'Thửa Đất Giám Sát', icon: Layers, count: assignedPlots.length },
               { id: 'issues', label: 'Xử Lý Sự Cố Hiện Trường', icon: AlertTriangle, count: fieldIssues.filter(i => i.status === 'PENDING' || i.status === 'OPEN').length },
+              { id: 'crops', label: 'Danh Mục Cây Trồng (Crops)', icon: Sprout, count: null },
+              { id: 'varieties', label: 'Giống Cây Trồng (Varieties)', icon: Wheat, count: null },
               { id: 'templates', label: 'Quy Trình Canh Tác VietGAP', icon: FileSpreadsheet, count: null },
               { id: 'compatibility', label: 'Ma Trận Thổ Nhưỡng – Giống', icon: SlidersHorizontal, count: null },
               { id: 'knowledge', label: 'Kho Tri Thức Nông Nghiệp & AI', icon: BookOpen, count: null }
@@ -1940,7 +2122,7 @@ export default function ExpertDashboard() {
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
                       <Layers className="w-5 h-5 text-sky-700" />
-                      <span>Thửa Đất Giám Sát Kỹ Thuật (BR24)</span>
+                      <span>Thửa Đất Giám Sát Kỹ Thuật</span>
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh sách các thửa đất canh tác do Ban Quản Trị chỉ định cho Chuyên Gia Nông Nghiệp phụ trách chuyên môn.
@@ -2004,9 +2186,9 @@ export default function ExpertDashboard() {
                             </div>
                           </div>
                           <div>
-                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Quan Trắc IoT:</span>
+                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Vi Khí Hậu:</span>
                             <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
-                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu ẩm &gt;= 80% (BR18)</span>
+                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu độ ẩm &gt;= 80%</span>
                           </div>
                         </div>
 
@@ -2030,243 +2212,12 @@ export default function ExpertDashboard() {
               </div>
             )}
 
-            {/* TAB: DUYỆT KẾ HOẠCH THU HOẠCH & NGHIỆM THU */}
-            {activeTab === 'harvest' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
-                  <div>
-                    <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
-                      <Wheat className="w-5 h-5 text-emerald-700" />
-                      <span>Thẩm Định & Duyệt Kế Hoạch Thu Hoạch (Chuẩn VietGAP)</span>
-                    </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Tiếp nhận yêu cầu thu hoạch từ khách hàng, kiểm tra thời gian cách ly sinh học (PHI) và ban hành lệnh điều phối thu hái cho Chuyên viên lao động.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                      {pendingHarvestCount} Yêu Cầu Chờ Duyệt
-                    </span>
-                  </div>
-                </div>
-
-                {/* Toast Notification */}
-                {harvestSuccessToast && (
-                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{harvestSuccessToast}</span>
-                  </div>
-                )}
-
-                {/* Filter Tabs */}
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-stone-50 p-2 rounded-2xl border border-stone-200/60">
-                  <div className="flex flex-wrap gap-1">
-                    {[
-                      { id: 'ALL', label: 'Tất cả yêu cầu', count: harvestRequests.length },
-                      { id: 'PENDING', label: 'Chờ thẩm định', count: pendingHarvestCount },
-                      { id: 'APPROVED', label: 'Đã duyệt lệnh', count: harvestRequests.filter(r => r.status === 'APPROVED').length },
-                      { id: 'COMPLETED', label: 'Đã hoàn tất', count: harvestRequests.filter(r => r.status === 'COMPLETED').length }
-                    ].map((f) => (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={() => setHarvestFilter(f.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                          harvestFilter === f.id
-                            ? 'bg-white text-emerald-800 shadow-2xs border border-emerald-200'
-                            : 'text-stone-500 hover:text-brand-dark'
-                        }`}
-                      >
-                        {f.label} ({f.count})
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Request List */}
-                <div className="space-y-4">
-                  {filteredHarvestRequests.length === 0 ? (
-                    <div className="text-center py-12 text-stone-500 space-y-2">
-                      <Wheat className="w-10 h-10 mx-auto text-stone-300" />
-                      <p className="font-bold text-sm">Không có yêu cầu thu hoạch nào trong danh mục này</p>
-                    </div>
-                  ) : (
-                    filteredHarvestRequests.map((req) => {
-                      const isPending = req.status === 'PENDING' || req.status === 'PENDING_CONFIRM';
-                      const isApproved = req.status === 'APPROVED';
-                      const isCompleted = req.status === 'COMPLETED';
-                      const isPostponed = req.status === 'POSTPONED';
-                      const isPhiSafe = (req.phiDays || 6) >= (req.phiStandardDays || 5);
-
-                      return (
-                        <div
-                          key={req.id}
-                          className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white hover:border-emerald-300 transition-all shadow-2xs space-y-4 text-xs"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border/60 pb-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono font-bold text-emerald-800 text-sm">{req.plotCode}</span>
-                              <span className="font-bold text-brand-dark text-sm">{req.plotName}</span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-stone-100 text-stone-700">
-                                {req.id}
-                              </span>
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                🌱 Giống: {req.crop}
-                              </span>
-                            </div>
-
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${
-                              isApproved
-                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                : isCompleted
-                                ? 'bg-sky-100 text-sky-800 border-sky-300'
-                                : isPostponed
-                                ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}>
-                              {isApproved ? '● Đã duyệt lịch · Đang điều phối CVLĐ'
-                                : isCompleted ? '✓ Đã hoàn tất thu hoạch & nghiệm thu'
-                                : isPostponed ? '⚠ Đã yêu cầu hoãn cách ly'
-                                : '⏳ Chờ Kỹ sư thẩm định VietGAP'}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-stone-50/70 p-4 rounded-xl border border-stone-200/60">
-                            {/* Cột 1: Khách hàng & Ngày hẹn */}
-                            <div className="space-y-1.5">
-                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Khách Hàng & Lịch Hẹn:</span>
-                              <p className="font-bold text-brand-dark text-xs">{req.renterName}</p>
-                              <p className="text-stone-500 text-[11px] flex items-center gap-1">
-                                <Calendar className="w-3.5 h-3.5 text-emerald-700" />
-                                Ngày thu hoạch đề xuất: <strong>{req.requestedDate}</strong>
-                              </p>
-                              <p className="text-stone-500 text-[11px] flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5 text-stone-400" />
-                                Hình thức: <strong>{req.methodLabel || req.method}</strong>
-                              </p>
-                              {req.address && (
-                                <p className="text-stone-500 text-[11px] truncate flex items-center gap-1">
-                                  <MapPin className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                                  <span>{req.address}</span>
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Cột 2: Tiêu chuẩn an toàn VietGAP (PHI) */}
-                            <div className="space-y-1.5">
-                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Thẩm Định VietGAP (PHI):</span>
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded font-bold text-[11px] ${
-                                  isPhiSafe ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                                }`}>
-                                  Cách ly PHI: {req.phiDays || 6} / {req.phiStandardDays || 5} ngày
-                                </span>
-                                {isPhiSafe ? (
-                                  <span className="text-emerald-700 font-bold text-[11px] flex items-center gap-0.5">
-                                    <ShieldCheck className="w-3.5 h-3.5" /> Đạt chuẩn an toàn
-                                  </span>
-                                ) : (
-                                  <span className="text-rose-700 font-bold text-[11px] flex items-center gap-0.5">
-                                    <AlertTriangle className="w-3.5 h-3.5" /> Chưa đủ thời gian cách ly
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-stone-500 text-[11px]">
-                                Độ ẩm đất hiện tại: <strong className="text-sky-800">68%</strong> (Đất ráo, đủ điều kiện hái)
-                              </p>
-                              {req.notes && (
-                                <p className="text-stone-600 italic text-[11px] bg-white p-2 rounded-lg border border-stone-200">
-                                  "{req.notes}"
-                                </p>
-                              )}
-                              {isPostponed && req.postponeReason && (
-                                <p className="text-amber-800 font-semibold text-[11px] bg-amber-50 p-2 rounded-lg border border-amber-200">
-                                  Lý do hoãn: {req.postponeReason}
-                                </p>
-                              )}
-                            </div>
-
-                            {/* Cột 3: Trạng thái & Điều phối CVLĐ */}
-                            <div className="space-y-1.5 md:border-l md:border-stone-200/80 md:pl-4">
-                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Điều Phối Thực Địa:</span>
-                              <p className="text-stone-600 text-[11px]">
-                                CVLĐ đảm nhiệm: <strong>{req.workerName || 'Trần Văn Lực (CVLĐ)'}</strong>
-                              </p>
-                              <p className="text-stone-600 text-[11px]">
-                                Sản lượng ước tính: <strong>{req.expectedYield || 'Theo mùa vụ'}</strong>
-                              </p>
-                              {isCompleted && req.actualYield && (
-                                <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-[11px]">
-                                  Thực thu: {req.actualYield} (Đã cân & chụp ảnh hiện trường)
-                                </div>
-                              )}
-                              {isApproved && (
-                                <div className="text-[11px] text-emerald-800 font-semibold">
-                                  ✓ Đã duyệt ngày {req.approvedAt ? new Date(req.approvedAt).toLocaleDateString('vi-VN') : 'hôm nay'}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Hành động của Kỹ Sư */}
-                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-brand-border/40">
-                            <span className="text-[11px] text-stone-400">
-                              Người thẩm định chuyên môn: <strong>{expertSenderName}</strong>
-                            </span>
-
-                            <div className="flex flex-wrap items-center gap-2">
-                              {isPending && (
-                                <>
-                                  <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => {
-                                      setPostponeModalReq(req);
-                                      setPostponeReason('Cần ngưng bón dinh dưỡng thêm 2 ngày để đảm bảo độ ngọt và chỉ số an toàn PHI.');
-                                    }}
-                                    className="text-xs font-bold text-amber-800 hover:bg-amber-50 gap-1.5"
-                                  >
-                                    <Clock className="w-3.5 h-3.5 text-amber-700" />
-                                    <span>Yêu Cầu Hoãn Hái</span>
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleApproveHarvest(req.id)}
-                                    className="text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5"
-                                  >
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>Phê Duyệt Lịch Thu Hoạch</span>
-                                  </Button>
-                                </>
-                              )}
-
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => {
-                                  setActiveTab('chat');
-                                }}
-                                className="text-xs font-bold gap-1.5 text-stone-700"
-                              >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                <span>Trao Đổi 1-1 Với Khách</span>
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: FIELD ISSUES (Chẩn đoán sự cố hiện trường do công nhân gửi - UC12 / UC48) */}
+            {/* TAB 2: FIELD ISSUES (Chẩn đoán sự cố hiện trường do công nhân gửi) */}
             {activeTab === 'issues' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div>
                   <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Xử Lý Báo Cáo Sự Cố Hiện Trường (UC12 / UC48)
+                    Xử Lý Báo Cáo Sự Cố Hiện Trường
                   </h3>
                   <p className="text-xs text-brand-muted mt-0.5">
                     Tiếp nhận ảnh chụp và phản ánh từ Chuyên viên lao động hiện trường để chẩn đoán sâu và ban hành chỉ đạo can thiệp kỹ thuật.
@@ -2359,7 +2310,7 @@ export default function ExpertDashboard() {
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-brand-border/60">
                         <span className="text-[11px] text-stone-400 group-hover:text-emerald-700 font-medium flex items-center gap-1 transition">
                           <Eye className="w-3.5 h-3.5" />
-                          Bấm vào thẻ để xem chi tiết ảnh, trạm IoT & giao nhiệm vụ
+                          Bấm vào thẻ để xem chi tiết ảnh, dữ liệu vi khí hậu & giao nhiệm vụ
                         </span>
 
                         <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
@@ -2373,27 +2324,14 @@ export default function ExpertDashboard() {
                             Xem Chi Tiết Lỗi
                           </Button>
                           <Button
-                            variant="outline"
+                            variant="primary"
                             size="sm"
                             onClick={() => handleOpenIssueDetail(issue)}
-                            className="font-bold text-xs gap-1.5 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                            className="font-bold text-xs gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white"
                           >
-                            <UserCheck className="w-3.5 h-3.5 text-emerald-700" />
+                            <UserCheck className="w-3.5 h-3.5" />
                             {issue.assignedTaskCode ? 'Giao Thêm Task' : 'Giao Việc CVLĐ'}
                           </Button>
-                          {issue.status !== 'RESOLVED' && (
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedIssueToDiagnose(issue);
-                                setDiagnosisAdvice(issue.diagnosis || '');
-                              }}
-                              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1"
-                            >
-                              Chẩn Đoán Nhanh
-                            </Button>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -2402,13 +2340,27 @@ export default function ExpertDashboard() {
               </div>
             )}
 
-            {/* TAB 3: VIETGAP PROCESS TEMPLATES (Quản lý Phác đồ canh tác chuẩn VietGAP - UC09) */}
+            {/* TAB CROPS: QUẢN LÝ DANH MỤC CÂY TRỒNG (SCR-CGNN-02, UC-EXP01) */}
+            {activeTab === 'crops' && (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm">
+                <Crops />
+              </div>
+            )}
+
+            {/* TAB VARIETIES: QUẢN LÝ GIỐNG CÂY TRỒNG (SCR-CGNN-02, UC-EXP01) */}
+            {activeTab === 'varieties' && (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm">
+                <Varieties />
+              </div>
+            )}
+
+            {/* TAB 3: VIETGAP PROCESS TEMPLATES (Quản lý Phác đồ canh tác chuẩn VietGAP) */}
             {activeTab === 'templates' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Quy Trình Canh Tác Chuẩn VietGAP (UC09)
+                      Quy Trình Canh Tác Chuẩn VietGAP
                     </h3>
                     <p className="text-xs text-brand-muted mt-0.5">
                       Danh mục phác đồ tiêu chuẩn cho từng giống cây, phân định ngày tuổi, mốc bón phân vi sinh và cách ly an toàn.
@@ -2498,78 +2450,249 @@ export default function ExpertDashboard() {
               </div>
             )}
 
-            {/* TAB 4: SOIL-CROP COMPATIBILITY MATRIX (Ma trận tương thích thổ nhưỡng - cây trồng) */}
+            {/* TAB 4: SOIL-CROP COMPATIBILITY MATRIX (Tick chọn giống cây thích hợp theo thửa đất - BR03 SSoT) */}
             {activeTab === 'compatibility' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
-                  <div>
-                    <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Ma Trận Tương Thích Thổ Nhưỡng – Giống Cây Trồng
-                    </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Căn cứ khoa học nông học để hệ thống tự động gợi ý giống cây phù hợp nhất khi khách hàng chọn thuê thửa đất.
-                    </p>
+              <div className="space-y-6">
+                {/* Header */}
+                <div className="bg-white rounded-3xl p-6 border border-brand-border shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="p-3 rounded-2xl bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <Sprout className="w-6 h-6 text-emerald-700" />
+                    </span>
+                    <div>
+                      <h3 className="font-heading font-black text-xl text-brand-dark">
+                        Ma Trận Thổ Nhưỡng – Giống Cây Trồng
+                      </h3>
+                      <p className="text-xs text-brand-muted mt-0.5">
+                        Chuyên gia nông nghiệp phụ trách thửa đất tick chọn các giống cây trồng thích hợp với điều kiện của thửa. Khách hàng khi thuê chỉ được chọn những giống đã được tick.
+                      </p>
+                    </div>
                   </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => setIsAddCompatibilityOpen(true)}
-                    className="font-bold gap-1.5 self-start sm:self-auto cursor-pointer"
-                  >
-                    <span>+ Thêm Cấu Hình Thổ Nhưỡng</span>
-                  </Button>
+                  {activeCompatPlot && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={isSavingCompatibility}
+                      onClick={() => handleSavePlotCompatibility(activeCompatPlot.plotId, selectedCompatVarietyIds)}
+                      className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-1.5 shadow-xs cursor-pointer shrink-0"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>{isSavingCompatibility ? 'Đang lưu...' : `Lưu Giống Cây Thửa ${activeCompatPlot.plotCode}`}</span>
+                    </Button>
+                  )}
                 </div>
 
-                <div className="space-y-4">
-                  {compatibilityList.map((comp) => (
-                    <div
-                      key={comp.id}
-                      className="p-5 sm:p-6 rounded-2xl border border-brand-border bg-white shadow-xs space-y-4 text-xs"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border/60 pb-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-brand-green text-sm">{comp.id}</span>
-                            <h4 className="font-bold text-brand-dark text-base">{comp.soilType}</h4>
-                          </div>
-                          <p className="text-stone-500 text-[11px] mt-0.5">
-                            Áp dụng tại: <strong>{comp.plotsApplied}</strong>
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
-                            {comp.phRange}
-                          </span>
-                          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
-                            {comp.moistureProfile}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Compatible Crops Grid */}
-                      <div className="space-y-2">
-                        <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-                          Giống Cây Trồng Tương Thích Tối Ưu:
-                        </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                          {(comp.compatibleCrops || []).map((c, i) => (
-                            <div
-                              key={i}
-                              className="p-3 rounded-xl bg-stone-50/80 border border-brand-border/70 flex items-center justify-between"
-                            >
-                              <div className="min-w-0 pr-2">
-                                <span className="font-bold text-brand-dark block truncate">{c.crop}</span>
-                                <span className="text-[10px] text-emerald-700 font-bold">{c.status}</span>
-                              </div>
-                              <span className="text-xs font-black text-brand-green px-2 py-0.5 rounded-lg bg-white border border-emerald-100 shadow-2xs">
-                                {c.rating}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                {/* Split View: Danh sách Thửa Đất (Trái) & Bảng Tick Chọn Giống Cây (Phải) */}
+                <div className="flex flex-col lg:flex-row items-start gap-6">
+                  {/* Cột Trái: Danh Sách Thửa Đất */}
+                  <div className="w-full lg:w-80 shrink-0 bg-white rounded-3xl p-5 border border-brand-border shadow-xs space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
+                      <span className="font-bold text-xs text-brand-dark uppercase tracking-wider">
+                        Thửa Đất ({plotCompatibilityList.length})
+                      </span>
+                      <span className="text-[11px] text-stone-400">Chọn thửa để cấu hình</span>
                     </div>
-                  ))}
+
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                      <input
+                        type="text"
+                        placeholder="Tìm mã thửa, tên thửa..."
+                        value={compatSearch}
+                        onChange={(e) => setCompatSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-brand-border text-xs bg-stone-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-green/20"
+                      />
+                    </div>
+
+                    <div className="space-y-2 max-h-[580px] overflow-y-auto pr-1">
+                      {plotCompatibilityList
+                        .filter((p) => {
+                          if (!compatSearch.trim()) return true;
+                          const q = compatSearch.toLowerCase();
+                          return (
+                            (p.plotCode || '').toLowerCase().includes(q) ||
+                            (p.plotName || '').toLowerCase().includes(q) ||
+                            (p.landName || '').toLowerCase().includes(q)
+                          );
+                        })
+                        .map((plot) => {
+                          const isSelected = activeCompatPlot?.plotId === plot.plotId;
+                          const count = plot.compatibleVarieties?.length || 0;
+                          return (
+                            <div
+                              key={plot.plotId}
+                              onClick={() => {
+                                setActiveCompatPlotId(plot.plotId);
+                                const vIds = (plot.compatibleVarieties || []).map((v) => Number(v.varietyId || v.id));
+                                setSelectedCompatVarietyIds(vIds);
+                              }}
+                              className={`p-3.5 rounded-2xl border transition-all cursor-pointer text-left ${
+                                isSelected
+                                  ? 'bg-emerald-50/80 border-emerald-500 shadow-2xs ring-1 ring-emerald-500/30'
+                                  : 'bg-white border-brand-border/70 hover:border-emerald-300 hover:bg-stone-50/60'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`font-mono font-bold text-xs px-2.5 py-0.5 rounded-lg border ${
+                                  isSelected
+                                    ? 'bg-emerald-700 text-white border-emerald-700'
+                                    : 'bg-stone-100 text-stone-700 border-stone-200'
+                                }`}>
+                                  {plot.plotCode}
+                                </span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-stone-100 text-stone-600">
+                                  {plot.area} m²
+                                </span>
+                              </div>
+                              <div className="font-bold text-brand-dark text-xs mt-2 truncate">
+                                {plot.plotName}
+                              </div>
+                              <div className="text-[11px] text-stone-500 truncate mt-0.5">
+                                {plot.landName}
+                              </div>
+                              <div className="mt-2.5 pt-2 border-t border-brand-border/50 flex items-center justify-between text-[11px]">
+                                <span className="text-stone-400">Giống thích hợp:</span>
+                                <span className={`font-bold ${count > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                  {count > 0 ? `${count} giống` : '⚠️ Chưa chọn'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+
+                  {/* Cột Phải: Danh Sách Giống Cây Để Tick Chọn */}
+                  <div className="flex-1 min-w-0 w-full bg-white rounded-3xl p-6 border border-brand-border shadow-xs space-y-5">
+                    {activeCompatPlot ? (
+                      <>
+                        {/* Header Thửa Đang Chọn */}
+                        <div className="p-4 rounded-2xl bg-stone-50/80 border border-brand-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="font-mono font-black text-sm px-3 py-1 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-300 shrink-0">
+                              {activeCompatPlot.plotCode}
+                            </span>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-brand-dark text-base truncate">
+                                {activeCompatPlot.plotName}
+                              </h4>
+                              <p className="text-stone-500 text-xs mt-0.5 truncate">
+                                {activeCompatPlot.landName} • Quy mô: <strong>{activeCompatPlot.area} m²</strong> • Trạng thái: {activeCompatPlot.status === 'RENT' ? <span className="text-amber-700 font-bold">Đang thuê</span> : <span className="text-emerald-700 font-bold">Sẵn sàng</span>}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              Đã tick: <strong>{selectedCompatVarietyIds.length}</strong> / {allAvailableVarieties.length} giống
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Thanh Công Cụ & Tìm Kiếm Giống */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleSelectAllVarieties}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-stone-100 text-stone-700 hover:bg-emerald-50 hover:text-emerald-800 border border-stone-200 transition cursor-pointer"
+                            >
+                              Tick tất cả ({allAvailableVarieties.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleDeselectAllVarieties}
+                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-stone-100 text-stone-600 hover:bg-rose-50 hover:text-rose-700 border border-stone-200 transition cursor-pointer"
+                            >
+                              Bỏ chọn tất cả
+                            </button>
+                          </div>
+
+                          <div className="relative min-w-[240px]">
+                            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                            <input
+                              type="text"
+                              placeholder="Tìm giống cây, loại cây..."
+                              value={varietySearchQuery}
+                              onChange={(e) => setVarietySearchQuery(e.target.value)}
+                              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-brand-border text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-green/20"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Lưới Giống Cây Trồng (Checklist) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                          {allAvailableVarieties
+                            .filter((v) => {
+                              if (!varietySearchQuery.trim()) return true;
+                              const q = varietySearchQuery.toLowerCase();
+                              const vName = (v.name || v.varietyName || '').toLowerCase();
+                              const cName = (v.cropName || '').toLowerCase();
+                              return vName.includes(q) || cName.includes(q);
+                            })
+                            .map((v) => {
+                              const vid = Number(v.id || v.varietyId);
+                              const isChecked = selectedCompatVarietyIds.includes(vid);
+                              return (
+                                <div
+                                  key={vid}
+                                  onClick={() => handleToggleVariety(vid)}
+                                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex items-start gap-3 ${
+                                    isChecked
+                                      ? 'bg-emerald-50/90 border-emerald-500 shadow-2xs ring-1 ring-emerald-500/20'
+                                      : 'bg-white border-brand-border/80 hover:border-stone-300 hover:bg-stone-50/60 opacity-80'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => {}}
+                                    className="mt-1 h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500 border-stone-300 cursor-pointer pointer-events-none"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-xs text-brand-dark flex items-center justify-between gap-1">
+                                      <span className="truncate">{v.name || v.varietyName}</span>
+                                      {isChecked && (
+                                        <span className="shrink-0 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                                          Thích hợp
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] font-semibold text-emerald-700 mt-0.5">
+                                      {v.cropName}
+                                    </div>
+                                    <div className="text-[10px] text-stone-500 mt-1 flex items-center gap-2">
+                                      <span>Chu kỳ: <strong>{v.growthDuration || 45} ngày</strong></span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+
+                        {/* Thanh Action Cuối Trang */}
+                        <div className="pt-4 border-t border-brand-border/60 flex flex-wrap items-center justify-between gap-3">
+                          <div className="text-xs text-stone-600">
+                            Đã chọn <strong className="text-emerald-800 font-bold">{selectedCompatVarietyIds.length}</strong> giống cây thích hợp cho thửa <strong>{activeCompatPlot.plotCode}</strong>.
+                          </div>
+                          <Button
+                            variant="primary"
+                            size="md"
+                            disabled={isSavingCompatibility}
+                            onClick={() => handleSavePlotCompatibility(activeCompatPlot.plotId, selectedCompatVarietyIds)}
+                            className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs gap-2 px-6 py-2.5 shadow-sm cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>{isSavingCompatibility ? 'Đang lưu...' : `Lưu Giống Cây Cho Thửa ${activeCompatPlot.plotCode}`}</span>
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-8 text-center text-stone-500 text-xs">
+                        Vui lòng chọn một thửa đất từ danh sách bên trái để cấu hình giống cây.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -2949,7 +3072,7 @@ export default function ExpertDashboard() {
                 required
                 value={directTaskModal.instructions}
                 onChange={(e) => setDirectTaskModal((c) => ({ ...c, instructions: e.target.value }))}
-                placeholder="Ghi rõ liều lượng, vị trí xử lý, yêu cầu chụp ảnh nghiệm thu hiện trường..."
+                placeholder="Ghi rõ liều lượng, vị trí xử lý, yêu cầu chụp ảnh báo cáo xong việc..."
                 className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs text-stone-800 leading-relaxed outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/10"
               />
             </label>
@@ -3023,247 +3146,256 @@ export default function ExpertDashboard() {
       <Modal
         isOpen={Boolean(selectedIssueDetail)}
         onClose={() => setSelectedIssueDetail(null)}
-        title={`Chi Tiết Báo Cáo Sự Cố Hiện Trường • ${selectedIssueDetail?.issueCode || selectedIssueDetail?.id}`}
+        title="Chi Tiết Báo Cáo Sự Cố Hiện Trường"
         subtitle={`${selectedIssueDetail?.issueType || 'Sự cố'} · ${selectedIssueDetail?.plotName} (${selectedIssueDetail?.plotCode})`}
+        maxWidth="max-w-4xl"
       >
-        {selectedIssueDetail && (
-          <div className="space-y-4 text-xs text-left max-h-[78vh] overflow-y-auto pr-1">
-            {/* Header info bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-stone-50 rounded-2xl border border-brand-border/70">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono font-black text-brand-green text-sm">{selectedIssueDetail.issueCode || selectedIssueDetail.id}</span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                  selectedIssueDetail.urgency === 'HIGH' ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-stone-200 text-stone-700'
-                }`}>
-                  {selectedIssueDetail.urgency === 'HIGH' ? '⚡ Mức độ: Khẩn cấp' : '🌱 Mức độ: Bình thường'}
+        {selectedIssueDetail && (() => {
+          const isUrgentIssue = selectedIssueDetail.urgency === 'HIGH' || selectedIssueDetail.urgency === 'CRITICAL';
+          const issueSteps = [
+            { label: 'Xem hiện trường', done: true },
+            { label: 'Chẩn đoán & chỉ đạo', done: Boolean(selectedIssueDetail.diagnosis) },
+            { label: 'Giao việc cho CVLĐ', done: Boolean(selectedIssueDetail.assignedTaskCode) },
+          ];
+          const renderSectionHeader = (index, title, done, extra = null) => (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h4 className="flex items-center gap-2 font-heading text-sm font-bold text-brand-dark">
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    done ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-700'
+                  }`}
+                  aria-hidden="true"
+                >
+                  {done ? <CheckCircle2 className="h-4 w-4" /> : index}
                 </span>
-                <span className="text-stone-500 text-[11px]">• Gửi lúc: {selectedIssueDetail.reportedTime || 'Hôm nay'}</span>
+                <span>
+                  <span className="sr-only">Bước {index}: </span>
+                  {title}
+                </span>
+              </h4>
+              {extra}
+            </div>
+          );
+
+          return (
+          <div className="space-y-5 text-left text-sm">
+            {/* Thanh tóm tắt: mã sự cố, trạng thái, thông tin nhanh */}
+            <div className="space-y-3 rounded-2xl border border-brand-border/70 bg-stone-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-mono text-base font-black text-brand-green break-all">
+                  {selectedIssueDetail.issueCode || selectedIssueDetail.id}
+                </span>
+                <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                  selectedIssueDetail.status === 'RESOLVED'
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : selectedIssueDetail.assignedTaskCode
+                    ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                    : 'bg-amber-100 text-amber-900 border border-amber-300'
+                }`}>
+                  {selectedIssueDetail.status === 'RESOLVED'
+                    ? '✓ Đã ban hành phác đồ'
+                    : selectedIssueDetail.assignedTaskCode
+                    ? '⚡ Đã phát lệnh giao việc'
+                    : '⏳ Chờ chuyên gia chẩn đoán'}
+                </span>
               </div>
-              <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
-                selectedIssueDetail.status === 'RESOLVED'
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                  : selectedIssueDetail.assignedTaskCode
-                  ? 'bg-sky-100 text-sky-800 border border-sky-300'
-                  : 'bg-amber-100 text-amber-900 border border-amber-300'
-              }`}>
-                {selectedIssueDetail.status === 'RESOLVED'
-                  ? '✓ Đã ban hành phác đồ'
-                  : selectedIssueDetail.assignedTaskCode
-                  ? '⚡ Đã phát lệnh giao việc'
-                  : '⏳ Chờ chuyên gia chẩn đoán'}
-              </span>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className={`rounded-full px-2.5 py-1 font-bold ${
+                  isUrgentIssue ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-stone-200 text-stone-700'
+                }`}>
+                  {isUrgentIssue ? '⚡ Khẩn cấp' : '🌱 Bình thường'}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white px-2.5 py-1 font-semibold text-stone-700">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+                  {selectedIssueDetail.plotName} ({selectedIssueDetail.plotCode})
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-white px-2.5 py-1 font-semibold text-stone-700">
+                  <UserCheck className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+                  {selectedIssueDetail.workerName || 'Trần Văn Lực (CVLĐ)'}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[11px] text-stone-600">
+                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                  Gửi lúc: {selectedIssueDetail.reportedTime || 'Hôm nay'}
+                </span>
+              </div>
             </div>
 
-            {/* Bố cục 2 cột */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-              {/* Cột trái: Ảnh hiện trường & Bối cảnh thửa đất */}
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-brand-border overflow-hidden bg-stone-900 shadow-inner group relative">
+            {/* Tiến trình xử lý 3 bước */}
+            <ol className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs" aria-label="Tiến trình xử lý sự cố">
+              {issueSteps.map((step, idx) => (
+                <li key={step.label} className="flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-semibold ${
+                    step.done ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-white text-stone-600 border border-stone-200'
+                  }`}>
+                    {step.done ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                    ) : (
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-stone-200 text-[10px] font-bold text-stone-700" aria-hidden="true">{idx + 1}</span>
+                    )}
+                    {step.label}
+                    <span className="sr-only">{step.done ? ' (đã xong)' : ' (chưa xong)'}</span>
+                  </span>
+                  {idx < issueSteps.length - 1 && <ChevronRight className="h-3.5 w-3.5 text-stone-400" aria-hidden="true" />}
+                </li>
+              ))}
+            </ol>
+
+            {/* Bước 1: Xem hiện trường */}
+            <section className="space-y-3">
+              {renderSectionHeader(1, 'Xem hiện trường', true)}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+                <div className="relative overflow-hidden rounded-2xl border border-brand-border bg-stone-900 shadow-inner md:col-span-2">
                   <img
                     src={selectedIssueDetail.photoUrl}
                     alt="Ảnh hiện trường"
-                    className="w-full h-48 object-cover"
+                    className="h-56 w-full object-cover md:h-full md:min-h-[14rem]"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80';
                     }}
                   />
-                  <div className="absolute bottom-2 left-2 right-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl text-white text-[11px] flex items-center justify-between">
+                  <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 rounded-xl bg-black/70 px-3 py-1.5 text-[11px] text-white backdrop-blur-md">
                     <span className="flex items-center gap-1.5 font-bold">
-                      <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                      <Camera className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden="true" />
                       Minh chứng thực địa từ hiện trường
                     </span>
-                    <span className="text-[10px] text-stone-300">BR16</span>
+                    <span className="text-[11px] text-stone-200">Ảnh hiện trường</span>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-brand-border bg-white shadow-2xs space-y-2">
-                  <h5 className="font-bold text-brand-dark uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-emerald-700" />
-                    Bối Cảnh Thửa Đất Canh Tác
-                  </h5>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div>
-                      <span className="text-stone-400 block text-[10px]">Thửa đất:</span>
-                      <strong className="text-brand-dark">{selectedIssueDetail.plotName} ({selectedIssueDetail.plotCode})</strong>
-                    </div>
-                    <div>
-                      <span className="text-stone-400 block text-[10px]">Giống cây:</span>
-                      <strong className="text-emerald-800">{selectedIssueDetail.cropName || selectedIssueDetail.crop || 'Cà chua bi đỏ F1'}</strong>
-                    </div>
-                    <div>
-                      <span className="text-stone-400 block text-[10px]">Người phát hiện:</span>
-                      <strong className="text-stone-700">{selectedIssueDetail.workerName || 'Trần Văn Lực (CVLĐ)'}</strong>
-                    </div>
-                    <div>
-                      <span className="text-stone-400 block text-[10px]">Chuyên gia phụ trách:</span>
-                      <strong className="text-sky-800">{selectedIssueDetail.expertName || 'ThS. Nguyễn Hoàng Nam'}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                {/* IoT Sensor Context */}
-                <div className="p-3 rounded-2xl border border-sky-200 bg-sky-50/60 text-sky-950 space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5 text-sky-600" />
-                    Trạm Vi Khí Hậu IoT Tại Thửa
-                  </span>
-                  <div className="flex items-center justify-between text-xs font-mono font-bold">
-                    <span>🌡️ Nhiệt độ: 28.5°C</span>
-                    <span>💧 Độ ẩm đất: 68%</span>
-                    <span>💨 Ẩm khí: 74%</span>
-                  </div>
-                  <p className="text-[10px] text-sky-700">Độ ẩm đất ổn định trong ngưỡng an toàn VietGAP (60-70%).</p>
-                </div>
-              </div>
-
-              {/* Cột phải: Mô tả hiện trường, Chỉ đạo kỹ thuật và Giao việc */}
-              <div className="space-y-3">
-                {/* 1. Lời báo cáo của công nhân */}
-                <div className="p-3 rounded-2xl border border-amber-200 bg-amber-50/70 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-amber-900 text-xs flex items-center gap-1.5">
-                      <AlertTriangle className="w-4 h-4 text-amber-600" />
-                      Phản ánh từ hiện trường:
-                    </span>
-                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
-                      {selectedIssueDetail.issueType}
-                    </span>
-                  </div>
-                  <p className="text-xs text-stone-800 italic leading-relaxed bg-white/80 p-2.5 rounded-xl border border-amber-200/60">
-                    "{selectedIssueDetail.description}"
-                  </p>
-                </div>
-
-                {/* 2. Chỉ đạo kỹ thuật của chuyên gia */}
-                <div className="p-3 rounded-2xl border border-brand-border bg-white space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-brand-dark text-xs flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-emerald-700" />
-                      Chỉ Đạo Kỹ Thuật Can Thiệp:
-                    </label>
-                    {selectedIssueDetail.diagnosis && (
-                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        ✓ Đã có phác đồ
+                <div className="space-y-3 md:col-span-3">
+                  <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="flex items-center gap-1.5 text-sm font-bold text-amber-900">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+                        Phản ánh từ hiện trường
                       </span>
-                    )}
-                  </div>
-                  <textarea
-                    rows={2}
-                    value={detailDiagnosisText}
-                    onChange={(e) => setDetailDiagnosisText(e.target.value)}
-                    placeholder="Nhập phác đồ xử lý (ví dụ: Pha dung dịch thảo mộc tỏi ớt 1:200, phun sương đều 2 mặt lá sau 16:30, ngưng tưới gốc 1 ngày...)"
-                    className="w-full p-2.5 rounded-xl border border-brand-border text-xs leading-relaxed focus:ring-2 focus:ring-brand-green/20 outline-none"
-                  />
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSaveDetailDiagnosis}
-                      disabled={!detailDiagnosisText.trim() || isSavingDiagnosis}
-                      className="font-bold text-xs gap-1"
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      {isSavingDiagnosis ? 'Đang lưu...' : 'Lưu Chỉ Đạo Kỹ Thuật'}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* 3. Giao nhiệm vụ khắc phục cho CVLĐ (Xong mới giao task) */}
-                <div className="p-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/60 space-y-2.5">
-                  <h5 className="font-bold text-brand-dark text-xs flex items-center gap-1.5">
-                    <UserCheck className="w-4 h-4 text-emerald-700" />
-                    Phân Công Nhiệm Vụ Khắc Phục Hiện Trường Cho CVLĐ
-                  </h5>
-
-                  {selectedIssueDetail.assignedTaskCode && (
-                    <div className="p-2.5 rounded-xl bg-white border border-emerald-300 text-emerald-900 space-y-1">
-                      <div className="flex items-center gap-2 font-bold text-xs text-emerald-800">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Đã phát lệnh: {selectedIssueDetail.assignedTaskCode}</span>
-                      </div>
-                      <p className="text-[11px] text-stone-600">
-                        Giao cho: <strong>{selectedIssueDetail.workerName || 'Chuyên viên hiện trường'}</strong> • Hạn: <strong>{selectedIssueDetail.assignedDueDate || 'Trong ca trực'}</strong>
-                      </p>
+                      {selectedIssueDetail.issueType && (
+                        <span className="self-start whitespace-normal rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-900 sm:self-auto">
+                          {selectedIssueDetail.issueType}
+                        </span>
+                      )}
                     </div>
-                  )}
+                    <p className="rounded-xl border border-amber-200/60 bg-white/80 p-3 text-sm italic leading-relaxed text-stone-800">
+                      "{selectedIssueDetail.description}"
+                    </p>
+                  </div>
 
-                  <div className="space-y-2 bg-white p-3 rounded-xl border border-brand-border/80">
-                    <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-2 rounded-2xl border border-brand-border bg-white p-3.5">
+                    <h5 className="flex items-center gap-1.5 text-xs font-bold text-brand-dark">
+                      <Layers className="h-3.5 w-3.5 text-emerald-700" aria-hidden="true" />
+                      Bối cảnh thửa đất canh tác
+                    </h5>
+                    <dl className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[10px] font-bold text-stone-600 block mb-1">CVLĐ Nhận Lệnh:</label>
-                        <select
-                          value={detailAssignWorkerId}
-                          onChange={(e) => setDetailAssignWorkerId(Number(e.target.value))}
-                          className="w-full p-2 rounded-lg border border-brand-border text-xs bg-white font-bold"
-                        >
-                          {availableFieldWorkers.map((w) => (
-                            <option key={w.id} value={w.id}>
-                              {w.name} ({w.role})
-                            </option>
-                          ))}
-                        </select>
+                        <dt className="text-xs text-stone-500">Thửa đất</dt>
+                        <dd className="text-sm font-bold text-brand-dark">{selectedIssueDetail.plotName} ({selectedIssueDetail.plotCode})</dd>
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-stone-600 block mb-1">Hạn hoàn thành:</label>
-                        <input
-                          type="date"
-                          value={detailDueDate}
-                          onChange={(e) => setDetailDueDate(e.target.value)}
-                          className="w-full p-2 rounded-lg border border-brand-border text-xs bg-white font-bold"
-                        />
+                        <dt className="text-xs text-stone-500">Giống cây</dt>
+                        <dd className="text-sm font-bold text-emerald-800">{selectedIssueDetail.cropName || selectedIssueDetail.crop || 'Cà chua bi đỏ F1'}</dd>
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-bold text-stone-600 block mb-1">Mức độ ưu tiên giao việc:</label>
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {[
-                          { id: 'EMERGENCY', label: '⚡ LÀM NGAY', sub: 'Khẩn cấp 2h' },
-                          { id: 'HIGH', label: '🔥 ƯU TIÊN CAO', sub: 'Trong ngày' },
-                          { id: 'NORMAL', label: '🌱 BÌNH THƯỜNG', sub: 'Ca tới' }
-                        ].map((p) => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => setDetailPriority(p.id)}
-                            className={`p-1.5 rounded-lg border text-center transition ${
-                              detailPriority === p.id
-                                ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold ring-1 ring-emerald-500'
-                                : 'border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
-                            }`}
-                          >
-                            <div className="text-[10px] leading-tight font-extrabold">{p.label}</div>
-                            <div className="text-[9px] text-stone-500">{p.sub}</div>
-                          </button>
-                        ))}
+                      <div>
+                        <dt className="text-xs text-stone-500">Người phát hiện</dt>
+                        <dd className="text-sm font-bold text-stone-700">{selectedIssueDetail.workerName || 'Trần Văn Lực (CVLĐ)'}</dd>
                       </div>
-                    </div>
+                      <div>
+                        <dt className="text-xs text-stone-500">Chuyên gia phụ trách</dt>
+                        <dd className="text-sm font-bold text-sky-800">{selectedIssueDetail.expertName || 'ThS. Nguyễn Hoàng Nam'}</dd>
+                      </div>
+                    </dl>
+                  </div>
 
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="sm"
-                      onClick={handleDispatchTaskFromDetail}
-                      disabled={isDispatchingFromDetail}
-                      className="w-full bg-[#064b37] hover:bg-[#085a43] text-white font-bold text-xs py-2.5 gap-1.5 cursor-pointer mt-1"
-                    >
-                      <UserCheck className="w-4 h-4" />
-                      {isDispatchingFromDetail ? 'Đang phát lệnh...' : 'PHÁT LỆNH & GIAO TASK CHO CVLĐ'}
-                    </Button>
+                  <div className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50/60 p-3.5 text-sky-950">
+                    <h5 className="flex items-center gap-1.5 text-xs font-bold text-sky-900">
+                      <Activity className="h-3.5 w-3.5 text-sky-700" aria-hidden="true" />
+                      Khí tượng thực địa tại thửa
+                    </h5>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { icon: Thermometer, value: '28.5°C', label: 'Nhiệt độ', color: 'text-rose-600' },
+                        { icon: Droplets, value: '68%', label: 'Độ ẩm đất', color: 'text-sky-600' },
+                        { icon: Activity, value: '74%', label: 'Ẩm khí', color: 'text-emerald-700' },
+                      ].map(({ icon: StatIcon, value, label, color }) => (
+                        <div key={label} className="min-w-0 rounded-xl border border-sky-100 bg-white px-2.5 py-2 text-center">
+                          <StatIcon className={`mx-auto h-4 w-4 ${color}`} aria-hidden="true" />
+                          <div className="text-base font-bold text-brand-dark">{value}</div>
+                          <div className="text-[11px] text-stone-600">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-sky-800">Độ ẩm đất ổn định trong ngưỡng an toàn VietGAP (60-70%).</p>
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
 
-            <div className="flex justify-end pt-2 border-t border-brand-border">
+            {/* Bước 2: Chẩn đoán & chỉ đạo kỹ thuật */}
+            <section className="space-y-3 rounded-2xl border border-brand-border bg-white p-4">
+              {renderSectionHeader(
+                2,
+                'Chẩn đoán & chỉ đạo kỹ thuật',
+                Boolean(selectedIssueDetail.diagnosis),
+                selectedIssueDetail.diagnosis && (
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                    ✓ Đã có phác đồ
+                  </span>
+                )
+              )}
+              <label htmlFor="issue-detail-diagnosis" className="block text-xs font-semibold text-stone-700">
+                Phác đồ xử lý gửi CVLĐ
+              </label>
+              <textarea
+                id="issue-detail-diagnosis"
+                rows={4}
+                value={detailDiagnosisText}
+                onChange={(e) => setDetailDiagnosisText(e.target.value)}
+                placeholder="Nhập phác đồ xử lý (ví dụ: Pha dung dịch thảo mộc tỏi ớt 1:200, phun sương đều 2 mặt lá sau 16:30, ngưng tưới gốc 1 ngày...)"
+                className="w-full rounded-xl border border-brand-border p-3 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-brand-green/20"
+              />
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveDetailDiagnosis}
+                  disabled={!detailDiagnosisText.trim() || isSavingDiagnosis}
+                  className="gap-1.5"
+                >
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                  {isSavingDiagnosis ? 'Đang lưu...' : 'Lưu chỉ đạo kỹ thuật'}
+                </Button>
+              </div>
+            </section>
+
+            {/* Bước 3: Giao việc khắc phục cho CVLĐ */}
+            <section className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+              {renderSectionHeader(3, 'Giao việc cho CVLĐ', Boolean(selectedIssueDetail.assignedTaskCode))}
+              <IssueAssignmentPanel
+                workers={availableFieldWorkers}
+                workerId={detailAssignWorkerId}
+                onWorkerChange={setDetailAssignWorkerId}
+                dueDate={detailDueDate}
+                onDueDateChange={setDetailDueDate}
+                priority={detailPriority}
+                onPriorityChange={setDetailPriority}
+                onSubmit={handleDispatchTaskFromDetail}
+                isSubmitting={isDispatchingFromDetail}
+                assignedTaskCode={selectedIssueDetail.assignedTaskCode}
+                assignedWorkerName={selectedIssueDetail.workerName}
+                assignedDueDate={selectedIssueDetail.assignedDueDate}
+                hasDiagnosis={Boolean(detailDiagnosisText.trim())}
+              />
+            </section>
+
+            <div className="flex justify-end border-t border-brand-border pt-3">
               <Button type="button" variant="outline" size="sm" onClick={() => setSelectedIssueDetail(null)}>
                 Đóng
               </Button>
             </div>
           </div>
-        )}
+          );
+        })()}
       </Modal>
 
       <Modal
@@ -3370,7 +3502,7 @@ export default function ExpertDashboard() {
       <Modal
         isOpen={isCreateTemplateOpen}
         onClose={() => setIsCreateTemplateOpen(false)}
-        title="Soạn Thảo Quy Trình Canh Tác Chuẩn VietGAP (UC23)"
+        title="Soạn Thảo Quy Trình Canh Tác Chuẩn VietGAP"
         subtitle="Ban hành quy trình kỹ thuật mới cho nông trại Farmely"
       >
         <form onSubmit={handleCreateTemplate} className="space-y-3.5 text-xs text-left max-h-[75vh] overflow-y-auto pr-1">
@@ -3379,24 +3511,38 @@ export default function ExpertDashboard() {
               <label className="block font-bold text-brand-dark mb-1">Giống Cây Trồng Áp Dụng:</label>
               <select
                 value={newTemplateData.varietyId}
-                onChange={(e) => setNewTemplateData({ ...newTemplateData, varietyId: Number(e.target.value) })}
+                onChange={(e) => {
+                  const targetVId = Number(e.target.value);
+                  const selectedV = (allAvailableVarieties.length > 0 ? allAvailableVarieties : varietiesList).find(
+                    (v) => Number(v.varietyId || v.id) === targetVId
+                  );
+                  const targetDuration = Number(selectedV?.growthDuration) || 45;
+                  setNewTemplateData((prev) => {
+                    const updatedSteps = (prev.steps || []).map((step, idx, arr) => {
+                      if (idx === arr.length - 1) {
+                        return { ...step, dayOffset: targetDuration };
+                      }
+                      return step;
+                    });
+                    return {
+                      ...prev,
+                      varietyId: targetVId,
+                      steps: updatedSteps
+                    };
+                  });
+                }}
                 className="w-full p-2.5 rounded-xl border border-brand-border text-xs font-bold bg-white"
               >
-                {varietiesList.length > 0 ? (
-                  varietiesList.map((v) => (
-                    <option key={v.varietyId} value={v.varietyId}>
-                      {v.varietyName}
+                {(allAvailableVarieties.length > 0 ? allAvailableVarieties : varietiesList).map((v) => {
+                  const vId = Number(v.varietyId || v.id);
+                  const vName = v.varietyName || v.name;
+                  const cName = v.cropName ? ` (${v.cropName})` : '';
+                  return (
+                    <option key={vId} value={vId}>
+                      {vName}{cName}
                     </option>
-                  ))
-                ) : (
-                  <>
-                    <option value={1}>Cà chua bi Cherry F1</option>
-                    <option value={2}>Xà lách Romaine VietGAP</option>
-                    <option value={3}>Dưa leo Baby Đà Lạt</option>
-                    <option value={4}>Rau mồng tơi hữu cơ</option>
-                    <option value={5}>Bắp cải Brussels tí hon</option>
-                  </>
-                )}
+                  );
+                })}
               </select>
             </div>
             <div>
@@ -3548,70 +3694,6 @@ export default function ExpertDashboard() {
         </form>
       </Modal>
 
-      {/* Modal Add Soil Compatibility Rule */}
-      <Modal
-        isOpen={isAddCompatibilityOpen}
-        onClose={() => setIsAddCompatibilityOpen(false)}
-        title="Thêm Cấu Hình Thổ Nhưỡng – Giống Cây Trồng"
-        subtitle="Mở rộng ma trận gợi ý giống cây cho hệ thống"
-      >
-        <form onSubmit={handleAddCompatibility} className="space-y-3 text-xs text-left">
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Loại Đất & Khu Vực Thổ Nhưỡng:</label>
-            <input
-              type="text"
-              required
-              placeholder="Đất phù sa sét nhẹ ven sông (Củ Chi Zone B)"
-              value={newCompData.soilType}
-              onChange={(e) => setNewCompData({ ...newCompData, soilType: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-bold text-brand-dark mb-1">Dải pH Khuyến Nghị:</label>
-              <input
-                type="text"
-                placeholder="pH 6.0 – 6.8"
-                value={newCompData.phRange}
-                onChange={(e) => setNewCompData({ ...newCompData, phRange: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-              />
-            </div>
-            <div>
-              <label className="block font-bold text-brand-dark mb-1">Đặc tính giữ ẩm & thoát nước:</label>
-              <input
-                type="text"
-                placeholder="Thoát nước nhanh, giàu mùn hữu cơ"
-                value={newCompData.moistureProfile}
-                onChange={(e) => setNewCompData({ ...newCompData, moistureProfile: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1">Các giống cây thích hợp (cách nhau bởi dấu phẩy):</label>
-            <textarea
-              rows={2}
-              placeholder="Cà chua bi Cherry, Xà lách Romaine, Dưa leo Baby, Bạc hà Âu"
-              value={newCompData.cropsInput}
-              onChange={(e) => setNewCompData({ ...newCompData, cropsInput: e.target.value })}
-              className="w-full p-2.5 rounded-xl border border-brand-border text-xs focus:ring-2 focus:ring-brand-green/20"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsAddCompatibilityOpen(false)}>
-              Hủy
-            </Button>
-            <Button type="submit" variant="primary" size="sm" className="font-bold">
-              Lưu Cấu Hình
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
       {/* Modal View Knowledge Document Detail */}
       <Modal

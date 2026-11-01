@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Zap,
   X,
@@ -22,7 +22,9 @@ import {
   Compass,
   BookOpen,
   Info,
-  Clock
+  Clock,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { safeCrops, getSafeCropsList } from '../../data/safeCrops';
 import PlotLeaseOptions from './PlotLeaseOptions';
@@ -43,7 +45,8 @@ export default function MarketplacePlotDetailPanel({
   onChangeLeaseConfig,
   cropOptions = [],
   compatibilityMissing = false,
-  onOpenSiteVisit
+  onOpenSiteVisit,
+  cartPlotsCount = 0
 }) {
   const [copied, setCopied] = useState(false);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -51,6 +54,115 @@ export default function MarketplacePlotDetailPanel({
   const [showConfigErrors, setShowConfigErrors] = useState(false);
   const [expandedStageId, setExpandedStageId] = useState(null);
   const [showTechnicalHandbookModal, setShowTechnicalHandbookModal] = useState(false);
+
+  // Resizeable panel width state (kéo rộng thanh chi tiết theo ý muốn)
+  const MIN_PANEL_WIDTH = 340;
+  const getMaxPanelWidth = () => Math.min(840, typeof window !== 'undefined' ? window.innerWidth - 60 : 700);
+
+  const [panelWidth, setPanelWidth] = useState(() => {
+    if (typeof window === 'undefined') return 370;
+    try {
+      const saved = Number(localStorage.getItem('farmely_marketplace_panel_width'));
+      if (saved && saved >= 340 && saved <= window.innerWidth - 60) return saved;
+    } catch {}
+    return window.innerWidth >= 1536 ? 400 : 370;
+  });
+
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 640 : true);
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ startX: 0, startWidth: 370 });
+
+  useEffect(() => {
+    const handleResize = () => {
+      const desktop = window.innerWidth >= 640;
+      setIsDesktop(desktop);
+      setPanelWidth((prev) => Math.min(prev, Math.max(MIN_PANEL_WIDTH, window.innerWidth - 60)));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleMouseDownResize = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    dragStartRef.current = {
+      startX: e.clientX,
+      startWidth: panelWidth
+    };
+
+    const handleMouseMove = (moveEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = dragStartRef.current.startX - moveEvent.clientX;
+      const maxW = getMaxPanelWidth();
+      const nextWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxW, dragStartRef.current.startWidth + delta));
+      setPanelWidth(nextWidth);
+    };
+
+    const handleMouseUp = (upEvent) => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      setIsDragging(false);
+
+      const delta = dragStartRef.current.startX - upEvent.clientX;
+      const maxW = getMaxPanelWidth();
+      const finalWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxW, dragStartRef.current.startWidth + delta));
+      try {
+        localStorage.setItem('farmely_marketplace_panel_width', String(Math.round(finalWidth)));
+      } catch {}
+
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleTouchStartResize = (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    dragStartRef.current = {
+      startX: touch.clientX,
+      startWidth: panelWidth
+    };
+
+    const handleTouchMove = (moveEvent) => {
+      if (!isDraggingRef.current || !moveEvent.touches || moveEvent.touches.length !== 1) return;
+      const delta = dragStartRef.current.startX - moveEvent.touches[0].clientX;
+      const maxW = getMaxPanelWidth();
+      const nextWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxW, dragStartRef.current.startWidth + delta));
+      setPanelWidth(nextWidth);
+    };
+
+    const handleTouchEnd = () => {
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      try {
+        localStorage.setItem('farmely_marketplace_panel_width', String(Math.round(panelWidth)));
+      } catch {}
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd);
+  };
+
+  const handleToggleExpand = () => {
+    const isExpanded = panelWidth > 460;
+    const nextWidth = isExpanded ? 370 : 560;
+    setPanelWidth(nextWidth);
+    try {
+      localStorage.setItem('farmely_marketplace_panel_width', String(nextWidth));
+    } catch {}
+  };
 
   // Reset photo index, tab & error khi đổi thửa đất
   useEffect(() => {
@@ -188,9 +300,9 @@ export default function MarketplacePlotDetailPanel({
     },
     {
       icon: Cpu,
-      label: 'Cảm biến IoT',
-      value: 'Vi khí hậu',
-      statusText: 'Online',
+      label: 'Thời Tiết API',
+      value: 'Khí tượng 24/7',
+      statusText: 'Trực tuyến',
       iconBg: 'bg-violet-50',
       iconColor: 'text-violet-500',
       iconBorder: 'border-violet-100'
@@ -229,16 +341,51 @@ export default function MarketplacePlotDetailPanel({
 
   return (
     <>
+      {isDragging && (
+        <div className="fixed inset-0 z-[9999] cursor-col-resize select-none pointer-events-auto" />
+      )}
       <aside
       id="detail-panel"
       data-plot-detail-panel={isOpen && plot ? 'open' : 'closed'}
       aria-label={`Chi tiết thửa đất ${plot?.code || ''}`}
-      className={`absolute inset-x-2 top-20 bottom-2 z-40 flex w-auto flex-col overflow-hidden rounded-2xl border border-white/80 bg-white/95 shadow-[0_20px_60px_rgba(0,0,0,0.15)] backdrop-blur-2xl transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform will-change-transform sm:inset-x-auto sm:right-3 sm:bottom-3 sm:w-[340px] sm:rounded-3xl 2xl:right-4 2xl:bottom-4 2xl:w-[370px] ${
+      onWheel={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      style={isDesktop ? { width: `${panelWidth}px` } : undefined}
+      className={`absolute inset-x-2 top-20 bottom-2 z-40 flex w-auto flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_16px_48px_rgba(0,0,0,0.16)] sm:inset-x-auto sm:right-3 sm:bottom-3 sm:rounded-3xl 2xl:right-4 2xl:bottom-4 ${
+        isDragging
+          ? 'transition-none select-none'
+          : 'transition-transform duration-300 ease-out'
+      } ${
         isOpen
           ? 'translate-x-0 translate-y-0 opacity-100 pointer-events-auto'
-          : 'translate-y-[110%] opacity-0 pointer-events-none sm:translate-x-[400px] sm:translate-y-0'
+          : 'translate-y-[110%] opacity-0 pointer-events-none sm:translate-x-[calc(100%+2rem)] sm:translate-y-0'
       }`}
     >
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          DRAGGABLE RESIZE HANDLE (Kéo mép trái để điều chỉnh độ rộng linh hoạt)
+      ───────────────────────────────────────────────────────────────────────────── */}
+      <div
+        onMouseDown={handleMouseDownResize}
+        onTouchStart={handleTouchStartResize}
+        onDoubleClick={handleToggleExpand}
+        title="Kéo sang trái để mở rộng độ rộng bảng, nhấp đúp để phóng to/thu nhỏ nhanh"
+        className={`hidden sm:flex absolute left-0 top-0 bottom-0 w-3.5 -ml-1.5 z-50 cursor-col-resize items-center justify-center group touch-none select-none ${
+          isDragging ? 'bg-emerald-500/20' : 'hover:bg-emerald-500/10'
+        }`}
+      >
+        <div
+          className={`w-1 h-14 rounded-full transition-all ${
+            isDragging
+              ? 'bg-emerald-600 scale-y-125 w-1.5 shadow-sm'
+              : 'bg-slate-300 group-hover:bg-emerald-500 group-hover:scale-y-110'
+          }`}
+        />
+        {isDragging && (
+          <div className="absolute top-4 -left-16 bg-slate-900/95 text-white text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shadow-lg pointer-events-none z-50 border border-slate-700">
+            {Math.round(panelWidth)}px
+          </div>
+        )}
+      </div>
       {/* ─────────────────────────────────────────────────────────────────────────────
           1. HERO IMAGE (h-[128px] sm:h-[136px] 2xl:h-[160px])
       ───────────────────────────────────────────────────────────────────────────── */}
@@ -262,7 +409,7 @@ export default function MarketplacePlotDetailPanel({
             <button
               type="button"
               onClick={prevPhoto}
-              className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-md text-white/90 hover:bg-black/70 hover:scale-110 active:scale-95 transition-all flex items-center justify-center border border-white/15 pointer-events-auto cursor-pointer"
+              className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 hover:scale-110 active:scale-95 transition-all flex items-center justify-center border border-white/20 pointer-events-auto cursor-pointer"
               title="Ảnh trước"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
@@ -270,7 +417,7 @@ export default function MarketplacePlotDetailPanel({
             <button
               type="button"
               onClick={nextPhoto}
-              className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-md text-white/90 hover:bg-black/70 hover:scale-110 active:scale-95 transition-all flex items-center justify-center border border-white/15 pointer-events-auto cursor-pointer"
+              className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 hover:scale-110 active:scale-95 transition-all flex items-center justify-center border border-white/20 pointer-events-auto cursor-pointer"
               title="Ảnh tiếp theo"
             >
               <ChevronRight className="w-3.5 h-3.5" />
@@ -283,16 +430,16 @@ export default function MarketplacePlotDetailPanel({
           <div className="flex items-center gap-1.5">
             <span
               id="detail-tag-status"
-              className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide flex items-center gap-1 shadow-sm backdrop-blur-md border ${
+              className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wide flex items-center gap-1 shadow-sm border ${
                 isVacant
-                  ? 'bg-emerald-500/90 text-white border-emerald-400/50 shadow-emerald-950/30'
-                  : 'bg-slate-800/90 text-slate-300 border-slate-700/60'
+                  ? 'bg-emerald-600 text-white border-emerald-500'
+                  : 'bg-slate-800 text-slate-300 border-slate-700'
               }`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${isVacant ? 'bg-white animate-ping' : 'bg-slate-400'}`} />
               {displayStatus}
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-white/20 text-white backdrop-blur-md border border-white/25 shadow-2xs">
+            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-black/40 text-white border border-white/25 shadow-2xs">
               ✨ VietGAP
             </span>
           </div>
@@ -300,8 +447,16 @@ export default function MarketplacePlotDetailPanel({
           <div className="flex items-center gap-1.5">
             <button
               type="button"
+              onClick={handleToggleExpand}
+              className="hidden sm:flex w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all items-center justify-center border border-white/20 cursor-pointer"
+              title={panelWidth > 460 ? 'Thu gọn độ rộng bảng (370px)' : 'Mở rộng độ rộng bảng (560px)'}
+            >
+              {panelWidth > 460 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              type="button"
               onClick={handleShare}
-              className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-md text-white/90 hover:bg-black/65 hover:text-white transition-all flex items-center justify-center border border-white/15 cursor-pointer"
+              className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all flex items-center justify-center border border-white/20 cursor-pointer"
               title="Sao chép liên kết thửa"
             >
               <Share2 className="w-3.5 h-3.5" />
@@ -309,7 +464,7 @@ export default function MarketplacePlotDetailPanel({
             <button
               type="button"
               onClick={onClose}
-              className="w-7 h-7 rounded-full bg-black/40 backdrop-blur-md text-white/90 hover:bg-black/65 hover:text-white transition-all flex items-center justify-center border border-white/15 cursor-pointer"
+              className="w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all flex items-center justify-center border border-white/20 cursor-pointer"
               title="Đóng chi tiết"
             >
               <X className="w-3.5 h-3.5" />
@@ -326,7 +481,7 @@ export default function MarketplacePlotDetailPanel({
         {/* Bottom Hero Overlay */}
         <div className="absolute bottom-2 left-3 right-3 text-white z-10 pointer-events-none">
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="px-1.5 py-0.2 rounded bg-white/20 backdrop-blur-md text-[9px] font-black text-white border border-white/30 tracking-wider">
+            <span className="px-1.5 py-0.2 rounded bg-black/50 text-[9px] font-black text-white border border-white/30 tracking-wider">
               {plotCode}
             </span>
             <span className="max-w-[60%] truncate whitespace-nowrap text-[10px] text-emerald-200 font-semibold drop-shadow">
@@ -432,7 +587,9 @@ export default function MarketplacePlotDetailPanel({
       ───────────────────────────────────────────────────────────────────────────── */}
       <div
         key={`${plot.id}-${activeTab}`}
-        className="px-4 pt-2.5 pb-6 flex-1 overflow-y-auto no-scrollbar space-y-3"
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        className="px-4 pt-2.5 pb-6 flex-1 panel-scroll space-y-3"
       >
         {/* ═══════════ TAB: TỔNG QUAN ═══════════ */}
         {activeTab === 'overview' && (
@@ -539,7 +696,7 @@ export default function MarketplacePlotDetailPanel({
               <div className="leading-snug">
                 <p className="font-black text-emerald-900 text-xs">Bảo chứng chất lượng Farmely</p>
                 <p className="text-[10px] text-emerald-700/80 mt-0.5">
-                  Kỹ sư VietGAP hỗ trợ • Đóng gói giao tận nhà
+                  Kỹ sư VietGAP hỗ trợ • Trải nghiệm thu hoạch tại vườn
                 </p>
               </div>
             </div>
@@ -739,7 +896,7 @@ export default function MarketplacePlotDetailPanel({
                                 <div className="p-1.5 rounded-lg bg-teal-50/60 border border-teal-100 flex items-start gap-1.5">
                                   <ShieldCheck className="w-3.5 h-3.5 text-teal-600 shrink-0 mt-0.5" />
                                   <div className="min-w-0">
-                                    <span className="font-bold text-teal-900 block text-[9px]">Tiêu chí nghiệm thu VietGAP:</span>
+                                    <span className="font-bold text-teal-900 block text-[9px]">Tiêu chí hoàn thành kỹ thuật:</span>
                                     <span className="text-slate-600 text-[10px] leading-tight block">{stage.inspectionCriteria}</span>
                                   </div>
                                 </div>
@@ -848,7 +1005,7 @@ export default function MarketplacePlotDetailPanel({
       {/* ─────────────────────────────────────────────────────────────────────────────
           5. BOTTOM CTA BUTTONS (Ghim cố định đáy, p-3.5 pb-4)
       ───────────────────────────────────────────────────────────────────────────── */}
-      <div className="p-3.5 pb-4 border-t border-slate-100/90 bg-white/98 backdrop-blur-xl shrink-0 space-y-2">
+      <div className="p-3.5 pb-4 border-t border-slate-200/80 bg-white shrink-0 space-y-2 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
         {/* Dòng tạm tính live */}
         {selectedCrop && (
           <div className="flex items-center justify-between text-[11px] text-stone-600 px-1 font-semibold">
@@ -859,7 +1016,7 @@ export default function MarketplacePlotDetailPanel({
           </div>
         )}
 
-        {/* Nút chính — Thuê ngay thửa này */}
+        {/* Nút chính — Thuê ngay thửa này hoặc Tiến hành thuê N thửa */}
         <button
           type="button"
           onClick={handleBookClick}
@@ -871,7 +1028,13 @@ export default function MarketplacePlotDetailPanel({
           }`}
         >
           <Sparkles className="w-4 h-4" />
-          <span>{isVacant ? 'Thuê ngay thửa này' : 'Thửa đất đã có người thuê'}</span>
+          <span>
+            {isVacant
+              ? (cartPlotsCount > 1 || (isPlotSelectedForContract && cartPlotsCount > 0)
+                  ? `Tiến hành thuê (${Math.max(cartPlotsCount, isPlotSelectedForContract ? cartPlotsCount : cartPlotsCount + 1)} thửa đã chọn)`
+                  : 'Thuê ngay thửa này')
+              : 'Thửa đất đã có người thuê'}
+          </span>
         </button>
 
         {/* Nút phụ — Chọn thửa đất */}
@@ -1048,7 +1211,7 @@ function TechnicalHandbookModal({ isOpen, onClose, cropData, onSelectCrop, isSel
                   )}
                 </div>
 
-                {/* Sâu bệnh & Nghiệm thu */}
+                {/* Sâu bệnh & Tiêu chuẩn hoàn thành */}
                 {st.pestAlert && (
                   <div className="p-2.5 rounded-xl bg-rose-50/60 border border-rose-100">
                     <span className="text-[11px] font-bold text-rose-800 flex items-center gap-1 mb-0.5">
@@ -1063,7 +1226,7 @@ function TechnicalHandbookModal({ isOpen, onClose, cropData, onSelectCrop, isSel
                   <div className="p-2.5 rounded-xl bg-teal-50/60 border border-teal-100">
                     <span className="text-[11px] font-bold text-teal-800 flex items-center gap-1 mb-0.5">
                       <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                      Tiêu chí nghiệm thu VietGAP của Kỹ sư
+                      Tiêu chí hoàn thành của Kỹ sư
                     </span>
                     <p className="text-teal-950 text-xs leading-relaxed">{st.inspectionCriteria}</p>
                   </div>
@@ -1076,7 +1239,7 @@ function TechnicalHandbookModal({ isOpen, onClose, cropData, onSelectCrop, isSel
         {/* Footer modal */}
         <div className="px-5 py-3.5 border-t border-stone-100 bg-stone-50/80 flex items-center justify-between gap-3 shrink-0">
           <p className="text-[11px] text-stone-500 font-medium">
-            100% quy trình được giám sát nhật ký số và hỗ trợ bởi đội ngũ kỹ sư Farmely.
+            100% quy trình được cập nhật nhật ký thực địa và hỗ trợ bởi đội ngũ kỹ sư Farmely.
           </p>
           <div className="flex items-center gap-2">
             <button

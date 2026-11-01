@@ -476,7 +476,7 @@ export const INITIAL_THREADS = [
         id: 2,
         sender: 'expert',
         senderName: 'ThS. Nguyễn Hoàng Nam',
-        text: 'Dạ vâng, tôi đã rà soát và đôn đốc các bạn CVLĐ chụp ảnh nghiệm thu đầy đủ trên hệ thống rồi ạ.',
+        text: 'Dạ vâng, tôi đã rà soát và đôn đốc các bạn CVLĐ chụp ảnh báo cáo xong việc đầy đủ trên hệ thống rồi ạ.',
         time: '08:10',
         seen: true,
         seenAt: '08:12'

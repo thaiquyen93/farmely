@@ -108,6 +108,13 @@ export default function Varieties() {
       }
       setToast({ type: 'success', message: data.message || `Đã lưu giống cây "${name}" thành công vào PostgreSQL!` });
       loadData();
+      try {
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_varieties_sync');
+          bc.postMessage({ type: 'VARIETIES_UPDATED' });
+          bc.close();
+        }
+      } catch {}
       setShowModal(false);
       setTimeout(() => setToast(null), 5000);
     } catch (err) {
@@ -129,6 +136,13 @@ export default function Varieties() {
       }
       setToast({ type: 'success', message: `Đã xóa giống cây #${id} thành công khỏi PostgreSQL!` });
       loadData();
+      try {
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_varieties_sync');
+          bc.postMessage({ type: 'VARIETIES_UPDATED' });
+          bc.close();
+        }
+      } catch {}
       setTimeout(() => setToast(null), 4000);
     } catch (err) {
       setToast({ type: 'error', message: err.message || 'Lỗi kết nối khi xóa' });

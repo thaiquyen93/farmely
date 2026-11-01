@@ -8,7 +8,7 @@ import {
   AlertTriangle, ArrowLeft, BookOpen, CalendarCheck, CalendarRange, Check, ChevronDown, ChevronRight,
   ChevronUp, CircleDot, ClipboardList, Clock, Clock3, Droplets, ExternalLink, Eye, Filter, Info, LayoutDashboard, Leaf,
   MapPin, Maximize2, PenLine, Radio, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
-  Sun, Thermometer, Truck, UserRound, Wheat, Wind, X, Camera, CheckCircle2, FileText, Calendar,
+Sun, Thermometer, Truck, UserRound, Wheat, Wind, X, Camera, CheckCircle2, FileText, Calendar,
   Plus, Trash2, Pencil, ArrowUpRight
 } from 'lucide-react';
 
@@ -22,7 +22,7 @@ import {
 
 export const PLOT_TABS = [
   { id: 'overview', label: 'Tổng quan', short: 'Tổng quan', icon: LayoutDashboard },
-  { id: 'tasks', label: 'Công việc & nhật ký', short: 'Công việc & nhật ký', icon: CalendarCheck },
+{ id: 'tasks', label: 'Công việc & nhật ký', short: 'Công việc & nhật ký', icon: CalendarCheck },
   { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag },
   { id: 'harvest', label: 'Thu hoạch', short: 'Thu hoạch', icon: Wheat }
 ];
@@ -1008,7 +1008,7 @@ function TasksAndDiaryTab({
         </div>
       </div>
 
-      {/* KHỐI DƯỚI: NHẬT KÝ CÁC BƯỚC ĐÃ HOÀN THÀNH - BỎ KHUNG TRẮNG */}
+{/* KHỐI DƯỚI: NHẬT KÝ CÁC BƯỚC ĐÃ HOÀN THÀNH - BỎ KHUNG TRẮNG */}
       <div className="pt-3 space-y-4">
         <div className="flex items-center justify-between border-b border-stone-200/80 pb-3">
           <div className="flex items-center gap-2">
@@ -1202,7 +1202,7 @@ function ServicesTab({ plot, services, orders, onSelectService, onDeleteOrder })
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b-2 border-stone-300 pb-4">
           <div>
             <SectionTitle eyebrow={`${orders.length} đơn dịch vụ`} title="Lịch sử mua & sử dụng dịch vụ" />
-            <p className="text-xs text-stone-500 mt-0.5">Theo dõi chi tiết tiến độ thực hiện, nhân viên phụ trách và ảnh nghiệm thu thực địa.</p>
+<p className="text-xs text-stone-500 mt-0.5">Theo dõi chi tiết tiến độ thực hiện, nhân viên phụ trách và ảnh nghiệm thu thực địa.</p>
           </div>
           <div className="flex items-center gap-1.5 self-start sm:self-auto bg-stone-100 p-1 rounded-xl text-xs font-semibold">
             <button
@@ -1241,11 +1241,10 @@ function ServicesTab({ plot, services, orders, onSelectService, onDeleteOrder })
                         <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
                           {o.id}
                         </span>
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                          isCompleted
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${isCompleted
                             ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                             : 'bg-amber-100 text-amber-800 border border-amber-200'
-                        }`}>
+                          }`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${isCompleted ? 'bg-emerald-600' : 'bg-amber-500 animate-pulse'}`} />
                           {o.statusLabel}
                         </span>
@@ -1256,8 +1255,7 @@ function ServicesTab({ plot, services, orders, onSelectService, onDeleteOrder })
                       </div>
 
                       <h4 className="text-base font-bold text-[#18352b] pt-0.5">{o.serviceName}</h4>
-                      
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-stone-600">
+<div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-stone-600">
                         <span className="flex items-center gap-1">
                           <Clock3 className="w-3.5 h-3.5 text-stone-400" />
                           {formatDisplayDate(o.date)}
@@ -1275,7 +1273,7 @@ function ServicesTab({ plot, services, orders, onSelectService, onDeleteOrder })
 
                       {o.proofPhoto ? (
                         <div className="pt-2 flex items-center gap-3">
-                          <div 
+                          <div
                             className="relative h-14 w-20 rounded-xl overflow-hidden border border-emerald-200 cursor-pointer shadow-xs group"
                             onClick={() => setSelectedOrderForDetail(o)}
                           >
@@ -1289,7 +1287,7 @@ function ServicesTab({ plot, services, orders, onSelectService, onDeleteOrder })
                               <Camera className="w-3 h-3" />
                               Minh chứng hiện trường
                             </span>
-                            <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-1">{o.proofNotes || 'Đã nghiệm thu đạt chuẩn'}</p>
+                            <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-1">{o.proofNotes || 'Đã hoàn thành đạt chuẩn'}</p>
                           </div>
                         </div>
                       ) : (
@@ -1333,10 +1331,10 @@ function ServicesTab({ plot, services, orders, onSelectService, onDeleteOrder })
               );
             })
           ) : (
-            <EmptyState 
-              icon={ShoppingBag} 
-              title="Chưa có dịch vụ nào trong mục này" 
-              note="Các dịch vụ phát sinh hoặc gói ủy thác chăm sóc bạn đặt cho thửa này sẽ được lưu trữ và hiển thị đầy đủ tại đây." 
+            <EmptyState
+              icon={ShoppingBag}
+              title="Chưa có dịch vụ nào trong mục này"
+              note="Các dịch vụ phát sinh hoặc gói ủy thác chăm sóc bạn đặt cho thửa này sẽ được lưu trữ và hiển thị đầy đủ tại đây."
             />
           )}
         </div>
@@ -1398,9 +1396,9 @@ function ServicesTab({ plot, services, orders, onSelectService, onDeleteOrder })
                   Ảnh minh chứng hiện trường:
                 </h5>
                 <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-stone-900 flex items-center justify-center max-h-56">
-                  <img 
-                    src={selectedOrderForDetail.proofPhoto} 
-                    alt="Minh chứng hiện trường" 
+                  <img
+                    src={selectedOrderForDetail.proofPhoto}
+                    alt="Minh chứng hiện trường"
                     className="max-h-56 w-full object-cover"
                   />
                 </div>
@@ -1439,37 +1437,131 @@ function ServicesTab({ plot, services, orders, onSelectService, onDeleteOrder })
   );
 }
 
-function HarvestTab({ plot, harvestPlan, onOpenHarvest, cropProcess }) {
+function HarvestTab({ plot, harvestPlan, harvestResults = [], onAcceptHarvest, onOpenHarvest, cropProcess }) {
   const daysLeft = cropProcess?.daysLeft || Math.max(plot.totalDays - plot.currentDay, 0);
   const planDate = harvestPlan?.date ? harvestPlan.date.split('-').reverse().join('/') : '';
+
+  const relevantHarvests = useMemo(() => {
+    if (!Array.isArray(harvestResults)) return [];
+    return harvestResults.filter((h) => {
+      const pCode = (plot.plotCode || plot.mapPlotId || plot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+      const hCode = (h.plotCode || h.plotScopeId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+      if (hCode && pCode && hCode === pCode) return true;
+      if (plot.rentalId && Number(h.rentalId) === Number(plot.rentalId)) return true;
+      return false;
+    });
+  }, [harvestResults, plot]);
+
   return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Card className="p-5">
-        <SectionTitle eyebrow="Dự kiến thu hoạch" title={daysLeft > 0 ? `Còn ${daysLeft} ngày nữa` : 'Đã đến mùa thu hoạch'} />
-        <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Ngày thu hoạch</dt><dd className="font-semibold text-[#18352b]">{plot.expectedHarvestDate || 'Sau 19 ngày'}</dd></div>
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Sản lượng tiêu chuẩn</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.expectedYield || plot.expectedYield}</dd></div>
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Cây trồng</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.cropName || plot.crop}</dd></div>
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Hợp đồng thuê</dt><dd className="truncate font-semibold text-[#18352b]">{plot.contractCode || 'HD-2026'}</dd></div>
-        </dl>
-      </Card>
-      <Card className="flex flex-col p-5">
-        <SectionTitle eyebrow="Kế hoạch của bạn" title={harvestPlan ? 'Đã đăng ký thu hoạch' : 'Chưa đăng ký'} />
-        {harvestPlan ? (
-          <div className="mt-4 space-y-2 text-sm">
-            <p className="flex items-center gap-2 text-[#18352b]"><CalendarCheck className="h-4 w-4 text-emerald-700" />Ngày hái: <strong>{planDate}</strong></p>
-            <p className="flex items-center gap-2 text-[#18352b]"><Truck className="h-4 w-4 text-emerald-700" />{harvestPlan.methodLabel}</p>
-            {harvestPlan.address && <p className="flex items-start gap-2 text-stone-600"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />{harvestPlan.address}</p>}
-            {harvestPlan.status === 'APPROVED' ? (
-              <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã duyệt lịch hái · Đang điều phối thu hoạch</p>
-            ) : (
-              <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ kỹ sư xác nhận</p>
-            )}
+    <div className="space-y-6">
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card className="p-5">
+          <SectionTitle eyebrow="Dự kiến thu hoạch" title={daysLeft > 0 ? `Còn ${daysLeft} ngày nữa` : 'Đã đến mùa thu hoạch'} />
+          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Ngày thu hoạch</dt><dd className="font-semibold text-[#18352b]">{plot.expectedHarvestDate || 'Sau 19 ngày'}</dd></div>
+            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Sản lượng tiêu chuẩn</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.expectedYield || plot.expectedYield}</dd></div>
+            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Cây trồng</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.cropName || plot.crop}</dd></div>
+            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Hợp đồng thuê</dt><dd className="truncate font-semibold text-[#18352b]">{plot.contractCode || 'HD-2026'}</dd></div>
+          </dl>
+        </Card>
+        <Card className="flex flex-col p-5">
+          <SectionTitle eyebrow="Kế hoạch của bạn" title={harvestPlan ? 'Đã đăng ký thu hoạch' : 'Chưa đăng ký'} />
+          {harvestPlan ? (
+            <div className="mt-4 space-y-2 text-sm">
+              <p className="flex items-center gap-2 text-[#18352b]"><CalendarCheck className="h-4 w-4 text-emerald-700" />Ngày dự kiến đến hái: <strong>{planDate}</strong></p>
+              <p className="flex items-center gap-2 text-[#18352b]"><Scissors className="h-4 w-4 text-emerald-700" />{harvestPlan.methodLabel}</p>
+              {harvestPlan.status === 'APPROVED' ? (
+                <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã duyệt lịch hái · Nông trại sẵn sàng đón tiếp</p>
+              ) : (
+                <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ kỹ sư xác nhận</p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-stone-600">Đăng ký ngày tới nông trại để trải nghiệm và tự tay thu hoạch nông sản của bạn. Farmely sẽ nhắc bạn trước 3 ngày.</p>
+          )}
+          <button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5 cursor-pointer">
+            <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800">
+              <Wheat className="h-4 w-4" />{harvestPlan ? 'Sửa lịch trải nghiệm thu hoạch' : 'Đăng ký tới nông trại thu hoạch'}
+            </span>
+          </button>
+        </Card>
+      </div>
+
+      {/* Lịch sử & Biên bản đối chứng các đợt thu hoạch theo vụ mùa */}
+      <Card className="p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200/60 pb-3">
+          <div>
+            <h4 className="font-heading font-black text-base text-[#18352b] flex items-center gap-2">
+              <Apple className="h-4 w-4 text-emerald-700" />
+              Lịch Sử Thu Hoạch & Biên Bản Đối Chứng Theo Vụ Mùa (BR20)
+            </h4>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Kết quả cân thực tế tại vườn, lưu ảnh minh chứng và tem QR truy xuất nguồn gốc nông sản của thửa đất này.
+            </p>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+            {relevantHarvests.length} Đợt Thu Hoạch Đã Ghi Nhận
+          </span>
+        </div>
+
+        {relevantHarvests.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/50 p-6 text-center text-xs text-stone-500">
+            Chưa có đợt thu hoạch nào được hoàn tất cho thửa đất này. Khi đến ngày thu hoạch và chuyên viên lao động cắt cân nông sản, biên bản và ảnh đối chứng sẽ hiển thị tại đây.
           </div>
         ) : (
-          <p className="mt-4 text-sm text-stone-600">Chọn ngày và phương thức nhận nông sản. Farmely sẽ nhắc bạn trước 3 ngày.</p>
+          <div className="space-y-3">
+            {relevantHarvests.map((hr, idx) => {
+              const isConfirmed = hr.customerConfirmed || hr.status === 'CONFIRMED';
+              const seasonLabel = hr.seasonName || `Vụ ${idx % 2 === 0 ? 1 : 2}: ${hr.crop || cropProcess?.cropName || plot.crop || 'Nông sản VietGAP'}`;
+              return (
+                <div key={hr.id || hr.harvestId || idx} className="grid gap-4 rounded-2xl border border-stone-200 bg-stone-50/60 p-4 sm:grid-cols-[140px_minmax(0,1fr)]">
+                  <img
+                    src={hr.evidenceImageUrl || '/images/harvest/rau-muong-p03.jpg'}
+                    alt="Ảnh cân đối chứng"
+                    className="h-28 w-full rounded-xl object-cover border border-stone-200 sm:h-full"
+                  />
+                  <div className="space-y-2 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-[#18352b] text-sm">{hr.plotName || plot.name}</span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-lime-100 text-lime-900 border border-lime-200">
+                          {seasonLabel}
+                        </span>
+                      </div>
+                      <span className="text-emerald-700 font-heading font-black text-base">{hr.formattedYield || `${hr.yieldAmount || '35.0'} kg`}</span>
+                    </div>
+                    <p className="text-stone-600">
+                      Ngày thu hoạch: <strong>{hr.harvestDateFormatted || hr.harvestDate || 'Hôm nay'}</strong> • Chuyên viên cân: <strong>{hr.enteredByWorker || hr.staffName || 'Trần Văn Lực (CVLĐ)'}</strong>
+                    </p>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-200/60">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-white px-2.5 py-0.5 font-bold text-stone-600 border border-stone-200 text-[10px]">
+                          Mã biên bản: {hr.id}
+                        </span>
+                        <span className={`rounded-full px-2.5 py-0.5 font-bold text-[10px] ${
+                          isConfirmed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {isConfirmed ? '✓ Đã nghiệm thu nhận hàng' : '⏳ Chờ xác nhận'}
+                        </span>
+                      </div>
+                      {!isConfirmed && onAcceptHarvest && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => onAcceptHarvest(hr)}
+                          className="text-xs font-bold"
+                        >
+                          Xác nhận nhận nông sản
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
-        <button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5 cursor-pointer">
+<button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5 cursor-pointer">
           <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800 transition">
             <Wheat className="h-4 w-4" />{harvestPlan ? 'Sửa kế hoạch thu hoạch' : 'Đăng ký thu hoạch'}
           </span>
@@ -2442,6 +2534,8 @@ export default function CustomerPlotWorkspace({
   services = [],
   serviceOrders = [],
   harvestPlan = null,
+  harvestResults = [],
+  onAcceptHarvest,
   activeTab = 'overview',
   onTabChange,
   onSelectPlot,
@@ -2466,7 +2560,7 @@ export default function CustomerPlotWorkspace({
     return resolveStandardCropProcess(plot, stages);
   }, [plot, stages]);
 
-  // Modal states
+// Modal states
   const [selectedStageDetail, setSelectedStageDetail] = useState(null);
   const [showIotChartModal, setShowIotChartModal] = useState(false);
   const [showAllProofsModal, setShowAllProofsModal] = useState(false);
@@ -2708,7 +2802,7 @@ export default function CustomerPlotWorkspace({
         bc.postMessage({ type: 'TASK_SYNC', timestamp: Date.now() });
         bc.close();
       }
-    } catch {}
+} catch {}
   };
 
   const handleSaveTask = async (taskData) => {
@@ -2781,7 +2875,7 @@ export default function CustomerPlotWorkspace({
             })
           });
         }
-      }
+}
 
       loadBackendTasksAndDiaries();
       notifyTaskSync();
@@ -2837,7 +2931,7 @@ export default function CustomerPlotWorkspace({
       if (match) targetTaskId = Number(match[0]);
     }
 
-    try {
+try {
       if (targetTaskId) {
         await fetch(`/api/tasks/${targetTaskId}`, { method: 'DELETE' });
       }
@@ -3501,6 +3595,7 @@ export default function CustomerPlotWorkspace({
     return iotData;
   }, [liveIotResult, iotData]);
 
+
   useEffect(() => {
     if (!pickerOpen) return undefined;
     const close = (e) => { if (!pickerRef.current?.contains(e.target)) setPickerOpen(false); };
@@ -3515,7 +3610,7 @@ export default function CustomerPlotWorkspace({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const current = PLOT_TABS.find((t) => t.id === tab);
+const current = PLOT_TABS.find((t) => t.id === tab);
 
   return (
     <section className="min-h-[calc(100dvh-5rem)] bg-[radial-gradient(1200px_500px_at_80%_-10%,#e7f3dc_0%,transparent_60%),linear-gradient(#f5f7f2,#f5f7f2)] pb-28 lg:pb-12">
@@ -3681,7 +3776,7 @@ export default function CustomerPlotWorkspace({
                   role="tab"
                   aria-selected={active}
                   onClick={() => goTab(t.id)}
-                  className={`relative flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-bold transition-all duration-300 cursor-pointer ${
+className={`relative flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-3 text-sm font-bold transition-all duration-300 cursor-pointer ${
                     active
                       ? 'bg-gradient-to-br from-[#1d4a39] to-[#0f2a20] text-white shadow-md shadow-[#18352b]/25'
                       : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
@@ -3737,7 +3832,7 @@ export default function CustomerPlotWorkspace({
           />
         )}
 
-        {/* TAB 3: DỊCH VỤ */}
+{/* TAB 3: DỊCH VỤ */}
         {tab === 'services' && (
           <ServicesTab
             plot={activePlot}
@@ -3753,6 +3848,8 @@ export default function CustomerPlotWorkspace({
           <HarvestTab
             plot={activePlot}
             harvestPlan={harvestPlan}
+            harvestResults={harvestResults}
+            onAcceptHarvest={onAcceptHarvest}
             onOpenHarvest={onOpenHarvest}
             cropProcess={cropProcess}
           />
@@ -3856,7 +3953,7 @@ export default function CustomerPlotWorkspace({
                 aria-selected={active}
                 aria-label={t.label}
                 onClick={() => goTab(t.id)}
-                className={`relative flex min-h-[50px] flex-col items-center justify-center gap-0.5 rounded-2xl px-0.5 text-[10px] font-semibold transition-all duration-300 cursor-pointer ${
+className={`relative flex min-h-[50px] flex-col items-center justify-center gap-0.5 rounded-2xl px-0.5 text-[10px] font-semibold transition-all duration-300 cursor-pointer ${
                   active ? 'bg-lime-300 text-[#17372c] shadow-sm font-bold' : 'text-white/65'
                 }`}
               >

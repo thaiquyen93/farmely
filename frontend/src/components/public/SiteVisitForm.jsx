@@ -241,11 +241,25 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
       };
 
       const result = await siteVisitsService.create(bookingPayload);
-      setCreatedBooking(result);
+      const createdObj = {
+        ...result,
+        plot_code: selectedPlotObj?.plotCode || (selectedPlot ? (selectedPlot.startsWith('P-') ? selectedPlot : `P-${selectedPlot}`) : 'P-01'),
+        group_size: Number(groupSize) || 2,
+        notes: notes.trim()
+      };
+      setCreatedBooking(createdObj);
+
+      try {
+        const stored = JSON.parse(localStorage.getItem('farmely_my_site_visits') || '[]');
+        const updated = [createdObj, ...stored.filter(x => (x.visit_id || x.id) !== (createdObj.visit_id || createdObj.id))];
+        localStorage.setItem('farmely_my_site_visits', JSON.stringify(updated));
+        window.dispatchEvent(new Event('farmely_site_visits_updated'));
+      } catch {}
+
       if (!inModal) {
         setShowSuccessModal(true);
       }
-      if (onSuccess) onSuccess(result);
+      if (onSuccess) onSuccess(createdObj);
     } catch (err) {
       console.error('Error creating site visit booking:', err);
       alert('Có lỗi xảy ra khi lưu lịch hẹn. Vui lòng thử lại!');
@@ -561,7 +575,7 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
                   </div>
 
                   <p className="text-[11px] text-stone-600 mt-2 leading-relaxed">
-                    Kiểm tra cường độ ánh sáng, khả năng giữ nước của đất và vận hành trạm quan trắc IoT lúc chiều tà.
+                    Kiểm tra cường độ ánh sáng, khả năng giữ nước của đất và cập nhật dữ liệu vi khí hậu thực địa lúc chiều tà.
                   </p>
                 </button>
               </div>
@@ -709,7 +723,7 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
             {[
               '🌱 Cần tư vấn chọn giống cây',
               '💧 Kiểm tra hệ thống tưới ngầm',
-              '📡 Xem trạm quan trắc IoT',
+              '⛅ Xem dữ liệu thời tiết & vi khí hậu thực địa',
               '👨‍👩‍👧‍👦 Đi cùng người lớn tuổi & trẻ em',
               '🚗 Cần hỗ trợ xe điện nội bộ'
             ].map((tag) => (

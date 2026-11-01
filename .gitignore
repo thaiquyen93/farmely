@@ -41,3 +41,6 @@ capture_*.py
 /frontend/scripts/
 frontend/public/uploads/
 !frontend/public/uploads/.gitkeep
+
+data/
+

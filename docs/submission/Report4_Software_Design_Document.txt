@@ -71,7 +71,7 @@ Member
 	Design baseline: RP392 (NEW), version 2.1, particularly BR01–BR25. This document specifies the proposed software design for a single farm with up to 50 plots and four internal roles: Customer, Agricultural Expert, Field Worker and Administrator.
 1. System Design
 1.1 System Architecture
-The system uses a modular monolith: a responsive React client accesses a Spring Boot REST API; PostgreSQL stores transactional and operational data. Domain services enforce business rules centrally. External adapters isolate weather, AI, simulated IoT and mock payment dependencies.
+The system uses a modular monolith: a responsive React client accesses a Spring Boot REST API; PostgreSQL stores transactional and operational data. Domain services enforce business rules centrally. External adapters isolate weather & agro-climate, AI, and mock payment dependencies.
   
 
 Figure 1 System architecture
@@ -90,7 +90,7 @@ Component
 	Schedulers
 	Expire holds, activate/end rental items, mark overdue tasks and evaluate environmental alerts. Jobs are idempotent.
 	External adapters
-	Mock payment only; simulated IoT every three hours; weather forecast API; LLM with approved knowledge retrieval; SMTP or email API for verification, password reset and critical notices.
+	Mock payment only; weather & agro-climate forecast API; LLM with approved knowledge retrieval; SMTP or email API for verification, password reset and critical notices.
 	All server timestamps are stored as timezone-aware timestamps and displayed in Asia/Ho_Chi_Minh (GMT+7). Scheduling and policy decisions use server time. Clients cannot set prices, payment outcomes or effective contract status.
 Security: Spring Security validates JWT and current account status. RBAC is combined with ownership checks: customers see their own contracts; experts see assigned plots; workers see assigned tasks and necessary plot information. Uploaded files require authentication and ownership checks. Passwords are stored as hashes. Secrets remain in server configuration.
 Failure handling: reject invalid input before mutation; rollback failed database transactions; return 409 for unavailable intervals or stale updates. If weather is unavailable, show an unavailable indicator and do not automatically postpone watering. AI or weather failures must not block rental/payment transactions. Notifications are dispatched after commit with retry tracking.
@@ -916,4 +916,4 @@ Requirement
 	BR20–BR23
 	3.8
 	Harvest acceptance; independent expiry; open-ended soil rest until Admin release.
-	Prototype boundaries: Vietnamese user interface; responsive mobile web for workers; simulated sensors; mock payment; polling chat; no physical IoT installation, live bank payment, payroll or automated logistics. Technical verification must distinguish intended design behaviour from measured implementation results.
+	Prototype boundaries: Vietnamese user interface; responsive mobile web for workers; live weather API integration; mock payment; polling chat; no live bank payment, payroll or automated logistics. Technical verification must distinguish intended design behaviour from measured implementation results.

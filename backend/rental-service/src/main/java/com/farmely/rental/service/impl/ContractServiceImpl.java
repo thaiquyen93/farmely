@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,13 +53,19 @@ public class ContractServiceImpl implements ContractService {
 
         BigDecimal totalAmount = BigDecimal.ZERO;
         List<RentalEntity> pendingRentals = new ArrayList<>();
-        LocalDate earliestCultivationDate = LocalDate.now().plusDays(10);
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Bangkok"));
+        LocalDate earliestCultivationDate = today.plusDays(5);
+        LocalDate latestCultivationDate = today.plusDays(14);
 
         // 2. Kiểm tra từng thửa đất theo quy tắc nghiệp vụ BR03, BR04, BR05, BR07
         for (PlotRentalItemRequest item : request.getItems()) {
             if (item.getStartDate().isBefore(earliestCultivationDate)) {
                 throw new BadRequestException("Ngày bắt đầu canh tác phải từ " + earliestCultivationDate
-                        + " trở đi (tối thiểu 10 ngày sau ngày đặt thuê)");
+                        + " trở đi (tối thiểu 5 ngày sau ngày đặt thuê)");
+            }
+            if (item.getStartDate().isAfter(latestCultivationDate)) {
+                throw new BadRequestException("Ngày bắt đầu canh tác phải trước hoặc bằng " + latestCultivationDate
+                        + " (tối đa 14 ngày sau ngày đặt thuê)");
             }
 
             PlotReference plot = plotRepository.findById(item.getPlotId())

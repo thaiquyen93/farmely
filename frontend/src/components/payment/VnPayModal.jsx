@@ -14,6 +14,7 @@ export default function VnPayModal({
   contractId,
   additionalPayload,
   pendingBooking,
+  pendingRenewal,
   onPaymentSuccess
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,6 +23,7 @@ export default function VnPayModal({
   if (!isOpen) return null;
 
   const currentAmount = totalAmount || (serviceInfo ? serviceInfo.price : 1800000);
+  const isRenewal = Boolean(pendingRenewal || additionalPayload?.isRenewal);
 
   // Xử lý khi nhấn nút "THANH TOÁN"
   const handlePayment = async () => {
@@ -29,8 +31,14 @@ export default function VnPayModal({
     setErrorMessage('');
 
     try {
-      if (pendingBooking) {
+      if (pendingRenewal) {
+        localStorage.setItem('farmely_pending_vnpay_renewal', JSON.stringify(pendingRenewal));
+        localStorage.removeItem('farmely_pending_vnpay_booking');
+        localStorage.removeItem('farmely_pending_vnpay_service');
+      } else if (pendingBooking) {
         localStorage.setItem('farmely_pending_vnpay_booking', JSON.stringify(pendingBooking));
+        localStorage.removeItem('farmely_pending_vnpay_renewal');
+        localStorage.removeItem('farmely_pending_vnpay_service');
       }
 
       // Đảm bảo serviceId luôn là kiểu số Integer hoặc null
@@ -45,18 +53,22 @@ export default function VnPayModal({
         }
       }
 
+      const resolvedPlotCode = plotInfo?.plotCode || plotInfo?.mapPlotId || plotInfo?.code || (additionalPayload?.plotCode ? String(additionalPayload.plotCode).replace(/^PLOT-/i, '') : null);
+
       const payload = {
         amount: currentAmount,
         orderInfo: serviceInfo
           ? `Thanh toan dich vu ${serviceInfo.name}`
-          : `Thanh toan thue dat ${plotInfo?.code || plotInfo?.name || ''}`,
+          : isRenewal
+            ? `Thanh toan gia han vu mua ${resolvedPlotCode || plotInfo?.name || ''}`
+            : `Thanh toan thue dat ${plotInfo?.code || plotInfo?.name || ''}`,
         contractId: contractId || null,
         bankCode: '', // Để trống để VNPay hiển thị đầy đủ các lựa chọn trên cổng
         returnUrl: `${window.location.origin}/payment/vnpay-return`,
         ...additionalPayload,
-        serviceId: resolvedServiceId,
-        serviceName: serviceInfo?.name || additionalPayload?.serviceName || null,
-        plotCode: plotInfo?.plotCode || plotInfo?.mapPlotId || plotInfo?.code || (additionalPayload?.plotCode ? String(additionalPayload.plotCode).replace(/^PLOT-/i, '') : null),
+        serviceId: serviceInfo ? resolvedServiceId : null,
+        serviceName: serviceInfo ? (serviceInfo?.name || additionalPayload?.serviceName || null) : null,
+        plotCode: serviceInfo ? resolvedPlotCode : null,
         rentalId: plotInfo?.rentalId || plotInfo?.rental_id || additionalPayload?.rentalId || 1
       };
 
@@ -65,12 +77,13 @@ export default function VnPayModal({
           serviceId: resolvedServiceId,
           serviceName: serviceInfo.name,
           amount: currentAmount,
-          plotCode: payload.plotCode,
+          plotCode: resolvedPlotCode,
           plotName: plotInfo?.name || plotInfo?.code || 'Thửa đất đã chọn',
           rentalId: payload.rentalId,
           scheduledDate: payload.scheduledDate,
           notes: payload.notes
         }));
+        localStorage.removeItem('farmely_pending_vnpay_renewal');
       }
       const endpoint = window.location.port === '3000' 
         ? '/api/v1/payments/vnpay/create' 
@@ -119,7 +132,7 @@ export default function VnPayModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-stone-900/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-stone-900/80 backdrop-blur-sm animate-fade-in overflow-y-auto">
       <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden my-auto animate-scale-up">
         
         {/* Header - Màu xanh lá phẳng (Không gradient) */}
@@ -161,6 +174,8 @@ export default function VnPayModal({
               <span className="text-xs text-stone-600 block mt-2 font-medium">
                 {serviceInfo ? (
                   <>Dịch vụ: <strong className="text-[#294C3B]">{serviceInfo.name}</strong> {plotInfo ? <>• Thửa: <strong>{plotInfo.name || plotInfo.code}</strong></> : null}</>
+                ) : isRenewal ? (
+                  <>Gia hạn vụ mùa: <strong className="text-[#294C3B]">{plotInfo?.name || plotInfo?.code}</strong></>
                 ) : (
                   <>Đặt thuê thửa: <strong>{plotInfo?.code} - {plotInfo?.name}</strong></>
                 )}

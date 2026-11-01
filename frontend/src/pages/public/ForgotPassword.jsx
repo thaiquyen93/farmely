@@ -82,7 +82,7 @@ export default function ForgotPassword() {
             An tâm quản lý vườn rau của bạn.
           </h2>
           <p className="text-sm text-stone-300 leading-relaxed max-w-md">
-            Mọi dữ liệu thửa đất thuê, cảm biến IoT và nhật ký canh tác của bạn được mã hóa an toàn trên hệ thống Farmely.
+            Mọi dữ liệu thửa đất thuê, trạm quan trắc vi khí hậu và nhật ký canh tác của bạn được mã hóa an toàn trên hệ thống Farmely.
           </p>
         </div>
       </div>

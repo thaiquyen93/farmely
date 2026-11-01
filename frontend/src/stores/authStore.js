@@ -14,31 +14,31 @@ export const DEMO_ACCOUNTS = [
   },
   {
     id: "USR-002",
-    userId: 2,
+    userId: 5,
     fullName: "ThS. Nguyễn Hoàng Nam",
     email: "expert@farmely.vn",
     role: "EXPERT",
-    phone: "0912345678",
+    phone: "0903888999",
     roleTitle: "Chuyên gia nông nghiệp (CGNN)",
     avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80"
   },
   {
     id: "USR-003",
-    userId: 3,
+    userId: 8,
     fullName: "Trần Văn Lực",
     email: "worker@farmely.vn",
     role: "STAFF",
-    phone: "0923456789",
+    phone: "0933111222",
     roleTitle: "Nhân viên lao động (STAFF)",
     avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80"
   },
   {
     id: "USR-004",
-    userId: 4,
+    userId: 11,
     fullName: "Ban Quản Trị Farmely",
     email: "admin@farmely.vn",
     role: "ADMIN",
-    phone: "0934567890",
+    phone: "0909000111",
     roleTitle: "Quản trị viên hệ thống (Admin)",
     avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=200&q=80"
   }
@@ -74,7 +74,7 @@ const normalizeUser = (user, token) => {
 
 const readAuth = () => {
   try {
-    // 1. Ưu tiên cao nhất: sessionStorage (đảm bảo mỗi tab duy trì phiên đăng nhập & vai trò độc lập, không bị ghi đè chéo khi F5)
+// 1. Ưu tiên cao nhất: sessionStorage (đảm bảo mỗi tab duy trì phiên đăng nhập & vai trò độc lập, không bị ghi đè chéo khi F5)
     if (typeof sessionStorage !== 'undefined') {
       const sessAuth = JSON.parse(sessionStorage.getItem('farmely_auth') || 'null');
       if (sessAuth?.token && sessAuth?.user) return sessAuth;
@@ -114,7 +114,7 @@ const readAuth = () => {
 };
 
 const persistAuth = (auth) => {
-  if (!auth) return;
+if (!auth) return;
   // 1. Ghi vào sessionStorage của riêng TAB hiện tại (cách ly độc lập từng tab trình duyệt)
   try {
     if (typeof sessionStorage !== 'undefined') {
@@ -245,7 +245,7 @@ export const useAuthStore = create((set, get) => ({
 
   logout: () => {
     try {
-      if (typeof sessionStorage !== 'undefined') {
+if (typeof sessionStorage !== 'undefined') {
         sessionStorage.removeItem('farmely_token');
         sessionStorage.removeItem('farmely_user');
         sessionStorage.removeItem('farmely_auth');
@@ -264,7 +264,7 @@ export const useAuthStore = create((set, get) => ({
     if (!current) return;
     const updated = { ...current, ...changes };
     try {
-      if (typeof sessionStorage !== 'undefined') {
+if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem('farmely_user', JSON.stringify(updated));
       }
       if (typeof localStorage !== 'undefined') {

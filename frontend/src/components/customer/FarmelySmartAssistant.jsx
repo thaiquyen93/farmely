@@ -8,7 +8,6 @@ import {
   Minus,
   RefreshCw,
   ExternalLink,
-  BookOpen,
   ChevronRight,
   ShieldCheck,
   CheckCircle2,
@@ -29,8 +28,8 @@ const FALLBACK_KNOWLEDGE_BASE = [
   },
   {
     keywords: ['độ ẩm', 'ẩm đất', 'tưới nước', 'tưới bù', 'hạn'],
-    reply: 'Theo quy chuẩn vi khí hậu Farmely (Quy tắc BR18): Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Nếu cảm biến báo dưới 40%, hệ thống sẽ kích hoạt cảnh báo tưới bổ sung. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ.',
-    source: 'Quy trình Vi khí hậu & Tự động hóa IoT Farmely'
+    reply: 'Theo quy chuẩn vi khí hậu Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Nếu dữ liệu khí tượng báo độ ẩm dưới 40%, hệ thống sẽ kích hoạt cảnh báo tưới bổ sung. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa từ Weather API ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ.',
+    source: 'Quy trình Khí tượng Nông nghiệp Farmely'
   },
   {
     keywords: ['sâu', 'rầy', 'bọ trĩ', 'ốc sên', 'bệnh'],
@@ -39,13 +38,13 @@ const FALLBACK_KNOWLEDGE_BASE = [
   },
   {
     keywords: ['thuê đất', 'hợp đồng', 'gia hạn', 'chi phí', 'giá'],
-    reply: 'Quy trình thuê đất tại Farmely bao gồm: Chọn thửa đất trên Marketplace bản đồ vệ tinh, chọn giống cây & gói canh tác (Tự trồng hoặc Có hỗ trợ chăm sóc), thanh toán trả trước 100% qua VNPay/VietQR. Hợp đồng được ký điện tử và bạn có thể gia hạn trước khi hết hạn 3 ngày với chiết khấu từ 5% – 15%.',
-    source: 'Điều khoản Hợp đồng & Pháp lý Farmely (BR11, BR12)'
+    reply: 'Quy trình thuê đất tại Farmely bao gồm: Chọn thửa đất trên Marketplace bản đồ vệ tinh, chọn giống cây & gói canh tác (Tự trồng hoặc Có hỗ trợ chăm sóc), thanh toán trả trước 100% qua VNPay/VietQR. Hợp đồng được kích hoạt và bạn có thể gia hạn trước khi hết hạn 3 ngày với chiết khấu từ 5% – 15%.',
+    source: 'Điều khoản Hợp đồng & Pháp lý Farmely'
   },
   {
     keywords: ['thu hoạch', 'sản lượng', 'chất lượng', 'khiếu nại'],
-    reply: 'Khi đến kỳ thu hoạch, nhân viên hiện trường sẽ cân sản lượng thực tế, dán mã QR truy xuất và chụp ảnh đối chứng. Khách hàng nghiệm thu đánh giá chất lượng (Độ tươi, Bao gói). Nếu sản lượng thiếu hụt do lỗi vận hành, bạn có quyền gửi hồ sơ khiếu nại để nhận bồi thường hoàn tiền hoặc bù vụ tiếp theo.',
-    source: 'Quy chế Nghiệm thu & Bảo hiểm Nông sản Farmely (BR16, BR17)'
+    reply: 'Khi đến kỳ thu hoạch, nhân viên hiện trường sẽ cân sản lượng thực tế, dán mã QR truy xuất và chụp ảnh đối chứng. Khách hàng nhận bàn giao và đánh giá chất lượng (Độ tươi, Bao gói). Nếu sản lượng thiếu hụt do lỗi vận hành, bạn có quyền gửi hồ sơ khiếu nại để nhận bồi thường hoàn tiền hoặc bù vụ tiếp theo.',
+    source: 'Quy chế Bàn giao & Bảo hiểm Nông sản Farmely'
   }
 ];
 
@@ -209,9 +208,14 @@ export default function FarmelySmartAssistant() {
       let fallbackReply = '';
       let fallbackSource = 'Cẩm nang Kỹ thuật Nông nghiệp Farmely';
 
+      // 0. Nhận diện phép tính toán học / đố vui
+      if (lowerQ.match(/(1\s*\+\s*1|1\s*cộng\s*1)/)) {
+        fallbackReply = 'Dạ, 1 cộng 1 chắc chắn bằng 2 rồi ạ! 😊 Nếu bạn đang cần tính toán mật độ gieo trồng hay diện tích thửa đất trên Farmely, cứ chia sẻ thêm với mình nhé!';
+        fallbackSource = 'Hệ thống Farmely AI';
+      }
       // 1. Chào hỏi tự nhiên
-      if (lowerQ.match(/^(chào|hello|hi|xin chào|farmely ai|ai|bot|alo|ơi|ê)(\s+bạn|\s+ạ)?$/i) || (lowerQ.includes('chào') && lowerQ.length <= 15)) {
-        fallbackReply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Rất vui được hỗ trợ bạn. Bạn cần tư vấn về kỹ thuật gieo trồng, kiểm tra độ ẩm đất IoT hay tìm hiểu thủ tục thuê thửa đất nào hôm nay?';
+      else if (lowerQ.match(/^(chào|hello|hi|xin chào|farmely ai|ai|bot|alo|ơi|ê)(\s+bạn|\s+ạ)?$/i) || (lowerQ.includes('chào') && lowerQ.length <= 15)) {
+        fallbackReply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Rất vui được hỗ trợ bạn. Bạn cần tư vấn về kỹ thuật gieo trồng, kiểm tra dữ liệu thời tiết & độ ẩm đất hay tìm hiểu thủ tục thuê thửa đất nào hôm nay?';
         fallbackSource = 'Cẩm nang Hướng dẫn Khách hàng Farmely';
       }
       // 2. Cảm ơn, tạm biệt
@@ -232,7 +236,7 @@ export default function FarmelySmartAssistant() {
           if (question.length <= 8) {
             fallbackReply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm đất vi khí hậu hay muốn tìm hiểu thủ tục thuê thửa đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nha.';
           } else {
-            fallbackReply = 'Hệ thống Farmely AI đã ghi nhận câu hỏi từ bạn. Đối với canh tác nông nghiệp công nghệ cao tại Farmely, bạn nên thường xuyên theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) để điều tiết nước tưới và phân bón hợp lý.\n\nBạn cũng có thể bấm sang tab "Kênh Chuyên Gia" ở ngay phía trên để trò chuyện trực tiếp và nhận tư vấn chi tiết từ ThS. Hoàng Nam nhé!';
+            fallbackReply = 'Chào bạn! Farmely AI luôn sẵn sàng đồng hành cùng bạn trong canh tác nông nghiệp công nghệ cao. Bạn có thể theo dõi biểu đồ thời tiết & vi khí hậu thời gian thực từ Weather API của thửa đất (độ ẩm đất, nhiệt độ, độ ẩm không khí) hoặc bấm sang tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nhé!';
           }
           fallbackSource = 'Cẩm nang Kỹ thuật Nông nghiệp Farmely';
         }
@@ -472,26 +476,6 @@ export default function FarmelySmartAssistant() {
                         }`}
                       >
                         <p className="whitespace-pre-wrap">{msg.text}</p>
-
-                        {/* Tài liệu trích dẫn nếu có */}
-                        {msg.referencedDocs && msg.referencedDocs.length > 0 && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1">
-                            <span className="text-[10px] font-extrabold text-emerald-800 flex items-center gap-1">
-                              <BookOpen className="w-3 h-3" />
-                              Nguồn trích dẫn cẩm nang:
-                            </span>
-                            {msg.referencedDocs.map((doc, idx) => (
-                              <div key={idx} className="text-[10px] text-slate-600 bg-emerald-50/60 px-2 py-1 rounded-lg border border-emerald-100 flex items-center justify-between">
-                                <span className="truncate">{doc.docTitle || doc.sectionTitle || 'Cẩm nang kỹ thuật'}</span>
-                                {doc.similarityScore && (
-                                   <span className="text-[9px] font-bold text-emerald-700 ml-1 shrink-0">
-                                    {(doc.similarityScore * 100).toFixed(0)}% khớp
-                                  </span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                       <span className="text-[9px] text-slate-400 mt-1 px-1">{msg.time}</span>
                     </div>

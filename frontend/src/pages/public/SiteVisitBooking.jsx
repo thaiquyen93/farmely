@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import SiteVisitForm from '../../components/public/SiteVisitForm';
+import { useAuthStore } from '../../stores/authStore';
+import { siteVisitsService } from '../../api/siteVisitsService';
 import {
   Calendar,
   PhoneCall,
@@ -15,12 +17,119 @@ import {
   Car,
   ExternalLink,
   ChevronRight,
-  Compass
+  Ticket,
+  CalendarCheck,
+  RefreshCw,
+  User,
+  AlertCircle
 } from 'lucide-react';
+
+function getVisitStatusBadge(status) {
+  switch (status) {
+    case 'CONFIRMED':
+      return {
+        label: 'Đã xác nhận lịch',
+        cls: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+        dotCls: 'bg-emerald-500'
+      };
+    case 'COMPLETED':
+      return {
+        label: 'Đã hoàn tất tham quan',
+        cls: 'bg-sky-50 text-sky-800 border-sky-200',
+        dotCls: 'bg-sky-500'
+      };
+    case 'CANCELLED':
+      return {
+        label: 'Đã hủy lịch',
+        cls: 'bg-stone-100 text-stone-600 border-stone-200',
+        dotCls: 'bg-stone-400'
+      };
+    case 'PENDING':
+    default:
+      return {
+        label: 'Chờ điều phối xác nhận',
+        cls: 'bg-amber-50 text-amber-800 border-amber-200',
+        dotCls: 'bg-amber-500 animate-pulse'
+      };
+  }
+}
 
 export default function SiteVisitBooking() {
   const [searchParams] = useSearchParams();
   const plotId = searchParams.get('plotId');
+  const { user, isAuthenticated } = useAuthStore();
+
+  const [userVisits, setUserVisits] = useState([]);
+  const [loadingVisits, setLoadingVisits] = useState(false);
+
+  // ponytail: load & merge site visits by user identity with local storage fallback; upgrade when server adds /api/site-visits/my endpoint
+  const loadVisits = useCallback(async () => {
+    setLoadingVisits(true);
+    try {
+      let localList = [];
+      try {
+        localList = JSON.parse(localStorage.getItem('farmely_my_site_visits') || '[]');
+      } catch {}
+
+      let allVisits = [];
+      try {
+        allVisits = await siteVisitsService.getAll();
+      } catch (err) {
+        console.warn('Could not fetch remote site visits:', err);
+      }
+
+      const phone = (user?.phone || user?.phoneNumber || '').replace(/[\s.-]/g, '');
+      const email = (user?.email || '').toLowerCase();
+      const name = (user?.fullName || user?.name || '').toLowerCase();
+
+      let matched = [];
+      if (isAuthenticated && (phone || email || name)) {
+        matched = allVisits.filter((v) => {
+          const vPhone = (v.visitor_phone || '').replace(/[\s.-]/g, '');
+          if (phone && vPhone && (vPhone.includes(phone) || phone.includes(vPhone))) return true;
+          if (email && v.visitor_email && v.visitor_email.toLowerCase().includes(email)) return true;
+          if (name && v.visitor_name && v.visitor_name.toLowerCase() === name) return true;
+          return false;
+        });
+      }
+
+      const map = new Map();
+      matched.forEach((v) => map.set(v.visit_id || v.id, v));
+      localList.forEach((v) => {
+        const id = v.visit_id || v.id;
+        if (id && !map.has(id)) {
+          map.set(id, v);
+        }
+      });
+
+      const merged = Array.from(map.values()).sort((a, b) => {
+        const dateA = new Date(a.visit_date || a.created_at || 0).getTime();
+        const dateB = new Date(b.visit_date || b.created_at || 0).getTime();
+        return dateB - dateA;
+      });
+
+      setUserVisits(merged);
+    } catch (err) {
+      console.warn('Error merging visits:', err);
+      try {
+        const localList = JSON.parse(localStorage.getItem('farmely_my_site_visits') || '[]');
+        setUserVisits(localList);
+      } catch {}
+    } finally {
+      setLoadingVisits(false);
+    }
+  }, [user, isAuthenticated]);
+
+  useEffect(() => {
+    loadVisits();
+    const handleUpdate = () => loadVisits();
+    window.addEventListener('farmely_site_visits_updated', handleUpdate);
+    return () => window.removeEventListener('farmely_site_visits_updated', handleUpdate);
+  }, [loadVisits]);
+
+  const handleBookingSuccess = (newBooking) => {
+    loadVisits();
+  };
 
   return (
     <div className="min-h-screen bg-[#FBFBFA] flex flex-col font-sans">
@@ -56,7 +165,7 @@ export default function SiteVisitBooking() {
                 Đặt Lịch Khảo Sát Nông Trại
               </h1>
               <p className="text-xs sm:text-sm text-emerald-100/90 mt-2 max-w-2xl leading-relaxed">
-                Trực tiếp đặt chân lên cánh đồng, cảm nhận chất đất phù sa, kiểm tra nguồn nước tưới ngầm và trạm quan trắc IoT vi khí hậu trước khi đưa ra quyết định canh tác.
+                Trực tiếp đặt chân lên cánh đồng, cảm nhận chất đất phù sa, kiểm tra nguồn nước tưới ngầm và trạm quan trắc vi khí hậu trước khi đưa ra quyết định canh tác.
               </p>
             </div>
 
@@ -93,37 +202,6 @@ export default function SiteVisitBooking() {
               </div>
             </div>
           </div>
-
-          {/* Value Prop Highlights Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-white/15 text-xs">
-            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
-              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-4 h-4 text-brand-yellow" />
-              </div>
-              <span className="font-semibold text-[11px] sm:text-xs">Miễn phí 100% trải nghiệm</span>
-            </div>
-
-            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
-              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4 text-brand-yellow" />
-              </div>
-              <span className="font-semibold text-[11px] sm:text-xs">Xác nhận trong 2 giờ</span>
-            </div>
-
-            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
-              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-4 h-4 text-brand-yellow" />
-              </div>
-              <span className="font-semibold text-[11px] sm:text-xs">Không ràng buộc thuê đất</span>
-            </div>
-
-            <div className="flex items-center gap-2.5 bg-white/5 backdrop-blur-xs p-2.5 rounded-xl border border-white/10 text-emerald-50">
-              <div className="w-7 h-7 rounded-lg bg-emerald-400/20 text-emerald-300 flex items-center justify-center shrink-0">
-                <Car className="w-4 h-4 text-brand-yellow" />
-              </div>
-              <span className="font-semibold text-[11px] sm:text-xs">Xe điện nội khu đưa đón</span>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -135,73 +213,166 @@ export default function SiteVisitBooking() {
           
           {/* Left Column: Booking Form */}
           <div className="lg:col-span-7 xl:col-span-8">
-            <SiteVisitForm preselectedPlotId={plotId} />
+            <SiteVisitForm preselectedPlotId={plotId} onSuccess={handleBookingSuccess} />
           </div>
 
           {/* Right Column: Sticky Information & Tour Guide Sidebar */}
           <div className="lg:col-span-5 xl:col-span-4 space-y-5 lg:sticky lg:top-24">
             
-            {/* Card 1: Sample Tour Itinerary (Timeline) */}
-            <div className="bg-white rounded-3xl p-5 border border-stone-200/90 shadow-sm space-y-3.5">
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-100">
-                <h3 className="font-heading text-sm font-bold text-stone-900 flex items-center gap-2">
-                  <Compass className="w-4 h-4 text-emerald-700" />
-                  <span>Lịch Trình Đón Tiếp Mẫu</span>
-                </h3>
-                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  Thời lượng: 60 - 75 phút
-                </span>
-              </div>
-
-              <div className="relative pl-5 space-y-3 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-stone-200">
-                {/* Step 1 */}
-                <div className="relative">
-                  <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-emerald-600 ring-3 ring-white" />
-                  <div className="flex items-center justify-between">
-                    <strong className="text-xs font-bold text-stone-900">08:30 / 14:30</strong>
-                    <span className="text-[10px] text-stone-500">Khu đón tiếp</span>
+            {/* Card 1: Lịch Sử Đăng Ký Khảo Sát (Site Visit History) */}
+            <div className="bg-white rounded-3xl p-5 border border-stone-200/90 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Ticket className="w-4 h-4" />
                   </div>
-                  <p className="text-[11px] text-stone-600 mt-0.5 leading-relaxed">
-                    Gặp chuyên viên điều phối, thưởng thức trà thảo mộc nông trường và nhận nón bảo hộ.
-                  </p>
+                  <div>
+                    <h3 className="font-heading text-sm font-bold text-stone-900">
+                      Lịch Sử Đăng Ký Khảo Sát
+                    </h3>
+                    <p className="text-[11px] text-stone-500">
+                      {isAuthenticated ? `Tài khoản: ${user?.fullName || user?.name || user?.email}` : 'Phiếu hẹn trên thiết bị của bạn'}
+                    </p>
+                  </div>
                 </div>
-
-                {/* Step 2 */}
-                <div className="relative">
-                  <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-emerald-600 ring-3 ring-white" />
-                  <div className="flex items-center justify-between">
-                    <strong className="text-xs font-bold text-stone-900">08:50 / 14:50</strong>
-                    <span className="text-[10px] text-stone-500">Thực địa thửa đất</span>
-                  </div>
-                  <p className="text-[11px] text-stone-600 mt-0.5 leading-relaxed">
-                    Di chuyển bằng xe điện xem ranh giới thửa đất, độ dốc thoát nước và hướng đón ánh sáng tự nhiên.
-                  </p>
-                </div>
-
-                {/* Step 3 */}
-                <div className="relative">
-                  <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-emerald-600 ring-3 ring-white" />
-                  <div className="flex items-center justify-between">
-                    <strong className="text-xs font-bold text-stone-900">09:15 / 15:15</strong>
-                    <span className="text-[10px] text-stone-500">Trạm quan trắc IoT</span>
-                  </div>
-                  <p className="text-[11px] text-stone-600 mt-0.5 leading-relaxed">
-                    Đo kiểm độ ẩm đất thực địa, kiểm tra đường ống nước tưới ngầm và quan sát số liệu cảm biến IoT.
-                  </p>
-                </div>
-
-                {/* Step 4 */}
-                <div className="relative">
-                  <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-emerald-600 ring-3 ring-white" />
-                  <div className="flex items-center justify-between">
-                    <strong className="text-xs font-bold text-stone-900">09:40 / 15:40</strong>
-                    <span className="text-[10px] text-stone-500">Phòng tư vấn</span>
-                  </div>
-                  <p className="text-[11px] text-stone-600 mt-0.5 leading-relaxed">
-                    Chuyên gia nông nghiệp giải đáp về giống cây trồng, quy trình VietGAP và chính sách bàn giao.
-                  </p>
+                
+                <div className="flex items-center gap-1.5">
+                  {userVisits.length > 0 && (
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full border border-emerald-200">
+                      {userVisits.length} phiếu hẹn
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={loadVisits}
+                    disabled={loadingVisits}
+                    title="Làm mới lịch sử"
+                    className="p-1.5 rounded-lg text-stone-400 hover:text-emerald-700 hover:bg-stone-50 transition"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingVisits ? 'animate-spin text-emerald-700' : ''}`} />
+                  </button>
                 </div>
               </div>
+
+              {/* Body Content */}
+              {loadingVisits && userVisits.length === 0 ? (
+                <div className="py-8 text-center text-xs text-stone-400">
+                  <RefreshCw className="w-5 h-5 mx-auto mb-2 animate-spin text-emerald-600" />
+                  Đang đồng bộ lịch sử khảo sát...
+                </div>
+              ) : userVisits.length > 0 ? (
+                <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
+                  {userVisits.map((visit, idx) => {
+                    const badge = getVisitStatusBadge(visit.status);
+                    const plotLabel = visit.plot_code || (visit.plot_id ? `P-${String(visit.plot_id).padStart(2, '0')}` : 'P-01');
+                    const ticketCode = `VIS-2026-${String(visit.visit_id || visit.id || idx + 1).padStart(4, '0')}`;
+                    const slotText = visit.visit_slot === 'AFTERNOON' ? 'Ca Chiều (14:30 - 16:30)' : 'Ca Sáng (08:30 - 10:30)';
+
+                    return (
+                      <div
+                        key={visit.visit_id || visit.id || idx}
+                        className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4 space-y-3 hover:border-emerald-300 hover:bg-white transition-all shadow-2xs"
+                      >
+                        {/* Ticket Header */}
+                        <div className="flex items-center justify-between gap-2 border-b border-stone-200/60 pb-2.5">
+                          <div>
+                            <span className="text-[9px] font-mono uppercase tracking-wider text-stone-400 block font-semibold">Mã vé khảo sát</span>
+                            <span className="font-mono text-xs font-black text-emerald-900 tracking-wide">{ticketCode}</span>
+                          </div>
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${badge.cls}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${badge.dotCls}`} />
+                            {badge.label}
+                          </span>
+                        </div>
+
+                        {/* Ticket Body */}
+                        <div className="grid grid-cols-2 gap-2.5 text-xs">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-stone-400 block">Thửa đất mục tiêu</span>
+                            <strong className="text-emerald-800 font-bold block text-xs sm:text-[13px]">
+                              Thửa {plotLabel}
+                            </strong>
+                            <span className="text-[10px] text-stone-500 block truncate">Happy Valley Củ Chi</span>
+                          </div>
+
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-stone-400 block">Ngày & Giờ hẹn</span>
+                            <strong className="text-stone-900 font-bold block text-xs sm:text-[13px]">
+                              📅 {visit.visit_date}
+                            </strong>
+                            <span className="text-[10px] text-emerald-700 font-semibold block truncate">
+                              🕒 {slotText}
+                            </span>
+                          </div>
+
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-stone-400 block">Khách tham quan</span>
+                            <span className="text-stone-800 font-semibold block text-xs truncate">
+                              {visit.visitor_name || user?.fullName || 'Khách hàng'}
+                            </span>
+                            <span className="text-[10px] text-stone-500 block">
+                              📞 {visit.visitor_phone || user?.phone || '090...'}
+                            </span>
+                          </div>
+
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-stone-400 block">Quy mô đoàn</span>
+                            <span className="text-stone-800 font-semibold block text-xs">
+                              👥 {visit.group_size || 1} người
+                            </span>
+                            <span className="text-[10px] text-emerald-700 font-medium block">
+                              Xe điện đón miễn phí
+                            </span>
+                          </div>
+                        </div>
+
+                        {visit.notes && (
+                          <div className="p-2 rounded-xl bg-white border border-stone-200/70 text-[11px] text-stone-600 italic">
+                            "{visit.notes}"
+                          </div>
+                        )}
+
+                        <div className="pt-1.5 flex items-center justify-between text-[10px] text-stone-400 border-t border-dashed border-stone-200">
+                          <span>Đón tiếp tại Cổng 1</span>
+                          <span className="text-emerald-700 font-medium">Xuất trình mã vé khi đến</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : isAuthenticated ? (
+                <div className="py-7 px-4 text-center rounded-2xl bg-stone-50/70 border border-dashed border-stone-200 space-y-2">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                    <CalendarCheck className="w-5 h-5" />
+                  </div>
+                  <h4 className="text-xs font-bold text-stone-800">Bạn chưa có lịch hẹn khảo sát nào</h4>
+                  <p className="text-[11px] text-stone-500 max-w-xs mx-auto leading-relaxed">
+                    Điền thông tin ở biểu mẫu bên cạnh để chọn ngày và thửa đất. Lịch hẹn của bạn sẽ được lưu tự động tại đây để bạn không bị quên!
+                  </p>
+                </div>
+              ) : (
+                <div className="py-6 px-4 text-center rounded-2xl bg-emerald-50/50 border border-emerald-100 space-y-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center mx-auto">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-emerald-950">Đăng nhập để lưu & tra cứu lịch sử</h4>
+                    <p className="text-[11px] text-stone-600 max-w-xs mx-auto leading-relaxed mt-1">
+                      Đăng nhập giúp tự động lưu trữ các phiếu hẹn khảo sát thực địa của bạn trên mọi thiết bị và nhận thông báo nhắc lịch trước ngày đi.
+                    </p>
+                  </div>
+                  <Link
+                    to="/login?redirect=/site-visit/book"
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800 transition shadow-xs"
+                  >
+                    <span>Đăng nhập tài khoản</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </Link>
+                  <p className="text-[10px] text-stone-400">
+                    Hoặc đặt lịch ngay bên cạnh, phiếu hẹn sẽ lưu tạm trên trình duyệt này.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Card 2: Farm Location & Facilities */}

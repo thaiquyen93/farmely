@@ -36,7 +36,7 @@ export default function MarketplaceFilterSidebar({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const facilityOptions = [
     { id: 'irrigation', label: 'Hệ thống tưới', icon: '💧' },
-    { id: 'iot', label: 'Cảm biến IoT', icon: '📡' },
+    { id: 'iot', label: 'Cập nhật Thời Tiết API', icon: '⛅' },
     { id: 'waterSource', label: 'Gần nguồn nước', icon: '🌊' },
     { id: 'organicSoil', label: 'Đất hữu cơ', icon: '🍃' },
     { id: 'techSupport', label: 'Hỗ trợ kỹ thuật', icon: '🛠' }

@@ -39,7 +39,7 @@ Nguồn chân lý duy nhất (SSoT): `docs/academic/RP39 (NEW).md` (v2.2) & `doc
 * **Database:** SQL Server / PostgreSQL. DDL & Seed chuẩn ở `docs/database/`.
 * **Distributed Lock / Trùng lịch:** Ưu tiên Database constraint / pessimistic locking (`SELECT ... FOR UPDATE` hoặc `ROWLOCK`) trước. Chỉ dùng Redis `SET NX EX` khi kiểm tra hiệu năng cao.
 * **Async / Background:** Dùng `@Scheduled` / Spring Task Scheduler cho cron 10-phút grace period, không cần dựng RabbitMQ nếu bài toán chưa yêu cầu cụm microservices.
-* **IoT:** Mock-only (RP §10.3) via scheduled sensor telemetry generator hoặc table `iot_metrics`.
+* **Khí tượng & Thời tiết thực địa:** KHÔNG DÙNG PHẦN CỨNG IOT MÔ PHỎNG. Tích hợp trực tiếp Dịch vụ API Thời Tiết Thực Địa (Weather API / Open-Meteo) theo tọa độ GPS trang trại (đo nhiệt độ, độ ẩm không khí, lượng mưa, độ ẩm đất ước tính; tự động hoãn lịch tưới khi xác suất mưa/lượng mưa lớn theo BR18).
 
 ---
 
@@ -83,7 +83,7 @@ Khi đặt câu hỏi về kỹ thuật hoặc vibe code:
    - **2 Hình thức canh tác:** `Self-growing` (Tự canh tác) & `Assisted-growing` (Ủy thác trọn gói).
    - **Hợp đồng & Thanh toán:** `contracts` (Master Lease Agreement) $
 ightarrow$ `rentals` (Phụ lục từng thửa). Thanh toán 100% trọn gói Lump-sum (BR09). Không giỏ hàng, không tracking vật tư tiêu hao.
-   - **IoT & Vi khí hậu:** *"Trạm quan trắc IoT vi khí hậu"* (đo nhiệt độ, độ ẩm không khí, độ ẩm đất; chu kỳ mock RP §10.3; hoãn tưới khi độ ẩm đất $\ge 80\%$ hoặc mưa lớn theo BR18).
+   - **Khí tượng & Vi khí hậu (thay thế hoàn toàn IoT):** *"Dịch vụ API Thời Tiết Thực Địa & Khí Tượng Nông Nghiệp"* (nhiệt độ, độ ẩm không khí, lượng mưa, chỉ số bốc thoát ẩm đất; cập nhật tự động theo tọa độ GPS của từng khu nông trại; hoãn tưới khi xác suất mưa lớn hoặc độ ẩm đất $\ge 80\%$ theo BR18). TUYỆT ĐỐI KHÔNG dùng thuật ngữ thiết bị/cảm biến/phần cứng IoT.
    - **Nhật ký & Nghiệm thu:** `Farm Diary`, `Care Task` (bắt buộc $\ge 1$ ảnh thực địa BR15), `harvest_results` (kèm `staff_id` BR20).
    - **Quy trình chuẩn:** *"Quy trình canh tác chuẩn VietGAP"* (`template_steps` do CGNN biên soạn).
 3. **TRUY VẾT GIAO DIỆN CHUẨN SCREEN SPEC (SCR-xxx):**

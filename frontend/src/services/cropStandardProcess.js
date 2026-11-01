@@ -757,6 +757,11 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
   const cropKey = detectCropKey(plot.crop || plot.name || '');
   const standardTemplate = CROP_STANDARDS[cropKey] || CROP_STANDARDS.tomato;
 
+  // Tên cây trồng ưu tiên 100% từ thông tin plot / hợp đồng thực tế của người dùng
+  const resolvedCropName = (plot.crop && String(plot.crop).trim() !== '')
+    ? String(plot.crop).trim()
+    : (plot.varietyName || plot.variety_name || standardTemplate.cropName);
+
   // 1. Phân tích ngày bắt đầu & kết thúc từ thông tin hợp đồng / thuê đất
   const rawStart = plot.startDate || plot.start_date || (dbStages[0]?.date ? dbStages[0].date : null);
   const rawEnd = plot.endDate || plot.end_date || plot.expectedHarvestDate;
@@ -805,7 +810,7 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
     progressPercent = Math.min(100, Math.round((currentDay / totalDays) * 100));
   }
 
-  const daysLeft = parsedEnd
+const daysLeft = parsedEnd
     ? Math.max(0, Math.ceil((parsedEnd.getTime() - todayMid.getTime()) / 86400000))
     : (isNotStarted ? totalDays : Math.max(0, totalDays - currentDay));
 
@@ -880,8 +885,6 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
     const currentStageObj = isNotStarted
       ? {
           ...computedStages[0],
-          name: `Sắp tới: ${computedStages[0]?.name || 'Chuẩn bị đất'}`,
-          statusDesc: `Vụ mùa sắp tới (Khởi động ngày ${parsedStart ? formatViDate(parsedStart) : 'Kỳ tới'}). Đất đang trong giai đoạn nghỉ hoặc hoàn thiện chuẩn bị xuống giống theo lịch canh tác.`,
           isCurrent: false
         }
       : (computedStages.find((s) => s.isCurrent) || computedStages.find((s) => !s.isDone) || computedStages[computedStages.length - 1]);
@@ -977,15 +980,15 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
   const currentStageObj = isNotStarted
     ? {
         ...computedStages[0],
-        name: `Sắp tới: ${computedStages[0].name}`,
-        statusDesc: `Vụ mùa sắp tới (Khởi động ngày ${parsedStart ? formatViDate(parsedStart) : 'Kỳ tới'}). Đất đang trong giai đoạn nghỉ hoặc hoàn thiện chuẩn bị xuống giống theo lịch canh tác.`,
+        name: `Sắp tới: ${computedStages[0]?.name || 'Giai đoạn 1'}`,
+        statusDesc: `Vụ mùa sắp tới (Khởi động ngày ${parsedStart ? formatViDate(parsedStart) : (plot.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'Kỳ tới')}). Đất đang trong giai đoạn nghỉ hoặc hoàn thiện chuẩn bị xuống giống theo lịch canh tác.`,
         isCurrent: false
       }
-    : (computedStages.find((s) => s.isCurrent) || computedStages[computedStages.length - 1]);
+    : (computedStages.find((s) => s.isCurrent) || computedStages.find((s) => s.status === 'IN_PROGRESS') || computedStages[computedStages.length - 1] || computedStages[0]);
 
   return {
     cropKey,
-    cropName: standardTemplate.cropName,
+    cropName: resolvedCropName,
     plotName: plot.name,
     plotCode: plot.plotCode || plot.id,
     totalDays,
@@ -1113,7 +1116,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
     workerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
     actionType: 'INSPECTION',
-    actionTypeName: 'Nghiệm thu & Đo đạc định kỳ',
+    actionTypeName: 'Đo đạc & Kiểm tra định kỳ',
     title: 'Đo lường độ tăng trưởng chiều cao thân và chỉ số Brix quả non',
     timestamp: '08:00 • Ngày mai',
     date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
@@ -1243,8 +1246,115 @@ export const FALLOW_PROTOCOL_STEPS = [
 ];
 
 /**
+ * Chuẩn hóa danh sách các Vụ mùa theo đúng thứ tự tuần tự (Sequential):
+ * - Vụ sau chỉ bắt đầu sau khi Vụ trước kết thúc + thời gian nghỉ đất (fallowDays).
+ * - Không bao giờ có 2 vụ cùng ở trạng thái ACTIVE (Đang trồng) tại cùng một thời điểm.
+ * - Nếu Vụ trước chưa COMPLETED (đang trồng, đang nghỉ đất, hoặc chưa bắt đầu),
+ *   thì tất cả các vụ kế tiếp bắt buộc ở trạng thái SCHEDULED (currentDay = 0).
+ */
+function enforceSequentialSeasons(rawSeasons = [], plot = {}) {
+  if (!Array.isArray(rawSeasons) || rawSeasons.length === 0) return [];
+
+  const primaryCropKey = detectCropKey(plot.crop || 'lettuce');
+  const primaryStandard = CROP_STANDARDS[primaryCropKey] || CROP_STANDARDS['lettuce'];
+  const defaultDuration = Number(plot.cycleDays) || Number(plot.totalDays) || primaryStandard.totalDays || 55;
+  const rawCurrentDay = Number(plot.currentDay !== undefined && plot.currentDay !== null ? plot.currentDay : 1);
+
+  const normalized = [];
+  let currentStart = plot.startDate ? new Date(plot.startDate) : new Date();
+  if (Number.isNaN(currentStart.getTime())) currentStart = new Date();
+  let accumulatedDays = 0;
+  let earlierSeasonIncomplete = false;
+
+  rawSeasons.forEach((s, idx) => {
+    const seasonNumber = idx + 1;
+    const cropKey = s.cropKey || detectCropKey(s.cropName || plot.crop || 'lettuce');
+    const standard = CROP_STANDARDS[cropKey] || primaryStandard;
+    const cropName = s.cropName || plot.crop || standard.cropName;
+    const seasonDuration = Number(s.totalDays) || standard.totalDays || defaultDuration;
+    const fallowDays = Number(s.fallowDays) || 5;
+
+    const seasonStart = new Date(currentStart);
+    const seasonEnd = new Date(seasonStart);
+    seasonEnd.setDate(seasonEnd.getDate() + seasonDuration);
+
+    const seasonDayStart = accumulatedDays + 1;
+    const seasonDayEnd = accumulatedDays + seasonDuration;
+    const fallowEnd = seasonDayEnd + fallowDays;
+
+    let status = 'SCHEDULED';
+    let currentDayInSeason = 0;
+    let isCurrent = false;
+    let inFallow = false;
+
+    if (earlierSeasonIncomplete) {
+      status = 'SCHEDULED';
+      currentDayInSeason = 0;
+      isCurrent = false;
+      inFallow = false;
+    } else if (rawCurrentDay <= 0) {
+      status = 'SCHEDULED';
+      currentDayInSeason = 0;
+      isCurrent = idx === 0;
+      earlierSeasonIncomplete = true;
+    } else if (rawCurrentDay > fallowEnd) {
+      status = 'COMPLETED';
+      currentDayInSeason = seasonDuration;
+      isCurrent = false;
+    } else if (rawCurrentDay > seasonDayEnd) {
+      status = 'SOIL_PREP';
+      currentDayInSeason = seasonDuration;
+      isCurrent = true;
+      inFallow = true;
+      earlierSeasonIncomplete = true;
+    } else if (rawCurrentDay >= seasonDayStart) {
+      status = 'ACTIVE';
+      currentDayInSeason = rawCurrentDay - seasonDayStart + 1;
+      isCurrent = true;
+      earlierSeasonIncomplete = true;
+    } else {
+      status = 'SCHEDULED';
+      currentDayInSeason = 0;
+      isCurrent = false;
+      earlierSeasonIncomplete = true;
+    }
+
+    normalized.push({
+      ...s,
+      seasonNumber,
+      id: `SEASON-${seasonNumber}`,
+      seasonName: `Vụ ${seasonNumber}: ${cropName}`,
+      cropKey,
+      cropName,
+      status,
+      totalDays: seasonDuration,
+      currentDay: currentDayInSeason,
+      startDate: seasonStart.toISOString().slice(0, 10),
+      endDate: seasonEnd.toISOString().slice(0, 10),
+      fallowDays,
+      isCurrent,
+      inFallow,
+      yieldKgActual: status === 'COMPLETED' ? (s.yieldKgActual || 12.5) : null
+    });
+
+    const nextStart = new Date(seasonEnd);
+    nextStart.setDate(nextStart.getDate() + fallowDays);
+    currentStart = nextStart;
+    accumulatedDays = fallowEnd;
+  });
+
+  if (!normalized.some((s) => s.isCurrent) && normalized.length > 0) {
+    const active = normalized.find((s) => s.status === 'ACTIVE' || s.status === 'SOIL_PREP') || normalized[0];
+    if (active) active.isCurrent = true;
+  }
+
+  return normalized;
+}
+
+/**
  * Phân tích và sinh danh sách các Vụ mùa (Seasons) cho một thửa đất
- * Hỗ trợ chuyển đổi mượt mà giữa các vụ và hiển thị thời gian nghỉ đất 5 ngày.
+ * Tuân thủ chính xác theo hợp đồng: số vụ thuê, thời hạn thuê termMonths,
+ * hỗ trợ chuyển đổi giữa các vụ và hiển thị giai đoạn nghỉ đất 5 ngày.
  */
 export function resolvePlotSeasons(plot, allRentals = []) {
   if (!plot) return [];
@@ -1252,6 +1362,8 @@ export function resolvePlotSeasons(plot, allRentals = []) {
   const plotKey = String(plot.plotCode || plot.mapPlotId || plot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
   const rentalIdSuffix = plot.rentalId ? `_${plot.rentalId}` : '';
   const storageKey = `farmely_plot_seasons_${plotKey}${rentalIdSuffix}`;
+
+  // 1. Kiểm tra nếu có dữ liệu gia hạn hợp đồng thực tế đã lưu từ PlotRenewalModal
   try {
     const saved = localStorage.getItem(storageKey) || localStorage.getItem(`farmely_plot_seasons_${plotKey}`);
     if (saved) {
@@ -1260,132 +1372,52 @@ export function resolvePlotSeasons(plot, allRentals = []) {
         const firstSeason = parsed[0];
         const isMatchingRental = !plot.rentalId || !firstSeason.rentalId || String(firstSeason.rentalId) === String(plot.rentalId);
         const isMatchingCrop = !plot.crop || !firstSeason.cropName || firstSeason.cropName.toLowerCase().includes(plot.crop.toLowerCase()) || plot.crop.toLowerCase().includes(firstSeason.cropName.toLowerCase());
-        if (isMatchingRental && isMatchingCrop) {
-          return parsed;
+        // Bỏ qua nếu là dữ liệu giả 2 vụ cũ bị sinh tự động (chưa từng qua gia hạn thật)
+        const isStaleMockSplit = parsed.length === 2 && parsed[1]?.id === 'SEASON-2' && (parsed[1]?.rentalId === (plot.rentalId || 1) + 1 || parsed[1]?.rentalId === 2) && !parsed[1]?.varietyId;
+        if (isMatchingRental && isMatchingCrop && !isStaleMockSplit) {
+          return enforceSequentialSeasons(parsed, plot);
         }
       }
     }
   } catch {}
 
-  const matchingRentals = (allRentals || []).filter((r) => {
-    const rCode = String(r.plotCode || r.plotId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
-    return rCode === plotKey || r.rentalId === plot.rentalId;
-  });
-
-  if (matchingRentals.length > 1) {
-    matchingRentals.sort((a, b) => new Date(a.startDate || 0) - new Date(b.startDate || 0));
-    return matchingRentals.map((r, idx) => {
-      const sNumber = idx + 1;
-      const isPast = new Date(r.endDate) < new Date();
-      const isActive = !isPast;
-      const cropKey = detectCropKey(r.varietyName || plot.crop || 'lettuce');
-      const standard = CROP_STANDARDS[cropKey] || CROP_STANDARDS['lettuce'];
-      return {
-        seasonNumber: sNumber,
-        id: `SEASON-${sNumber}`,
-        seasonName: `Vụ ${sNumber}: ${r.varietyName || standard.cropName}`,
-        cropKey,
-        cropName: r.varietyName || standard.cropName,
-        varietyId: r.varietyId,
-        status: isPast ? 'COMPLETED' : 'ACTIVE',
-        totalDays: r.durationDays || standard.totalDays,
-        currentDay: isPast ? (r.durationDays || standard.totalDays) : Math.min(plot.currentDay || 12, r.durationDays || standard.totalDays),
-        startDate: r.startDate,
-        endDate: r.endDate,
-        fallowDays: 5,
-        rentalId: r.rentalId,
-        cultivationMode: r.cultivationMode || plot.mode || 'ASSISTED',
-        isCurrent: isActive
-      };
-    });
-  }
-
+  // 2. Tính số vụ mùa (targetSeasons) chuẩn xác theo hợp đồng hiện tại của thửa đất:
   const primaryCropKey = detectCropKey(plot.crop || 'lettuce');
   const primaryStandard = CROP_STANDARDS[primaryCropKey] || CROP_STANDARDS['lettuce'];
   const cropDisplayName = plot.crop || primaryStandard.cropName;
-
-  // SSoT: Số ngày chuẩn của 1 vụ mùa (cycleDays / expected_duration từ DB, fallback standard)
   const cycleDays = Number(plot.cycleDays || (plot.termDays ? plot.totalDays : null)) || Number(plot.totalDays) || primaryStandard.totalDays || 55;
-  const rawCurrentDay = Number(plot.currentDay !== undefined && plot.currentDay !== null ? plot.currentDay : 1);
   const termDays = Number(plot.termDays) || 0;
-  const s1Total = cycleDays;
+  const termMonths = Number(plot.termMonths) || 0;
 
-  // Tính số vụ mùa: Chỉ chia nhiều vụ khi khách thuê >= 2 vụ (seasonsCount, termMonths >= 2 hoặc thời hạn hợp đồng termDays đủ >= 2 chu kỳ)
-  const calculatedSeasons = termDays > 0 ? Math.floor((termDays + 5) / (s1Total + 5)) : 1;
-  const shouldSplitSeasons = Number(plot.seasonsCount) >= 2 || Number(plot.termMonths) >= 2 || calculatedSeasons >= 2;
-
-  if (shouldSplitSeasons) {
-    const fallowDays = 5;
-    const s2Total = cycleDays;
-
-    const s1Completed = rawCurrentDay > s1Total;
-    const inFallow = rawCurrentDay > s1Total && rawCurrentDay <= s1Total + fallowDays;
-    const s2Active = rawCurrentDay > s1Total + fallowDays;
-
-    const s1Start = plot.startDate ? new Date(plot.startDate) : new Date();
-    const s1End = new Date(s1Start);
-    s1End.setDate(s1End.getDate() + s1Total);
-
-    const s2Start = new Date(s1End);
-    s2Start.setDate(s2Start.getDate() + fallowDays);
-    const s2End = new Date(s2Start);
-    s2End.setDate(s2End.getDate() + s2Total);
-
-    return [
-      {
-        seasonNumber: 1,
-        id: 'SEASON-1',
-        seasonName: `Vụ 1: ${cropDisplayName}`,
-        cropKey: primaryCropKey,
-        cropName: cropDisplayName,
-        status: s1Completed ? 'COMPLETED' : 'ACTIVE',
-        totalDays: s1Total,
-        currentDay: s1Completed ? s1Total : Math.min(rawCurrentDay, s1Total),
-        startDate: s1Start.toISOString().slice(0, 10),
-        endDate: s1End.toISOString().slice(0, 10),
-        fallowDays: 5,
-        rentalId: plot.rentalId || 1,
-        cultivationMode: plot.mode || 'ASSISTED',
-        isCurrent: !s1Completed,
-        yieldKgActual: s1Completed ? 12.5 : null
-      },
-      {
-        seasonNumber: 2,
-        id: 'SEASON-2',
-        seasonName: `Vụ 2: ${cropDisplayName}`, // CÙNG GIỐNG CÂY ĐÃ THUÊ!
-        cropKey: primaryCropKey,
-        cropName: cropDisplayName,
-        status: inFallow ? 'SOIL_PREP' : s2Active ? 'ACTIVE' : 'SCHEDULED', // Chưa tới ngày -> 'SCHEDULED'
-        totalDays: s2Total,
-        currentDay: s2Active ? Math.max(1, rawCurrentDay - s1Total - fallowDays) : 0,
-        startDate: s2Start.toISOString().slice(0, 10),
-        endDate: s2End.toISOString().slice(0, 10),
-        fallowDays: 5,
-        rentalId: (plot.rentalId || 1) + 1,
-        cultivationMode: plot.mode || 'ASSISTED',
-        isCurrent: inFallow || s2Active,
-        inFallow
-      }
-    ];
+  let targetSeasons = 1;
+  if (plot.seasonsCount && Number(plot.seasonsCount) > 0) {
+    targetSeasons = Number(plot.seasonsCount);
+  } else if (plot.seasonCount && Number(plot.seasonCount) > 0) {
+    targetSeasons = Number(plot.seasonCount);
+  } else if (termMonths > 0) {
+    // Theo quy chuẩn gói thuê Farmely (LEASE_TERM_OPTIONS):
+    // 1 tháng = 1 vụ (thử nghiệm ngắn ngày), 3 tháng = 1 vụ mùa tiêu chuẩn
+    // 6 tháng = 2 vụ mùa luân canh, 9 tháng = 3 vụ, 12 tháng = 4 vụ trọn năm
+    if (termMonths <= 3) targetSeasons = 1;
+    else if (termMonths <= 6) targetSeasons = 2;
+    else if (termMonths <= 9) targetSeasons = 3;
+    else targetSeasons = Math.min(4, Math.floor(termMonths / 3));
+  } else if (termDays > 0) {
+    const seasonDuration = cycleDays + 5;
+    targetSeasons = Math.max(1, Math.round(termDays / seasonDuration));
   }
 
-  // Khách hàng thuê 1 vụ:
-  return [
-    {
-      seasonNumber: 1,
-      id: 'SEASON-1',
-      seasonName: `Vụ 1: ${cropDisplayName}`,
-      cropKey: primaryCropKey,
-      cropName: cropDisplayName,
-      status: rawCurrentDay >= s1Total ? 'COMPLETED' : 'ACTIVE',
-      totalDays: s1Total,
-      currentDay: Math.min(rawCurrentDay, s1Total),
-      startDate: plot.startDate || new Date().toISOString().slice(0, 10),
-      endDate: plot.expectedHarvestDate || plot.endDate || '2026-11-30',
-      fallowDays: 5,
-      rentalId: plot.rentalId || 1,
-      cultivationMode: plot.mode || 'ASSISTED',
-      isCurrent: true
-    }
-  ];
+  const rawSeasons = Array.from({ length: targetSeasons }, (_, i) => ({
+    seasonNumber: i + 1,
+    id: `SEASON-${i + 1}`,
+    seasonName: `Vụ ${i + 1}: ${cropDisplayName}`,
+    cropKey: primaryCropKey,
+    cropName: cropDisplayName,
+    totalDays: cycleDays,
+    fallowDays: 5,
+    rentalId: i === 0 ? (plot.rentalId || 1) : (plot.rentalId ? plot.rentalId * 100 + (i + 1) : i + 1),
+    cultivationMode: plot.mode || 'ASSISTED'
+  }));
+
+  return enforceSequentialSeasons(rawSeasons, plot);
 }

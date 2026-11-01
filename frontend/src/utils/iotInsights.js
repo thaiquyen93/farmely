@@ -222,9 +222,9 @@ export function explainAlert(alert, mode) {
   const rule = ALERT_RULES.find((r) => r.test.test(`${alert?.title || ''} ${alert?.metric || ''}`));
   const managed = isManaged(mode);
   return {
-    title: alert?.title || 'Cảnh báo từ trạm IoT',
+    title: alert?.title || 'Cảnh báo vi khí hậu thực địa',
     levelText: ALERT_LEVEL_TEXT[alert?.level] || ALERT_LEVEL_TEXT.MEDIUM,
-    explanation: rule?.explain || 'Trạm cảm biến ghi nhận một thay đổi bất thường tại thửa.',
+    explanation: rule?.explain || 'Trạm quan trắc ghi nhận một thay đổi bất thường tại thửa.',
     action: rule ? (managed ? rule.managed : rule.self) : (managed ? 'Kỹ sư Farmely đang theo dõi và sẽ báo bạn nếu cần.' : 'Bạn nên ghé kiểm tra thửa khi có thể.'),
     detail: alert?.metric || '',
     time: alert?.time || ''

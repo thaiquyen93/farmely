@@ -124,7 +124,7 @@ export default function AssistedGrowingDashboard({ plot, onOpenExpertChat, onOpe
         </div>
       </div>
 
-      {/* 3. TƯ VẤN CHUYÊN GIA & NGHIỆM THU */}
+      {/* 3. TƯ VẤN CHUYÊN GIA & BÀN GIAO */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Chat Chuyên gia */}
         <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between gap-3">
@@ -147,14 +147,14 @@ export default function AssistedGrowingDashboard({ plot, onOpenExpertChat, onOpe
           </Button>
         </div>
 
-        {/* Nghiệm thu thu hoạch */}
+        {/* Bàn giao thu hoạch */}
         <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
               <Apple className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-xs font-bold text-brand-dark">Nghiệm Thu Thu Hoạch</div>
+              <div className="text-xs font-bold text-brand-dark">Bàn Giao Thu Hoạch</div>
               <div className="text-[11px] text-stone-500">Ước tính {plot.expectedYield}</div>
             </div>
           </div>
