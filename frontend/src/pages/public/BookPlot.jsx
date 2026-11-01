@@ -1117,10 +1117,10 @@ export default function BookPlot() {
                 Thanh Toán & Kích Hoạt Hợp Đồng Thành Công
               </span>
               <h2 className="text-2xl sm:text-3xl font-heading font-black text-brand-dark">
-                Chúc Mừng Bạn Đã Ký Hợp Đồng Thuê Thửa Đất!
+                Chúc Mừng Bạn Đã Hoàn Tất Thuê Thửa Đất!
               </h2>
               <p className="text-sm text-brand-muted mt-2 max-w-lg mx-auto">
-                Hợp đồng thuê {selectedPlots.length} thửa đất đã được ký số thành công.
+                Hợp đồng thuê {selectedPlots.length} thửa đất đã được kích hoạt thành công.
                 Tất cả các thửa đất đã sẵn sàng và được bàn giao độc lập trên Dashboard cá nhân.
               </p>
             </div>
@@ -1519,7 +1519,7 @@ export default function BookPlot() {
                     Tổng diện tích hợp đồng: <strong className="text-slate-900">{totalAreaM2} m²</strong> ({selectedPlots.length} thửa)
                   </span>
                   <span className="text-stone-500 text-[11px]">
-                    Ký số 1 lần duy nhất
+                    Bàn giao từng thửa độc lập trên Dashboard
                   </span>
                 </div>
               </div>

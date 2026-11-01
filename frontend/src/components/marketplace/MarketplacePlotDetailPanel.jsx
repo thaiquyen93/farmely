@@ -1087,7 +1087,7 @@ function TechnicalHandbookModal({ isOpen, onClose, cropData, onSelectCrop, isSel
         {/* Footer modal */}
         <div className="px-5 py-3.5 border-t border-stone-100 bg-stone-50/80 flex items-center justify-between gap-3 shrink-0">
           <p className="text-[11px] text-stone-500 font-medium">
-            100% quy trình được giám sát nhật ký số và hỗ trợ bởi đội ngũ kỹ sư Farmely.
+            100% quy trình được cập nhật nhật ký thực địa và hỗ trợ bởi đội ngũ kỹ sư Farmely.
           </p>
           <div className="flex items-center gap-2">
             <button

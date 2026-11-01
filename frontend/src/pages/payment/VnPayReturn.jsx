@@ -381,7 +381,7 @@ export default function VnPayReturn() {
               <div className="py-12 flex flex-col items-center justify-center space-y-4">
                 <div className="w-12 h-12 border-4 border-[#294C3B] border-t-transparent rounded-full animate-spin"></div>
                 <p className="text-sm font-medium text-stone-600">
-                  Đang đối soát chữ ký bảo mật & bàn giao thửa đất vào CSDL...
+                  Đang đối soát giao dịch thanh toán & bàn giao thửa đất vào CSDL...
                 </p>
               </div>
             ) : result?.status === 'SUCCESS' || responseCode === '00' ? (
