@@ -5046,14 +5046,35 @@ END $$;
                 `);
                 message = `Đã đặt lại tiến độ thửa ${rental.plot_code} về Ngày 1`;
               } else if (action === 'SET_DAY') {
-                const day = Math.max(1, Math.min(totalDays, Number(payload.day) || 1));
+                const day = Math.max(1, Number(payload.day !== undefined ? payload.day : payload.days) || 1);
                 const offset = day - 1;
                 await runPostgreSql(`
                   UPDATE rentals 
                   SET start_date = CURRENT_DATE - INTERVAL '${offset} days', status = 'ACTIVE' 
                   WHERE rental_id = ${rentalId};
                 `);
-                message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays}`;
+                if (day >= totalDays) {
+                  await runPostgreSql(`
+                    UPDATE care_tasks 
+                    SET status = 'DONE' 
+                    WHERE rental_id = ${rentalId} AND step_order < 4;
+                  `);
+                  await runPostgreSql(`
+                    UPDATE care_tasks 
+                    SET status = 'IN_PROG', due_date = CURRENT_DATE 
+                    WHERE rental_id = ${rentalId} AND step_order >= 4;
+                  `);
+                  message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays} (Đến mốc Thu Hoạch)`;
+                } else if (day === 1) {
+                  await runPostgreSql(`
+                    UPDATE care_tasks 
+                    SET status = CASE WHEN step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END 
+                    WHERE rental_id = ${rentalId};
+                  `);
+                  message = `Đã đặt lại tiến độ thửa ${rental.plot_code} về Ngày 1/${totalDays}`;
+                } else {
+                  message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays}`;
+                }
               }
 
               const checkSql = `

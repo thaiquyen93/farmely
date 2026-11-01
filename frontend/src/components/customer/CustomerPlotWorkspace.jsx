@@ -3086,9 +3086,6 @@ export default function CustomerPlotWorkspace({
                 <span className="hidden sm:inline">Gia hạn vụ mới</span>
                 <span className="sm:hidden">Gia hạn</span>
               </button>
-              <button type="button" onClick={onOpenAiChat} className="flex items-center gap-1.5 rounded-full bg-lime-300 px-3 py-1.5 text-xs font-semibold text-[#17372c] hover:bg-lime-200">
-                <Sparkles className="h-3.5 w-3.5" /><span className="hidden sm:inline">Hỏi Farmely AI</span><span className="sm:hidden">AI</span>
-              </button>
             </div>
           </div>
 

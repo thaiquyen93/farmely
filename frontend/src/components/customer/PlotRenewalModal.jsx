@@ -274,17 +274,15 @@ export default function PlotRenewalModal({
     const plotPricePerPeriod = Number(plot?.rentalPrice || plot?.pricePerPeriod || 1200000);
     const careServicePrice = selectedCareMode === 'ASSISTED' ? 450000 : 0;
     const subtotal = (plotPricePerPeriod + careServicePrice) * selectedSeasonsCount;
-    const discountRate = selectedSeasonsCount >= 3 ? 0.10 : selectedSeasonsCount >= 2 ? 0.05 : 0;
-    const discountAmount = Math.round(subtotal * discountRate);
-    const totalAmount = subtotal - discountAmount;
+    const totalAmount = subtotal;
 
     return {
       newEndDate: newEndDateStr,
       singleSeasonDays,
       totalAdditionalDays,
       subtotal,
-      discountRate,
-      discountAmount,
+      discountRate: 0,
+      discountAmount: 0,
       totalAmount
     };
   }, [plot, selectedVariety, selectedSeasonsCount, selectedCareMode]);
@@ -519,9 +517,9 @@ export default function PlotRenewalModal({
               </label>
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { count: 1, label: '+1 Vụ Mùa', desc: '35 - 45 ngày canh tác', discount: '' },
-                  { count: 2, label: '+2 Vụ Mùa', desc: '70 - 90 ngày canh tác', discount: 'Giảm 5%' },
-                  { count: 3, label: '+3 Vụ (Trọn năm)', desc: '105 - 130 ngày canh tác', discount: 'Giảm 10%' }
+                  { count: 1, label: '+1 Vụ Mùa', desc: '35 - 45 ngày canh tác' },
+                  { count: 2, label: '+2 Vụ Mùa', desc: '70 - 90 ngày canh tác' },
+                  { count: 3, label: '+3 Vụ (Trọn năm)', desc: '105 - 130 ngày canh tác' }
                 ].map((item) => (
                   <button
                     key={item.count}
@@ -533,11 +531,6 @@ export default function PlotRenewalModal({
                         : 'border-stone-200 bg-white hover:border-stone-300'
                     }`}
                   >
-                    {item.discount && (
-                      <span className="absolute -top-2 right-2 rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-black text-white shadow-xs">
-                        {item.discount}
-                      </span>
-                    )}
                     <span className="block font-heading font-black text-sm text-stone-900">
                       {item.label}
                     </span>
@@ -652,12 +645,6 @@ export default function PlotRenewalModal({
                 <span>Đơn giá {selectedSeasonsCount} vụ ({selectedVariety.name}):</span>
                 <span>{calculation.subtotal.toLocaleString('vi-VN')} đ</span>
               </div>
-              {calculation.discountAmount > 0 && (
-                <div className="flex justify-between text-emerald-700 font-bold">
-                  <span>Ưu đãi gia hạn giữ thửa ({calculation.discountRate * 100}%):</span>
-                  <span>-{calculation.discountAmount.toLocaleString('vi-VN')} đ</span>
-                </div>
-              )}
               <div className="flex justify-between border-t border-stone-200 pt-2 font-heading font-black text-base text-emerald-900">
                 <span>Tổng chi phí gia hạn:</span>
                 <span>{calculation.totalAmount.toLocaleString('vi-VN')} đ</span>

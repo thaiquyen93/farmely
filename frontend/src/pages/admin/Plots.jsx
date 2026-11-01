@@ -21,6 +21,7 @@ export default function Plots() {
   const [simulatingPlot, setSimulatingPlot] = useState(null);
   const [simulatingLoading, setSimulatingLoading] = useState(false);
   const [simFeedback, setSimFeedback] = useState('');
+  const [customDayInput, setCustomDayInput] = useState(1);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -95,19 +96,28 @@ export default function Plots() {
     }
   };
 
-  const handleSimulateTime = async (action, days = 7) => {
+  const handleSimulateTime = async (action, value) => {
     if (!simulatingPlot) return;
     setSimulatingLoading(true);
     setSimFeedback('');
     try {
+      const payload = { action };
+      if (action === 'SET_DAY') {
+        payload.day = Number(value !== undefined ? value : customDayInput);
+      } else if (action === 'ADD_DAYS') {
+        payload.days = Number(value || 7);
+      }
       const res = await fetch(`/api/plots/${simulatingPlot.id}/simulate-time`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, days })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
         setSimFeedback(data.message);
+        if (data.data?.currentDay) {
+          setCustomDayInput(data.data.currentDay);
+        }
         setSimulatingPlot((prev) => ({
           ...prev,
           activeRental: {
@@ -269,7 +279,11 @@ export default function Plots() {
           </div>
           <button
             type="button"
-            onClick={() => { setSimulatingPlot(row); setSimFeedback(''); }}
+            onClick={() => {
+              setSimulatingPlot(row);
+              setSimFeedback('');
+              setCustomDayInput(row.activeRental?.currentDay || 1);
+            }}
             className="w-full inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition shadow-xs cursor-pointer"
             title="Mở bộ giả lập thời gian canh tác (Time Simulator)"
           >
@@ -500,81 +514,135 @@ export default function Plots() {
               </div>
             )}
 
-            {/* Các tùy chọn giả lập */}
-            <div className="space-y-2.5">
-              <p className="text-xs font-bold text-stone-700 uppercase tracking-wider">
-                Chọn mốc thời gian muốn tua nhanh:
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* KHU VỰC TỰ TAY ĐẶT SỐ NGÀY BẤT KỲ THEO TỪNG GIỐNG CÂY */}
+            <div className="space-y-3 p-4 rounded-xl bg-amber-50/70 border border-amber-200">
+              <div className="flex items-center justify-between">
+                <label htmlFor="custom-day-input" className="text-xs font-bold text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Tự tay đặt ngày canh tác:</span>
+                </label>
+                <span className="text-xs text-amber-900 font-semibold">
+                  Chu kỳ giống này: <strong>{simulatingPlot.activeRental?.totalDays || 45} ngày</strong>
+                </span>
+              </div>
+
+              {/* Ô gõ ngày + nút +/- + Nút Áp dụng */}
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   disabled={simulatingLoading}
-                  onClick={() => handleSimulateTime('START_NOW')}
-                  className="flex flex-col items-start p-3 rounded-xl border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-300 transition text-left group cursor-pointer shadow-2xs"
+                  onClick={() => setCustomDayInput((prev) => Math.max(1, Number(prev || 1) - 1))}
+                  className="h-10 w-10 shrink-0 rounded-lg border border-amber-300 bg-white font-bold text-sm text-stone-700 hover:bg-amber-100 flex items-center justify-center cursor-pointer shadow-2xs"
+                  title="Giảm 1 ngày"
                 >
-                  <div className="flex items-center gap-1.5 font-bold text-xs text-stone-900 group-hover:text-emerald-700">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Bắt đầu ngay (Ngày 1)</span>
-                  </div>
-                  <span className="text-[11px] text-stone-500 mt-1">
-                    Bỏ 5 ngày chờ kỹ thuật, kích hoạt canh tác ngay hôm nay
+                  -1
+                </button>
+
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-stone-400 select-none">
+                    Ngày
                   </span>
+                  <input
+                    id="custom-day-input"
+                    type="number"
+                    min="1"
+                    max={Number(simulatingPlot.activeRental?.totalDays || 45) + 30}
+                    value={customDayInput}
+                    onChange={(e) => setCustomDayInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSimulateTime('SET_DAY', Number(customDayInput));
+                      }
+                    }}
+                    className="w-full h-10 pl-14 pr-16 rounded-lg border border-amber-300 bg-white text-base font-black text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner"
+                    placeholder="Gõ số ngày..."
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-stone-400 font-bold select-none">
+                    / {simulatingPlot.activeRental?.totalDays || 45}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={simulatingLoading}
+                  onClick={() => setCustomDayInput((prev) => Math.min(Number(simulatingPlot.activeRental?.totalDays || 45) + 30, Number(prev || 0) + 1))}
+                  className="h-10 w-10 shrink-0 rounded-lg border border-amber-300 bg-white font-bold text-sm text-stone-700 hover:bg-amber-100 flex items-center justify-center cursor-pointer shadow-2xs"
+                  title="Tăng 1 ngày"
+                >
+                  +1
+                </button>
+
+                <button
+                  type="button"
+                  disabled={simulatingLoading}
+                  onClick={() => handleSimulateTime('SET_DAY', Number(customDayInput))}
+                  className="h-10 px-4 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition"
+                >
+                  {simulatingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  <span>Áp Dụng</span>
+                </button>
+              </div>
+
+              {/* Slider kéo thả nhanh theo đúng chu kỳ cây */}
+              <div className="pt-1 space-y-1">
+                <input
+                  type="range"
+                  min="1"
+                  max={simulatingPlot.activeRental?.totalDays || 45}
+                  value={Math.min(Number(simulatingPlot.activeRental?.totalDays || 45), Math.max(1, Number(customDayInput || 1)))}
+                  onChange={(e) => setCustomDayInput(Number(e.target.value))}
+                  className="w-full accent-amber-600 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] text-stone-500 font-medium px-0.5">
+                  <span>Ngày 1 (Gieo mầm)</span>
+                  <span>Ngày {Math.round((simulatingPlot.activeRental?.totalDays || 45) / 2)} (Phát triển)</span>
+                  <span>Ngày {simulatingPlot.activeRental?.totalDays || 45} (Thu hoạch)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Các mốc nhảy nhanh thích ứng động theo đúng chu kỳ giống cây đó */}
+            <div className="space-y-2">
+              <p className="text-[11px] font-bold text-stone-600 uppercase tracking-wider">
+                Mốc gợi ý nhanh theo chu kỳ giống cây này:
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  disabled={simulatingLoading}
+                  onClick={() => handleSimulateTime('SET_DAY', 1)}
+                  className="py-2 px-2.5 rounded-lg border border-stone-200 bg-white hover:bg-emerald-50 hover:border-emerald-300 transition text-center cursor-pointer text-xs font-bold text-stone-800 shadow-2xs"
+                >
+                  🌱 Ngày 1 (Bắt đầu)
+                </button>
+
+                <button
+                  type="button"
+                  disabled={simulatingLoading}
+                  onClick={() => handleSimulateTime('SET_DAY', Math.round((simulatingPlot.activeRental?.totalDays || 45) / 2))}
+                  className="py-2 px-2.5 rounded-lg border border-stone-200 bg-white hover:bg-blue-50 hover:border-blue-300 transition text-center cursor-pointer text-xs font-bold text-stone-800 shadow-2xs"
+                >
+                  🌿 Ngày {Math.round((simulatingPlot.activeRental?.totalDays || 45) / 2)} (Giữa vụ)
+                </button>
+
+                <button
+                  type="button"
+                  disabled={simulatingLoading}
+                  onClick={() => handleSimulateTime('SET_DAY', simulatingPlot.activeRental?.totalDays || 45)}
+                  className="py-2 px-2.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 transition text-center cursor-pointer text-xs font-bold text-amber-900 shadow-2xs"
+                >
+                  🌾 Ngày {simulatingPlot.activeRental?.totalDays || 45} (Thu hoạch)
                 </button>
 
                 <button
                   type="button"
                   disabled={simulatingLoading}
                   onClick={() => handleSimulateTime('ADD_DAYS', 7)}
-                  className="flex flex-col items-start p-3 rounded-xl border border-stone-200 bg-white hover:bg-blue-50 hover:border-blue-300 transition text-left group cursor-pointer shadow-2xs"
+                  className="py-2 px-2.5 rounded-lg border border-stone-200 bg-white hover:bg-purple-50 hover:border-purple-300 transition text-center cursor-pointer text-xs font-bold text-stone-800 shadow-2xs"
                 >
-                  <div className="flex items-center gap-1.5 font-bold text-xs text-stone-900 group-hover:text-blue-700">
-                    <FastForward className="w-3.5 h-3.5 text-blue-600" />
-                    <span>+7 Ngày (Tăng trưởng)</span>
-                  </div>
-                  <span className="text-[11px] text-stone-500 mt-1">
-                    Tua nhanh 1 tuần xem cây lớn và cập nhật task
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={simulatingLoading}
-                  onClick={() => handleSimulateTime('ADD_DAYS', 15)}
-                  className="flex flex-col items-start p-3 rounded-xl border border-stone-200 bg-white hover:bg-purple-50 hover:border-purple-300 transition text-left group cursor-pointer shadow-2xs"
-                >
-                  <div className="flex items-center gap-1.5 font-bold text-xs text-stone-900 group-hover:text-purple-700">
-                    <FastForward className="w-3.5 h-3.5 text-purple-600" />
-                    <span>+15 Ngày (Ra hoa/kết trái)</span>
-                  </div>
-                  <span className="text-[11px] text-stone-500 mt-1">
-                    Đẩy tiến trình đến giai đoạn đậu quả VietGAP
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={simulatingLoading}
-                  onClick={() => handleSimulateTime('HARVEST')}
-                  className="flex flex-col items-start p-3 rounded-xl border border-amber-300 bg-amber-50/60 hover:bg-amber-100 transition text-left group cursor-pointer shadow-2xs"
-                >
-                  <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
-                    <span>🌾 Nhảy đến Thu Hoạch</span>
-                  </div>
-                  <span className="text-[11px] text-amber-700 mt-1">
-                    Đạt 100% ngày thu hoạch, mở nút Cân & Nghiệm thu
-                  </span>
+                  ⏩ +7 Ngày
                 </button>
               </div>
-
-              <button
-                type="button"
-                disabled={simulatingLoading}
-                onClick={() => handleSimulateTime('RESET')}
-                className="w-full py-2 px-3 text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition text-center cursor-pointer border border-dashed border-stone-300"
-              >
-                🔄 Đặt lại tiến độ về Ngày 1
-              </button>
             </div>
 
             <div className="flex justify-end pt-3 border-t border-stone-200">
