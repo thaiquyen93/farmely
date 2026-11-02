@@ -181,3 +181,24 @@ ightarrow$ cập nhật `cancellation` sang `APPROVED`, cập nhật `contracts`
 - **Cần cập nhật:** Không. Code nay **đúng theo docs**, đây là lần align chứ không phải lệch mới.
 - **Kiểm chứng:** `node server/checks/harvestLifecycle.check.mjs` (từ `frontend/`) — chạy trong transaction + `ROLLBACK` nên không làm bẩn dữ liệu demo. **Kết quả: 14 pass / 0 fail** trên PostgreSQL live, bao gồm: task thu hoạch chuyển `DONE` thật trong CSDL; gia hạn sinh đủ 9 nhiệm vụ vụ mới; gọi 2 lần không trùng; vụ mới bắt đầu đúng `+4 ngày`; thửa vừa hết hạn → `MAINT` và bị ẩn khỏi marketplace; thửa hết hạn >4 ngày → `AVAIL`; thửa còn hợp đồng giữ `RENT`; rental quá hạn → `DONE`.
 - **Trạng thái:** ✅ Đã align code với docs, kiểm chứng trên CSDL thật
+
+### [DRIFT-013] Admin Duyệt Thanh Lý Hợp Đồng Thất Bại Hoàn Toàn — Ghi Vào Cột `refund_amount` Không Tồn Tại Trong DDL
+- **Ngày:** 2026-11-02
+- **File:** `frontend/server/siteVisitsApiPlugin.js` (`POST /api/contracts/cancellations/:id/approve`, dòng ~1456–1560), `frontend/server/checks/contractCancellation.check.mjs` (mới)
+- **Docs nói:**
+  - Report 4 SDD / DDL `Database/farmely_full_database.sql`: bảng `contract_cancellations` có đúng 7 cột — `cancellation_id`, `contract_id`, `cancelled_by`, `reason`, `status`, `created_at`, `processed_at`. **KHÔNG có cột `refund_amount`.**
+  - Số tiền hoàn thuộc bảng `payment_transactions` (có sẵn khoá ngoại `cancellation_request_id` + `type = 'REFUND'`) — đúng chuẩn tách biệt sổ sách kế toán khỏi bảng yêu cầu.
+  - Report 3 SRS BR: chính sách hoàn tiền 80% / 50% / 0% theo thời điểm khách gửi yêu cầu so với ngày bắt đầu canh tác.
+- **Code làm (TRƯỚC khi sửa — 2 lỗi chí tử):**
+  1. Block `DO $$` duyệt thanh lý chạy `UPDATE contract_cancellations SET ... refund_amount = v_refund_amount` — **cột này không tồn tại trong CSDL**. PostgreSQL ném `column "refund_amount" of relation "contract_cancellations" does not exist`; vì nằm trong `DO $$` nên **toàn bộ 5 bước rollback**: yêu cầu không được duyệt, hợp đồng không huỷ, thửa đất không về `MAINT`, không có bút toán hoàn tiền. Admin bấm "Duyệt" chỉ nhận toast đỏ, nghiệp vụ UC08 **chưa bao giờ chạy được**.
+  2. **Tiền hoàn không bao giờ được ghi vào sổ sách.** Dù sửa được lỗi cột, block cũ cũng không `INSERT payment_transactions`, nên báo cáo doanh thu (`type='REFUND'` bị trừ ra ở `/api/admin/dashboard`) luôn thiếu khoản hoàn — doanh thu bị khai cao hơn thực tế.
+  3. **Lệch mốc tính tiền:** block duyệt tính tỷ lệ theo `CURRENT_DATE` (ngày Admin bấm), còn danh sách chờ duyệt `GET /api/contracts/cancellations` tính theo `cn.created_at` (ngày khách gửi). Admin thấy "hoàn 80% = 8.000.000đ" nhưng nếu duyệt muộn vài ngày thì hệ thống lại tính 50% hoặc 0% — số tiền thực thi khác số tiền đã phê duyệt.
+- **Code làm (SAU khi sửa):**
+  - Bỏ `refund_amount` khỏi `UPDATE`; chỉ set `status = 'APPROVED'`, `processed_at = NOW()`. **ERD & DDL giữ nguyên 100%, không thêm cột.**
+  - Thêm bước 1b: `INSERT INTO payment_transactions (contract_id, cancellation_request_id, type='REFUND', amount, payment_method='VNPAY', gateway_ref='VNP-REFUND-<id>', status='SUCCESS')`, có guard `NOT EXISTS` chống hoàn tiền 2 lần, và chỉ ghi khi `v_refund_amount > 0` (không sinh bút toán rác 0 đồng).
+  - Tỷ lệ hoàn chuyển sang tính theo `cn.created_at` — khớp 1:1 con số Admin thấy lúc duyệt.
+  - Giữ bản sửa enum ở DRIFT-012: `DELETE FROM care_tasks ... WHERE status <> 'DONE'` (xoá việc chưa làm, giữ lịch sử việc đã làm).
+- **Lý do lệch:** Lỗi triển khai — code viết theo một schema tưởng tượng có `contract_cancellations.refund_amount`, không đối soát DDL. Đây đúng là loại sai lệch mà guardrail cảnh báo: *"thêm bảng/cột DB mà ERD không có → hội đồng trừ điểm nặng"*.
+- **Cần cập nhật:** Không. Code nay đúng theo DDL/ERD hiện hành.
+- **Kiểm chứng:** `node server/checks/contractCancellation.check.mjs` (từ `frontend/`) — trích đúng khối `approveSql` đang chạy production từ plugin rồi thực thi trên PostgreSQL live, trong transaction + `ROLLBACK`. **Kết quả: 18 pass / 0 fail**, gồm: duyệt chạy không lỗi; yêu cầu → `APPROVED` + `processed_at`; hợp đồng → `CANCELLED`; mọi lượt thuê → `CANCELLED`; mọi thửa → `MAINT` và bị ẩn khỏi marketplace; xoá task chưa làm nhưng giữ task `DONE`; ghi đúng 1 bút toán `REFUND`; số tiền khớp con số Admin đã thấy; hoàn 80% khi huỷ trước vụ ≥ 3 ngày; bấm duyệt lần 2 bị từ chối và không hoàn tiền 2 lần; huỷ muộn vẫn duyệt được với 0đ và không sinh bút toán rác; duyệt ID không tồn tại báo lỗi rõ ràng.
+- **Trạng thái:** ✅ Đã sửa và kiểm chứng trên CSDL thật

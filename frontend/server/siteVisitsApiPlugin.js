@@ -1476,23 +1476,39 @@ BEGIN
     SELECT total_amount INTO v_total_amount FROM contracts WHERE contract_id = v_contract_id;
     SELECT MIN(start_date) INTO v_start_date FROM rentals WHERE contract_id = v_contract_id;
 
-    -- Tính tỷ lệ hoàn tiền theo chính sách
-    IF v_start_date - CURRENT_DATE >= 3 THEN
-        v_refund_rate := 0.8;
-    ELSIF v_start_date > CURRENT_DATE THEN
-        v_refund_rate := 0.5;
-    ELSE
-        v_refund_rate := 0.0;
-    END IF;
+    -- Tỷ lệ hoàn tiền tính theo NGÀY KHÁCH GỬI YÊU CẦU (created_at), không phải ngày Admin bấm duyệt,
+    -- để khớp 1:1 với số tiền đã hiển thị ở danh sách chờ duyệt (GET /api/contracts/cancellations).
+    SELECT
+      CASE
+        WHEN v_start_date - cn.created_at::date >= 3 THEN 0.8
+        WHEN v_start_date > cn.created_at::date THEN 0.5
+        ELSE 0.0
+      END
+    INTO v_refund_rate
+    FROM contract_cancellations cn
+    WHERE cn.cancellation_id = ${cancellationId};
 
-    v_refund_amount := ROUND(COALESCE(v_total_amount, 0) * v_refund_rate, 2);
+    v_refund_amount := ROUND(COALESCE(v_total_amount, 0) * COALESCE(v_refund_rate, 0), 2);
 
     -- 1. Cập nhật contract_cancellations
+    -- ponytail: bảng này KHÔNG có cột refund_amount trong DDL -> số tiền hoàn lưu ở
+    -- payment_transactions (type='REFUND', cancellation_request_id) đúng theo ERD, không thêm cột mới.
     UPDATE contract_cancellations
     SET status = 'APPROVED',
-        refund_amount = v_refund_amount,
         processed_at = NOW()
     WHERE cancellation_id = ${cancellationId};
+
+    -- 1b. Ghi bút toán hoàn tiền (nguồn số liệu cho báo cáo doanh thu: type='REFUND' bị trừ ra)
+    IF v_refund_amount > 0 AND NOT EXISTS (
+        SELECT 1 FROM payment_transactions
+        WHERE cancellation_request_id = ${cancellationId} AND type = 'REFUND'
+    ) THEN
+        INSERT INTO payment_transactions
+          (contract_id, cancellation_request_id, type, amount, payment_method, gateway_ref, status, created_at)
+        VALUES
+          (v_contract_id, ${cancellationId}, 'REFUND', v_refund_amount, 'VNPAY',
+           'VNP-REFUND-' || ${cancellationId}, 'SUCCESS', NOW());
+    END IF;
 
     -- 2. Cập nhật contracts
     UPDATE contracts
