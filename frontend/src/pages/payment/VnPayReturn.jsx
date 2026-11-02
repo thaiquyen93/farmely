@@ -63,13 +63,28 @@ export default function VnPayReturn() {
         gatewayRef: transNo || txnRef || `VNPAY-${Date.now()}`
       };
 
-      const checkoutRes = await fetch('/api/bookings/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(checkoutPayload)
-      });
+      let data = null;
+      if (pending.contractId) {
+        try {
+          const actRes = await fetch(`/api/contracts/${pending.contractId}/activate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gatewayRef: checkoutPayload.gatewayRef })
+          });
+          if (actRes.ok) {
+            data = await actRes.json();
+          }
+        } catch (_) {}
+      }
 
-      const data = await checkoutRes.json();
+      if (!data) {
+        const checkoutRes = await fetch('/api/bookings/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(checkoutPayload)
+        });
+        data = await checkoutRes.json();
+      }
 
       // Đánh dấu thửa đất đã thuê vào LocalStorage & phát sự kiện toàn cục
       const recent = JSON.parse(localStorage.getItem('farmely_recently_booked_plots') || '[]');

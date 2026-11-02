@@ -221,7 +221,9 @@ function StandardProcessTimeline({
   isSelf = false,
   onToggleTask,
   onSelectStage,
-  onAddDiary
+  onAddDiary,
+  onStartSeason,
+  onResetSeason
 }) {
   if (!cropProcess?.stages?.length) return null;
 
@@ -329,35 +331,68 @@ function StandardProcessTimeline({
       } catch { }
     }
 
-    // Đảm bảo luôn có công việc chuẩn cho Ngày 1 (Bắt đầu) và Ngày cuối (Thu hoạch) để demo
-    if (!map[1] || map[1].length === 0) {
-      map[1] = [
-        {
-          activityId: 'STD-TASK-DAY-1-1',
-          day: 1,
-          cropDay: 1,
-          title: 'Làm đất tơi xốp, bón lót hữu cơ vi sinh EM1 & cân bằng pH',
-          timestamp: startCalDate ? `${startCalDate} • Ca sáng (07:00 - 08:30)` : 'Ca sáng (07:00 - 08:30)',
-          status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
-          workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
-          workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
-          notes: 'Xử lý giá thể bầu ươm đạt chuẩn VietGAP, duy trì ẩm độ đất từ 65 - 70%.',
-          proofPhoto: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80' : null,
-          sensorSnapshot: { temp: '26.2°C', soilMoisture: '68%', light: '38.000 Lux' }
-        },
-        {
-          activityId: 'STD-TASK-DAY-1-2',
-          day: 1,
-          cropDay: 1,
-          title: 'Kiểm tra tỷ lệ nảy mầm và xuống giống theo mật độ khuyến nghị',
-          timestamp: startCalDate ? `${startCalDate} • Ca chiều (15:30 - 17:00)` : 'Ca chiều (15:30 - 17:00)',
-          status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
-          workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
-          workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
-          notes: 'Khoảng cách cây cách cây đạt chuẩn 25 - 30cm, phủ lớp màng mùn sinh học giữ ẩm.',
-          sensorSnapshot: { temp: '28.1°C', soilMoisture: '70%', light: '42.000 Lux' }
-        }
-      ];
+    // Đảm bảo luôn có các công việc chuẩn cho Ngày 1 (Bắt đầu) và Ngày cuối (Thu hoạch) để demo
+    const defaultDay1Activities = [
+      {
+        activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-1`,
+        id: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-1`,
+        day: 1,
+        cropDay: 1,
+        title: 'Làm đất tơi xốp, bón lót phân trùn quế & phun Trichoderma',
+        timestamp: startCalDate ? `${startCalDate} • Ca sáng (07:00 - 08:30)` : 'Ca sáng (07:00 - 08:30)',
+        status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
+        workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
+        workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
+        notes: 'Xử lý giá thể bầu ươm đạt chuẩn VietGAP, duy trì ẩm độ đất từ 65 - 70%.',
+        proofPhoto: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80',
+        sensorSnapshot: { temp: '26.2°C', soilMoisture: '68%', light: '38.000 Lux' }
+      },
+      {
+        activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-2`,
+        id: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-2`,
+        day: 1,
+        cropDay: 1,
+        title: 'Kiểm tra tỷ lệ nảy mầm và xuống giống theo mật độ khuyến nghị',
+        timestamp: startCalDate ? `${startCalDate} • Ca chiều (15:30 - 17:00)` : 'Ca chiều (15:30 - 17:00)',
+        status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
+        workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
+        workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
+        notes: 'Khoảng cách cây cách cây đạt chuẩn 25 - 30cm, phủ lớp màng mùn sinh học giữ ẩm.',
+        sensorSnapshot: { temp: '28.1°C', soilMoisture: '70%', light: '42.000 Lux' }
+      },
+      {
+        activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-3`,
+        id: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-3`,
+        day: 1,
+        cropDay: 1,
+        title: 'Tưới phun sương cân bằng độ ẩm luống đất (65% - 70%)',
+        timestamp: startCalDate ? `${startCalDate} • Ca sáng (08:30 - 09:30)` : 'Ca sáng (08:30 - 09:30)',
+        status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
+        workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
+        workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
+        notes: 'Tưới ẩm đều bề mặt luống bằng hệ thống tưới phun sương tự động, kiểm tra độ thoát nước.',
+        sensorSnapshot: { temp: '27.0°C', soilMoisture: '69%', light: '40.000 Lux' }
+      },
+      {
+        activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-4`,
+        id: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-4`,
+        day: 1,
+        cropDay: 1,
+        title: 'Phủ màng mùn sinh học / rơm mục giữ ẩm và che lưới nhẹ',
+        timestamp: startCalDate ? `${startCalDate} • Ca chiều (17:00 - 17:45)` : 'Ca chiều (17:00 - 17:45)',
+        status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
+        workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
+        workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
+        notes: 'Che lưới 50% nắng trong 2 ngày đầu, ngăn ngừa bốc hơi nước mặt luống.',
+        sensorSnapshot: { temp: '27.5°C', soilMoisture: '71%', light: '35.000 Lux' }
+      }
+    ];
+
+    if (!map[1] || map[1].length < 3) {
+      const existing = map[1] || [];
+      const existingTitles = new Set(existing.map((t) => (t.title || '').toLowerCase()));
+      const toAdd = defaultDay1Activities.filter((st) => !existingTitles.has((st.title || '').toLowerCase()));
+      map[1] = [...existing, ...toAdd];
     }
 
     if (!map[totalDays] || map[totalDays].length === 0) {
@@ -613,7 +648,12 @@ function StandardProcessTimeline({
                 <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
                 Về Hôm nay (N{currentCropDay})
               </button>
-            ) : null}
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-800 shadow-xs">
+                <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
+                Hôm nay · Ngày {currentCropDay}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => onSelectStage?.(activeStage)}
@@ -655,6 +695,7 @@ function StandardProcessTimeline({
                       <span>Ngày {selectedDay}</span>
                       {!cropProcess.isNotStarted && selectedDay === currentCropDay && <span className="text-lime-300">· Hôm nay</span>}
                       {cropProcess.isNotStarted && selectedDay === 1 && <span className="text-sky-300">· Sắp tới</span>}
+                      {!cropProcess.isNotStarted && selectedDay === 1 && currentCropDay !== 1 && <span className="text-lime-300">· Ngày bắt đầu</span>}
                     </div>
                     <div className="h-6 w-6 rounded-full bg-emerald-700 ring-4 ring-white shadow-lg flex items-center justify-center group-hover/track:scale-125 transition-transform">
                       <span className="h-2.5 w-2.5 rounded-full bg-lime-300 shadow-xs" />
@@ -681,8 +722,9 @@ function StandardProcessTimeline({
                     {/* Badge Hôm nay / Sắp tới / Đang xem trên nút */}
                     <div className="absolute -top-8 pointer-events-none flex flex-col items-center">
                       {isSelected ? (
-                        <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black text-white shadow-md whitespace-nowrap ring-1 ${isToday ? 'bg-emerald-800 ring-emerald-400' : isUpcomingFirst ? 'bg-sky-700 ring-sky-300' : 'bg-emerald-800 ring-emerald-400'
-                          }`}>
+                        <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black text-white shadow-md whitespace-nowrap ring-1 ${
+                          isToday ? 'bg-emerald-800 ring-emerald-400' : isUpcomingFirst ? 'bg-sky-700 ring-sky-300' : 'bg-emerald-800 ring-emerald-400'
+                        }`}>
                           {isToday ? 'HÔM NAY' : isUpcomingFirst ? 'SẮP TỚI' : 'ĐANG XEM'}
                         </span>
                       ) : isToday ? (
@@ -739,15 +781,20 @@ function StandardProcessTimeline({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setSelectedDay(1)}
-                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
+                onClick={() => {
+                  setSelectedDay(1);
+                  if (cropProcess.isNotStarted) {
+                    onStartSeason?.();
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
                   selectedDay === 1
                     ? 'border-emerald-600 bg-emerald-700 text-white shadow-emerald-700/20'
                     : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                 }`}
-                title="Bấm để nhảy ngay tới Ngày bắt đầu canh tác"
+                title={cropProcess.isNotStarted ? "Bấm để kích hoạt bắt đầu mùa vụ canh tác (Ngày 1)" : "Bấm để nhảy ngay tới Ngày bắt đầu canh tác"}
               >
-                <span>🌱 Ngày bắt đầu (Ngày 1)</span>
+                <span>🌱 {cropProcess.isNotStarted ? "Bắt đầu mùa vụ (Ngày 1)" : "Ngày bắt đầu (Ngày 1)"}</span>
               </button>
 
               <button
@@ -807,16 +854,34 @@ function StandardProcessTimeline({
                     </span>
                   )}
                 </h3>
-                {!cropProcess.isNotStarted && selectedDay === currentCropDay && (
+                {cropProcess.isNotStarted && selectedDay === 1 ? (
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-sky-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase shadow-xs">
+                      Sắp tới · Bắt đầu {plot?.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'dự kiến'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={onStartSeason}
+                      className="inline-flex items-center gap-1 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white px-2.5 py-0.5 text-[10px] font-bold shadow-xs transition cursor-pointer"
+                      title="Bấm để kích hoạt bắt đầu mùa vụ ngay hôm nay"
+                    >
+                      <Sprout className="w-3 h-3 text-lime-300" />
+                      <span>Bắt đầu mùa vụ ngay</span>
+                    </button>
+                  </div>
+                ) : !cropProcess.isNotStarted && selectedDay === currentCropDay ? (
                   <span className="rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase shadow-xs">
                     Hôm nay
                   </span>
-                )}
-                {cropProcess.isNotStarted && selectedDay === 1 && (
-                  <span className="rounded-full bg-sky-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase shadow-xs">
-                    Sắp tới · Bắt đầu {plot?.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'dự kiến'}
+                ) : !cropProcess.isNotStarted && selectedDay === 1 ? (
+                  <span className="rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase shadow-xs flex items-center gap-1">
+                    🌱 Đang canh tác · Ngày 1
                   </span>
-                )}
+                ) : (cropProcess.isNotStarted && selectedDay !== 1) ? (
+                  <span className="rounded-full bg-sky-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase shadow-xs">
+                    Kế hoạch mùa vụ
+                  </span>
+                ) : null}
                 {activeEvent && (
                   <span className="rounded-full bg-amber-100 text-amber-900 px-2.5 py-0.5 text-[10px] font-extrabold shadow-xs flex items-center gap-1">
                     ⭐ {activeEvent.shortTitle}
@@ -912,123 +977,160 @@ function StandardProcessTimeline({
           <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-stone-200/60 pb-3 gap-2">
               <span className="flex items-center gap-2 font-black text-xs text-stone-900 uppercase tracking-wider min-w-0 truncate">
-                <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="truncate">Nhật ký & Thực địa Ngày {selectedDay}</span>
+                <CalendarCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="truncate">Nhiệm vụ canh tác & Nhật ký Ngày {selectedDay}</span>
               </span>
-              <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] font-bold text-stone-600 shrink-0 border border-stone-200/60">
-                {selectedDayDiaries.length + selectedDayActivities.length} ghi nhận
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold shrink-0 border ${
+                cropProcess.isNotStarted ? 'bg-sky-50 text-sky-800 border-sky-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              }`}>
+                {cropProcess.isNotStarted ? 'Kế hoạch sắp tới' : `${selectedDayActivities.length} công việc · ${selectedDayDiaries.length} nhật ký`}
               </span>
             </div>
 
-            {selectedDayDiaries.length > 0 || selectedDayActivities.length > 0 ? (
-              <div className="space-y-3.5 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar">
-                {/* 1. Các bài viết nhật ký của chủ vườn / kỹ thuật viên */}
-                {selectedDayDiaries.map((entry, idx) => (
-                  <div key={entry.id || idx} className="rounded-xl border border-emerald-100 bg-emerald-50/20 p-3.5 space-y-2 text-xs">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-stone-500 text-[11px] flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-stone-400" />
-                        {entry.time || 'Hôm nay'}
-                      </span>
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 flex items-center gap-1">
-                        <UserRound className="w-3 h-3" />
-                        {isSelf
-                          ? (entry.author && !entry.author.includes('CVLĐ') && !entry.author.includes('Trần Văn Lực') ? entry.author : 'Chủ vườn (Tự canh tác)')
-                          : (entry.author || 'Chủ vườn')}
+            {cropProcess.isNotStarted && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                <div className="flex items-center gap-2 text-sky-900">
+                  <Clock className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>Vụ mùa đang ở trạng thái <strong>Sắp tới</strong> (Bắt đầu {plot?.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'sắp tới'}).</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onStartSeason}
+                  className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Sprout className="w-3.5 h-3.5 text-lime-300" />
+                  <span>Bắt đầu mùa vụ ngay</span>
+                </button>
+              </div>
+            )}
+
+            {selectedDayActivities.length > 0 || selectedDayDiaries.length > 0 ? (
+              <div className="space-y-4 max-h-[520px] overflow-y-auto pr-2 custom-scrollbar">
+                {/* 1. Hoạt động thực địa hoặc công việc tự canh tác */}
+                {selectedDayActivities.length > 0 && (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-stone-500 uppercase tracking-wider">
+                      <span>{cropProcess.isNotStarted ? `Công việc chuẩn bị Ngày ${selectedDay}` : `Nhiệm vụ cần thực hiện (${selectedDayActivities.length})`}</span>
+                      <span className="text-emerald-700 normal-case">
+                        {cropProcess.isNotStarted ? 'Chờ kích hoạt vụ mùa' : `${selectedDayActivities.filter(a => a.status === 'COMPLETED').length}/${selectedDayActivities.length} hoàn thành`}
                       </span>
                     </div>
 
-                    <p className="font-bold text-stone-900 text-xs">{entry.title}</p>
-                    <p className="text-xs text-stone-600 leading-relaxed whitespace-pre-line">{entry.note}</p>
-
-                    {/* Ảnh hiện trường thực tế */}
-                    {(entry.image || entry.imageUrl || entry.photo) && (
-                      <div className="mt-2 overflow-hidden rounded-xl border border-stone-200 bg-stone-900/5 group">
-                        <img
-                          src={entry.image || entry.imageUrl || entry.photo}
-                          alt={entry.title || 'Ảnh hiện trường'}
-                          className="h-44 w-full object-cover transition duration-300 group-hover:scale-102 cursor-pointer"
-                          onClick={() => window.open(entry.image || entry.imageUrl || entry.photo, '_blank')}
-                          loading="lazy"
-                        />
-                        <div className="p-2 bg-white text-[11px] text-stone-600 flex items-center justify-between border-t border-stone-100">
-                          <span className="text-emerald-700 font-medium">📸 Ảnh chụp hiện trường thực tế</span>
-                          <span
-                            className="text-emerald-700 font-bold hover:underline cursor-pointer"
-                            onClick={() => window.open(entry.image || entry.imageUrl || entry.photo, '_blank')}
-                          >
-                            Mở ảnh to ↗
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* 2. Hoạt động thực địa hoặc công việc tự canh tác */}
-                {selectedDayActivities.map((act, idx) => {
-                  const isDone = act.status === 'COMPLETED';
-                  return (
-                    <div
-                      key={act.activityId || act.id || idx}
-                      className={`rounded-xl border p-3.5 space-y-2 text-xs transition ${isDone ? 'border-emerald-200 bg-emerald-50/40' : 'border-sky-100 bg-sky-50/30'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between text-xs gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {isSelf ? (
-                            <button
-                              type="button"
-                              onClick={() => onToggleTask?.(act.id || act.activityId)}
-                              className={`h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${isDone
-                                  ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
-                                  : 'border-stone-300 bg-white hover:border-emerald-500'
+                    {selectedDayActivities.map((act, idx) => {
+                      const isDone = act.status === 'COMPLETED';
+                      return (
+                        <div
+                          key={act.activityId || act.id || idx}
+                          className={`rounded-xl border p-3.5 space-y-2 text-xs transition ${
+                            isDone ? 'border-emerald-200 bg-emerald-50/40' : 'border-stone-200 bg-white hover:border-emerald-300 shadow-2xs'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-xs gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => onToggleTask?.(act.id || act.activityId)}
+                                className={`h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${
+                                  isDone
+                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                                    : 'border-stone-300 bg-white hover:border-emerald-500'
                                 }`}
-                              title={isDone ? 'Bấm để đánh dấu chưa xong' : 'Bấm để đánh dấu hoàn thành'}
-                            >
-                              {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                            </button>
-                          ) : (
-                            <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
+                                title={isDone ? 'Bấm để đánh dấu chưa xong' : 'Bấm để đánh dấu hoàn thành'}
+                              >
+                                {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                              </button>
+                              <span className={`font-bold truncate ${isDone ? 'text-stone-400 line-through' : 'text-stone-900'}`}>
+                                {act.title || act.name}
+                              </span>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border shrink-0 ${
+                              isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-stone-100 text-stone-600 border-stone-200'
+                            }`}>
+                              {isDone ? 'ĐÃ XONG' : (act.timestamp || act.time || (isSelf ? 'Cần làm' : 'Ca trực'))}
+                            </span>
+                          </div>
+                          {(act.notes || act.note) && (
+                            <p className="text-xs leading-relaxed pl-7 text-stone-600">
+                              {act.notes || act.note}
+                            </p>
                           )}
-                          <span className={`font-bold truncate ${isDone && isSelf ? 'text-stone-400 line-through' : 'text-stone-900'}`}>
-                            {act.title || act.name}
+                          {act.proofPhoto && (
+                            <div className="mt-2 pl-7">
+                              <div className="overflow-hidden rounded-xl border border-emerald-200 bg-stone-900/5 group">
+                                <img
+                                  src={act.proofPhoto}
+                                  alt={act.title || 'Minh chứng'}
+                                  className="h-36 w-full object-cover transition duration-300 group-hover:scale-102 cursor-pointer"
+                                  onClick={() => window.open(act.proofPhoto, '_blank')}
+                                  loading="lazy"
+                                />
+                                <div className="p-2 bg-white text-[11px] text-stone-600 flex items-center justify-between border-t border-emerald-100">
+                                  <span className="text-emerald-800 font-medium">📸 Minh chứng thực tế</span>
+                                  <span
+                                    className="text-emerald-800 font-bold hover:underline cursor-pointer"
+                                    onClick={() => window.open(act.proofPhoto, '_blank')}
+                                  >
+                                    Mở ảnh to ↗
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 2. Các bài viết nhật ký của chủ vườn / kỹ thuật viên */}
+                {selectedDayDiaries.length > 0 && (
+                  <div className="space-y-2.5 pt-2 border-t border-stone-100">
+                    <p className="text-[11px] font-bold text-stone-500 uppercase tracking-wider">
+                      Nhật ký ghi chép ({selectedDayDiaries.length})
+                    </p>
+                    {selectedDayDiaries.map((entry, idx) => (
+                      <div key={entry.id || idx} className="rounded-xl border border-emerald-100 bg-emerald-50/20 p-3.5 space-y-2 text-xs">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-stone-500 text-[11px] flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-stone-400" />
+                            {entry.time || 'Hôm nay'}
+                          </span>
+                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 flex items-center gap-1">
+                            <UserRound className="w-3 h-3" />
+                            {isSelf
+                              ? (entry.author && !entry.author.includes('CVLĐ') && !entry.author.includes('Trần Văn Lực') ? entry.author : 'Chủ vườn (Tự canh tác)')
+                              : (entry.author || 'Chủ vườn')}
                           </span>
                         </div>
-                        <span className="text-[10px] font-semibold text-stone-500 bg-white/90 px-2 py-0.5 rounded-md border border-stone-200 shrink-0">
-                          {act.timestamp || act.time || (isSelf ? 'Hằng ngày' : 'Ca trực')}
-                        </span>
-                      </div>
-                      {(act.notes || act.note) && (
-                        <p className={`text-xs leading-relaxed ${isSelf ? 'pl-7' : 'pl-5.5'} text-stone-600`}>
-                          {act.notes || act.note}
-                        </p>
-                      )}
-                      {!isSelf && act.proofPhoto && (
-                        <div className="mt-2 pl-5.5">
-                          <div className="overflow-hidden rounded-xl border border-sky-200 bg-stone-900/5 group">
+
+                        <p className="font-bold text-stone-900 text-xs">{entry.title}</p>
+                        <p className="text-xs text-stone-600 leading-relaxed whitespace-pre-line">{entry.note}</p>
+
+                        {/* Ảnh hiện trường thực tế */}
+                        {(entry.image || entry.imageUrl || entry.photo) && (
+                          <div className="mt-2 overflow-hidden rounded-xl border border-stone-200 bg-stone-900/5 group">
                             <img
-                              src={act.proofPhoto}
-                              alt={act.title || 'Minh chứng'}
+                              src={entry.image || entry.imageUrl || entry.photo}
+                              alt={entry.title || 'Ảnh hiện trường'}
                               className="h-44 w-full object-cover transition duration-300 group-hover:scale-102 cursor-pointer"
-                              onClick={() => window.open(act.proofPhoto, '_blank')}
+                              onClick={() => window.open(entry.image || entry.imageUrl || entry.photo, '_blank')}
                               loading="lazy"
                             />
-                            <div className="p-2 bg-white text-[11px] text-stone-600 flex items-center justify-between border-t border-sky-100">
-                              <span className="text-sky-800 font-medium">📸 Minh chứng ca trực thực địa</span>
+                            <div className="p-2 bg-white text-[11px] text-stone-600 flex items-center justify-between border-t border-stone-100">
+                              <span className="text-emerald-700 font-medium">📸 Ảnh chụp hiện trường thực tế</span>
                               <span
-                                className="text-sky-800 font-bold hover:underline cursor-pointer"
-                                onClick={() => window.open(act.proofPhoto, '_blank')}
+                                className="text-emerald-700 font-bold hover:underline cursor-pointer"
+                                onClick={() => window.open(entry.image || entry.imageUrl || entry.photo, '_blank')}
                               >
                                 Mở ảnh to ↗
                               </span>
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="py-10 text-center space-y-3">
@@ -1754,7 +1856,9 @@ function OverviewTab({
   onOpenRenewal,
   activeSeason,
   isSelf = false,
-  onToggleTask
+  onToggleTask,
+  onStartSeason,
+  onResetSeason
 }) {
   const daysLeft = cropProcess.daysLeft;
   const recentActivities = staffActivities.slice(0, 3);
@@ -1855,6 +1959,8 @@ function OverviewTab({
                 onToggleTask={onToggleTask}
                 onSelectStage={onOpenStageDetail}
                 onAddDiary={onAddDiary}
+                onStartSeason={onStartSeason}
+                onResetSeason={onResetSeason}
               />
             </div>
           </Card>
@@ -2356,15 +2462,52 @@ export default function CustomerPlotWorkspace({
   const [customSeasons, setCustomSeasons] = useState(null);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
 
+  // Trạng thái kích hoạt mùa vụ: Trước khi bấm nút bắt đầu mùa vụ thì giữ trạng thái Sắp tới
+  const [isSeasonStarted, setIsSeasonStarted] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`farmely_season_started_${plot.id}`);
+      if (saved !== null) return saved === 'true';
+    } catch { }
+    const isFuture = plot.startDate && new Date(plot.startDate).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
+    return Number(plot.currentDay) > 0 && !isFuture;
+  });
+
+  const handleStartSeason = useCallback(async () => {
+    setIsSeasonStarted(true);
+    try {
+      localStorage.setItem(`farmely_season_started_${plot.id}`, 'true');
+    } catch { }
+
+    const rentalId = plot.rentalId || plot.rental_id;
+    if (rentalId) {
+      try {
+        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'START_NOW' })
+        });
+      } catch (e) {
+        console.warn('Lỗi gọi API start season:', e);
+      }
+    }
+  }, [plot.id, plot.rentalId, plot.rental_id]);
+
+  const handleResetSeason = useCallback(() => {
+    setIsSeasonStarted(false);
+    try {
+      localStorage.removeItem(`farmely_season_started_${plot.id}`);
+    } catch { }
+  }, [plot.id]);
+
   const plotSeasons = useMemo(() => {
     if (customSeasons && customSeasons.length > 0) return customSeasons;
     return resolvePlotSeasons(plot, plots);
   }, [plot, customSeasons, plots]);
 
-  const [activeSeasonId, setActiveSeasonId] = useState(() => {
+  const activeSeasonId = useMemo(() => {
     const current = plotSeasons.find((s) => s.isCurrent || s.status === 'ACTIVE');
     return current?.id || plotSeasons[0]?.id || 'SEASON-1';
-  });
+  }, [plotSeasons]);
 
   const activeSeason = useMemo(() => {
     return plotSeasons.find((s) => s.id === activeSeasonId) || plotSeasons[0];
@@ -2373,69 +2516,130 @@ export default function CustomerPlotWorkspace({
   // 1. Phân tích và sinh quy trình canh tác chuẩn VietGAP tính theo ngày tuổi cho Vụ mùa đang chọn
   const cropProcess = useMemo(() => {
     if (!activeSeason) return resolveStandardCropProcess(plot, stages);
-    const isSeasonScheduled = activeSeason.status === 'SCHEDULED' || activeSeason.currentDay === 0;
+    const isFuture = plot.startDate && new Date(plot.startDate).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
+    const isSeasonScheduled = !isSeasonStarted && (activeSeason.status === 'SCHEDULED' || activeSeason.currentDay === 0 || isFuture);
     const plotForSeason = {
       ...plot,
       crop: activeSeason.cropName || plot.crop,
       totalDays: activeSeason.totalDays || plot.totalDays,
-      currentDay: activeSeason.currentDay !== undefined ? activeSeason.currentDay : (isSeasonScheduled ? 0 : plot.currentDay),
-      seasonStatus: activeSeason.status,
+      currentDay: isSeasonStarted ? Math.max(1, Number(plot.currentDay) || 1) : (isSeasonScheduled ? 0 : plot.currentDay),
+      seasonStatus: isSeasonStarted ? 'ACTIVE' : activeSeason.status,
       isScheduled: isSeasonScheduled
     };
     return resolveStandardCropProcess(plotForSeason, stages);
-  }, [plot, stages, activeSeason]);
+  }, [plot, stages, activeSeason, isSeasonStarted]);
 
   // Quản lý công việc hằng ngày cho khách hàng tự canh tác (Requirement #3)
   const defaultSelfTasks = useMemo(() => {
-    if (!cropProcess?.stages?.length) return [];
     const tasks = [];
-    cropProcess.stages.forEach((st, idx) => {
-      tasks.push({
-        id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-1`,
-        activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-1`,
-        title: st.name ? `${st.name}: ${st.guide?.split('.')[0] || 'Chăm sóc sinh trưởng'}` : 'Chăm sóc theo quy trình VietGAP',
-        day: st.dayStart,
-        cropDay: st.dayStart,
-        date: st.label || `Ngày ${st.dayStart}`,
-        timestamp: `Ngày ${st.dayStart} • Ca sáng (07:00 - 08:30)`,
-        status: !cropProcess.isNotStarted && st.dayStart <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-        notes: st.guide || 'Tuân thủ định mức và kỹ thuật chuẩn VietGAP.',
-        stepOrder: st.stepOrder || idx + 1,
-        waterRegime: st.waterRegime,
-        nutrition: st.nutrition,
+    
+    // Luôn có 4 nhiệm vụ chuẩn rõ ràng, thực tiễn cho Ngày 1 (Bắt đầu mùa vụ)
+    tasks.push(
+      {
+        id: `SELF-${plot.id}-D1-SOIL`,
+        activityId: `SELF-${plot.id}-D1-SOIL`,
+        title: 'Làm đất tơi xốp, bón lót phân trùn quế & phun Trichoderma',
+        day: 1,
+        cropDay: 1,
+        date: 'Ngày 1',
+        timestamp: 'Ngày 1 • Ca sáng (07:00 - 08:30)',
+        status: !cropProcess.isNotStarted && 1 <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+        notes: 'Xới xáo đất tơi xốp sâu 20cm, bón lót phân trùn quế và phun nấm đối kháng Trichoderma cân bằng hệ vi sinh đất.',
+        stepOrder: 1,
         isCustom: false
+      },
+      {
+        id: `SELF-${plot.id}-D1-WATER`,
+        activityId: `SELF-${plot.id}-D1-WATER`,
+        title: 'Tưới phun sương cân bằng độ ẩm luống đất (65% - 70%)',
+        day: 1,
+        cropDay: 1,
+        date: 'Ngày 1',
+        timestamp: 'Ngày 1 • Ca sáng (08:30 - 09:30)',
+        status: !cropProcess.isNotStarted && 1 <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+        notes: 'Duy trì ẩm độ luống đất ổn định trước khi xuống cây giống non.',
+        stepOrder: 1,
+        isCustom: false
+      },
+      {
+        id: `SELF-${plot.id}-D1-PLANT`,
+        activityId: `SELF-${plot.id}-D1-PLANT`,
+        title: 'Kiểm tra tỷ lệ nảy mầm và xuống giống theo mật độ VietGAP',
+        day: 1,
+        cropDay: 1,
+        date: 'Ngày 1',
+        timestamp: 'Ngày 1 • Ca chiều (15:30 - 17:00)',
+        status: !cropProcess.isNotStarted && 1 <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+        notes: 'Khoảng cách cây cách cây 25 - 30cm, trồng so le giúp tán lá hứng trọn ánh sáng mặt trời.',
+        stepOrder: 1,
+        isCustom: false
+      },
+      {
+        id: `SELF-${plot.id}-D1-COVER`,
+        activityId: `SELF-${plot.id}-D1-COVER`,
+        title: 'Phủ màng mùn sinh học / rơm mục giữ ẩm và che lưới nhẹ',
+        day: 1,
+        cropDay: 1,
+        date: 'Ngày 1',
+        timestamp: 'Ngày 1 • Ca chiều (17:00 - 17:45)',
+        status: !cropProcess.isNotStarted && 1 <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+        notes: 'Che lưới giảm nắng gắt 2 ngày đầu, ngăn ngừa bốc hơi nước tầng mặt luống.',
+        stepOrder: 1,
+        isCustom: false
+      }
+    );
+
+    if (cropProcess?.stages?.length) {
+      cropProcess.stages.forEach((st, idx) => {
+        if (st.dayStart > 1) {
+          tasks.push({
+            id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-1`,
+            activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-1`,
+            title: st.name ? `${st.name}: ${st.guide?.split('.')[0] || 'Chăm sóc sinh trưởng'}` : 'Chăm sóc theo quy trình VietGAP',
+            day: st.dayStart,
+            cropDay: st.dayStart,
+            date: st.label || `Ngày ${st.dayStart}`,
+            timestamp: `Ngày ${st.dayStart} • Ca sáng (07:00 - 08:30)`,
+            status: !cropProcess.isNotStarted && st.dayStart <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+            notes: st.guide || 'Tuân thủ định mức và kỹ thuật chuẩn VietGAP.',
+            stepOrder: st.stepOrder || idx + 1,
+            waterRegime: st.waterRegime,
+            nutrition: st.nutrition,
+            isCustom: false
+          });
+        }
+        if (st.waterRegime && st.dayStart > 1) {
+          tasks.push({
+            id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-2`,
+            activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-2`,
+            title: `Tưới nước: ${st.waterRegime.split('.')[0]}`,
+            day: Math.min(st.dayEnd, st.dayStart + 1),
+            cropDay: Math.min(st.dayEnd, st.dayStart + 1),
+            date: `Ngày ${Math.min(st.dayEnd, st.dayStart + 1)}`,
+            timestamp: `Ngày ${Math.min(st.dayEnd, st.dayStart + 1)} • Ca chiều (16:30)`,
+            status: !cropProcess.isNotStarted && Math.min(st.dayEnd, st.dayStart + 1) <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+            notes: st.waterRegime,
+            stepOrder: st.stepOrder || idx + 1,
+            isCustom: false
+          });
+        }
+        if (st.nutrition && st.dayStart > 1) {
+          tasks.push({
+            id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-3`,
+            activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-3`,
+            title: `Dinh dưỡng hữu cơ: ${st.nutrition.split('.')[0]}`,
+            day: Math.min(st.dayEnd, st.dayStart + 2),
+            cropDay: Math.min(st.dayEnd, st.dayStart + 2),
+            date: `Ngày ${Math.min(st.dayEnd, st.dayStart + 2)}`,
+            timestamp: `Ngày ${Math.min(st.dayEnd, st.dayStart + 2)} • Ca sáng (08:00)`,
+            status: !cropProcess.isNotStarted && Math.min(st.dayEnd, st.dayStart + 2) <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+            notes: st.nutrition,
+            stepOrder: st.stepOrder || idx + 1,
+            isCustom: false
+          });
+        }
       });
-      if (st.waterRegime) {
-        tasks.push({
-          id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-2`,
-          activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-2`,
-          title: `Tưới nước: ${st.waterRegime.split('.')[0]}`,
-          day: Math.min(st.dayEnd, st.dayStart + 1),
-          cropDay: Math.min(st.dayEnd, st.dayStart + 1),
-          date: `Ngày ${Math.min(st.dayEnd, st.dayStart + 1)}`,
-          timestamp: `Ngày ${Math.min(st.dayEnd, st.dayStart + 1)} • Ca chiều (16:30)`,
-          status: !cropProcess.isNotStarted && Math.min(st.dayEnd, st.dayStart + 1) <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-          notes: st.waterRegime,
-          stepOrder: st.stepOrder || idx + 1,
-          isCustom: false
-        });
-      }
-      if (st.nutrition) {
-        tasks.push({
-          id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-3`,
-          activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-3`,
-          title: `Dinh dưỡng hữu cơ: ${st.nutrition.split('.')[0]}`,
-          day: Math.min(st.dayEnd, st.dayStart + 2),
-          cropDay: Math.min(st.dayEnd, st.dayStart + 2),
-          date: `Ngày ${Math.min(st.dayEnd, st.dayStart + 2)}`,
-          timestamp: `Ngày ${Math.min(st.dayEnd, st.dayStart + 2)} • Ca sáng (08:00)`,
-          status: !cropProcess.isNotStarted && Math.min(st.dayEnd, st.dayStart + 2) <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-          notes: st.nutrition,
-          stepOrder: st.stepOrder || idx + 1,
-          isCustom: false
-        });
-      }
-    });
+    }
     return tasks;
   }, [cropProcess?.stages, plot.id, cropProcess.currentDay, cropProcess.isNotStarted]);
 
@@ -2444,14 +2648,14 @@ export default function CustomerPlotWorkspace({
       const stored = localStorage.getItem(`farmely_self_tasks_${plot.id}`);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(t => t.day === 1)) return parsed;
       }
     } catch { }
     return [];
   });
 
   useEffect(() => {
-    if (isSelf && selfTasks.length === 0 && defaultSelfTasks.length > 0) {
+    if (isSelf && (selfTasks.length === 0 || !selfTasks.some(t => t.day === 1)) && defaultSelfTasks.length > 0) {
       setSelfTasks(defaultSelfTasks);
       try {
         localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(defaultSelfTasks));
@@ -2461,13 +2665,18 @@ export default function CustomerPlotWorkspace({
 
   const handleToggleSelfTask = useCallback((taskId) => {
     setSelfTasks((prev) => {
-      const next = prev.map((t) => {
+      let found = false;
+      let next = prev.map((t) => {
         if (t.id === taskId || t.activityId === taskId) {
+          found = true;
           const newStatus = t.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
           return { ...t, status: newStatus };
         }
         return t;
       });
+      if (!found) {
+        next = [...prev, { id: taskId, activityId: taskId, status: 'COMPLETED' }];
+      }
       try {
         localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(next));
       } catch { }
@@ -2641,22 +2850,27 @@ export default function CustomerPlotWorkspace({
 
   // Ghi đè số liệu cảm biến thực tế từ Open-Meteo lên plot
   const activePlot = useMemo(() => {
-    if (!liveIotResult?.metrics) return plot;
-    const m = liveIotResult.metrics;
-    return {
+    const base = liveIotResult?.metrics ? {
       ...plot,
-      temp: m.temp || plot.temp,
-      soilMoisture: m.soilMoisture || plot.soilMoisture,
-      airHumidity: m.airHumidity || plot.airHumidity,
-      light: m.light || plot.light,
-      soilTemp: m.soilTemp,
-      precipitation: m.precipitation,
-      windSpeed: m.windSpeed,
-      pressure: m.pressure,
+      temp: liveIotResult.metrics.temp || plot.temp,
+      soilMoisture: liveIotResult.metrics.soilMoisture || plot.soilMoisture,
+      airHumidity: liveIotResult.metrics.airHumidity || plot.airHumidity,
+      light: liveIotResult.metrics.light || plot.light,
+      soilTemp: liveIotResult.metrics.soilTemp,
+      precipitation: liveIotResult.metrics.precipitation,
+      windSpeed: liveIotResult.metrics.windSpeed,
+      pressure: liveIotResult.metrics.pressure,
       lastUpdated: liveIotResult.lastUpdated || plot.lastUpdated,
       rawMetrics: liveIotResult.rawMetrics
-    };
-  }, [plot, liveIotResult]);
+    } : { ...plot };
+
+    if (isSeasonStarted) {
+      base.currentDay = Math.max(1, Number(plot.currentDay) || 1);
+      base.isScheduled = false;
+      base.seasonStatus = 'ACTIVE';
+    }
+    return base;
+  }, [plot, liveIotResult, isSeasonStarted]);
 
   // ponytail: chuỗi hourly chỉ dùng cho biểu đồ của tab Vi khí hậu (đã gộp vào Tổng quan).
   // upgrade path is lấy lại liveIotResult.hourly khi dựng trang tra cứu lịch sử khí tượng.
@@ -2897,6 +3111,8 @@ export default function CustomerPlotWorkspace({
             activeSeason={activeSeason}
             isSelf={isSelf}
             onToggleTask={handleToggleSelfTask}
+            onStartSeason={handleStartSeason}
+            onResetSeason={handleResetSeason}
           />
         )}
 

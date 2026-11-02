@@ -111,7 +111,22 @@ export const safeCrops = [
   }
 ];
 
-let dynamicCropsRegistry = [...safeCrops];
+const DYNAMIC_CROPS_CACHE_KEY = 'farmely_dynamic_crops_cache';
+
+function loadCachedDynamicCrops() {
+  try {
+    if (typeof window !== 'undefined') {
+      const cached = sessionStorage.getItem(DYNAMIC_CROPS_CACHE_KEY) || localStorage.getItem(DYNAMIC_CROPS_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    }
+  } catch (_) {}
+  return [...safeCrops];
+}
+
+let dynamicCropsRegistry = loadCachedDynamicCrops();
 
 export function mergeVarietiesIntoSafeCrops(varieties = []) {
   if (!Array.isArray(varieties) || varieties.length === 0) return [...dynamicCropsRegistry];
@@ -147,6 +162,13 @@ export function mergeVarietiesIntoSafeCrops(varieties = []) {
 
 export function registerDynamicCrops(varieties = []) {
   dynamicCropsRegistry = mergeVarietiesIntoSafeCrops(varieties);
+  try {
+    if (typeof window !== 'undefined') {
+      const json = JSON.stringify(dynamicCropsRegistry);
+      sessionStorage.setItem(DYNAMIC_CROPS_CACHE_KEY, json);
+      localStorage.setItem(DYNAMIC_CROPS_CACHE_KEY, json);
+    }
+  } catch (_) {}
   return [...dynamicCropsRegistry];
 }
 

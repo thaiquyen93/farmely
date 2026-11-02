@@ -294,9 +294,9 @@ export default function BookPlot() {
     const modeFromUrl = searchParams.get('mode');
     const termFromUrl = Number(searchParams.get('term'));
 
-    const cropId = raw.cropId || (isPrimary && cropFromUrl ? cropFromUrl : '');
-    const cultivationMode = raw.cultivationMode || (isPrimary && (modeFromUrl === 'SELF' || modeFromUrl === 'ASSISTED') ? modeFromUrl : 'SELF');
-    let termMonths = Number(raw.termMonths) || (isPrimary && ALLOWED_TERM_MONTHS.includes(termFromUrl) ? termFromUrl : 2);
+    const cropId = (isPrimary && cropFromUrl) ? cropFromUrl : (raw.cropId || '');
+    const cultivationMode = (isPrimary && (modeFromUrl === 'SELF' || modeFromUrl === 'ASSISTED')) ? modeFromUrl : (raw.cultivationMode || 'SELF');
+    let termMonths = (isPrimary && ALLOWED_TERM_MONTHS.includes(termFromUrl)) ? termFromUrl : (Number(raw.termMonths) || 2);
     if (!ALLOWED_TERM_MONTHS.includes(termMonths)) termMonths = 2;
 
     return { cropId, cultivationMode, termMonths };
@@ -324,9 +324,9 @@ export default function BookPlot() {
           const existing = next[code] || leaseConfigs[code] || {};
           const isPrimary = idx === 0 || code === primaryCode;
 
-          const cropId = existing.cropId || (isPrimary && urlCrop ? urlCrop : '');
-          const cultivationMode = existing.cultivationMode || (isPrimary && (urlMode === 'SELF' || urlMode === 'ASSISTED') ? urlMode : 'SELF');
-          let termMonths = Number(existing.termMonths) || (isPrimary && ALLOWED_TERM_MONTHS.includes(urlTerm) ? urlTerm : 2);
+          const cropId = (isPrimary && urlCrop) ? urlCrop : (existing.cropId || '');
+          const cultivationMode = (isPrimary && (urlMode === 'SELF' || urlMode === 'ASSISTED')) ? urlMode : (existing.cultivationMode || 'SELF');
+          let termMonths = (isPrimary && ALLOWED_TERM_MONTHS.includes(urlTerm)) ? urlTerm : (Number(existing.termMonths) || 2);
           if (!ALLOWED_TERM_MONTHS.includes(termMonths)) termMonths = 2;
 
           if (
@@ -776,9 +776,14 @@ export default function BookPlot() {
       const end = new Date(start);
       end.setDate(end.getDate() + days);
 
+      const parsedVarId = Number(crop?.varietyId)
+        || (cfg.cropId ? parseInt(String(cfg.cropId).replace(/\D/g, ''), 10) : null)
+        || 1;
+
       return {
         plotId: Number(plotDbId),
-        varietyId: Number(crop?.varietyId || 1),
+        plotCode: p.code || p.plotCode || p.id,
+        varietyId: Number(parsedVarId),
         // Dịch vụ chăm sóc trọn gói S15 = 1,800,000 đ/vụ (Assisted), hoặc null (Self)
         serviceId: cfg.cultivationMode === 'ASSISTED' ? 15 : null,
         cultivationMode: cfg.cultivationMode || 'SELF',
@@ -824,15 +829,18 @@ export default function BookPlot() {
       const crop = getPlotSelectedCrop(p);
       const cfg = getPlotConfig(p);
       const priceDetails = getPlotPriceDetails(p);
+      const parsedVarId = Number(crop?.varietyId)
+        || (cfg.cropId ? parseInt(String(cfg.cropId).replace(/\D/g, ''), 10) : null)
+        || 1;
       return {
         id: p.id,
         code: p.code || p.id,
         name: p.name || `Thửa ${p.code || p.id}`,
         price: p.rentalPrice || 1200000,
-        cropId: crop?.id || null,
-        varietyId: crop?.varietyId || null,
-        cropName: crop?.name || null,
-        varietyName: crop?.variety || null,
+        cropId: crop?.id || cfg.cropId || null,
+        varietyId: parsedVarId,
+        cropName: crop?.name || crop?.variety || 'Cây trồng VietGAP',
+        varietyName: crop?.variety || crop?.name || 'Giống VietGAP',
         cultivationMode: cfg.cultivationMode || 'SELF',
         termMonths: cfg.termMonths || 3,
         priceDetails
