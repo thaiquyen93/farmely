@@ -6,7 +6,7 @@ import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2, Clock, EyeOff, Building2, FastForward, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2, Clock, EyeOff, Building2, FastForward, X, SlidersHorizontal } from 'lucide-react';
 
 export default function Plots() {
   const [plots, setPlots] = useState([]);
@@ -22,6 +22,24 @@ export default function Plots() {
   const [simulatingLoading, setSimulatingLoading] = useState(false);
   const [simFeedback, setSimFeedback] = useState('');
   const [customDayInput, setCustomDayInput] = useState(1);
+
+  // Phím tắt bí mật Alt + T để mở nhanh bộ mô phỏng chu kỳ vụ mùa khi demo
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.altKey && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault();
+        const activePlots = plots.filter((p) => p.activeRental);
+        if (activePlots.length > 0) {
+          const target = simulatingPlot || activePlots[0];
+          setSimulatingPlot(target);
+          setSimFeedback('');
+          setCustomDayInput(target.activeRental?.currentDay || 1);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [plots, simulatingPlot]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -257,19 +275,36 @@ export default function Plots() {
       }
     },
     {
-      header: 'Tiến Trình Canh Tác (Demo)',
+      header: 'Tiến Trình Canh Tác',
       key: 'cultivation',
       render: (row) => row.activeRental ? (
-        <div className="space-y-1 min-w-[145px]">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            setSimulatingPlot(row);
+            setSimFeedback('');
+            setCustomDayInput(row.activeRental?.currentDay || 1);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              setSimulatingPlot(row);
+              setSimFeedback('');
+              setCustomDayInput(row.activeRental?.currentDay || 1);
+            }
+          }}
+          className="group space-y-1.5 min-w-[155px] p-2 -m-1 rounded-xl hover:bg-stone-50 cursor-pointer transition select-none"
+          title="Nhấp để xem và tinh chỉnh tiến độ chu kỳ vụ mùa (Alt + T)"
+        >
           <div className="flex items-center justify-between gap-1 text-[11px]">
-            <span className="font-semibold text-stone-700 truncate max-w-[90px]" title={row.activeRental.varietyName}>
+            <span className="font-semibold text-stone-800 truncate max-w-[105px]" title={row.activeRental.varietyName}>
               🌱 {row.activeRental.varietyName}
             </span>
-            <span className="font-bold text-amber-700">
+            <span className="font-bold text-amber-700 group-hover:text-amber-800 transition">
               {row.activeRental.currentDay}/{row.activeRental.totalDays} ngày
             </span>
           </div>
-          <div className="w-full bg-stone-100 rounded-full h-1.5 overflow-hidden">
+          <div className="w-full bg-stone-100 rounded-full h-2 overflow-hidden ring-1 ring-stone-200/50">
             <div
               className={`h-full rounded-full transition-all duration-300 ${
                 row.activeRental.progressPercent >= 100 ? 'bg-emerald-500' : 'bg-amber-500'
@@ -277,19 +312,6 @@ export default function Plots() {
               style={{ width: `${Math.min(100, Math.max(5, row.activeRental.progressPercent))}%` }}
             />
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setSimulatingPlot(row);
-              setSimFeedback('');
-              setCustomDayInput(row.activeRental?.currentDay || 1);
-            }}
-            className="w-full inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition shadow-xs cursor-pointer"
-            title="Mở bộ giả lập thời gian canh tác (Time Simulator)"
-          >
-            <FastForward className="w-3 h-3 text-amber-700" />
-            Tua thời gian
-          </button>
         </div>
       ) : (
         <span className="text-xs text-stone-400 italic">Đất trống</span>
@@ -299,7 +321,7 @@ export default function Plots() {
       header: 'Hành Động',
       key: 'actions',
       render: (row) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Nút bấm chuyển trạng thái Active / Unactive */}
           <button
             type="button"
@@ -325,6 +347,22 @@ export default function Plots() {
             )}
             <span>{row.isPublished ? 'Chuyển Unactive' : 'Chuyển Active'}</span>
           </button>
+
+          {/* Nút icon nhỏ kín đáo: Mô phỏng chu kỳ vụ mùa */}
+          {row.activeRental && (
+            <button
+              type="button"
+              onClick={() => {
+                setSimulatingPlot(row);
+                setSimFeedback('');
+                setCustomDayInput(row.activeRental?.currentDay || 1);
+              }}
+              className="p-1.5 text-stone-400 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+              title="Mô phỏng chu kỳ vụ mùa"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </button>
+          )}
 
           <Link
             to={`/admin/master-data/plots/create?editId=${row.id}`}
@@ -389,6 +427,24 @@ export default function Plots() {
           Bỏ lọc
         </button>
       )}
+      {plots.some((p) => p.activeRental) && (
+        <button
+          type="button"
+          onClick={() => {
+            const firstActive = plots.find((p) => p.activeRental);
+            if (firstActive) {
+              setSimulatingPlot(firstActive);
+              setSimFeedback('');
+              setCustomDayInput(firstActive.activeRental?.currentDay || 1);
+            }
+          }}
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border border-brand-border/80 bg-white hover:bg-stone-50 text-stone-700 transition shadow-2xs cursor-pointer shrink-0"
+          title="Mở bảng điều phối & mô phỏng chu kỳ vụ mùa (Alt + T)"
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5 text-stone-500" />
+          <span className="hidden sm:inline">Mô phỏng chu kỳ</span>
+        </button>
+      )}
     </div>
   );
 
@@ -447,22 +503,22 @@ export default function Plots() {
         message="Hành động này sẽ gỡ bỏ thửa đất khỏi hệ thống. Chỉ cho phép nếu thửa đất chưa có hợp đồng Active."
       />
 
-      {/* MODAL GIẢ LẬP TIẾN ĐỘ THỜI GIAN CANH TÁC (TIME SIMULATOR FOR DEMO) */}
+      {/* MODAL MÔ PHỎNG CHU KỲ CANH TÁC (SANDBOX SIMULATION) */}
       {simulatingPlot && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-stone-200 space-y-4">
             <div className="flex items-start justify-between border-b border-stone-200 pb-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
-                  <FastForward className="h-5 w-5" />
+                  <SlidersHorizontal className="h-5 w-5" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-bold text-stone-900">
-                      Bộ Giả Lập Thời Gian Canh Tác
+                      Mô Phỏng Chu Kỳ Canh Tác
                     </h3>
-                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-extrabold text-amber-800">
-                      DEMO MODE
+                    <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] font-extrabold text-stone-700 border border-stone-200">
+                      SANDBOX SIMULATION
                     </span>
                   </div>
                   <p className="text-xs text-stone-500 mt-0.5">
@@ -478,6 +534,31 @@ export default function Plots() {
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {/* Chuyển nhanh giữa các thửa đất đang canh tác nếu có nhiều thửa */}
+            {plots.filter((p) => p.activeRental).length > 1 && (
+              <div className="flex items-center gap-2 rounded-xl bg-stone-50 p-2 border border-stone-200 text-xs">
+                <span className="font-bold text-stone-600 shrink-0">Chọn thửa:</span>
+                <select
+                  value={simulatingPlot.id}
+                  onChange={(e) => {
+                    const next = plots.find((p) => String(p.id) === String(e.target.value));
+                    if (next) {
+                      setSimulatingPlot(next);
+                      setSimFeedback('');
+                      setCustomDayInput(next.activeRental?.currentDay || 1);
+                    }
+                  }}
+                  className="flex-1 py-1 px-2 rounded-lg border border-stone-300 bg-white text-stone-800 font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  {plots.filter((p) => p.activeRental).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {p.activeRental?.varietyName} (Ngày {p.activeRental?.currentDay}/{p.activeRental?.totalDays})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Thông tin tiến độ hiện tại */}
             <div className="rounded-xl bg-stone-50 p-4 border border-stone-200 text-xs space-y-2">
