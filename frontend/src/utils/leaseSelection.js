@@ -81,14 +81,26 @@ export const removeCartCodes = (codes) => {
 
 export const LEASE_CONFIG_STORAGE_KEY = 'farmely_lease_config_by_plot';
 export const CULTIVATION_MODES = { SELF: 'SELF', ASSISTED: 'ASSISTED' };
-export const ALLOWED_TERM_MONTHS = [1, 3, 6, 12];
-export const DEFAULT_TERM_MONTHS = 3;
+export const ALLOWED_TERM_MONTHS = [1, 2, 3, 6, 12];
+export const DEFAULT_TERM_MONTHS = 2;
 export const BR04_LONG_CYCLE_DAYS = 35;
 export const CARE_FEE_RATE = 0.5;
 
+// ponytail: matches exact SSoT packages [1, 2, 3, 6, 12] based on growth cycle + buffer
+export const calculateSuggestedMonths = (growthDays) => {
+  const days = Number(growthDays) || 0;
+  if (days <= 0) return 1;
+  if (days <= 25) return 1;
+  if (days <= 50) return 2;
+  if (days <= 90) return 3;
+  if (days <= 180) return 6;
+  return 12;
+};
+
 export const LEASE_TERM_OPTIONS = [
   { months: 1, title: '1 Tháng', cycleName: 'Ngắn hạn thử nghiệm', short: 'Thử nghiệm', tag: 'Chỉ rau ngắn ngày' },
-  { months: 3, title: '3 Tháng', cycleName: '1 Vụ Mùa Tiêu Chuẩn', short: '1 vụ', tag: 'Khuyên Dùng', recommended: true },
+  { months: 2, title: '2 Tháng', cycleName: '1 Vụ Cây Trung Ngày (35–50 ngày)', short: '1 vụ (2 tháng)', tag: 'Khuyên Dùng 1 Vụ', recommended: true },
+  { months: 3, title: '3 Tháng', cycleName: '1 Vụ Mùa Tiêu Chuẩn', short: '1 vụ', tag: 'Tiêu Chuẩn' },
   { months: 6, title: '6 Tháng', cycleName: '2 Vụ Mùa Luân Canh', short: '2 vụ', tag: 'Kỳ Hạn Dài' },
   { months: 12, title: '12 Tháng', cycleName: 'Trọn Năm (4 Vụ)', short: '4 vụ', tag: 'Kỳ Hạn Dài' }
 ];
@@ -105,26 +117,29 @@ export const getCropGrowthDays = (cropOrDays) => {
   return Number(cropOrDays.minDays) || 0;
 };
 
-// BR04: chu kỳ > 35 ngày -> tối thiểu 3 tháng; Assisted cũng tối thiểu 3 tháng.
-export const getMinTermMonths = ({ growthDays = 0, cultivationMode = null } = {}) =>
-  Number(growthDays) > BR04_LONG_CYCLE_DAYS || cultivationMode === CULTIVATION_MODES.ASSISTED ? 3 : 1;
+// BR04: Thời hạn tối thiểu = ceil((ngày sinh trưởng + 10 đệm) / 30)
+export const getMinTermMonths = ({ growthDays = 0, cultivationMode = null } = {}) => {
+  const days = Number(growthDays) || 0;
+  if (days > 0) {
+    return calculateSuggestedMonths(days);
+  }
+  return cultivationMode === CULTIVATION_MODES.ASSISTED ? 2 : 1;
+};
 
 export const getTermLockReason = (months, { growthDays = 0, cultivationMode = null } = {}) => {
-  if (Number(months) >= 3) return '';
-  if (Number(growthDays) > BR04_LONG_CYCLE_DAYS) return 'BR04';
-  if (cultivationMode === CULTIVATION_MODES.ASSISTED) return 'ASSISTED';
+  const min = getMinTermMonths({ growthDays, cultivationMode });
+  if (Number(months) < min) return 'BR04';
   return '';
 };
 
 export const getLeaseTermError = ({ termMonths, cultivationMode, growthDays = 0, varietyName } = {}) => {
   const months = Number(termMonths);
-  if (!ALLOWED_TERM_MONTHS.includes(months)) return 'Thời hạn thuê không hợp lệ (chỉ 1, 3, 6 hoặc 12 tháng).';
+  if (!ALLOWED_TERM_MONTHS.includes(months)) return 'Thời hạn thuê không hợp lệ (chỉ 1, 2, 3, 6 hoặc 12 tháng).';
   if (!isValidMode(cultivationMode)) return 'Vui lòng chọn hình thức canh tác (Self-Growing hoặc Assisted-Growing).';
-  const reason = getTermLockReason(months, { growthDays, cultivationMode });
-  if (reason === 'BR04') {
-    return `Giống ${varietyName || 'đã chọn'} có chu kỳ sinh trưởng ${growthDays} ngày (trên 35 ngày), thời hạn thuê tối thiểu 3 tháng.`;
+  const min = getMinTermMonths({ growthDays, cultivationMode });
+  if (months < min) {
+    return `Giống ${varietyName || 'đã chọn'} có chu kỳ sinh trưởng ${growthDays} ngày (+ 10 ngày đệm), thời hạn thuê tối thiểu ${min} tháng.`;
   }
-  if (reason === 'ASSISTED') return 'Gói Assisted-Growing yêu cầu thời hạn thuê tối thiểu 3 tháng (1 vụ mùa).';
   return '';
 };
 

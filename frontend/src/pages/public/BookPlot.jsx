@@ -39,7 +39,10 @@ import {
   saveLeaseConfigMap,
   normalizePlotCode,
   CULTIVATION_MODES,
-  DEFAULT_TERM_MONTHS
+  DEFAULT_TERM_MONTHS,
+  calculateSuggestedMonths,
+  ALLOWED_TERM_MONTHS,
+  getMinTermMonths
 } from '../../utils/leaseSelection';
 
 // Danh mục tương thích sinh học chuẩn hóa từ PostgreSQL table plot_variety_compatibility (BR03)
@@ -282,7 +285,7 @@ export default function BookPlot() {
 
   // Lấy cấu hình của một thửa đất (ưu tiên cấu hình riêng của thửa từ SSoT leaseConfigMap)
   const getPlotConfig = useCallback((plot) => {
-    if (!plot) return { cropId: '', cultivationMode: 'SELF', termMonths: 3 };
+    if (!plot) return { cropId: '', cultivationMode: 'SELF', termMonths: 2 };
     const pCode = normalizePlotCode(plot.code || plot.plotCode || plot.plot_code || plot.id);
     const raw = plotConfigs[pCode] || plotConfigs[plot.id] || (plot.code ? plotConfigs[plot.code] : null) || {};
 
@@ -293,8 +296,8 @@ export default function BookPlot() {
 
     const cropId = raw.cropId || (isPrimary && cropFromUrl ? cropFromUrl : '');
     const cultivationMode = raw.cultivationMode || (isPrimary && (modeFromUrl === 'SELF' || modeFromUrl === 'ASSISTED') ? modeFromUrl : 'SELF');
-    let termMonths = Number(raw.termMonths) || (isPrimary && [1, 3, 6, 12].includes(termFromUrl) ? termFromUrl : 3);
-    if (![1, 3, 6, 12].includes(termMonths)) termMonths = 3;
+    let termMonths = Number(raw.termMonths) || (isPrimary && ALLOWED_TERM_MONTHS.includes(termFromUrl) ? termFromUrl : 2);
+    if (!ALLOWED_TERM_MONTHS.includes(termMonths)) termMonths = 2;
 
     return { cropId, cultivationMode, termMonths };
   }, [plotConfigs, selectedPlots, searchParams]);
@@ -323,8 +326,8 @@ export default function BookPlot() {
 
           const cropId = existing.cropId || (isPrimary && urlCrop ? urlCrop : '');
           const cultivationMode = existing.cultivationMode || (isPrimary && (urlMode === 'SELF' || urlMode === 'ASSISTED') ? urlMode : 'SELF');
-          let termMonths = Number(existing.termMonths) || (isPrimary && [1, 3, 6, 12].includes(urlTerm) ? urlTerm : 3);
-          if (![1, 3, 6, 12].includes(termMonths)) termMonths = 3;
+          let termMonths = Number(existing.termMonths) || (isPrimary && ALLOWED_TERM_MONTHS.includes(urlTerm) ? urlTerm : 2);
+          if (!ALLOWED_TERM_MONTHS.includes(termMonths)) termMonths = 2;
 
           if (
             !next[code] ||
@@ -371,13 +374,12 @@ export default function BookPlot() {
     );
   }, [getPlotConfig, allAvailableCrops]);
 
-  // Thời hạn thuê tối thiểu cho riêng thửa này (BR04: > 35 ngày hoặc Assisted -> tối thiểu 3 tháng)
+  // Thời hạn thuê tối thiểu cho riêng thửa này (BR04: tính theo chu kỳ cây + 10 ngày đệm chuẩn VietGAP)
   const getPlotMinTerm = useCallback((plot) => {
     const crop = getPlotSelectedCrop(plot);
     const cfg = getPlotConfig(plot);
-    if (cfg.cultivationMode === 'ASSISTED') return 3;
-    if (crop?.minDays && crop.minDays > 30) return 3;
-    return 1;
+    const growthDays = crop ? (Number(crop.expectedDuration || crop.growthDuration || crop.minDays) || 45) : 0;
+    return getMinTermMonths({ growthDays, cultivationMode: cfg.cultivationMode });
   }, [getPlotSelectedCrop, getPlotConfig]);
 
   // Danh sách tất cả các giống cây trồng có sẵn
@@ -394,13 +396,14 @@ export default function BookPlot() {
       const current = prev[pCode] || prev[plot.id] || {};
       const updated = { ...current, ...patch };
 
-      // BR04: Check if termMonths needs to be bumped
-      const crop = updated.cropId ? getSafeCropById(updated.cropId) : null;
-      const minMonths = (updated.cultivationMode === 'ASSISTED' || (crop?.minDays && crop.minDays > 30)) ? 3 : 1;
+      // BR04: Check if termMonths needs to be bumped based on crop growth cycle + 10-day buffer
+      const crop = updated.cropId ? (allAvailableCrops?.find((c) => String(c.id) === String(updated.cropId) || String(c.varietyId) === String(updated.cropId)) || getSafeCropById(updated.cropId)) : null;
+      const growthDays = crop ? (Number(crop.expectedDuration || crop.growthDuration || crop.minDays) || 45) : 0;
+      const minMonths = crop ? calculateSuggestedMonths(growthDays) : (updated.cultivationMode === 'ASSISTED' ? 2 : 1);
       if (updated.termMonths && updated.termMonths < minMonths) {
         updated.termMonths = minMonths;
       } else if (!updated.termMonths) {
-        updated.termMonths = minMonths >= 3 ? 3 : 1;
+        updated.termMonths = minMonths;
       }
 
       const next = {
@@ -419,7 +422,10 @@ export default function BookPlot() {
 
   const handleSelectCropForPlot = (plotId, plotCode, cropId) => {
     const plot = selectedPlots.find((p) => p.id === plotId || p.code === plotCode) || { id: plotId, code: plotCode };
-    handleUpdatePlotConfig(plot, { cropId });
+    const crop = cropId ? (allAvailableCrops?.find((c) => String(c.id) === String(cropId) || String(c.varietyId) === String(cropId)) || getSafeCropById(cropId)) : null;
+    const growthDays = crop ? (Number(crop.expectedDuration || crop.growthDuration || crop.minDays) || 45) : 45;
+    const suggestedMonths = calculateSuggestedMonths(growthDays);
+    handleUpdatePlotConfig(plot, { cropId, termMonths: suggestedMonths });
   };
 
   // Thao tác áp dụng hàng loạt (Batch apply) nếu khách hàng muốn đồng bộ
@@ -1247,6 +1253,13 @@ export default function BookPlot() {
                       <span className="text-stone-300">|</span>
                       <button
                         type="button"
+                        onClick={() => handleBatchApplyTerm(2)}
+                        className="px-2.5 py-1 rounded-lg border border-stone-300 bg-white hover:bg-stone-100 text-[11px] font-semibold text-stone-700 cursor-pointer transition-colors"
+                      >
+                        Tất cả 2 tháng
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleBatchApplyTerm(3)}
                         className="px-2.5 py-1 rounded-lg border border-stone-300 bg-white hover:bg-stone-100 text-[11px] font-semibold text-stone-700 cursor-pointer transition-colors"
                       >
@@ -1462,22 +1475,24 @@ export default function BookPlot() {
                             )}
                           </div>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                             {[
                               { months: 1, label: '1 Tháng', tag: 'Thử nghiệm' },
-                              { months: 3, label: '3 Tháng', tag: '1 Vụ mùa' },
+                              { months: 2, label: '2 Tháng', tag: '1 Vụ mùa' },
+                              { months: 3, label: '3 Tháng', tag: '1 Vụ dài ngày' },
                               { months: 6, label: '6 Tháng', tag: '2 Vụ mùa' },
                               { months: 12, label: '12 Tháng', tag: '1 Năm' }
                             ].map((opt) => {
                               const isDisabled = opt.months < pMinMonths;
                               const isSelected = pCfg.termMonths === opt.months;
+                              const isRecommended = opt.months === pMinMonths;
                               return (
                                 <button
                                   key={opt.months}
                                   type="button"
                                   disabled={isDisabled}
                                   onClick={() => handleUpdatePlotConfig(p, { termMonths: opt.months })}
-                                  className={`py-2 px-2.5 rounded-xl border text-center transition-all ${
+                                  className={`relative py-2 px-2 rounded-xl border text-center transition-all ${
                                     isDisabled
                                       ? 'opacity-40 bg-stone-100 border-stone-200 cursor-not-allowed select-none'
                                       : isSelected
@@ -1485,6 +1500,11 @@ export default function BookPlot() {
                                       : 'border-brand-border bg-white text-stone-700 hover:border-brand-green/60 cursor-pointer text-xs'
                                   }`}
                                 >
+                                  {isRecommended && !isDisabled && (
+                                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full bg-emerald-600 px-1.5 py-0.2 text-[8px] font-black text-white whitespace-nowrap shadow-xs">
+                                      Khuyên dùng 1 vụ
+                                    </span>
+                                  )}
                                   <div className="text-xs font-bold">{opt.label}</div>
                                   <div className="text-[9px] text-stone-400 mt-0.5">{isDisabled ? 'Chu kỳ dài' : opt.tag}</div>
                                 </button>
