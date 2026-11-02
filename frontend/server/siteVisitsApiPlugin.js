@@ -125,11 +125,38 @@ ALTER TABLE farm_diaries ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
 ALTER TABLE farm_diaries DROP CONSTRAINT IF EXISTS farm_diaries_task_id_fkey;
 ALTER TABLE farm_diaries ADD CONSTRAINT farm_diaries_task_id_fkey FOREIGN KEY (task_id) REFERENCES care_tasks(task_id) ON DELETE SET NULL;
 
--- Đồng bộ trạng thái: Thửa đất không có hợp đồng ACTIVE thì trở về AVAIL (trừ thửa đang nghỉ phơi ải MAINT)
-UPDATE plots SET status = 'AVAIL'
-WHERE status = 'RENT' AND plot_id NOT IN (
-  SELECT plot_id FROM rentals WHERE status = 'ACTIVE'
-);
+-- BR23: Hết hạn thuê -> rental chuyển DONE -> thửa đất nghỉ phơi ải MAINT 4 ngày -> mới mở lại AVAIL.
+-- Mốc đếm 4 ngày lấy từ rentals.end_date nên KHÔNG cần thêm cột mới vào ERD.
+
+-- 1. Đóng các lượt thuê đã quá hạn (trước đây rentals nằm ACTIVE vĩnh viễn nên BR23 không bao giờ chạy)
+UPDATE rentals SET status = 'DONE', updated_at = NOW()
+WHERE status = 'ACTIVE' AND end_date < CURRENT_DATE;
+
+-- 2. Thửa vừa kết thúc hợp đồng trong 4 ngày gần nhất -> chuyển nghỉ phơi ải, ngừng hiển thị cho thuê
+UPDATE plots p SET status = 'MAINT', is_published = false, updated_at = NOW()
+WHERE p.status = 'RENT'
+  AND NOT EXISTS (SELECT 1 FROM rentals r WHERE r.plot_id = p.plot_id AND r.status = 'ACTIVE')
+  AND EXISTS (
+    SELECT 1 FROM rentals r
+    WHERE r.plot_id = p.plot_id AND r.end_date >= CURRENT_DATE - INTERVAL '4 days'
+  );
+
+-- 3. Hết 4 ngày phơi ải -> mở lại cho thuê
+-- ponytail: giới hạn cửa sổ 4..30 ngày để không tự mở những thửa Admin chủ động đặt MAINT;
+-- upgrade path: thêm cột plots.maintenance_until khi cần tạm dừng cho thuê dài hạn có chủ đích.
+UPDATE plots p SET status = 'AVAIL', updated_at = NOW()
+WHERE p.status IN ('RENT', 'MAINT')
+  AND NOT EXISTS (SELECT 1 FROM rentals r WHERE r.plot_id = p.plot_id AND r.status = 'ACTIVE')
+  AND EXISTS (
+    SELECT 1 FROM rentals r
+    WHERE r.plot_id = p.plot_id
+      AND r.end_date BETWEEN CURRENT_DATE - INTERVAL '30 days' AND CURRENT_DATE - INTERVAL '4 days'
+  );
+
+-- 3b. Dọn dữ liệu rác: thửa mang trạng thái RENT nhưng chưa từng có lượt thuê nào
+UPDATE plots p SET status = 'AVAIL', updated_at = NOW()
+WHERE p.status = 'RENT'
+  AND NOT EXISTS (SELECT 1 FROM rentals r WHERE r.plot_id = p.plot_id);
 
 -- Dọn dẹp các tác vụ rác của các hợp đồng/thửa đã hủy
 DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE status = 'CANCELLED');
@@ -4910,6 +4937,10 @@ DO $$
 DECLARE
   v_contract_id INT;
   v_new_end DATE := NULLIF('${newEndDate}', '')::date;
+  v_variety_id INT;
+  v_mode VARCHAR(20);
+  v_staff_id INT;
+  v_season_start DATE;
 BEGIN
   SELECT contract_id INTO v_contract_id FROM rentals WHERE rental_id = ${rentalId};
   IF v_contract_id IS NOT NULL THEN
@@ -4920,6 +4951,43 @@ BEGIN
       total_price = COALESCE(total_price, 0) + ${additionalAmount},
       updated_at = NOW()${varClause}
     WHERE rental_id = ${rentalId};
+
+    -- BR11b: vụ mới phải có bộ nhiệm vụ VietGAP riêng, nếu không CVLĐ không có việc và nhật ký trống.
+    -- Mốc ngày xuống giống vụ mới = hôm nay + 4 ngày phơi ải (BR23).
+    SELECT variety_id, cultivation_mode, staff_id
+      INTO v_variety_id, v_mode, v_staff_id
+      FROM rentals WHERE rental_id = ${rentalId};
+
+    IF COALESCE(v_mode, 'ASSISTED') <> 'SELF' THEN
+      v_season_start := CURRENT_DATE + INTERVAL '4 days';
+
+      INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
+      SELECT
+        ${rentalId},
+        ts.step_id,
+        COALESCE(v_staff_id, fn_resolve_staff_for_plot((SELECT plot_id FROM rentals WHERE rental_id = ${rentalId}))),
+        (v_season_start + (ts.day_offset || ' days')::INTERVAL)::date,
+        'PENDING'::task_status_enum,
+        ts.step_name,
+        COALESCE(ts.description, 'Theo quy chuẩn VietGAP'),
+        ts.step_order,
+        NOW(),
+        NOW()
+      FROM template_steps ts
+      WHERE ts.template_id = (
+        SELECT pt.template_id FROM process_templates pt
+        WHERE pt.variety_id = v_variety_id
+        ORDER BY pt.template_id DESC LIMIT 1
+      )
+      -- Chống sinh trùng khi khách bấm gia hạn 2 lần: so khớp đúng mốc ngày tính được,
+      -- không chặn theo "có task tương lai" vì task vụ đang chạy cũng nằm ở tương lai.
+      AND NOT EXISTS (
+        SELECT 1 FROM care_tasks ct
+        WHERE ct.rental_id = ${rentalId}
+          AND ct.step_id = ts.step_id
+          AND ct.due_date = (v_season_start + (ts.day_offset || ' days')::INTERVAL)::date
+      );
+    END IF;
 
     UPDATE contracts
     SET

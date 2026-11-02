@@ -158,3 +158,26 @@ ightarrow$ cập nhật `cancellation` sang `APPROVED`, cập nhật `contracts`
 - **Cách sửa (nếu muốn align lại code theo docs):** Thêm lại tab `harvest` vào `PLOT_TABS`, dựng `HarvestTab` với nút chọn `PICKUP` / `DELIVERY`, gọi `POST /api/customer/harvest-results/confirm` (endpoint đã sẵn sàng, không cần viết thêm backend), rồi bật lại badge trạng thái nghiệm thu phía CVLĐ.
 - **Lập luận bảo vệ trước hội đồng:** BR21 về bản chất là **quyền của khách** (quyền quyết định sản lượng), không phải **nghĩa vụ xác nhận trong hệ thống**. Sản lượng đã thuộc về khách theo hợp đồng thuê (Lump-sum trả trước 100%), nên không cần một bước phê duyệt điện tử để chuyển giao quyền sở hữu. Hệ thống đảm bảo tính minh bạch bằng **bằng chứng một chiều từ CVLĐ** (ảnh cân điện tử tại hiện trường + `staff_id` người cân theo BR20) — đây mới là cơ chế chống gian lận thực sự. Mặc định "tự nhận tại vườn" đúng với `BR21 | Harvest Time and Location` trong SRS: *thu hoạch diễn ra tại nông trại*.
 - **Trạng thái:** ❌ Chưa align docs (code đã chốt theo yêu cầu user; cần sửa Report 3 khi nộp bản cập nhật)
+
+### [DRIFT-012] Khép Kín Vòng Đời Thu Hoạch — Đóng Task Trong CSDL (BR20), Sinh Nhiệm Vụ Vụ Mới Khi Gia Hạn (BR11b), Phơi Ải 4 Ngày Khi Hết Hạn Tự Nhiên (BR23)
+- **Ngày:** 2026-11-02
+- **File:** `frontend/server/siteVisitsApiPlugin.js` (khối đồng bộ BR23 dòng ~128, thanh lý hợp đồng dòng ~1491, `POST /api/harvest` dòng ~2534, `POST /api/rentals/:id/renew` dòng ~4910), `frontend/server/checks/harvestLifecycle.check.mjs` (mới)
+- **Docs nói:**
+  - `RP39 (NEW).md` **BR20** — CVLĐ nghiệm thu thực địa, mỗi bản ghi thu hoạch phải có `staff_id` người cân.
+  - `RP39 (NEW).md` **BR11b** — gia hạn vụ mùa mới trước 3 ngày kết thúc.
+  - `RP39 (NEW).md` **BR23** — *"Plot hết hợp đồng chuyển status Maintenance trong 4 ngày trước khi cho thuê lại."*
+  - Report 3 SRS (BR18–BR21): *"Once accepted and the lease term ends, the plot automatically enters status = 'MAINTENANCE' for a fixed 4-day soil turnaround before reopening as AVAILABLE."*
+- **Code làm (TRƯỚC khi sửa — 4 lỗ hổng thật):**
+  1. `POST /api/harvest` chỉ `INSERT harvest_results`, **không** `UPDATE care_tasks`. UI chỉ đổi React state → **F5 là nhiệm vụ thu hoạch hiện lại `PENDING`**, dữ liệu CSDL không bao giờ phản ánh việc đã làm.
+  2. `POST /api/rentals/:id/renew` chỉ nới `end_date` + `total_price`, **không sinh `care_tasks`** từ `template_steps` cho vụ mới → khách trả tiền vụ 2 nhưng CVLĐ không có việc, nhật ký trống.
+  3. BR23 chỉ chạy trong nhánh **thanh lý hợp đồng thủ công**. Hết hạn tự nhiên thì `rentals` **nằm `ACTIVE` vĩnh viễn** (không có cơ chế nào đóng theo `end_date`), nên điều kiện `plot NOT IN (SELECT plot_id FROM rentals WHERE status='ACTIVE')` **chưa bao giờ đúng** → 4 ngày phơi ải không bao giờ xảy ra.
+  4. Nhánh thanh lý set `care_tasks.status = 'CANCELLED'` — nhưng `task_status_enum` chỉ có `('PENDING','IN_PROG','DONE')`. **Đã kiểm chứng trên CSDL thật: PostgreSQL ném `invalid input value for enum task_status_enum: "CANCELLED"`** → toàn bộ block `DO $$` thanh lý hợp đồng rollback, Admin duyệt thanh lý thất bại.
+- **Code làm (SAU khi sửa):**
+  - `POST /api/harvest` dùng CTE `closed_tasks`: cùng transaction với `INSERT harvest_results`, set `care_tasks.status = 'DONE'` + lưu `evidence_image_url` cho task thu hoạch (khớp theo `title LIKE '%thu hoạch%'` hoặc `step_id` trỏ `template_steps.step_name LIKE '%thu hoạch%'`).
+  - `/renew` sinh đủ bộ `care_tasks` từ `template_steps` của giống (hỗ trợ cả đổi giống luân canh), mốc xuống giống vụ mới = `CURRENT_DATE + 4 ngày` (tôn trọng phơi ải BR23), có guard `NOT EXISTS` khớp **đúng `step_id` + đúng `due_date`** để bấm gia hạn 2 lần không sinh task trùng. Bỏ qua khi `cultivation_mode = 'SELF'`.
+  - Khối đồng bộ BR23 viết lại 4 bước: (1) `rentals ACTIVE` quá `end_date` → `DONE`; (2) thửa vừa kết thúc trong 4 ngày → `MAINT` + `is_published = false`; (3) qua 4 ngày (cửa sổ 4–30 ngày) → `AVAIL`; (3b) dọn thửa `RENT` mồ côi không có lượt thuê nào.
+  - Nhánh thanh lý đổi `UPDATE ... SET status='CANCELLED'` → `DELETE FROM care_tasks ... WHERE status <> 'DONE'` (hợp enum, giữ lịch sử việc đã làm).
+- **Lý do lệch:** Lỗi triển khai (các BR có trong docs nhưng code chưa khép vòng), không phải thay đổi phạm vi. **Không thêm/sửa bảng hay cột nào — ERD & DDL giữ nguyên 100%**; mốc đếm 4 ngày tái sử dụng `rentals.end_date` thay vì thêm cột mới.
+- **Cần cập nhật:** Không. Code nay **đúng theo docs**, đây là lần align chứ không phải lệch mới.
+- **Kiểm chứng:** `node server/checks/harvestLifecycle.check.mjs` (từ `frontend/`) — chạy trong transaction + `ROLLBACK` nên không làm bẩn dữ liệu demo. **Kết quả: 14 pass / 0 fail** trên PostgreSQL live, bao gồm: task thu hoạch chuyển `DONE` thật trong CSDL; gia hạn sinh đủ 9 nhiệm vụ vụ mới; gọi 2 lần không trùng; vụ mới bắt đầu đúng `+4 ngày`; thửa vừa hết hạn → `MAINT` và bị ẩn khỏi marketplace; thửa hết hạn >4 ngày → `AVAIL`; thửa còn hợp đồng giữ `RENT`; rental quá hạn → `DONE`.
+- **Trạng thái:** ✅ Đã align code với docs, kiểm chứng trên CSDL thật
