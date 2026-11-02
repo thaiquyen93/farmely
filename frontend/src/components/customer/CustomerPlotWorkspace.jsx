@@ -1,17 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea } from 'recharts';
-import { assessMetric, summarizePlot, explainAlert, describeSeries, computeHealthScore, METRIC_RULES } from '../../utils/iotInsights';
-import { useSensorStream } from '../../api/monitoring/useSensorStream';
-import { fetchLiveAgroIotData, resolveFarmLocation } from '../../services/weatherIotService';
-import { resolveStandardCropProcess, getPersistedStaffActivities, recordStaffActivity, resolvePlotSeasons } from '../../services/cropStandardProcess';
+import { summarizePlot, explainAlert, computeHealthScore } from '../../utils/iotInsights';
+import { fetchLiveAgroIotData } from '../../services/weatherIotService';
+import { resolveStandardCropProcess, getPersistedStaffActivities, resolvePlotSeasons } from '../../services/cropStandardProcess';
 import SeasonSelector from './SeasonSelector';
 import SoilPrepView from './SoilPrepView';
 import PlotRenewalModal from './PlotRenewalModal';
 import {
-  AlertTriangle, ArrowLeft, BookOpen, Calendar, CalendarCheck, CalendarRange, Check, ChevronDown, ChevronRight, ChevronLeft,
-  Clock, Clock3, Droplets, ExternalLink, Eye, Filter, Info, LayoutDashboard, Leaf,
-  MapPin, Maximize2, PenLine, Radio, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
-  Sun, Thermometer, Truck, UserRound, Wheat, Wind, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame, Scissors
+  AlertTriangle, ArrowLeft, BookOpen, Calendar, CalendarCheck, Check, ChevronDown, ChevronRight, ChevronLeft,
+  Clock, Clock3, Droplets, Eye, Info, LayoutDashboard, Leaf,
+  MapPin, Maximize2, PenLine, Radio, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
+  Sun, UserRound, Wheat, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame
 } from 'lucide-react';
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -25,18 +23,9 @@ import {
 export const PLOT_TABS = [
   { id: 'overview', label: 'Tổng quan', short: 'Tổng quan', icon: LayoutDashboard },
   { id: 'tasks', label: 'Hoạt động Staff', short: 'Staff', icon: CalendarCheck },
-  { id: 'iot', label: 'Thời tiết & Vi khí hậu', short: 'Vi khí hậu', icon: Radio },
   { id: 'diary', label: 'Nhật ký', short: 'Nhật ký', icon: BookOpen },
-  { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag },
-  { id: 'harvest', label: 'Thu hoạch', short: 'Thu hoạch', icon: Wheat }
+  { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag }
 ];
-
-const METRICS = [
-  { key: 'temp', series: 'temp', icon: Thermometer, color: '#f97316' },
-  { key: 'soilMoisture', series: 'moisture', icon: Droplets, color: '#0ea5e9' },
-  { key: 'airHumidity', series: 'airHumidity', icon: Wind, color: '#06b6d4' },
-  { key: 'light', series: 'light', icon: Sun, color: '#eab308' }
-].map((m) => ({ ...m, label: METRIC_RULES[m.key].label, unit: METRIC_RULES[m.key].unit }));
 
 const LEVEL_STYLE = {
   OK: { chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', marker: 'bg-emerald-600', hex: '#059669', dot: 'bg-lime-400' },
@@ -44,12 +33,6 @@ const LEVEL_STYLE = {
   HIGH: { chip: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200', marker: 'bg-rose-600', hex: '#e11d48', dot: 'bg-rose-400' },
   UNKNOWN: { chip: 'bg-stone-100 text-stone-600', marker: 'bg-stone-400', hex: '#a8a29e', dot: 'bg-stone-400' }
 };
-
-const TIMEFRAMES = [
-  { id: 'hourly', label: 'Hôm nay' },
-  { id: 'daily', label: '7 ngày' },
-  { id: 'weekly', label: '4 tuần' }
-];
 
 const CARD_SHADOW = 'shadow-[0_1px_2px_rgba(24,53,43,0.04),0_12px_32px_-16px_rgba(24,53,43,0.22)]';
 
@@ -61,46 +44,6 @@ function Card({ className = '', children, style, onClick }) {
       className={`rounded-3xl border border-white/80 bg-white ${CARD_SHADOW} ${className}`}
     >
       {children}
-    </div>
-  );
-}
-
-const polar = (cx, cy, r, deg) => {
-  const a = (deg * Math.PI) / 180;
-  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-};
-
-const arcPath = (cx, cy, r, start, end) => {
-  const [x1, y1] = polar(cx, cy, r, start);
-  const [x2, y2] = polar(cx, cy, r, end);
-  return `M ${x1} ${y1} A ${r} ${r} 0 ${end - start > 180 ? 1 : 0} 1 ${x2} ${y2}`;
-};
-
-function ArcGauge({ position, color, levelColor, children }) {
-  const START = 150;
-  const SWEEP = 240;
-  const at = (p) => START + SWEEP * p;
-  const valueEnd = position === null ? START : at(position);
-  const [mx, my] = polar(60, 60, 46, valueEnd);
-  return (
-    <div className="relative mx-auto h-[118px] w-[150px]" aria-hidden="true">
-      <svg viewBox="0 0 120 104" className="h-full w-full overflow-visible">
-        <defs>
-          <linearGradient id={`g-${color}`} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor={color} stopOpacity="0.55" />
-            <stop offset="100%" stopColor={color} />
-          </linearGradient>
-        </defs>
-        <path d={arcPath(60, 60, 46, START, START + SWEEP)} stroke="#eef1ec" strokeWidth="10" fill="none" strokeLinecap="round" />
-        <path d={arcPath(60, 60, 46, at(0.25), at(0.75))} stroke="#bbf7d0" strokeWidth="10" fill="none" />
-        {position !== null && (
-          <>
-            <path d={arcPath(60, 60, 46, START, Math.max(START + 0.1, valueEnd))} stroke={`url(#g-${color})`} strokeWidth="10" fill="none" strokeLinecap="round" className="transition-all duration-700" />
-            <circle cx={mx} cy={my} r="7.5" fill="#fff" stroke={levelColor} strokeWidth="3" />
-          </>
-        )}
-      </svg>
-      <div className="absolute inset-x-6 top-[44px] flex flex-col items-center text-center">{children}</div>
     </div>
   );
 }
@@ -1612,74 +1555,6 @@ function ActivityProofModal({ activity, onClose }) {
    3. IOT TAB VỚI LIVE 3RD-PARTY AGROMETEOROLOGY API (OPEN-METEO)
    ────────────────────────────────────────────────────────────────────────── */
 
-function ReadingCard({ metric, plot, onClick, active = false, showAction = true, delay = 0 }) {
-  const Icon = metric.icon;
-  const currentVal = plot[metric.key];
-  const reading = assessMetric(metric.key, currentVal, plot.mode);
-  const s = LEVEL_STYLE[reading.level];
-  const Tag = onClick ? 'button' : 'div';
-
-  const [pulsing, setPulsing] = useState(false);
-  const prevValRef = useRef(currentVal);
-
-  useEffect(() => {
-    if (prevValRef.current !== currentVal && prevValRef.current !== undefined) {
-      prevValRef.current = currentVal;
-      setPulsing(true);
-      const timer = setTimeout(() => setPulsing(false), 1000);
-      return () => clearTimeout(timer);
-    }
-    prevValRef.current = currentVal;
-  }, [currentVal]);
-
-  return (
-    <Tag
-      {...(onClick ? { type: 'button', onClick, 'aria-pressed': active } : {})}
-      aria-label={`${reading.label}: ${currentVal ?? 'chưa có'} — ${reading.chip}. ${reading.meaning}`}
-      style={{ animationDelay: `${delay}ms` }}
-      className={`group relative flex animate-fadeInUp flex-col overflow-hidden rounded-3xl border bg-white p-4 text-left transition duration-300 ${CARD_SHADOW} ${pulsing ? 'ring-2 ring-emerald-400 shadow-md scale-[1.01]' : active ? 'border-transparent ring-2' : 'border-white/80'
-        } ${onClick ? 'hover:-translate-y-1 hover:shadow-[0_20px_40px_-18px_rgba(24,53,43,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400' : ''}`}
-    >
-      <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-[0.12] blur-2xl transition-opacity group-hover:opacity-25" style={{ backgroundColor: metric.color }} />
-      {active && <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-3xl ring-2 ring-inset" style={{ '--tw-ring-color': metric.color }} />}
-
-      <div className="relative flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-sm font-semibold text-stone-700">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm" style={{ background: `linear-gradient(135deg, ${metric.color}cc, ${metric.color})` }}>
-            <Icon className="h-[18px] w-[18px]" />
-          </span>
-          {reading.label}
-        </span>
-        <div className="flex items-center gap-1.5">
-          {pulsing && (
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-          )}
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors duration-300 ${s.chip}`}>{reading.chip}</span>
-        </div>
-      </div>
-
-      <div className="relative mt-2">
-        <ArcGauge position={reading.position} color={metric.color} levelColor={s.hex}>
-          <span className={`whitespace-nowrap font-bold leading-none tracking-tight transition-all duration-300 ${pulsing ? 'text-emerald-600 scale-105' : 'text-[#18352b]'} ${String(currentVal ?? '').length > 7 ? 'text-base' : 'text-[22px]'}`}>
-            {currentVal ?? '—'}
-          </span>
-          <span className="mt-1.5 text-[10px] font-medium text-emerald-700">An toàn {reading.min}–{reading.max}</span>
-        </ArcGauge>
-      </div>
-
-      <p className="relative -mt-1 text-center text-sm leading-snug text-stone-600">{reading.meaning}</p>
-      {showAction && reading.action && (
-        <p className="relative mt-3 flex items-start gap-1.5 rounded-xl bg-[#f3f6f0] px-3 py-2 text-xs font-medium text-[#18352b]">
-          <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />{reading.action}
-        </p>
-      )}
-    </Tag>
-  );
-}
-
 function HealthHero({ plot, alerts = [], onMore, liveProviderInfo }) {
   const summary = summarizePlot(plot, alerts);
   const health = computeHealthScore(plot, alerts);
@@ -1720,184 +1595,6 @@ function HealthHero({ plot, alerts = [], onMore, liveProviderInfo }) {
   );
 }
 
-function IotTab({ plot, iotData, alerts, isConnected = false, onRefreshLive, isRefreshing = false, liveProviderInfo, cropProcess }) {
-  const [timeframe, setTimeframe] = useState('hourly');
-  const [metricKey, setMetricKey] = useState('temp');
-  const metric = METRICS.find((m) => m.key === metricKey);
-  const rule = METRIC_RULES[metricKey];
-  const data = iotData?.[timeframe] || iotData?.hourly || [];
-  const seriesSentence = describeSeries(metricKey, data, metric.series);
-
-  return (
-    <div className="space-y-5">
-      {/* Nguồn dữ liệu thời tiết 3rd party rõ ràng */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50/70 via-white to-teal-50/70 p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow">
-            <Radio className="h-5 w-5 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-emerald-900">
-                {liveProviderInfo?.provider || 'Open-Meteo Global Agrometeorology Live API'}
-              </span>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                Toạ độ GPS: {liveProviderInfo?.coordinates || '10.6877°N, 106.3503°E'}
-              </span>
-            </div>
-            <p className="text-xs text-stone-600 mt-0.5">
-              Cập nhật vi khí hậu thực tế: Tầng đất mặt, bức xạ quang năng, nhiệt ẩm tự nhiên không giả lập.
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={onRefreshLive}
-          disabled={isRefreshing}
-          className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#18352b] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#0f2a20] disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {isRefreshing ? 'Đang cập nhật từ vệ tinh...' : 'Làm mới Live Feed'}
-        </button>
-      </div>
-
-      <HealthHero plot={plot} alerts={alerts} liveProviderInfo={liveProviderInfo} />
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {METRICS.map((m, i) => (
-          <ReadingCard key={m.key} metric={m} plot={plot} delay={i * 70} active={m.key === metricKey} onClick={() => setMetricKey(m.key)} />
-        ))}
-      </div>
-
-      {/* Thông số nông nghiệp mở rộng từ Open-Meteo */}
-      {plot.rawMetrics && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-sm">
-            <span className="text-[11px] font-semibold text-stone-500 uppercase">Nhiệt độ tầng đất</span>
-            <p className="mt-1 text-lg font-bold text-stone-800">{plot.soilTemp || '26.6°C'}</p>
-            <span className="text-[10px] text-emerald-700">Đo tại độ sâu 0-5cm</span>
-          </div>
-          <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-sm">
-            <span className="text-[11px] font-semibold text-stone-500 uppercase">Lượng mưa thời gian thực</span>
-            <p className="mt-1 text-lg font-bold text-stone-800">{plot.precipitation || '0.0 mm'}</p>
-            <span className="text-[10px] text-emerald-700">Dự báo tích lũy</span>
-          </div>
-          <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-sm">
-            <span className="text-[11px] font-semibold text-stone-500 uppercase">Tốc độ gió</span>
-            <p className="mt-1 text-lg font-bold text-stone-800">{plot.windSpeed || '6.3 km/h'}</p>
-            <span className="text-[10px] text-emerald-700">Thông thoáng tự nhiên</span>
-          </div>
-          <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-sm">
-            <span className="text-[11px] font-semibold text-stone-500 uppercase">Áp suất khí quyển</span>
-            <p className="mt-1 text-lg font-bold text-stone-800">{plot.pressure || '1009 hPa'}</p>
-            <span className="text-[10px] text-emerald-700">Áp suất ổn định</span>
-          </div>
-        </div>
-      )}
-
-      {/* Biểu đồ diện tích theo giờ thực tế */}
-      <Card className="p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                Trạm quan trắc {liveProviderInfo?.stationId || plot.stationId || 'AGRO-CUCHI'}
-              </p>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-                Open-Meteo 3rd Party · Cập nhật {plot.lastUpdated || 'Vừa xong'}
-              </span>
-            </div>
-            <h3 className="font-heading text-lg font-bold text-[#18352b]">Biểu đồ {metric.label.toLowerCase()} 24 giờ qua</h3>
-          </div>
-          <div className="inline-flex rounded-xl bg-stone-100 p-1" role="tablist" aria-label="Khoảng thời gian">
-            {TIMEFRAMES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={timeframe === t.id}
-                onClick={() => setTimeframe(t.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${timeframe === t.id ? 'bg-white text-emerald-800 shadow-sm' : 'text-stone-600 hover:text-stone-900'}`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {METRICS.map((m) => {
-            const Icon = m.icon;
-            const active = m.key === metricKey;
-            return (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() => setMetricKey(m.key)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${active ? 'border-transparent text-white' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300'
-                  }`}
-                style={active ? { backgroundColor: m.color } : undefined}
-              >
-                <Icon className="h-3.5 w-3.5" />{m.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {seriesSentence && <p className="mt-3 rounded-xl bg-stone-50 px-3 py-2.5 text-sm text-stone-700">{seriesSentence}</p>}
-
-        <div className="mt-4 h-60 sm:h-72">
-          {data.length ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-                <defs>
-                  <linearGradient id="iot-area" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={metric.color} stopOpacity={0.35} />
-                    <stop offset="100%" stopColor={metric.color} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#f1f5f0" vertical={false} />
-                <ReferenceArea
-                  y1={rule.min}
-                  y2={rule.max}
-                  fill="#10b981"
-                  fillOpacity={0.08}
-                  stroke="#10b981"
-                  strokeOpacity={0.25}
-                  strokeDasharray="4 4"
-                  ifOverflow="extendDomain"
-                  label={{ value: 'Vùng an toàn', position: 'insideTopRight', fontSize: 11, fill: '#047857' }}
-                />
-                <XAxis dataKey="time" tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} />
-                <YAxis
-                  tick={{ fontSize: 11, fill: '#78716c' }}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-                  domain={[(min) => Math.floor(Math.min(min, rule.min) - 3), (max) => Math.ceil(Math.max(max, rule.max) + 3)]}
-                />
-                <Tooltip
-                  formatter={(v) => {
-                    const off = v < rule.min ? ' — dưới ngưỡng' : v > rule.max ? ' — vượt ngưỡng' : ' — trong ngưỡng';
-                    return [`${v} ${metric.unit}${metricKey === 'light' && v === 0 ? ' (ban đêm)' : off}`, metric.label];
-                  }}
-                  contentStyle={{ borderRadius: 12, border: '1px solid #e7e5e4', fontSize: 12 }}
-                />
-                <Area type="monotone" dataKey={metric.series} stroke={metric.color} strokeWidth={2.5} fill="url(#iot-area)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : <EmptyState icon={Radio} title="Đang tải dữ liệu cảm biến Open-Meteo" />}
-        </div>
-        <p className="mt-2 text-xs text-stone-500">
-          Dải xanh trên biểu đồ là vùng an toàn cho {cropProcess?.cropName || plot?.crop || 'cây trồng'}: {rule.min}–{rule.max} {metric.unit}.
-        </p>
-      </Card>
-    </div>
-  );
-}
-
 /* ──────────────────────────────────────────────────────────────────────────
    4. CÁC TAB KHÁC: OVERVIEW, DIARY, SERVICES, HARVEST
    ────────────────────────────────────────────────────────────────────────── */
@@ -1911,8 +1608,8 @@ function OverviewTab({
   goTab,
   onOpenStageDetail,
   onOpenActivityPhoto,
-  onOpenHarvest,
   liveProviderInfo,
+  alerts = [],
   seasons = [],
   activeSeasonId,
   onSelectSeason,
@@ -1925,6 +1622,15 @@ function OverviewTab({
   const recentActivities = staffActivities.slice(0, 3);
   const isSoilPrep = activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow;
 
+  // BR18: chỉ nêu 2 cảnh báo đáng xử lý nhất, nặng trước.
+  // ponytail: ceiling is 2 cảnh báo hiển thị, upgrade path is dựng lại trang khí tượng khi KH cần tra cứu lịch sử theo giờ/ngày.
+  const topAlerts = useMemo(() => {
+    const rank = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    return [...(alerts || [])]
+      .sort((a, b) => (rank[a?.level] ?? 3) - (rank[b?.level] ?? 3))
+      .slice(0, 2);
+  }, [alerts]);
+
   return (
     <div className="space-y-6">
       {/* 0. Thanh chuyển đổi Vụ Mùa (Season Switcher) */}
@@ -1936,6 +1642,40 @@ function OverviewTab({
         canRenew={true}
         plot={plot}
       />
+
+      {/* 0b. Thời tiết thực địa & cảnh báo (BR18) — gộp vào Tổng quan, không còn tab riêng */}
+      <HealthHero plot={plot} alerts={alerts} liveProviderInfo={liveProviderInfo} />
+
+      {topAlerts.length > 0 && (
+        <div className="space-y-2" aria-label="Cảnh báo thời tiết thực địa">
+          {topAlerts.map((a, i) => {
+            const info = explainAlert(a, plot.mode);
+            const isHigh = a?.level === 'HIGH';
+            return (
+              <div
+                key={a.id || `${info.title}-${i}`}
+                className={`flex items-start gap-3 rounded-2xl border p-3.5 ${isHigh ? 'border-rose-200 bg-rose-50/70' : 'border-amber-200 bg-amber-50/70'}`}
+              >
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isHigh ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                  <AlertTriangle className="h-[18px] w-[18px]" />
+                </span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className={`text-sm font-bold ${isHigh ? 'text-rose-900' : 'text-amber-900'}`}>{info.title}</h4>
+                    <span className={`rounded-md px-2 py-0.5 text-[10px] font-extrabold ${isHigh ? 'bg-rose-200/70 text-rose-900' : 'bg-amber-200/70 text-amber-900'}`}>
+                      {info.levelText}
+                    </span>
+                    {info.time && <span className="text-[11px] text-stone-500">{info.time}</span>}
+                  </div>
+                  <p className={`mt-0.5 text-xs ${isHigh ? 'text-rose-800/90' : 'text-amber-800/90'}`}>
+                    {info.explanation} <strong className="font-semibold">{info.action}</strong>
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {isSoilPrep ? (
         /* Giai đoạn nghỉ đất & cải tạo theo chuẩn VietGAP (Fallow Protocol) */
@@ -2063,18 +1803,13 @@ function OverviewTab({
               <div><dt className="text-xs text-lime-900/70">Sản lượng tiêu chuẩn</dt><dd className="font-semibold text-[#18352b]">{cropProcess.expectedYield}</dd></div>
             </dl>
           </div>
-          <button type="button" onClick={() => onOpenHarvest?.(plot)} className="relative mt-auto pt-4">
-            <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#18352b] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#18352b]/20 transition hover:-translate-y-0.5 hover:bg-[#0f2a20]">
-              <Wheat className="h-4 w-4" />Chuẩn bị thu hoạch
-            </span>
-          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function DiaryTab({ plot, operations, staffActivities = [], onAddDiary }) {
+function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [], onAddDiary }) {
   const canWrite = plot.mode === 'Self-Growing';
 
   // SSoT: Tự động hợp nhất nhật ký khách hàng và toàn bộ công việc chăm sóc đã hoàn tất của Staff
@@ -2085,6 +1820,27 @@ function DiaryTab({ plot, operations, staffActivities = [], onAddDiary }) {
       if (e.taskId) seen.add(String(e.taskId));
       if (e.id) seen.add(String(e.id));
       if (e.title) seen.add(e.title.trim().toLowerCase());
+    });
+
+    // BR20: CVLĐ cắt, cân điện tử, chụp ảnh rồi báo cáo hoàn thành -> vào Nhật ký như một task thường.
+    // KH chỉ theo dõi, không nghiệm thu. Lịch thu hoạch đến từ Quy trình canh tác chuẩn VietGAP
+    // (Assisted-growing) hoặc đơn dịch vụ thu hoạch hộ (Self-growing, BR27).
+    (harvestResults || []).forEach((hr) => {
+      const hrId = String(hr.harvestId || hr.id || '');
+      if (!hrId || seen.has(hrId)) return;
+      seen.add(hrId);
+      list.push({
+        id: hrId,
+        taskId: hrId,
+        time: hr.harvestDateFormatted || hr.harvestDate || 'Hôm nay',
+        date: hr.harvestDate,
+        title: `Thu hoạch ${hr.crop || hr.cropName || 'nông sản'} — ${hr.formattedYield || `${hr.yieldAmount || 0} kg`}`,
+        note: `Chuyên viên lao động đã cắt, cân điện tử và ghi nhận sản lượng thực tế. Mã biên bản: ${hrId}.`,
+        author: hr.enteredByWorker || hr.workerName || 'Chuyên viên lao động',
+        authorRole: 'Chuyên viên lao động (CVLĐ)',
+        proofPhoto: hr.evidenceImageUrl || null,
+        status: 'COMPLETED'
+      });
     });
 
     (staffActivities || []).forEach((act) => {
@@ -2116,7 +1872,7 @@ function DiaryTab({ plot, operations, staffActivities = [], onAddDiary }) {
     });
 
     return list;
-  }, [operations?.diary, staffActivities]);
+  }, [operations?.diary, staffActivities, harvestResults]);
 
   return (
     <div className="space-y-4">
@@ -2434,135 +2190,6 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
   );
 }
 
-function HarvestTab({ plot, harvestPlan, harvestResults = [], onAcceptHarvest, onOpenHarvest, cropProcess }) {
-  const daysLeft = cropProcess?.daysLeft || Math.max(plot.totalDays - plot.currentDay, 0);
-  const planDate = harvestPlan?.date ? harvestPlan.date.split('-').reverse().join('/') : '';
-
-  const relevantHarvests = useMemo(() => {
-    if (!Array.isArray(harvestResults)) return [];
-    return harvestResults.filter((h) => {
-      const pCode = (plot.plotCode || plot.mapPlotId || plot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
-      const hCode = (h.plotCode || h.plotScopeId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
-      if (hCode && pCode && hCode === pCode) return true;
-      if (plot.rentalId && Number(h.rentalId) === Number(plot.rentalId)) return true;
-      return false;
-    });
-  }, [harvestResults, plot]);
-
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card className="p-5">
-          <SectionTitle eyebrow="Dự kiến thu hoạch" title={daysLeft > 0 ? `Còn ${daysLeft} ngày nữa` : 'Đã đến mùa thu hoạch'} />
-          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Ngày thu hoạch</dt><dd className="font-semibold text-[#18352b]">{plot.expectedHarvestDate || 'Sau 19 ngày'}</dd></div>
-            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Sản lượng tiêu chuẩn</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.expectedYield || plot.expectedYield}</dd></div>
-            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Cây trồng</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.cropName || plot.crop}</dd></div>
-            <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Hợp đồng thuê</dt><dd className="truncate font-semibold text-[#18352b]">{plot.contractCode || 'HD-2026'}</dd></div>
-          </dl>
-        </Card>
-        <Card className="flex flex-col p-5">
-          <SectionTitle eyebrow="Kế hoạch của bạn" title={harvestPlan ? 'Đã đăng ký thu hoạch' : 'Chưa đăng ký'} />
-          {harvestPlan ? (
-            <div className="mt-4 space-y-2 text-sm">
-              <p className="flex items-center gap-2 text-[#18352b]"><CalendarCheck className="h-4 w-4 text-emerald-700" />Ngày dự kiến đến hái: <strong>{planDate}</strong></p>
-              <p className="flex items-center gap-2 text-[#18352b]"><Scissors className="h-4 w-4 text-emerald-700" />{harvestPlan.methodLabel}</p>
-              {harvestPlan.status === 'APPROVED' ? (
-                <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã duyệt lịch hái · Nông trại sẵn sàng đón tiếp</p>
-              ) : (
-                <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ kỹ sư xác nhận</p>
-              )}
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-stone-600">Đăng ký ngày tới nông trại để trải nghiệm và tự tay thu hoạch nông sản của bạn. Farmely sẽ nhắc bạn trước 3 ngày.</p>
-          )}
-          <button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5 cursor-pointer">
-            <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800">
-              <Wheat className="h-4 w-4" />{harvestPlan ? 'Sửa lịch trải nghiệm thu hoạch' : 'Đăng ký tới nông trại thu hoạch'}
-            </span>
-          </button>
-        </Card>
-      </div>
-
-      {/* Lịch sử & Biên bản đối chứng các đợt thu hoạch theo vụ mùa */}
-      <Card className="p-5 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200/60 pb-3">
-          <div>
-            <h4 className="font-heading font-black text-base text-[#18352b] flex items-center gap-2">
-              <Apple className="h-4 w-4 text-emerald-700" />
-              Lịch Sử Thu Hoạch & Biên Bản Đối Chứng Theo Vụ Mùa (BR20)
-            </h4>
-            <p className="text-xs text-stone-500 mt-0.5">
-              Kết quả cân thực tế tại vườn, lưu ảnh minh chứng và tem QR truy xuất nguồn gốc nông sản của thửa đất này.
-            </p>
-          </div>
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
-            {relevantHarvests.length} Đợt Thu Hoạch Đã Ghi Nhận
-          </span>
-        </div>
-
-        {relevantHarvests.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50/50 p-6 text-center text-xs text-stone-500">
-            Chưa có đợt thu hoạch nào được hoàn tất cho thửa đất này. Khi đến ngày thu hoạch và chuyên viên lao động cắt cân nông sản, biên bản và ảnh đối chứng sẽ hiển thị tại đây.
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {relevantHarvests.map((hr, idx) => {
-              const isConfirmed = hr.customerConfirmed || hr.status === 'CONFIRMED';
-              const seasonLabel = hr.seasonName || `Vụ ${idx % 2 === 0 ? 1 : 2}: ${hr.crop || cropProcess?.cropName || plot.crop || 'Nông sản VietGAP'}`;
-              return (
-                <div key={hr.id || hr.harvestId || idx} className="grid gap-4 rounded-2xl border border-stone-200 bg-stone-50/60 p-4 sm:grid-cols-[140px_minmax(0,1fr)]">
-                  <img
-                    src={hr.evidenceImageUrl || '/images/harvest/rau-muong-p03.jpg'}
-                    alt="Ảnh cân đối chứng"
-                    className="h-28 w-full rounded-xl object-cover border border-stone-200 sm:h-full"
-                  />
-                  <div className="space-y-2 text-xs">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-[#18352b] text-sm">{hr.plotName || plot.name}</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-lime-100 text-lime-900 border border-lime-200">
-                          {seasonLabel}
-                        </span>
-                      </div>
-                      <span className="text-emerald-700 font-heading font-black text-base">{hr.formattedYield || `${hr.yieldAmount || '35.0'} kg`}</span>
-                    </div>
-                    <p className="text-stone-600">
-                      Ngày thu hoạch: <strong>{hr.harvestDateFormatted || hr.harvestDate || 'Hôm nay'}</strong> • Chuyên viên cân: <strong>{hr.enteredByWorker || hr.staffName || 'Trần Văn Lực (CVLĐ)'}</strong>
-                    </p>
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-200/60">
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-white px-2.5 py-0.5 font-bold text-stone-600 border border-stone-200 text-[10px]">
-                          Mã biên bản: {hr.id}
-                        </span>
-                        <span className={`rounded-full px-2.5 py-0.5 font-bold text-[10px] ${
-                          isConfirmed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {isConfirmed ? '✓ Đã nghiệm thu nhận hàng' : '⏳ Chờ xác nhận'}
-                        </span>
-                      </div>
-                      {!isConfirmed && onAcceptHarvest && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => onAcceptHarvest(hr)}
-                          className="text-xs font-bold"
-                        >
-                          Xác nhận nhận nông sản
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-}
-
 /* ──────────────────────────────────────────────────────────────────────────
    MAIN WORKSPACE COMPONENT
    ────────────────────────────────────────────────────────────────────────── */
@@ -2571,14 +2198,11 @@ export default function CustomerPlotWorkspace({
   plot,
   plots = [],
   operations = { tasks: [], diary: [] },
-  iotData,
   alerts = [],
   stages = [],
   services = [],
   serviceOrders = [],
-  harvestPlan = null,
   harvestResults = [],
-  onAcceptHarvest,
   activeTab = 'overview',
   onTabChange,
   onSelectPlot,
@@ -2586,7 +2210,6 @@ export default function CustomerPlotWorkspace({
   onOpenAiChat,
   onOpenTask,
   onSelectService,
-  onOpenHarvest,
   onAddDiary
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -2881,10 +2504,8 @@ export default function CustomerPlotWorkspace({
 
   // 3. Tích hợp Open-Meteo Global Agrometeorology Live 3rd-Party API
   const [liveIotResult, setLiveIotResult] = useState(null);
-  const [isRefreshingIot, setIsRefreshingIot] = useState(false);
 
   const loadLiveAgroData = useCallback(async (force = false) => {
-    setIsRefreshingIot(true);
     try {
       const data = await fetchLiveAgroIotData(plot, force);
       if (data) {
@@ -2892,8 +2513,6 @@ export default function CustomerPlotWorkspace({
       }
     } catch (e) {
       console.warn('Lỗi tải Open-Meteo:', e);
-    } finally {
-      setIsRefreshingIot(false);
     }
   }, [plot]);
 
@@ -2920,16 +2539,8 @@ export default function CustomerPlotWorkspace({
     };
   }, [plot, liveIotResult]);
 
-  // Biểu đồ thời gian thực: Ưu tiên chuỗi hourly từ Open-Meteo API
-  const activeIotData = useMemo(() => {
-    if (liveIotResult?.hourly?.length) {
-      return {
-        ...(iotData || {}),
-        hourly: liveIotResult.hourly
-      };
-    }
-    return iotData;
-  }, [liveIotResult, iotData]);
+  // ponytail: chuỗi hourly chỉ dùng cho biểu đồ của tab Vi khí hậu (đã gộp vào Tổng quan).
+  // upgrade path is lấy lại liveIotResult.hourly khi dựng trang tra cứu lịch sử khí tượng.
 
   // Cảnh báo động sinh ra theo số đo thực tế
   const activeAlerts = useMemo(() => {
@@ -3160,8 +2771,8 @@ export default function CustomerPlotWorkspace({
             goTab={goTab}
             onOpenStageDetail={setSelectedStageDetail}
             onOpenActivityPhoto={setSelectedPhotoActivity}
-            onOpenHarvest={onOpenHarvest}
             liveProviderInfo={liveIotResult}
+            alerts={activeAlerts}
             seasons={plotSeasons}
             activeSeasonId={activeSeasonId}
             onSelectSeason={setActiveSeasonId}
@@ -3210,24 +2821,15 @@ export default function CustomerPlotWorkspace({
           </div>
         )}
 
-        {tab === 'iot' && (
-          <IotTab
-            plot={activePlot}
-            iotData={activeIotData}
-            alerts={activeAlerts}
-            isConnected={true}
-            onRefreshLive={() => loadLiveAgroData(true)}
-            isRefreshing={isRefreshingIot}
-            liveProviderInfo={liveIotResult}
-            cropProcess={cropProcess}
-          />
-        )}
+        {/* ponytail: tab Vi khí hậu đã gộp vào Tổng quan (cảnh báo BR18 ngắn gọn).
+            upgrade path is dựng lại trang biểu đồ khí tượng khi KH cần tra cứu lịch sử theo giờ/ngày. */}
 
         {tab === 'diary' && (
           <DiaryTab
             plot={activePlot}
             operations={operations}
             staffActivities={staffActivities}
+            harvestResults={harvestResults}
             onAddDiary={onAddDiary}
           />
         )}
@@ -3241,16 +2843,6 @@ export default function CustomerPlotWorkspace({
           />
         )}
 
-        {tab === 'harvest' && (
-          <HarvestTab
-            plot={activePlot}
-            harvestPlan={harvestPlan}
-            harvestResults={harvestResults}
-            onAcceptHarvest={onAcceptHarvest}
-            onOpenHarvest={onOpenHarvest}
-            cropProcess={cropProcess}
-          />
-        )}
       </div>
 
       {/* Modal phóng to ảnh bằng chứng của Staff */}
