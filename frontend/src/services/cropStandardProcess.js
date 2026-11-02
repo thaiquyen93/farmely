@@ -719,6 +719,116 @@ export const CROP_STANDARDS = {
         inspectionCriteria: 'Rau dền tươi rói, không dập nát, thân mềm giòn ngọt.'
       }
     ]
+  },
+  'catnip': {
+    cropName: 'Cây mèo dã VietGAP',
+    totalDays: 45,
+    expectedYield: '8 - 12 kg/thửa',
+    optimalConditions: {
+      tempRange: '20 - 28°C',
+      soilMoistureRange: '60 - 70%',
+      airHumidityRange: '60 - 75%',
+      lightRequirement: '45.000 - 60.000 Lux'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Gieo ươm & Hồi xanh rễ non',
+        dayStart: 1,
+        dayEnd: 8,
+        label: 'Ngày 1 - 8',
+        statusDesc: 'Hạt nảy mầm, bén rễ và thích nghi giá thể đất mùn',
+        waterRegime: '1.2 L/m²/ngày (phun sương nhẹ giữ ẩm 65%)',
+        nutrition: 'Kích rễ hữu cơ sinh học loãng (tỷ lệ 1:1000)',
+        guide: 'Giữ đất ẩm nhẹ, che nắng gắt 2 ngày đầu.',
+        pestAlert: 'Đề phòng sâu cắn lá non và ốc sên ban đêm.',
+        inspectionCriteria: 'Mầm cây đứng thẳng, rễ trắng khỏe.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Phát triển thân nhánh & Tán lá thơm',
+        dayStart: 9,
+        dayEnd: 25,
+        label: 'Ngày 9 - 25',
+        statusDesc: 'Tăng trưởng cành lá mạnh, tích lũy tinh dầu thơm tự nhiên',
+        waterRegime: '1.8 L/m²/ngày (tưới nhỏ giọt buổi sáng)',
+        nutrition: 'Bón thúc hữu cơ vi sinh và phân trùn quế',
+        guide: 'Bấm ngọn nhẹ ở nách lá thứ 4 để kích thích đẻ nhánh dày.',
+        pestAlert: 'Bọ trĩ, rệp mềm. Phun dung dịch tỏi ớt sinh học phòng ngừa.',
+        inspectionCriteria: 'Thân cây cứng cáp, tán lá xanh đậm và thơm đặc trưng.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Tích tụ hoạt chất & Thu hoạch búp ngọn',
+        dayStart: 26,
+        dayEnd: 45,
+        label: 'Ngày 26 - 45',
+        statusDesc: 'Lá dày đượm tinh dầu thơm, sẵn sàng thu hoạch chuẩn VietGAP',
+        waterRegime: '1.0 L/m²/ngày (giảm tưới trước thu hoạch 3 ngày)',
+        nutrition: 'Ngừng bón phân trước 7 ngày để cách ly an toàn',
+        guide: 'Thu hoạch vào sáng sớm (06:00 - 08:30) khi lá còn đọng sương.',
+        pestAlert: 'Không sử dụng bất kỳ hóa chất nào trong giai đoạn này.',
+        inspectionCriteria: 'Lá thơm ngát, không sâu bệnh, búp ngọn tươi non.'
+      }
+    ]
+  },
+  'vietgap_standard': {
+    cropName: 'Cây trồng chuẩn VietGAP',
+    totalDays: 45,
+    expectedYield: '10 - 15 kg/thửa',
+    optimalConditions: {
+      tempRange: '22 - 30°C',
+      soilMoistureRange: '65 - 75%',
+      airHumidityRange: '60 - 80%',
+      lightRequirement: '40.000 - 65.000 Lux'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Gieo hạt & Hồi xanh cây giống',
+        dayStart: 1,
+        dayEnd: 8,
+        label: 'Ngày 1 - 8',
+        statusDesc: 'Thiết lập bộ rễ và thích nghi môi trường luống đất',
+        waterRegime: '1.5 L/m²/ngày (phun sương nhẹ 2 lần/ngày)',
+        nutrition: 'Tưới kích rễ hữu cơ vi sinh loãng',
+        guide: 'Giữ ẩm tầng đất mặt, che lưới nhẹ trong những ngày đầu.',
+        pestAlert: 'Theo dõi nấm cổ rễ và côn trùng cắn mầm.',
+        inspectionCriteria: 'Cây giống hồi xanh, lá thật phát triển đều.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Chăm sóc sinh trưởng & Dinh dưỡng',
+        dayStart: 9,
+        dayEnd: 30,
+        label: 'Ngày 9 - 30',
+        statusDesc: 'Tăng trưởng thân lá mạnh mẽ theo quy trình VietGAP',
+        waterRegime: '2.0 L/m²/ngày (tưới nhỏ giọt cân bằng ẩm)',
+        nutrition: 'Bón phân hữu cơ vi sinh định kỳ theo ngày tuổi',
+        guide: 'Làm cỏ xới xáo mặt đất nhẹ, kiểm tra độ thoát nước.',
+        pestAlert: 'Sử dụng bẫy pheromone và chế phẩm sinh học thảo mộc.',
+        inspectionCriteria: 'Cây phát triển đồng đều, thân khỏe, lá xanh tốt.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Hoàn thiện chất lượng & Thu hoạch',
+        dayStart: 31,
+        dayEnd: 45,
+        label: 'Ngày 31 - 45',
+        statusDesc: 'Tích lũy sinh khối và nghiệm thu thu hoạch VietGAP',
+        waterRegime: '1.2 L/m²/ngày (giảm ẩm trước thu hái)',
+        nutrition: 'Cách ly phân bón và thuốc bảo vệ sinh học theo quy chuẩn',
+        guide: 'Thu hái đúng độ tuổi thu hoạch, phân loại đóng gói tại ruộng.',
+        pestAlert: 'Bảo đảm thời gian cách ly tuyệt đối an toàn.',
+        inspectionCriteria: 'Đạt chỉ tiêu ngoại quan, không dư lượng hóa chất.'
+      }
+    ]
   }
 };
 
@@ -729,7 +839,7 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
   if (!plot) return { cropName: 'Cây trồng', totalDays: 45, currentDay: 0, stages: [], isNotStarted: true };
 
   const cropKey = detectCropKey(plot.crop || plot.name || '');
-  const standardTemplate = CROP_STANDARDS[cropKey] || CROP_STANDARDS.tomato;
+  const standardTemplate = CROP_STANDARDS[cropKey] || CROP_STANDARDS.vietgap_standard || CROP_STANDARDS.tomato;
 
   // Tên cây trồng ưu tiên 100% từ thông tin plot / hợp đồng thực tế của người dùng
   const resolvedCropName = (plot.crop && String(plot.crop).trim() !== '')
@@ -870,7 +980,13 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
         statusDesc: `Vụ mùa sắp tới (Khởi động ngày ${plot.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'Kỳ tới'}). Đất đang trong giai đoạn nghỉ hoặc hoàn thiện chuẩn bị xuống giống theo lịch canh tác.`,
         isCurrent: false
       }
-    : (computedStages.find((s) => s.isCurrent) || computedStages.find((s) => s.status === 'IN_PROGRESS') || computedStages[computedStages.length - 1] || computedStages[0]);
+    : (computedStages.find((s) => s.isCurrent)
+        || computedStages.find((s) => s.status === 'IN_PROGRESS')
+        // Lịch có khoảng trống ngày: lấy giai đoạn sắp tới gần nhất, KHÔNG lấy giai đoạn cuối
+        // (nếu không, ngày 9/80 lại hiện "Thu hoạch vét & Thu dọn tàn dư").
+        || computedStages.find((s) => currentDay <= s.dayEnd)
+        || computedStages[computedStages.length - 1]
+        || computedStages[0]);
 
   return {
     cropKey,
@@ -901,7 +1017,8 @@ export function detectCropKey(cropText) {
   if (t.includes('ớt') || t.includes('chili') || t.includes('cay')) return 'chili';
   if (t.includes('dền') || t.includes('amaranth')) return 'amaranth';
   if (t.includes('cà chua') || t.includes('cherry') || t.includes('tomato')) return 'tomato';
-  return 'tomato';
+  if (t.includes('mèo') || t.includes('catnip')) return 'catnip';
+  return 'vietgap_standard';
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

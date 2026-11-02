@@ -204,12 +204,12 @@ export function summarizePlot(plot, alerts = []) {
 
 /** Diễn giải 1 cảnh báo thô (từ trạm IoT) thành lời khuyên */
 const ALERT_RULES = [
-  { test: /mưa/i, explain: 'Sắp có mưa nên đất sẽ tự đủ ẩm.', managed: 'Farmely đã hoãn lịch tưới hôm nay.', self: 'Bạn không cần tưới hôm nay và nên che phủ những luống cây non.' },
-  { test: /gió/i, explain: 'Gió mạnh có thể làm giàn và cây lung lay, gãy ngọn.', managed: 'Farmely sẽ kiểm tra và gia cố dây buộc giàn.', self: 'Bạn nên kiểm tra và buộc chặt giàn, cọc đỡ.' },
-  { test: /độ ẩm đất.*(tăng|cao)/i, explain: 'Đất đang ướt lên nhanh, rễ có nguy cơ bị úng.', managed: 'Farmely đã tạm dừng tưới và theo dõi thêm.', self: 'Bạn nên tạm ngưng tưới và khơi rãnh thoát nước.' },
-  { test: /độ ẩm đất.*(thấp|giảm)|gần ngưỡng thấp/i, explain: 'Đất sắp khô hơn mức cây cần.', managed: 'Farmely sẽ tưới bổ sung nếu chỉ số tiếp tục giảm.', self: 'Bạn nên tưới thêm vào sáng sớm hoặc chiều mát.' },
-  { test: /nắng|lux|ánh sáng/i, explain: 'Nắng gắt vào giữa trưa có thể làm cháy lá non.', managed: 'Farmely sẽ kéo lưới che nắng vào giờ cao điểm.', self: 'Bạn nên che lưới cho luống từ 11 giờ đến 14 giờ.' },
-  { test: /nhiệt độ|nóng/i, explain: 'Trời nóng hơn bình thường, cây mất nước nhanh hơn.', managed: 'Farmely sẽ tăng tưới làm mát vào sáng sớm.', self: 'Bạn nên tưới sáng sớm và tránh tưới giữa trưa.' }
+  { group: 'water', test: /mưa/i, explain: 'Sắp có mưa nên đất sẽ tự đủ ẩm.', managed: 'Farmely đã hoãn lịch tưới hôm nay.', self: 'Bạn không cần tưới hôm nay và nên che phủ những luống cây non.' },
+  { group: 'wind', test: /gió/i, explain: 'Gió mạnh có thể làm giàn và cây lung lay, gãy ngọn.', managed: 'Farmely sẽ kiểm tra và gia cố dây buộc giàn.', self: 'Bạn nên kiểm tra và buộc chặt giàn, cọc đỡ.' },
+  { group: 'water', test: /độ ẩm đất.*(tăng|cao)/i, explain: 'Đất đang ướt lên nhanh, rễ có nguy cơ bị úng.', managed: 'Farmely đã tạm dừng tưới và theo dõi thêm.', self: 'Bạn nên tạm ngưng tưới và khơi rãnh thoát nước.' },
+  { group: 'water', test: /độ ẩm đất.*(thấp|giảm)|gần ngưỡng thấp/i, explain: 'Đất sắp khô hơn mức cây cần.', managed: 'Farmely sẽ tưới bổ sung nếu chỉ số tiếp tục giảm.', self: 'Bạn nên tưới thêm vào sáng sớm hoặc chiều mát.' },
+  { group: 'light', test: /nắng|lux|ánh sáng/i, explain: 'Nắng gắt vào giữa trưa có thể làm cháy lá non.', managed: 'Farmely sẽ kéo lưới che nắng vào giờ cao điểm.', self: 'Bạn nên che lưới cho luống từ 11 giờ đến 14 giờ.' },
+  { group: 'heat', test: /nhiệt độ|nóng/i, explain: 'Trời nóng hơn bình thường, cây mất nước nhanh hơn.', managed: 'Farmely sẽ tăng tưới làm mát vào sáng sớm.', self: 'Bạn nên tưới sáng sớm và tránh tưới giữa trưa.' }
 ];
 
 export const ALERT_LEVEL_TEXT = {
@@ -222,6 +222,7 @@ export function explainAlert(alert, mode) {
   const rule = ALERT_RULES.find((r) => r.test.test(`${alert?.title || ''} ${alert?.metric || ''}`));
   const managed = isManaged(mode);
   return {
+    group: rule?.group || 'other',
     title: alert?.title || 'Cảnh báo vi khí hậu thực địa',
     levelText: ALERT_LEVEL_TEXT[alert?.level] || ALERT_LEVEL_TEXT.MEDIUM,
     explanation: rule?.explain || 'Trạm quan trắc ghi nhận một thay đổi bất thường tại thửa.',

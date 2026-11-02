@@ -114,10 +114,7 @@ function CropGrowthHero({ cropProcess, onOpenStageDetail }) {
       <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="flex items-center gap-1.5 rounded-full bg-lime-300/20 px-2.5 py-1 text-xs font-bold text-lime-300 ring-1 ring-lime-300/30">
-              <Sprout className="h-3.5 w-3.5" />
-              {cropProcess.cropName}
-            </span>
+            {/* Tên giống đã nằm ở thanh chọn vụ mùa phía trên, không nhắc lại. */}
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold backdrop-blur text-white/90">
               Tiêu chuẩn VietGAP
             </span>
@@ -148,8 +145,8 @@ function CropGrowthHero({ cropProcess, onOpenStageDetail }) {
 
           {/* Thanh đo ngày tuổi */}
           <div className="mt-4 max-w-xl">
-            <div className="flex items-center justify-between text-xs font-semibold text-lime-200/90 mb-1.5">
-              <span>Tiến độ chu kỳ: {cropProcess.progressPercent}%</span>
+            {/* Bỏ "Tiến độ chu kỳ: N%" — thanh đo đã thể hiện, và ngày thứ N/tổng nằm ngay badge trên. */}
+            <div className="flex items-center justify-end text-xs font-semibold text-lime-200/90 mb-1.5">
               <span>{cropProcess.isNotStarted ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày` : `Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}</span>
             </div>
             <div className="h-3 w-full rounded-full bg-black/30 p-0.5 ring-1 ring-white/10">
@@ -161,23 +158,13 @@ function CropGrowthHero({ cropProcess, onOpenStageDetail }) {
           </div>
         </div>
 
-        {/* Thẻ vắn tắt điều kiện tối ưu */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:w-[420px] shrink-0">
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-md">
-            <span className="text-[10px] uppercase font-semibold text-white/70 block">Nhiệt độ tối ưu</span>
-            <span className="mt-1 text-sm font-bold text-white block">{cropProcess.optimalConditions?.tempRange || '22-28°C'}</span>
-            <span className="text-[10px] text-lime-300 flex items-center gap-1 mt-0.5"><Check className="h-3 w-3" />Đạt chuẩn</span>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-md">
-            <span className="text-[10px] uppercase font-semibold text-white/70 block">Độ ẩm đất chuẩn</span>
-            <span className="mt-1 text-sm font-bold text-white block">{cropProcess.optimalConditions?.soilMoistureRange || '65-75%'}</span>
-            <span className="text-[10px] text-lime-300 flex items-center gap-1 mt-0.5"><Check className="h-3 w-3" />Lý tưởng</span>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-md col-span-2 sm:col-span-1">
-            <span className="text-[10px] uppercase font-semibold text-white/70 block">Sản lượng dự kiến</span>
-            <span className="mt-1 text-sm font-bold text-white block">{cropProcess.expectedYield || '15 kg/vụ'}</span>
-            <span className="text-[10px] text-emerald-200 block truncate">Thu hái tiêu chuẩn</span>
-          </div>
+        {/* ponytail: chỉ còn sản lượng dự kiến — nhiệt độ/độ ẩm chuẩn đã nằm cạnh số đo thật
+            ở thẻ Sức khoẻ thửa đất, nên 2 tile cũ vừa trùng vừa hardcode "Đạt chuẩn" sai sự thật.
+            upgrade path is thêm lại khi cần so sánh ngưỡng theo từng giai đoạn. */}
+        <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-md lg:w-[200px] shrink-0">
+          <span className="text-[10px] uppercase font-semibold text-white/70 block">Sản lượng dự kiến</span>
+          <span className="mt-1 text-sm font-bold text-white block">{cropProcess.expectedYield || '15 kg/vụ'}</span>
+          <span className="text-[10px] text-emerald-200 block truncate">Thu hái tiêu chuẩn</span>
         </div>
       </div>
     </div>
@@ -1578,9 +1565,19 @@ function HealthHero({ plot, alerts = [], onMore, liveProviderInfo }) {
           </div>
           <p className="mt-2 text-base font-medium leading-relaxed text-white/95 sm:text-lg">{summary.headline}</p>
           <ul className="mt-4 flex flex-wrap gap-2">
+            {/* Số đo thật + ngưỡng chuẩn cùng một chỗ: tránh badge "Đạt chuẩn" nói ngược lại cảnh báo. */}
             {summary.items.map((i) => (
-              <li key={i.key} className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/90 ring-1 ring-white/10 backdrop-blur">
-                <span className={`h-2 w-2 rounded-full ${LEVEL_STYLE[i.level].dot}`} />{i.label}
+              <li key={i.key} className="flex items-baseline gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/90 ring-1 ring-white/10 backdrop-blur">
+                <span className={`h-2 w-2 shrink-0 self-center rounded-full ${LEVEL_STYLE[i.level].dot}`} />
+                {i.label}
+                {i.value === null ? (
+                  <span className="text-white/60">chưa có số liệu</span>
+                ) : (
+                  <>
+                    <strong className="font-bold text-white">{i.value}{i.unit}</strong>
+                    <span className="text-white/60">chuẩn {i.min}–{i.max}{i.unit}</span>
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -1626,10 +1623,19 @@ function OverviewTab({
   // ponytail: ceiling is 2 cảnh báo hiển thị, upgrade path is dựng lại trang khí tượng khi KH cần tra cứu lịch sử theo giờ/ngày.
   const topAlerts = useMemo(() => {
     const rank = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    const seenGroup = new Set();
     return [...(alerts || [])]
       .sort((a, b) => (rank[a?.level] ?? 3) - (rank[b?.level] ?? 3))
+      // "Mưa sắp đến" và "độ ẩm đất tăng nhanh" là cùng một sự việc, cùng một quyết định
+      // hoãn tưới: chỉ giữ cảnh báo nặng nhất của mỗi nhóm để khỏi nói hai lần.
+      .filter((a) => {
+        const g = explainAlert(a, plot.mode).group;
+        if (seenGroup.has(g)) return false;
+        seenGroup.add(g);
+        return true;
+      })
       .slice(0, 2);
-  }, [alerts]);
+  }, [alerts, plot.mode]);
 
   return (
     <div className="space-y-6">
