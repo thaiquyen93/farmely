@@ -1182,8 +1182,6 @@ function StaffActivitiesTab({
   activities = [],
   onOpenPhoto,
   plot,
-  plots = [],
-  onSelectPlot,
   isSelf = false,
   onToggleTask,
   onAddTask,
@@ -1367,7 +1365,7 @@ function StaffActivitiesTab({
               </div>
 
               {todayList.length === 0 ? (
-                <div className="p-6 text-center bg-emerald-50/40 rounded-2xl border border-dashed border-emerald-300 flex flex-col items-center gap-2">
+                <div className="p-6 text-center bg-emerald-50/40 rounded-2xl border border-dashed border-emerald-300 flex flex-col items-center gap-1.5">
                   <CheckCircle2 className="w-7 h-7 text-emerald-600" />
                   <p className="font-heading font-black text-stone-900 text-sm">
                     Hôm nay không có việc tồn đọng tại {plot?.plotCode ? `Thửa ${plot.plotCode}` : (plot?.name || 'thửa đất này')}!
@@ -1375,31 +1373,6 @@ function StaffActivitiesTab({
                   <p className="text-xs text-stone-500 max-w-md">
                     Toàn bộ nhiệm vụ chăm sóc ngày hôm nay của thửa đất này đã được thực hiện chu đáo. Cây trồng đang phát triển rất tốt.
                   </p>
-                  {plots && plots.length > 1 && (
-                    <div className="mt-3 pt-3 border-t border-emerald-200/60 w-full max-w-md flex flex-col items-center gap-2">
-                      <span className="text-[11px] font-semibold text-stone-600">Chọn thửa đất canh tác khác của bạn để kiểm tra công việc:</span>
-                      <div className="flex flex-wrap items-center justify-center gap-2">
-                        {plots.map((p) => {
-                          const isCurrent = p.id === plot?.id || (p.rentalId && plot?.rentalId && p.rentalId === plot?.rentalId);
-                          return (
-                            <button
-                              key={p.id || p.rentalId}
-                              type="button"
-                              onClick={() => onSelectPlot?.(p.id)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                                isCurrent
-                                  ? 'bg-[#294C3B] text-white shadow-sm'
-                                  : 'bg-white border border-emerald-300 text-[#294C3B] hover:bg-emerald-50'
-                              }`}
-                            >
-                              <span>{p.plotCode ? `Thửa ${p.plotCode}` : p.name}</span>
-                              {isCurrent && <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full font-normal">(Đang xem)</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -3229,8 +3202,6 @@ export default function CustomerPlotWorkspace({
                       totalDays={cropProcess.totalDays || 60}
                       onOpenPhoto={setSelectedPhotoActivity}
                       plot={activePlot}
-                      plots={plots}
-                      onSelectPlot={onSelectPlot}
                     />
                   );
                 })()}
