@@ -81,28 +81,41 @@ export default function MasterDataDashboard() {
   const statGroups = [
     {
       group: 'Quỹ Đất Canh Tác',
+      caption: 'Khu nông trại, thửa đất và tình trạng cho thuê',
       items: [
-        { label: 'Khu Nông Trại (Lands)', value: totalLands, icon: Building2, link: '/admin/master-data/lands' },
-        { label: 'Thửa Đất (Plots)', value: totalPlots, icon: Grid3X3, link: '/admin/master-data/plots' },
-        { label: 'Thửa Đất Khả Dụng', value: availablePlots, icon: CheckCircle2, link: '/admin/master-data/plots', accent: true }
+        { label: 'Khu Nông Trại (Lands)', value: totalLands, unit: 'khu', icon: Building2, link: '/admin/master-data/lands' },
+        { label: 'Thửa Đất (Plots)', value: totalPlots, unit: 'thửa', icon: Grid3X3, link: '/admin/master-data/plots' },
+        { label: 'Thửa Đất Khả Dụng (Available)', value: availablePlots, unit: `/ ${totalPlots} thửa`, icon: CheckCircle2, link: '/admin/master-data/plots', accent: true }
       ]
     },
     {
       group: 'Dữ Liệu Sinh Học',
+      caption: 'Danh mục cây trồng và giống cây chuẩn hóa',
       items: [
-        { label: 'Danh Mục Cây (Crops)', value: totalCrops, icon: Sprout, link: '/admin/master-data/crops' },
-        { label: 'Giống Cây (Varieties)', value: totalVarieties, icon: Wheat, link: '/admin/master-data/varieties' }
+        { label: 'Danh Mục Cây (Crops)', value: totalCrops, unit: 'danh mục', icon: Sprout, link: '/admin/master-data/crops' },
+        { label: 'Giống Cây (Varieties)', value: totalVarieties, unit: 'giống', icon: Wheat, link: '/admin/master-data/varieties' }
       ]
     },
     {
       group: 'Quy Trình & Khí Tượng',
+      caption: 'Quy trình chuẩn VietGAP, trạm khí tượng và tài liệu kỹ thuật',
       items: [
-        { label: 'Quy Trình Chuẩn VietGAP', value: activeTemplates, icon: FileSpreadsheet, link: '/admin/master-data/process-templates' },
-        { label: 'Trạm Khí Tượng & Thời Tiết', value: totalIoT, icon: CloudSun, link: '/admin/master-data/iot-stations' },
-        { label: 'Tài Liệu Kỹ Thuật (RAG)', value: totalDocs, icon: BookOpen, link: '/admin/master-data/knowledge-documents' }
+        { label: 'Quy Trình Chuẩn VietGAP', value: activeTemplates, unit: 'quy trình', icon: FileSpreadsheet, link: '/admin/master-data/process-templates' },
+        { label: 'Trạm Khí Tượng & Thời Tiết', value: totalIoT, unit: 'trạm', icon: CloudSun, link: '/admin/master-data/iot-stations' },
+        { label: 'Tài Liệu Kỹ Thuật (RAG)', value: totalDocs, unit: 'tài liệu', icon: BookOpen, link: '/admin/master-data/knowledge-documents' }
       ]
     }
   ];
+
+  // ponytail: map tĩnh vì Tailwind không quét được class nội suy; mở rộng khi nhóm có 4+ thẻ
+  const GRID_BY_COUNT = { 1: 'sm:grid-cols-1', 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-4' };
+
+  const AUDIT_TONES = {
+    'Thanh lý': 'border-rose-200 bg-rose-50 text-rose-700',
+    'Hợp đồng': 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    'Hiện trường': 'border-amber-200 bg-amber-50 text-amber-800',
+    'Bảo mật': 'border-sky-200 bg-sky-50 text-sky-700'
+  };
 
   const recentUpdates = (summary?.recentAuditLogs?.length)
     ? summary.recentAuditLogs.map((log) => {
@@ -170,7 +183,7 @@ export default function MasterDataDashboard() {
         <div className="flex shrink-0 flex-wrap items-center gap-2.5">
           <Link
             to="/admin/master-data/plots/create"
-            className="whitespace-nowrap rounded-xl bg-brand-yellow px-4 py-2.5 font-heading text-xs font-bold uppercase tracking-wider text-brand-dark shadow-sm transition-all hover:bg-[#E5BE4E]"
+            className="whitespace-nowrap rounded-xl border border-brand-border bg-white px-4 py-2.5 font-heading text-xs font-bold uppercase tracking-wider text-brand-dark shadow-2xs transition-all hover:border-brand-green hover:bg-brand-cream"
           >
             + Thêm Thửa Đất
           </Link>
@@ -184,43 +197,57 @@ export default function MasterDataDashboard() {
       </div>
 
       {/* KPI theo nhóm nghiệp vụ */}
-      <div className="space-y-5">
+      <div className="space-y-6">
         {statGroups.map((g) => (
           <section key={g.group} aria-label={g.group}>
-            <div className="mb-2.5 flex items-center gap-2.5">
-              <h2 className="font-heading text-xs font-black uppercase tracking-widest text-brand-dark">
-                {g.group}
-              </h2>
-              <span className="h-px flex-1 bg-brand-border/70" />
+            <div className="mb-3 flex items-baseline gap-3">
+              <div className="min-w-0">
+                <h2 className="font-heading text-sm font-black uppercase tracking-widest text-brand-dark">
+                  {g.group}
+                </h2>
+                <p className="mt-0.5 text-[11px] text-brand-muted">{g.caption}</p>
+              </div>
+              <span className="mb-1 h-px flex-1 bg-brand-border/70" />
+              <span className="mb-1 shrink-0 whitespace-nowrap text-[11px] font-bold text-brand-muted">
+                {g.items.length} danh mục
+              </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <div className={`grid grid-cols-1 gap-4 ${GRID_BY_COUNT[g.items.length] || 'sm:grid-cols-3'}`}>
               {g.items.map((s) => {
                 const Icon = s.icon;
                 return (
                   <Link
                     key={s.label}
                     to={s.link}
-                    className={`group flex flex-col justify-between rounded-2xl border bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:p-5 ${
-                      s.accent ? 'border-brand-yellow/60 bg-amber-50/40' : 'border-brand-border hover:border-brand-green'
+                    className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${
+                      s.accent ? 'border-brand-yellow/70' : 'border-brand-border hover:border-brand-green'
                     }`}
                   >
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <span className="text-[11px] font-bold uppercase leading-tight tracking-wider text-brand-muted">
-                        {s.label}
-                      </span>
-                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110 ${
+                    {/* Dải màu định danh nhóm chạy dọc mép trái */}
+                    <span
+                      aria-hidden="true"
+                      className={`absolute inset-y-0 left-0 w-1 ${s.accent ? 'bg-brand-yellow' : 'bg-brand-green/25 group-hover:bg-brand-green'} transition-colors`}
+                    />
+
+                    <div className="flex items-start justify-between gap-3">
+                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-transform group-hover:scale-105 ${
                         s.accent ? 'bg-brand-yellow/25 text-amber-700' : 'bg-brand-cream text-brand-green'
                       }`}>
-                        <Icon className="h-4 w-4" />
+                        <Icon className="h-5 w-5" />
                       </span>
+                      <ArrowUpRight className="h-4 w-4 shrink-0 text-stone-300 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand-green" />
                     </div>
 
-                    <div className="mt-2 flex items-baseline justify-between">
-                      <span className="font-heading text-3xl font-black text-brand-dark">
+                    <p className="mt-4 text-[11px] font-bold uppercase leading-tight tracking-wider text-brand-muted">
+                      {s.label}
+                    </p>
+
+                    <div className="mt-1.5 flex items-baseline gap-1.5">
+                      <span className="font-heading text-[2rem] font-black leading-none text-brand-dark">
                         {s.value}
                       </span>
-                      <ArrowUpRight className="h-4 w-4 text-stone-300 transition-colors group-hover:text-brand-green" />
+                      <span className="text-[11px] font-semibold text-brand-muted">{s.unit}</span>
                     </div>
                   </Link>
                 );
@@ -255,7 +282,9 @@ export default function MasterDataDashboard() {
                   Thực hiện bởi: <strong className="font-semibold text-stone-700">{item.user}</strong> • {item.time}
                 </p>
               </div>
-              <span className="shrink-0 whitespace-nowrap rounded-md border border-brand-border bg-brand-cream/60 px-2 py-0.5 text-[10px] font-bold text-brand-green">
+              <span className={`shrink-0 whitespace-nowrap rounded-md border px-2 py-0.5 text-[10px] font-bold ${
+                AUDIT_TONES[item.type] || 'border-brand-border bg-brand-cream/60 text-brand-green'
+              }`}>
                 {item.type}
               </span>
             </li>
