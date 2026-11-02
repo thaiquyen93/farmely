@@ -2643,6 +2643,17 @@ export default function CustomerPlotWorkspace({
             });
             if (matched.length > 0) {
               const mapped = matched.map((m) => {
+                const isCompleted = m.status === 'DONE' || m.status === 'COMPLETED';
+                const dueDate = String(m.dueDate || m.date || '').slice(0, 10);
+                const dueDateMatch = dueDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                const formattedDueDate = dueDateMatch
+                  ? `${dueDateMatch[3]}/${dueDateMatch[2]}/${dueDateMatch[1]}`
+                  : dueDate;
+                const activityTimestamp = isCompleted && (m.completedAt || m.updatedAt)
+                  ? `Hoàn thành: ${m.completedAt || m.updatedAt}`
+                  : formattedDueDate
+                    ? `Dự kiến: ${formattedDueDate}`
+                    : 'Chưa có ngày thực hiện';
                 let taskDay = null;
                 if (m.cropDay !== undefined && m.cropDay !== null) {
                   taskDay = Math.max(1, Number(m.cropDay));
@@ -2674,8 +2685,8 @@ export default function CustomerPlotWorkspace({
                   workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
                   workerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
                   title: m.title,
-                  timestamp: m.completedAt || (m.dueDate ? `${m.dueDate} • ${m.deadline || 'Ca sáng'}` : 'Ca trực'),
-                  status: m.status === 'DONE' || m.status === 'COMPLETED' ? 'COMPLETED' : m.status === 'IN_PROG' ? 'IN_PROGRESS' : m.status || 'PENDING',
+                  timestamp: activityTimestamp,
+                  status: isCompleted ? 'COMPLETED' : m.status === 'IN_PROG' ? 'IN_PROGRESS' : m.status || 'PENDING',
                   notes: m.instructions || m.notes || 'Thực hiện chăm sóc chuẩn quy trình VietGAP.',
                   proofPhoto: m.proofPhoto || m.evidenceImageUrl || null,
                   sensorSnapshot: { temp: '26.8°C', soilMoisture: '68%', light: '42.000 Lux' }
