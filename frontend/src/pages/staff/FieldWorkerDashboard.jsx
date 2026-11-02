@@ -176,6 +176,19 @@ const getTaskTimingMeta = (task) => {
   };
 };
 
+// ponytail: parse an toàn qua Date + Intl stdlib; nâng lên date-fns khi cần nhiều format lạ
+const formatHarvestTimestamp = (raw) => {
+  if (!raw) return '';
+  const d = new Date(String(raw).replace(' ', 'T'));
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('vi-VN', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+};
+
+const HARVEST_PHOTO_FALLBACK = '/images/harvest/rau-muong-p03.jpg';
+
 const isTaskToday = (t) => {
   if (t.status === 'COMPLETED') return false;
   const rawDate = t.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(t.deadline || '') ? t.deadline : null);
@@ -606,11 +619,12 @@ export default function FieldWorkerDashboard() {
           crop: harvest.cropName || harvest.crop || 'Nông sản VietGAP',
           customerName: harvest.customerName || 'Khách thuê',
           expectedYield: 'Theo kết quả cân thực tế',
-          status: harvest.customerConfirmed ? 'COMPLETED' : 'READY_TO_HARVEST',
+          // Với CVLĐ, phiếu hoàn tất ngay khi đã cân thực tế — không chờ khách nghiệm thu
+          status: Number(harvest.yieldAmount) > 0 ? 'COMPLETED' : 'READY_TO_HARVEST',
           actualWeight: harvest.yieldAmount ? `${harvest.yieldAmount} kg` : '',
           photoUrl: harvest.evidenceImageUrl || '',
           staffName: harvest.workerName || user?.fullName || 'Nhân viên hiện trường',
-          verifiedAt: harvest.createdAt ? new Date(harvest.createdAt).toLocaleString('vi-VN') : ''
+          verifiedAt: formatHarvestTimestamp(harvest.createdAt || harvest.harvestDate)
         }));
         setHarvestTasks(mappedHarvests);
         setSelectedHarvestTask((current) => current || mappedHarvests.find((item) => item.status !== 'COMPLETED') || mappedHarvests[0] || null);
@@ -1930,7 +1944,6 @@ export default function FieldWorkerDashboard() {
                     <div className="grid gap-4 md:grid-cols-2">
                       {completedHarvests.map((h, idx) => {
                         const seasonLabel = h.seasonName || `Vụ ${idx % 2 === 0 ? 1 : 2}: ${h.crop || 'Nông sản VietGAP'}`;
-                        const isConfirmed = h.customerConfirmed || h.status === 'CONFIRMED';
                         return (
                           <div
                             key={h.id || h.apiId || idx}
@@ -1938,26 +1951,23 @@ export default function FieldWorkerDashboard() {
                           >
                             <div className="space-y-3">
                               <div className="flex items-center justify-between gap-2 border-b border-stone-200/60 pb-2.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-lg bg-emerald-800 text-white">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-lg bg-emerald-800 text-white shrink-0">
                                     {h.plotCode || 'P-01'}
                                   </span>
-                                  <strong className="text-brand-dark font-heading text-sm">{h.plotName}</strong>
+                                  <strong className="text-brand-dark font-heading text-sm truncate">{h.plotName}</strong>
                                 </div>
-                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  isConfirmed
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                    : 'bg-amber-100 text-amber-800 border border-amber-300'
-                                }`}>
-                                  {isConfirmed ? '✓ Khách đã nghiệm thu' : '⏳ Chờ khách xác nhận'}
+                                <span className="shrink-0 whitespace-nowrap rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                                  ✓ Đã cân &amp; ghi nhận
                                 </span>
                               </div>
 
                               <div className="grid grid-cols-[100px_minmax(0,1fr)] gap-3 items-center">
                                 <img
-                                  src={h.photoUrl || '/images/harvest/rau-muong-p03.jpg'}
+                                  src={h.photoUrl || HARVEST_PHOTO_FALLBACK}
                                   alt="Ảnh cân thu hoạch"
-                                  className="h-24 w-full rounded-xl object-cover border border-stone-200"
+                                  onError={(e) => { e.currentTarget.src = HARVEST_PHOTO_FALLBACK; }}
+                                  className="h-24 w-full rounded-xl object-cover border border-stone-200 bg-stone-100"
                                 />
                                 <div className="space-y-1.5 min-w-0">
                                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -2910,7 +2920,6 @@ export default function FieldWorkerDashboard() {
         zIndex="z-[110]"
       >
         {selectedHarvestProofModal && (() => {
-          const isConfirmed = selectedHarvestProofModal.customerConfirmed || selectedHarvestProofModal.status === 'CONFIRMED';
           return (
             <div className="space-y-4 text-left text-xs max-h-[75vh] overflow-y-auto pr-1">
               {/* 1. Header Khối lượng & Vụ mùa */}
@@ -2938,9 +2947,10 @@ export default function FieldWorkerDashboard() {
               <div className="space-y-1.5">
                 <span className="font-bold text-stone-700 block">Ảnh chụp cân đối chứng thực tế tại vườn (BR20):</span>
                 <img
-                  src={selectedHarvestProofModal.photoUrl || '/images/harvest/rau-muong-p03.jpg'}
+                  src={selectedHarvestProofModal.photoUrl || HARVEST_PHOTO_FALLBACK}
                   alt="Ảnh cân đối chứng"
-                  className="w-full max-h-72 object-cover rounded-2xl border border-stone-200 shadow-2xs"
+                  onError={(e) => { e.currentTarget.src = HARVEST_PHOTO_FALLBACK; }}
+                  className="w-full max-h-72 object-cover rounded-2xl border border-stone-200 bg-stone-100 shadow-2xs"
                 />
               </div>
 
@@ -2961,10 +2971,8 @@ export default function FieldWorkerDashboard() {
                   </strong>
                 </div>
                 <div>
-                  <span className="text-[10px] text-stone-400 block font-bold">Trạng thái nghiệm thu:</span>
-                  <span className={`inline-block font-bold mt-0.5 ${isConfirmed ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {isConfirmed ? '✓ Đã nghiệm thu nhận hàng' : '⏳ Chờ khách xác nhận (SCR-Customer-14)'}
-                  </span>
+                  <span className="text-[10px] text-stone-400 block font-bold">Thửa đất canh tác:</span>
+                  <strong className="text-stone-900">{selectedHarvestProofModal.plotCode || '—'}</strong>
                 </div>
               </div>
 
