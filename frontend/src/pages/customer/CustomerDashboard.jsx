@@ -1627,18 +1627,8 @@ export default function CustomerDashboard() {
     fetch(`/api/customer/harvest-results?userId=${userId}`)
       .then((r) => (r.ok ? r.json() : { data: [] }))
       .then((res) => {
-        const items = res?.data || (Array.isArray(res) ? res : []);
-        setDbHarvestResults(items);
-        if (items.length > 0) {
-          const confirmedOne = items.find((h) => h.customerConfirmed || h.status === 'CONFIRMED');
-          if (confirmedOne) {
-            setHarvestAcceptance({
-              status: 'CONFIRMED',
-              confirmedAt: confirmedOne.createdAt,
-              deliveryMethod: confirmedOne.deliveryType
-            });
-          }
-        }
+        // ponytail: KH chỉ theo dõi kết quả thu hoạch (hiển thị trong Nhật ký), không nghiệm thu
+        setDbHarvestResults(res?.data || (Array.isArray(res) ? res : []));
       })
       .catch(() => setDbHarvestResults([]));
   }, [user]);

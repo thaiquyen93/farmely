@@ -5,7 +5,6 @@ import {
   Home,
   BookOpen,
   ClipboardList,
-  ShoppingBag,
   BookCheck,
   Bell,
   ChevronDown,
@@ -36,7 +35,7 @@ export default function CustomerNavbar({ activeTab, setActiveTab }) {
     { id: 'yards', label: 'My Yards', icon: Sprout },
     { id: 'diary', label: 'Journal', icon: BookOpen },
     { id: 'services', label: 'Chores', icon: ClipboardList },
-    { id: 'harvest', label: 'Produce', icon: ShoppingBag },
+    // ponytail: bỏ tab 'harvest' (Produce) — KH không nghiệm thu, Dashboard không có nhánh render -> trang trắng
     { id: 'process', label: 'Cultivarium', icon: BookCheck }
   ];
 

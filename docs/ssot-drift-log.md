@@ -138,3 +138,23 @@ ightarrow$ cập nhật `cancellation` sang `APPROVED`, cập nhật `contracts`
   - Quy tắc **BR18**: Tự động phát hiện điều kiện cực đoan (sốc nhiệt, hạn hán) và tự động hoãn lịch tưới khi lượng mưa hoặc xác suất mưa dự báo từ Weather API $\ge 70\%$.
   - Toàn bộ UI (Admin Dashboard, Field Worker Dashboard, Marketplace Plot Detail) đổi nhãn từ "Trạm IoT" sang "Thời Tiết & Khí Tượng Nông Nghiệp (Weather API)".
 - **Trạng thái:** ✅ Đã đồng bộ toàn bộ tài liệu và mã nguồn hệ thống.
+
+### [DRIFT-011] Thu Hẹp Phạm Vi BR21 — Khách Hàng Chỉ Theo Dõi Kết Quả Thu Hoạch, Không Nghiệm Thu Nhận Nông Sản
+- **Ngày:** 2026-11-02
+- **File:** `frontend/src/components/customer/CustomerPlotWorkspace.jsx` (`PLOT_TABS` dòng 23, `heroStats` dòng ~2731), `frontend/src/pages/customer/CustomerDashboard.jsx` (`fetchHarvestResults` dòng ~1625), `frontend/src/pages/staff/FieldWorkerDashboard.jsx` (dòng ~622, ~1940, ~2957), `frontend/server/siteVisitsApiPlugin.js` (dòng 2566)
+- **Docs nói:**
+  - Report 3 SRS §3.7, bảng MSG: `M15.2 | Yield approved | "Harvest approved. Prepare for pickup or delivery." | Toast (Success)`.
+  - Report 3 SRS (BR18, BR19, BR20, BR21): *"Once accepted and the lease term ends, the plot automatically enters status = 'MAINTENANCE' for a fixed 4-day soil turnaround before reopening as AVAILABLE."*
+  - Report 3 SRS, bảng BR: `BR21 | Harvest Time and Location. Harvesting takes place at the farm at the end of the cultivation season.`
+  - `RP39 (NEW).md:235` / `research-proposal.md:235` — **BR21 – Quyền quyết định sản lượng & Chính sách vận chuyển:** *"Khách có quyền tự đến nhận tại vườn cuối mùa vụ (miễn phí) hoặc yêu cầu giao tận nhà (tính phí ship)."*
+- **Code làm:**
+  - Quy trình thu hoạch kết thúc tại bước CVLĐ cân thực tế + chụp ảnh đối chứng (BR20). `POST /api/harvest` ghi `harvest_results` với `customer_confirmed = false`, `delivery_type = 'PICKUP'` mặc định.
+  - Phía Khách hàng **không còn** tab Thu hoạch (`PLOT_TABS` chỉ còn: Tổng quan · Hoạt động Staff · Nhật ký · Dịch vụ), không còn nút nghiệm thu / chọn phương thức nhận nông sản. Kết quả thu hoạch (khối lượng, ảnh đối chứng, tên CVLĐ) hiển thị **chỉ đọc** trong tab Nhật ký (`DiaryTab`).
+  - Phía CVLĐ đã gỡ badge `⏳ Chờ khách xác nhận` / `✓ Khách đã nghiệm thu` và dòng "Trạng thái nghiệm thu" khỏi biên bản bàn giao; phiếu tính `COMPLETED` ngay khi `yield_amount > 0`.
+  - Cột `harvest_results.customer_confirmed` và `delivery_type` **vẫn giữ nguyên trong DDL** (không thay đổi ERD), nhưng trên thực tế luôn ở giá trị lúc CVLĐ insert vì không có UI ghi đè.
+  - Endpoint `POST /api/customer/harvest-results/confirm` giữ lại ở backend (phục vụ đối soát dữ liệu / Admin), đánh dấu rõ là không có client nào gọi.
+- **Lý do lệch:** **User yêu cầu trực tiếp** — *"ở cái thu hoạch của staff bỏ hẳn cái chờ khách hàng xác nhận đi vì không cần thiết và ko làm tới mức độ đó"*. Nghiệp vụ nghiệm thu hai chiều (KH xác nhận → chốt phương thức giao → tính phí ship) vượt phạm vi đồ án ISP392, không đủ thời gian làm trọn vẹn và không phải trọng tâm bảo vệ.
+- **Cần cập nhật:** Report 3 (SRS) — xoá thông điệp `M15.2 Yield approved` khỏi bảng MSG của §3.7; diễn giải lại BR21 trong SRS theo hướng *"Khách hàng theo dõi kết quả thu hoạch (khối lượng thực cân + ảnh đối chứng) trên Nhật ký; mặc định tự nhận tại vườn cuối mùa vụ"*. Screen Spec — xoá màn hình/khối nghiệm thu nhận nông sản phía KH. **ERD / DDL: KHÔNG đổi** (giữ `customer_confirmed`, `delivery_type`).
+- **Cách sửa (nếu muốn align lại code theo docs):** Thêm lại tab `harvest` vào `PLOT_TABS`, dựng `HarvestTab` với nút chọn `PICKUP` / `DELIVERY`, gọi `POST /api/customer/harvest-results/confirm` (endpoint đã sẵn sàng, không cần viết thêm backend), rồi bật lại badge trạng thái nghiệm thu phía CVLĐ.
+- **Lập luận bảo vệ trước hội đồng:** BR21 về bản chất là **quyền của khách** (quyền quyết định sản lượng), không phải **nghĩa vụ xác nhận trong hệ thống**. Sản lượng đã thuộc về khách theo hợp đồng thuê (Lump-sum trả trước 100%), nên không cần một bước phê duyệt điện tử để chuyển giao quyền sở hữu. Hệ thống đảm bảo tính minh bạch bằng **bằng chứng một chiều từ CVLĐ** (ảnh cân điện tử tại hiện trường + `staff_id` người cân theo BR20) — đây mới là cơ chế chống gian lận thực sự. Mặc định "tự nhận tại vườn" đúng với `BR21 | Harvest Time and Location` trong SRS: *thu hoạch diễn ra tại nông trại*.
+- **Trạng thái:** ❌ Chưa align docs (code đã chốt theo yêu cầu user; cần sửa Report 3 khi nộp bản cập nhật)
