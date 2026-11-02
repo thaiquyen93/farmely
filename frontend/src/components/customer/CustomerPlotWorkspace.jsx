@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { assessPlot, explainAlert, computeHealthScore } from '../../utils/iotInsights';
+import { assessPlot, explainAlert } from '../../utils/iotInsights';
 import { fetchLiveAgroIotData } from '../../services/weatherIotService';
 import { resolveStandardCropProcess, getPersistedStaffActivities, resolvePlotSeasons } from '../../services/cropStandardProcess';
 import SeasonSelector from './SeasonSelector';
@@ -48,25 +48,6 @@ function Card({ className = '', children, style, onClick }) {
   );
 }
 
-function HealthRing({ score, size = 112, stroke = 10, tone }) {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const pct = score === null ? 0 : score / 100;
-  const color = tone === 'OK' ? '#a3e635' : tone === 'WARN' ? '#fbbf24' : tone === 'BAD' ? '#fb7185' : '#a8a29e';
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.14)" strokeWidth={stroke} fill="none" />
-        <circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={stroke} fill="none" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - pct)} className="transition-[stroke-dashoffset] duration-1000 ease-out" style={{ filter: `drop-shadow(0 0 8px ${color}88)` }} />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-        <span className="text-3xl font-bold leading-none">{score ?? '—'}</span>
-        <span className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/60">/ 100</span>
-      </div>
-    </div>
-  );
-}
-
 function SectionTitle({ eyebrow, title, action }) {
   return (
     <div className="flex items-end justify-between gap-3">
@@ -105,16 +86,15 @@ function EmptyState({ icon: Icon = Leaf, title, note }) {
  * Thanh hiện trạng sinh trưởng theo ngày tuổi của cây trồng
  */
 /**
- * Thẻ hiện trạng thửa đất — gộp "sinh trưởng theo quy trình" và "sức khoẻ vi khí hậu"
- * vào MỘT khối, đọc từ trên xuống theo thứ bậc:
- *   việc đang diễn ra (to nhất) > điểm sức khoẻ > số đo thật > cảnh báo (gọn nhất).
- * ponytail: ceiling is 4 chỉ số + 2 cảnh báo trong cùng một thẻ.
+ * Thẻ hiện trạng thửa đất, đọc từ trên xuống theo thứ bậc:
+ *   việc đang diễn ra (to nhất) > nhiệt độ thực địa > cảnh báo (gọn nhất).
+ * ponytail: ceiling is nhiệt độ + 2 cảnh báo trong cùng một thẻ.
  * upgrade path is tách lại thành trang riêng khi KH cần tra cứu lịch sử khí tượng theo giờ.
  */
-function PlotStatusHero({ plot, cropProcess, alerts = [], topAlerts = [], liveProviderInfo }) {
+function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo }) {
   const currentStage = cropProcess.currentStage;
-  const health = computeHealthScore(plot, alerts);
-  const metrics = assessPlot(plot);
+  // Chỉ nêu nhiệt độ: 3 chỉ số còn lại đã nằm trong chính câu cảnh báo khi vượt ngưỡng.
+  const temp = assessPlot(plot).find((m) => m.key === 'temp');
   const isNotStarted = cropProcess.isNotStarted;
 
   return (
@@ -123,8 +103,8 @@ function PlotStatusHero({ plot, cropProcess, alerts = [], topAlerts = [], livePr
       <span aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl" />
 
       {/* Tầng 1 — Việc đang diễn ra (chính) · Sức khoẻ thửa (phụ, tách bằng vách mờ) */}
-      <div className="relative flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-start lg:gap-8">
-        <div className="min-w-0 flex-1">
+      <div className="relative p-5 sm:p-6">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/90 backdrop-blur">
               Tiêu chuẩn VietGAP
@@ -143,9 +123,6 @@ function PlotStatusHero({ plot, cropProcess, alerts = [], topAlerts = [], livePr
                 Ngày thứ {cropProcess.currentDay} / {cropProcess.totalDays}
               </span>
             )}
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/80 backdrop-blur">
-              Dự kiến {cropProcess.expectedYield || '15 kg/vụ'}
-            </span>
           </div>
 
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-200/80">
@@ -156,13 +133,13 @@ function PlotStatusHero({ plot, cropProcess, alerts = [], topAlerts = [], livePr
               ? `${cropProcess.cropName} · Chưa bắt đầu canh tác`
               : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
           </h3>
-          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-lime-100/85">
+          <p className="mt-1.5 text-sm leading-relaxed text-lime-100/85">
             {isNotStarted
               ? 'Vụ mùa kế tiếp đã được lên lịch. Tiến độ sẽ bắt đầu tính khi vào vụ mới (sau chu kỳ nghỉ đất và làm đất tiêu chuẩn 5 ngày).'
               : (currentStage?.statusDesc || 'Cây trồng đang phát triển thuận lợi theo đúng chỉ dẫn kỹ thuật nông học.')}
           </p>
 
-          <div className="mt-4 max-w-xl">
+          <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-end text-xs font-semibold text-lime-200/90">
               <span>
                 {isNotStarted
@@ -178,43 +155,31 @@ function PlotStatusHero({ plot, cropProcess, alerts = [], topAlerts = [], livePr
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="flex items-center gap-4 lg:w-[228px] lg:shrink-0 lg:flex-col lg:items-start lg:gap-3 lg:border-l lg:border-white/10 lg:pl-6">
-          <HealthRing score={health.score} tone={health.tone} size={92} stroke={9} />
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-200/80">
-              Sức khoẻ thửa đất
-            </p>
-            <p className="mt-0.5 text-sm font-bold">{health.label}</p>
-            {liveProviderInfo?.isLive3rdParty && (
-              <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-lime-300">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-lime-300" />
-                Open-Meteo Live Feed
-              </span>
+      {/* Tầng 2 — Nhiệt độ thực địa & nguồn dữ liệu, cùng một hàng */}
+      {temp && (
+        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/10 px-5 py-3.5 sm:px-6">
+          <span className="flex items-baseline gap-1.5 text-xs">
+            <span className={`h-2 w-2 shrink-0 self-center rounded-full ${LEVEL_STYLE[temp.level].dot}`} />
+            <span className="font-medium text-white/70">{temp.label}</span>
+            {temp.value === null ? (
+              <span className="text-white/50">chưa có số liệu</span>
+            ) : (
+              <>
+                <strong className="font-bold text-white">{temp.value}{temp.unit}</strong>
+                <span className="text-white/50">chuẩn {temp.min}–{temp.max}{temp.unit}</span>
+              </>
             )}
-          </div>
+          </span>
+          {liveProviderInfo?.isLive3rdParty && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-lime-300">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-lime-300" />
+              Open-Meteo Live Feed
+            </span>
+          )}
         </div>
-      </div>
-
-      {/* Tầng 2 — Số đo thật kèm ngưỡng chuẩn, một dòng chữ thay vì 4 thẻ con */}
-      <div className="relative border-t border-white/10 px-5 py-3.5 sm:px-6">
-        <ul className="flex flex-wrap gap-x-5 gap-y-2">
-          {metrics.map((i) => (
-            <li key={i.key} className="flex items-baseline gap-1.5 text-xs">
-              <span className={`h-2 w-2 shrink-0 self-center rounded-full ${LEVEL_STYLE[i.level].dot}`} />
-              <span className="font-medium text-white/70">{i.label}</span>
-              {i.value === null ? (
-                <span className="text-white/50">chưa có số liệu</span>
-              ) : (
-                <>
-                  <strong className="font-bold text-white">{i.value}{i.unit}</strong>
-                  <span className="text-white/50">chuẩn {i.min}–{i.max}{i.unit}</span>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
+      )}
 
       {/* Tầng 3 — Cảnh báo BR18, mỗi cảnh báo một dòng gọn trong cùng thẻ */}
       {topAlerts.length > 0 && (
@@ -1786,8 +1751,6 @@ function OverviewTab({
   liveProviderInfo,
   alerts = [],
   seasons = [],
-  activeSeasonId,
-  onSelectSeason,
   onOpenRenewal,
   activeSeason,
   isSelf = false,
@@ -1817,16 +1780,6 @@ function OverviewTab({
 
   return (
     <div className="space-y-6">
-      {/* 0. Thanh chuyển đổi Vụ Mùa (Season Switcher) */}
-      <SeasonSelector
-        seasons={seasons}
-        activeSeasonId={activeSeasonId}
-        onSelectSeason={onSelectSeason}
-        onOpenRenewal={onOpenRenewal}
-        canRenew={true}
-        plot={plot}
-      />
-
       {isSoilPrep ? (
         /* Giai đoạn nghỉ đất & cải tạo theo chuẩn VietGAP (Fallow Protocol) */
         <SoilPrepView
@@ -1875,7 +1828,6 @@ function OverviewTab({
             <PlotStatusHero
               plot={plot}
               cropProcess={cropProcess}
-              alerts={alerts}
               topAlerts={topAlerts}
               liveProviderInfo={liveProviderInfo}
             />
@@ -2092,7 +2044,7 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
   );
 }
 
-function ServicesTab({ plot, services, orders, onSelectService }) {
+function ServicesTab({ plot, services, orders, onSelectService, seasons = [], activeSeasonId, onSelectSeason, onOpenRenewal }) {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState(null);
 
@@ -2111,6 +2063,16 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
 
   return (
     <div className="space-y-6">
+      {/* 0. Chu kỳ mùa vụ thửa đất — gia hạn/đổi giống là việc đặt dịch vụ, không phải theo dõi hằng ngày */}
+      <SeasonSelector
+        seasons={seasons}
+        activeSeasonId={activeSeasonId}
+        onSelectSeason={onSelectSeason}
+        onOpenRenewal={onOpenRenewal}
+        canRenew={true}
+        plot={plot}
+      />
+
       {/* 1. Đặt dịch vụ chăm sóc & vật tư */}
       <section>
         <SectionTitle eyebrow={`Cho ${plot.name}`} title="Đặt dịch vụ chăm sóc & vật tư" />
@@ -2748,7 +2710,6 @@ export default function CustomerPlotWorkspace({
   };
 
   const current = displayTabs.find((t) => t.id === tab) || displayTabs[0];
-  const health = computeHealthScore(activePlot, activeAlerts);
 
   const heroStats = [
     {
@@ -2767,7 +2728,8 @@ export default function CustomerPlotWorkspace({
         ? (plot.startDate ? `Bắt đầu: ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Theo lịch vụ mùa')
         : (plot.expectedHarvestDate ? `Dự kiến ${plot.expectedHarvestDate}` : 'Đúng tiến độ'),
       icon: Wheat,
-      tab: 'harvest'
+      // ponytail: tab 'harvest' đã bỏ (KH không nghiệm thu) — kết quả thu hoạch nằm trong Nhật ký
+      tab: 'diary'
     },
     {
       label: isSelf ? 'Công việc' : 'Việc Staff',
@@ -2931,8 +2893,6 @@ export default function CustomerPlotWorkspace({
             liveProviderInfo={liveIotResult}
             alerts={activeAlerts}
             seasons={plotSeasons}
-            activeSeasonId={activeSeasonId}
-            onSelectSeason={setActiveSeasonId}
             onOpenRenewal={() => setShowRenewalModal(true)}
             activeSeason={activeSeason}
             isSelf={isSelf}
@@ -2997,6 +2957,10 @@ export default function CustomerPlotWorkspace({
             services={services}
             orders={serviceOrders}
             onSelectService={onSelectService}
+            seasons={plotSeasons}
+            activeSeasonId={activeSeasonId}
+            onSelectSeason={setActiveSeasonId}
+            onOpenRenewal={() => setShowRenewalModal(true)}
           />
         )}
 
