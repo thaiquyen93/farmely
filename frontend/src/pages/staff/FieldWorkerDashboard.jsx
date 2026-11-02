@@ -1611,18 +1611,6 @@ export default function FieldWorkerDashboard() {
                               <p className="text-stone-400 text-[11px]">📍 {plot.location || 'Trang trại Farmely'} {plot.area ? `• ${plot.area}` : ''}</p>
                             </div>
 
-                            {/* Trạm Quan Trắc IoT Vi Khí Hậu (BR18) */}
-                            <div className="mt-2 flex items-center justify-between text-[11px] bg-sky-50/60 px-2.5 py-1.5 rounded-xl border border-sky-100 text-sky-950">
-                              <span className="font-semibold flex items-center gap-1">
-                                🌡️ {plot.temp || '28.5°C'}
-                              </span>
-                              <span className="font-semibold flex items-center gap-1">
-                                💧 Ẩm đất: {plot.soilMoisture || '68%'}
-                              </span>
-                              <span className="text-[10px] text-stone-500">
-                                {plot.ph ? `pH ${plot.ph}` : 'pH 6.5'}
-                              </span>
-                            </div>
                           </div>
 
                           {/* Chu kỳ vườn & Tiến độ ca trực */}
