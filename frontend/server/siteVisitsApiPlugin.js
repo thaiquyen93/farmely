@@ -953,7 +953,7 @@ BEGIN
                   const parsedVarId = typeof rawVarId === 'number'
                     ? rawVarId
                     : parseInt(String(rawVarId || '').replace(/\D/g, ''), 10);
-                  const varietyId = !isNaN(parsedVarId) && parsedVarId > 0 && parsedVarId <= 10 ? parsedVarId : 1;
+                  const varietyId = !isNaN(parsedVarId) && parsedVarId > 0 ? parsedVarId : 1;
 
                   pgSql += `
     -- Tìm plot_id chính xác
@@ -1488,13 +1488,12 @@ BEGIN
         SELECT plot_id FROM rentals WHERE contract_id = v_contract_id
     );
 
-    -- 5. Huỷ các care_tasks chưa hoàn thành
-    UPDATE care_tasks
-    SET status = 'CANCELLED',
-        updated_at = NOW()
+    -- 5. Dọn các care_tasks chưa hoàn thành của hợp đồng đã thanh lý
+    -- task_status_enum chỉ có ('PENDING','IN_PROG','DONE') -> không thể set 'CANCELLED', phải DELETE
+    DELETE FROM care_tasks
     WHERE rental_id IN (
         SELECT rental_id FROM rentals WHERE contract_id = v_contract_id
-    ) AND status NOT IN ('COMPLETED', 'CANCELLED');
+    ) AND status <> 'DONE'::task_status_enum;
 END $$;
 `;
             await runPostgreSql(approveSql);
@@ -1537,13 +1536,13 @@ END $$;
 
               for (const it of items) {
                 const rawPlotId = it.plotId || 1;
+                const rawPlotCode = String(it.plotCode || it.code || '').trim().replace(/^PLOT-/i, '');
                 const findPlotSql = `
 SELECT plot_id, plot_code, price_per_period, status 
 FROM plots 
-WHERE plot_id = ${parseInt(rawPlotId, 10) || 0}
-   OR plot_code = 'P-' || LPAD('${rawPlotId}', 2, '0')
-   OR plot_code = 'P-' || '${rawPlotId}'
-   OR plot_code = '${rawPlotId}'
+WHERE (${rawPlotCode ? `plot_code = '${rawPlotCode}' OR plot_code = 'P-' || '${rawPlotCode.replace(/^P-/i, '')}' OR ` : ''} plot_code = 'P-' || LPAD('${rawPlotId}', 2, '0') OR plot_code = 'P-' || '${rawPlotId}' OR plot_code = '${rawPlotId}')
+   OR plot_id = ${parseInt(rawPlotId, 10) || 0}
+ORDER BY (CASE WHEN ${rawPlotCode ? `plot_code = '${rawPlotCode}' OR plot_code = 'P-' || '${rawPlotCode.replace(/^P-/i, '')}'` : 'FALSE'} THEN 1 ELSE 2 END)
 LIMIT 1;
 `;
                 const plotOut = await runPostgreSql(findPlotSql);
@@ -1975,19 +1974,20 @@ Write-Output $json
         }
 
         // 5.4b GET /api/users/staff (Fetch agricultural experts & field workers directly from PostgreSQL)
-        if (req.method === 'GET' && (url === '/api/users/staff' || url.startsWith('/api/users/staff?') || url === '/api/users' || url.startsWith('/api/users?'))) {
+        if (req.method === 'GET' && (url === '/api/users/staff' || url.startsWith('/api/users/staff?'))) {
           try {
             const staffSql = `
 SELECT json_agg(json_build_object(
   'userId', u.user_id,
   'fullName', u.full_name,
   'email', u.email,
-  'role', r.role_name,
+  'role', CASE WHEN r.role_name IN ('FIELD_WORKER', 'STAFF') THEN 'STAFF' ELSE r.role_name END,
   'phoneNumber', u.phone_number
 ))
 FROM users u
 JOIN roles r ON u.role_id = r.role_id
-WHERE r.role_name IN ('EXPERT', 'FIELD_WORKER');
+WHERE r.role_name IN ('EXPERT', 'FIELD_WORKER', 'STAFF')
+ORDER BY u.user_id ASC;
 `;
             const pgRes = await runPostgreSql(staffSql);
             if (pgRes && pgRes.trim()) {
@@ -2002,7 +2002,7 @@ WHERE r.role_name IN ('EXPERT', 'FIELD_WORKER');
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.end(JSON.stringify([
             { userId: 5, fullName: 'ThS. Nguyễn Hoàng Nam', email: 'expert@farmely.vn', role: 'EXPERT', phoneNumber: '0903888999' },
-            { userId: 8, fullName: 'Trần Văn Lực', email: 'worker@farmely.vn', role: 'FIELD_WORKER', phoneNumber: '0933111222' }
+            { userId: 8, fullName: 'Trần Văn Lực', email: 'worker@farmely.vn', role: 'STAFF', phoneNumber: '0933111222' }
           ]));
           return;
         }
@@ -2191,14 +2191,16 @@ LIMIT 1;
 
 
         // 7. GET /api/users (List all registered users from PostgreSQL)
-        if (req.method === 'GET' && url === '/api/users') {
+        if (req.method === 'GET' && (url === '/api/users' || url.startsWith('/api/users?'))) {
           try {
             const sql = `
 SELECT COALESCE(json_agg(row_to_json(u)), '[]'::json) FROM (
-  SELECT u.user_id, u.email, u.full_name, u.phone_number, CASE WHEN r.role_name IN ('FIELD_WORKER', 'STAFF') THEN 'STAFF' ELSE r.role_name END AS role, u.status, TO_CHAR(u.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
+  SELECT u.user_id, u.user_id AS id, u.user_id AS "userId", u.email, u.full_name AS "fullName", u.full_name, u.phone_number AS "phoneNumber",
+         CASE WHEN r.role_name IN ('FIELD_WORKER', 'STAFF') THEN 'STAFF' ELSE r.role_name END AS role,
+         u.status, TO_CHAR(u.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
   FROM users u
   JOIN roles r ON u.role_id = r.role_id
-  ORDER BY u.user_id DESC
+  ORDER BY u.user_id ASC
 ) u;
 `;
             const data = await runPostgreSql(sql);
@@ -2528,11 +2530,25 @@ SELECT json_build_object(
               const evidenceImageUrl = payload.evidenceImageUrl || '';
               const deliveryType = payload.deliveryType === 'DELIVERY' ? 'DELIVERY' : 'PICKUP';
 
+              // BR20: ghi nhận cân thực tế VÀ đóng luôn nhiệm vụ thu hoạch trong CSDL
+              // (trước đây chỉ đổi state React nên F5 là task hiện lại PENDING)
               const sql = `
 WITH ins AS (
   INSERT INTO harvest_results (rental_id, entered_by, harvest_date, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at)
   VALUES (${rentalId}, ${enteredBy}, '${harvestDate}', ${yieldAmount}, '${evidenceImageUrl.replace(/'/g, "''")}', '${deliveryType}', false, NOW())
   RETURNING harvest_id, rental_id, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at
+), closed_tasks AS (
+  UPDATE care_tasks ct
+  SET status = 'DONE'::task_status_enum,
+      evidence_image_url = COALESCE(NULLIF('${evidenceImageUrl.replace(/'/g, "''")}', ''), ct.evidence_image_url),
+      updated_at = NOW()
+  WHERE ct.rental_id = ${rentalId}
+    AND ct.status <> 'DONE'::task_status_enum
+    AND (
+      LOWER(COALESCE(ct.title, '')) LIKE '%thu hoạch%'
+      OR ct.step_id IN (SELECT step_id FROM template_steps WHERE LOWER(step_name) LIKE '%thu hoạch%')
+    )
+  RETURNING ct.task_id
 )
 SELECT json_build_object(
   'success', true,
@@ -2563,6 +2579,8 @@ SELECT json_build_object(
           return;
         }
 
+        // ponytail: BR21 thu hẹp phạm vi — KH chỉ theo dõi, không nghiệm thu nhận nông sản.
+        // Endpoint giữ lại cho Admin/đối soát dữ liệu; không có UI nào gọi. Xem docs/ssot-drift-log.md DRIFT-011.
         if (req.method === 'POST' && (url === '/api/customer/harvest-results/confirm' || url === '/api/harvest-results/confirm')) {
           let body = '';
           req.on('data', chunk => body += chunk);
@@ -4884,6 +4902,8 @@ ON CONFLICT DO NOTHING;
               const newEndDate = String(payload.newEndDate || '').replace(/'/g, "''");
               const additionalAmount = parseFloat(payload.additionalAmount || 0) || 1200000;
               const gatewayRef = String(payload.gatewayRef || ('VNP-RENEW-' + Date.now().toString().slice(-8))).replace(/'/g, "''");
+              const newVarId = parseInt(payload.newVarietyId || payload.varietyId, 10);
+              const varClause = (!isNaN(newVarId) && newVarId > 0) ? `, variety_id = ${newVarId}, expert_id = fn_resolve_expert_for_variety(${newVarId})` : '';
 
               const sql = `
 DO $$
@@ -4898,7 +4918,7 @@ BEGIN
       end_date = COALESCE(GREATEST(end_date, v_new_end), end_date + INTERVAL '40 days'),
       term_months = GREATEST(COALESCE(term_months, 1), ROUND((COALESCE(GREATEST(end_date, v_new_end), end_date + INTERVAL '40 days')::date - start_date) / 30.0)::int),
       total_price = COALESCE(total_price, 0) + ${additionalAmount},
-      updated_at = NOW()
+      updated_at = NOW()${varClause}
     WHERE rental_id = ${rentalId};
 
     UPDATE contracts

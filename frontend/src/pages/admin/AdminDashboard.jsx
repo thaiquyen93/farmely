@@ -197,6 +197,7 @@ export default function AdminDashboard() {
   const [selectedUserToEdit, setSelectedUserToEdit] = useState(null);
   const [userEditStatus, setUserEditStatus] = useState('ACTIVE');
   const [isUpdatingUser, setIsUpdatingUser] = useState(false);
+  const [userRoleFilter, setUserRoleFilter] = useState('ALL');
 
   // 11. IoT Microclimate Alerts & Weather (BR18 / UC13 / Task 1.4 & 2.1)
   const [iotAlerts, setIotAlerts] = useState([]);
@@ -436,23 +437,40 @@ export default function AdminDashboard() {
       );
 
       setSystemUsers(
-        users.map((account) => ({
-          id: account.userId || account.id || account.user_id,
-          fullName: account.fullName || account.full_name,
-          email: account.email,
-          role: account.role === 'FIELD_WORKER' ? 'STAFF' : account.role,
-          roleLabel:
-            account.role === 'CUSTOMER'
-              ? 'Khách Hàng'
-              : account.role === 'EXPERT'
-              ? 'Chuyên Gia Nông Nghiệp'
-              : account.role === 'ADMIN'
-              ? 'Quản Trị Viên'
-              : 'Chuyên Viên Lao Động',
-          plotsRented: 'Tài khoản hoạt động',
-          status: account.status || 'ACTIVE',
-          lastActive: account.updatedAt ? new Date(account.updatedAt).toLocaleString('vi-VN') : 'Đang hoạt động'
-        }))
+        users.map((account) => {
+          const rawRole = account.role === 'FIELD_WORKER' ? 'STAFF' : (account.role || 'CUSTOMER');
+          let roleLabel = 'Chuyên Viên Lao Động';
+          let scope = 'Kỹ thuật viên chăm sóc hiện trường';
+
+          if (rawRole === 'CUSTOMER') {
+            roleLabel = 'Khách Hàng';
+            scope = 'Thuê thửa đất & Theo dõi vụ mùa';
+          } else if (rawRole === 'EXPERT') {
+            roleLabel = 'Chuyên Gia Nông Nghiệp';
+            scope = account.email === 'expert@farmely.vn' || String(account.fullName || '').includes('Nam')
+              ? 'Phụ trách chuyên môn nông học & Phác đồ VietGAP'
+              : 'Tư vấn kỹ thuật & Chuẩn hóa quy trình';
+          } else if (rawRole === 'ADMIN') {
+            roleLabel = 'Quản Trị Viên';
+            scope = 'Toàn quyền cấu hình & Quản trị hệ thống';
+          } else if (rawRole === 'STAFF') {
+            roleLabel = 'Chuyên Viên Lao Động';
+            scope = account.email === 'worker@farmely.vn' || String(account.fullName || '').includes('Lực')
+              ? 'Phụ trách thực địa & Giám sát chăm sóc thửa P-01 -> P-20'
+              : 'Kỹ thuật viên chăm sóc hiện trường';
+          }
+
+          return {
+            id: account.userId || account.id || account.user_id,
+            fullName: account.fullName || account.full_name,
+            email: account.email,
+            role: rawRole,
+            roleLabel,
+            plotsRented: scope,
+            status: account.status || 'ACTIVE',
+            lastActive: account.updatedAt ? new Date(account.updatedAt).toLocaleString('vi-VN') : 'Đang hoạt động'
+          };
+        })
       );
 
       setLandStats({
@@ -2258,7 +2276,7 @@ export default function AdminDashboard() {
             {/* ========================================================================= */}
             {activeTab === 'users' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div className="flex items-center justify-between border-b border-brand-border/60 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-3">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark">
                       Quản Trị Người Dùng & Phân Quyền (RBAC)
@@ -2270,6 +2288,38 @@ export default function AdminDashboard() {
                   <span className="text-xs font-bold text-stone-500">
                     {systemUsers.length} Tài khoản kích hoạt
                   </span>
+                </div>
+
+                {/* Bộ lọc vai trò người dùng (Role Filter Chips) */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
+                  {[
+                    { id: 'ALL', label: 'Tất cả', count: systemUsers.length },
+                    { id: 'STAFF', label: 'Chuyên Viên Lao Động', count: systemUsers.filter((u) => u.role === 'STAFF').length },
+                    { id: 'EXPERT', label: 'Chuyên Gia Nông Nghiệp', count: systemUsers.filter((u) => u.role === 'EXPERT').length },
+                    { id: 'CUSTOMER', label: 'Khách Hàng', count: systemUsers.filter((u) => u.role === 'CUSTOMER').length },
+                    { id: 'ADMIN', label: 'Quản Trị Viên', count: systemUsers.filter((u) => u.role === 'ADMIN').length }
+                  ].map((chip) => {
+                    const isSelected = userRoleFilter === chip.id;
+                    return (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => setUserRoleFilter(chip.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+                          isSelected
+                            ? 'bg-brand-green text-white shadow-brand-green/20'
+                            : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
+                        }`}
+                      >
+                        <span>{chip.label}</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                          isSelected ? 'bg-white/20 text-white' : 'bg-white text-stone-600'
+                        }`}>
+                          {chip.count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <div className="overflow-x-auto">
@@ -2284,7 +2334,9 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-border/60">
-                      {systemUsers.map((u) => (
+                      {systemUsers
+                        .filter((u) => userRoleFilter === 'ALL' || u.role === userRoleFilter)
+                        .map((u) => (
                         <tr key={u.id} className="hover:bg-stone-50 transition-colors">
                           <td className="p-3">
                             <p className="font-bold text-brand-dark">{u.fullName}</p>
@@ -2295,7 +2347,7 @@ export default function AdminDashboard() {
                               {u.roleLabel || u.role}
                             </span>
                           </td>
-                          <td className="p-3 text-stone-600">{u.plotsRented}</td>
+                          <td className="p-3 text-stone-600 font-medium">{u.plotsRented}</td>
                           <td className="p-3">
                             <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold">
                               <span className="w-2 h-2 rounded-full bg-emerald-500" />
