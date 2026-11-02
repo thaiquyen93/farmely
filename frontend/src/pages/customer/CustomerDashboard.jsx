@@ -2404,15 +2404,6 @@ export default function CustomerDashboard() {
                                 </div>
                               ) : (
                                 <>
-                                  <div className="grid grid-cols-3 gap-2 text-center">
-                                    {[['Nhiệt độ', plot.temp], ['Ẩm đất', plot.soilMoisture], ['Ánh sáng', plot.light]].map(([label, value]) => (
-                                      <div key={label} className="rounded-xl bg-stone-50 px-2 py-2">
-                                        <p className="text-[11px] text-stone-500">{label}</p>
-                                        <p className="truncate text-sm font-semibold text-[#18352b]">{value}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-
                                   {topAlert ? (
                                     <button type="button" onClick={() => openPlot(plot.id, 'overview', plot.rentalId)} className="flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2 text-left text-xs text-rose-800 hover:bg-rose-100">
                                       <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block font-semibold">{topAlert.title}</span><span className="opacity-80">{topAlert.time}</span></span>

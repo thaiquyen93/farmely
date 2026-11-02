@@ -125,7 +125,7 @@ function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo })
             )}
           </div>
 
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-200/80">
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-300">
             {isNotStarted ? 'Vụ mùa sắp tới' : 'Đang trong giai đoạn'}
           </p>
           <h3 className="mt-1 font-heading text-xl font-bold tracking-tight sm:text-2xl">
@@ -133,21 +133,21 @@ function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo })
               ? `${cropProcess.cropName} · Chưa bắt đầu canh tác`
               : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
           </h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-lime-100/85">
+          <p className="mt-1.5 text-sm leading-relaxed text-white/90">
             {isNotStarted
               ? 'Vụ mùa kế tiếp đã được lên lịch. Tiến độ sẽ bắt đầu tính khi vào vụ mới (sau chu kỳ nghỉ đất và làm đất tiêu chuẩn 5 ngày).'
               : (currentStage?.statusDesc || 'Cây trồng đang phát triển thuận lợi theo đúng chỉ dẫn kỹ thuật nông học.')}
           </p>
 
           <div className="mt-4">
-            <div className="mb-1.5 flex items-center justify-end text-xs font-semibold text-lime-200/90">
+            <div className="mb-1.5 flex items-center justify-end text-xs font-semibold text-lime-300">
               <span>
                 {isNotStarted
                   ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày`
                   : `Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}
               </span>
             </div>
-            <div className="h-2.5 w-full rounded-full bg-black/30 p-0.5 ring-1 ring-white/10">
+            <div className="h-2.5 w-full rounded-full bg-black/45 p-0.5 ring-1 ring-white/25">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-lime-400 via-emerald-400 to-teal-300 shadow-[0_0_12px_rgba(163,230,53,0.5)] transition-all duration-1000"
                 style={{ width: `${cropProcess.progressPercent}%` }}
@@ -162,13 +162,13 @@ function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo })
         <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/10 px-5 py-3.5 sm:px-6">
           <span className="flex items-baseline gap-1.5 text-xs">
             <span className={`h-2 w-2 shrink-0 self-center rounded-full ${LEVEL_STYLE[temp.level].dot}`} />
-            <span className="font-medium text-white/70">{temp.label}</span>
+            <span className="font-medium text-white/85">{temp.label}</span>
             {temp.value === null ? (
-              <span className="text-white/50">chưa có số liệu</span>
+              <span className="text-white/70">chưa có số liệu</span>
             ) : (
               <>
                 <strong className="font-bold text-white">{temp.value}{temp.unit}</strong>
-                <span className="text-white/50">chuẩn {temp.min}–{temp.max}{temp.unit}</span>
+                <span className="text-white/70">chuẩn {temp.min}–{temp.max}{temp.unit}</span>
               </>
             )}
           </span>
@@ -197,10 +197,10 @@ function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo })
                 <span className={`rounded px-1.5 py-0.5 text-[10px] font-extrabold ${isHigh ? 'bg-rose-400/20 text-rose-200' : 'bg-amber-400/20 text-amber-200'}`}>
                   {info.levelText}
                 </span>
-                <span className="text-white/75">
+                <span className="text-white/90">
                   {info.explanation} <strong className="font-semibold text-white/95">{info.action}</strong>
                 </span>
-                {info.time && <span className="text-white/40">{info.time}</span>}
+                {info.time && <span className="text-white/65">{info.time}</span>}
               </div>
             );
           })}
