@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { summarizePlot, explainAlert, computeHealthScore } from '../../utils/iotInsights';
+import { assessPlot, explainAlert, computeHealthScore } from '../../utils/iotInsights';
 import { fetchLiveAgroIotData } from '../../services/weatherIotService';
 import { resolveStandardCropProcess, getPersistedStaffActivities, resolvePlotSeasons } from '../../services/cropStandardProcess';
 import SeasonSelector from './SeasonSelector';
@@ -104,69 +104,143 @@ function EmptyState({ icon: Icon = Leaf, title, note }) {
 /**
  * Thanh hiện trạng sinh trưởng theo ngày tuổi của cây trồng
  */
-function CropGrowthHero({ cropProcess, onOpenStageDetail }) {
+/**
+ * Thẻ hiện trạng thửa đất — gộp "sinh trưởng theo quy trình" và "sức khoẻ vi khí hậu"
+ * vào MỘT khối, đọc từ trên xuống theo thứ bậc:
+ *   việc đang diễn ra (to nhất) > điểm sức khoẻ > số đo thật > cảnh báo (gọn nhất).
+ * ponytail: ceiling is 4 chỉ số + 2 cảnh báo trong cùng một thẻ.
+ * upgrade path is tách lại thành trang riêng khi KH cần tra cứu lịch sử khí tượng theo giờ.
+ */
+function PlotStatusHero({ plot, cropProcess, alerts = [], topAlerts = [], liveProviderInfo }) {
   const currentStage = cropProcess.currentStage;
+  const health = computeHealthScore(plot, alerts);
+  const metrics = assessPlot(plot);
+  const isNotStarted = cropProcess.isNotStarted;
+
   return (
-    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1b4332] via-[#24533f] to-[#0f2a20] p-5 text-white sm:p-6 ${CARD_SHADOW}`}>
+    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1b4332] via-[#24533f] to-[#0f2a20] text-white ${CARD_SHADOW}`}>
       <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/15 blur-3xl" />
       <span aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl" />
 
-      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+      {/* Tầng 1 — Việc đang diễn ra (chính) · Sức khoẻ thửa (phụ, tách bằng vách mờ) */}
+      <div className="relative flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-start lg:gap-8">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            {/* Tên giống đã nằm ở thanh chọn vụ mùa phía trên, không nhắc lại. */}
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold backdrop-blur text-white/90">
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/90 backdrop-blur">
               Tiêu chuẩn VietGAP
             </span>
-            {cropProcess.isNotStarted ? (
+            {isNotStarted ? (
               <span className="flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-200">
                 <Calendar className="h-3.5 w-3.5 text-amber-300" />
-                Chưa bắt đầu · Ngày 0 / {cropProcess.totalDays} ngày tuổi
+                Chưa bắt đầu · Ngày 0 / {cropProcess.totalDays}
               </span>
             ) : (
               <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-200">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
                 </span>
-                Ngày thứ {cropProcess.currentDay} / {cropProcess.totalDays} ngày tuổi
+                Ngày thứ {cropProcess.currentDay} / {cropProcess.totalDays}
               </span>
             )}
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white/80 backdrop-blur">
+              Dự kiến {cropProcess.expectedYield || '15 kg/vụ'}
+            </span>
           </div>
 
-          <h3 className="mt-3 text-xl font-bold tracking-tight text-white sm:text-2xl">
-            {cropProcess.isNotStarted ? `${cropProcess.cropName} · Chưa bắt đầu canh tác` : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-200/80">
+            {isNotStarted ? 'Vụ mùa sắp tới' : 'Đang trong giai đoạn'}
+          </p>
+          <h3 className="mt-1 font-heading text-xl font-bold tracking-tight sm:text-2xl">
+            {isNotStarted
+              ? `${cropProcess.cropName} · Chưa bắt đầu canh tác`
+              : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
           </h3>
-          <p className="mt-1 text-sm text-lime-100/90 leading-relaxed max-w-2xl">
-            {cropProcess.isNotStarted
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-lime-100/85">
+            {isNotStarted
               ? 'Vụ mùa kế tiếp đã được lên lịch. Tiến độ sẽ bắt đầu tính khi vào vụ mới (sau chu kỳ nghỉ đất và làm đất tiêu chuẩn 5 ngày).'
               : (currentStage?.statusDesc || 'Cây trồng đang phát triển thuận lợi theo đúng chỉ dẫn kỹ thuật nông học.')}
           </p>
 
-          {/* Thanh đo ngày tuổi */}
           <div className="mt-4 max-w-xl">
-            {/* Bỏ "Tiến độ chu kỳ: N%" — thanh đo đã thể hiện, và ngày thứ N/tổng nằm ngay badge trên. */}
-            <div className="flex items-center justify-end text-xs font-semibold text-lime-200/90 mb-1.5">
-              <span>{cropProcess.isNotStarted ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày` : `Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}</span>
+            <div className="mb-1.5 flex items-center justify-end text-xs font-semibold text-lime-200/90">
+              <span>
+                {isNotStarted
+                  ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày`
+                  : `Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}
+              </span>
             </div>
-            <div className="h-3 w-full rounded-full bg-black/30 p-0.5 ring-1 ring-white/10">
+            <div className="h-2.5 w-full rounded-full bg-black/30 p-0.5 ring-1 ring-white/10">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-lime-400 via-emerald-400 to-teal-300 transition-all duration-1000 shadow-[0_0_12px_rgba(163,230,53,0.5)]"
+                className="h-full rounded-full bg-gradient-to-r from-lime-400 via-emerald-400 to-teal-300 shadow-[0_0_12px_rgba(163,230,53,0.5)] transition-all duration-1000"
                 style={{ width: `${cropProcess.progressPercent}%` }}
               />
             </div>
           </div>
         </div>
 
-        {/* ponytail: chỉ còn sản lượng dự kiến — nhiệt độ/độ ẩm chuẩn đã nằm cạnh số đo thật
-            ở thẻ Sức khoẻ thửa đất, nên 2 tile cũ vừa trùng vừa hardcode "Đạt chuẩn" sai sự thật.
-            upgrade path is thêm lại khi cần so sánh ngưỡng theo từng giai đoạn. */}
-        <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-md lg:w-[200px] shrink-0">
-          <span className="text-[10px] uppercase font-semibold text-white/70 block">Sản lượng dự kiến</span>
-          <span className="mt-1 text-sm font-bold text-white block">{cropProcess.expectedYield || '15 kg/vụ'}</span>
-          <span className="text-[10px] text-emerald-200 block truncate">Thu hái tiêu chuẩn</span>
+        <div className="flex items-center gap-4 lg:w-[228px] lg:shrink-0 lg:flex-col lg:items-start lg:gap-3 lg:border-l lg:border-white/10 lg:pl-6">
+          <HealthRing score={health.score} tone={health.tone} size={92} stroke={9} />
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-200/80">
+              Sức khoẻ thửa đất
+            </p>
+            <p className="mt-0.5 text-sm font-bold">{health.label}</p>
+            {liveProviderInfo?.isLive3rdParty && (
+              <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-lime-300">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-lime-300" />
+                Open-Meteo Live Feed
+              </span>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Tầng 2 — Số đo thật kèm ngưỡng chuẩn, một dòng chữ thay vì 4 thẻ con */}
+      <div className="relative border-t border-white/10 px-5 py-3.5 sm:px-6">
+        <ul className="flex flex-wrap gap-x-5 gap-y-2">
+          {metrics.map((i) => (
+            <li key={i.key} className="flex items-baseline gap-1.5 text-xs">
+              <span className={`h-2 w-2 shrink-0 self-center rounded-full ${LEVEL_STYLE[i.level].dot}`} />
+              <span className="font-medium text-white/70">{i.label}</span>
+              {i.value === null ? (
+                <span className="text-white/50">chưa có số liệu</span>
+              ) : (
+                <>
+                  <strong className="font-bold text-white">{i.value}{i.unit}</strong>
+                  <span className="text-white/50">chuẩn {i.min}–{i.max}{i.unit}</span>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Tầng 3 — Cảnh báo BR18, mỗi cảnh báo một dòng gọn trong cùng thẻ */}
+      {topAlerts.length > 0 && (
+        <div className="relative border-t border-white/10" aria-label="Cảnh báo thời tiết thực địa">
+          {topAlerts.map((a, idx) => {
+            const info = explainAlert(a, plot.mode);
+            const isHigh = a?.level === 'HIGH';
+            return (
+              <div
+                key={a.id || `${info.title}-${idx}`}
+                className={`flex flex-wrap items-baseline gap-x-2 gap-y-1 px-5 py-3 text-xs sm:px-6 ${idx > 0 ? 'border-t border-white/5' : ''}`}
+              >
+                <AlertTriangle className={`h-4 w-4 shrink-0 self-center ${isHigh ? 'text-rose-300' : 'text-amber-300'}`} />
+                <strong className={`font-bold ${isHigh ? 'text-rose-100' : 'text-amber-100'}`}>{info.title}</strong>
+                <span className={`rounded px-1.5 py-0.5 text-[10px] font-extrabold ${isHigh ? 'bg-rose-400/20 text-rose-200' : 'bg-amber-400/20 text-amber-200'}`}>
+                  {info.levelText}
+                </span>
+                <span className="text-white/75">
+                  {info.explanation} <strong className="font-semibold text-white/95">{info.action}</strong>
+                </span>
+                {info.time && <span className="text-white/40">{info.time}</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -1696,56 +1770,6 @@ function ActivityProofModal({ activity, onClose }) {
    3. IOT TAB VỚI LIVE 3RD-PARTY AGROMETEOROLOGY API (OPEN-METEO)
    ────────────────────────────────────────────────────────────────────────── */
 
-function HealthHero({ plot, alerts = [], onMore, liveProviderInfo }) {
-  const summary = summarizePlot(plot, alerts);
-  const health = computeHealthScore(plot, alerts);
-  return (
-    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#123b2c] via-[#18493a] to-[#0f2a20] p-5 text-white sm:p-6 ${CARD_SHADOW}`}>
-      <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/20 blur-3xl" />
-      <span aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl" />
-
-      <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
-        <HealthRing score={health.score} tone={health.tone} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-200/90">Sức khoẻ thửa đất</p>
-            <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold backdrop-blur">{health.label}</span>
-            {liveProviderInfo?.isLive3rdParty && (
-              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-lime-300 flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-lime-300 animate-pulse" />
-                Open-Meteo Agrometeorology Live Feed
-              </span>
-            )}
-          </div>
-          <p className="mt-2 text-base font-medium leading-relaxed text-white/95 sm:text-lg">{summary.headline}</p>
-          <ul className="mt-4 flex flex-wrap gap-2">
-            {/* Số đo thật + ngưỡng chuẩn cùng một chỗ: tránh badge "Đạt chuẩn" nói ngược lại cảnh báo. */}
-            {summary.items.map((i) => (
-              <li key={i.key} className="flex items-baseline gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/90 ring-1 ring-white/10 backdrop-blur">
-                <span className={`h-2 w-2 shrink-0 self-center rounded-full ${LEVEL_STYLE[i.level].dot}`} />
-                {i.label}
-                {i.value === null ? (
-                  <span className="text-white/60">chưa có số liệu</span>
-                ) : (
-                  <>
-                    <strong className="font-bold text-white">{i.value}{i.unit}</strong>
-                    <span className="text-white/60">chuẩn {i.min}–{i.max}{i.unit}</span>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-        {onMore && (
-          <button type="button" onClick={onMore} className="flex shrink-0 items-center justify-center gap-1 self-start rounded-xl bg-lime-300 px-4 py-2.5 text-sm font-semibold text-[#17372c] transition hover:bg-lime-200 sm:self-center">
-            Chi tiết vi khí hậu<ChevronRight className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ──────────────────────────────────────────────────────────────────────────
    4. CÁC TAB KHÁC: OVERVIEW, DIARY, SERVICES, HARVEST
    ────────────────────────────────────────────────────────────────────────── */
@@ -1803,40 +1827,6 @@ function OverviewTab({
         plot={plot}
       />
 
-      {/* 0b. Thời tiết thực địa & cảnh báo (BR18) — gộp vào Tổng quan, không còn tab riêng */}
-      <HealthHero plot={plot} alerts={alerts} liveProviderInfo={liveProviderInfo} />
-
-      {topAlerts.length > 0 && (
-        <div className="space-y-2" aria-label="Cảnh báo thời tiết thực địa">
-          {topAlerts.map((a, i) => {
-            const info = explainAlert(a, plot.mode);
-            const isHigh = a?.level === 'HIGH';
-            return (
-              <div
-                key={a.id || `${info.title}-${i}`}
-                className={`flex items-start gap-3 rounded-2xl border p-3.5 ${isHigh ? 'border-rose-200 bg-rose-50/70' : 'border-amber-200 bg-amber-50/70'}`}
-              >
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isHigh ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                  <AlertTriangle className="h-[18px] w-[18px]" />
-                </span>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className={`text-sm font-bold ${isHigh ? 'text-rose-900' : 'text-amber-900'}`}>{info.title}</h4>
-                    <span className={`rounded-md px-2 py-0.5 text-[10px] font-extrabold ${isHigh ? 'bg-rose-200/70 text-rose-900' : 'bg-amber-200/70 text-amber-900'}`}>
-                      {info.levelText}
-                    </span>
-                    {info.time && <span className="text-[11px] text-stone-500">{info.time}</span>}
-                  </div>
-                  <p className={`mt-0.5 text-xs ${isHigh ? 'text-rose-800/90' : 'text-amber-800/90'}`}>
-                    {info.explanation} <strong className="font-semibold">{info.action}</strong>
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       {isSoilPrep ? (
         /* Giai đoạn nghỉ đất & cải tạo theo chuẩn VietGAP (Fallow Protocol) */
         <SoilPrepView
@@ -1880,8 +1870,15 @@ function OverviewTab({
           )}
 
           {/* 1. Hiện trạng cây trồng & Quy trình chuẩn theo ngày */}
-          <section aria-label="Hiện trạng cây trồng">
-            <CropGrowthHero cropProcess={cropProcess} onOpenStageDetail={onOpenStageDetail} />
+          {/* 1. Hiện trạng thửa đất: quy trình + sức khoẻ + cảnh báo trong một thẻ */}
+          <section aria-label="Hiện trạng thửa đất">
+            <PlotStatusHero
+              plot={plot}
+              cropProcess={cropProcess}
+              alerts={alerts}
+              topAlerts={topAlerts}
+              liveProviderInfo={liveProviderInfo}
+            />
           </section>
 
           {/* 2. Dòng thời gian mốc ngày chuẩn VietGAP */}
