@@ -1280,8 +1280,26 @@ export default function FieldWorkerDashboard() {
         map.set(fallbackKey, targetPlot);
       }
 
+      // Tự động đồng bộ các task khi tua ngày (Fast-forward sync cho Demo):
+      // Nếu thửa đã ở Ngày N (ví dụ Ngày 30), toàn bộ các task kỹ thuật từ các ngày trước
+      // (trừ Thu hoạch & Nghiệm thu) tự động đánh dấu là COMPLETED
+      const isHarvestTask = /thu hoạch|nghiệm thu/i.test(`${task.title} ${task.instructions || ''}`);
+      const taskAge = task.cropDay !== null && task.cropDay !== undefined ? Number(task.cropDay) : (task.dayOffset !== null && task.dayOffset !== undefined ? Number(task.dayOffset) : 1);
+      const plotAge = Number(targetPlot.currentDay) || 1;
+      const totalPlotDays = Number(targetPlot.totalDays) || 30;
+
+      let effectiveStatus = task.status;
+      if (plotAge >= totalPlotDays && !isHarvestTask) {
+        effectiveStatus = 'COMPLETED';
+      } else if (plotAge > 1 && taskAge < plotAge && !isHarvestTask) {
+        effectiveStatus = 'COMPLETED';
+      } else if (plotAge >= totalPlotDays && isHarvestTask) {
+        if (effectiveStatus !== 'COMPLETED') effectiveStatus = 'IN_PROGRESS';
+      }
+
       targetPlot.tasks.push({
         ...task,
+        status: effectiveStatus,
         plotCurrentDay: targetPlot.currentDay !== undefined ? targetPlot.currentDay : task.plotCurrentDay
       });
     });
