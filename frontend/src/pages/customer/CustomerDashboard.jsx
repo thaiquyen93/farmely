@@ -1585,35 +1585,38 @@ export default function CustomerDashboard() {
         const items = res?.data || (Array.isArray(res) ? res : []);
         const grouped = {};
         items.forEach((item) => {
-          const keys = [
+          const keys = Array.from(new Set([
+            item.rentalId ? `RENTAL-${item.rentalId}` : null,
+            item.rentalId ? String(item.rentalId) : null,
             item.plotId,
             item.plotCode,
-            `PLOT-${item.plotCode}`,
-            `RENTAL-${item.rentalId}`,
-            String(item.rentalId)
-          ];
+            item.plotCode ? `PLOT-${item.plotCode}` : null
+          ].filter(Boolean)));
+
+          const stepObj = {
+            ...item,
+            id: item.stepId ? `STAGE-${item.stepId}` : undefined,
+            stepId: item.stepId,
+            stage: item.stage,
+            name: item.stage,
+            date: item.date,
+            guide: item.guide,
+            status: item.status,
+            stepOrder: item.stepOrder,
+            materials: item.materialsNeeded,
+            materialsNeeded: item.materialsNeeded,
+            dayOffset: item.dayOffset,
+            durationDays: item.durationDays,
+            minTemp: item.minTemp,
+            maxTemp: item.maxTemp,
+            minHumidity: item.minHumidity,
+            maxHumidity: item.maxHumidity
+          };
+
           keys.forEach((k) => {
-            if (k) {
-              if (!grouped[k]) grouped[k] = [];
-              grouped[k].push({
-                ...item,
-                id: item.stepId ? `STAGE-${item.stepId}` : undefined,
-                stepId: item.stepId,
-                stage: item.stage,
-                name: item.stage,
-                date: item.date,
-                guide: item.guide,
-                status: item.status,
-                stepOrder: item.stepOrder,
-                materials: item.materialsNeeded,
-                materialsNeeded: item.materialsNeeded,
-                dayOffset: item.dayOffset,
-                durationDays: item.durationDays,
-                minTemp: item.minTemp,
-                maxTemp: item.maxTemp,
-                minHumidity: item.minHumidity,
-                maxHumidity: item.maxHumidity
-              });
+            if (!grouped[k]) grouped[k] = [];
+            if (!grouped[k].some((existing) => existing.stepId === item.stepId)) {
+              grouped[k].push(stepObj);
             }
           });
         });
@@ -1865,12 +1868,12 @@ export default function CustomerDashboard() {
                 operations={currentPlotOperations}
                 alerts={iotAlerts[currentSelectedPlot.id] || iotAlerts['PLOT-CC-01'] || []}
                 stages={
+                  (currentSelectedPlot.rentalId && cultivationProcesses[`RENTAL-${currentSelectedPlot.rentalId}`]) ||
+                  (currentSelectedPlot.rentalId && cultivationProcesses[String(currentSelectedPlot.rentalId)]) ||
                   cultivationProcesses[currentSelectedPlot.id] ||
                   cultivationProcesses[currentSelectedPlot.plotCode] ||
                   cultivationProcesses[`PLOT-${currentSelectedPlot.plotCode}`] ||
                   cultivationProcesses[currentSelectedPlot.mapPlotId] ||
-                  cultivationProcesses[`RENTAL-${currentSelectedPlot.rentalId}`] ||
-                  cultivationProcesses[String(currentSelectedPlot.rentalId)] ||
                   []
                 }
                 services={customerServiceCatalog}

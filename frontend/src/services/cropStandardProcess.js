@@ -873,7 +873,20 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
 
   // Nếu có danh sách các bước quy trình thực tế từ CSDL (template_steps của giống cây này)
   if (Array.isArray(dbStages) && dbStages.length > 0) {
-    const sortedDb = [...dbStages].sort((a, b) => {
+    // Deduplicate stages by stepId or (dayOffset, name)
+    const seen = new Set();
+    const uniqueDb = [];
+    dbStages.forEach((item) => {
+      const day = item.dayOffset !== undefined && item.dayOffset !== null ? Number(item.dayOffset) : (item.dayStart || 0);
+      const name = String(item.stage || item.name || item.stepName || '').trim().toLowerCase();
+      const key = item.stepId ? `id-${item.stepId}` : `${day}-${name}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueDb.push(item);
+      }
+    });
+
+    const sortedDb = uniqueDb.sort((a, b) => {
       const oA = a.dayOffset !== undefined && a.dayOffset !== null ? Number(a.dayOffset) : (a.stepOrder || 0);
       const oB = b.dayOffset !== undefined && b.dayOffset !== null ? Number(b.dayOffset) : (b.stepOrder || 0);
       return oA - oB;

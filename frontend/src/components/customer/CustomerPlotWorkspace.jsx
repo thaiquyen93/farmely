@@ -128,9 +128,9 @@ function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo })
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-300">
             {isNotStarted ? 'Vụ mùa sắp tới' : 'Đang trong giai đoạn'}
           </p>
-          <h3 className="mt-1 font-heading text-xl font-bold tracking-tight sm:text-2xl">
+          <h3 className="mt-1 font-heading text-xl font-bold tracking-tight text-white sm:text-2xl drop-shadow-xs">
             {isNotStarted
-              ? `${cropProcess.cropName} · Chưa bắt đầu canh tác`
+              ? `${cropProcess.cropName ? (cropProcess.cropName.charAt(0).toUpperCase() + cropProcess.cropName.slice(1)) : 'Cây trồng'} · Chưa bắt đầu canh tác`
               : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
           </h3>
           <p className="mt-1.5 text-sm leading-relaxed text-white/90">
@@ -139,20 +139,15 @@ function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo })
               : (currentStage?.statusDesc || 'Cây trồng đang phát triển thuận lợi theo đúng chỉ dẫn kỹ thuật nông học.')}
           </p>
 
-          <div className="mt-4">
-            <div className="mb-1.5 flex items-center justify-end text-xs font-semibold text-lime-300">
-              <span>
-                {isNotStarted
-                  ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày`
-                  : `Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}
-              </span>
-            </div>
-            <div className="h-2.5 w-full rounded-full bg-black/45 p-0.5 ring-1 ring-white/25">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-lime-400 via-emerald-400 to-teal-300 shadow-[0_0_12px_rgba(163,230,53,0.5)] transition-all duration-1000"
-                style={{ width: `${cropProcess.progressPercent}%` }}
-              />
-            </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-white/10 text-xs">
+            <span className="font-semibold text-lime-300">
+              {isNotStarted
+                ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày`
+                : `Ngày thứ ${cropProcess.currentDay}/${cropProcess.totalDays} · Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}
+            </span>
+            <span className="text-white/70">
+              {isNotStarted ? 'Dự kiến bắt đầu theo lịch vụ mùa' : `Tiến độ chu kỳ: ${cropProcess.progressPercent}%`}
+            </span>
           </div>
         </div>
       </div>
@@ -432,28 +427,36 @@ function StandardProcessTimeline({
   const trackRef = useRef(null);
   const isDraggingRef = useRef(false);
 
-  // Danh sách các mốc giai đoạn chính của quy trình canh tác (5 mốc chuẩn trải đều)
+  // Danh sách các mốc giai đoạn chính của quy trình canh tác (đã deduplicate theo dayStart)
   const majorEvents = useMemo(() => {
-    const events = [];
-    const stages = cropProcess.stages || [];
-    const numStages = stages.length;
+    const rawStages = cropProcess.stages || [];
+    // Deduplicate stages with same dayStart or same name
+    const seenStarts = new Set();
+    const uniqueStages = [];
+    rawStages.forEach((st) => {
+      const key = st.dayStart !== undefined ? st.dayStart : st.stepId;
+      if (!seenStarts.has(key)) {
+        seenStarts.add(key);
+        uniqueStages.push(st);
+      }
+    });
 
-    stages.forEach((st, idx) => {
+    const numStages = uniqueStages.length;
+    return uniqueStages.map((st, idx) => {
       let icon = Leaf;
       const nameLower = (st.name || '').toLowerCase();
-      if (idx === 0 || nameLower.includes('gieo') || nameLower.includes('ươm') || nameLower.includes('mầm')) {
+      if (idx === 0 || nameLower.includes('gieo') || nameLower.includes('ươm') || nameLower.includes('làm đất') || nameLower.includes('mầm')) {
         icon = Sprout;
-      } else if (idx === numStages - 1 || nameLower.includes('thu hoạch') || nameLower.includes('thu hái') || nameLower.includes('hái')) {
+      } else if (idx === numStages - 1 || nameLower.includes('thu hoạch') || nameLower.includes('thu hái') || nameLower.includes('hái') || nameLower.includes('cách ly')) {
         icon = Wheat;
       } else if (nameLower.includes('hoa') || nameLower.includes('thụ phấn')) {
         icon = Sparkles;
-      } else if (nameLower.includes('quả') || nameLower.includes('trái') || nameLower.includes('chín')) {
+      } else if (nameLower.includes('quả') || nameLower.includes('trái') || nameLower.includes('chín') || nameLower.includes('bón')) {
         icon = Sun;
       } else {
         icon = Leaf;
       }
 
-      // Lấy tên chuẩn trực tiếp từ giai đoạn thực tế của loại cây trồng, rút gọn chữ rườm rà
       let shortTitle = st.name || `Giai đoạn ${idx + 1}`;
       if (shortTitle.includes('·')) {
         shortTitle = shortTitle.split('·')[0].trim();
@@ -462,92 +465,26 @@ function StandardProcessTimeline({
         .replace(/\s*tiêu chuẩn VietGAP\s*/gi, '')
         .trim();
 
-      // Mốc cuối cùng gắn với ngày thu hoạch kết thúc (totalDays)
       const milestoneDay = idx === numStages - 1 ? totalDays : st.dayStart;
 
-      events.push({
+      return {
+        stageIndex: idx + 1,
         day: milestoneDay,
+        dayStart: st.dayStart,
+        dayEnd: st.dayEnd,
         stage: st,
         title: st.name,
         shortTitle,
         icon,
-        isMajor: true,
-        type: 'STAGE_START'
-      });
-    });
-
-    return events.sort((a, b) => a.day - b.day);
+        label: st.label || (st.dayStart === st.dayEnd ? `Ngày ${st.dayStart}` : `Ngày ${st.dayStart} – ${st.dayEnd}`)
+      };
+    }).sort((a, b) => a.dayStart - b.dayStart);
   }, [cropProcess.stages, totalDays]);
 
   // Kiểm tra ngày đang chọn có phải là mốc sự kiện lớn hay không
   const activeEvent = useMemo(() => {
-    return majorEvents.find((e) => e.day === selectedDay);
+    return majorEvents.find((e) => e.day === selectedDay || (selectedDay >= e.dayStart && selectedDay <= e.dayEnd));
   }, [majorEvents, selectedDay]);
-
-  // Tính % tiến độ thanh chạy nối liền các mốc sự kiện trải dài 100% khung rộng
-  const timelineProgressPercent = useMemo(() => {
-    if (cropProcess.isNotStarted) return 0;
-    if (!majorEvents.length) return 0;
-    if (selectedDay <= majorEvents[0].day) return 0;
-    const lastDay = majorEvents[majorEvents.length - 1].day;
-    if (selectedDay >= lastDay) return 100;
-
-    for (let i = 0; i < majorEvents.length - 1; i++) {
-      const d1 = majorEvents[i].day;
-      const d2 = majorEvents[i + 1].day;
-      if (selectedDay >= d1 && selectedDay <= d2) {
-        const segRatio = (selectedDay - d1) / Math.max(1, d2 - d1);
-        const stepWidth = 100 / (majorEvents.length - 1);
-        return (i + segRatio) * stepWidth;
-      }
-    }
-    return 100;
-  }, [selectedDay, majorEvents, cropProcess.isNotStarted]);
-
-  // Chuyển đổi vị trí con trỏ chuột/chạm trên thanh ray thành Ngày tuổi tương ứng (chọn trực tiếp trên thanh)
-  const getDayFromPointer = useCallback((clientX) => {
-    if (!trackRef.current || !majorEvents.length) return selectedDay;
-    const rect = trackRef.current.getBoundingClientRect();
-    if (rect.width <= 0) return selectedDay;
-
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const N = majorEvents.length;
-    if (ratio <= 0) return majorEvents[0].day;
-    if (ratio >= 1) return totalDays;
-
-    const stepWidth = 1 / (N - 1);
-    const segIndex = Math.min(N - 2, Math.floor(ratio / stepWidth));
-    const segRatio = (ratio - segIndex * stepWidth) / stepWidth;
-
-    const d1 = majorEvents[segIndex].day;
-    const d2 = majorEvents[segIndex + 1].day;
-    const computedDay = Math.round(d1 + segRatio * (d2 - d1));
-    return Math.max(1, Math.min(totalDays, computedDay));
-  }, [majorEvents, totalDays, selectedDay]);
-
-  // Xử lý sự kiện bấm hoặc kéo rê trực tiếp trên thanh dòng thời gian
-  const handleTrackPointerDown = useCallback((e) => {
-    e.preventDefault();
-    isDraggingRef.current = true;
-    const day = getDayFromPointer(e.clientX);
-    setSelectedDay(day);
-
-    const onPointerMove = (moveEvent) => {
-      if (isDraggingRef.current) {
-        const d = getDayFromPointer(moveEvent.clientX);
-        setSelectedDay(d);
-      }
-    };
-
-    const onPointerUp = () => {
-      isDraggingRef.current = false;
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-  }, [getDayFromPointer]);
 
   // Danh sách nhật ký cho ngày đang chọn: CHỈ HIỂN THỊ ĐÚNG NGÀY ĐÓ
   const selectedDayDiaries = useMemo(() => {
@@ -586,252 +523,139 @@ function StandardProcessTimeline({
 
   return (
     <div className="space-y-5">
-      {/* 1. THANH CHẠY DÒNG THỜI GIAN THEO NGÀY: SỰ KIỆN LỚN TRẢI ĐỀU 100% KHUNG RỘNG */}
-      <div className="rounded-3xl border border-stone-200/90 bg-white p-5 shadow-sm space-y-6">
-        {/* Header thanh thời gian */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3.5">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-700 text-white shadow-xs">
-                <CalendarCheck className="w-4 h-4" />
-              </span>
-              <h3 className="font-heading font-black text-base text-[#18352b]">
-                Dòng Thời Gian Canh Tác Theo Ngày Tuổi · {cropProcess.cropName}
-              </h3>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                {totalDays} ngày tuổi
-              </span>
-            </div>
-            <p className="text-xs text-stone-500 mt-1">
-              Bấm hoặc kéo trực tiếp trên thanh thời gian để xem quy trình VietGAP và nhật ký của từng ngày tuổi.
-            </p>
+      {/* 1. HÀNH TRÌNH CÁC GIAI ĐOẠN CANH TÁC CHUẨN VIETGAP (STAGE STEPPER) */}
+      <div className="space-y-3">
+        {/* Lưới các thẻ giai đoạn trực quan, có thể bấm chọn */}
+        <div className={`grid gap-3 ${
+          majorEvents.length <= 2 ? 'grid-cols-1 sm:grid-cols-2' :
+          majorEvents.length === 3 ? 'grid-cols-1 sm:grid-cols-3' :
+          'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+        }`}>
+          {majorEvents.map((evt, idx) => {
+            const Icon = evt.icon;
+            const isSelected = activeStage?.id === evt.stage?.id || (selectedDay >= evt.dayStart && selectedDay <= evt.dayEnd);
+            const isCompleted = !cropProcess.isNotStarted && currentCropDay > evt.dayEnd;
+            const isCurrent = !cropProcess.isNotStarted && currentCropDay >= evt.dayStart && currentCropDay <= evt.dayEnd;
+            const isUpcoming = cropProcess.isNotStarted || currentCropDay < evt.dayStart;
+
+            return (
+              <button
+                key={evt.dayStart ?? idx}
+                type="button"
+                onClick={() => setSelectedDay(isCurrent ? currentCropDay : evt.dayStart)}
+                className={`group relative flex flex-col justify-between p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                  isSelected
+                    ? 'border-emerald-600 bg-emerald-50/70 shadow-sm ring-2 ring-emerald-500/25'
+                    : isCompleted
+                    ? 'border-emerald-200/90 bg-white hover:border-emerald-400 hover:bg-emerald-50/20'
+                    : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50/40'
+                }`}
+              >
+                {/* Hàng trên: Icon + Badge trạng thái */}
+                <div className="flex items-center justify-between gap-2 w-full">
+                  <span className={`flex h-8 w-8 items-center justify-center rounded-xl transition ${
+                    isSelected
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : isCompleted
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-stone-100 text-stone-600'
+                  }`}>
+                    <Icon className="w-4 h-4" />
+                  </span>
+
+                  {isCompleted ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                      <Check className="w-3 h-3 stroke-[2.5]" />
+                      Đã xong
+                    </span>
+                  ) : isCurrent ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-700 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-xs">
+                      <span className="h-1.5 w-1.5 rounded-full bg-lime-300 animate-pulse" />
+                      Đang diễn ra
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500">
+                      Kế hoạch
+                    </span>
+                  )}
+                </div>
+
+                {/* Tiêu đề giai đoạn */}
+                <div className="mt-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">
+                    Giai đoạn {evt.stageIndex || idx + 1}
+                  </span>
+                  <h4 className={`text-sm font-bold line-clamp-1 mt-0.5 ${
+                    isSelected ? 'text-emerald-950 font-black' : 'text-stone-900'
+                  }`} title={evt.title}>
+                    {evt.shortTitle}
+                  </h4>
+                  <p className="text-xs font-semibold text-emerald-800 mt-1">
+                    {evt.label}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Thanh điều hướng ngày tuổi tinh gọn & chuyển mốc nhanh */}
+        <div className="rounded-2xl border border-stone-200/90 bg-stone-50/70 p-3 sm:px-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-stone-700">
+            <span className="font-bold text-stone-900">
+              {cropProcess.isNotStarted ? 'Mùa vụ sắp tới:' : 'Tiến trình vụ mùa:'}
+            </span>
+            <span className="text-stone-600">
+              {cropProcess.isNotStarted
+                ? `Bắt đầu ${plot?.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'theo lịch'} (sau 5 ngày làm đất & nghỉ đất)`
+                : `Đang ở Ngày ${currentCropDay}/${totalDays} tuổi · Còn ${cropProcess.daysLeft} ngày`}
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 self-start sm:self-auto flex-wrap">
             <button
               type="button"
               onClick={() => setSelectedDay(1)}
-              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition shadow-2xs cursor-pointer ${
+              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
                 selectedDay === 1
                   ? 'border-emerald-600 bg-emerald-700 text-white'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                  : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
               }`}
-              title="Nhảy tới ngày bắt đầu canh tác"
             >
               🌱 Ngày 1
             </button>
-
+            <button
+              type="button"
+              onClick={handlePrevDay}
+              disabled={selectedDay <= 1}
+              className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-2.5 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-40 cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Trước</span>
+            </button>
+            <span className="font-black text-emerald-900 px-1 whitespace-nowrap">
+              Ngày {selectedDay} / {totalDays}
+            </span>
+            <button
+              type="button"
+              onClick={handleNextDay}
+              disabled={selectedDay >= totalDays}
+              className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-2.5 py-1 text-xs font-semibold text-stone-700 hover:bg-stone-50 disabled:opacity-40 cursor-pointer"
+            >
+              <span>Sau</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
             <button
               type="button"
               onClick={() => setSelectedDay(totalDays)}
-              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition shadow-2xs cursor-pointer ${
+              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
                 selectedDay === totalDays
                   ? 'border-amber-600 bg-amber-700 text-white'
-                  : 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                  : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
               }`}
-              title="Nhảy tới ngày thu hoạch cuối vụ"
             >
-              🌾 Ngày {totalDays} (Thu hoạch)
+              🌾 Thu hoạch
             </button>
-
-            {cropProcess.isNotStarted ? (
-              <span className="inline-flex items-center gap-1.5 rounded-xl bg-sky-50 border border-sky-200 px-3 py-1.5 text-xs font-bold text-sky-800 shadow-xs">
-                <span className="h-2 w-2 rounded-full bg-sky-500 animate-pulse" />
-                Sắp tới · Bắt đầu {plot?.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'dự kiến'}
-              </span>
-            ) : selectedDay !== currentCropDay ? (
-              <button
-                type="button"
-                onClick={() => setSelectedDay(currentCropDay)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition shadow-xs cursor-pointer"
-              >
-                <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-                Về Hôm nay (N{currentCropDay})
-              </button>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-800 shadow-xs">
-                <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-                Hôm nay · Ngày {currentCropDay}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => onSelectStage?.(activeStage)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 shadow-xs transition cursor-pointer"
-            >
-              <Info className="w-3.5 h-3.5 text-stone-500" />
-              Cẩm nang VietGAP
-            </button>
-          </div>
-        </div>
-
-        {/* KHU VỰC TRỤC THANH CHẠY DÒNG THỜI GIAN TRẢI RỘNG 100% KHUNG */}
-        <div className="relative pt-10 pb-3 px-4 sm:px-12 select-none overflow-x-auto no-scrollbar">
-          <div className="relative min-w-[720px]">
-            {/* Đường ray chính tương tác trực tiếp (hỗ trợ bấm hoặc kéo chọn ngày) */}
-            <div
-              ref={trackRef}
-              onPointerDown={handleTrackPointerDown}
-              className="absolute left-14 right-14 top-6 -translate-y-1/2 h-8 flex items-center cursor-pointer group/track z-10 touch-none"
-              title="Bấm hoặc kéo trực tiếp trên thanh để chọn ngày"
-            >
-              {/* Thân ray nền xám bo góc */}
-              <div className="relative h-2.5 w-full rounded-full bg-stone-200 group-hover/track:h-3 group-hover/track:bg-stone-300 transition-all overflow-hidden shadow-inner">
-                {/* Vạch tiến độ chạy xanh nối liền theo ngày */}
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600 transition-all duration-150 shadow-[0_0_12px_rgba(16,185,129,0.35)]"
-                  style={{ width: `${timelineProgressPercent}%` }}
-                />
-              </div>
-
-              {/* Con trỏ chỉ thị ngày tuổi chạy theo thanh trượt khi ở các ngày bình thường ở giữa (Không đè lên mốc chính) */}
-              {!activeEvent && (
-                <div
-                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-30 pointer-events-none transition-all duration-150"
-                  style={{ left: `${timelineProgressPercent}%` }}
-                >
-                  <div className="relative flex flex-col items-center">
-                    <div className="absolute -top-9 flex items-center gap-1 rounded-full bg-emerald-950 px-2.5 py-1 text-[11px] font-black text-white shadow-xl whitespace-nowrap ring-2 ring-emerald-400">
-                      <span>Ngày {selectedDay}</span>
-                      {!cropProcess.isNotStarted && selectedDay === currentCropDay && <span className="text-lime-300">· Hôm nay</span>}
-                      {cropProcess.isNotStarted && selectedDay === 1 && <span className="text-sky-300">· Sắp tới</span>}
-                      {!cropProcess.isNotStarted && selectedDay === 1 && currentCropDay !== 1 && <span className="text-lime-300">· Ngày bắt đầu</span>}
-                    </div>
-                    <div className="h-6 w-6 rounded-full bg-emerald-700 ring-4 ring-white shadow-lg flex items-center justify-center group-hover/track:scale-125 transition-transform">
-                      <span className="h-2.5 w-2.5 rounded-full bg-lime-300 shadow-xs" />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* CÁC ĐIỂM NÚT SỰ KIỆN LỚN: TRẢI ĐỀU 100% CHIỀU RỘNG, KHÔNG BAO GIỜ BỊ ĐÈ CHỮ */}
-            <div className="relative flex items-center justify-between w-full pointer-events-none">
-              {majorEvents.map((evt, idx) => {
-                const Icon = evt.icon;
-                const isSelected = selectedDay === evt.day;
-                const isPassed = !cropProcess.isNotStarted && evt.day <= selectedDay;
-                const isToday = !cropProcess.isNotStarted && evt.day === currentCropDay;
-                const isUpcomingFirst = cropProcess.isNotStarted && evt.day === 1;
-
-                return (
-                  <div
-                    key={evt.day}
-                    className="relative flex flex-col items-center w-28 text-center pointer-events-auto"
-                  >
-                    {/* Badge Hôm nay / Sắp tới / Đang xem trên nút */}
-                    <div className="absolute -top-8 pointer-events-none flex flex-col items-center">
-                      {isSelected ? (
-                        <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black text-white shadow-md whitespace-nowrap ring-1 ${
-                          isToday ? 'bg-emerald-800 ring-emerald-400' : isUpcomingFirst ? 'bg-sky-700 ring-sky-300' : 'bg-emerald-800 ring-emerald-400'
-                        }`}>
-                          {isToday ? 'HÔM NAY' : isUpcomingFirst ? 'SẮP TỚI' : 'ĐANG XEM'}
-                        </span>
-                      ) : isToday ? (
-                        <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-xs whitespace-nowrap animate-pulse">
-                          Hôm nay
-                        </span>
-                      ) : isUpcomingFirst ? (
-                        <span className="rounded-full bg-sky-600 px-2 py-0.5 text-[9px] font-black text-white shadow-xs whitespace-nowrap">
-                          Sắp tới
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {/* Nút mốc sự kiện lớn */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDay(evt.day)}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      className={`group flex items-center justify-center rounded-2xl transition-all duration-300 cursor-pointer ${isSelected
-                          ? 'h-12 w-12 bg-emerald-800 text-white ring-4 ring-emerald-300 shadow-xl scale-110 z-20'
-                          : isPassed
-                            ? 'h-10 w-10 bg-emerald-700 text-white ring-2 ring-emerald-200 shadow-md hover:scale-110 z-10'
-                            : 'h-10 w-10 bg-white text-stone-700 border-2 border-stone-300 shadow-xs hover:border-emerald-500 hover:scale-110 z-10'
-                        }`}
-                      title={`Ngày ${evt.day}: ${evt.title}`}
-                    >
-                      <Icon className={isSelected ? 'h-5 w-5 text-lime-300' : 'h-4 w-4'} />
-                    </button>
-
-                    {/* Nhãn mô tả sự kiện bên dưới - Rộng rãi, cách đều nhau, không bao giờ bị đè */}
-                    <div className="mt-3.5 flex flex-col items-center text-center w-full pointer-events-none">
-                      <span className={`text-xs font-black whitespace-nowrap ${isSelected ? 'text-emerald-950 scale-105' : 'text-stone-800'
-                        }`}>
-                        Ngày {evt.day}
-                      </span>
-                      <span className={`text-[11px] font-semibold mt-0.5 leading-snug line-clamp-2 ${isSelected ? 'text-emerald-800 font-bold' : 'text-stone-600'
-                        }`}>
-                        {evt.shortTitle}
-                      </span>
-                      {evt.stage?.label && (
-                        <span className="text-[10px] text-stone-400 mt-0.5 font-medium whitespace-nowrap">
-                          ({evt.stage.label})
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Nút điều hướng nhanh: Nhảy về Ngày Bắt Đầu & Nhảy đến Ngày Kết Thúc Thu Hoạch */}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-stone-100">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDay(1);
-                  if (cropProcess.isNotStarted) {
-                    onStartSeason?.();
-                  }
-                }}
-                className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
-                  selectedDay === 1
-                    ? 'border-emerald-600 bg-emerald-700 text-white shadow-emerald-700/20'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                }`}
-                title={cropProcess.isNotStarted ? "Bấm để kích hoạt bắt đầu mùa vụ canh tác (Ngày 1)" : "Bấm để nhảy ngay tới Ngày bắt đầu canh tác"}
-              >
-                <span>🌱 {cropProcess.isNotStarted ? "Bắt đầu mùa vụ (Ngày 1)" : "Ngày bắt đầu (Ngày 1)"}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handlePrevDay}
-                disabled={selectedDay <= 1}
-                className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-30 shadow-2xs transition cursor-pointer"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span>Ngày trước</span>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleNextDay}
-                disabled={selectedDay >= totalDays}
-                className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-30 shadow-2xs transition cursor-pointer"
-              >
-                <span>Ngày sau</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedDay(totalDays)}
-                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
-                  selectedDay === totalDays
-                    ? 'border-amber-600 bg-amber-700 text-white shadow-amber-700/20'
-                    : 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100'
-                }`}
-                title="Bấm để nhảy ngay tới Ngày kết thúc / thu hoạch vụ mùa"
-              >
-                <span>🌾 Ngày kết thúc (Ngày {totalDays} · Thu hoạch)</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -1858,11 +1682,23 @@ function OverviewTab({
   isSelf = false,
   onToggleTask,
   onStartSeason,
-  onResetSeason
+  onResetSeason,
+  harvestResults = []
 }) {
   const daysLeft = cropProcess.daysLeft;
   const recentActivities = staffActivities.slice(0, 3);
   const isSoilPrep = activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow;
+
+  // BR20 + BR21: CVLĐ cân, chụp ảnh rồi chốt biên bản -> Tổng quan chỉ THÔNG BÁO đã thu hoạch.
+  // KH không nghiệm thu trên hệ thống, việc xác nhận nhận nông sản diễn ra tại nông trại.
+  // ponytail: ceiling is hiển thị biên bản mới nhất; upgrade path is danh sách nhiều vụ khi KH thuê dài hạn.
+  const latestHarvest = useMemo(() => {
+    const list = (harvestResults || []).filter(Boolean);
+    if (list.length === 0) return null;
+    return [...list].sort((a, b) =>
+      String(b.harvestDate || '').localeCompare(String(a.harvestDate || ''))
+    )[0];
+  }, [harvestResults]);
 
   // BR18: chỉ nêu 2 cảnh báo đáng xử lý nhất, nặng trước.
   // ponytail: ceiling is 2 cảnh báo hiển thị, upgrade path is dựng lại trang khí tượng khi KH cần tra cứu lịch sử theo giờ/ngày.
@@ -1894,6 +1730,42 @@ function OverviewTab({
         />
       ) : (
         <>
+          {/* BR20/BR21: Đã thu hoạch xong vụ mùa — chỉ thông báo, KH xác nhận nhận nông sản tại nông trại */}
+          {latestHarvest && (
+            <div className="rounded-2xl border border-amber-300/90 bg-gradient-to-r from-amber-50 via-white to-lime-50/60 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800 shadow-2xs text-lg">
+                  🌾
+                </span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-bold text-amber-950">Đã thu hoạch mùa vụ</h4>
+                    <span className="rounded-md bg-amber-200/70 px-2 py-0.5 text-[10px] font-extrabold text-amber-900">
+                      {latestHarvest.formattedYield || `${latestHarvest.yieldAmount || 0} kg`}
+                    </span>
+                    {latestHarvest.harvestDateFormatted && (
+                      <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-200">
+                        {latestHarvest.harvestDateFormatted}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-amber-900/80">
+                    {latestHarvest.enteredByWorker || latestHarvest.workerName || 'Chuyên viên lao động'} đã cắt, cân điện tử và chốt biên bản sản lượng.
+                    {' '}Khách hàng vui lòng xác nhận nhận nông sản tại nông trại.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => goTab?.('diary')}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-amber-300 bg-white px-3.5 py-2 text-xs font-bold text-amber-900 hover:bg-amber-50 transition shadow-2xs cursor-pointer"
+              >
+                <BookOpen className="h-3.5 w-3.5 text-amber-700" />
+                Xem biên bản trong Nhật ký
+              </button>
+            </div>
+          )}
+
           {/* Thông báo nếu vụ mùa đang chọn chưa tới ngày bắt đầu */}
           {activeSeason?.status === 'SCHEDULED' && (
             <div className="rounded-2xl border border-sky-200/90 bg-gradient-to-r from-sky-50 via-white to-blue-50/50 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -3113,6 +2985,7 @@ export default function CustomerPlotWorkspace({
             onToggleTask={handleToggleSelfTask}
             onStartSeason={handleStartSeason}
             onResetSeason={handleResetSeason}
+            harvestResults={harvestResults}
           />
         )}
 

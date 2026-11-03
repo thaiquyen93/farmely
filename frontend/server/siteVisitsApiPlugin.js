@@ -2461,11 +2461,15 @@ SELECT json_build_object(
       JOIN plots p ON r.plot_id = p.plot_id
       JOIN contracts c ON r.contract_id = c.contract_id
       JOIN users u ON c.renter_id = u.user_id
-      JOIN process_templates pt ON r.variety_id = pt.variety_id
+      JOIN process_templates pt ON pt.template_id = (
+        SELECT template_id FROM process_templates 
+        WHERE variety_id = r.variety_id 
+        ORDER BY template_id DESC LIMIT 1
+      )
       JOIN template_steps ts ON pt.template_id = ts.template_id
       JOIN varieties v ON r.variety_id = v.variety_id
-      WHERE ${userClause}
-      ORDER BY r.rental_id ASC, ts.step_order ASC
+      WHERE r.status IN ('ACTIVE', 'PENDING') AND ${userClause}
+      ORDER BY r.rental_id ASC, ts.day_offset ASC, ts.step_id ASC
     ) cp
   )
 );
@@ -2571,14 +2575,16 @@ SELECT json_build_object(
               const harvestDate = payload.harvestDate || new Date().toISOString().slice(0, 10);
               const yieldAmount = payload.yieldAmount ? parseFloat(payload.yieldAmount) : 0;
               const evidenceImageUrl = payload.evidenceImageUrl || '';
-              const deliveryType = payload.deliveryType === 'DELIVERY' ? 'DELIVERY' : 'PICKUP';
+              // BR21: thu hoạch luôn diễn ra tại nông trại -> delivery_type cố định PICKUP.
+              // ponytail: ceiling is hằng số 'PICKUP'; upgrade path is mở lại tuỳ chọn giao hàng
+              // khi nghiệp vụ thực sự có dịch vụ vận chuyển nông sản.
 
               // BR20: ghi nhận cân thực tế VÀ đóng luôn nhiệm vụ thu hoạch trong CSDL
               // (trước đây chỉ đổi state React nên F5 là task hiện lại PENDING)
               const sql = `
 WITH ins AS (
   INSERT INTO harvest_results (rental_id, entered_by, harvest_date, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at)
-  VALUES (${rentalId}, ${enteredBy}, '${harvestDate}', ${yieldAmount}, '${evidenceImageUrl.replace(/'/g, "''")}', '${deliveryType}', false, NOW())
+  VALUES (${rentalId}, ${enteredBy}, '${harvestDate}', ${yieldAmount}, '${evidenceImageUrl.replace(/'/g, "''")}', 'PICKUP', false, NOW())
   RETURNING harvest_id, rental_id, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at
 ), closed_tasks AS (
   UPDATE care_tasks ct
@@ -2632,7 +2638,7 @@ SELECT json_build_object(
               const payload = JSON.parse(body || '{}');
               const harvestId = payload.harvestId ? parseInt(String(payload.harvestId).replace(/\D/g, ''), 10) : null;
               const rentalId = payload.rentalId ? parseInt(String(payload.rentalId).replace(/\D/g, ''), 10) : null;
-              const deliveryType = (payload.deliveryMethod === 'FARM' || payload.deliveryMethod === 'PICKUP' ? 'PICKUP' : 'DELIVERY');
+              // BR21: thu hoạch diễn ra tại nông trại -> luôn PICKUP, không nhận tuỳ chọn từ payload.
 
               let whereClause = '';
               if (harvestId) {
@@ -2640,12 +2646,15 @@ SELECT json_build_object(
               } else if (rentalId) {
                 whereClause = `rental_id = ${rentalId}`;
               } else {
-                whereClause = `1=1`;
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, error: 'Thiếu harvestId hoặc rentalId' }));
+                return;
               }
 
               const sql = `
 UPDATE harvest_results
-SET customer_confirmed = true, delivery_type = '${deliveryType}'
+SET customer_confirmed = true, delivery_type = 'PICKUP'
 WHERE ${whereClause}
 RETURNING harvest_id, rental_id, customer_confirmed, delivery_type;
 `;
