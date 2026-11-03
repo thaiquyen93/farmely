@@ -4193,6 +4193,32 @@ VALUES (
                   `);
                 }
                 await syncVarietyDurationFromTemplate(templateId);
+
+                // Apply the newly issued QTCT to active assisted rentals of this variety.
+                // Each template step becomes one staff task, linked to the exact step/version.
+                await runPostgreSql(`
+INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
+SELECT
+  r.rental_id,
+  ts.step_id,
+  COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id)),
+  r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::interval,
+  CASE WHEN r.start_date <= CURRENT_DATE AND COALESCE(ts.step_order, 1) = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+  ts.step_name,
+  concat_ws(' · ', NULLIF(ts.description, ''), CASE WHEN NULLIF(ts.materials_needed, '') IS NOT NULL THEN 'Vật tư: ' || ts.materials_needed END),
+  COALESCE(ts.step_order, 1),
+  NOW(),
+  NOW()
+FROM rentals r
+JOIN template_steps ts ON ts.template_id = ${templateId}
+WHERE r.variety_id = ${varietyId}
+  AND r.status = 'ACTIVE'
+  AND COALESCE(r.cultivation_mode, 'ASSISTED') <> 'SELF'
+  AND NOT EXISTS (
+    SELECT 1 FROM care_tasks ct
+    WHERE ct.rental_id = r.rental_id AND ct.step_id = ts.step_id
+  );
+                `);
               }
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -5362,7 +5388,7 @@ SELECT json_build_object(
           WHEN rent.start_date IS NOT NULL THEN GREATEST(1, CURRENT_DATE - DATE(rent.start_date) + 1)
           ELSE 1
         END AS "plotCurrentDay",
-        COALESCE(ct.step_order, ts.step_order, 1) AS "stepOrder",
+        COALESCE(ts.step_order, ct.step_order, 1) AS "stepOrder",
         ts.duration_days AS "durationDays",
         '08:30 AM' AS deadline,
         'MORNING' AS session,
@@ -5466,7 +5492,7 @@ RETURNING task_id, rental_id, status, step_order, title, notes, evidence_image_u
 SELECT 
   ct.task_id,
   ct.rental_id,
-  COALESCE(ct.step_order, ts.step_order, 1) AS step_order,
+  COALESCE(ts.step_order, ct.step_order, 1) AS step_order,
   COALESCE(ct.title, ts.step_name, ct.notes, 'Nhiệm vụ chăm sóc hiện trường') AS title,
   COALESCE(ct.notes, ts.description, 'Đã hoàn thành công việc') AS notes,
   COALESCE(ct.evidence_image_url, '${proof ? proof.replace(/'/g, "''") : ''}') AS evidence_image_url

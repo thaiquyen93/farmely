@@ -83,6 +83,12 @@ const DEFAULT_PLOT_CROPS = {
   'P-16': 'Xà lách Romaine VietGAP'
 };
 
+const CHAT_MULTI_PLOT_PREVIEW = [
+  { rentalId: 'preview-1', plotCode: 'P-01', crop: 'Cà chua bi đỏ F1', currentDay: 12, totalDays: 75 },
+  { rentalId: 'preview-2', plotCode: 'P-02', crop: 'Xà lách Romaine VietGAP', currentDay: 8, totalDays: 35 },
+  { rentalId: 'preview-3', plotCode: 'P-03', crop: 'Dưa leo baby F1', currentDay: 21, totalDays: 45 }
+];
+
 const DEFAULT_HARVEST_REQUESTS = [
   {
     id: 'HARV-REQ-001',
@@ -180,10 +186,16 @@ export default function ExpertDashboard() {
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'pre_rental' | 'worker' | 'pending'
   const [chatInputText, setChatInputText] = useState('');
+  const [activeChatPlotKey, setActiveChatPlotKey] = useState('');
+  const [chatPlotPreview, setChatPlotPreview] = useState(false);
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
+  useEffect(() => {
+    setActiveChatPlotKey('');
+    setChatPlotPreview(false);
+  }, [selectedThreadId]);
   const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
   const preRentalCount = chatThreads.filter(isPreRentalThread).length;
 
@@ -2044,6 +2056,24 @@ export default function ExpertDashboard() {
                     const isAdminThread = activeThread.role === 'admin' || activeThread.category === 'admin' || /Ban Quản Trị|Admin/i.test(activeThread.customerName || '');
                     const isWorkerThread = activeThread.role === 'worker' || activeThread.category === 'worker';
                     const isPreRental = isPreRentalThread(activeThread);
+                    const normalizeIdentity = (value) => String(value || '').trim().toLocaleLowerCase('vi');
+                    const threadEmail = normalizeIdentity(activeThread.customerEmail || activeThread.email);
+                    const threadName = normalizeIdentity(activeThread.customerName);
+                    const customerPlots = !isAdminThread && !isWorkerThread && !isPreRental
+                      ? assignedPlots.filter((plot) => {
+                          const plotEmail = normalizeIdentity(plot.renterEmail || plot.customerEmail);
+                          const plotName = normalizeIdentity(plot.renterName || plot.customerName);
+                          return (threadEmail && plotEmail === threadEmail) ||
+                            (!threadEmail && threadName && plotName && (plotName === threadName || plotName.includes(threadName) || threadName.includes(plotName)));
+                        })
+                      : [];
+                    const chatPlots = chatPlotPreview && customerPlots.length < 2
+                      ? CHAT_MULTI_PLOT_PREVIEW
+                      : customerPlots;
+                    const plotKey = (plot) => String(plot.rentalId || plot.plotId || plot.plotCode || '');
+                    const selectedChatPlot = chatPlots.find((plot) => plotKey(plot) === activeChatPlotKey) ||
+                      chatPlots.find((plot) => String(plot.plotCode || '').toUpperCase() === String(activeThread.plotCode || '').toUpperCase()) ||
+                      chatPlots[0];
 
                     return (
                       <div className={`flex-1 flex flex-col bg-white min-w-0 ${
@@ -2106,7 +2136,7 @@ export default function ExpertDashboard() {
                                     ? `Nhân viên hiện trường • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`
                                     : isPreRental
                                       ? `Khách quan tâm • ${activeThread.crop || 'Tư vấn nông học'}`
-                                      : `Khách thuê • Giống: ${activeThread.crop || 'Chuẩn VietGAP'} • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`}
+                                      : `Khách thuê • Giống: ${selectedChatPlot?.crop || activeThread.crop || 'Chuẩn VietGAP'} • Thửa ${formatPlotCode(selectedChatPlot?.plotCode || activeThread.plotCode || 'P-01')}`}
                               </p>
                             </div>
                           </div>
@@ -2126,6 +2156,49 @@ export default function ExpertDashboard() {
                             </div>
                           )}
                         </div>
+
+                        {!isAdminThread && !isWorkerThread && !isPreRental && customerPlots.length < 2 && (
+                          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 bg-white px-4 py-2">
+                            <span className="text-[11px] text-stone-500">Khách hiện có {customerPlots.length} plot được giao.</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setChatPlotPreview((previewing) => !previewing);
+                                setActiveChatPlotKey('preview-1');
+                              }}
+                              className="rounded-md border border-stone-300 px-2.5 py-1 text-[11px] font-semibold text-stone-700 hover:bg-stone-50"
+                            >
+                              {chatPlotPreview ? 'Thoát xem trước' : 'Xem trước 3 plot'}
+                            </button>
+                          </div>
+                        )}
+
+                        {chatPlots.length > 1 && (
+                          <div className="shrink-0 border-b border-stone-200 bg-stone-50/70 px-4 pt-2" role="tablist" aria-label={`Các thửa của ${activeThread.customerName}`}>
+                            <div className="flex gap-1 overflow-x-auto">
+                              {chatPlots.map((plot) => {
+                                const key = plotKey(plot);
+                                const isActivePlot = key === plotKey(selectedChatPlot || {});
+                                return (
+                                  <button
+                                    key={key}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={isActivePlot}
+                                    onClick={() => setActiveChatPlotKey(key)}
+                                    className={`shrink-0 border-b-2 px-3 py-2 text-xs font-semibold ${isActivePlot ? 'border-emerald-700 text-emerald-900' : 'border-transparent text-stone-500 hover:text-stone-800'}`}
+                                    title={`${plot.crop || 'Cây trồng'} · ${plot.currentDay || 1}/${plot.totalDays || 45} ngày`}
+                                  >
+                                    {formatPlotCode(plot.plotCode || 'P-01')}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {chatPlotPreview && customerPlots.length < 2 && (
+                              <p className="pb-2 text-[10px] text-stone-400">Bản xem trước · dữ liệu mẫu · không lưu thay đổi</p>
+                            )}
+                          </div>
+                        )}
 
                         {/* Messenger Chat History Viewport */}
                         <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-[#FAF9F6]">
@@ -3779,6 +3852,9 @@ export default function ExpertDashboard() {
             </div>
 
             <div className="space-y-2.5 max-h-[260px] overflow-y-auto pr-1">
+              <p className="rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-2 text-[11px] leading-relaxed text-emerald-900">
+                Mỗi bước sẽ tạo một task theo mốc ngày cho nhân viên được phân công ở plot. Hãy ghi hướng dẫn và vật tư ngay trong bước này.
+              </p>
               {newTemplateData.steps.map((st, idx) => (
                 <div key={idx} className="p-3 rounded-xl bg-stone-50 border border-brand-border space-y-2">
                   <div className="flex items-center justify-between gap-2">

@@ -86,15 +86,7 @@ export default function VnPayReturn() {
         data = await checkoutRes.json();
       }
 
-      // Đánh dấu thửa đất đã thuê vào LocalStorage & phát sự kiện toàn cục
-      const recent = JSON.parse(localStorage.getItem('farmely_recently_booked_plots') || '[]');
-      (pending.plots || []).forEach((p) => {
-        const c1 = p.code || p.id;
-        const c2 = p.id;
-        if (c1 && !recent.includes(c1)) recent.push(c1);
-        if (c2 && !recent.includes(c2)) recent.push(c2);
-      });
-      localStorage.setItem('farmely_recently_booked_plots', JSON.stringify(recent));
+      // Refresh Marketplace from the server after payment; do not persist a client-side plot status.
       localStorage.removeItem('farmely_master_lease_selected_plots');
       localStorage.removeItem('farmely_pending_vnpay_booking');
 

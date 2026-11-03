@@ -697,7 +697,7 @@ function StandardProcessTimeline({
                   style={{ left: `${timelineProgressPercent}%` }}
                 >
                   <div className="relative flex flex-col items-center">
-                    <div className="absolute -top-9 flex items-center gap-1 rounded-full bg-emerald-950 px-2.5 py-1 text-[11px] font-black text-white shadow-xl whitespace-nowrap ring-2 ring-emerald-400">
+                    <div className={`absolute ${!cropProcess.isNotStarted && selectedDay === currentCropDay ? '-top-16 z-40' : '-top-9'} flex items-center gap-1 rounded-full bg-emerald-950 px-2.5 py-1 text-[11px] font-black text-white shadow-xl whitespace-nowrap ring-2 ring-emerald-400`}>
                       <span>Ngày {selectedDay}</span>
                       {!cropProcess.isNotStarted && selectedDay === currentCropDay && <span className="text-lime-300">· Hôm nay</span>}
                       {cropProcess.isNotStarted && selectedDay === 1 && <span className="text-sky-300">· Sắp tới</span>}
@@ -741,7 +741,7 @@ function StandardProcessTimeline({
                           {isHarvestNode || selectedDay === totalDays
                             ? '🌾 THU HOẠCH'
                             : isToday
-                            ? 'HÔM NAY'
+                            ? 'ĐANG DIỄN RA'
                             : isUpcomingFirst
                             ? 'SẮP TỚI'
                             : `GIAI ĐOẠN ${idx + 1}`}
@@ -752,7 +752,7 @@ function StandardProcessTimeline({
                         </span>
                       ) : isToday ? (
                         <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-xs whitespace-nowrap animate-pulse">
-                          Hôm nay
+                          Đang diễn ra
                         </span>
                       ) : isUpcomingFirst ? (
                         <span className="rounded-full bg-sky-600 px-2 py-0.5 text-[9px] font-black text-white shadow-xs whitespace-nowrap">
@@ -815,6 +815,27 @@ function StandardProcessTimeline({
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-xl border border-stone-200 bg-white px-3 py-2.5">
+            <div className="mb-1.5 flex items-center justify-between gap-3 text-[11px] font-semibold text-stone-600">
+              <label htmlFor={`crop-day-${plot?.plotId || plot?.plotCode || 'timeline'}`}>Chọn ngày canh tác</label>
+              <span className="tabular-nums text-emerald-800">Ngày {selectedDay} / {totalDays}</span>
+            </div>
+            <input
+              id={`crop-day-${plot?.plotId || plot?.plotCode || 'timeline'}`}
+              type="range"
+              min="1"
+              max={totalDays}
+              step="1"
+              value={Math.min(totalDays, Math.max(1, selectedDay))}
+              onChange={(event) => setSelectedDay(Number(event.target.value))}
+              aria-label={`Chọn ngày canh tác, ngày ${selectedDay} trên ${totalDays}`}
+              className="crop-day-slider"
+            />
+            <div className="mt-0.5 flex justify-between text-[10px] text-stone-400" aria-hidden="true">
+              <span>Ngày 1</span><span>Ngày {totalDays}</span>
             </div>
           </div>
 
