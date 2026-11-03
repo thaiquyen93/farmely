@@ -60,14 +60,6 @@ function SectionTitle({ eyebrow, title, action }) {
   );
 }
 
-function LinkButton({ onClick, children }) {
-  return (
-    <button type="button" onClick={onClick} className="flex shrink-0 items-center gap-0.5 rounded-lg px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
-      {children}<ChevronRight className="h-4 w-4" />
-    </button>
-  );
-}
-
 function EmptyState({ icon: Icon = Leaf, title, note }) {
   return (
     <div className="flex flex-col items-center rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 px-4 py-10 text-center">
@@ -326,15 +318,15 @@ function StandardProcessTimeline({
       } catch { }
     }
 
-    // Đảm bảo luôn có các công việc chuẩn cho Ngày 1 (Bắt đầu) và Ngày cuối (Thu hoạch) để demo
+    // Đảm bảo Ngày 1 có đúng 2 công việc chuẩn mực, tinh gọn, không spam lặp
     const defaultDay1Activities = [
       {
         activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-1`,
         id: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-1`,
         day: 1,
         cropDay: 1,
-        title: 'Làm đất tơi xốp, bón lót phân trùn quế & phun Trichoderma',
-        timestamp: startCalDate ? `${startCalDate} • Ca sáng (07:00 - 08:30)` : 'Ca sáng (07:00 - 08:30)',
+        title: 'Làm đất tơi xốp, bón lót phân trùn quế & xử lý Trichoderma',
+        timestamp: startCalDate ? `${startCalDate} • Ca sáng (07:30 - 09:00)` : 'Ca sáng (07:30 - 09:00)',
         status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
         workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
         workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
@@ -347,47 +339,30 @@ function StandardProcessTimeline({
         id: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-2`,
         day: 1,
         cropDay: 1,
-        title: 'Kiểm tra tỷ lệ nảy mầm và xuống giống theo mật độ khuyến nghị',
-        timestamp: startCalDate ? `${startCalDate} • Ca chiều (15:30 - 17:00)` : 'Ca chiều (15:30 - 17:00)',
+        title: 'Tưới ẩm luống đất (65-70%) & xuống giống non theo mật độ VietGAP',
+        timestamp: startCalDate ? `${startCalDate} • Ca chiều (16:00 - 17:30)` : 'Ca chiều (16:00 - 17:30)',
         status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
         workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
         workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
-        notes: 'Khoảng cách cây cách cây đạt chuẩn 25 - 30cm, phủ lớp màng mùn sinh học giữ ẩm.',
+        notes: 'Khoảng cách cây cách cây đạt chuẩn 20 - 25cm, duy trì ẩm độ luống đất.',
         sensorSnapshot: { temp: '28.1°C', soilMoisture: '70%', light: '42.000 Lux' }
-      },
-      {
-        activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-3`,
-        id: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-3`,
-        day: 1,
-        cropDay: 1,
-        title: 'Tưới phun sương cân bằng độ ẩm luống đất (65% - 70%)',
-        timestamp: startCalDate ? `${startCalDate} • Ca sáng (08:30 - 09:30)` : 'Ca sáng (08:30 - 09:30)',
-        status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
-        workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
-        workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
-        notes: 'Tưới ẩm đều bề mặt luống bằng hệ thống tưới phun sương tự động, kiểm tra độ thoát nước.',
-        sensorSnapshot: { temp: '27.0°C', soilMoisture: '69%', light: '40.000 Lux' }
-      },
-      {
-        activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-4`,
-        id: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-4`,
-        day: 1,
-        cropDay: 1,
-        title: 'Phủ màng mùn sinh học / rơm mục giữ ẩm và che lưới nhẹ',
-        timestamp: startCalDate ? `${startCalDate} • Ca chiều (17:00 - 17:45)` : 'Ca chiều (17:00 - 17:45)',
-        status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
-        workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
-        workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
-        notes: 'Che lưới 50% nắng trong 2 ngày đầu, ngăn ngừa bốc hơi nước mặt luống.',
-        sensorSnapshot: { temp: '27.5°C', soilMoisture: '71%', light: '35.000 Lux' }
       }
     ];
 
-    if (!map[1] || map[1].length < 3) {
-      const existing = map[1] || [];
-      const existingTitles = new Set(existing.map((t) => (t.title || '').toLowerCase()));
-      const toAdd = defaultDay1Activities.filter((st) => !existingTitles.has((st.title || '').toLowerCase()));
-      map[1] = [...existing, ...toAdd];
+    if (!map[1] || map[1].length === 0) {
+      map[1] = defaultDay1Activities;
+    } else {
+      // Giới hạn Ngày 1 tối đa 2 việc, lọc sạch các bản ghi trùng lặp
+      const seenTitles = new Set();
+      const cleanDay1 = [];
+      map[1].forEach((t) => {
+        const key = (t.title || '').trim().toLowerCase();
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key);
+          cleanDay1.push(t);
+        }
+      });
+      map[1] = cleanDay1.slice(0, 2);
     }
 
     if (!map[totalDays] || map[totalDays].length === 0) {
@@ -1391,8 +1366,13 @@ function StaffActivitiesTab({
     if (act.status === 'COMPLETED') return false;
     if (act.status === 'IN_PROGRESS') return true;
     if (act.priority === 'HIGH' || act.priority === 'URGENT') return true;
-    if (currentDay > 0 && act.day && act.day <= currentDay) return true;
-    if (act.date && act.date <= todayStr) return true;
+    const taskDay = act.day || act.cropDay;
+    if (currentDay > 0 && taskDay) {
+      return taskDay <= currentDay;
+    }
+    if (act.date && /^\d{4}-\d{2}-\d{2}$/.test(act.date)) {
+      return act.date <= todayStr;
+    }
     return false;
   }, [currentDay, todayStr]);
 
@@ -1824,8 +1804,6 @@ function OverviewTab({
   onResetSeason,
   harvestResults = []
 }) {
-  const daysLeft = cropProcess.daysLeft;
-  const recentActivities = staffActivities.slice(0, 3);
   const isSoilPrep = activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow;
 
   // BR20 + BR21: CVLĐ cân, chụp ảnh rồi chốt biên bản -> Tổng quan chỉ THÔNG BÁO đã thu hoạch.
@@ -1977,60 +1955,6 @@ function OverviewTab({
           </Card>
         </>
       )}
-
-      {/* 3. Hoạt động của Staff gần nhất hoặc Công việc tự canh tác */}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
-        <Card className="p-5">
-          <SectionTitle
-            eyebrow={`${staffActivities.length} ${isSelf ? 'công việc' : 'hoạt động được lưu trữ'}`}
-            title={isSelf ? "Công việc canh tác gần đây" : "Nhật ký chăm sóc của Staff"}
-            action={<LinkButton onClick={() => goTab('tasks')}>Xem tất cả</LinkButton>}
-          />
-          <div className="mt-4 space-y-2.5">
-            {recentActivities.length > 0 ? (
-              recentActivities.map((act) => (
-                <StaffActivityCard
-                  key={act.activityId || act.id}
-                  activity={act}
-                  isSelf={isSelf}
-                  onToggleTask={onToggleTask}
-                  onOpenPhoto={onOpenActivityPhoto}
-                />
-              ))
-            ) : (
-              <EmptyState title="Chưa có hoạt động nào" note={isSelf ? "Chưa có công việc nào." : "Kỹ thuật viên sẽ cập nhật ngay khi chăm sóc luống."} />
-            )}
-          </div>
-        </Card>
-
-        {/* Khối Thu hoạch */}
-        <div className={`relative flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br from-[#f7fbe9] via-[#eef7d6] to-[#e2f0c4] p-5 ${CARD_SHADOW}`}>
-          <Wheat aria-hidden="true" className="pointer-events-none absolute -bottom-6 -right-6 h-40 w-40 rotate-12 text-lime-600/10" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-lime-800">
-            {cropProcess.isNotStarted ? 'Kế hoạch mùa vụ' : 'Dự kiến thu hoạch'}
-          </p>
-          <div className="mt-3 flex items-center gap-4">
-            <div className="relative h-24 w-24 shrink-0">
-              <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-                <circle cx="50" cy="50" r="42" stroke="#d9e8b8" strokeWidth="9" fill="none" />
-                <circle cx="50" cy="50" r="42" stroke="#4d7c0f" strokeWidth="9" fill="none" strokeLinecap="round" strokeDasharray={2 * Math.PI * 42} strokeDashoffset={2 * Math.PI * 42 * (1 - (cropProcess.isNotStarted ? 0 : cropProcess.progressPercent) / 100)} className="transition-[stroke-dashoffset] duration-1000" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold leading-none text-[#18352b]">
-                  {cropProcess.isNotStarted ? (cropProcess.daysUntilStart || 0) : daysLeft}
-                </span>
-                <span className="text-[10px] font-semibold text-lime-800">
-                  {cropProcess.isNotStarted ? 'ngày nữa bắt đầu' : 'ngày nữa'}
-                </span>
-              </div>
-            </div>
-            <dl className="min-w-0 space-y-1.5 text-sm">
-              <div><dt className="text-xs text-lime-900/70">Ngày dự kiến</dt><dd className="font-semibold text-[#18352b]">{plot.expectedHarvestDate || 'Sau 19 ngày'}</dd></div>
-              <div><dt className="text-xs text-lime-900/70">Sản lượng tiêu chuẩn</dt><dd className="font-semibold text-[#18352b]">{cropProcess.expectedYield}</dd></div>
-            </dl>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -2547,139 +2471,120 @@ export default function CustomerPlotWorkspace({
     return resolveStandardCropProcess(plotForSeason, stages);
   }, [plot, stages, activeSeason, isSeasonStarted]);
 
+  const taskStorageKey = useMemo(() => {
+    const cropKey = (cropProcess?.cropKey || cropProcess?.cropName || plot?.crop || 'crop').replace(/\s+/g, '_');
+    return `farmely_self_tasks_${plot.id}_${cropKey}_v4`;
+  }, [plot.id, cropProcess?.cropKey, cropProcess?.cropName, plot?.crop]);
+
   // Quản lý công việc hằng ngày cho khách hàng tự canh tác (Requirement #3)
   const defaultSelfTasks = useMemo(() => {
-    const tasks = [];
-    
-    // Luôn có 4 nhiệm vụ chuẩn rõ ràng, thực tiễn cho Ngày 1 (Bắt đầu mùa vụ)
-    tasks.push(
+    // Ngày 1 (Bắt đầu mùa vụ): Đúng 2 công việc chuẩn mực, tinh gọn, không spam
+    const tasks = [
       {
-        id: `SELF-${plot.id}-D1-SOIL`,
-        activityId: `SELF-${plot.id}-D1-SOIL`,
-        title: 'Làm đất tơi xốp, bón lót phân trùn quế & phun Trichoderma',
+        id: `SELF-${plot.id}-D1-PREP`,
+        activityId: `SELF-${plot.id}-D1-PREP`,
+        title: 'Làm đất tơi xốp, bón lót phân trùn quế & xử lý Trichoderma',
         day: 1,
         cropDay: 1,
         date: 'Ngày 1',
-        timestamp: 'Ngày 1 • Ca sáng (07:00 - 08:30)',
+        timestamp: 'Ngày 1 • Ca sáng (07:30 - 09:00)',
         status: !cropProcess.isNotStarted && 1 <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
         notes: 'Xới xáo đất tơi xốp sâu 20cm, bón lót phân trùn quế và phun nấm đối kháng Trichoderma cân bằng hệ vi sinh đất.',
         stepOrder: 1,
         isCustom: false
       },
       {
-        id: `SELF-${plot.id}-D1-WATER`,
-        activityId: `SELF-${plot.id}-D1-WATER`,
-        title: 'Tưới phun sương cân bằng độ ẩm luống đất (65% - 70%)',
+        id: `SELF-${plot.id}-D1-SEED`,
+        activityId: `SELF-${plot.id}-D1-SEED`,
+        title: 'Tưới ẩm luống đất (65-70%) & xuống giống non theo mật độ VietGAP',
         day: 1,
         cropDay: 1,
         date: 'Ngày 1',
-        timestamp: 'Ngày 1 • Ca sáng (08:30 - 09:30)',
+        timestamp: 'Ngày 1 • Ca chiều (16:00 - 17:30)',
         status: !cropProcess.isNotStarted && 1 <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-        notes: 'Duy trì ẩm độ luống đất ổn định trước khi xuống cây giống non.',
-        stepOrder: 1,
-        isCustom: false
-      },
-      {
-        id: `SELF-${plot.id}-D1-PLANT`,
-        activityId: `SELF-${plot.id}-D1-PLANT`,
-        title: 'Kiểm tra tỷ lệ nảy mầm và xuống giống theo mật độ VietGAP',
-        day: 1,
-        cropDay: 1,
-        date: 'Ngày 1',
-        timestamp: 'Ngày 1 • Ca chiều (15:30 - 17:00)',
-        status: !cropProcess.isNotStarted && 1 <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-        notes: 'Khoảng cách cây cách cây 25 - 30cm, trồng so le giúp tán lá hứng trọn ánh sáng mặt trời.',
-        stepOrder: 1,
-        isCustom: false
-      },
-      {
-        id: `SELF-${plot.id}-D1-COVER`,
-        activityId: `SELF-${plot.id}-D1-COVER`,
-        title: 'Phủ màng mùn sinh học / rơm mục giữ ẩm và che lưới nhẹ',
-        day: 1,
-        cropDay: 1,
-        date: 'Ngày 1',
-        timestamp: 'Ngày 1 • Ca chiều (17:00 - 17:45)',
-        status: !cropProcess.isNotStarted && 1 <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-        notes: 'Che lưới giảm nắng gắt 2 ngày đầu, ngăn ngừa bốc hơi nước tầng mặt luống.',
+        notes: 'Duy trì ẩm độ luống đất ổn định trước khi xuống cây giống theo mật độ khuyến nghị.',
         stepOrder: 1,
         isCustom: false
       }
-    );
+    ];
 
+    // Các giai đoạn tiếp theo (chỉ tạo khi dayStart > 1): Mỗi giai đoạn chỉ tạo đúng 1 nhiệm vụ đại diện vào ngày bắt đầu
     if (cropProcess?.stages?.length) {
       cropProcess.stages.forEach((st, idx) => {
         if (st.dayStart > 1) {
+          const notesText = [
+            st.guide || 'Chăm sóc sinh trưởng theo quy trình chuẩn VietGAP.',
+            st.waterRegime ? `• Tưới nước: ${st.waterRegime}` : '',
+            st.nutrition ? `• Dinh dưỡng: ${st.nutrition}` : ''
+          ].filter(Boolean).join('\n');
+
           tasks.push({
-            id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-1`,
-            activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-1`,
-            title: st.name ? `${st.name}: ${st.guide?.split('.')[0] || 'Chăm sóc sinh trưởng'}` : 'Chăm sóc theo quy trình VietGAP',
+            id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}`,
+            activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}`,
+            title: st.name ? `${st.name}: ${st.guide?.split('.')[0] || 'Kỹ thuật chăm sóc'}` : 'Chăm sóc theo quy trình VietGAP',
             day: st.dayStart,
             cropDay: st.dayStart,
             date: st.label || `Ngày ${st.dayStart}`,
-            timestamp: `Ngày ${st.dayStart} • Ca sáng (07:00 - 08:30)`,
+            timestamp: `Ngày ${st.dayStart} • Ca sáng (07:30 - 09:00)`,
             status: !cropProcess.isNotStarted && st.dayStart <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-            notes: st.guide || 'Tuân thủ định mức và kỹ thuật chuẩn VietGAP.',
-            stepOrder: st.stepOrder || idx + 1,
-            waterRegime: st.waterRegime,
-            nutrition: st.nutrition,
-            isCustom: false
-          });
-        }
-        if (st.waterRegime && st.dayStart > 1) {
-          tasks.push({
-            id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-2`,
-            activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-2`,
-            title: `Tưới nước: ${st.waterRegime.split('.')[0]}`,
-            day: Math.min(st.dayEnd, st.dayStart + 1),
-            cropDay: Math.min(st.dayEnd, st.dayStart + 1),
-            date: `Ngày ${Math.min(st.dayEnd, st.dayStart + 1)}`,
-            timestamp: `Ngày ${Math.min(st.dayEnd, st.dayStart + 1)} • Ca chiều (16:30)`,
-            status: !cropProcess.isNotStarted && Math.min(st.dayEnd, st.dayStart + 1) <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-            notes: st.waterRegime,
-            stepOrder: st.stepOrder || idx + 1,
-            isCustom: false
-          });
-        }
-        if (st.nutrition && st.dayStart > 1) {
-          tasks.push({
-            id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-3`,
-            activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-3`,
-            title: `Dinh dưỡng hữu cơ: ${st.nutrition.split('.')[0]}`,
-            day: Math.min(st.dayEnd, st.dayStart + 2),
-            cropDay: Math.min(st.dayEnd, st.dayStart + 2),
-            date: `Ngày ${Math.min(st.dayEnd, st.dayStart + 2)}`,
-            timestamp: `Ngày ${Math.min(st.dayEnd, st.dayStart + 2)} • Ca sáng (08:00)`,
-            status: !cropProcess.isNotStarted && Math.min(st.dayEnd, st.dayStart + 2) <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-            notes: st.nutrition,
+            notes: notesText,
             stepOrder: st.stepOrder || idx + 1,
             isCustom: false
           });
         }
       });
     }
-    return tasks;
+
+    // Deduplicate hoàn toàn theo ngày + tiêu đề
+    const seen = new Set();
+    const cleanList = [];
+    tasks.forEach((t) => {
+      const key = `${t.day}_${(t.title || '').trim().toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        cleanList.push(t);
+      }
+    });
+
+    return cleanList;
   }, [cropProcess?.stages, plot.id, cropProcess.currentDay, cropProcess.isNotStarted]);
 
   const [selfTasks, setSelfTasks] = useState(() => {
     try {
-      const stored = localStorage.getItem(`farmely_self_tasks_${plot.id}`);
+      const stored = localStorage.getItem(taskStorageKey);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(t => t.day === 1)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const day1Tasks = parsed.filter(t => t.day === 1);
+          if (day1Tasks.length <= 2 && new Set(day1Tasks.map(t => t.title)).size === day1Tasks.length) {
+            return parsed;
+          }
+        }
       }
     } catch { }
-    return [];
+    return defaultSelfTasks;
   });
 
   useEffect(() => {
-    if (isSelf && (selfTasks.length === 0 || !selfTasks.some(t => t.day === 1)) && defaultSelfTasks.length > 0) {
-      setSelfTasks(defaultSelfTasks);
+    if (isSelf) {
       try {
-        localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(defaultSelfTasks));
+        const stored = localStorage.getItem(taskStorageKey);
+        let shouldReset = !stored;
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const day1Tasks = parsed.filter(t => t.day === 1);
+          if (day1Tasks.length > 2 || new Set(day1Tasks.map(t => t.title)).size < day1Tasks.length) {
+            shouldReset = true;
+          }
+        }
+        if (shouldReset) {
+          setSelfTasks(defaultSelfTasks);
+          localStorage.setItem(taskStorageKey, JSON.stringify(defaultSelfTasks));
+          localStorage.removeItem(`farmely_self_tasks_${plot.id}`);
+        }
       } catch { }
     }
-  }, [isSelf, selfTasks.length, defaultSelfTasks, plot.id]);
+  }, [isSelf, taskStorageKey, defaultSelfTasks, plot.id]);
 
   const handleToggleSelfTask = useCallback((taskId) => {
     setSelfTasks((prev) => {
@@ -2696,11 +2601,11 @@ export default function CustomerPlotWorkspace({
         next = [...prev, { id: taskId, activityId: taskId, status: 'COMPLETED' }];
       }
       try {
-        localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(next));
+        localStorage.setItem(taskStorageKey, JSON.stringify(next));
       } catch { }
       return next;
     });
-  }, [plot.id]);
+  }, [taskStorageKey]);
 
   const handleAddSelfTask = useCallback((newTask) => {
     setSelfTasks((prev) => {
@@ -2717,21 +2622,21 @@ export default function CustomerPlotWorkspace({
       };
       const next = [taskObj, ...prev];
       try {
-        localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(next));
+        localStorage.setItem(taskStorageKey, JSON.stringify(next));
       } catch { }
       return next;
     });
-  }, [plot.id]);
+  }, [plot.id, taskStorageKey]);
 
   const handleDeleteSelfTask = useCallback((taskId) => {
     setSelfTasks((prev) => {
       const next = prev.filter((t) => (t.id || t.activityId) !== taskId);
       try {
-        localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(next));
+        localStorage.setItem(taskStorageKey, JSON.stringify(next));
       } catch { }
       return next;
     });
-  }, [plot.id]);
+  }, [taskStorageKey]);
 
   // Modal xem cẩm nang kỹ thuật của mốc ngày
   const [selectedStageDetail, setSelectedStageDetail] = useState(null);
@@ -3149,12 +3054,20 @@ export default function CustomerPlotWorkspace({
               </p>
               <div className="mt-5">
                 {(() => {
-                  const mergedSelfActivities = isSelf
-                    ? [
-                        ...(staffActivities || []).filter((a) => a.serviceRequestId || (a.notes && a.notes.includes('[DỊCH VỤ KHÁCH YÊU CẦU]'))),
-                        ...selfTasks
-                      ]
-                    : staffActivities;
+                  const mergedSelfActivities = (() => {
+                    if (!isSelf) return staffActivities || [];
+                    const combined = [
+                      ...(staffActivities || []).filter((a) => a.serviceRequestId || (a.notes && a.notes.includes('[DỊCH VỤ KHÁCH YÊU CẦU]'))),
+                      ...selfTasks
+                    ];
+                    const seen = new Set();
+                    return combined.filter((item) => {
+                      const key = item.id || item.activityId || `${item.day}_${(item.title || '').trim().toLowerCase()}`;
+                      if (seen.has(key)) return false;
+                      seen.add(key);
+                      return true;
+                    });
+                  })();
                   return (
                     <StaffActivitiesTab
                       activities={mergedSelfActivities}
