@@ -16,6 +16,8 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { useLocation } from 'react-router-dom';
+import { chatService } from '../../api/communication/chatService';
+import { getPlotChatThreadId } from '../../api/communication/chatStorage';
 
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
@@ -73,6 +75,7 @@ export default function FarmelySmartAssistant() {
 
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [isMarketplace, setIsMarketplace] = useState(false);
+  const [activePlotChat, setActivePlotChat] = useState(null);
 
   // AI Chat State
   const [aiInput, setAiInput] = useState('');
@@ -99,9 +102,13 @@ export default function FarmelySmartAssistant() {
     [isStaff, user?.id, user?.email]
   );
 
+  const activeExpertThreadId = useMemo(() => activePlotChat
+    ? getPlotChatThreadId({ userId: user?.id, email: user?.email, plotCode: activePlotChat.plotCode, role: isStaff ? 'worker' : 'customer' })
+    : threadId, [activePlotChat, isStaff, threadId, user?.email, user?.id]);
+
   const { currentThread, sendMessage: sendExpertMessage } = useRealtimeChat({
     role: chatRole,
-    initialThreadId: threadId,
+    initialThreadId: activeExpertThreadId,
     senderName: user?.fullName || user?.name || fallbackName
   });
 
@@ -114,6 +121,65 @@ export default function FarmelySmartAssistant() {
   useEffect(() => {
     setIsMarketplace(location.pathname.startsWith('/marketplace'));
   }, [location.pathname]);
+
+  useEffect(() => {
+    const handleOpenPlotChat = (event) => {
+      const detail = event.detail || {};
+      if (!detail.plotCode) return;
+      const nextThreadId = getPlotChatThreadId({ userId: user?.id, email: user?.email, plotCode: detail.plotCode, role: isStaff ? 'worker' : 'customer' });
+      const plotContext = {
+        plotCode: detail.plotCode,
+        plotName: detail.plotName || `Thửa ${detail.plotCode}`,
+        crop: detail.crop || '',
+        rentalStatus: detail.rentalStatus || 'NOT_RENTED'
+      };
+      setActivePlotChat(plotContext);
+      chatService.upsertPlotThread({
+        threadId: nextThreadId,
+        customerName: user?.fullName || user?.name || user?.email?.split('@')[0] || 'Khách hàng',
+        customerEmail: user?.email,
+        customerAvatar: user?.avatar,
+        ...plotContext
+      });
+      setActiveTab('expert');
+      setIsOpen(true);
+
+      if (plotContext.rentalStatus !== 'RENTED') {
+        const inquiryText = `Mình đang xem ${plotContext.plotName} (${plotContext.plotCode})${plotContext.crop ? ` và quan tâm giống ${plotContext.crop}` : ''}. Nhờ chuyên gia tư vấn giúp mình.`;
+        chatService.sendMessage({ threadId: nextThreadId, sender: chatRole, senderName: user?.fullName || user?.name || fallbackName, text: inquiryText, meta: { plotContext } });
+      }
+
+      void (async () => {
+        try {
+          const participantOne = Number.parseInt(String(user?.id || ''), 10) || 1;
+          const plotId = Number.parseInt(String(plotContext.plotCode).replace(/\D/g, ''), 10) || null;
+          const response = await fetch('/api/conversations', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ participantOne, participantTwo: 5, plotId, type: 'CUST_EXP' })
+          });
+          if (!response.ok) return;
+          const payload = await response.json();
+          const conversation = payload?.data;
+          const conversationId = conversation?.conversationId || conversation?.id || payload?.conversationId;
+          if (!conversationId) return;
+          chatService.setThreadConversationId(nextThreadId, conversationId);
+          const remoteTexts = new Set((conversation?.messages || []).map((message) => message.content || message.text).filter(Boolean));
+          const localMessages = chatService.getThreadById(nextThreadId)?.messages || [];
+          for (const message of localMessages) {
+            if (!message.text || remoteTexts.has(message.text)) continue;
+            await fetch(`/api/conversations/${conversationId}/messages`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ senderId: message.sender === 'expert' ? 5 : participantOne, senderName: message.senderName || user?.fullName || user?.name || fallbackName, content: message.text })
+            });
+          }
+        } catch {
+          // The local thread remains usable if the communication API is unavailable.
+        }
+      })();
+    };
+    window.addEventListener('farmely:open-plot-chat', handleOpenPlotChat);
+    return () => window.removeEventListener('farmely:open-plot-chat', handleOpenPlotChat);
+  }, [chatRole, fallbackName, isStaff, user?.avatar, user?.email, user?.fullName, user?.id, user?.name]);
 
   // Quan sát xem panel chi tiết thửa đất (Plot Detail Panel) có đang mở không
   useEffect(() => {
@@ -284,6 +350,7 @@ export default function FarmelySmartAssistant() {
 
   const endDrag = () => {
     if (dragRef.current && !dragRef.current.moved) {
+      setActivePlotChat(null);
       setIsOpen((prev) => !prev);
     }
     if (dragRef.current && dragRef.current.moved && position) {
@@ -368,7 +435,7 @@ export default function FarmelySmartAssistant() {
               onPointerMove={moveDrag}
               onPointerUp={endDrag}
               onPointerCancel={() => { dragRef.current = null; }}
-              className="relative flex h-14 w-14 touch-none items-center justify-center rounded-2xl bg-gradient-to-tr from-[#064b37] via-[#0b6348] to-[#148360] text-white shadow-[0_12px_36px_rgba(6,75,55,0.42)] border border-emerald-400/30 transition-all duration-300 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-500/30"
+              className="relative flex h-14 w-14 touch-none items-center justify-center rounded-2xl bg-gradient-to-tr from-[#064b37] via-[#0b6348] to-[#148360] text-white opacity-20 shadow-[0_12px_36px_rgba(6,75,55,0.42)] border border-emerald-400/30 transition-all duration-300 group-hover:opacity-100 hover:scale-105 active:scale-95 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-500/30"
               aria-label="Mở Trợ lý Farmely và Kết nối Chuyên gia"
             >
               <div className="relative flex items-center justify-center">
@@ -573,6 +640,12 @@ export default function FarmelySmartAssistant() {
                               alt="Minh chứng hiện trường"
                               className="mb-2 max-h-36 w-full rounded-xl object-cover border border-slate-200"
                             />
+                          )}
+                          {message.plotContext && (
+                            <div className="mb-2 rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-[11px] text-emerald-950">
+                              <p className="font-bold">Thửa đang được hỏi: {message.plotContext.plotName || `Thửa ${message.plotContext.plotCode}`}</p>
+                              <p className="mt-0.5 text-emerald-800">{message.plotContext.plotCode}{message.plotContext.crop ? ` · Giống ${message.plotContext.crop}` : ''}</p>
+                            </div>
                           )}
                           <p className="whitespace-pre-wrap">{message.text}</p>
                         </div>

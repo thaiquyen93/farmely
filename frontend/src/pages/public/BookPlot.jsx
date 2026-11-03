@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
 import { chatService } from '../../api/communication/chatService';
-import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
+import { DEMO_CUSTOMERS, getPlotChatThreadId } from '../../api/communication/chatStorage';
 import {
   loadLeaseConfigMap,
   saveLeaseConfigMap,
@@ -714,6 +714,20 @@ export default function BookPlot() {
       plotCode: plotCodesList,
       plotName: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`,
       crop: primaryCrop?.variety || primaryPlot.compatibleCrops?.[0] || 'Cây trồng tiêu chuẩn'
+    });
+    selectedPlots.forEach((plot) => {
+      const plotCode = normalizePlotCode(plot.code || plot.plotCode || plot.id);
+      const plotCrop = getPlotSelectedCrop(plot);
+      chatService.upsertPlotThread({
+        threadId: getPlotChatThreadId({ userId: user.id, email: user.email, plotCode }),
+        customerName: user.fullName || demoProfile?.name,
+        customerEmail: user.email,
+        customerAvatar: user.avatar || demoProfile?.avatar,
+        plotCode,
+        plotName: plot.name || `Thửa ${plotCode}`,
+        crop: plotCrop?.variety || plotCrop?.name || 'Cây trồng tiêu chuẩn',
+        rentalStatus: 'RENTED'
+      });
     });
   };
 

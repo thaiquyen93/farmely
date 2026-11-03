@@ -24,7 +24,8 @@ import {
   Info,
   Clock,
   Maximize2,
-  Minimize2
+  Minimize2,
+  MessageCircle
 } from 'lucide-react';
 import { safeCrops, getSafeCropsList } from '../../data/safeCrops';
 import PlotLeaseOptions from './PlotLeaseOptions';
@@ -46,6 +47,7 @@ export default function MarketplacePlotDetailPanel({
   cropOptions = [],
   compatibilityMissing = false,
   onOpenSiteVisit,
+  onOpenPlotChat,
   cartPlotsCount = 0
 }) {
   const [copied, setCopied] = useState(false);
@@ -1015,6 +1017,16 @@ export default function MarketplacePlotDetailPanel({
             </span>
           </div>
         )}
+
+        <button
+          type="button"
+          onClick={() => onOpenPlotChat?.({ plot, crop: selectedCrop })}
+          className="w-full py-2 rounded-xl border border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100 text-xs font-bold transition-colors flex items-center justify-center gap-2"
+          aria-label={`Chat với chuyên gia về ${plot?.code || plot?.name || 'thửa đất này'}`}
+        >
+          <MessageCircle className="h-4 w-4" />
+          <span>Hỏi chuyên gia về thửa này</span>
+        </button>
 
         {/* Nút chính — Thuê ngay thửa này hoặc Tiến hành thuê N thửa */}
         <button

@@ -645,6 +645,17 @@ export default function Marketplace() {
         cropOptions={selectedPlotCompat.crops}
         compatibilityMissing={selectedPlotCompatLoaded && !selectedPlotCompat.hasData}
         onOpenSiteVisit={handleOpenSiteVisit}
+        onOpenPlotChat={({ plot, crop }) => {
+          const plotCode = String(plot?.code || plot?.plotCode || plot?.id || '').replace(/^(plot|thửa)\s*/i, '').trim();
+          window.dispatchEvent(new CustomEvent('farmely:open-plot-chat', {
+            detail: {
+              plotCode,
+              plotName: plot?.name || `Thửa ${plotCode}`,
+              crop: crop ? [crop.name, crop.variety].filter((name, index, names) => name && names.indexOf(name) === index).join(' — ') : '',
+              rentalStatus: ['RENTED', 'Đã thuê'].includes(plot?.status) || plot?.statusCode === 'RENT' ? 'RENTED' : 'NOT_RENTED'
+            }
+          }));
+        }}
         cartPlotsCount={contractSelectedPlots.length}
       />
 

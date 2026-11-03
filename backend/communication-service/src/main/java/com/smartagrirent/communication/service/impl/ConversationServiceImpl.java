@@ -10,6 +10,7 @@ import com.smartagrirent.communication.repository.ConversationRepository;
 import com.smartagrirent.communication.service.ConversationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -53,13 +54,15 @@ public class ConversationServiceImpl implements ConversationService {
     @Transactional
     public ConversationResponse getOrCreateDirectConversation(CreateConversationRequest request) {
         if (request.getParticipantTwo() != null) {
-            var existing = conversationRepository.findDirectConversation(
+            var existing = conversationRepository.findDirectConversations(
                     request.getParticipantOne(),
                     request.getParticipantTwo(),
-                    request.getType()
+                    request.getType(),
+                    request.getPlotId(),
+                    PageRequest.of(0, 1)
             );
-            if (existing.isPresent()) {
-                return mapToResponse(existing.get());
+            if (!existing.isEmpty()) {
+                return mapToResponse(existing.get(0));
             }
         }
 

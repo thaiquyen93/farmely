@@ -222,6 +222,48 @@ export function getStoredThreadById(threadId) {
   return threads.find((t) => t.id === threadId) || null;
 }
 
+export function getPlotChatThreadId({ userId, email, plotCode, role = 'customer' }) {
+  const identity = email || userId || role.toUpperCase();
+  const safeUser = String(identity).replace(/[^a-zA-Z0-9]/g, '_');
+  const safePlot = String(plotCode || 'UNKNOWN').replace(/[^a-zA-Z0-9]/g, '_');
+  return `${role === 'worker' ? 'WORK' : 'CONS'}-${safeUser}-PLOT-${safePlot}`;
+}
+
+export function upsertPlotChatThread({ threadId, rentalId, customerName, customerEmail, customerAvatar, plotCode, plotName, crop, rentalStatus = 'NOT_RENTED' }) {
+  if (!threadId) return null;
+  const threads = getStoredThreads();
+  const existingIndex = threads.findIndex((thread) => thread.id === threadId);
+  const existing = existingIndex >= 0 ? threads[existingIndex] : null;
+  const thread = {
+    ...(existing || {}),
+    id: threadId,
+    role: 'customer',
+    roleLabel: rentalStatus === 'RENTED' ? 'Khách thuê đất' : 'Khách tư vấn trước thuê',
+    category: 'expert',
+    plotChat: true,
+    rentalStatus,
+    rentalId: rentalId || existing?.rentalId || null,
+    customerName: customerName || existing?.customerName || 'Khách hàng Farmely',
+    customerEmail: customerEmail || existing?.customerEmail || '',
+    customerAvatar: customerAvatar || existing?.customerAvatar || getSafeAvatar(null, 'customer'),
+    plotCode: plotCode || existing?.plotCode || '',
+    plotName: plotName || existing?.plotName || '',
+    crop: crop || existing?.crop || '',
+    stage: rentalStatus === 'RENTED' ? 'Đang thuê thửa đất' : 'Đang tìm hiểu thửa đất',
+    expertName: existing?.expertName || 'ThS. Nguyễn Hoàng Nam',
+    isOnline: true,
+    lastTime: existing?.lastTime || 'Chưa có tin nhắn',
+    status: existing?.status || 'PENDING',
+    unread: existing?.unread || false,
+    messages: existing?.messages || []
+  };
+  const updatedThreads = existingIndex >= 0
+    ? threads.map((item, index) => index === existingIndex ? thread : item)
+    : [thread, ...threads];
+  saveThreads(updatedThreads);
+  return { thread, threads: updatedThreads };
+}
+
 /**
  * Save threads to storage
  */

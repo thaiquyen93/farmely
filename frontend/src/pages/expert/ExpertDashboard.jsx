@@ -193,9 +193,10 @@ export default function ExpertDashboard() {
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
   useEffect(() => {
-    setActiveChatPlotKey('');
+    const selectedThread = chatThreads.find((thread) => thread.id === selectedThreadId);
+    setActiveChatPlotKey(selectedThread?.plotChat ? selectedThread.id : '');
     setChatPlotPreview(false);
-  }, [selectedThreadId]);
+  }, [chatThreads, selectedThreadId]);
   const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
   const preRentalCount = chatThreads.filter(isPreRentalThread).length;
 
@@ -2059,7 +2060,24 @@ export default function ExpertDashboard() {
                     const normalizeIdentity = (value) => String(value || '').trim().toLocaleLowerCase('vi');
                     const threadEmail = normalizeIdentity(activeThread.customerEmail || activeThread.email);
                     const threadName = normalizeIdentity(activeThread.customerName);
-                    const customerPlots = !isAdminThread && !isWorkerThread && !isPreRental
+                    const customerPlotThreads = activeThread.plotChat
+                      ? chatThreads.filter((thread) => thread.plotChat && (
+                          (activeThread.customerEmail && thread.customerEmail && normalizeIdentity(thread.customerEmail) === normalizeIdentity(activeThread.customerEmail)) ||
+                          thread.customerName === activeThread.customerName
+                        ))
+                      : [];
+                    const customerPlots = activeThread.plotChat
+                      ? customerPlotThreads.map((thread) => ({
+                          threadId: thread.id,
+                          rentalId: thread.id,
+                          plotCode: thread.plotCode,
+                          crop: thread.crop,
+                          name: thread.plotName,
+                          totalDays: 45,
+                          currentDay: 1,
+                          progressPercent: 0
+                        }))
+                      : !isAdminThread && !isWorkerThread && !isPreRental
                       ? assignedPlots.filter((plot) => {
                           const plotEmail = normalizeIdentity(plot.renterEmail || plot.customerEmail);
                           const plotName = normalizeIdentity(plot.renterName || plot.customerName);
@@ -2185,7 +2203,15 @@ export default function ExpertDashboard() {
                                     type="button"
                                     role="tab"
                                     aria-selected={isActivePlot}
-                                    onClick={() => setActiveChatPlotKey(key)}
+                                    onClick={() => {
+                                      if (plot.threadId) {
+                                        setSelectedThreadId(plot.threadId);
+                                        setActiveChatPlotKey(key);
+                                        setMobileShowChat(true);
+                                      } else {
+                                        setActiveChatPlotKey(key);
+                                      }
+                                    }}
                                     className={`shrink-0 border-b-2 px-3 py-2 text-xs font-semibold ${isActivePlot ? 'border-emerald-700 text-emerald-900' : 'border-transparent text-stone-500 hover:text-stone-800'}`}
                                     title={`${plot.crop || 'Cây trồng'} · ${plot.currentDay || 1}/${plot.totalDays || 45} ngày`}
                                   >
@@ -2296,6 +2322,13 @@ export default function ExpertDashboard() {
                                         <ZoomIn className="w-4 h-4" />
                                         <span>Phóng to phân tích</span>
                                       </div>
+                                    </div>
+                                  )}
+
+                                  {msg.plotContext && (
+                                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-[11px] text-emerald-950">
+                                      <p className="font-bold">Thửa khách đang xem · {msg.plotContext.plotName || `Thửa ${msg.plotContext.plotCode}`}</p>
+                                      <p className="mt-0.5 text-emerald-800">{msg.plotContext.plotCode}{msg.plotContext.crop ? ` · Giống ${msg.plotContext.crop}` : ''}</p>
                                     </div>
                                   )}
 
