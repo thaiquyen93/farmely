@@ -1025,10 +1025,22 @@ BEGIN
         ORDER BY ts.day_offset;
     END IF;
 
-    -- Tự động mở kênh chat CUST_EXP
-    INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
-    VALUES (v_renter_id, fn_resolve_expert_for_variety(${varietyId}), v_rental_id, v_plot_id, 'CUST_EXP', 'OPEN', NOW())
-    ON CONFLICT DO NOTHING;
+    -- Tự động mở kênh chat CUST_EXP (chống tạo trùng lặp kênh chat cho cùng một khách hàng và chuyên gia)
+    IF NOT EXISTS (
+        SELECT 1 FROM conversations 
+        WHERE participant_one = v_renter_id 
+          AND participant_two = fn_resolve_expert_for_variety(${varietyId}) 
+          AND type = 'CUST_EXP'
+    ) THEN
+        INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
+        VALUES (v_renter_id, fn_resolve_expert_for_variety(${varietyId}), v_rental_id, v_plot_id, 'CUST_EXP', 'OPEN', NOW());
+    ELSE
+        UPDATE conversations 
+        SET rental_id = v_rental_id, plot_id = v_plot_id
+        WHERE participant_one = v_renter_id 
+          AND participant_two = fn_resolve_expert_for_variety(${varietyId}) 
+          AND type = 'CUST_EXP';
+    END IF;
 
     -- 2. TỰ ĐỘNG KHỞI TẠO BẢN GHI NHẬT KÝ NÔNG TRẠI (FARM DIARY)
     INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
@@ -1864,13 +1876,16 @@ BEGIN
       AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id)
     ORDER BY COALESCE(ts.step_order, 1), ts.day_offset, ts.step_id;
 
-    -- Tự động mở kênh chat CUST_EXP
+    -- Tự động mở kênh chat CUST_EXP (chống tạo trùng lặp)
     INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
     SELECT c.renter_id, r.expert_id, r.rental_id, r.plot_id, 'CUST_EXP', 'OPEN', NOW()
     FROM rentals r
     JOIN contracts c ON r.contract_id = c.contract_id
     WHERE r.contract_id = ${contractId} AND r.expert_id IS NOT NULL
-    ON CONFLICT DO NOTHING;
+      AND NOT EXISTS (
+        SELECT 1 FROM conversations conv
+        WHERE conv.participant_one = c.renter_id AND conv.participant_two = r.expert_id AND conv.type = 'CUST_EXP'
+      );
 
     INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status, created_at)
     SELECT contract_id, 'PAYMENT', total_amount, 'VNPAY', 'VNP-' || TO_CHAR(NOW(), 'YYYYMMDDHH24MISS'), 'SUCCESS', NOW()
@@ -5155,21 +5170,23 @@ END $$;
                   WHERE rental_id = ${rentalId};
                 `);
                 await runPostgreSql(`
-                  UPDATE care_tasks ct
+                  UPDATE care_tasks
                   SET 
-                    due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
+                    due_date = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN CURRENT_DATE
+                      ELSE (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date
+                    END,
                     status = CASE 
                       WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN 'IN_PROG'::task_status_enum
                       ELSE 'DONE'::task_status_enum
                     END,
                     evidence_image_url = CASE 
-                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN ct.evidence_image_url
-                      ELSE COALESCE(ct.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN care_tasks.evidence_image_url
+                      ELSE COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
                     END,
                     updated_at = NOW()
-                  FROM rentals r
-                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
-                  WHERE ct.rental_id = ${rentalId} AND r.rental_id = ${rentalId};
+                  FROM template_steps ts, rentals r
+                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
                 `);
                 message = `Đã giả lập thửa ${rental.plot_code} đến ngày thu hoạch (Ngày ${totalDays}/${totalDays})! Nhiệm vụ thu hoạch đã sẵn sàng cho CVLĐ và Khách hàng.`;
               } else if (action === 'RESET') {
@@ -5179,13 +5196,13 @@ END $$;
                   WHERE rental_id = ${rentalId};
                 `);
                 await runPostgreSql(`
-                  UPDATE care_tasks ct
+                  UPDATE care_tasks
                   SET 
                     due_date = (CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
                     status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
                     updated_at = NOW()
                   FROM template_steps ts
-                  WHERE ct.rental_id = ${rentalId} AND ct.step_id = ts.step_id;
+                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = ${rentalId};
                 `);
                 message = `Đã đặt lại tiến độ thửa ${rental.plot_code} về Ngày 1`;
               } else if (action === 'SET_DAY') {
@@ -5197,9 +5214,12 @@ END $$;
                   WHERE rental_id = ${rentalId};
                 `);
                 await runPostgreSql(`
-                  UPDATE care_tasks ct
+                  UPDATE care_tasks
                   SET 
-                    due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
+                    due_date = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) AND ${day} >= ${totalDays} THEN CURRENT_DATE
+                      ELSE (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date
+                    END,
                     status = CASE 
                       WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN (
                         CASE WHEN ${day} >= ${totalDays} THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END
@@ -5209,13 +5229,12 @@ END $$;
                       ELSE 'PENDING'::task_status_enum
                     END,
                     evidence_image_url = CASE 
-                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN COALESCE(ct.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
-                      ELSE ct.evidence_image_url
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
+                      ELSE care_tasks.evidence_image_url
                     END,
                     updated_at = NOW()
-                  FROM rentals r
-                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
-                  WHERE ct.rental_id = ${rentalId} AND r.rental_id = ${rentalId};
+                  FROM template_steps ts, rentals r
+                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
                 `);
                 message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays}`;
               }
@@ -5732,7 +5751,7 @@ SELECT json_build_object(
   'message', 'Lấy danh sách hội thoại thành công từ PostgreSQL',
   'data', (
     SELECT COALESCE(json_agg(row_to_json(c_list)), '[]'::json) FROM (
-      SELECT 
+      SELECT DISTINCT ON (c.participant_one, c.participant_two, c.type)
         c.conversation_id AS "conversationId",
         'CONS-' || c.conversation_id AS id,
         c.type,
@@ -5781,7 +5800,7 @@ SELECT json_build_object(
       LEFT JOIN plots p ON COALESCE(c.plot_id, r.plot_id) = p.plot_id
       LEFT JOIN varieties v ON r.variety_id = v.variety_id
       ${whereClause}
-      ORDER BY c.conversation_id DESC
+      ORDER BY c.participant_one, c.participant_two, c.type, c.conversation_id DESC
     ) c_list
   )
 ) as result;
