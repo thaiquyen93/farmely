@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
@@ -44,6 +44,7 @@ import {
   ALLOWED_TERM_MONTHS,
   getMinTermMonths
 } from '../../utils/leaseSelection';
+import { RENTAL_TERMS, RENTAL_TERMS_VERSION } from '../../data/rentalTerms';
 
 // Danh mục tương thích sinh học chuẩn hóa từ PostgreSQL table plot_variety_compatibility (BR03)
 const PLOT_COMPATIBLE_VARIETIES = {
@@ -240,6 +241,10 @@ export default function BookPlot() {
   const [isAddPlotModalOpen, setIsAddPlotModalOpen] = useState(false);
   const [createdContractId, setCreatedContractId] = useState(null);
   const [bookingError, setBookingError] = useState('');
+  const [showContractTerms, setShowContractTerms] = useState(false);
+  const [termsReadToEnd, setTermsReadToEnd] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const termsContentRef = useRef(null);
   const [isExtendingGrace, setIsExtendingGrace] = useState(false);
   const [graceApplied, setGraceApplied] = useState(false);
 
@@ -254,6 +259,16 @@ export default function BookPlot() {
   const [cropValidationError, setCropValidationError] = useState(false);
   const [modeValidationError, setModeValidationError] = useState(false);
   const [startDate, setStartDate] = useState(() => getEarliestCultivationDate());
+
+  useEffect(() => {
+    setAcceptedTerms(false);
+  }, [selectedPlots, plotConfigs, startDate]);
+
+  useEffect(() => {
+    if (!showContractTerms || !termsContentRef.current) return;
+    const element = termsContentRef.current;
+    if (element.scrollHeight <= element.clientHeight + 8) setTermsReadToEnd(true);
+  }, [showContractTerms]);
 
   // 15-minute reservation timer (BR08) & checkout settings
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
@@ -848,8 +863,13 @@ export default function BookPlot() {
     })
   });
 
-  const handleConfirmBooking = async () => {
+  const handleConfirmBooking = async (termsConfirmed = false) => {
     setBookingError('');
+
+    if (!acceptedTerms && !termsConfirmed) {
+      setBookingError('Vui lòng đọc và xác nhận hợp đồng cùng điều khoản trước khi thanh toán.');
+      return;
+    }
 
     if (!startDate) {
       setBookingError('Vui lòng chọn ngày bắt đầu canh tác.');
@@ -1765,7 +1785,11 @@ export default function BookPlot() {
                   variant="secondary"
                   size="lg"
                   className="w-full uppercase font-black tracking-wider text-sm shadow-md py-4 flex items-center justify-center gap-2 cursor-pointer transition-all"
-                  onClick={handleConfirmBooking}
+                  onClick={() => {
+                    setTermsReadToEnd(false);
+                    setAcceptedTerms(false);
+                    setShowContractTerms(true);
+                  }}
                   loading={isProcessing}
                 >
                   <ShieldCheck className="w-5 h-5 text-brand-yellow" />
@@ -1864,6 +1888,53 @@ export default function BookPlot() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showContractTerms && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/70 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="contract-terms-title">
+          <section className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <header className="border-b border-brand-border px-5 py-4 sm:px-7">
+              <h2 id="contract-terms-title" className="text-xl font-black text-brand-dark">Hợp đồng thuê plot và điều khoản</h2>
+              <div className="mt-3 space-y-1.5 rounded-xl bg-stone-50 p-3">
+                {selectedPlots.map((plot) => {
+                  const crop = getPlotSelectedCrop(plot);
+                  const config = getPlotConfig(plot);
+                  const price = getPlotPriceDetails(plot);
+                  return (
+                    <p key={plot.id} className="text-xs text-stone-700">
+                      <strong>{plot.code || plot.id}</strong> · {crop?.variety || crop?.name || 'Chưa chọn giống'} · {config.cultivationMode === 'ASSISTED' ? 'Farmely chăm sóc' : 'Khách tự chăm sóc'} · {price.months} tháng · {price.total.toLocaleString('vi-VN')} đ
+                    </p>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-sm font-bold text-emerald-800">Tổng giá trị hợp đồng: {totalAmount.toLocaleString('vi-VN')} đ · Bắt đầu: {startDate || 'Chưa chọn'}</p>
+            </header>
+            <div ref={termsContentRef} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-7" onScroll={(event) => {
+              const element = event.currentTarget;
+              if (element.scrollTop + element.clientHeight >= element.scrollHeight - 8) setTermsReadToEnd(true);
+            }}>
+              <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">Đọc toàn bộ điều khoản bên dưới. Sau khi đọc đến cuối, đánh dấu xác nhận để tiếp tục thanh toán.</p>
+              {RENTAL_TERMS.map(({ title, content }) => (
+                <section key={title}><h3 className="font-bold text-brand-dark">{title}</h3><p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-600">{content}</p></section>
+              ))}
+              <p className="border-t border-brand-border pt-4 text-xs text-stone-500">Phiên bản điều khoản: {RENTAL_TERMS_VERSION}</p>
+            </div>
+            <footer className="space-y-4 border-t border-brand-border px-5 py-4 sm:px-7">
+              <label className={`flex items-start gap-3 text-sm ${termsReadToEnd ? 'cursor-pointer text-stone-800' : 'cursor-not-allowed text-stone-400'}`}>
+                <input type="checkbox" checked={acceptedTerms} disabled={!termsReadToEnd} onChange={(event) => setAcceptedTerms(event.target.checked)} className="mt-1 h-4 w-4 accent-emerald-700" />
+                <span>Tôi xác nhận đã đọc và đồng ý với hợp đồng thuê plot, phương thức chăm sóc, thời hạn thuê và điều khoản áp dụng.</span>
+              </label>
+              {!termsReadToEnd && <p className="text-xs text-amber-700">Cuộn đến cuối nội dung để bật xác nhận.</p>}
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowContractTerms(false)}>Quay lại</Button>
+                <Button variant="secondary" disabled={!acceptedTerms || !termsReadToEnd || isProcessing} loading={isProcessing} onClick={async () => {
+                  setShowContractTerms(false);
+                  await handleConfirmBooking(true);
+                }}>Xác nhận và tiếp tục thanh toán</Button>
+              </div>
+            </footer>
+          </section>
         </div>
       )}
 

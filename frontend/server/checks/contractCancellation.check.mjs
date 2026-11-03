@@ -21,11 +21,11 @@ for (const p of [path.join(REPO, '.env'), path.join(REPO, 'frontend/.env')]) {
 }
 
 const pool = new pg.Pool({
-  host: env.DB_HOST || 'localhost',
-  port: parseInt(env.DB_PORT || '5433', 10),
-  database: env.DB_NAME || 'farmely',
-  user: env.DB_USER || 'postgres',
-  password: env.DB_PASSWORD || env.DB_PASS || 'postgres'
+  host: process.env.DB_HOST || env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || env.DB_PORT || '5433', 10),
+  database: process.env.DB_NAME || env.DB_NAME || 'farmely',
+  user: process.env.DB_USER || env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || process.env.DB_PASS || env.DB_PASSWORD || env.DB_PASS || 'postgres'
 });
 
 // Trích ĐÚNG khối SQL đang chạy production từ plugin -> test cái thật, không phải bản copy

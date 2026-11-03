@@ -64,7 +64,7 @@ services:
     image: farmely-payment-service:latest
     environment:
       <<: *db-env
-      VNP_RETURN_URL: http://localhost:3300/payment/vnpay-return
+      VNP_RETURN_URL: http://localhost:3000/payment/vnpay-return
       VNP_PAY_URL: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
     depends_on:
       postgres: { condition: service_healthy }
@@ -106,7 +106,7 @@ services:
       PGDATABASE: farmely_e2e
       IDENTITY_SERVICE_URL: http://identity-service:8081
     ports:
-      - "3300:3000"
+      - "3000:3000"
     depends_on:
       - api-gateway
       - identity-service

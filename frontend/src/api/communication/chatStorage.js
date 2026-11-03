@@ -305,7 +305,7 @@ export function markThreadAsReadInStorage(threadId) {
   return { thread, threads: updatedThreads };
 }
 
-export function updateThreadRentalInStorage({ threadId, customerName, customerAvatar, plotCode, plotName, crop }) {
+export function updateThreadRentalInStorage({ threadId, rentalId, customerName, customerAvatar, plotCode, plotName, crop }) {
   const threads = getStoredThreads();
 
   // Không bao giờ gán đè Ban Quản Trị hoặc tạo thêm Admin thành Khách Thuê Đất
@@ -314,10 +314,14 @@ export function updateThreadRentalInStorage({ threadId, customerName, customerAv
   }
 
   // Tìm thread hiện có theo threadId hoặc theo tên
-  const existingIndex = threads.findIndex((thread) =>
-    thread.id === threadId ||
-    (customerName && thread.customerName && thread.customerName.toLowerCase() === customerName.toLowerCase())
-  );
+  const requestedThreadIndex = threads.findIndex((thread) => thread.id === threadId);
+  const normalizedPlotCode = String(plotCode || '').trim().toUpperCase().replace(/^PLOT-/, '');
+  const existingIndex = requestedThreadIndex >= 0 ? requestedThreadIndex : threads.findIndex((thread) => {
+    const existingPlotCode = String(thread.plotCode || '').trim().toUpperCase().replace(/^PLOT-/, '');
+    return customerName && thread.customerName
+      && thread.customerName.toLowerCase() === customerName.toLowerCase()
+      && existingPlotCode === normalizedPlotCode;
+  });
   const existing = existingIndex >= 0 ? threads[existingIndex] : null;
 
   const cleanPlotCode = (plotCode || '')
@@ -328,6 +332,7 @@ export function updateThreadRentalInStorage({ threadId, customerName, customerAv
   const thread = {
     ...(existing || {}),
     id: existing?.id || threadId,
+    rentalId: rentalId || existing?.rentalId || null,
     role: 'customer',
     roleLabel: 'Khách Thuê Đất',
     rentalStatus: 'RENTED',

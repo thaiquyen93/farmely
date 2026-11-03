@@ -33,6 +33,7 @@ export default function ProcessTemplates() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const { user } = useAuthStore();
+  const templateBasePath = user?.role === 'EXPERT' ? '/expert/process-templates' : '/admin/master-data/process-templates';
   const [templates, setTemplates] = useState(initialTemplates);
   const [varieties, setVarieties] = useState(initialVarieties);
   const [loading, setLoading] = useState(true);
@@ -152,7 +153,7 @@ export default function ProcessTemplates() {
       if (json.success && json.data?.id) {
         setShowModal(false);
         // Chuyển thẳng tới trang chi tiết quy trình vừa tạo
-        navigate(`/admin/master-data/process-templates/${json.data.id}`);
+        navigate(`${templateBasePath}/${json.data.id}`);
         return;
       }
     } catch (err) {
@@ -189,7 +190,7 @@ export default function ProcessTemplates() {
         <div>
           <span className="font-mono text-[10px] text-brand-muted uppercase block">{row.id || row.code}</span>
           <Link
-            to={`/admin/master-data/process-templates/${row.id}`}
+            to={`${templateBasePath}/${row.id}`}
             className="font-bold text-brand-dark hover:text-brand-green text-xs block mt-0.5"
           >
             {row.name}
@@ -239,7 +240,7 @@ export default function ProcessTemplates() {
       render: (row) => (
         <div className="flex items-center gap-1.5">
           <Link
-            to={`/admin/master-data/process-templates/${row.id}`}
+            to={`${templateBasePath}/${row.id}`}
             className="p-1.5 text-stone-400 hover:text-brand-green hover:bg-brand-cream/50 rounded-lg transition-colors"
             title="Xem chi tiết lộ trình"
           >

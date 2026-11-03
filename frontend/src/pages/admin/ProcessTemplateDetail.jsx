@@ -29,10 +29,13 @@ import {
   Download
 } from 'lucide-react';
 import { parseProcessDocument } from '../../utils/processDocumentParser';
+import { useAuthStore } from '../../stores/authStore';
 
 export default function ProcessTemplateDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const templateBasePath = user?.role === 'EXPERT' ? '/expert/process-templates' : '/admin/master-data/process-templates';
   const bulkFileRef = useRef(null);
 
   // Template State
@@ -330,7 +333,7 @@ export default function ProcessTemplateDetail() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link
-            to="/admin/master-data/process-templates"
+            to={templateBasePath}
             className="p-2 text-stone-500 hover:text-brand-dark hover:bg-stone-100 rounded-xl transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

@@ -15,6 +15,7 @@ import { apiFetch, unwrapData } from '../../api/apiClient';
 import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import Crops from '../admin/Crops';
 import Varieties from '../admin/Varieties';
+import ProcessTemplates from '../admin/ProcessTemplates';
 import {
   Sprout,
   Wheat,
@@ -465,10 +466,19 @@ export default function ExpertDashboard() {
       (t) => t.role === 'customer' || (!t.role && !String(t.id).startsWith('WORK-') && !/Ban Quản Trị|Admin/i.test(t.customerName || ''))
     );
 
-    // 1a. Match by email
+    // A renter may have several plots, so resolve the plot before renter identity.
+    if (plotCode) {
+      const match = customerThreads.find((t) => {
+        const threadPlotCode = String(t.plotCode || '').trim().toUpperCase().replace(/^PLOT-/, '');
+        return threadPlotCode && threadPlotCode.replace(/^P-?/, '') === plotCode.replace(/^P-?/, '');
+      });
+      if (match) return match.id;
+    }
+
+    // Only reuse identity matches when the thread is not already tied to another plot.
     if (renterEmail) {
       const match = customerThreads.find(
-        (t) => (t.customerEmail || t.email || '').trim().toLowerCase() === renterEmail
+        (t) => !(t.plotCode || '').trim() && (t.customerEmail || t.email || '').trim().toLowerCase() === renterEmail
       );
       if (match) return match.id;
     }
@@ -477,16 +487,7 @@ export default function ExpertDashboard() {
     if (renterName) {
       const match = customerThreads.find((t) => {
         const tName = (t.customerName || '').trim().toLowerCase();
-        return tName && (tName === renterName || tName.includes(renterName) || renterName.includes(tName));
-      });
-      if (match) return match.id;
-    }
-
-    // 1c. Match by plot code
-    if (plotCode) {
-      const match = customerThreads.find((t) => {
-        const tCode = (t.plotCode || '').trim().toUpperCase();
-        return tCode && (tCode === plotCode || tCode === `PLOT-${plotCode}` || plotCode === `PLOT-${tCode}`);
+        return !(t.plotCode || '').trim() && tName && (tName === renterName || tName.includes(renterName) || renterName.includes(tName));
       });
       if (match) return match.id;
     }
@@ -496,10 +497,9 @@ export default function ExpertDashboard() {
       const cEmail = (c.email || '').trim().toLowerCase();
       const cName = (c.name || '').trim().toLowerCase();
       const cCode = (c.plotCode || '').trim().toUpperCase();
-      if (renterEmail && cEmail && cEmail === renterEmail) return true;
-      if (renterName && cName && (cName === renterName || cName.includes(renterName) || renterName.includes(cName))) return true;
-      if (plotCode && cCode && cCode === plotCode) return true;
-      return false;
+      if (renterEmail && cEmail) return cEmail === renterEmail;
+      if (renterName && cName) return cName === renterName || cName.includes(renterName) || renterName.includes(cName);
+      return Boolean(plotCode && cCode && cCode === plotCode);
     });
 
     if (demoMatch) {
@@ -512,6 +512,7 @@ export default function ExpertDashboard() {
     const newThreadId = `CONS-${plot.rentalId || plot.id || String(plot.plotCode || Date.now()).replace(/\D/g, '') || Date.now()}`;
     updateThreadRentalInStorage({
       threadId: newThreadId,
+      rentalId: plot.rentalId,
       customerName: plot.renterName || 'Khách Thuê Đất',
       customerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
       plotCode: plot.plotCode,
@@ -2111,7 +2112,7 @@ export default function ExpertDashboard() {
                           </div>
 
                           {/* Right Action: Single SSOT Button (Không hiển thị khi chat với Ban Quản Trị) */}
-                          {!isAdminThread && (
+                          {isWorkerThread && (
                             <div className="flex items-center gap-2 shrink-0">
                               <button
                                 type="button"
@@ -2626,100 +2627,10 @@ export default function ExpertDashboard() {
             {/* TAB 3: VIETGAP PROCESS TEMPLATES (Quản lý Phác đồ canh tác chuẩn VietGAP) */}
             {activeTab === 'templates' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
-                  <div>
-                    <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Quy Trình Canh Tác Chuẩn VietGAP
-                    </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Danh mục phác đồ tiêu chuẩn cho từng giống cây, phân định ngày tuổi, mốc bón phân vi sinh và cách ly an toàn.
-                    </p>
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => setIsCreateTemplateOpen(true)}
-                    className="font-bold gap-1.5 self-start sm:self-auto cursor-pointer"
-                  >
-                    <span>+ Soạn Thảo Quy Trình Mới</span>
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
-                  {processTemplates.map((tmpl) => (
-                    <div
-                      key={tmpl.id}
-                      className="p-5 rounded-2xl border border-brand-border bg-stone-50/60 hover:bg-white transition-all space-y-3.5 shadow-xs flex flex-col justify-between"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-brand-green bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
-                              {tmpl.code}
-                            </span>
-                            <span className="text-[10px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
-                              {tmpl.version}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTemplate(tmpl.id)}
-                            title="Xóa quy trình chuẩn"
-                            className="p-1 rounded text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        <div>
-                          <h4 className="font-bold text-brand-dark text-base">{tmpl.name}</h4>
-                          <p className="text-stone-500 text-[11px] mt-0.5">
-                            Giống cây: <strong className="text-stone-800">{tmpl.variety}</strong> • Chu kỳ: <strong className="text-brand-green">{tmpl.durationDays} ngày</strong>
-                          </p>
-                        </div>
-
-                        <p className="text-stone-600 text-xs leading-relaxed">
-                          {tmpl.description}
-                        </p>
-
-                        {/* Step roadmap summary pills */}
-                        <div className="pt-2 border-t border-brand-border/60">
-                          <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1.5">
-                            Lộ trình các mốc kỹ thuật:
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(tmpl.steps || []).map((st, i) => (
-                              <span
-                                key={i}
-                                className="px-2 py-0.5 rounded text-[10px] font-medium bg-white text-stone-700 border border-brand-border"
-                              >
-                                Ngày {st.day}: {st.name}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-brand-border/60 flex items-center justify-between">
-                        <span className="text-[11px] text-emerald-800 font-bold">
-                          ✓ Đang áp dụng tại hệ thống Farmely
-                        </span>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setViewTemplateDetail(tmpl)}
-                          className="font-bold text-xs cursor-pointer"
-                        >
-                          Xem Chi Tiết Quy Trình →
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <ProcessTemplates />
               </div>
             )}
 
-            {/* TAB 4: SOIL-CROP COMPATIBILITY MATRIX (Tick chọn giống cây thích hợp theo thửa đất - BR03 SSoT) */}
             {activeTab === 'compatibility' && (
               <div className="space-y-6">
                 {/* Header */}
