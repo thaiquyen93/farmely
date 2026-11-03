@@ -1741,8 +1741,14 @@ export default function ExpertDashboard() {
                                   <p className={`text-[11px] truncate leading-tight ${
                                     thread.unread ? 'font-semibold text-stone-900' : 'text-stone-500'
                                   }`}>
-                                    {lastMsg?.sender === 'expert' ? 'Bạn: ' : ''}
-                                    {lastMsg?.text || (hasPhoto ? '[Đã gửi ảnh hiện trường]' : '')}
+                                    {lastMsg ? (
+                                      <>
+                                        {lastMsg.sender === 'expert' ? 'Bạn: ' : ''}
+                                        {lastMsg.text || (hasPhoto ? '[Đã gửi ảnh hiện trường]' : '')}
+                                      </>
+                                    ) : (
+                                      <span className="text-stone-400 italic">Chưa có tin nhắn</span>
+                                    )}
                                   </p>
 
                                   {thread.unread ? (
@@ -1861,6 +1867,15 @@ export default function ExpertDashboard() {
                               Hôm nay • Trao đổi với {activeThread.customerName}
                             </span>
                           </div>
+
+                          {/* Empty chat state */}
+                          {(!activeThread?.messages || activeThread.messages.length === 0) && (
+                            <div className="flex flex-col items-center justify-center py-16 text-center text-stone-400 space-y-2">
+                              <MessageSquare className="w-8 h-8 text-stone-300 stroke-[1.5]" />
+                              <p className="text-xs font-medium text-stone-600">Chưa có tin nhắn trong cuộc hội thoại này.</p>
+                              <p className="text-[11px] text-stone-400 max-w-xs">Nhập nội dung ở khung bên dưới để bắt đầu trao đổi với {activeThread?.customerName || 'đối tác'}.</p>
+                            </div>
+                          )}
 
                           {/* Message Bubbles */}
                           {(activeThread?.messages || []).map((msg) => {
