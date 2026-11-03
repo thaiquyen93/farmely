@@ -715,12 +715,17 @@ export default function FieldWorkerDashboard() {
       if (e.key === 'farmely_iot_sync_ping') {
         loadPlots();
       }
-      if (e.key === 'farmely_task_sync' || e.key === 'farmely_staff_sync_ping' || e.key === 'farmely_persisted_staff_activities_v2') {
+      if (e.key === 'farmely_task_sync' || e.key === 'farmely_staff_sync_ping' || e.key === 'farmely_persisted_staff_activities_v2' || e.key === 'farmely_time_simulated_at') {
         loadTasksAndData();
         loadPlots();
       }
     };
+    const handleTimeSimulated = () => {
+      loadPlots();
+      loadTasksAndData();
+    };
     window.addEventListener('storage', handleStorage);
+    window.addEventListener('farmely_time_simulated', handleTimeSimulated);
 
     // Chu kỳ 10 giây đồng bộ số liệu IoT và công việc thực địa
     const pollInterval = setInterval(() => {
@@ -735,6 +740,7 @@ export default function FieldWorkerDashboard() {
       if (bcDispatch) try { bcDispatch.close(); } catch {}
       if (bcTasks) try { bcTasks.close(); } catch {}
       window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('farmely_time_simulated', handleTimeSimulated);
     };
   }, [loadPlots, loadTasksAndData]);
 

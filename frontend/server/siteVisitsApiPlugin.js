@@ -5159,8 +5159,12 @@ END $$;
                   SET 
                     due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
                     status = CASE 
-                      WHEN ct.task_id = (SELECT MAX(c2.task_id) FROM care_tasks c2 WHERE c2.rental_id = ${rentalId}) THEN 'IN_PROG'::task_status_enum
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN 'IN_PROG'::task_status_enum
                       ELSE 'DONE'::task_status_enum
+                    END,
+                    evidence_image_url = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN ct.evidence_image_url
+                      ELSE COALESCE(ct.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
                     END,
                     updated_at = NOW()
                   FROM rentals r
@@ -5197,9 +5201,16 @@ END $$;
                   SET 
                     due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
                     status = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN (
+                        CASE WHEN ${day} >= ${totalDays} THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END
+                      )
                       WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN 'DONE'::task_status_enum
                       WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date = CURRENT_DATE THEN 'IN_PROG'::task_status_enum
                       ELSE 'PENDING'::task_status_enum
+                    END,
+                    evidence_image_url = CASE 
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN COALESCE(ct.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
+                      ELSE ct.evidence_image_url
                     END,
                     updated_at = NOW()
                   FROM rentals r
