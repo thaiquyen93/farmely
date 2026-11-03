@@ -22,8 +22,7 @@ import {
 
 export const PLOT_TABS = [
   { id: 'overview', label: 'Tổng quan', short: 'Tổng quan', icon: LayoutDashboard },
-  { id: 'tasks', label: 'Hoạt động Staff', short: 'Staff', icon: CalendarCheck },
-  { id: 'diary', label: 'Nhật ký', short: 'Nhật ký', icon: BookOpen },
+  { id: 'tasks', label: 'Công việc & Nhật ký', short: 'Việc & Nhật ký', icon: CalendarCheck },
   { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag }
 ];
 
@@ -344,11 +343,11 @@ function StandardProcessTimeline({
         cropDay: 1,
         title: 'Làm đất tơi xốp, bón lót phân trùn quế & xử lý Trichoderma',
         timestamp: startCalDate ? `${startCalDate} • Ca sáng (07:30 - 09:00)` : 'Ca sáng (07:30 - 09:00)',
-        status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
+        status: currentCropDay > 1 ? 'COMPLETED' : (!cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING'),
         workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
         workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
         notes: 'Xử lý giá thể bầu ươm đạt chuẩn VietGAP, duy trì ẩm độ đất từ 65 - 70%.',
-        proofPhoto: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80'
+        proofPhoto: currentCropDay > 1 ? 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80' : null
       },
       {
         activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-2`,
@@ -357,7 +356,7 @@ function StandardProcessTimeline({
         cropDay: 1,
         title: 'Tưới ẩm luống đất (65-70%) & xuống giống non theo mật độ VietGAP',
         timestamp: startCalDate ? `${startCalDate} • Ca chiều (16:00 - 17:30)` : 'Ca chiều (16:00 - 17:30)',
-        status: currentCropDay >= 1 && !cropProcess.isNotStarted ? 'COMPLETED' : 'PENDING',
+        status: currentCropDay > 1 ? 'COMPLETED' : (!cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING'),
         workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
         workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
         notes: 'Khoảng cách cây cách cây đạt chuẩn 20 - 25cm, duy trì ẩm độ luống đất.'
@@ -564,16 +563,36 @@ function StandardProcessTimeline({
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 setSelectedDay(1);
                 const rentalId = plot?.rentalId || plot?.rental_id;
                 if (rentalId) {
-                  fetch(`/api/rentals/${rentalId}/simulate-time`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'START_NOW' })
-                  }).catch(() => {});
+                  try {
+                    await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'START_NOW' })
+                    });
+                  } catch (e) {
+                    console.warn(e);
+                  }
                 }
+                try {
+                  const cropKey = (cropProcess?.cropKey || cropProcess?.cropName || plot?.crop || 'crop').replace(/\s+/g, '_');
+                  localStorage.removeItem(`farmely_self_tasks_${plot.id}_${cropKey}_v4`);
+                  localStorage.removeItem('farmely_persisted_staff_activities_v2');
+                } catch {}
+                if (typeof window !== 'undefined' && window.BroadcastChannel) {
+                  try {
+                    const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
+                    bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
+                    bc1.close();
+                    const bc2 = new BroadcastChannel('farmely_iot_telemetry');
+                    bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
+                    bc2.close();
+                  } catch {}
+                }
+                window.location.reload();
               }}
               className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition shadow-2xs cursor-pointer ${
                 selectedDay === 1
@@ -587,16 +606,31 @@ function StandardProcessTimeline({
 
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 setSelectedDay(totalDays);
                 const rentalId = plot?.rentalId || plot?.rental_id;
                 if (rentalId) {
-                  fetch(`/api/rentals/${rentalId}/simulate-time`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'HARVEST' })
-                  }).catch(() => {});
+                  try {
+                    await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: 'HARVEST' })
+                    });
+                  } catch (e) {
+                    console.warn(e);
+                  }
                 }
+                if (typeof window !== 'undefined' && window.BroadcastChannel) {
+                  try {
+                    const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
+                    bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
+                    bc1.close();
+                    const bc2 = new BroadcastChannel('farmely_iot_telemetry');
+                    bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
+                    bc2.close();
+                  } catch {}
+                }
+                window.location.reload();
               }}
               className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition shadow-2xs cursor-pointer ${
                 selectedDay === totalDays
@@ -2602,20 +2636,28 @@ export default function CustomerPlotWorkspace({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef(null);
-  const [internalTab, setInternalTab] = useState(activeTab || 'overview');
+  const [internalTab, setInternalTab] = useState(() => (activeTab === 'diary' ? 'tasks' : (activeTab || 'overview')));
   useEffect(() => {
-    if (activeTab && PLOT_TABS.some(t => t.id === activeTab)) {
+    if (activeTab === 'diary') {
+      setInternalTab('tasks');
+      onTabChange?.('tasks');
+    } else if (activeTab && PLOT_TABS.some(t => t.id === activeTab)) {
       setInternalTab(activeTab);
     }
-  }, [activeTab]);
-  const tab = PLOT_TABS.some((t) => t.id === (onTabChange ? activeTab : internalTab)) ? (onTabChange ? activeTab : internalTab) : 'overview';
+  }, [activeTab, onTabChange]);
+  const activeTabResolved = activeTab === 'diary' ? 'tasks' : activeTab;
+  const tab = PLOT_TABS.some((t) => t.id === (onTabChange ? activeTabResolved : internalTab)) ? (onTabChange ? activeTabResolved : internalTab) : 'overview';
   const isSelf = plot.mode === 'Self-Growing' || plot.cultivationMode === 'SELF' || plot.cultivationMode === 'SELF_GROWING';
 
   // Dynamic Tabs definition for Self-Growing vs Assisted (Requirement #3)
   const displayTabs = useMemo(() => {
     return PLOT_TABS.map((t) => {
-      if (t.id === 'tasks' && isSelf) {
-        return { ...t, label: 'Công việc hằng ngày', short: 'Công việc' };
+      if (t.id === 'tasks') {
+        return {
+          ...t,
+          label: isSelf ? 'Công việc & Nhật ký' : 'Công việc & Nhật ký thực địa',
+          short: 'Công việc & Nhật ký'
+        };
       }
       return t;
     });
@@ -3116,8 +3158,8 @@ export default function CustomerPlotWorkspace({
         ? (plot.startDate ? `Bắt đầu: ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Theo lịch vụ mùa')
         : (plot.expectedHarvestDate ? `Dự kiến ${plot.expectedHarvestDate}` : 'Đúng tiến độ'),
       icon: Wheat,
-      // ponytail: tab 'harvest' đã bỏ (KH không nghiệm thu) — kết quả thu hoạch nằm trong Nhật ký
-      tab: 'diary'
+      // ponytail: tab 'harvest' đã bỏ (KH không nghiệm thu) — kết quả thu hoạch nằm trong Công việc & Nhật ký
+      tab: 'tasks'
     },
     {
       label: isSelf ? 'Công việc' : 'Việc Staff',
@@ -3311,8 +3353,17 @@ export default function CustomerPlotWorkspace({
                       ...selfTasks
                     ] : (staffActivities || []);
 
-                    // Hợp nhất biên bản thu hoạch (BR20)
-                    const harvestEntries = (harvestResults || []).map((hr) => ({
+                    // Lọc và đồng bộ task theo ngày hiện tại: nếu task ở ngày tương lai (> currentDay) thì không thể ở trạng thái COMPLETED
+                    const syncedBase = base.map((act) => {
+                      const actDay = act.day || act.cropDay || 1;
+                      if (!cropProcess.isNotStarted && cropProcess.currentDay < actDay && act.status === 'COMPLETED') {
+                        return { ...act, status: 'PENDING', proofPhoto: null };
+                      }
+                      return act;
+                    });
+
+                    // Hợp nhất biên bản thu hoạch (BR20) — CHỈ hiển thị khi đã tới mốc thu hoạch (currentDay >= totalDays)
+                    const harvestEntries = (cropProcess.currentDay >= cropProcess.totalDays ? (harvestResults || []) : []).map((hr) => ({
                       activityId: `HRV-${hr.harvestId || hr.id}`,
                       id: `HRV-${hr.harvestId || hr.id}`,
                       title: `Thu hoạch ${hr.crop || hr.cropName || 'nông sản'} — ${hr.formattedYield || `${hr.yieldAmount || 0} kg`}`,
@@ -3327,23 +3378,25 @@ export default function CustomerPlotWorkspace({
                       isHarvest: true
                     }));
 
-                    // Hợp nhất các bài viết nhật ký ghi chép của khách
-                    const diaryEntries = (operations?.diary || []).map((d) => ({
-                      activityId: d.id || `DIARY-${d.taskId || Date.now()}`,
-                      id: d.id || `DIARY-${d.taskId || Date.now()}`,
-                      title: d.title || 'Ghi chép nhật ký vụ mùa',
-                      notes: d.note || d.content,
-                      workerName: d.author || 'Chủ vườn',
-                      workerRole: d.authorRole || (isSelf ? 'Chủ vườn (Tự canh tác)' : 'Khách hàng'),
-                      status: 'COMPLETED',
-                      proofPhoto: d.image || d.imageUrl || d.photo,
-                      timestamp: d.time || d.date || 'Hôm nay',
-                      isDiaryEntry: true,
-                      day: d.day || 1,
-                      cropDay: d.day || 1
-                    }));
+                    // Hợp nhất các bài viết nhật ký ghi chép của khách (chỉ lấy bài ghi <= ngày hiện tại)
+                    const diaryEntries = (operations?.diary || [])
+                      .filter((d) => cropProcess.isNotStarted ? false : (Number(d.day) || 1) <= cropProcess.currentDay)
+                      .map((d) => ({
+                        activityId: d.id || `DIARY-${d.taskId || Date.now()}`,
+                        id: d.id || `DIARY-${d.taskId || Date.now()}`,
+                        title: d.title || 'Ghi chép nhật ký vụ mùa',
+                        notes: d.note || d.content,
+                        workerName: d.author || 'Chủ vườn',
+                        workerRole: d.authorRole || (isSelf ? 'Chủ vườn (Tự canh tác)' : 'Khách hàng'),
+                        status: 'COMPLETED',
+                        proofPhoto: d.image || d.imageUrl || d.photo,
+                        timestamp: d.time || d.date || 'Hôm nay',
+                        isDiaryEntry: true,
+                        day: d.day || 1,
+                        cropDay: d.day || 1
+                      }));
 
-                    const combined = [...base, ...harvestEntries, ...diaryEntries];
+                    const combined = [...syncedBase, ...harvestEntries, ...diaryEntries];
                     const seen = new Set();
                     return combined.filter((item) => {
                       const key = item.id || item.activityId || `${item.day}_${(item.title || '').trim().toLowerCase()}`;

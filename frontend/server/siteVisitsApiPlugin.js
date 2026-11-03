@@ -5124,21 +5124,41 @@ END $$;
               const totalDays = Number(rental.expected_duration) || 45;
               let message = '';
 
-              if (action === 'START_NOW') {
+              if (action === 'START_NOW' || action === 'RESET') {
                 await runPostgreSql(`
                   UPDATE rentals 
                   SET start_date = CURRENT_DATE, status = 'ACTIVE' 
                   WHERE rental_id = ${rentalId};
                 `);
                 await runPostgreSql(`UPDATE plots SET status = 'RENT' WHERE plot_id = ${rental.plot_id};`);
+                
+                // Xóa sạch biên bản thu hoạch cũ khi bắt đầu mới hoặc reset về Ngày 1
+                await runPostgreSql(`DELETE FROM harvest_results WHERE rental_id = ${rentalId};`);
+
+                // Reset toàn bộ care_tasks về PENDING (chỉ Ngày 1 là IN_PROG), xóa sạch ảnh minh chứng & thời gian hoàn thành cũ
                 await runPostgreSql(`
-                  UPDATE care_tasks ct
+                  UPDATE care_tasks
                   SET 
-                    due_date = CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL,
-                    status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END
+                    due_date = (CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
+                    status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+                    evidence_image_url = NULL,
+                    completed_at = NULL,
+                    updated_at = NOW()
                   FROM template_steps ts
-                  WHERE ct.rental_id = ${rentalId} AND ct.step_id = ts.step_id;
+                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = ${rentalId};
                 `);
+
+                await runPostgreSql(`
+                  UPDATE care_tasks
+                  SET 
+                    status = 'PENDING'::task_status_enum,
+                    evidence_image_url = NULL,
+                    completed_at = NULL,
+                    updated_at = NOW()
+                  WHERE rental_id = ${rentalId} AND (step_id IS NULL OR step_id NOT IN (SELECT step_id FROM template_steps WHERE day_offset = 0));
+                `);
+
+                cachedPlotsData = null;
                 message = `Đã kích hoạt canh tác ngay hôm nay cho thửa ${rental.plot_code} (Ngày 1/${totalDays})`;
               } else if (action === 'ADD_DAYS') {
                 const days = Math.max(1, Number(payload.days) || 7);
@@ -5189,22 +5209,6 @@ END $$;
                   WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
                 `);
                 message = `Đã giả lập thửa ${rental.plot_code} đến ngày thu hoạch (Ngày ${totalDays}/${totalDays})! Nhiệm vụ thu hoạch đã sẵn sàng cho CVLĐ và Khách hàng.`;
-              } else if (action === 'RESET') {
-                await runPostgreSql(`
-                  UPDATE rentals 
-                  SET start_date = CURRENT_DATE, status = 'ACTIVE' 
-                  WHERE rental_id = ${rentalId};
-                `);
-                await runPostgreSql(`
-                  UPDATE care_tasks
-                  SET 
-                    due_date = (CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
-                    status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
-                    updated_at = NOW()
-                  FROM template_steps ts
-                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = ${rentalId};
-                `);
-                message = `Đã đặt lại tiến độ thửa ${rental.plot_code} về Ngày 1`;
               } else if (action === 'SET_DAY') {
                 const day = Math.max(1, Number(payload.day !== undefined ? payload.day : payload.days) || 1);
                 const offset = day - 1;

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
@@ -8,7 +8,9 @@ import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
 import IssueAssignmentPanel from '../../components/expert/IssueAssignmentPanel';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
-import { getSafeAvatar } from '../../api/communication/chatStorage';
+import { getSafeAvatar, DEMO_CUSTOMERS, updateThreadRentalInStorage } from '../../api/communication/chatStorage';
+import { resolveStandardCropProcess, getPersistedStaffActivities } from '../../services/cropStandardProcess';
+import PlotWorkProgressTimeline from '../../components/expert/PlotProgressTimeline';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import Crops from '../admin/Crops';
@@ -43,6 +45,8 @@ import {
   Sparkles,
   X,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ZoomIn,
   Info,
   Maximize2,
@@ -374,6 +378,25 @@ export default function ExpertDashboard() {
   };
 
   const [assignedPlots, setAssignedPlots] = useState([]);
+  const [expandedPlotId, setExpandedPlotId] = useState(null);
+  const [allCareTasks, setAllCareTasks] = useState([]);
+  const [allDiaries, setAllDiaries] = useState([]);
+
+  const loadTasksAndDiaries = useCallback(() => {
+    Promise.allSettled([
+      apiFetch('/api/tasks').catch(() => ({ data: [] })),
+      apiFetch('/api/diary').catch(() => ({ data: [] })),
+      fetch('/api/farm-diaries').then((r) => (r.ok ? r.json() : { data: [] })).catch(() => ({ data: [] }))
+    ]).then(([taskRes, diaryRes, legacyDiaryRes]) => {
+      const taskList = unwrapData(taskRes.status === 'fulfilled' ? taskRes.value : []) || [];
+      const diaryList = unwrapData(diaryRes.status === 'fulfilled' ? diaryRes.value : []) || [];
+      const legacyDiaryList = (legacyDiaryRes.status === 'fulfilled' && legacyDiaryRes.value?.data) ? legacyDiaryRes.value.data : [];
+
+      if (Array.isArray(taskList)) setAllCareTasks(taskList);
+      const combined = [...(Array.isArray(diaryList) ? diaryList : []), ...(Array.isArray(legacyDiaryList) ? legacyDiaryList : [])];
+      setAllDiaries(combined);
+    });
+  }, []);
 
   // Quản lý Yêu cầu Thu hoạch & Thẩm định VietGAP (PHI Check)
   const [harvestRequests, setHarvestRequests] = useState(() => {
@@ -406,9 +429,23 @@ export default function ExpertDashboard() {
 
           const plotKey = rental.plotId || rental.plotCode;
           if (!plotKey || plotsById.has(plotKey)) continue;
+
+          const totalDays = Number(rental.totalDays) || Number(rental.expectedDuration) || Number(rental.durationDays) || 45;
+          const currentDay = Number(rental.currentDay) || (rental.cropDay ? Number(rental.cropDay) : Math.max(1, Math.round(totalDays * 0.1)));
+          const progressPercent = Math.min(100, Math.round((currentDay / totalDays) * 100));
+
           plotsById.set(plotKey, {
             ...rental,
-            crop: rental.varietyName || rental.crop || DEFAULT_PLOT_CROPS[rental.plotCode] || 'Rau củ chuẩn VietGAP'
+            crop: rental.varietyName || rental.crop || DEFAULT_PLOT_CROPS[rental.plotCode] || 'Rau củ chuẩn VietGAP',
+            currentDay,
+            totalDays,
+            progressPercent,
+            renterName: rental.renterName || rental.customerName || 'Khách thuê',
+            renterEmail: rental.renterEmail || rental.customerEmail || 'customer@farmely.vn',
+            staffName: rental.staffName || rental.workerName || 'Trần Văn Lực (CVLĐ)',
+            stage: rental.stage || (currentDay <= 7 ? 'Gieo ươm & Hồi xanh rễ non' : currentDay <= 22 ? 'Phát triển thân lá' : currentDay <= 35 ? 'Ra hoa & Đậu quả' : 'Chăm sóc & Thu hoạch'),
+            temp: rental.temp || '27.96°C',
+            soilMoisture: rental.soilMoisture || '69.15%'
           });
         }
 
@@ -416,6 +453,216 @@ export default function ExpertDashboard() {
       })
       .catch((err) => console.warn('Could not fetch live rentals:', err));
   };
+
+  const findCustomerThreadForPlot = useCallback((plot) => {
+    if (!plot) return null;
+    const renterEmail = (plot.renterEmail || '').trim().toLowerCase();
+    const renterName = (plot.renterName || '').trim().toLowerCase();
+    const plotCode = (plot.plotCode || '').trim().toUpperCase();
+
+    // 1. Check existing customer threads in chatThreads
+    const customerThreads = chatThreads.filter(
+      (t) => t.role === 'customer' || (!t.role && !String(t.id).startsWith('WORK-') && !/Ban Quản Trị|Admin/i.test(t.customerName || ''))
+    );
+
+    // 1a. Match by email
+    if (renterEmail) {
+      const match = customerThreads.find(
+        (t) => (t.customerEmail || t.email || '').trim().toLowerCase() === renterEmail
+      );
+      if (match) return match.id;
+    }
+
+    // 1b. Match by customer name
+    if (renterName) {
+      const match = customerThreads.find((t) => {
+        const tName = (t.customerName || '').trim().toLowerCase();
+        return tName && (tName === renterName || tName.includes(renterName) || renterName.includes(tName));
+      });
+      if (match) return match.id;
+    }
+
+    // 1c. Match by plot code
+    if (plotCode) {
+      const match = customerThreads.find((t) => {
+        const tCode = (t.plotCode || '').trim().toUpperCase();
+        return tCode && (tCode === plotCode || tCode === `PLOT-${plotCode}` || plotCode === `PLOT-${tCode}`);
+      });
+      if (match) return match.id;
+    }
+
+    // 2. Check DEMO_CUSTOMERS mapping
+    const demoMatch = DEMO_CUSTOMERS.find((c) => {
+      const cEmail = (c.email || '').trim().toLowerCase();
+      const cName = (c.name || '').trim().toLowerCase();
+      const cCode = (c.plotCode || '').trim().toUpperCase();
+      if (renterEmail && cEmail && cEmail === renterEmail) return true;
+      if (renterName && cName && (cName === renterName || cName.includes(renterName) || renterName.includes(cName))) return true;
+      if (plotCode && cCode && cCode === plotCode) return true;
+      return false;
+    });
+
+    if (demoMatch) {
+      const existingThread = chatThreads.find((t) => t.id === demoMatch.threadId);
+      if (existingThread) return existingThread.id;
+      return demoMatch.threadId;
+    }
+
+    // 3. Fallback: Create thread in storage for this customer so they have a persistent thread
+    const newThreadId = `CONS-${plot.rentalId || plot.id || String(plot.plotCode || Date.now()).replace(/\D/g, '') || Date.now()}`;
+    updateThreadRentalInStorage({
+      threadId: newThreadId,
+      customerName: plot.renterName || 'Khách Thuê Đất',
+      customerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      plotCode: plot.plotCode,
+      plotName: plot.name || `Thửa ${plot.plotCode}`,
+      crop: plot.crop || 'Cây trồng VietGAP'
+    });
+    refreshThreads();
+    return newThreadId;
+  }, [chatThreads, refreshThreads]);
+
+  const handleOpenChatWithCustomer = useCallback((plot) => {
+    const threadId = findCustomerThreadForPlot(plot);
+    if (threadId) {
+      setSelectedThreadId(threadId);
+      markExpertThreadAsRead(threadId);
+    }
+    setChatFilter('all');
+    setChatSearchQuery('');
+    setMobileShowChat(true);
+    setActiveTab('chat');
+  }, [findCustomerThreadForPlot, setSelectedThreadId, markExpertThreadAsRead]);
+
+  const getTasksForPlot = useCallback((plot) => {
+    if (!plot) return [];
+    const plotCode = String(plot.plotCode || plot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+    const rentalId = plot.rentalId ? Number(plot.rentalId) : null;
+
+    // 1. Live care tasks from /api/tasks
+    const matchedTasks = allCareTasks.filter((t) => {
+      if (rentalId && t.rentalId && Number(t.rentalId) === rentalId) return true;
+      const tCode = String(t.plotCode || t.plotId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+      return tCode === plotCode;
+    });
+
+    // 2. Live diaries from /api/diary & /api/farm-diaries
+    const matchedDiaries = allDiaries.filter((d) => {
+      if (rentalId && d.rentalId && Number(d.rentalId) === rentalId) return true;
+      const dCode = String(d.plotCode || d.plotId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+      return dCode === plotCode;
+    });
+
+    // 3. Local staff activities from localStorage (synced with FieldWorkerDashboard)
+    const localStaffActs = getPersistedStaffActivities(plot.plotCode || plot.id) || [];
+
+    // 4. Standard process roadmap stages for this crop
+    const cropProcess = resolveStandardCropProcess(plot);
+    const standardStages = cropProcess?.stages || [];
+
+    const currentDay = Number(plot.currentDay) || (cropProcess?.isNotStarted ? 0 : 1);
+    const totalDays = Number(plot.totalDays) || cropProcess?.totalDays || 45;
+
+    const combined = [];
+    const seenTitles = new Set();
+
+    // 1. Process tasks from backend /api/tasks
+    matchedTasks.forEach((t) => {
+      const taskDay = t.cropDay || t.dayOffset || (t.dueDate && plot.startDate ? Math.max(1, Math.floor((new Date(t.dueDate) - new Date(plot.startDate)) / 86400000) + 1) : 1);
+      const isDone = t.status === 'COMPLETED' || t.status === 'DONE';
+      const isProg = t.status === 'IN_PROGRESS' || t.status === 'IN_PROG';
+      const titleKey = (t.title || '').trim().toLowerCase();
+      seenTitles.add(titleKey);
+
+      combined.push({
+        id: t.id || `TSK-${t.taskId}`,
+        day: taskDay,
+        cropDay: taskDay,
+        title: t.title || 'Nhiệm vụ chăm sóc hiện trường',
+        time: t.completedAt || (t.dueDate ? `${t.dueDate} • ${t.deadline || 'Ca sáng'}` : `Ngày tuổi ${taskDay} • ${t.deadline || 'Ca sáng'}`),
+        status: isDone ? 'COMPLETED' : isProg ? 'IN_PROGRESS' : 'PENDING',
+        author: t.workerName || t.assignedTo || plot.staffName || 'Trần Văn Lực (CVLĐ)',
+        authorRole: 'Chuyên viên lao động (CVLĐ)',
+        note: t.instructions || t.notes || 'Thực hiện chăm sóc đúng định mức quy trình VietGAP.',
+        proofPhoto: t.proofPhoto || t.evidenceImageUrl || null,
+        isStaffTask: true
+      });
+    });
+
+    // 2. Process local staff activities
+    localStaffActs.forEach((act) => {
+      const titleKey = (act.title || '').trim().toLowerCase();
+      if (!seenTitles.has(titleKey)) {
+        seenTitles.add(titleKey);
+        const isDone = act.status === 'COMPLETED' || act.status === 'DONE' || Boolean(act.proofPhoto);
+        const isProg = act.status === 'IN_PROGRESS' || act.status === 'IN_PROG';
+        combined.push({
+          id: act.activityId || act.id || `ACT-${Date.now()}`,
+          day: act.day || act.cropDay || 1,
+          cropDay: act.day || act.cropDay || 1,
+          title: act.title,
+          time: act.timestamp || `Ngày tuổi ${act.day || 1}`,
+          status: isDone ? 'COMPLETED' : isProg ? 'IN_PROGRESS' : 'PENDING',
+          author: act.workerName || plot.staffName || 'Trần Văn Lực (CVLĐ)',
+          authorRole: 'Chuyên viên lao động (CVLĐ)',
+          note: act.notes || 'Nhiệm vụ kỹ thuật hoàn tất đạt chuẩn VietGAP.',
+          proofPhoto: act.proofPhoto || act.evidenceImageUrl || null,
+          isStaffTask: true
+        });
+      }
+    });
+
+    // 3. Process farm diaries
+    matchedDiaries.forEach((d) => {
+      const titleKey = (d.title || d.content || '').trim().toLowerCase();
+      if (!seenTitles.has(titleKey)) {
+        seenTitles.add(titleKey);
+        const resolvedDay = d.cropDay || d.dayOffset || 1;
+        combined.push({
+          id: d.id || `DIR-${d.diaryId}`,
+          day: resolvedDay,
+          cropDay: resolvedDay,
+          title: d.title || (d.content ? d.content.slice(0, 45) : 'Nhật ký thực địa'),
+          time: d.dateFormatted || (d.createdAt ? new Date(d.createdAt).toLocaleDateString('vi-VN') : 'Hôm nay'),
+          status: 'COMPLETED',
+          author: d.authorName || d.author || 'Chủ vườn / CVLĐ',
+          authorRole: 'Ghi chép nông trại',
+          note: d.content || d.note || '',
+          proofPhoto: d.imageUrl || d.image_url || d.photo || null,
+          isDiary: true
+        });
+      }
+    });
+
+    // 4. Standard process stages (roadmap from Day 1 to Harvest)
+    if (standardStages.length > 0) {
+      standardStages.forEach((stage, idx) => {
+        const stageNameLower = (stage.name || '').trim().toLowerCase();
+        if (!seenTitles.has(stageNameLower)) {
+          const stageDay = stage.dayStart || 1;
+          const isDone = currentDay > stage.dayEnd;
+          const isCurrent = currentDay >= stage.dayStart && currentDay <= stage.dayEnd;
+
+          combined.push({
+            id: `STD-STAGE-${stage.id || idx}`,
+            day: stageDay,
+            cropDay: stageDay,
+            dayRange: stage.label || `Ngày ${stage.dayStart} - ${stage.dayEnd}`,
+            title: `${stage.name} (${stage.label})`,
+            time: `Mốc ngày ${stage.dayStart} - ${stage.dayEnd} / ${totalDays}`,
+            status: isDone ? 'COMPLETED' : isCurrent ? 'IN_PROGRESS' : 'PENDING',
+            author: plot.staffName || 'Trần Văn Lực (CVLĐ)',
+            authorRole: 'Quy trình VietGAP phụ trách',
+            note: `${stage.statusDesc ? stage.statusDesc + '. ' : ''}${stage.guide || ''}${stage.nutrition ? ' • Dinh dưỡng: ' + stage.nutrition : ''}${stage.pestAlert ? ' • Cảnh báo: ' + stage.pestAlert : ''}`,
+            proofPhoto: isDone ? (stage.samplePhoto || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=600&q=80') : null,
+            isStandardStep: true
+          });
+        }
+      });
+    }
+
+    return combined.sort((a, b) => Number(a.day || 0) - Number(b.day || 0));
+  }, [allCareTasks, allDiaries]);
 
   useEffect(() => {
     const handleHarvestSync = () => {
@@ -509,10 +756,13 @@ export default function ExpertDashboard() {
     loadFieldIssues();
     loadTemplates();
     loadAssignedPlots();
+    loadTasksAndDiaries();
     loadExpertData();
 
     let bc = null;
     let varBc = null;
+    let taskBc = null;
+    let actBc = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         bc = new BroadcastChannel('farmely_iot_telemetry');
@@ -526,6 +776,16 @@ export default function ExpertDashboard() {
         varBc.onmessage = () => {
           loadExpertData();
         };
+
+        taskBc = new BroadcastChannel('farmely_staff_tasks');
+        taskBc.onmessage = () => {
+          loadTasksAndDiaries();
+        };
+
+        actBc = new BroadcastChannel('farmely_staff_activity_channel');
+        actBc.onmessage = () => {
+          loadTasksAndDiaries();
+        };
       }
     } catch {}
 
@@ -533,18 +793,26 @@ export default function ExpertDashboard() {
       if (e.key === 'farmely_iot_sync_ping') {
         loadAssignedPlots();
       }
+      if (e.key === 'farmely_staff_activities_v4' || e.key === 'farmely_chat_threads_v6') {
+        loadTasksAndDiaries();
+      }
     };
     window.addEventListener('storage', handleStorage);
 
-    const pollInterval = setInterval(loadAssignedPlots, 5000);
+    const pollInterval = setInterval(() => {
+      loadAssignedPlots();
+      loadTasksAndDiaries();
+    }, 5000);
 
     return () => {
       clearInterval(pollInterval);
       if (bc) try { bc.close(); } catch {}
       if (varBc) try { varBc.close(); } catch {}
+      if (taskBc) try { taskBc.close(); } catch {}
+      if (actBc) try { actBc.close(); } catch {}
       window.removeEventListener('storage', handleStorage);
     };
-  }, []);
+  }, [loadTasksAndDiaries]);
 
   useEffect(() => {
     if (activeTab === 'compatibility' || activeTab === 'varieties' || activeTab === 'crops') {
@@ -2092,73 +2360,122 @@ export default function ExpertDashboard() {
                       <p className="font-bold text-sm">Chưa có thửa đất nào được phân công</p>
                     </div>
                   ) : (
-                    assignedPlots.map((plot) => (
-                      <div
-                        key={plot.id || plot.rentalId}
-                        className="p-5 rounded-2xl border border-brand-border bg-white hover:border-sky-300 transition-all shadow-2xs space-y-3 text-xs"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border/60 pb-2.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono font-bold text-sky-800 text-sm">{plot.plotCode}</span>
-                            <span className="font-bold text-brand-dark text-sm">{plot.name}</span>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-stone-100 text-stone-700">
-                              {plot.contractCode}
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
-                              🔬 CGNN Phụ trách: {plot.expertName || 'ThS. Nguyễn Hoàng Nam'}
-                            </span>
-                            {plot.staffName && (
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                👷 CVLĐ Phụ trách: {plot.staffName}
+                    assignedPlots.map((plot) => {
+                      const plotKey = plot.rentalId || plot.id || plot.plotCode;
+                      const isExpanded = expandedPlotId === plotKey;
+                      const plotTasks = getTasksForPlot(plot);
+
+                      return (
+                        <div
+                          key={plotKey}
+                          onClick={() => setExpandedPlotId((prev) => (prev === plotKey ? null : plotKey))}
+                          className={`p-5 rounded-2xl border transition-all shadow-2xs space-y-3 text-xs cursor-pointer ${
+                            isExpanded
+                              ? 'border-sky-500 ring-2 ring-sky-100 bg-sky-50/20'
+                              : 'border-brand-border bg-white hover:border-sky-300'
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border/60 pb-2.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono font-bold text-sky-800 text-sm">{plot.plotCode}</span>
+                              <span className="font-bold text-brand-dark text-sm">{plot.name}</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-stone-100 text-stone-700">
+                                {plot.contractCode}
                               </span>
-                            )}
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                                🔬 CGNN Phụ trách: {plot.expertName || 'ThS. Nguyễn Hoàng Nam'}
+                              </span>
+                              {plot.staffName && (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  👷 CVLĐ Phụ trách: {plot.staffName}
+                                </span>
+                              )}
+                            </div>
+
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              ● Đang canh tác
+                            </span>
                           </div>
 
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            ● Đang canh tác
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-stone-600 bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/60">
-                          <div>
-                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Khách Hàng Thuê:</span>
-                            <span className="font-bold text-brand-dark text-xs block">{plot.renterName}</span>
-                            <span className="text-[11px] text-stone-500">{plot.renterEmail || 'Khách thuê'}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Giống Canh Tác:</span>
-                            <span className="font-bold text-emerald-800 text-xs block">{plot.crop}</span>
-                            <span className="text-[11px] text-stone-500">{plot.stage}</span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Tiến Độ Mùa Vụ:</span>
-                            <span className="font-bold text-brand-dark text-xs block">Ngày {plot.currentDay} / {plot.totalDays} ({plot.progressPercent}%)</span>
-                            <div className="w-full bg-stone-200 rounded-full h-1.5 mt-1">
-                              <div className="bg-emerald-600 h-1.5 rounded-full" style={{ width: `${plot.progressPercent}%` }}></div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-stone-600 bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/60">
+                            <div>
+                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Khách Hàng Thuê:</span>
+                              <span className="font-bold text-brand-dark text-xs block">{plot.renterName}</span>
+                              <span className="text-[11px] text-stone-500">{plot.renterEmail || 'Khách thuê'}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Giống Canh Tác:</span>
+                              <span className="font-bold text-emerald-800 text-xs block">{plot.crop}</span>
+                              <span className="text-[11px] text-stone-500">{plot.stage}</span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Tiến Độ Mùa Vụ:</span>
+                              <span className="font-bold text-brand-dark text-xs block">Ngày {plot.currentDay} / {plot.totalDays} ({plot.progressPercent}%)</span>
+                              <div className="w-full bg-stone-200 rounded-full h-1.5 mt-1">
+                                <div className="bg-emerald-600 h-1.5 rounded-full" style={{ width: `${plot.progressPercent}%` }}></div>
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Vi Khí Hậu:</span>
+                              <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
+                              <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu độ ẩm &gt;= 80%</span>
                             </div>
                           </div>
-                          <div>
-                            <span className="text-[10px] text-stone-400 uppercase font-bold block">Trạm Vi Khí Hậu:</span>
-                            <span className="font-bold text-sky-800 text-xs block">{plot.temp} • Ẩm: {plot.soilMoisture}</span>
-                            <span className="text-[10px] text-emerald-700 font-semibold">Tự động hoãn tưới nếu độ ẩm &gt;= 80%</span>
-                          </div>
-                        </div>
 
-                        <div className="flex justify-end gap-2 pt-1">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                              setActiveTab('chat');
-                            }}
-                            className="font-bold text-xs gap-1.5"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            <span>Mở Kênh Tư Vấn 1-1 Với Khách</span>
-                          </Button>
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-brand-border/50">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedPlotId((prev) => (prev === plotKey ? null : plotKey));
+                              }}
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-800 hover:text-sky-950 transition cursor-pointer px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200"
+                            >
+                              <BookOpen className="w-4 h-4 text-sky-700" />
+                              <span>{isExpanded ? 'Thu gọn tiến trình công việc' : 'Xem tiến trình & nhật ký công việc'}</span>
+                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenChatWithCustomer(plot);
+                                }}
+                                className="font-bold text-xs gap-1.5"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5 text-emerald-700" />
+                                <span>Mở Kênh Tư Vấn 1-1 Với Khách</span>
+                              </Button>
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-4 pt-4 border-t border-sky-200/80 cursor-default"
+                            >
+                              <PlotWorkProgressTimeline
+                                plot={plot}
+                                tasks={plotTasks}
+                                onOpenPhoto={(photoUrl, title, time) => {
+                                  setLightboxPhoto({
+                                    url: photoUrl,
+                                    caption: `${title} (${time})`,
+                                    customerName: plot.renterName,
+                                    plotName: plot.name || `Thửa ${plot.plotCode}`
+                                  });
+                                }}
+                                onOpenChat={() => handleOpenChatWithCustomer(plot)}
+                                onClose={() => setExpandedPlotId(null)}
+                              />
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
