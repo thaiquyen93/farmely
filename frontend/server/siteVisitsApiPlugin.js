@@ -1008,15 +1008,16 @@ BEGIN
 
     -- 1. TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP CỦA GIỐNG CÂY (CHỈ KHI THUÊ GÓI HỖ TRỢ)
     IF '${itemMode}' <> 'SELF' THEN
-        INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+        INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
         SELECT 
             v_rental_id,
             ts.step_id,
             v_staff_id,
             DATE '${itemCultivationDate}' + (ts.day_offset || ' days')::INTERVAL,
-            'PENDING'::task_status_enum,
+            CASE WHEN DATE '${itemCultivationDate}' <= CURRENT_DATE AND (COALESCE(ts.day_offset, 0) = 0 OR COALESCE(ts.step_order, 1) = 1) THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
             ts.step_name,
             ts.description || ' (Vật tư: ' || COALESCE(ts.materials_needed, 'Theo quy chuẩn VietGAP') || ')',
+            COALESCE(ts.step_order, 1),
             NOW(),
             NOW()
         FROM template_steps ts
@@ -1843,15 +1844,16 @@ BEGIN
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
     
     -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa thuê gói Hỗ trợ (Assisted) nếu chưa có (tính ngày theo start_date)
-    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
     SELECT 
         r.rental_id,
         ts.step_id,
         r.staff_id,
         r.start_date + (ts.day_offset || ' days')::interval,
-        CASE WHEN r.start_date <= CURRENT_DATE AND COALESCE(ts.step_order, 1) = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        CASE WHEN r.start_date <= CURRENT_DATE AND (COALESCE(ts.day_offset, 0) = 0 OR COALESCE(ts.step_order, 1) = 1) THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
         ts.step_name,
         ts.step_name || ' - ' || ts.description,
+        COALESCE(ts.step_order, 1),
         NOW(),
         NOW()
     FROM rentals r
@@ -5115,9 +5117,12 @@ END $$;
                 `);
                 await runPostgreSql(`UPDATE plots SET status = 'RENT' WHERE plot_id = ${rental.plot_id};`);
                 await runPostgreSql(`
-                  UPDATE care_tasks 
-                  SET status = 'IN_PROG', due_date = CURRENT_DATE 
-                  WHERE rental_id = ${rentalId} AND (step_order = 1 OR task_id = (SELECT MIN(task_id) FROM care_tasks WHERE rental_id = ${rentalId}));
+                  UPDATE care_tasks ct
+                  SET 
+                    due_date = CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL,
+                    status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END
+                  FROM template_steps ts
+                  WHERE ct.rental_id = ${rentalId} AND ct.step_id = ts.step_id;
                 `);
                 message = `Đã kích hoạt canh tác ngay hôm nay cho thửa ${rental.plot_code} (Ngày 1/${totalDays})`;
               } else if (action === 'ADD_DAYS') {
@@ -5153,9 +5158,12 @@ END $$;
                   WHERE rental_id = ${rentalId};
                 `);
                 await runPostgreSql(`
-                  UPDATE care_tasks 
-                  SET status = CASE WHEN step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END 
-                  WHERE rental_id = ${rentalId};
+                  UPDATE care_tasks ct
+                  SET 
+                    due_date = CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL,
+                    status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END
+                  FROM template_steps ts
+                  WHERE ct.rental_id = ${rentalId} AND ct.step_id = ts.step_id;
                 `);
                 message = `Đã đặt lại tiến độ thửa ${rental.plot_code} về Ngày 1`;
               } else if (action === 'SET_DAY') {
@@ -5180,9 +5188,12 @@ END $$;
                   message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays} (Đến mốc Thu Hoạch)`;
                 } else if (day === 1) {
                   await runPostgreSql(`
-                    UPDATE care_tasks 
-                    SET status = CASE WHEN step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END 
-                    WHERE rental_id = ${rentalId};
+                    UPDATE care_tasks ct
+                    SET 
+                      due_date = CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL,
+                      status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END
+                    FROM template_steps ts
+                    WHERE ct.rental_id = ${rentalId} AND ct.step_id = ts.step_id;
                   `);
                   message = `Đã đặt lại tiến độ thửa ${rental.plot_code} về Ngày 1/${totalDays}`;
                 } else {
@@ -5305,6 +5316,10 @@ SELECT json_build_object(
           WHEN rent.start_date IS NOT NULL AND ct.due_date IS NOT NULL THEN GREATEST(1, DATE(ct.due_date) - DATE(rent.start_date) + 1)
           ELSE 1
         END AS "cropDay",
+        CASE
+          WHEN rent.start_date IS NOT NULL THEN GREATEST(1, CURRENT_DATE - DATE(rent.start_date) + 1)
+          ELSE 1
+        END AS "plotCurrentDay",
         COALESCE(ct.step_order, ts.step_order, 1) AS "stepOrder",
         ts.duration_days AS "durationDays",
         '08:30 AM' AS deadline,
