@@ -873,24 +873,26 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
 
   // Nếu có danh sách các bước quy trình thực tế từ CSDL (template_steps của giống cây này)
   if (Array.isArray(dbStages) && dbStages.length > 0) {
-    // Deduplicate stages by stepId or (dayOffset, name)
-    const seen = new Set();
-    const uniqueDb = [];
+    // Gom nhóm các bước có cùng mốc ngày (dayOffset) thành một giai đoạn duy nhất
+    // Tránh tình trạng lặp dòng thời gian (ví dụ 2 bước cùng Ngày 1 sinh ra 2 mốc Ngày 1 và Ngày 1 – 9)
+    const stagesByDay = new Map();
     dbStages.forEach((item) => {
-      const day = item.dayOffset !== undefined && item.dayOffset !== null ? Number(item.dayOffset) : (item.dayStart || 0);
-      const name = String(item.stage || item.name || item.stepName || '').trim().toLowerCase();
-      const key = item.stepId ? `id-${item.stepId}` : `${day}-${name}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueDb.push(item);
+      const day = item.dayOffset !== undefined && item.dayOffset !== null
+        ? Math.max(1, Number(item.dayOffset))
+        : (item.dayStart || 1);
+      if (!stagesByDay.has(day)) {
+        stagesByDay.set(day, { ...item, dayOffset: day });
+      } else {
+        const existing = stagesByDay.get(day);
+        const existingGuideLen = (existing.guide || existing.description || '').length;
+        const newGuideLen = (item.guide || item.description || '').length;
+        if (newGuideLen > existingGuideLen) {
+          stagesByDay.set(day, { ...existing, ...item, dayOffset: day });
+        }
       }
     });
 
-    const sortedDb = uniqueDb.sort((a, b) => {
-      const oA = a.dayOffset !== undefined && a.dayOffset !== null ? Number(a.dayOffset) : (a.stepOrder || 0);
-      const oB = b.dayOffset !== undefined && b.dayOffset !== null ? Number(b.dayOffset) : (b.stepOrder || 0);
-      return oA - oB;
-    });
+    const sortedDb = Array.from(stagesByDay.values()).sort((a, b) => a.dayOffset - b.dayOffset);
 
     computedStages = sortedDb.map((d, sIdx) => {
       const rawStart = d.dayOffset !== undefined && d.dayOffset !== null
@@ -928,7 +930,7 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
         name: stageName,
         dayStart: rawStart,
         dayEnd: dayEnd,
-        label: rawStart === dayEnd ? `Ngày ${rawStart}` : `Ngày ${rawStart} - ${dayEnd}`,
+        label: rawStart === dayEnd ? `Ngày ${rawStart}` : `Ngày ${rawStart} – ${dayEnd}`,
         statusDesc: guide,
         waterRegime: d.waterRegime || '1.5 - 2.0 L/m²/ngày (tưới nhỏ giọt bổ sung độ ẩm theo thời tiết)',
         nutrition: materials,

@@ -33,4 +33,25 @@ describe('resolveStandardCropProcess — currentStage', () => {
     const r = resolveStandardCropProcess({ ...plot, currentDay: 80 }, stagesWithGap);
     expect(r.currentStage.name).toMatch(/Thu dọn tàn dư/);
   });
+
+  it('REGRESSION: gom nhóm dbStages có trùng dayOffset thành một mốc duy nhất, không sinh node lặp', () => {
+    const duplicateStages = [
+      { stepId: 136, stage: 'Làm đất & Xử lý giá thể vi sinh', dayOffset: 1 },
+      { stepId: 140, stage: 'Làm đất & Xử lý giá thể vi sinH', dayOffset: 1 },
+      { stepId: 137, stage: 'Xuống giống & Tưới ẩm định kỳ', dayOffset: 10 },
+      { stepId: 141, stage: 'Xuống giống & Tưới ẩm định kỳ', dayOffset: 10 },
+      { stepId: 138, stage: 'Bón thúc & Phòng trừ sinh học', dayOffset: 25 },
+      { stepId: 142, stage: 'Bón thúc & Phòng trừ sinh học', dayOffset: 25 },
+      { stepId: 139, stage: 'Cách ly VietGAP & Thu hoạch', dayOffset: 45 },
+      { stepId: 143, stage: 'Cách ly VietGAP & Thu hoạch', dayOffset: 45 }
+    ];
+
+    const r = resolveStandardCropProcess({ crop: 'Cây mèo dã', totalDays: 45, currentDay: 1 }, duplicateStages);
+    expect(r.stages).toHaveLength(4);
+    expect(r.stages.map((s) => s.dayStart)).toEqual([1, 10, 25, 45]);
+    expect(r.stages[0].label).toBe('Ngày 1 – 9');
+    expect(r.stages[1].label).toBe('Ngày 10 – 24');
+    expect(r.stages[2].label).toBe('Ngày 25 – 44');
+    expect(r.stages[3].label).toBe('Ngày 45');
+  });
 });
