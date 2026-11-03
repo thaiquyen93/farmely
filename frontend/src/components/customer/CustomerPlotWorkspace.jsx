@@ -1455,7 +1455,15 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
         ) : (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 pt-2 text-xs">
             <div className="flex items-center gap-2">
-              {activity.workerAvatar ? (
+              {activity.isDiaryEntry ? (
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                  📖
+                </span>
+              ) : activity.isHarvest ? (
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">
+                  🌾
+                </span>
+              ) : activity.workerAvatar ? (
                 <img src={activity.workerAvatar} alt={activity.workerName} className="h-6 w-6 rounded-full object-cover ring-1 ring-emerald-300" />
               ) : (
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-[10px] text-white font-bold">
@@ -1602,7 +1610,7 @@ function StaffActivitiesTab({
               { id: 'ALL', label: `Tất cả (${counts.all})` },
               { id: 'TODAY', label: `🔥 Việc hôm nay (${counts.today})`, highlight: counts.today > 0 },
               { id: 'UPCOMING', label: `⏳ Việc chưa tới (${counts.upcoming})` },
-              { id: 'COMPLETED', label: `✅ Đã xong (${counts.done})` }
+              { id: 'COMPLETED', label: `✅ Đã xong & Nhật ký (${counts.done})` }
             ].map((btn) => (
               <button
                 key={btn.id}
@@ -1620,16 +1628,29 @@ function StaffActivitiesTab({
             ))}
           </div>
 
-          {isSelf && (
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 text-xs font-bold shadow-sm transition shrink-0 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Thêm việc mới</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {isSelf && (
+              <button
+                type="button"
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 px-3 py-1.5 text-xs font-bold shadow-2xs transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Thêm việc</span>
+              </button>
+            )}
+            {onAddDiary && (
+              <button
+                type="button"
+                onClick={() => onAddDiary?.(plot)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 text-xs font-bold shadow-xs transition cursor-pointer"
+                title="Ghi chép nhật ký, cảm xúc hoặc đăng ảnh thăm vườn"
+              >
+                <PenLine className="w-3.5 h-3.5 text-lime-300" />
+                <span>+ Viết nhật ký</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -3273,22 +3294,55 @@ export default function CustomerPlotWorkspace({
           <div className="space-y-5">
             <Card className="p-5">
               <SectionTitle
-                eyebrow={isSelf ? "Tự canh tác theo quy trình VietGAP" : "Minh bạch hoạt động chăm sóc"}
-                title={isSelf ? "Công việc canh tác hằng ngày" : "Lịch sử hoạt động của Staff (Field Workers)"}
+                eyebrow={isSelf ? "Tự canh tác theo quy trình VietGAP" : "Minh bạch hoạt động chăm sóc & Nghiệm thu"}
+                title="Công việc & Nhật ký thực địa"
               />
               <p className="mt-1 text-sm text-stone-600">
                 {isSelf
-                  ? "Danh sách các công việc canh tác hằng ngày theo quy trình VietGAP. Bạn có thể tự tùy chỉnh, thêm công việc mới và tích đánh dấu hoàn thành theo tiến độ canh tác của mình."
-                  : "Mọi công việc tưới nước, bón phân, tỉa cành, phòng ngừa sâu bệnh của nhân viên tại vườn đều được lưu trữ persistent, có ảnh minh chứng thực tế và số đo cảm biến tại thời điểm thực hiện."}
+                  ? "Danh sách các công việc canh tác hằng ngày theo quy trình VietGAP. Bạn có thể tự tùy chỉnh, thêm công việc mới, tích hoàn thành và viết nhật ký ghi chép theo tiến độ của mình."
+                  : "Mọi nhiệm vụ chăm sóc thực địa, biên bản thu hoạch và ảnh minh chứng của kỹ thuật viên tại vườn đều được cập nhật thời gian thực, lưu trữ minh bạch và liên thông với nhật ký vụ mùa."}
               </p>
               <div className="mt-5">
                 {(() => {
-                  const mergedSelfActivities = (() => {
-                    if (!isSelf) return staffActivities || [];
-                    const combined = [
+                  const mergedCombinedActivities = (() => {
+                    const base = isSelf ? [
                       ...(staffActivities || []).filter((a) => a.serviceRequestId || (a.notes && a.notes.includes('[DỊCH VỤ KHÁCH YÊU CẦU]'))),
                       ...selfTasks
-                    ];
+                    ] : (staffActivities || []);
+
+                    // Hợp nhất biên bản thu hoạch (BR20)
+                    const harvestEntries = (harvestResults || []).map((hr) => ({
+                      activityId: `HRV-${hr.harvestId || hr.id}`,
+                      id: `HRV-${hr.harvestId || hr.id}`,
+                      title: `Thu hoạch ${hr.crop || hr.cropName || 'nông sản'} — ${hr.formattedYield || `${hr.yieldAmount || 0} kg`}`,
+                      notes: `Chuyên viên lao động đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Khách hàng nhận nông sản tại nông trại theo BR21. Mã biên bản: HRV-${hr.harvestId || hr.id}.`,
+                      workerName: hr.enteredByWorker || hr.workerName || 'Trần Văn Lực',
+                      workerRole: 'Chuyên viên lao động (CVLĐ)',
+                      status: 'COMPLETED',
+                      proofPhoto: hr.evidenceImageUrl || hr.photo || hr.image,
+                      timestamp: hr.harvestDateFormatted || hr.harvestDate || 'Hôm nay',
+                      day: cropProcess.totalDays || 45,
+                      cropDay: cropProcess.totalDays || 45,
+                      isHarvest: true
+                    }));
+
+                    // Hợp nhất các bài viết nhật ký ghi chép của khách
+                    const diaryEntries = (operations?.diary || []).map((d) => ({
+                      activityId: d.id || `DIARY-${d.taskId || Date.now()}`,
+                      id: d.id || `DIARY-${d.taskId || Date.now()}`,
+                      title: d.title || 'Ghi chép nhật ký vụ mùa',
+                      notes: d.note || d.content,
+                      workerName: d.author || 'Chủ vườn',
+                      workerRole: d.authorRole || (isSelf ? 'Chủ vườn (Tự canh tác)' : 'Khách hàng'),
+                      status: 'COMPLETED',
+                      proofPhoto: d.image || d.imageUrl || d.photo,
+                      timestamp: d.time || d.date || 'Hôm nay',
+                      isDiaryEntry: true,
+                      day: d.day || 1,
+                      cropDay: d.day || 1
+                    }));
+
+                    const combined = [...base, ...harvestEntries, ...diaryEntries];
                     const seen = new Set();
                     return combined.filter((item) => {
                       const key = item.id || item.activityId || `${item.day}_${(item.title || '').trim().toLowerCase()}`;
@@ -3297,13 +3351,15 @@ export default function CustomerPlotWorkspace({
                       return true;
                     });
                   })();
+
                   return (
                     <StaffActivitiesTab
-                      activities={mergedSelfActivities}
+                      activities={mergedCombinedActivities}
                       isSelf={isSelf}
                       onToggleTask={handleToggleSelfTask}
                       onAddTask={handleAddSelfTask}
                       onDeleteTask={handleDeleteSelfTask}
+                      onAddDiary={onAddDiary}
                       totalDays={cropProcess.totalDays || 60}
                       onOpenPhoto={setSelectedPhotoActivity}
                       plot={activePlot}
@@ -3313,20 +3369,6 @@ export default function CustomerPlotWorkspace({
               </div>
             </Card>
           </div>
-        )}
-
-        {/* ponytail: tab Vi khí hậu đã gộp vào Tổng quan (cảnh báo BR18 ngắn gọn).
-            upgrade path is dựng lại trang biểu đồ khí tượng khi KH cần tra cứu lịch sử theo giờ/ngày. */}
-
-        {tab === 'diary' && (
-          <DiaryTab
-            plot={activePlot}
-            operations={operations}
-            staffActivities={staffActivities}
-            harvestResults={harvestResults}
-            onAddDiary={onAddDiary}
-            onOpenPhoto={setSelectedPhotoActivity}
-          />
         )}
 
         {tab === 'services' && (
@@ -3376,7 +3418,7 @@ export default function CustomerPlotWorkspace({
 
       {/* Bottom navigation bar mobile */}
       <nav aria-label={`Chức năng của ${plot.name}`} className="fixed inset-x-3 bottom-3 z-40 lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="grid grid-cols-7 rounded-[22px] border border-white/10 bg-[#0f2a20]/95 p-1.5 shadow-[0_18px_40px_-12px_rgba(15,42,32,0.6)] backdrop-blur-xl" role="tablist">
+        <div className="grid grid-cols-3 rounded-[22px] border border-white/10 bg-[#0f2a20]/95 p-1.5 shadow-[0_18px_40px_-12px_rgba(15,42,32,0.6)] backdrop-blur-xl" role="tablist">
           {PLOT_TABS.map((t) => {
             const Icon = t.icon;
             const active = t.id === tab;
