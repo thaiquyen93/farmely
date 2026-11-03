@@ -1491,6 +1491,7 @@ function StaffActivitiesTab({
   onToggleTask,
   onAddTask,
   onDeleteTask,
+  onAddDiary,
   totalDays = 60
 }) {
   const [searchQuery, setSearchQuery] = useState('');
