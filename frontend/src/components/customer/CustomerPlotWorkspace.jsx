@@ -297,13 +297,28 @@ function StandardProcessTimeline({
     list.forEach((act) => {
       let d = act.day || act.cropDay || getEntryCropDay(act);
       const titleLower = String(act.title || '').toLowerCase();
+      const isHarvestAct = titleLower.includes('thu hoạch') || titleLower.includes('nghiệm thu') || titleLower.includes('đóng thùng');
       // Gom task thu hoạch vào totalDays nếu chưa có ngày
-      if ((d === null || d === undefined) && (titleLower.includes('thu hoạch') || titleLower.includes('nghiệm thu') || titleLower.includes('đóng thùng'))) {
+      if ((d === null || d === undefined) && isHarvestAct) {
         d = totalDays;
       }
       if (d !== null && d !== undefined) {
         if (!map[d]) map[d] = [];
-        map[d].push(act);
+
+        // Đồng bộ hoàn thành khi tua ngày (Fast-forward sync):
+        // Nếu đã ở ngày thu hoạch (currentCropDay >= totalDays), các task trước đó (không phải thu hoạch/nghiệm thu) hoàn thành 100%
+        let syncedStatus = act.status;
+        if (currentCropDay >= totalDays && !isHarvestAct) {
+          syncedStatus = 'COMPLETED';
+        } else if (currentCropDay > d && !isHarvestAct) {
+          syncedStatus = 'COMPLETED';
+        }
+
+        map[d].push({
+          ...act,
+          status: syncedStatus,
+          proofPhoto: syncedStatus === 'COMPLETED' ? (act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80') : act.proofPhoto
+        });
       }
     });
 
@@ -385,11 +400,11 @@ function StandardProcessTimeline({
           cropDay: totalDays,
           title: 'Thu hoạch, phân loại chất lượng loại 1 & dán tem truy xuất nguồn gốc',
           timestamp: endCalDate ? `${endCalDate} • Ca sáng (08:00 - 10:30)` : 'Ca sáng (08:00 - 10:30)',
-          status: currentCropDay >= totalDays ? 'COMPLETED' : 'PENDING',
+          status: 'PENDING',
           workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
           workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
           notes: 'Thu hoạch nhẹ tay tránh dập nát, xếp khay đục lỗ thoáng khí, cân trọng lượng nghiệm thu thực tế.',
-          proofPhoto: currentCropDay >= totalDays ? 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80' : null
+          proofPhoto: null
         }
       ];
     }
@@ -974,86 +989,70 @@ function StandardProcessTimeline({
                   <span>Xem biên bản trong Nhật ký</span>
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDay(1);
-                  const rentalId = plot?.rentalId || plot?.rental_id;
-                  if (rentalId) {
-                    fetch(`/api/rentals/${rentalId}/simulate-time`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ action: 'START_NOW' })
-                    }).catch(() => {});
-                  }
-                }}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs font-bold text-stone-700 shadow-xs hover:bg-stone-50 transition cursor-pointer"
-                title="Quay lại ngày 1 để xem tiến trình ban đầu"
-              >
-                <span>🌱 Về Ngày 1</span>
-              </button>
             </div>
           </div>
         )}
 
-        {/* Lưới 2 cột: Cột 1 = Quy trình chuẩn VietGAP; Cột 2 = Nhật ký & Ảnh thực tế hôm đó */}
-        <div className="grid gap-5 lg:grid-cols-2">
-          {/* CỘT 1: QUY TRÌNH CHUẨN THEO TEMPLATE */}
-          <div className="rounded-2xl border border-emerald-200/90 bg-emerald-50/40 p-5 sm:p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-emerald-200/60 pb-3 gap-2">
-              <span className="flex items-center gap-2 font-black text-xs text-emerald-950 uppercase tracking-wider min-w-0 truncate">
-                <Sprout className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="truncate">Quy trình chuẩn VietGAP Ngày {selectedDay}</span>
-              </span>
-              <span className="rounded-md bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 shrink-0">
-                {activeStage?.label}
-              </span>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="rounded-xl border border-emerald-100/90 bg-white/90 p-3.5 shadow-2xs space-y-1">
-                <div className="flex items-center gap-2 font-bold text-emerald-950 text-xs">
-                  <span className="text-base leading-none">💧</span>
-                  <span>Chế độ tưới nước</span>
-                </div>
-                <p className="text-stone-600 text-xs leading-relaxed pl-6">
-                  {activeStage?.waterRegime || 'Duy trì ẩm độ 65 - 75%, tưới phun sương nhẹ buổi sáng sớm.'}
-                </p>
+        {/* Lưới: Ngày thường chia 2 cột; Ngày thu hoạch ẩn cột quy trình tưới/phân bón để cột nghiệm thu & nhật ký chiếm trọn 100% */}
+        <div className={selectedDay === totalDays ? "space-y-5" : "grid gap-5 lg:grid-cols-2"}>
+          {/* CỘT 1: QUY TRÌNH CHUẨN THEO TEMPLATE (ẨN Ở NGÀY THU HOẠCH VÌ ĐÃ HẾT THỜI GIAN CANH TÁC, KHÔNG CÒN TƯỚI/BÓN PHÂN) */}
+          {selectedDay !== totalDays && (
+            <div className="rounded-2xl border border-emerald-200/90 bg-emerald-50/40 p-5 sm:p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-emerald-200/60 pb-3 gap-2">
+                <span className="flex items-center gap-2 font-black text-xs text-emerald-950 uppercase tracking-wider min-w-0 truncate">
+                  <Sprout className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="truncate">Quy trình chuẩn VietGAP Ngày {selectedDay}</span>
+                </span>
+                <span className="rounded-md bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 shrink-0">
+                  {activeStage?.label}
+                </span>
               </div>
 
-              <div className="rounded-xl border border-emerald-100/90 bg-white/90 p-3.5 shadow-2xs space-y-1">
-                <div className="flex items-center gap-2 font-bold text-emerald-950 text-xs">
-                  <span className="text-base leading-none">🧪</span>
-                  <span>Dinh dưỡng hữu cơ</span>
-                </div>
-                <p className="text-stone-600 text-xs leading-relaxed pl-6">
-                  {activeStage?.nutrition || 'Bổ sung vi sinh cố định đạm và dịch chiết Humic hữu cơ định kỳ.'}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-emerald-100/90 bg-white/90 p-3.5 shadow-2xs space-y-1">
-                <div className="flex items-center gap-2 font-bold text-emerald-950 text-xs">
-                  <span className="text-base leading-none">🎯</span>
-                  <span>Yêu cầu kỹ thuật giai đoạn</span>
-                </div>
-                <p className="text-stone-600 text-xs leading-relaxed pl-6">
-                  {activeStage?.guide}
-                </p>
-              </div>
-
-              {activeStage?.inspectionCriteria && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-100/40 p-3.5 shadow-2xs space-y-1">
-                  <div className="flex items-center gap-2 font-bold text-emerald-900 text-xs">
-                    <span className="text-base leading-none">🔍</span>
-                    <span>Tiêu chuẩn hoàn thành kỹ thuật</span>
+              <div className="space-y-3 text-xs">
+                <div className="rounded-xl border border-emerald-100/90 bg-white/90 p-3.5 shadow-2xs space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-emerald-950 text-xs">
+                    <span className="text-base leading-none">💧</span>
+                    <span>Chế độ tưới nước</span>
                   </div>
-                  <p className="text-emerald-800 text-xs font-medium leading-relaxed pl-6">
-                    {activeStage.inspectionCriteria}
+                  <p className="text-stone-600 text-xs leading-relaxed pl-6">
+                    {activeStage?.waterRegime || 'Duy trì ẩm độ 65 - 75%, tưới phun sương nhẹ buổi sáng sớm.'}
                   </p>
                 </div>
-              )}
+
+                <div className="rounded-xl border border-emerald-100/90 bg-white/90 p-3.5 shadow-2xs space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-emerald-950 text-xs">
+                    <span className="text-base leading-none">🧪</span>
+                    <span>Dinh dưỡng hữu cơ</span>
+                  </div>
+                  <p className="text-stone-600 text-xs leading-relaxed pl-6">
+                    {activeStage?.nutrition || 'Bổ sung vi sinh cố định đạm và dịch chiết Humic hữu cơ định kỳ.'}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-emerald-100/90 bg-white/90 p-3.5 shadow-2xs space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-emerald-950 text-xs">
+                    <span className="text-base leading-none">🎯</span>
+                    <span>Yêu cầu kỹ thuật giai đoạn</span>
+                  </div>
+                  <p className="text-stone-600 text-xs leading-relaxed pl-6">
+                    {activeStage?.guide}
+                  </p>
+                </div>
+
+                {activeStage?.inspectionCriteria && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-100/40 p-3.5 shadow-2xs space-y-1">
+                    <div className="flex items-center gap-2 font-bold text-emerald-900 text-xs">
+                      <span className="text-base leading-none">🔍</span>
+                      <span>Tiêu chuẩn hoàn thành kỹ thuật</span>
+                    </div>
+                    <p className="text-emerald-800 text-xs font-medium leading-relaxed pl-6">
+                      {activeStage.inspectionCriteria}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* CỘT 2: NHẬT KÝ & HOẠT ĐỘNG THỰC TẾ HÔM ĐÓ */}
           <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 space-y-4 shadow-sm">
@@ -2094,9 +2093,16 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
       });
     });
 
+    const isHarvestPlot = Number(plot?.currentDay) >= Number(plot?.totalDays || 30) || String(plot?.stage || '').toLowerCase().includes('thu hoạch');
+
     (staffActivities || []).forEach((act) => {
-      const isCompleted = act.status === 'COMPLETED' || act.status === 'DONE' || Boolean(act.proofPhoto);
-      if (isCompleted) {
+      const titleLower = String(act.title || '').toLowerCase();
+      const isHarvestTask = titleLower.includes('thu hoạch') || titleLower.includes('nghiệm thu');
+      // Khi đã ở ngày thu hoạch (isHarvestPlot), các task kỹ thuật trước đó (không phải thu hoạch/nghiệm thu) tự động hoàn thành trên nhật ký khách hàng
+      const isAutoDone = isHarvestPlot && !isHarvestTask;
+      const isCompleted = act.status === 'COMPLETED' || act.status === 'DONE' || Boolean(act.proofPhoto) || isAutoDone;
+
+      if (isCompleted && !isHarvestTask) {
         const titleKey = (act.title || '').trim().toLowerCase();
         const actId = String(act.activityId || act.id || '');
         if (!seen.has(actId) && !seen.has(titleKey)) {
@@ -2105,15 +2111,15 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
           list.push({
             id: act.activityId || act.id,
             taskId: act.activityId || act.id,
-            time: act.timestamp || (act.date ? `${act.date} • Ca sáng` : 'Hôm nay'),
+            time: act.timestamp || (act.date ? `${act.date} • Ca sáng` : 'Đã hoàn tất'),
             date: act.date,
             title: act.title,
-            note: act.notes || 'Nhiệm vụ đã được kỹ thuật viên hoàn tất.',
+            note: act.notes || 'Nhiệm vụ kỹ thuật đã được nhân viên hoàn tất đạt chuẩn VietGAP.',
             author: act.workerName || 'Trần Văn Lực (Kỹ thuật viên Farmely)',
             authorRole: act.workerRole || 'Kỹ thuật viên hiện trường chuyên trách',
-            image: act.proofPhoto || null,
-            imageUrl: act.proofPhoto || null,
-            photo: act.proofPhoto || null,
+            image: act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
+            imageUrl: act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
+            photo: act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
             isStaffTask: true,
             status: 'COMPLETED'
           });
@@ -2122,7 +2128,7 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
     });
 
     return list;
-  }, [operations?.diary, staffActivities, harvestResults]);
+  }, [operations?.diary, staffActivities, harvestResults, plot?.currentDay, plot?.totalDays, plot?.stage]);
 
   return (
     <div className="space-y-4">
