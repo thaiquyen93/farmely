@@ -1062,8 +1062,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     date: new Date().toISOString().split('T')[0],
     status: 'COMPLETED',
     notes: 'Đã tưới 15L nước vi sinh khử clo pha chế phẩm EM1 (tỷ lệ 1:500). Độ ẩm đất sau tưới đạt 68.5%, đất tơi xốp, giá thể ráo nước tốt.',
-    proofPhoto: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80',
-    sensorSnapshot: { temp: '26.8°C', soilMoisture: '68%', light: '42.000 Lux' }
+    proofPhoto: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80'
   },
   {
     activityId: 'ACT-002',
@@ -1081,8 +1080,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
     status: 'COMPLETED',
     notes: 'Bón 2.0kg phân trùn quế hữu cơ quanh vùng rễ tán lá, bổ sung dịch chuối ủ Kali nhằm kích thích phân hóa mầm hoa và chống rụng hoa chùm 2.',
-    proofPhoto: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
-    sensorSnapshot: { temp: '28.1°C', soilMoisture: '65%', light: '48.000 Lux' }
+    proofPhoto: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80'
   },
   {
     activityId: 'ACT-003',
@@ -1100,8 +1098,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     date: new Date(Date.now() - 172800000).toISOString().split('T')[0],
     status: 'COMPLETED',
     notes: 'Vặt sạch các chồi nách dưới nách lá thứ 4 để tập trung dinh dưỡng nuôi thân chính. Buộc cố định ngọn dây leo chữ A đảm bảo thông thoáng.',
-    proofPhoto: 'https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=800&q=80',
-    sensorSnapshot: { temp: '27.4°C', soilMoisture: '64%', light: '45.000 Lux' }
+    proofPhoto: 'https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=800&q=80'
   },
   {
     activityId: 'ACT-004',
@@ -1119,8 +1116,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     date: new Date().toISOString().split('T')[0],
     status: 'IN_PROGRESS',
     notes: 'Đang triển khai treo bẫy dính vàng cách ngọn 30cm để giám sát rầy phấn trắng, chuẩn bị phun sương nhẹ tinh dầu Neem sinh học vào lúc 16:30.',
-    proofPhoto: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985b?auto=format&fit=crop&w=800&q=80',
-    sensorSnapshot: { temp: '28.5°C', soilMoisture: '67%', light: '52.000 Lux' }
+    proofPhoto: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985b?auto=format&fit=crop&w=800&q=80'
   },
   {
     activityId: 'ACT-005',
@@ -1138,8 +1134,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
     status: 'PENDING',
     notes: 'Kế hoạch kiểm tra tốc độ phát triển lóng cành, đo đếm số chùm hoa nở rộ và ghi chép nhật ký nông vụ định kỳ.',
-    proofPhoto: null,
-    sensorSnapshot: null
+    proofPhoto: null
   }
 ];
 

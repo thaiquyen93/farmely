@@ -1430,11 +1430,19 @@ export default function CustomerDashboard() {
               ? Math.max(1, Number(t.day))
               : null;
 
+            let taskDisplayDate = '';
+            if (t.dueDate) {
+              try {
+                const parts = String(t.dueDate).split('T')[0].split('-');
+                if (parts.length === 3) taskDisplayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+              } catch { }
+            }
+
             const formattedTask = {
               id: t.id || `TSK-${t.taskId}`,
               taskId: t.taskId,
               title: t.title,
-              time: t.dueDate ? `${t.dueDate} (08:30)` : 'Hôm nay',
+              time: taskDisplayDate ? `${taskDisplayDate} • ${t.deadline || 'Ca sáng (07:30)'}` : (resolvedTaskDay ? `Ngày tuổi ${resolvedTaskDay}` : 'Hôm nay'),
               date: t.date || t.dueDate,
               day: resolvedTaskDay,
               cropDay: resolvedTaskDay,

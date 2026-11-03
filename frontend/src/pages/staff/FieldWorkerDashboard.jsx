@@ -96,7 +96,7 @@ const normalizeTaskStatus = (status) => {
   return status || 'PENDING';
 };
 
-const getTaskTimingMeta = (task) => {
+const getTaskTimingMeta = (task, plotCurrentDay = null) => {
   if (task.status === 'COMPLETED') {
     return {
       key: 'COMPLETED',
@@ -110,12 +110,15 @@ const getTaskTimingMeta = (task) => {
   const rawDate = task.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(task.deadline || '') ? task.deadline : null);
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
 
-  // 1. Nếu hạn ở tương lai (sau ngày hôm nay) -> Bắt buộc là Chưa tới hạn (không lôi vào Việc Hôm Nay)
-  if (rawDate && rawDate > todayStr) {
+  const taskAge = task.cropDay !== undefined && task.cropDay !== null ? Number(task.cropDay) : (task.dayOffset !== undefined && task.dayOffset !== null ? Number(task.dayOffset) : null);
+  const plotAge = plotCurrentDay !== null && plotCurrentDay !== undefined ? Number(plotCurrentDay) : (task.plotCurrentDay !== undefined && task.plotCurrentDay !== null ? Number(task.plotCurrentDay) : null);
+
+  // 1. Nếu hạn ở tương lai (sau ngày hôm nay) HOẶC task thuộc ngày tuổi tương lai của vụ mùa -> Bắt buộc là Chưa tới hạn
+  if ((rawDate && rawDate > todayStr) || (plotAge !== null && taskAge !== null && taskAge > plotAge)) {
     const isPriority = task.priority === 'HIGH' || task.priority === 'URGENT' || task.priority === 'EMERGENCY';
     return {
       key: 'NOT_DUE',
-      label: isPriority ? 'Ưu tiên cao (Chưa tới hạn)' : 'Chưa tới hạn',
+      label: isPriority ? 'Ưu tiên cao (Chưa tới hạn)' : (taskAge ? `Chưa tới hạn (Ngày ${taskAge})` : 'Chưa tới hạn'),
       tone: isPriority ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-stone-100 text-stone-600 border border-stone-200',
       dot: isPriority ? 'bg-amber-500' : 'bg-stone-400',
       row: 'border-l-stone-300 bg-white'
@@ -189,32 +192,37 @@ const formatHarvestTimestamp = (raw) => {
 
 const HARVEST_PHOTO_FALLBACK = '/images/harvest/rau-muong-p03.jpg';
 
-const isTaskToday = (t) => {
+const isTaskToday = (t, plotCurrentDay = null) => {
   if (t.status === 'COMPLETED') return false;
   const rawDate = t.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(t.deadline || '') ? t.deadline : null);
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
   if (rawDate && rawDate > todayStr) return false;
-  const meta = getTaskTimingMeta(t);
+
+  const taskAge = t.cropDay !== undefined && t.cropDay !== null ? Number(t.cropDay) : (t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null);
+  const plotAge = plotCurrentDay !== null && plotCurrentDay !== undefined ? Number(plotCurrentDay) : (t.plotCurrentDay !== undefined && t.plotCurrentDay !== null ? Number(t.plotCurrentDay) : null);
+  if (plotAge !== null && taskAge !== null && taskAge > plotAge) return false;
+
+  const meta = getTaskTimingMeta(t, plotCurrentDay);
   return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
 };
 
 const isHarvestTaskTitle = (title) => /thu hoạch|cân|đóng thùng/i.test(title);
 
 // Left accent + status word for a task card. Default "Hôm nay" shows no status word.
-const getTaskCardAccent = (task, variant) => {
+const getTaskCardAccent = (task, variant, plotCurrentDay = null) => {
   if (variant === 'done') return { border: 'border-l-emerald-300', dot: 'bg-emerald-500', label: null };
   if (variant === 'upcoming') return { border: 'border-l-stone-300', dot: 'bg-stone-400', label: null };
-  const timing = getTaskTimingMeta(task);
+  const timing = getTaskTimingMeta(task, plotCurrentDay);
   if (timing.key === 'URGENT') return { border: 'border-l-rose-500', dot: 'bg-rose-500', label: 'Khẩn cấp', text: 'text-rose-700' };
   if (timing.key === 'OVERDUE') return { border: 'border-l-rose-500', dot: 'bg-rose-500', label: 'Quá hạn', text: 'text-rose-700' };
-  if (task.status === 'IN_PROGRESS') return { border: 'border-l-sky-500', dot: 'bg-sky-500', label: 'Đang làm trong ca', text: 'text-sky-700' };
+  if (task.status === 'IN_PROGRESS' && timing.key === 'TODAY') return { border: 'border-l-sky-500', dot: 'bg-sky-500', label: 'Đang làm trong ca', text: 'text-sky-700' };
   if (timing.label === 'Ưu tiên hôm nay') return { border: 'border-l-amber-400', dot: 'bg-amber-500', label: 'Ưu tiên hôm nay', text: 'text-amber-800' };
   return { border: 'border-l-emerald-500', dot: 'bg-emerald-500', label: null };
 };
 
-function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onToggleExpand, fallbackWorker }) {
+function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onToggleExpand, fallbackWorker, plotCurrentDay = null }) {
   const { tag, text: titleText } = splitLeadingTag(task.title);
-  const accent = getTaskCardAccent(task, variant);
+  const accent = getTaskCardAccent(task, variant, plotCurrentDay || task.plotCurrentDay);
   const isDone = variant === 'done';
   const isHarvest = isHarvestTaskTitle(task.title);
   const dayAge = task.cropDay || task.dayOffset;
@@ -583,6 +591,7 @@ export default function FieldWorkerDashboard() {
           stepOrder: task.stepOrder || 1,
           cropDay: task.cropDay || task.dayOffset || null,
           dayOffset: task.dayOffset || task.cropDay || null,
+          plotCurrentDay: task.plotCurrentDay !== undefined ? Number(task.plotCurrentDay) : null,
           workerName: task.workerName || task.assignedTo || 'Kỹ thuật viên hiện trường chuyên trách',
           assignedTo: task.assignedTo || task.workerName || 'Kỹ thuật viên hiện trường chuyên trách',
           taskAssignedTo: task.taskAssignedTo || task.workerId,
@@ -792,11 +801,7 @@ export default function FieldWorkerDashboard() {
           timestamp: `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Hôm nay`,
           status: 'COMPLETED',
           notes: taskProofNote || 'Nhiệm vụ đã được hoàn tất và báo cáo xong việc.',
-          proofPhoto: taskProofPhoto,
-          sensorSnapshot: {
-            temp: matchedPlot?.temp || '28.0°C',
-            soilMoisture: matchedPlot?.soilMoisture || '65%'
-          }
+          proofPhoto: taskProofPhoto
         });
       } catch (e) {
         console.warn('Could not record staff activity:', e);
@@ -1099,8 +1104,7 @@ export default function FieldWorkerDashboard() {
           enteredBy,
           harvestDate: new Date().toISOString().slice(0, 10),
           yieldAmount: parsedWeight,
-          evidenceImageUrl: harvestPhotos[0],
-          deliveryType: 'PICKUP'
+          evidenceImageUrl: harvestPhotos[0]
         })
       })) || {};
     } catch (error) {
@@ -1270,7 +1274,10 @@ export default function FieldWorkerDashboard() {
         map.set(fallbackKey, targetPlot);
       }
 
-      targetPlot.tasks.push(task);
+      targetPlot.tasks.push({
+        ...task,
+        plotCurrentDay: targetPlot.currentDay !== undefined ? targetPlot.currentDay : task.plotCurrentDay
+      });
     });
 
     const list = Array.from(map.values());
@@ -2013,8 +2020,8 @@ export default function FieldWorkerDashboard() {
         const completedTasks = plotTasks.filter((t) => t.status === 'COMPLETED');
         const pendingTasks = plotTasks.filter((t) => t.status !== 'COMPLETED');
 
-        const todayTasks = pendingTasks.filter(isTaskToday);
-        const upcomingTasks = pendingTasks.filter((t) => !isTaskToday(t));
+        const todayTasks = pendingTasks.filter((t) => isTaskToday(t, activePlot.currentDay));
+        const upcomingTasks = pendingTasks.filter((t) => !isTaskToday(t, activePlot.currentDay));
         const plotServices = serviceRequests.filter((s) => (s.rentalId && activePlot.rentalId ? Number(s.rentalId) === Number(activePlot.rentalId) : s.plotCode === activePlot.plotCode));
         const harvest = harvestWorkItems.find((item) => (item.rentalId && activePlot.rentalId ? Number(item.rentalId) === Number(activePlot.rentalId) : item.plotCode === activePlot.plotCode));
 
@@ -2189,6 +2196,7 @@ export default function FieldWorkerDashboard() {
                     key={task.id}
                     task={task}
                     variant={variant}
+                    plotCurrentDay={activePlot?.currentDay}
                     onOpenDetail={setSelectedTaskDetail}
                     onExecute={handleExecuteTask}
                     isExpanded={expandedTaskIds.has(task.id)}
@@ -2955,7 +2963,8 @@ export default function FieldWorkerDashboard() {
                 <div>
                   <span className="text-[10px] text-stone-400 block font-bold">Phương thức nhận (BR21):</span>
                   <strong className="text-stone-900">
-                    {selectedHarvestProofModal.deliveryType === 'DELIVERY' || selectedHarvestProofModal.deliveryType === 'HOME' ? 'Giao tận nhà' : 'Tự nhận tại nông trại'}
+                    {/* BR21: thu hoạch luôn diễn ra tại nông trại */}
+                    Tự nhận tại nông trại
                   </strong>
                 </div>
                 <div>

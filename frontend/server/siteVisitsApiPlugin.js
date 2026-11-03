@@ -5132,6 +5132,20 @@ END $$;
                   SET start_date = start_date - INTERVAL '${days} days' 
                   WHERE rental_id = ${rentalId};
                 `);
+                await runPostgreSql(`
+                  UPDATE care_tasks ct
+                  SET 
+                    due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
+                    status = CASE 
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN 'DONE'::task_status_enum
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date = CURRENT_DATE THEN 'IN_PROG'::task_status_enum
+                      ELSE 'PENDING'::task_status_enum
+                    END,
+                    updated_at = NOW()
+                  FROM rentals r
+                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+                  WHERE ct.rental_id = ${rentalId} AND r.rental_id = ${rentalId};
+                `);
                 message = `Đã tua nhanh +${days} ngày canh tác cho thửa ${rental.plot_code}`;
               } else if (action === 'HARVEST') {
                 const offset = totalDays - 1;
@@ -5141,14 +5155,17 @@ END $$;
                   WHERE rental_id = ${rentalId};
                 `);
                 await runPostgreSql(`
-                  UPDATE care_tasks 
-                  SET status = 'DONE' 
-                  WHERE rental_id = ${rentalId} AND step_order < 4;
-                `);
-                await runPostgreSql(`
-                  UPDATE care_tasks 
-                  SET status = 'IN_PROG', due_date = CURRENT_DATE 
-                  WHERE rental_id = ${rentalId} AND step_order >= 4;
+                  UPDATE care_tasks ct
+                  SET 
+                    due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
+                    status = CASE 
+                      WHEN ct.task_id = (SELECT MAX(c2.task_id) FROM care_tasks c2 WHERE c2.rental_id = ${rentalId}) THEN 'IN_PROG'::task_status_enum
+                      ELSE 'DONE'::task_status_enum
+                    END,
+                    updated_at = NOW()
+                  FROM rentals r
+                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+                  WHERE ct.rental_id = ${rentalId} AND r.rental_id = ${rentalId};
                 `);
                 message = `Đã giả lập thửa ${rental.plot_code} đến ngày thu hoạch (Ngày ${totalDays}/${totalDays})! Nhiệm vụ thu hoạch đã sẵn sàng cho CVLĐ và Khách hàng.`;
               } else if (action === 'RESET') {
@@ -5160,8 +5177,9 @@ END $$;
                 await runPostgreSql(`
                   UPDATE care_tasks ct
                   SET 
-                    due_date = CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL,
-                    status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END
+                    due_date = (CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
+                    status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+                    updated_at = NOW()
                   FROM template_steps ts
                   WHERE ct.rental_id = ${rentalId} AND ct.step_id = ts.step_id;
                 `);
@@ -5174,31 +5192,21 @@ END $$;
                   SET start_date = CURRENT_DATE - INTERVAL '${offset} days', status = 'ACTIVE' 
                   WHERE rental_id = ${rentalId};
                 `);
-                if (day >= totalDays) {
-                  await runPostgreSql(`
-                    UPDATE care_tasks 
-                    SET status = 'DONE' 
-                    WHERE rental_id = ${rentalId} AND step_order < 4;
-                  `);
-                  await runPostgreSql(`
-                    UPDATE care_tasks 
-                    SET status = 'IN_PROG', due_date = CURRENT_DATE 
-                    WHERE rental_id = ${rentalId} AND step_order >= 4;
-                  `);
-                  message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays} (Đến mốc Thu Hoạch)`;
-                } else if (day === 1) {
-                  await runPostgreSql(`
-                    UPDATE care_tasks ct
-                    SET 
-                      due_date = CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL,
-                      status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END
-                    FROM template_steps ts
-                    WHERE ct.rental_id = ${rentalId} AND ct.step_id = ts.step_id;
-                  `);
-                  message = `Đã đặt lại tiến độ thửa ${rental.plot_code} về Ngày 1/${totalDays}`;
-                } else {
-                  message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays}`;
-                }
+                await runPostgreSql(`
+                  UPDATE care_tasks ct
+                  SET 
+                    due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
+                    status = CASE 
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN 'DONE'::task_status_enum
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date = CURRENT_DATE THEN 'IN_PROG'::task_status_enum
+                      ELSE 'PENDING'::task_status_enum
+                    END,
+                    updated_at = NOW()
+                  FROM rentals r
+                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+                  WHERE ct.rental_id = ${rentalId} AND r.rental_id = ${rentalId};
+                `);
+                message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays}`;
               }
 
               const checkSql = `
@@ -5334,7 +5342,7 @@ SELECT json_build_object(
           WHEN ct.notes IS NOT NULL AND ct.notes NOT LIKE '%Thửa ' || p.plot_code THEN ct.notes
           ELSE 'Tuân thủ định mức kỹ thuật VietGAP và hướng dẫn chuyên gia. Kiểm tra độ ẩm đất qua trạm IoT trước khi thực hiện.'
         END AS instructions,
-        TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') AS "completedAt"
+        CASE WHEN ct.status = 'DONE' THEN TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') ELSE NULL END AS "completedAt"
       FROM care_tasks ct
       JOIN rentals rent ON ct.rental_id = rent.rental_id
       JOIN plots p ON rent.plot_id = p.plot_id
