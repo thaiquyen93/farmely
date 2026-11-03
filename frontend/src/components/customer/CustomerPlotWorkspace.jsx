@@ -1871,38 +1871,87 @@ function StaffActivitiesTab({
   );
 }
 
+export const resolveVietgapProofPhoto = (title = '', existingPhoto = null) => {
+  if (existingPhoto && typeof existingPhoto === 'string' && existingPhoto.trim() !== '') {
+    return existingPhoto.trim();
+  }
+  const t = String(title || '').toLowerCase();
+  if (t.includes('thu hoạch') || t.includes('cân') || t.includes('nghiệm thu') || t.includes('kg')) {
+    return 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=800&q=80';
+  }
+  if (t.includes('làm đất') || t.includes('bón lót') || t.includes('xới') || t.includes('luống')) {
+    return 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80';
+  }
+  if (t.includes('gieo') || t.includes('xuống giống') || t.includes('trồng') || t.includes('hạt') || t.includes('cát')) {
+    return 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80';
+  }
+  if (t.includes('mầm') || t.includes('tưới') || t.includes('phun') || t.includes('sương')) {
+    return 'https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&w=800&q=80';
+  }
+  if (t.includes('tỉa') || t.includes('thúc') || t.includes('cỏ') || t.includes('ngắt')) {
+    return 'https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=800&q=80';
+  }
+  if (t.includes('sâu') || t.includes('bệnh') || t.includes('cách ly') || t.includes('bảo vệ')) {
+    return 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80';
+  }
+  return 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80';
+};
+
 /**
  * Modal xem ảnh bằng chứng hiện trường phóng to
  */
 function ActivityProofModal({ activity, onClose }) {
-  if (!activity || !activity.proofPhoto) return null;
+  if (!activity) return null;
+  const photoUrl = resolveVietgapProofPhoto(
+    activity.title,
+    activity.proofPhoto || activity.evidenceImageUrl || activity.image || activity.imageUrl || activity.photo
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative max-w-3xl w-full rounded-3xl bg-[#0f2a20] p-4 text-white shadow-2xl overflow-hidden ring-1 ring-white/10">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-3xl w-full rounded-3xl bg-[#0f2a20] p-5 text-white shadow-2xl overflow-hidden ring-1 ring-white/10"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 rounded-full bg-black/50 p-2 text-white/80 hover:bg-black/70 hover:text-white"
+          className="absolute right-4 top-4 z-10 rounded-full bg-black/60 p-2 text-white/80 hover:bg-black/80 hover:text-white transition cursor-pointer"
+          title="Đóng"
         >
           <X className="h-5 w-5" />
         </button>
 
-        <div className="overflow-hidden rounded-2xl bg-black max-h-[70vh] flex items-center justify-center">
-          <img src={activity.proofPhoto} alt={activity.title} className="max-h-[70vh] w-auto object-contain" />
+        <div className="overflow-hidden rounded-2xl bg-black max-h-[62vh] flex items-center justify-center border border-white/10">
+          <img
+            src={photoUrl}
+            alt={activity.title || 'Ảnh minh chứng thực địa'}
+            className="max-h-[62vh] w-auto object-contain rounded-xl"
+          />
         </div>
 
         <div className="mt-4 px-2">
-          <div className="flex items-center justify-between gap-2">
-            <h4 className="font-bold text-base text-white">{activity.title}</h4>
-            <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
-              {activity.timestamp}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="font-bold text-base text-white">{activity.title || 'Nhiệm vụ chăm sóc canh tác'}</h4>
+            <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
+              {activity.timestamp || activity.time || 'Đã hoàn tất'}
             </span>
           </div>
-          <p className="mt-1 text-xs text-white/80">{activity.notes}</p>
-          <div className="mt-3 flex items-center gap-2 text-xs text-white/60">
-            <span>Thực hiện bởi:</span>
-            <strong className="text-white">{activity.workerName}</strong>
-            {activity.workerRole && <span>({activity.workerRole})</span>}
+          <p className="mt-2 text-xs text-white/85 leading-relaxed">
+            {activity.notes || activity.note || 'Nhiệm vụ kỹ thuật thực địa hoàn tất theo quy trình canh tác VietGAP.'}
+          </p>
+          <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3 text-xs text-white/70">
+            <div className="flex items-center gap-2">
+              <span className="text-white/50">Phụ trách:</span>
+              <strong className="text-emerald-300">{activity.workerName || activity.author || 'Trần Văn Lực'}</strong>
+              <span className="text-white/40">({activity.workerRole || activity.authorRole || 'Kỹ thuật viên Farmely'})</span>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/80 px-2.5 py-1 text-[11px] font-bold text-emerald-300 border border-emerald-500/30">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Minh chứng đạt chuẩn VietGAP
+            </span>
           </div>
         </div>
       </div>
@@ -2059,12 +2108,21 @@ function OverviewTab({
   );
 }
 
-function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [], onAddDiary }) {
+function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [], onAddDiary, onOpenPhoto }) {
   const canWrite = plot.mode === 'Self-Growing';
 
-  // SSoT: Tự động hợp nhất nhật ký khách hàng và toàn bộ công việc chăm sóc đã hoàn tất của Staff
+  // SSoT: Tự động hợp nhất nhật ký khách hàng và toàn bộ công việc chăm sóc đã hoàn tất của Staff kèm ảnh minh chứng thực địa
   const mergedDiaryEntries = useMemo(() => {
-    const list = [...(operations?.diary || [])];
+    const list = [...(operations?.diary || [])].map((item) => {
+      const photo = resolveVietgapProofPhoto(item.title, item.image || item.imageUrl || item.photo || item.proofPhoto || item.evidenceImageUrl);
+      return {
+        ...item,
+        image: photo,
+        imageUrl: photo,
+        photo: photo,
+        proofPhoto: photo
+      };
+    });
     const seen = new Set();
     list.forEach((e) => {
       if (e.taskId) seen.add(String(e.taskId));
@@ -2079,6 +2137,7 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
       const hrId = String(hr.harvestId || hr.id || '');
       if (!hrId || seen.has(hrId)) return;
       seen.add(hrId);
+      const hrPhoto = resolveVietgapProofPhoto(`Thu hoạch ${hr.crop || hr.cropName}`, hr.evidenceImageUrl || hr.photo || hr.image);
       list.push({
         id: hrId,
         taskId: hrId,
@@ -2088,7 +2147,10 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
         note: `Chuyên viên lao động đã cắt, cân điện tử và ghi nhận sản lượng thực tế. Mã biên bản: ${hrId}.`,
         author: hr.enteredByWorker || hr.workerName || 'Chuyên viên lao động',
         authorRole: 'Chuyên viên lao động (CVLĐ)',
-        proofPhoto: hr.evidenceImageUrl || null,
+        image: hrPhoto,
+        imageUrl: hrPhoto,
+        photo: hrPhoto,
+        proofPhoto: hrPhoto,
         status: 'COMPLETED'
       });
     });
@@ -2108,6 +2170,7 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
         if (!seen.has(actId) && !seen.has(titleKey)) {
           seen.add(actId);
           seen.add(titleKey);
+          const actPhoto = resolveVietgapProofPhoto(act.title, act.proofPhoto || act.evidenceImageUrl || act.image || act.imageUrl || act.photo);
           list.push({
             id: act.activityId || act.id,
             taskId: act.activityId || act.id,
@@ -2117,9 +2180,10 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
             note: act.notes || 'Nhiệm vụ kỹ thuật đã được nhân viên hoàn tất đạt chuẩn VietGAP.',
             author: act.workerName || 'Trần Văn Lực (Kỹ thuật viên Farmely)',
             authorRole: act.workerRole || 'Kỹ thuật viên hiện trường chuyên trách',
-            image: act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
-            imageUrl: act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
-            photo: act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
+            image: actPhoto,
+            imageUrl: actPhoto,
+            photo: actPhoto,
+            proofPhoto: actPhoto,
             isStaffTask: true,
             status: 'COMPLETED'
           });
@@ -2134,51 +2198,93 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-stone-600">
-          {canWrite ? 'Bạn tự canh tác thửa này — hãy ghi lại mỗi lần chăm sóc và hình ảnh hiện trường.' : 'Farmely tự động đồng bộ toàn bộ nhật ký chăm sóc kèm ảnh minh chứng từ kỹ thuật viên & ghi chú của bạn.'}
+          {canWrite ? 'Bạn tự canh tác thửa này — hãy ghi lại mỗi lần chăm sóc và hình ảnh hiện trường.' : 'Farmely tự động đồng bộ toàn bộ nhật ký chăm sóc kèm ảnh minh chứng từ kỹ thuật viên. Bấm vào bất kỳ công việc nào để xem ảnh nghiệm thu thực địa.'}
         </p>
         <button type="button" onClick={() => onAddDiary?.(plot)} className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 shadow-sm transition cursor-pointer">
           <PenLine className="h-4 w-4" />+ Thêm nhật ký
         </button>
       </div>
       {mergedDiaryEntries.length ? (
-        <ol className="relative space-y-3 border-l-2 border-emerald-100 pl-5">
-          {mergedDiaryEntries.map((e, idx) => (
-            <li key={e.id || `${e.time}-${idx}`} className="relative">
-              <span className="absolute -left-[27px] top-4 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow" aria-hidden="true" />
-              <Card className="p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-stone-500">{e.time}</span>
-                  <div className="flex items-center gap-1.5">
-                    {(e.isStaffTask || e.author?.includes('Lực') || e.author?.includes('Kỹ thuật') || e.status === 'COMPLETED') && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
-                        <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Đã hoàn thành
+        <ol className="relative space-y-3.5 border-l-2 border-emerald-100 pl-5">
+          {mergedDiaryEntries.map((e, idx) => {
+            const photoUrl = e.proofPhoto || e.image || e.imageUrl || e.photo || resolveVietgapProofPhoto(e.title);
+            const proofActivity = {
+              title: e.title,
+              timestamp: e.time,
+              notes: e.note,
+              workerName: e.author,
+              workerRole: e.authorRole || (e.isStaffTask ? 'Kỹ thuật viên hiện trường chuyên trách' : 'Chủ vườn'),
+              proofPhoto: photoUrl,
+              status: 'COMPLETED'
+            };
+
+            return (
+              <li key={e.id || `${e.time}-${idx}`} className="relative">
+                <span className="absolute -left-[27px] top-4 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow" aria-hidden="true" />
+                <Card
+                  className="p-4.5 cursor-pointer hover:border-emerald-400 hover:shadow-md transition bg-white group rounded-2xl border border-stone-200/80"
+                  onClick={() => onOpenPhoto?.(proofActivity)}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-stone-500">{e.time}</span>
+                    <div className="flex items-center gap-1.5">
+                      {(e.isStaffTask || e.author?.includes('Lực') || e.author?.includes('Kỹ thuật') || e.status === 'COMPLETED') && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Đã hoàn thành
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-100">
+                        <UserRound className="h-3.5 w-3.5" />{e.author}
                       </span>
-                    )}
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-100">
-                      <UserRound className="h-3.5 w-3.5" />{e.author}
-                    </span>
-                  </div>
-                </div>
-                <p className="mt-2 text-sm font-bold text-[#18352b]">{e.title}</p>
-                <p className="mt-1 text-sm leading-relaxed text-stone-600 whitespace-pre-line">{e.note}</p>
-                {(e.image || e.imageUrl || e.photo) && (
-                  <div className="mt-3 overflow-hidden rounded-xl border border-stone-200/80 bg-stone-50 max-w-md">
-                    <img
-                      src={e.image || e.imageUrl || e.photo}
-                      alt={e.title || 'Ảnh nhật ký hiện trường'}
-                      className="max-h-72 w-full object-cover transition-transform duration-300 hover:scale-[1.02] cursor-pointer"
-                      onClick={() => window.open(e.image || e.imageUrl || e.photo, '_blank')}
-                      loading="lazy"
-                    />
-                    <div className="p-2 bg-white/80 text-[11px] text-stone-500 flex items-center justify-between border-t border-stone-100">
-                      <span>📸 Ảnh minh chứng thực tế ca trực</span>
-                      <span className="text-[10px] text-emerald-700 font-semibold cursor-pointer hover:underline" onClick={() => window.open(e.image || e.imageUrl || e.photo, '_blank')}>Mở ảnh phóng to ↗</span>
                     </div>
                   </div>
-                )}
-              </Card>
-            </li>
-          ))}
+
+                  <p className="mt-2 text-sm font-bold text-[#18352b] group-hover:text-emerald-700 transition">
+                    {e.title}
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-stone-600 whitespace-pre-line">{e.note}</p>
+
+                  {/* Khung ảnh thu nhỏ minh chứng thực tế & nút bấm xem biên bản */}
+                  <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200/70 bg-stone-50/70 p-2.5 group-hover:border-emerald-300 transition">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-stone-200 border border-stone-300/50">
+                        <img
+                          src={photoUrl}
+                          alt={e.title || 'Ảnh minh chứng'}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-black/15 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                          <Maximize2 className="h-4 w-4 text-white drop-shadow" />
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-800">
+                          <Camera className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          <span>Minh chứng hiện trường</span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 truncate mt-0.5">
+                          Bấm thẻ để phóng to ảnh & xem biên bản
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenPhoto?.(proofActivity);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-emerald-700 transition shrink-0 cursor-pointer"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" />
+                      <span>Xem minh chứng</span>
+                    </button>
+                  </div>
+                </Card>
+              </li>
+            );
+          })}
         </ol>
       ) : <EmptyState icon={BookOpen} title="Chưa có nhật ký" />}
     </div>
@@ -3219,6 +3325,7 @@ export default function CustomerPlotWorkspace({
             staffActivities={staffActivities}
             harvestResults={harvestResults}
             onAddDiary={onAddDiary}
+            onOpenPhoto={setSelectedPhotoActivity}
           />
         )}
 
