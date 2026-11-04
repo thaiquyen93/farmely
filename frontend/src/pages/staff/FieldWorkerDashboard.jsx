@@ -512,6 +512,14 @@ export default function FieldWorkerDashboard() {
   const [assignedPlots, setAssignedPlots] = useState([]);
   const [selectedPlotCode, setSelectedPlotCode] = useState('P-01');
   const [selectedPlotModalCode, setSelectedPlotModalCode] = useState(null);
+  const [rainSimulatedPlots, setRainSimulatedPlots] = useState({});
+
+  const togglePlotRainSimulation = useCallback((plotCode) => {
+    setRainSimulatedPlots((prev) => ({
+      ...prev,
+      [plotCode]: !prev[plotCode]
+    }));
+  }, []);
 
   const loadPlots = useCallback(() => {
     apiFetch('/api/rentals')
@@ -832,13 +840,16 @@ export default function FieldWorkerDashboard() {
             photo: taskProofPhoto,
             timestamp: Date.now()
           });
-          bc.close();
+          setTimeout(() => {
+            try { bc.close(); } catch {}
+          }, 1500);
         }
       } catch {}
 
       try {
         localStorage.setItem('farmely_task_sync', String(Date.now()));
         localStorage.setItem('farmely_persisted_staff_activities_v2', String(Date.now()));
+        window.dispatchEvent(new CustomEvent('farmely_task_completed', { detail: { taskId: targetTaskId } }));
       } catch {}
 
       // 4. Cập nhật state nội bộ của FieldWorkerDashboard
@@ -2142,37 +2153,92 @@ export default function FieldWorkerDashboard() {
                   </div>
                 </div>
 
-                {/* Dòng 3: 4 Trạm IoT & Chỉ số Vi Khí Hậu Trực Quan (BR18) */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
-                  <div className="p-2 rounded-xl bg-stone-50 border border-stone-200/70 flex items-center gap-2">
-                    <span className="text-base">🌡️</span>
-                    <div>
-                      <span className="text-[10px] text-stone-400 block uppercase font-bold">Nhiệt độ</span>
-                      <strong className="text-stone-800 font-mono">{activePlot.temp || '28.5°C'}</strong>
+                {/* Dòng 3: Nhiệt Độ Thực Địa & Cảnh Báo Khí Tượng/Mưa (BR18) chuẩn như Cus */}
+                {(() => {
+                  const plotCode = activePlot.plotCode || activePlot.key;
+                  const isSimulated = Boolean(rainSimulatedPlots[plotCode]);
+                  const sMoistureNum = parseFloat(String(activePlot.soilMoisture || '0'));
+                  const isRainAlert = isSimulated || sMoistureNum >= 80 || activePlot.isRaining || Boolean(activePlot.rainAlert);
+
+                  return (
+                    <div className="flex flex-col sm:flex-row items-stretch gap-2.5 pt-1 text-xs">
+                      {/* Thẻ 1: Nhiệt độ thực địa duy nhất */}
+                      <div className="p-3 rounded-2xl bg-stone-50/90 border border-stone-200/80 flex items-center gap-3 shrink-0 sm:min-w-[190px]">
+                        <span className="text-2xl leading-none">🌡️</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-stone-500 uppercase font-black tracking-wider">Nhiệt độ</span>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-600" />
+                              Live Feed
+                            </span>
+                          </div>
+                          <div className="flex items-baseline gap-1 mt-0.5">
+                            <strong className="text-lg font-heading font-black text-stone-900 font-mono">{activePlot.temp || '25.6°C'}</strong>
+                            <span className="text-[10px] text-stone-400 font-medium">· Chuẩn 18–32°C</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Thẻ 2: Cảnh báo Thời tiết / Mưa (BR18) như bên Customer */}
+                      {isRainAlert ? (
+                        <div className="flex-1 p-3 rounded-2xl bg-amber-50 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-amber-950">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <span className="text-2xl leading-none shrink-0 mt-0.5">🌧️</span>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <strong className="font-heading font-bold text-amber-950 text-xs">
+                                  Cảnh báo thời tiết: Mưa lớn &amp; Đất bão hoà ẩm
+                                </strong>
+                                <span className="rounded-md bg-amber-200/90 px-1.5 py-0.5 text-[9px] font-black text-amber-900 uppercase tracking-wide">
+                                  Tự động hoãn tưới (BR18)
+                                </span>
+                              </div>
+                              <p className="mt-1 text-[11px] text-amber-800 leading-relaxed">
+                                Độ ẩm đất thực tế từ trạm là <strong className="font-mono font-bold text-amber-950">{isSimulated ? '84.5%' : (activePlot.soilMoisture || '82%')}</strong> (≥ 80%). Hệ thống đã tự động tạm hoãn các ca tưới hôm nay để tránh úng rễ cây.
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => togglePlotRainSimulation(plotCode)}
+                            className="shrink-0 self-start sm:self-center px-2 py-1 rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-900 text-[10px] font-bold transition cursor-pointer"
+                            title="Chuyển về trạng thái thời tiết bình thường"
+                          >
+                            Tắt cảnh báo
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex-1 p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-emerald-950">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <span className="text-2xl leading-none shrink-0 mt-0.5">🌤️</span>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <strong className="font-heading font-bold text-emerald-950 text-xs">
+                                  Khí tượng thực địa: Trời râm mát, không mưa
+                                </strong>
+                                <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black text-emerald-800 uppercase tracking-wide">
+                                  Đủ điều kiện chăm sóc
+                                </span>
+                              </div>
+                              <p className="mt-1 text-[11px] text-emerald-800 leading-relaxed">
+                                Không có mưa rào · Độ ẩm đất ổn định <strong className="font-mono font-bold text-emerald-950">{activePlot.soilMoisture || '71%'}</strong> (chuẩn 65–75%). Điều kiện lý tưởng cho các ca tưới và chăm sóc theo quy trình VietGAP.
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => togglePlotRainSimulation(plotCode)}
+                            className="shrink-0 self-start sm:self-center px-2 py-1 rounded-lg bg-white/80 hover:bg-white text-stone-600 hover:text-emerald-800 text-[10px] font-semibold border border-stone-200/80 shadow-2xs transition cursor-pointer"
+                            title="Thử nghiệm kích hoạt cảnh báo mưa lớn tự động hoãn tưới theo BR18 để demo"
+                          >
+                            ⚡ Test mưa BR18
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-stone-50 border border-stone-200/70 flex items-center gap-2">
-                    <span className="text-base">💧</span>
-                    <div>
-                      <span className="text-[10px] text-stone-400 block uppercase font-bold">Ẩm độ đất</span>
-                      <strong className="text-emerald-800 font-mono">{activePlot.soilMoisture || '68%'}</strong>
-                    </div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-stone-50 border border-stone-200/70 flex items-center gap-2">
-                    <span className="text-base">🧪</span>
-                    <div>
-                      <span className="text-[10px] text-stone-400 block uppercase font-bold">Độ pH đất</span>
-                      <strong className="text-stone-800 font-mono">{activePlot.ph ? `pH ${activePlot.ph}` : 'pH 6.5'}</strong>
-                    </div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-stone-50 border border-stone-200/70 flex items-center gap-2">
-                    <span className="text-base">📦</span>
-                    <div>
-                      <span className="text-[10px] text-stone-400 block uppercase font-bold">Dự kiến thu</span>
-                      <strong className="text-stone-800 font-mono">{formatDateVN(activePlot.expectedHarvestDate) || '—'}</strong>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
 
               {/* 4 SUB-TABS NAVIGATION: CÔNG VIỆC, IOT, YÊU CẦU DỊCH VỤ, THU HOẠCH */}

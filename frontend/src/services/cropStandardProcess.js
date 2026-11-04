@@ -1173,7 +1173,9 @@ export function saveStaffActivities(activities) {
     if (typeof window !== 'undefined' && window.BroadcastChannel) {
       const bc = new BroadcastChannel('farmely_staff_activity_channel');
       bc.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
-      bc.close();
+      setTimeout(() => {
+        try { bc.close(); } catch {}
+      }, 1500);
     }
   } catch (e) {
     console.warn('[StaffActivities] Không thể ghi vào localStorage:', e);

@@ -1627,6 +1627,50 @@ export default function CustomerDashboard() {
     }
   }, [customerPlots.length]);
 
+  // Đồng bộ thời gian thực từ Staff Dashboard khi nhân viên hoàn thành task hoặc báo cáo sự cố
+  useEffect(() => {
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_staff_activity_channel');
+        bc.onmessage = () => {
+          loadOperationsFromDb();
+        };
+      }
+    } catch {}
+
+    const onStorageSync = (e) => {
+      if (
+        e.key === 'farmely_task_sync' ||
+        e.key === 'farmely_persisted_staff_activities_v2' ||
+        e.key === 'farmely_customer_service_orders'
+      ) {
+        loadOperationsFromDb();
+      }
+    };
+    const onFocusOrVisible = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        loadOperationsFromDb();
+      }
+    };
+    const onTaskCompleted = () => {
+      loadOperationsFromDb();
+    };
+
+    window.addEventListener('storage', onStorageSync);
+    window.addEventListener('farmely_task_completed', onTaskCompleted);
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
+
+    return () => {
+      window.removeEventListener('storage', onStorageSync);
+      window.removeEventListener('farmely_task_completed', onTaskCompleted);
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
+      if (bc) bc.close();
+    };
+  }, []);
+
   // Load Cultivation Processes and Harvest Acceptance from PostgreSQL
   const [dbCultivationProcesses, setDbCultivationProcesses] = useState({});
   const [dbHarvestResults, setDbHarvestResults] = useState([]);

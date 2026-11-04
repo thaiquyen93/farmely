@@ -5132,8 +5132,9 @@ END $$;
                 `);
                 await runPostgreSql(`UPDATE plots SET status = 'RENT' WHERE plot_id = ${rental.plot_id};`);
                 
-                // Xóa sạch biên bản thu hoạch cũ khi bắt đầu mới hoặc reset về Ngày 1
+                // Xóa sạch biên bản thu hoạch và các bài nhật ký tự sinh khi reset về Ngày 1
                 await runPostgreSql(`DELETE FROM harvest_results WHERE rental_id = ${rentalId};`);
+                await runPostgreSql(`DELETE FROM farm_diaries WHERE rental_id = ${rentalId};`);
 
                 // Reset toàn bộ care_tasks về PENDING (chỉ Ngày 1 là IN_PROG), xóa sạch ảnh minh chứng & thời gian hoàn thành cũ
                 await runPostgreSql(`
@@ -5142,7 +5143,6 @@ END $$;
                     due_date = (CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
                     status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
                     evidence_image_url = NULL,
-                    completed_at = NULL,
                     updated_at = NOW()
                   FROM template_steps ts
                   WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = ${rentalId};
@@ -5153,7 +5153,6 @@ END $$;
                   SET 
                     status = 'PENDING'::task_status_enum,
                     evidence_image_url = NULL,
-                    completed_at = NULL,
                     updated_at = NOW()
                   WHERE rental_id = ${rentalId} AND (step_id IS NULL OR step_id NOT IN (SELECT step_id FROM template_steps WHERE day_offset = 0));
                 `);
@@ -5168,7 +5167,7 @@ END $$;
                   WHERE rental_id = ${rentalId};
                 `);
                 await runPostgreSql(`
-                  UPDATE care_tasks ct
+                  UPDATE care_tasks
                   SET 
                     due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
                     status = CASE 
@@ -5176,11 +5175,37 @@ END $$;
                       WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date = CURRENT_DATE THEN 'IN_PROG'::task_status_enum
                       ELSE 'PENDING'::task_status_enum
                     END,
+                    evidence_image_url = CASE 
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
+                      ELSE NULL
+                    END,
                     updated_at = NOW()
-                  FROM rentals r
-                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
-                  WHERE ct.rental_id = ${rentalId} AND r.rental_id = ${rentalId};
+                  FROM template_steps ts, rentals r
+                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
                 `);
+
+                // Đồng bộ farm_diaries
+                await runPostgreSql(`
+                  DELETE FROM farm_diaries 
+                  WHERE rental_id = ${rentalId} 
+                    AND task_id IN (SELECT task_id FROM care_tasks WHERE rental_id = ${rentalId} AND status != 'DONE');
+                `);
+                await runPostgreSql(`
+                  INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
+                  SELECT 
+                    ct.rental_id,
+                    ct.task_id,
+                    COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
+                    COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
+                    COALESCE(ct.step_order, ts.step_order, 1),
+                    ct.evidence_image_url,
+                    NOW()
+                  FROM care_tasks ct
+                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+                  WHERE ct.rental_id = ${rentalId} AND ct.status = 'DONE'
+                    AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.task_id = ct.task_id);
+                `);
+
                 message = `Đã tua nhanh +${days} ngày canh tác cho thửa ${rental.plot_code}`;
               } else if (action === 'HARVEST') {
                 const offset = totalDays - 1;
@@ -5201,13 +5226,36 @@ END $$;
                       ELSE 'DONE'::task_status_enum
                     END,
                     evidence_image_url = CASE 
-                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN care_tasks.evidence_image_url
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN NULL
                       ELSE COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
                     END,
                     updated_at = NOW()
                   FROM template_steps ts, rentals r
                   WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
                 `);
+
+                // Đồng bộ farm_diaries
+                await runPostgreSql(`
+                  DELETE FROM farm_diaries 
+                  WHERE rental_id = ${rentalId} 
+                    AND task_id IN (SELECT task_id FROM care_tasks WHERE rental_id = ${rentalId} AND status != 'DONE');
+                `);
+                await runPostgreSql(`
+                  INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
+                  SELECT 
+                    ct.rental_id,
+                    ct.task_id,
+                    COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
+                    COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
+                    COALESCE(ct.step_order, ts.step_order, 1),
+                    ct.evidence_image_url,
+                    NOW()
+                  FROM care_tasks ct
+                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+                  WHERE ct.rental_id = ${rentalId} AND ct.status = 'DONE'
+                    AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.task_id = ct.task_id);
+                `);
+
                 message = `Đã giả lập thửa ${rental.plot_code} đến ngày thu hoạch (Ngày ${totalDays}/${totalDays})! Nhiệm vụ thu hoạch đã sẵn sàng cho CVLĐ và Khách hàng.`;
               } else if (action === 'SET_DAY') {
                 const day = Math.max(1, Number(payload.day !== undefined ? payload.day : payload.days) || 1);
@@ -5234,12 +5282,35 @@ END $$;
                     END,
                     evidence_image_url = CASE 
                       WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
-                      ELSE care_tasks.evidence_image_url
+                      ELSE NULL
                     END,
                     updated_at = NOW()
                   FROM template_steps ts, rentals r
                   WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
                 `);
+
+                // Đồng bộ farm_diaries
+                await runPostgreSql(`
+                  DELETE FROM farm_diaries 
+                  WHERE rental_id = ${rentalId} 
+                    AND task_id IN (SELECT task_id FROM care_tasks WHERE rental_id = ${rentalId} AND status != 'DONE');
+                `);
+                await runPostgreSql(`
+                  INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
+                  SELECT 
+                    ct.rental_id,
+                    ct.task_id,
+                    COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
+                    COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
+                    COALESCE(ct.step_order, ts.step_order, 1),
+                    ct.evidence_image_url,
+                    NOW()
+                  FROM care_tasks ct
+                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+                  WHERE ct.rental_id = ${rentalId} AND ct.status = 'DONE'
+                    AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.task_id = ct.task_id);
+                `);
+
                 message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays}`;
               }
 
@@ -5353,8 +5424,7 @@ SELECT json_build_object(
         TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS date,
         COALESCE(ts.day_offset, 0) AS "dayOffset",
         CASE
-          WHEN ts.day_offset IS NOT NULL AND ts.day_offset > 0 THEN ts.day_offset
-          WHEN ts.day_offset = 0 THEN 1
+          WHEN ts.day_offset IS NOT NULL THEN ts.day_offset + 1
           WHEN rent.start_date IS NOT NULL AND ct.due_date IS NOT NULL THEN GREATEST(1, DATE(ct.due_date) - DATE(rent.start_date) + 1)
           ELSE 1
         END AS "cropDay",

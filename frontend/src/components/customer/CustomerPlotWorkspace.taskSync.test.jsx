@@ -148,4 +148,98 @@ describe('CustomerPlotWorkspace Day 1 Tasks & Date Sync', () => {
     // Should NOT contain the staff routine task
     expect(host.textContent).not.toContain('Nhiệm vụ chăm sóc hiện trường');
   });
+
+  it('phải phân loại task có status COMPLETED hoặc DONE vào nhóm Đã xong và hiển thị badge Đã hoàn tất', async () => {
+    const mockPlot = {
+      id: 'PLOT-P-14',
+      plotCode: 'P-14',
+      rentalId: 28,
+      name: 'Thửa P-14',
+      crop: 'Rau dền đỏ F1',
+      mode: 'Assisted-growing',
+      cultivationMode: 'ASSISTED',
+      currentDay: 2,
+      totalDays: 35
+    };
+
+    const mockTasks = [
+      {
+        taskId: 52,
+        id: 'TSK-52',
+        rentalId: 28,
+        plotCode: 'P-14',
+        title: 'Làm đất mịn & Bón lót',
+        cropDay: 1,
+        day: 1,
+        status: 'COMPLETED',
+        proofPhoto: 'https://images.unsplash.com/photo-test',
+        evidenceImageUrl: 'https://images.unsplash.com/photo-test',
+        completedAt: '08:30 - 03/11/2026',
+        workerName: 'Trần Văn Lực'
+      },
+      {
+        taskId: 53,
+        id: 'TSK-53',
+        rentalId: 28,
+        plotCode: 'P-14',
+        title: 'Gieo hạt dền đỏ',
+        cropDay: 2,
+        day: 2,
+        status: 'IN_PROGRESS',
+        proofPhoto: null,
+        workerName: 'Trần Văn Lực'
+      }
+    ];
+
+    vi.spyOn(global, 'fetch').mockImplementation((url) => {
+      if (String(url).includes('/api/tasks')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, data: mockTasks })
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ data: [] })
+      });
+    });
+
+    await act(async () => {
+      root.render(
+        <BrowserRouter>
+          <CustomerPlotWorkspace
+            plot={mockPlot}
+            plots={[mockPlot]}
+            operations={{ tasks: [], diary: [] }}
+            stages={[]}
+          />
+        </BrowserRouter>
+      );
+    });
+
+    // Chuyển sang tab Công việc & Nhật ký
+    const tasksTabBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent.includes('Công việc & Nhật ký')
+    );
+    expect(tasksTabBtn).toBeTruthy();
+
+    await act(async () => {
+      tasksTabBtn.click();
+    });
+
+    // 1. Task TSK-52 đã COMPLETED -> phải có trong danh sách và hiển thị nhãn "Đã hoàn tất"
+    expect(host.textContent).toContain('Làm đất mịn & Bón lót');
+    expect(host.textContent).toContain('Đã hoàn tất');
+
+    // 2. Task TSK-53 đang IN_PROGRESS -> phải hiển thị nhãn "Đang thực hiện"
+    expect(host.textContent).toContain('Gieo hạt dền đỏ');
+    expect(host.textContent).toContain('Đang thực hiện');
+
+    // 3. Số lượng hiển thị: Đã xong ít nhất 1, Hôm nay 1
+    const doneTab = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent.includes('Đã xong & Nhật ký')
+    );
+    expect(doneTab).toBeTruthy();
+    expect(doneTab.textContent).toContain('(1)');
+  });
 });
