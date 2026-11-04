@@ -1409,7 +1409,7 @@ export default function CustomerDashboard() {
               targetKeys.add(cleanCode);
             }
             if (matchingPlot) {
-              const isPlotSelf = matchingPlot.mode === 'Self-Growing' || matchingPlot.cultivationMode === 'SELF' || matchingPlot.service_type === 'SELF';
+              const isPlotSelf = matchingPlot.mode === 'Self-Growing' || matchingPlot.cultivationMode === 'SELF' || matchingPlot.service_type === 'SELF' || matchingPlot.cultivation_mode === 'SELF';
               if (isPlotSelf && !t.serviceRequestId) {
                 return;
               }
@@ -1422,13 +1422,36 @@ export default function CustomerDashboard() {
               }
             }
 
-            const resolvedTaskDay = (t.cropDay !== undefined && t.cropDay !== null)
+            let resolvedTaskDay = (t.cropDay !== undefined && t.cropDay !== null)
               ? Math.max(1, Number(t.cropDay))
               : (t.dayOffset !== undefined && t.dayOffset !== null)
               ? (Number(t.dayOffset) === 0 ? 1 : Math.max(1, Number(t.dayOffset)))
               : (t.day !== undefined && t.day !== null)
               ? Math.max(1, Number(t.day))
               : null;
+
+            if (!resolvedTaskDay && matchingPlot?.startDate) {
+              const rawDate = t.dueDate || t.completedAt || t.date;
+              if (rawDate) {
+                try {
+                  const d0 = new Date(matchingPlot.startDate);
+                  d0.setHours(0, 0, 0, 0);
+                  let d1 = null;
+                  const dmy = String(rawDate).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                  if (dmy) {
+                    d1 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+                  } else {
+                    const parsed = new Date(rawDate);
+                    if (!isNaN(parsed.getTime())) d1 = parsed;
+                  }
+                  if (d1 && !isNaN(d1.getTime())) {
+                    d1.setHours(0, 0, 0, 0);
+                    const diff = Math.round((d1.getTime() - d0.getTime()) / 86400000) + 1;
+                    if (diff >= 1) resolvedTaskDay = diff;
+                  }
+                } catch {}
+              }
+            }
 
             let taskDisplayDate = '';
             if (t.dueDate) {
@@ -1523,8 +1546,8 @@ export default function CustomerDashboard() {
               targetKeys.add(rawPlotCode);
             }
             if (matchingPlot) {
-              const isPlotSelf = matchingPlot.mode === 'Self-Growing' || matchingPlot.cultivationMode === 'SELF' || matchingPlot.service_type === 'SELF';
-              if (isPlotSelf && d.title === 'Nhiệm vụ chăm sóc hiện trường') {
+              const isPlotSelf = matchingPlot.mode === 'Self-Growing' || matchingPlot.cultivationMode === 'SELF' || matchingPlot.service_type === 'SELF' || matchingPlot.cultivation_mode === 'SELF';
+              if (isPlotSelf && (d.title === 'Nhiệm vụ chăm sóc hiện trường' || d.isStaffTask)) {
                 return;
               }
               targetKeys.add(matchingPlot.id);
@@ -1534,13 +1557,36 @@ export default function CustomerDashboard() {
               }
             }
 
-            const resolvedDiaryDay = (d.cropDay !== undefined && d.cropDay !== null)
+            let resolvedDiaryDay = (d.cropDay !== undefined && d.cropDay !== null)
               ? Math.max(1, Number(d.cropDay))
               : (d.dayOffset !== undefined && d.dayOffset !== null)
               ? (Number(d.dayOffset) === 0 ? 1 : Math.max(1, Number(d.dayOffset)))
               : (d.day !== undefined && d.day !== null)
               ? Math.max(1, Number(d.day))
               : null;
+
+            if (!resolvedDiaryDay && matchingPlot?.startDate) {
+              const rawDate = d.date || d.createdAt || d.time;
+              if (rawDate) {
+                try {
+                  const d0 = new Date(matchingPlot.startDate);
+                  d0.setHours(0, 0, 0, 0);
+                  let d1 = null;
+                  const dmy = String(rawDate).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                  if (dmy) {
+                    d1 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+                  } else {
+                    const parsed = new Date(rawDate);
+                    if (!isNaN(parsed.getTime())) d1 = parsed;
+                  }
+                  if (d1 && !isNaN(d1.getTime())) {
+                    d1.setHours(0, 0, 0, 0);
+                    const diff = Math.round((d1.getTime() - d0.getTime()) / 86400000) + 1;
+                    if (diff >= 1) resolvedDiaryDay = diff;
+                  }
+                } catch {}
+              }
+            }
 
             const formattedDiary = {
               id: d.id,

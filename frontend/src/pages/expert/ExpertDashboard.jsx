@@ -568,7 +568,28 @@ export default function ExpertDashboard() {
 
     // 1. Process tasks from backend /api/tasks
     matchedTasks.forEach((t) => {
-      const taskDay = t.cropDay || t.dayOffset || (t.dueDate && plot.startDate ? Math.max(1, Math.floor((new Date(t.dueDate) - new Date(plot.startDate)) / 86400000) + 1) : 1);
+      const rawDate = t.dueDate || t.completedAt || t.date;
+      let calculatedDay = null;
+      if (rawDate && plot.startDate) {
+        try {
+          const d0 = new Date(plot.startDate);
+          d0.setHours(0, 0, 0, 0);
+          let d1 = null;
+          const dmy = String(rawDate).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+          if (dmy) {
+            d1 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+          } else {
+            const parsed = new Date(rawDate);
+            if (!isNaN(parsed.getTime())) d1 = parsed;
+          }
+          if (d1 && !isNaN(d1.getTime()) && !isNaN(d0.getTime())) {
+            d1.setHours(0, 0, 0, 0);
+            const diff = Math.round((d1.getTime() - d0.getTime()) / 86400000) + 1;
+            if (diff >= 1) calculatedDay = diff;
+          }
+        } catch {}
+      }
+      const taskDay = t.cropDay || t.dayOffset || calculatedDay || 1;
       const isDone = t.status === 'COMPLETED' || t.status === 'DONE';
       const isProg = t.status === 'IN_PROGRESS' || t.status === 'IN_PROG';
       const titleKey = (t.title || '').trim().toLowerCase();

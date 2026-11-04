@@ -197,6 +197,53 @@ function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo })
 }
 
 /**
+ * Hàm chuẩn hóa ngày tuổi của một mục nhật ký hoặc hoạt động
+ */
+export function calculateEntryCropDay(entry, startDate, currentCropDay = 1, totalDays = 60) {
+  if (!entry) return null;
+  if (entry.cropDay !== undefined && entry.cropDay !== null) return Number(entry.cropDay);
+  if (entry.day !== undefined && entry.day !== null) return Number(entry.day);
+  if (entry.dayOffset !== undefined && entry.dayOffset !== null) return Math.max(1, Number(entry.dayOffset));
+
+  const rawDateStr = entry.date || entry.createdAt || entry.created_at || entry.dueDate || entry.completedAt || entry.timestamp || entry.time;
+  if (rawDateStr && startDate) {
+    try {
+      let d1 = null;
+      const dmy = String(rawDateStr).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (dmy) {
+        d1 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+      } else {
+        const ymd = String(rawDateStr).match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (ymd) {
+          d1 = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+        } else {
+          const parsed = new Date(rawDateStr);
+          if (!isNaN(parsed.getTime())) d1 = parsed;
+        }
+      }
+      if (d1 && !isNaN(d1.getTime())) {
+        const d0 = new Date(startDate);
+        d0.setHours(0, 0, 0, 0);
+        d1.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((d1.getTime() - d0.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        if (diffDays >= 1 && diffDays <= totalDays) return diffDays;
+        if (diffDays <= 0) return 1;
+      }
+    } catch { }
+  }
+
+  const timeStr = String(entry.time || '') + ' ' + String(entry.dateFormatted || '');
+  if (timeStr.includes('Hôm nay')) {
+    return currentCropDay;
+  }
+  if (timeStr.includes('Hôm qua')) {
+    return Math.max(1, currentCropDay - 1);
+  }
+
+  return null;
+}
+
+/**
  * Timeline trực quan Quy trình chuẩn từng giai đoạn tính theo ngày & Nhật ký đồng bộ
  */
 function StandardProcessTimeline({
@@ -233,31 +280,7 @@ function StandardProcessTimeline({
 
   // Hàm chuẩn hóa ngày tuổi của một mục nhật ký hoặc hoạt động
   const getEntryCropDay = useCallback((entry) => {
-    if (entry.cropDay !== undefined && entry.cropDay !== null) return Number(entry.cropDay);
-    if (entry.day !== undefined && entry.day !== null) return Number(entry.day);
-    if (entry.dayOffset !== undefined && entry.dayOffset !== null) return Math.max(1, Number(entry.dayOffset));
-
-    // Nếu có ngày thực tế so với startDate của thửa đất
-    const dateStr = entry.date || entry.createdAt || entry.created_at;
-    if (dateStr && plot?.startDate) {
-      try {
-        const d1 = new Date(dateStr);
-        const d0 = new Date(plot.startDate);
-        const diffDays = Math.floor((d1.getTime() - d0.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        if (diffDays >= 1 && diffDays <= totalDays) return diffDays;
-        if (diffDays <= 0) return 1;
-      } catch { }
-    }
-
-    const timeStr = String(entry.time || '') + ' ' + String(entry.dateFormatted || '');
-    if (timeStr.includes('Hôm nay')) {
-      return currentCropDay;
-    }
-    if (timeStr.includes('Hôm qua')) {
-      return Math.max(1, currentCropDay - 1);
-    }
-
-    return null;
+    return calculateEntryCropDay(entry, plot?.startDate, currentCropDay, totalDays);
   }, [plot?.startDate, currentCropDay, totalDays]);
 
   // Gom nhóm nhật ký theo ngày
@@ -311,6 +334,8 @@ function StandardProcessTimeline({
           syncedStatus = 'COMPLETED';
         } else if (currentCropDay > d && !isHarvestAct) {
           syncedStatus = 'COMPLETED';
+        } else if (currentCropDay <= 1 && d === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom) {
+          syncedStatus = !cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING';
         }
 
         map[d].push({
@@ -1376,6 +1401,18 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
   const isInProg = activity.status === 'IN_PROGRESS';
   const isToday = activity.isToday;
 
+  const displayTimestamp = useMemo(() => {
+    const raw = String(activity.timestamp || '');
+    const reversedMatch = raw.match(/^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}\/\d{1,2}\/\d{4})$/);
+    if (reversedMatch) {
+      return `${reversedMatch[2]} • ${reversedMatch[1]}`;
+    }
+    return raw;
+  }, [activity.timestamp]);
+
+  const resolvedCropDay = activity.cropDay || activity.day;
+  const isTaskItem = !activity.isDiaryEntry && !activity.isHarvest;
+
   return (
     <div className={`group relative flex flex-col sm:flex-row items-start gap-4 rounded-2xl border transition hover:shadow-md ${isDone
         ? 'border-emerald-200/90 bg-emerald-50/20'
@@ -1383,8 +1420,8 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
           ? 'border-2 border-amber-300 bg-gradient-to-r from-amber-50/40 via-white to-amber-50/20 shadow-xs hover:border-emerald-500'
           : 'border-stone-200/90 bg-stone-50/40 hover:bg-white hover:border-stone-300'
       } p-4 shadow-sm`}>
-      {/* Cột trái: Nút Checkbox (cho Tự canh tác) HOẶC Ảnh minh chứng (cho Staff) */}
-      {isSelf ? (
+      {/* Cột trái: Nút Checkbox (cho Tự canh tác) HOẶC Ảnh minh chứng (cho Staff / Dịch vụ) */}
+      {(isSelf && isTaskItem && !activity.serviceRequestId && (!activity.workerName || activity.workerName.includes('Chủ vườn'))) ? (
         <button
           type="button"
           onClick={() => onToggleTask?.(activity.activityId || activity.id)}
@@ -1418,9 +1455,10 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
           </span>
         </div>
       ) : (
-        <div className={`flex h-20 w-full sm:h-24 sm:w-28 shrink-0 items-center justify-center rounded-xl ${isToday ? 'bg-amber-100/70 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-          }`}>
-          {isToday ? <Flame className="h-8 w-8 animate-pulse text-amber-600" /> : <CalendarCheck className="h-8 w-8 opacity-60" />}
+        <div className={`flex h-20 w-full sm:h-24 sm:w-28 shrink-0 items-center justify-center rounded-xl ${
+          activity.isDiaryEntry ? 'bg-emerald-100/70 text-emerald-800' : isToday ? 'bg-amber-100/70 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+        }`}>
+          {activity.isDiaryEntry ? <span className="text-2xl">📖</span> : isToday ? <Flame className="h-8 w-8 animate-pulse text-amber-600" /> : <CalendarCheck className="h-8 w-8 opacity-60" />}
         </div>
       )}
 
@@ -1439,24 +1477,24 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
               {isDone ? <Check className="h-3.5 w-3.5" /> : isToday ? <Flame className="h-3.5 w-3.5 text-amber-600" /> : <Clock className="h-3.5 w-3.5" />}
               {isDone ? 'Đã hoàn tất' : isInProg ? 'Đang thực hiện' : isToday ? 'Cần làm hôm nay' : 'Kế hoạch sắp tới'}
             </span>
-            <span className="text-xs text-stone-500 font-medium">{activity.timestamp}</span>
+            <span className="text-xs text-stone-500 font-medium">{displayTimestamp}</span>
           </div>
 
           {activity.actionTypeName ? (
             <span className="rounded-md bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600">
               {activity.actionTypeName}
             </span>
-          ) : activity.cropDay ? (
+          ) : resolvedCropDay ? (
             <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold border ${isToday
                 ? 'bg-amber-100 text-amber-900 border-amber-200'
                 : 'bg-emerald-50 text-emerald-800 border-emerald-100'
               }`}>
-              Ngày tuổi {activity.cropDay}
+              Ngày tuổi {resolvedCropDay}
             </span>
           ) : null}
         </div>
 
-        <h4 className={`mt-1.5 text-sm font-bold transition ${isDone && isSelf ? 'text-stone-400 line-through' : 'text-[#18352b] group-hover:text-emerald-800'
+        <h4 className={`mt-1.5 text-sm font-bold transition ${isDone && isSelf && isTaskItem ? 'text-stone-400 line-through' : 'text-[#18352b] group-hover:text-emerald-800'
           }`}>
           {activity.title}
         </h4>
@@ -1467,13 +1505,23 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
           </p>
         )}
 
-        {/* Thông tin người phụ trách: ẨN HOÀN TOÀN TÊN NHÂN VIÊN KHI LÀ TỰ CANH TÁC (Requirement #3) */}
-        {isSelf ? (
+        {/* Thông tin người phụ trách */}
+        {isSelf && !activity.serviceRequestId && !activity.isStaffTask ? (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 pt-2 text-xs">
             <div className="flex items-center gap-1.5 text-stone-500">
-              <Sprout className="h-3.5 w-3.5 text-emerald-600" />
-              <span className="font-semibold text-stone-700">Chủ vườn tự thực hiện</span>
-              <span className="text-stone-400">· Quy trình VietGAP</span>
+              {activity.isDiaryEntry ? (
+                <>
+                  <span className="text-base leading-none">📖</span>
+                  <span className="font-semibold text-stone-700">{activity.workerName || 'Chủ vườn'}</span>
+                  <span className="text-stone-400">· Nhật ký canh tác</span>
+                </>
+              ) : (
+                <>
+                  <Sprout className="h-3.5 w-3.5 text-emerald-600" />
+                  <span className="font-semibold text-stone-700">Chủ vườn tự thực hiện</span>
+                  <span className="text-stone-400">· Quy trình VietGAP</span>
+                </>
+              )}
             </div>
             {activity.isCustom && onDeleteTask && (
               <button
@@ -1504,8 +1552,13 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
                   {activity.workerName?.charAt(0) || 'S'}
                 </span>
               )}
-              <span className="font-semibold text-stone-800">{activity.workerName}</span>
+              <span className="font-semibold text-stone-800">{activity.workerName || 'Nhân viên kỹ thuật'}</span>
               {activity.workerRole && <span className="text-[11px] text-stone-400">({activity.workerRole})</span>}
+              {activity.serviceRequestId && (
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
+                  Dịch vụ theo yêu cầu
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -1639,7 +1692,7 @@ function StaffActivitiesTab({
         </div>
 
         {/* Nút lọc trạng thái & Nút thêm công việc (cho Tự canh tác) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar pr-3">
           <div className="flex items-center gap-1.5">
             {[
               { id: 'ALL', label: `Tất cả (${counts.all})` },
@@ -2749,6 +2802,7 @@ export default function CustomerPlotWorkspace({
   // Quản lý công việc hằng ngày cho khách hàng tự canh tác (Requirement #3)
   const defaultSelfTasks = useMemo(() => {
     // Ngày 1 (Bắt đầu mùa vụ): Đúng 2 công việc chuẩn mực, tinh gọn, không spam
+    // ponytail: Chỉ tự động COMPLETED khi ngày hiện tại ĐÃ QUA ngày của task (> taskDay)
     const tasks = [
       {
         id: `SELF-${plot.id}-D1-PREP`,
@@ -2758,7 +2812,7 @@ export default function CustomerPlotWorkspace({
         cropDay: 1,
         date: 'Ngày 1',
         timestamp: 'Ngày 1 • Ca sáng (07:30 - 09:00)',
-        status: !cropProcess.isNotStarted && 1 <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+        status: !cropProcess.isNotStarted && 1 < (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
         notes: 'Xới xáo đất tơi xốp sâu 20cm, bón lót phân trùn quế và phun nấm đối kháng Trichoderma cân bằng hệ vi sinh đất.',
         stepOrder: 1,
         isCustom: false
@@ -2771,7 +2825,7 @@ export default function CustomerPlotWorkspace({
         cropDay: 1,
         date: 'Ngày 1',
         timestamp: 'Ngày 1 • Ca chiều (16:00 - 17:30)',
-        status: !cropProcess.isNotStarted && 1 <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+        status: !cropProcess.isNotStarted && 1 < (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
         notes: 'Duy trì ẩm độ luống đất ổn định trước khi xuống cây giống theo mật độ khuyến nghị.',
         stepOrder: 1,
         isCustom: false
@@ -2796,7 +2850,7 @@ export default function CustomerPlotWorkspace({
             cropDay: st.dayStart,
             date: st.label || `Ngày ${st.dayStart}`,
             timestamp: `Ngày ${st.dayStart} • Ca sáng (07:30 - 09:00)`,
-            status: !cropProcess.isNotStarted && st.dayStart <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+            status: !cropProcess.isNotStarted && st.dayStart < (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
             notes: notesText,
             stepOrder: st.stepOrder || idx + 1,
             isCustom: false
@@ -2827,6 +2881,10 @@ export default function CustomerPlotWorkspace({
         if (Array.isArray(parsed) && parsed.length > 0) {
           const day1Tasks = parsed.filter(t => t.day === 1);
           if (day1Tasks.length <= 2 && new Set(day1Tasks.map(t => t.title)).size === day1Tasks.length) {
+            // Nếu đang ở Ngày 1 mà tất cả task Ngày 1 bị dính trạng thái COMPLETED cũ thì khôi phục về PENDING
+            if ((cropProcess.currentDay || 1) <= 1 && day1Tasks.length > 0 && day1Tasks.every(t => t.status === 'COMPLETED' && !t.proofPhoto && !t.isCustom)) {
+              return defaultSelfTasks;
+            }
             return parsed;
           }
         }
@@ -2846,6 +2904,9 @@ export default function CustomerPlotWorkspace({
           if (day1Tasks.length > 2 || new Set(day1Tasks.map(t => t.title)).size < day1Tasks.length) {
             shouldReset = true;
           }
+          if ((cropProcess.currentDay || 1) <= 1 && day1Tasks.length > 0 && day1Tasks.every(t => t.status === 'COMPLETED' && !t.proofPhoto && !t.isCustom)) {
+            shouldReset = true;
+          }
         }
         if (shouldReset) {
           setSelfTasks(defaultSelfTasks);
@@ -2854,7 +2915,7 @@ export default function CustomerPlotWorkspace({
         }
       } catch { }
     }
-  }, [isSelf, taskStorageKey, defaultSelfTasks, plot.id]);
+  }, [isSelf, taskStorageKey, defaultSelfTasks, plot.id, cropProcess.currentDay]);
 
   const handleToggleSelfTask = useCallback((taskId) => {
     setSelfTasks((prev) => {
@@ -2948,12 +3009,24 @@ export default function CustomerPlotWorkspace({
                   taskDay = Number(m.dayOffset) === 0 ? 1 : Math.max(1, Number(m.dayOffset));
                 } else if (m.day !== undefined && m.day !== null) {
                   taskDay = Math.max(1, Number(m.day));
-                } else if (m.dueDate && plot?.startDate) {
+                } else if ((m.dueDate || m.completedAt || m.date) && plot?.startDate) {
                   try {
-                    const d1 = new Date(m.dueDate);
+                    const rawDate = m.dueDate || m.completedAt || m.date;
                     const d0 = new Date(plot.startDate);
-                    const diff = Math.floor((d1.getTime() - d0.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                    if (diff >= 1) taskDay = diff;
+                    d0.setHours(0, 0, 0, 0);
+                    let d1 = null;
+                    const dmy = String(rawDate).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                    if (dmy) {
+                      d1 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+                    } else {
+                      const parsed = new Date(rawDate);
+                      if (!isNaN(parsed.getTime())) d1 = parsed;
+                    }
+                    if (d1 && !isNaN(d1.getTime()) && !isNaN(d0.getTime())) {
+                      d1.setHours(0, 0, 0, 0);
+                      const diff = Math.round((d1.getTime() - d0.getTime()) / 86400000) + 1;
+                      if (diff >= 1) taskDay = diff;
+                    }
                   } catch { }
                 }
                 const resolvedDay = taskDay ? Math.max(1, Number(taskDay)) : 1;
@@ -3359,6 +3432,9 @@ export default function CustomerPlotWorkspace({
                       if (!cropProcess.isNotStarted && cropProcess.currentDay < actDay && act.status === 'COMPLETED') {
                         return { ...act, status: 'PENDING', proofPhoto: null };
                       }
+                      if ((cropProcess.currentDay || 1) <= 1 && actDay === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom) {
+                        return { ...act, status: 'PENDING', proofPhoto: null };
+                      }
                       return act;
                     });
 
@@ -3380,26 +3456,39 @@ export default function CustomerPlotWorkspace({
 
                     // Hợp nhất các bài viết nhật ký ghi chép của khách (chỉ lấy bài ghi <= ngày hiện tại)
                     const diaryEntries = (operations?.diary || [])
-                      .filter((d) => cropProcess.isNotStarted ? false : (Number(d.day) || 1) <= cropProcess.currentDay)
-                      .map((d) => ({
-                        activityId: d.id || `DIARY-${d.taskId || Date.now()}`,
-                        id: d.id || `DIARY-${d.taskId || Date.now()}`,
-                        title: d.title || 'Ghi chép nhật ký vụ mùa',
-                        notes: d.note || d.content,
-                        workerName: d.author || 'Chủ vườn',
-                        workerRole: d.authorRole || (isSelf ? 'Chủ vườn (Tự canh tác)' : 'Khách hàng'),
-                        status: 'COMPLETED',
-                        proofPhoto: d.image || d.imageUrl || d.photo,
-                        timestamp: d.time || d.date || 'Hôm nay',
-                        isDiaryEntry: true,
-                        day: d.day || 1,
-                        cropDay: d.day || 1
-                      }));
+                      .filter((d) => {
+                        if (cropProcess.isNotStarted) return false;
+                        // Trong chế độ Tự canh tác (isSelf), không hiển thị các tác vụ chăm sóc nội bộ của nhân viên
+                        if (isSelf && (d.isStaffTask || d.title === 'Nhiệm vụ chăm sóc hiện trường' || /Trần Văn Lực|Kỹ thuật viên|CVLĐ/i.test(d.author || d.authorName || ''))) {
+                          return false;
+                        }
+                        const entryDay = calculateEntryCropDay(d, activePlot?.startDate || plot?.startDate, cropProcess.currentDay, cropProcess.totalDays) || Number(d.day || d.cropDay) || 1;
+                        return entryDay <= cropProcess.currentDay;
+                      })
+                      .map((d) => {
+                        const finalDay = calculateEntryCropDay(d, activePlot?.startDate || plot?.startDate, cropProcess.currentDay, cropProcess.totalDays) || Number(d.day || d.cropDay) || 1;
+                        return {
+                          activityId: d.id || `DIARY-${d.taskId || Date.now()}`,
+                          id: d.id || `DIARY-${d.taskId || Date.now()}`,
+                          title: d.title || 'Ghi chép nhật ký vụ mùa',
+                          notes: d.note || d.content,
+                          workerName: d.author || 'Chủ vườn',
+                          workerRole: d.authorRole || (isSelf ? 'Chủ vườn (Tự canh tác)' : 'Khách hàng'),
+                          status: 'COMPLETED',
+                          proofPhoto: d.image || d.imageUrl || d.photo,
+                          timestamp: d.time || d.date || 'Hôm nay',
+                          isDiaryEntry: true,
+                          day: finalDay,
+                          cropDay: finalDay
+                        };
+                      });
 
                     const combined = [...syncedBase, ...harvestEntries, ...diaryEntries];
                     const seen = new Set();
                     return combined.filter((item) => {
-                      const key = item.id || item.activityId || `${item.day}_${(item.title || '').trim().toLowerCase()}`;
+                      const cleanTitle = (item.title || '').trim().toLowerCase();
+                      const itemDay = item.day || item.cropDay || 1;
+                      const key = item.id && !item.id.startsWith('ACT-') && !item.id.startsWith('TASK-DIR-') ? item.id : `${itemDay}_${cleanTitle}`;
                       if (seen.has(key)) return false;
                       seen.add(key);
                       return true;

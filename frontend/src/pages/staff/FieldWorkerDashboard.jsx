@@ -796,6 +796,10 @@ export default function FieldWorkerDashboard() {
       try {
         const pCode = selectedTaskToExecute.plotCode || (selectedTaskToExecute.rentalId ? `P-${String(selectedTaskToExecute.rentalId).padStart(2, '0')}` : 'Chưa gán');
         const matchedPlot = assignedPlots.find(p => p.plotCode === pCode);
+        const resolvedTaskCropDay = selectedTaskToExecute.cropDay || selectedTaskToExecute.day || matchedPlot?.currentDay || 1;
+        const now = new Date();
+        const dateFormatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+        const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         recordStaffActivity({
           activityId: `ACT-${targetTaskId}-${Date.now()}`,
           plotId: pCode,
@@ -804,8 +808,11 @@ export default function FieldWorkerDashboard() {
           workerName: user?.fullName || 'Kỹ thuật viên hiện trường chuyên trách',
           workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
           title: selectedTaskToExecute.title || 'Chăm sóc luống cây trồng',
-          timestamp: `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Hôm nay`,
+          timestamp: `${dateFormatted} • ${timeFormatted}`,
           status: 'COMPLETED',
+          day: resolvedTaskCropDay,
+          cropDay: resolvedTaskCropDay,
+          completedAt: now.toISOString(),
           notes: taskProofNote || 'Nhiệm vụ đã được hoàn tất và báo cáo xong việc.',
           proofPhoto: taskProofPhoto
         });

@@ -1191,7 +1191,11 @@ export function recordStaffActivity(activity) {
     ...activity,
     activityId: activity.activityId || `ACT-${Date.now()}`,
     timestamp: activity.timestamp || 'Vừa xong',
-    status: activity.status || 'COMPLETED'
+    status: activity.status || 'COMPLETED',
+    // ponytail: ghi rõ ngày tuổi + thời điểm hoàn thành để sync chính xác với Customer/Expert
+    day: activity.day || activity.cropDay || 1,
+    cropDay: activity.cropDay || activity.day || 1,
+    completedAt: activity.completedAt || new Date().toISOString()
   };
 
   let next;
