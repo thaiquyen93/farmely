@@ -242,4 +242,56 @@ describe('CustomerPlotWorkspace Day 1 Tasks & Date Sync', () => {
     expect(doneTab).toBeTruthy();
     expect(doneTab.textContent).toContain('(1)');
   });
+
+  it('handles Harvest Day simulation: prior tasks are COMPLETED, upcoming count is 0, and upcoming tab has 0 tasks', async () => {
+    const harvestPlot = {
+      ...selfPlot,
+      currentDay: 45,
+      totalDays: 45
+    };
+
+    await act(async () => {
+      root.render(
+        <BrowserRouter>
+          <CustomerPlotWorkspace
+            plot={harvestPlot}
+            plots={[harvestPlot]}
+            activeTab="tasks"
+            stages={[
+              { stepOrder: 1, name: 'Gieo hạt & Cây con', dayStart: 1, dayEnd: 10, guide: 'Chăm sóc cây non' },
+              { stepOrder: 2, name: 'Xuống giống & Tưới ẩm định kỳ', dayStart: 10, dayEnd: 24, guide: 'Cấy cây con mật độ 20x25cm' },
+              { stepOrder: 3, name: 'Bón thúc & Phòng trừ sinh học', dayStart: 25, dayEnd: 35, guide: 'Bón thúc đạm cá' },
+              { stepOrder: 4, name: 'Cách ly VietGAP & Thu hoạch', dayStart: 36, dayEnd: 45, guide: 'Ngừng phân thuốc, thu hoạch lứa quả chín' }
+            ]}
+            operations={{ tasks: [], diary: [] }}
+          />
+        </BrowserRouter>
+      );
+    });
+
+    // 1. Phải hiển thị Việc chưa tới (0)
+    expect(host.textContent).toContain('Việc chưa tới (0)');
+
+    // 2. Tất cả các task trước thu hoạch (Ngày 1, Ngày 10, Ngày 25) phải nằm trong "Đã xong & Nhật ký"
+    const doneTab = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent.includes('Đã xong & Nhật ký')
+    );
+    expect(doneTab).toBeTruthy();
+    expect(doneTab.textContent).not.toContain('(0)');
+
+    // 3. Khi click vào tab "Việc chưa tới", không được hiển thị task Ngày 10 hay Ngày 25
+    const upcomingTabBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent.includes('Việc chưa tới')
+    );
+    expect(upcomingTabBtn).toBeTruthy();
+
+    await act(async () => {
+      upcomingTabBtn.click();
+    });
+
+    // Phải báo danh sách trống "Chưa có công việc nào"
+    expect(host.textContent).toContain('Chưa có công việc nào');
+    expect(host.textContent).not.toContain('Xuống giống & Tưới ẩm định kỳ');
+    expect(host.textContent).not.toContain('Bón thúc & Phòng trừ sinh học');
+  });
 });

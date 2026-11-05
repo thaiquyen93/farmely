@@ -5234,6 +5234,22 @@ END $$;
                   WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
                 `);
 
+                // Cập nhật cả các nhiệm vụ không gắn template_steps (dịch vụ, sự cố phát sinh) về trạng thái phù hợp
+                await runPostgreSql(`
+                  UPDATE care_tasks
+                  SET 
+                    status = CASE 
+                      WHEN title ILIKE '%thu hoạch%' THEN 'IN_PROG'::task_status_enum
+                      ELSE 'DONE'::task_status_enum
+                    END,
+                    evidence_image_url = CASE 
+                      WHEN title ILIKE '%thu hoạch%' THEN NULL
+                      ELSE COALESCE(evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
+                    END,
+                    updated_at = NOW()
+                  WHERE rental_id = ${rentalId} AND step_id IS NULL;
+                `);
+
                 // Đồng bộ farm_diaries
                 await runPostgreSql(`
                   DELETE FROM farm_diaries 

@@ -562,6 +562,74 @@ function StandardProcessTimeline({
     }
   };
 
+  const handleSimulateDay1 = async () => {
+    setSelectedDay(1);
+    const rentalId = plot?.rentalId || plot?.rental_id;
+    if (rentalId) {
+      try {
+        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'START_NOW' })
+        });
+      } catch (e) {
+        console.warn('Lỗi gọi API simulate START_NOW:', e);
+      }
+    }
+    try {
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith('farmely_self_tasks_') || k.includes('farmely_persisted_staff_activities') || k.includes('farmely_season_started')) {
+          localStorage.removeItem(k);
+        }
+      });
+    } catch {}
+    if (typeof window !== 'undefined' && window.BroadcastChannel) {
+      try {
+        const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
+        bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
+        setTimeout(() => { try { bc1.close(); } catch {} }, 1000);
+        const bc2 = new BroadcastChannel('farmely_iot_telemetry');
+        bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
+        setTimeout(() => { try { bc2.close(); } catch {} }, 1000);
+      } catch {}
+    }
+    window.location.reload();
+  };
+
+  const handleSimulateHarvest = async () => {
+    setSelectedDay(totalDays);
+    const rentalId = plot?.rentalId || plot?.rental_id;
+    if (rentalId) {
+      try {
+        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'HARVEST' })
+        });
+      } catch (e) {
+        console.warn('Lỗi gọi API simulate HARVEST:', e);
+      }
+    }
+    try {
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith('farmely_self_tasks_') || k.includes('farmely_persisted_staff_activities')) {
+          localStorage.removeItem(k);
+        }
+      });
+    } catch {}
+    if (typeof window !== 'undefined' && window.BroadcastChannel) {
+      try {
+        const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
+        bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
+        setTimeout(() => { try { bc1.close(); } catch {} }, 1000);
+        const bc2 = new BroadcastChannel('farmely_iot_telemetry');
+        bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
+        setTimeout(() => { try { bc2.close(); } catch {} }, 1000);
+      } catch {}
+    }
+    window.location.reload();
+  };
+
   return (
     <div className="space-y-5">
       {/* 1. THANH CHẠY DÒNG THỜI GIAN THEO NGÀY: 1 DÒNG THỜI GIAN DUY NHẤT TRẢI RỘNG */}
@@ -588,37 +656,7 @@ function StandardProcessTimeline({
           <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
             <button
               type="button"
-              onClick={async () => {
-                setSelectedDay(1);
-                const rentalId = plot?.rentalId || plot?.rental_id;
-                if (rentalId) {
-                  try {
-                    await fetch(`/api/rentals/${rentalId}/simulate-time`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ action: 'START_NOW' })
-                    });
-                  } catch (e) {
-                    console.warn(e);
-                  }
-                }
-                try {
-                  const cropKey = (cropProcess?.cropKey || cropProcess?.cropName || plot?.crop || 'crop').replace(/\s+/g, '_');
-                  localStorage.removeItem(`farmely_self_tasks_${plot.id}_${cropKey}_v4`);
-                  localStorage.removeItem('farmely_persisted_staff_activities_v2');
-                } catch {}
-                if (typeof window !== 'undefined' && window.BroadcastChannel) {
-                  try {
-                    const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
-                    bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
-                    bc1.close();
-                    const bc2 = new BroadcastChannel('farmely_iot_telemetry');
-                    bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
-                    bc2.close();
-                  } catch {}
-                }
-                window.location.reload();
-              }}
+              onClick={handleSimulateDay1}
               className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition shadow-2xs cursor-pointer ${
                 selectedDay === 1
                   ? 'border-emerald-600 bg-emerald-700 text-white'
@@ -631,32 +669,7 @@ function StandardProcessTimeline({
 
             <button
               type="button"
-              onClick={async () => {
-                setSelectedDay(totalDays);
-                const rentalId = plot?.rentalId || plot?.rental_id;
-                if (rentalId) {
-                  try {
-                    await fetch(`/api/rentals/${rentalId}/simulate-time`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ action: 'HARVEST' })
-                    });
-                  } catch (e) {
-                    console.warn(e);
-                  }
-                }
-                if (typeof window !== 'undefined' && window.BroadcastChannel) {
-                  try {
-                    const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
-                    bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
-                    bc1.close();
-                    const bc2 = new BroadcastChannel('farmely_iot_telemetry');
-                    bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
-                    bc2.close();
-                  } catch {}
-                }
-                window.location.reload();
-              }}
+              onClick={handleSimulateHarvest}
               className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition shadow-2xs cursor-pointer ${
                 selectedDay === totalDays
                   ? 'border-amber-600 bg-amber-700 text-white shadow-sm'
@@ -848,20 +861,15 @@ function StandardProcessTimeline({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedDay(1);
-                  if (cropProcess.isNotStarted) {
-                    onStartSeason?.();
-                  }
-                }}
+                onClick={handleSimulateDay1}
                 className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
                   selectedDay === 1
                     ? 'border-emerald-600 bg-emerald-700 text-white shadow-emerald-700/20'
                     : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                 }`}
-                title={cropProcess.isNotStarted ? "Bấm để kích hoạt bắt đầu mùa vụ canh tác (Ngày 1)" : "Bấm để nhảy ngay tới Ngày bắt đầu canh tác"}
+                title="Bấm để kích hoạt/chuyển ngay tới Ngày 1 và đồng bộ toàn bộ quy trình"
               >
-                <span>🌱 {cropProcess.isNotStarted ? "Bắt đầu mùa vụ (Ngày 1)" : "Ngày bắt đầu (Ngày 1)"}</span>
+                <span>🌱 Ngày bắt đầu (Ngày 1)</span>
               </button>
 
               <button
@@ -888,23 +896,13 @@ function StandardProcessTimeline({
 
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedDay(totalDays);
-                  const rentalId = plot?.rentalId || plot?.rental_id;
-                  if (rentalId) {
-                    fetch(`/api/rentals/${rentalId}/simulate-time`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ action: 'HARVEST' })
-                    }).catch(() => {});
-                  }
-                }}
+                onClick={handleSimulateHarvest}
                 className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
                   selectedDay === totalDays
                     ? 'border-amber-600 bg-amber-700 text-white shadow-amber-700/20'
                     : 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100'
                 }`}
-                title="Bấm để kích hoạt và xem Thông báo Ngày Thu Hoạch"
+                title="Bấm để chuyển ngay tới Ngày Thu Hoạch và đồng bộ toàn bộ quy trình"
               >
                 <span>🌾 Ngày kết thúc (Ngày {totalDays} · Thu hoạch)</span>
               </button>
@@ -1553,6 +1551,22 @@ function StaffActivitiesTab({
     return false;
   }, [currentDay, todayStr]);
 
+  const isActivityUpcoming = useCallback((act) => {
+    if (act.status === 'COMPLETED' || act.status === 'DONE') return false;
+    if (isActivityToday(act)) return false;
+    // Nếu mùa vụ đã tới hoặc vượt quá ngày thu hoạch (currentDay >= totalDays): TUYỆT ĐỐI không còn việc chưa tới!
+    if (currentDay > 0 && totalDays > 0 && currentDay >= totalDays) return false;
+
+    const taskDay = act.cropDay !== undefined && act.cropDay !== null ? Number(act.cropDay) : act.day;
+    if (currentDay > 0 && taskDay) {
+      return taskDay > currentDay;
+    }
+    if (act.date && /^\d{4}-\d{2}-\d{2}$/.test(act.date)) {
+      return act.date > todayStr;
+    }
+    return false;
+  }, [currentDay, totalDays, isActivityToday, todayStr]);
+
   const filtered = useMemo(() => {
     return activities.filter((act) => {
       const matchSearch = !searchQuery.trim() ||
@@ -1564,10 +1578,10 @@ function StaffActivitiesTab({
       if (statusFilter === 'ALL') return true;
       if (statusFilter === 'COMPLETED') return act.status === 'COMPLETED' || act.status === 'DONE';
       if (statusFilter === 'TODAY') return isActivityToday(act);
-      if (statusFilter === 'UPCOMING') return (act.status !== 'COMPLETED' && act.status !== 'DONE') && !isActivityToday(act);
+      if (statusFilter === 'UPCOMING') return isActivityUpcoming(act);
       return true;
     });
-  }, [activities, searchQuery, statusFilter, isSelf, isActivityToday]);
+  }, [activities, searchQuery, statusFilter, isSelf, isActivityToday, isActivityUpcoming]);
 
   const { todayList, upcomingList, doneList } = useMemo(() => {
     const today = [];
@@ -1579,18 +1593,20 @@ function StaffActivitiesTab({
         done.push(act);
       } else if (isActivityToday(act)) {
         today.push(act);
-      } else {
+      } else if (isActivityUpcoming(act)) {
         upcoming.push(act);
+      } else {
+        done.push(act);
       }
     });
 
     return { todayList: today, upcomingList: upcoming, doneList: done };
-  }, [filtered, isActivityToday]);
+  }, [filtered, isActivityToday, isActivityUpcoming]);
 
   const counts = useMemo(() => {
     const todayCount = activities.filter((a) => (a.status !== 'COMPLETED' && a.status !== 'DONE') && isActivityToday(a)).length;
-    const upcomingCount = activities.filter((a) => (a.status !== 'COMPLETED' && a.status !== 'DONE') && !isActivityToday(a)).length;
-    const doneCount = activities.filter((a) => a.status === 'COMPLETED' || a.status === 'DONE').length;
+    const upcomingCount = activities.filter((a) => (a.status !== 'COMPLETED' && a.status !== 'DONE') && isActivityUpcoming(a)).length;
+    const doneCount = activities.filter((a) => a.status === 'COMPLETED' || a.status === 'DONE' || (!isActivityToday(a) && !isActivityUpcoming(a))).length;
 
     return {
       all: activities.length,
@@ -1598,7 +1614,7 @@ function StaffActivitiesTab({
       upcoming: upcomingCount,
       done: doneCount
     };
-  }, [activities, isActivityToday]);
+  }, [activities, isActivityToday, isActivityUpcoming]);
 
   const handleCreateTask = (e) => {
     e.preventDefault();
@@ -2750,6 +2766,7 @@ export default function CustomerPlotWorkspace({
   const defaultSelfTasks = useMemo(() => {
     // Ngày 1 (Bắt đầu mùa vụ): Đúng 2 công việc chuẩn mực, tinh gọn, không spam
     // ponytail: Chỉ tự động COMPLETED khi ngày hiện tại ĐÃ QUA ngày của task (> taskDay)
+    const isHarvestPlot = !cropProcess.isNotStarted && (cropProcess.currentDay >= cropProcess.totalDays);
     const tasks = [
       {
         id: `SELF-${plot.id}-D1-PREP`,
@@ -2759,7 +2776,7 @@ export default function CustomerPlotWorkspace({
         cropDay: 1,
         date: 'Ngày 1',
         timestamp: 'Ngày 1 • Ca sáng (07:30 - 09:00)',
-        status: !cropProcess.isNotStarted && 1 < (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+        status: isHarvestPlot || (!cropProcess.isNotStarted && 1 < (cropProcess.currentDay || 0)) ? 'COMPLETED' : 'PENDING',
         notes: 'Xới xáo đất tơi xốp sâu 20cm, bón lót phân trùn quế và phun nấm đối kháng Trichoderma cân bằng hệ vi sinh đất.',
         stepOrder: 1,
         isCustom: false
@@ -2772,7 +2789,7 @@ export default function CustomerPlotWorkspace({
         cropDay: 1,
         date: 'Ngày 1',
         timestamp: 'Ngày 1 • Ca chiều (16:00 - 17:30)',
-        status: !cropProcess.isNotStarted && 1 < (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+        status: isHarvestPlot || (!cropProcess.isNotStarted && 1 < (cropProcess.currentDay || 0)) ? 'COMPLETED' : 'PENDING',
         notes: 'Duy trì ẩm độ luống đất ổn định trước khi xuống cây giống theo mật độ khuyến nghị.',
         stepOrder: 1,
         isCustom: false
@@ -2789,6 +2806,11 @@ export default function CustomerPlotWorkspace({
             st.nutrition ? `• Dinh dưỡng: ${st.nutrition}` : ''
           ].filter(Boolean).join('\n');
 
+          const isHarvestStage = st.name?.toLowerCase().includes('thu hoạch') || (st.dayEnd && st.dayEnd >= cropProcess.totalDays);
+          const taskStatus = isHarvestPlot
+            ? (isHarvestStage ? 'IN_PROGRESS' : 'COMPLETED')
+            : (!cropProcess.isNotStarted && st.dayStart < (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING');
+
           tasks.push({
             id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}`,
             activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}`,
@@ -2797,7 +2819,7 @@ export default function CustomerPlotWorkspace({
             cropDay: st.dayStart,
             date: st.label || `Ngày ${st.dayStart}`,
             timestamp: `Ngày ${st.dayStart} • Ca sáng (07:30 - 09:00)`,
-            status: !cropProcess.isNotStarted && st.dayStart < (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
+            status: taskStatus,
             notes: notesText,
             stepOrder: st.stepOrder || idx + 1,
             isCustom: false
@@ -2818,7 +2840,7 @@ export default function CustomerPlotWorkspace({
     });
 
     return cleanList;
-  }, [cropProcess?.stages, plot.id, cropProcess.currentDay, cropProcess.isNotStarted]);
+  }, [cropProcess?.stages, plot.id, cropProcess.currentDay, cropProcess.totalDays, cropProcess.isNotStarted]);
 
   const [selfTasks, setSelfTasks] = useState(() => {
     try {
@@ -2830,6 +2852,10 @@ export default function CustomerPlotWorkspace({
           if (day1Tasks.length <= 2 && new Set(day1Tasks.map(t => t.title)).size === day1Tasks.length) {
             // Nếu đang ở Ngày 1 mà tất cả task Ngày 1 bị dính trạng thái COMPLETED cũ thì khôi phục về PENDING
             if ((cropProcess.currentDay || 1) <= 1 && day1Tasks.length > 0 && day1Tasks.every(t => t.status === 'COMPLETED' && !t.proofPhoto && !t.isCustom)) {
+              return defaultSelfTasks;
+            }
+            // Nếu đang ở Ngày Thu Hoạch (currentDay >= totalDays): reset về defaultSelfTasks để tất cả các task trước thu hoạch đều là COMPLETED
+            if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && parsed.some(t => t.day < cropProcess.totalDays && t.status !== 'COMPLETED')) {
               return defaultSelfTasks;
             }
             return parsed;
@@ -2854,6 +2880,9 @@ export default function CustomerPlotWorkspace({
           if ((cropProcess.currentDay || 1) <= 1 && day1Tasks.length > 0 && day1Tasks.every(t => t.status === 'COMPLETED' && !t.proofPhoto && !t.isCustom)) {
             shouldReset = true;
           }
+          if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && parsed.some(t => t.day < cropProcess.totalDays && t.status !== 'COMPLETED')) {
+            shouldReset = true;
+          }
         }
         if (shouldReset) {
           setSelfTasks(defaultSelfTasks);
@@ -2862,7 +2891,7 @@ export default function CustomerPlotWorkspace({
         }
       } catch { }
     }
-  }, [isSelf, taskStorageKey, defaultSelfTasks, plot.id, cropProcess.currentDay]);
+  }, [isSelf, taskStorageKey, defaultSelfTasks, plot.id, cropProcess.currentDay, cropProcess.totalDays, cropProcess.isNotStarted]);
 
   const handleToggleSelfTask = useCallback((taskId) => {
     setSelfTasks((prev) => {
@@ -3444,6 +3473,16 @@ export default function CustomerPlotWorkspace({
                       if ((cropProcess.currentDay || 1) <= 1 && actDay === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom && !matchingDiary) {
                         isDone = false;
                         proofPhoto = null;
+                      }
+
+                      // QUAN TRỌNG: Khi mùa vụ đã tiến đến Ngày Thu Hoạch (currentDay >= totalDays):
+                      // Tất cả các công việc chuẩn kỹ thuật của các giai đoạn trước (actDay < totalDays)
+                      // ĐÃ ĐƯỢC HOÀN THÀNH trong suốt mùa vụ!
+                      if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && actDay < cropProcess.totalDays) {
+                        isDone = true;
+                        if (!proofPhoto) {
+                          proofPhoto = 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80';
+                        }
                       }
 
                       // Nếu task CHƯA hoàn thành (IN_PROGRESS hoặc PENDING): tuyệt đối không hiển thị ảnh minh chứng
