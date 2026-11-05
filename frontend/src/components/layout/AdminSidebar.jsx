@@ -64,6 +64,11 @@ const masterDataNavItems = [
     path: '/admin/master-data/process-templates',
     name: 'Quy Trình Chuẩn VietGAP',
     icon: FileSpreadsheet
+  },
+  {
+    path: '/admin/master-data/audit-logs',
+    name: 'Nhật Ký Vận Hành & Audit Log',
+    icon: ShieldCheck
   }
 ];
 

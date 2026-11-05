@@ -6343,6 +6343,32 @@ END $$;
           return;
         }
 
+        if (req.method === 'DELETE' && (url === '/api/issue-reports' || url === '/api/v1/issue-reports' || url === '/api/issues' || url === '/api/v1/issues' || url.match(/^\/api\/(?:v1\/)?(?:issue-reports|issues)\/(\d+)/))) {
+          try {
+            const match = url.match(/^\/api\/(?:v1\/)?(?:issue-reports|issues)\/(\d+)/);
+            if (match) {
+              const issueId = parseInt(match[1], 10);
+              await runPostgreSql(`
+                DELETE FROM care_tasks WHERE notes LIKE '%[ISS-' || ${issueId} || ']%' OR notes LIKE '%[ISSUE-' || ${issueId} || ']%';
+                DELETE FROM issue_reports WHERE issue_id = ${issueId};
+              `);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: `Đã xóa sự cố #${issueId}` }));
+            } else {
+              await runPostgreSql(`
+                DELETE FROM care_tasks WHERE notes LIKE '%[ISS-%' OR notes LIKE '%[CHỈ ĐẠO CGNN]%';
+                DELETE FROM issue_reports;
+              `);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Đã xóa toàn bộ báo cáo sự cố hiện trường' }));
+            }
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
         // 20B. SERVICE REQUESTS API (GET, PUT /api/services/requests)
         if (req.method === 'GET' && (url === '/api/services/requests' || url === '/api/v1/services/requests' || url.startsWith('/api/services/requests?') || url.startsWith('/api/v1/services/requests?'))) {
           try {

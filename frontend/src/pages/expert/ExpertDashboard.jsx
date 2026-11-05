@@ -273,46 +273,7 @@ export default function ExpertDashboard() {
   };
 
   // 2. Field Issue Reports from Workers (UC12 / UC48)
-  const [fieldIssues, setFieldIssues] = useState([
-    {
-      id: 'ISS-901',
-      issueCode: 'ISS-901',
-      apiId: 1,
-      rentalId: 2,
-      reportedBy: 8,
-      isStaffReporter: true,
-      workerName: 'Trần Văn Lực (CVLĐ)',
-      plotCode: 'P-03',
-      plotName: 'Thửa Rừng Sác C3',
-      cropName: 'Dưa leo baby F1',
-      urgency: 'HIGH', // 'NORMAL' | 'HIGH' | 'CRITICAL'
-      issueType: 'Phát hiện bọ trĩ mặt dưới lá non',
-      description: 'Lá dưa leo baby có hiện tượng quăn mép và chấm bạc li ti. Nghi ngờ bị bọ trĩ tấn công do 2 ngày nay trời hanh khô.',
-      reportedTime: 'Sáng nay • 08:45',
-      photoUrl: 'https://images.unsplash.com/photo-1592417817098-8f3d69109853?auto=format&fit=crop&w=800&q=80',
-      diagnosis: '',
-      status: 'OPEN'
-    },
-    {
-      id: 'ISS-889',
-      issueCode: 'ISS-889',
-      apiId: 2,
-      rentalId: 1,
-      reportedBy: 9,
-      isStaffReporter: true,
-      workerName: 'Nguyễn Văn Đạt (CVLĐ)',
-      plotCode: 'P-01',
-      plotName: 'Thửa Sen Vàng A1',
-      cropName: 'Cà chua bi đỏ F1',
-      urgency: 'NORMAL',
-      issueType: 'Đầu béc tưới số 3 bị nghẹt cặn',
-      description: 'Đã súc rửa màng lọc và thay béc phun sương mới. Độ ẩm đất đã cân bằng 68%.',
-      reportedTime: 'Hôm qua • 16:00',
-      photoUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80',
-      diagnosis: 'Chuyên gia Nam duyệt: Đạt yêu cầu kỹ thuật.',
-      status: 'RESOLVED'
-    }
-  ]);
+  const [fieldIssues, setFieldIssues] = useState([]);
 
   const [selectedIssueDetail, setSelectedIssueDetail] = useState(null);
   const [detailDiagnosisText, setDetailDiagnosisText] = useState('');
@@ -341,11 +302,20 @@ export default function ExpertDashboard() {
     fetch('/api/issue-reports')
       .then((res) => res.json())
       .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+        if (res && res.success && Array.isArray(res.data)) {
           setFieldIssues(res.data);
         }
       })
       .catch((err) => console.warn('Could not fetch live issues:', err));
+  };
+
+  const handleClearFieldIssues = async () => {
+    try {
+      await fetch('/api/issue-reports', { method: 'DELETE' });
+      setFieldIssues([]);
+    } catch (err) {
+      console.warn('Could not clear issues:', err);
+    }
   };
 
   const loadTemplates = () => {
@@ -2505,17 +2475,52 @@ export default function ExpertDashboard() {
             {/* TAB 2: FIELD ISSUES (Chẩn đoán sự cố hiện trường do công nhân gửi) */}
             {activeTab === 'issues' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div>
-                  <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Xử Lý Báo Cáo Sự Cố Hiện Trường
-                  </h3>
-                  <p className="text-xs text-brand-muted mt-0.5">
-                    Tiếp nhận ảnh chụp và phản ánh từ Chuyên viên lao động hiện trường để chẩn đoán sâu và ban hành chỉ đạo can thiệp kỹ thuật.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
+                  <div>
+                    <h3 className="font-heading font-black text-xl text-brand-dark">
+                      Xử Lý Báo Cáo Sự Cố Hiện Trường
+                    </h3>
+                    <p className="text-xs text-brand-muted mt-0.5">
+                      Tiếp nhận ảnh chụp và phản ánh từ Chuyên viên lao động hiện trường để chẩn đoán sâu và ban hành chỉ đạo can thiệp kỹ thuật.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={loadFieldIssues}
+                      className="font-bold text-xs gap-1.5 border-brand-border hover:bg-stone-50"
+                      title="Tải lại danh sách sự cố"
+                    >
+                      <span>🔄 Tải lại</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleClearFieldIssues}
+                      className="font-bold text-xs gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-50"
+                      title="Xóa toàn bộ sự cố demo để làm mới"
+                    >
+                      <span>🧹 Xóa sạch (Demo)</span>
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
-                  {fieldIssues.map((issue) => (
+                  {fieldIssues.length === 0 ? (
+                    <div className="text-center py-16 px-4 rounded-2xl border border-dashed border-stone-200 bg-stone-50/50">
+                      <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-3">
+                        <CheckCircle2 className="w-6 h-6" />
+                      </div>
+                      <h4 className="font-heading font-bold text-stone-800 text-sm">
+                        Hiện tại không có sự cố nào cần xử lý
+                      </h4>
+                      <p className="text-xs text-stone-500 mt-1 max-w-md mx-auto">
+                        Toàn bộ các thửa đất đang phát triển an toàn theo quy trình chuẩn VietGAP. Khi nhân viên hiện trường gửi báo cáo sự cố mới, cảnh báo sẽ hiển thị ngay tại đây.
+                      </p>
+                    </div>
+                  ) : (
+                    fieldIssues.map((issue) => (
                     <div
                       key={issue.id}
                       onClick={() => handleOpenIssueDetail(issue)}
@@ -2625,7 +2630,7 @@ export default function ExpertDashboard() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )))}
                 </div>
               </div>
             )}

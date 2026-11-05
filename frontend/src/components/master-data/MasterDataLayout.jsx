@@ -20,6 +20,7 @@ export default function MasterDataLayout() {
     if (pathname.includes('/knowledge-documents')) return 'Kho Tri Thức & Sổ Tay Kỹ Thuật (RAG)';
     if (pathname.includes('/services')) return 'Dịch Vụ Canh Tác & Mẫu CareTask';
     if (pathname.includes('/process-templates')) return 'Quy Trình Canh Tác Chuẩn VietGAP';
+    if (pathname.includes('/audit-logs')) return 'Nhật Ký Vận Hành & Kiểm Toán Hệ Thống (SCR-AD-10 Audit Log)';
     return 'Tổng Quan Quản Trị Master Data';
   };
 

@@ -291,7 +291,7 @@ export default function MasterDataDashboard() {
 
         <div className="pt-3 text-right">
           <Link
-            to="/admin/master-data/plots"
+            to="/admin/master-data/audit-logs"
             className="inline-flex items-center gap-1 text-xs font-bold text-brand-green hover:underline"
           >
             <span>Xem nhật ký vận hành chi tiết</span>
