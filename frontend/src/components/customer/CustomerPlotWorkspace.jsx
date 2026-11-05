@@ -260,7 +260,8 @@ function StandardProcessTimeline({
   onResetSeason,
   latestHarvest = null,
   onGoToDiary,
-  onOpenHarvestReport
+  onOpenHarvestReport,
+  onOpenPhoto
 }) {
   if (!cropProcess?.stages?.length) return null;
 
@@ -464,7 +465,7 @@ function StandardProcessTimeline({
           workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
           workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
           notes: 'Ngừng cấp dinh dưỡng trước 24h, test nhanh nitrat và hoạt chất bảo vệ sinh học đạt ngưỡng an toàn.',
-          proofPhoto: currentCropDay >= totalDays ? 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=600&q=80' : null
+          proofPhoto: currentCropDay >= totalDays ? 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80' : null
         },
         {
           activityId: `STD-TASK-DAY-${totalDays}-2`,
@@ -1155,19 +1156,20 @@ function StandardProcessTimeline({
 
                     {selectedDayActivities.map((act, idx) => {
                       const isDone = act.status === 'COMPLETED';
+                      const photoUrl = act.proofPhoto || act.evidenceImageUrl;
                       return (
                         <div
                           key={act.activityId || act.id || idx}
-                          className={`rounded-2xl border p-4 space-y-2.5 text-xs transition ${
-                            isDone ? 'border-emerald-200 bg-emerald-50/40' : 'border-stone-200 bg-white hover:border-emerald-300 shadow-2xs'
+                          className={`rounded-2xl border p-3.5 sm:p-4 text-xs transition duration-200 ${
+                            isDone ? 'border-emerald-200/90 bg-emerald-50/30' : 'border-stone-200/90 bg-white hover:border-emerald-300 shadow-2xs'
                           }`}
                         >
-                          <div className="flex items-center justify-between text-xs gap-2">
-                            <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-2.5 min-w-0 flex-1">
                               <button
                                 type="button"
                                 onClick={() => onToggleTask?.(act.id || act.activityId)}
-                                className={`h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${
+                                className={`mt-0.5 h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${
                                   isDone
                                     ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
                                     : 'border-stone-300 bg-white hover:border-emerald-500'
@@ -1176,57 +1178,68 @@ function StandardProcessTimeline({
                               >
                                 {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                               </button>
-                              <span className={`font-bold text-xs sm:text-[13px] truncate ${isDone ? 'text-stone-700' : 'text-stone-900'}`}>
-                                {act.title || act.name}
-                              </span>
-                            </div>
-                            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${
-                              isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-stone-100 text-stone-600 border-stone-200'
-                            }`}>
-                              {isDone ? '✓ ĐÃ XONG' : (act.timestamp || act.time || (isSelf ? 'Cần làm' : 'Ca trực'))}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-3 text-[11px] text-stone-500 pl-7.5 flex-wrap">
-                            <span className="flex items-center gap-1 font-medium">
-                              <UserRound className="w-3 h-3 text-emerald-600" />
-                              {act.workerName || (isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực (CVLĐ)')}
-                            </span>
-                            {act.timestamp && (
-                              <span className="flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-stone-400" />
-                                {act.timestamp}
-                              </span>
-                            )}
-                          </div>
-
-                          {(act.notes || act.note) && (
-                            <p className="text-xs leading-relaxed pl-7.5 text-stone-600">
-                              {act.notes || act.note}
-                            </p>
-                          )}
-                          {act.proofPhoto && (
-                            <div className="mt-2 pl-7.5">
-                              <div className="overflow-hidden rounded-xl border border-emerald-200 bg-stone-900/5 group">
-                                <img
-                                  src={act.proofPhoto}
-                                  alt={act.title || 'Minh chứng'}
-                                  className="w-full max-h-72 object-cover aspect-video transition duration-300 group-hover:scale-[1.01] cursor-pointer"
-                                  onClick={() => window.open(act.proofPhoto, '_blank')}
-                                  loading="lazy"
-                                />
-                                <div className="p-2.5 bg-white text-[11px] text-stone-600 flex items-center justify-between border-t border-emerald-100">
-                                  <span className="text-emerald-800 font-semibold flex items-center gap-1.5">📸 Ảnh chụp hiện trường thực tế</span>
-                                  <span
-                                    className="text-emerald-800 font-bold hover:underline cursor-pointer"
-                                    onClick={() => window.open(act.proofPhoto, '_blank')}
-                                  >
-                                    Mở ảnh to ↗
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className={`font-bold text-xs sm:text-[13px] ${isDone ? 'text-stone-700' : 'text-stone-900'}`}>
+                                    {act.title || act.name}
+                                  </span>
+                                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${
+                                    isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-stone-100 text-stone-600 border-stone-200'
+                                  }`}>
+                                    {isDone ? '✓ ĐÃ XONG' : (act.timestamp || act.time || (isSelf ? 'Cần làm' : 'Ca trực'))}
                                   </span>
                                 </div>
+
+                                <div className="mt-1 flex items-center gap-3 text-[11px] text-stone-500 flex-wrap">
+                                  <span className="flex items-center gap-1 font-medium text-stone-700">
+                                    <UserRound className="w-3 h-3 text-emerald-600" />
+                                    {act.workerName || (isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực (CVLĐ)')}
+                                  </span>
+                                  {act.timestamp && (
+                                    <span className="flex items-center gap-1 text-stone-400">
+                                      <Clock className="w-3 h-3 text-stone-400" />
+                                      {act.timestamp}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/80">
+                                    Quy trình VietGAP
+                                  </span>
+                                </div>
+
+                                {(act.notes || act.note) && (
+                                  <p className="mt-1.5 text-xs leading-relaxed text-stone-600">
+                                    {act.notes || act.note}
+                                  </p>
+                                )}
                               </div>
                             </div>
-                          )}
+
+                            {/* Compact Photo Thumbnail on Right Side (Khắc phục triệt để ảnh to đùng) */}
+                            {photoUrl && (
+                              <div className="shrink-0 flex flex-col items-center gap-1 self-start">
+                                <button
+                                  type="button"
+                                  onClick={() => (onOpenPhoto ? onOpenPhoto(act) : window.open(photoUrl, '_blank'))}
+                                  className="group/thumb relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-stone-100 shadow-2xs hover:shadow-md hover:scale-105 transition-all duration-200 cursor-pointer"
+                                  title="Bấm để xem ảnh phóng to & biên bản đối chứng"
+                                >
+                                  <img
+                                    src={photoUrl}
+                                    alt={act.title || 'Minh chứng'}
+                                    className="h-full w-full object-cover group-hover/thumb:scale-110 transition-transform duration-300"
+                                    loading="lazy"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Maximize2 className="w-3.5 h-3.5 text-white drop-shadow" />
+                                  </div>
+                                </button>
+                                <span className="text-[9px] font-semibold text-stone-400 group-hover/thumb:text-emerald-700 flex items-center gap-0.5">
+                                  <Camera className="w-2.5 h-2.5" />
+                                  Minh chứng
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -1248,44 +1261,52 @@ function StandardProcessTimeline({
                       const entryImg = entry.image || entry.imageUrl || entry.photo;
 
                       return (
-                        <div key={entry.id || idx} className="rounded-2xl border border-stone-200 bg-white p-4 space-y-2.5 text-xs shadow-2xs">
-                          <div className="flex items-center justify-between text-xs gap-2">
-                            <span className="font-bold text-stone-500 text-[11px] flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-stone-400" />
-                              {displayTime}
-                            </span>
-                            <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                              <UserRound className="w-3 h-3 text-emerald-600" />
-                              {displayAuthor}
-                            </span>
-                          </div>
-
-                          <p className="font-bold text-stone-900 text-xs sm:text-[13px]">{displayTitle}</p>
-                          {entry.note && (
-                            <p className="text-xs text-stone-600 leading-relaxed whitespace-pre-line">{entry.note}</p>
-                          )}
-
-                          {/* Ảnh hiện trường thực tế */}
-                          {entryImg && (
-                            <div className="mt-2 overflow-hidden rounded-xl border border-stone-200 bg-stone-900/5 group">
-                              <img
-                                src={entryImg}
-                                alt={displayTitle}
-                                className="w-full max-h-72 object-cover aspect-video transition duration-300 group-hover:scale-[1.01] cursor-pointer"
-                                onClick={() => window.open(entryImg, '_blank')}
-                                loading="lazy"
-                              />
-                              <div className="p-2.5 bg-white text-[11px] text-stone-600 flex items-center justify-between border-t border-stone-100">
-                                <span className="text-emerald-700 font-semibold flex items-center gap-1.5">📸 Ảnh chụp hiện trường thực tế</span>
-                                <span
-                                  className="text-emerald-700 font-bold hover:underline cursor-pointer"
-                                  onClick={() => window.open(entryImg, '_blank')}
-                                >
-                                  Mở ảnh to ↗
+                        <div key={entry.id || idx} className="rounded-2xl border border-stone-200/90 bg-white p-3.5 sm:p-4 text-xs shadow-2xs hover:border-emerald-300 transition-all duration-200">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between text-xs gap-2">
+                                <span className="font-semibold text-stone-500 text-[11px] flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-stone-400" />
+                                  {displayTime}
+                                </span>
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                  <UserRound className="w-3 h-3 text-emerald-600" />
+                                  {displayAuthor}
                                 </span>
                               </div>
+
+                              <p className="mt-1 font-bold text-stone-900 text-xs sm:text-[13px]">{displayTitle}</p>
+                              {entry.note && (
+                                <p className="mt-1 text-xs text-stone-600 leading-relaxed whitespace-pre-line">{entry.note}</p>
+                              )}
                             </div>
-                          )}
+
+                            {/* Compact Diary Photo Thumbnail on Right */}
+                            {entryImg && (
+                              <div className="shrink-0 flex flex-col items-center gap-1 self-start">
+                                <button
+                                  type="button"
+                                  onClick={() => (onOpenPhoto ? onOpenPhoto(entry) : window.open(entryImg, '_blank'))}
+                                  className="group/thumb relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-stone-100 shadow-2xs hover:shadow-md hover:scale-105 transition-all duration-200 cursor-pointer"
+                                  title="Bấm để xem ảnh phóng to"
+                                >
+                                  <img
+                                    src={entryImg}
+                                    alt={displayTitle}
+                                    className="h-full w-full object-cover group-hover/thumb:scale-110 transition-transform duration-300"
+                                    loading="lazy"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Maximize2 className="w-3.5 h-3.5 text-white drop-shadow" />
+                                  </div>
+                                </button>
+                                <span className="text-[9px] font-semibold text-stone-400 group-hover/thumb:text-emerald-700 flex items-center gap-0.5">
+                                  <Camera className="w-2.5 h-2.5" />
+                                  Ảnh vườn
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -2031,7 +2052,7 @@ export const resolveVietgapProofPhoto = (title = '', existingPhoto = null) => {
   }
   const t = String(title || '').toLowerCase();
   if (t.includes('thu hoạch') || t.includes('cân') || t.includes('nghiệm thu') || t.includes('kg')) {
-    return 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=800&q=80';
+    return 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80';
   }
   if (t.includes('làm đất') || t.includes('bón lót') || t.includes('xới') || t.includes('luống')) {
     return 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80';
@@ -2255,6 +2276,7 @@ function OverviewTab({
                 latestHarvest={latestHarvest}
                 onGoToDiary={() => goTab?.('tasks')}
                 onOpenHarvestReport={onOpenHarvestReport}
+                onOpenPhoto={onOpenActivityPhoto}
               />
             </div>
           </Card>

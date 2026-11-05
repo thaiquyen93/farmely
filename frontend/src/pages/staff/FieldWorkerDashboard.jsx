@@ -47,8 +47,10 @@ import {
   Activity,
   Sun,
   Thermometer,
-  Gauge
+  Gauge,
+  RefreshCw
 } from 'lucide-react';
+import { fetchLiveAgroIotData } from '../../services/weatherIotService';
 import { recordStaffActivity, resolveStandardCropProcess } from '../../services/cropStandardProcess';
 import { shouldShowExpertNote, splitLeadingTag, formatAgendaDate, groupTasksByDueDate } from '../../utils/staffTaskDisplay';
 
@@ -1197,7 +1199,7 @@ export default function FieldWorkerDashboard() {
   const nextTask = tasks.find((task) => task.status === 'IN_PROGRESS') || tasks.find((task) => task.status === 'OVERDUE') || tasks.find((task) => task.status === 'PENDING');
   const focusedTask = tasks.find((task) => task.id === focusedTaskId) || nextTask || tasks[0] || null;
   const taskRank = (task) => task.status === 'COMPLETED' ? 4 : task.priority === 'HIGH' ? 0 : task.status === 'OVERDUE' ? 1 : task.status === 'IN_PROGRESS' ? 2 : 3;
-  const orderedTasks = [...tasks].sort((first, second) => taskRank(first) - taskRank(second));
+  const orderedTasks = useMemo(() => [...tasks].sort((first, second) => taskRank(first) - taskRank(second)), [tasks]);
   const tasksByPlot = orderedTasks.reduce((groups, task) => {
     const key = task.plotCode || task.plotName || 'Chưa xác định';
     if (!groups[key]) groups[key] = { plotCode: task.plotCode, plotName: task.plotName, crop: task.crop, plotImage: task.plotImage, tasks: [] };
@@ -1325,6 +1327,43 @@ export default function FieldWorkerDashboard() {
       return bPending - aPending;
     });
   }, [assignedPlots, orderedTasks]);
+
+  // Tích hợp Open-Meteo Weather API thực địa cho Modal chi tiết thửa đất (SSoT: Không mock)
+  const [modalWeather, setModalWeather] = useState(null);
+  const [modalWeatherLoading, setModalWeatherLoading] = useState(false);
+  const [modalWeatherError, setModalWeatherError] = useState(null);
+
+  const loadPlotWeather = useCallback(async (plot, force = false) => {
+    if (!plot) return;
+    setModalWeatherLoading(true);
+    setModalWeatherError(null);
+    try {
+      const res = await fetchLiveAgroIotData(plot, force);
+      if (res && res.isLive3rdParty) {
+        setModalWeather(res);
+      } else {
+        setModalWeather(null);
+        setModalWeatherError('Không thể kết nối đến máy chủ Open-Meteo API. Vui lòng kiểm tra kết nối mạng.');
+      }
+    } catch (err) {
+      setModalWeather(null);
+      setModalWeatherError('Lỗi kết nối Weather API: ' + (err.message || 'Không có phản hồi'));
+    } finally {
+      setModalWeatherLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedPlotModalCode) {
+      setModalWeather(null);
+      setModalWeatherError(null);
+      return;
+    }
+    const current = plotSummaryList.find((p) => p.key === selectedPlotModalCode || String(p.rentalId) === String(selectedPlotModalCode) || p.plotCode === selectedPlotModalCode);
+    if (current) {
+      loadPlotWeather(current);
+    }
+  }, [selectedPlotModalCode, loadPlotWeather]);
   const currentSession = new Date().getHours() < 12 ? 'MORNING' : 'AFTERNOON';
   const currentSessionTasks = tasks.filter((task) => task.session === currentSession);
   const harvestedWeight = harvestTasks.reduce((sum, item) => sum + (Number.parseFloat(item.actualWeight) || 0), 0);
@@ -2149,27 +2188,43 @@ export default function FieldWorkerDashboard() {
                   </div>
                 </div>
 
-                {/* Dòng 3: Nhiệt Độ Thực Địa & Cảnh Báo Khí Tượng/Mưa (BR18) chuẩn như Cus */}
+                {/* Dòng 3: Nhiệt Độ Thực Địa & Cảnh Báo Khí Tượng/Mưa (BR18) từ Open-Meteo Live API */}
                 {(() => {
-                  const sMoistureNum = parseFloat(String(activePlot.soilMoisture || '0'));
-                  const isRainAlert = sMoistureNum >= 80 || activePlot.isRaining || Boolean(activePlot.rainAlert);
+                  const liveTemp = modalWeather?.metrics?.temp;
+                  const liveSoilMoisture = modalWeather?.metrics?.soilMoisture;
+                  const livePrecip = modalWeather?.metrics?.precipitation;
+                  const sMoistureNum = liveSoilMoisture ? parseFloat(String(liveSoilMoisture)) : parseFloat(String(activePlot.soilMoisture || '0'));
+                  const precipNum = livePrecip ? parseFloat(String(livePrecip)) : 0;
+                  const isRainAlert = sMoistureNum >= 80 || precipNum >= 5 || activePlot.isRaining || Boolean(activePlot.rainAlert);
 
                   return (
                     <div className="flex flex-col sm:flex-row items-stretch gap-2.5 pt-1 text-xs">
-                      {/* Thẻ 1: Nhiệt độ thực địa duy nhất */}
+                      {/* Thẻ 1: Nhiệt độ thực địa từ Open-Meteo */}
                       <div className="p-3 rounded-2xl bg-stone-50/90 border border-stone-200/80 flex items-center gap-3 shrink-0 sm:min-w-[190px]">
                         <span className="text-2xl leading-none">🌡️</span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] text-stone-500 uppercase font-black tracking-wider">Nhiệt độ</span>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
-                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-600" />
-                              Live Feed
-                            </span>
+                            {modalWeather?.isLive3rdParty ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-600" />
+                                Live API
+                              </span>
+                            ) : modalWeatherLoading ? (
+                              <span className="text-[9px] text-stone-400">Đang tải...</span>
+                            ) : null}
                           </div>
                           <div className="flex items-baseline gap-1 mt-0.5">
-                            <strong className="text-lg font-heading font-black text-stone-900 font-mono">{activePlot.temp || '25.6°C'}</strong>
-                            <span className="text-[10px] text-stone-400 font-medium">· Chuẩn 18–32°C</span>
+                            {liveTemp ? (
+                              <>
+                                <strong className="text-lg font-heading font-black text-stone-900 font-mono">{liveTemp}</strong>
+                                <span className="text-[10px] text-stone-400 font-medium">· Chuẩn 18–32°C</span>
+                              </>
+                            ) : modalWeatherLoading ? (
+                              <span className="text-stone-400 italic">Đang đồng bộ...</span>
+                            ) : (
+                              <span className="text-stone-400 italic">Chưa có kết nối</span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2189,7 +2244,11 @@ export default function FieldWorkerDashboard() {
                                 </span>
                               </div>
                               <p className="mt-1 text-[11px] text-amber-800 leading-relaxed">
-                                Độ ẩm đất thực tế từ trạm là <strong className="font-mono font-bold text-amber-950">{activePlot.soilMoisture || '82%'}</strong> (≥ 80%). Hệ thống đã tự động tạm hoãn các ca tưới hôm nay để tránh úng rễ cây.
+                                {liveSoilMoisture ? (
+                                  <>Độ ẩm đất thực tế đo từ trạm Open-Meteo là <strong className="font-mono font-bold text-amber-950">{liveSoilMoisture}</strong> (≥ 80%). Hệ thống đã tự động tạm hoãn các ca tưới hôm nay để tránh úng rễ cây.</>
+                                ) : (
+                                  <>Hệ thống đã tự động tạm hoãn các ca tưới hôm nay để tránh úng rễ cây theo quy chuẩn BR18.</>
+                                )}
                               </p>
                             </div>
                           </div>
@@ -2208,7 +2267,11 @@ export default function FieldWorkerDashboard() {
                                 </span>
                               </div>
                               <p className="mt-1 text-[11px] text-emerald-800 leading-relaxed">
-                                Không có mưa rào · Độ ẩm đất ổn định <strong className="font-mono font-bold text-emerald-950">{activePlot.soilMoisture || '71%'}</strong> (chuẩn 65–75%). Điều kiện lý tưởng cho các ca tưới và chăm sóc theo quy trình VietGAP.
+                                {liveSoilMoisture ? (
+                                  <>Không có mưa rào · Độ ẩm đất ổn định <strong className="font-mono font-bold text-emerald-950">{liveSoilMoisture}</strong> (chuẩn 65–75%). Điều kiện lý tưởng cho các ca tưới và chăm sóc theo quy trình VietGAP.</>
+                                ) : (
+                                  <>Điều kiện thời tiết ổn định, không có mưa lớn, phù hợp tiến hành chăm sóc theo quy trình VietGAP.</>
+                                )}
                               </p>
                             </div>
                           </div>
@@ -2401,73 +2464,122 @@ export default function FieldWorkerDashboard() {
                 );
               })()}
 
-              {/* SUBTAB 2: THỜI TIẾT & KHÍ TƯỢNG */}
+              {/* SUBTAB 2: THỜI TIẾT & KHÍ TƯỢNG (SSoT Open-Meteo Live API - Không mock) */}
               {plotModalTab === 'iot' && (
                 <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200 pb-2">
-                    <div>
-                      <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-emerald-700" />
-                        <span>Dữ Liệu Thời Tiết &amp; Khí Tượng Nông Trại (Weather API)</span>
-                      </h4>
-                      <p className="text-xs text-stone-500">
-                        Cập nhật tự động theo tọa độ địa lý nông trại (10.97°N, 106.49°E), hỗ trợ kiểm soát vi khí hậu và cảnh báo kịp thời.
-                      </p>
+                  {modalWeatherLoading ? (
+                    <div className="p-8 text-center bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+                      <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                      <div>
+                        <p className="text-sm font-bold text-stone-800">Đang truy vấn số liệu vi khí hậu từ Open-Meteo API...</p>
+                        <p className="text-xs text-stone-500 mt-1">Hệ thống đang kết nối trực tiếp đến trạm thời tiết theo tọa độ GPS nông trại</p>
+                      </div>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 self-start sm:self-auto">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      Weather API · Trực tuyến
-                    </span>
-                  </div>
+                  ) : modalWeatherError || !modalWeather?.isLive3rdParty ? (
+                    <div className="p-6 text-center bg-rose-50 rounded-2xl border border-rose-200 space-y-3">
+                      <AlertTriangle className="w-8 h-8 text-rose-600 mx-auto" />
+                      <div>
+                        <p className="text-sm font-bold text-rose-900">Không thể kết nối đến máy chủ Open-Meteo API</p>
+                        <p className="text-xs text-rose-700 max-w-md mx-auto mt-1">
+                          Hệ thống tuân thủ nguyên tắc SSoT: Chỉ hiển thị các thông số thời tiết khi nhận được phản hồi trực tiếp từ API thực địa, không sử dụng số liệu mô phỏng/mock.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => loadPlotWeather(activePlot, true)}
+                        className="mt-2"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 mr-1" /> Thử kết nối lại
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200 pb-2">
+                        <div>
+                          <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-emerald-700" />
+                            <span>Dữ Liệu Thời Tiết &amp; Khí Tượng Nông Trại (Open-Meteo API)</span>
+                          </h4>
+                          <p className="text-xs text-stone-500">
+                            Trực tiếp từ trạm vệ tinh khí tượng theo tọa độ GPS ({modalWeather.coordinates?.lat?.toFixed(4)}°N, {modalWeather.coordinates?.lon?.toFixed(4)}°E) · Cập nhật lúc {modalWeather.lastUpdated}.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            Open-Meteo Live API
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => loadPlotWeather(activePlot, true)}
+                            title="Làm mới dữ liệu từ API"
+                            className="p-1.5 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
 
-                  {/* 5 Sensor Dials */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200/80 text-center space-y-1">
-                      <Thermometer className="w-5 h-5 text-amber-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Nhiệt độ KK</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.temp || '28.5°C'}</strong>
-                      <span className="text-[10px] text-amber-700 font-medium">Lý tưởng 25-32°C</span>
-                    </div>
+                      {/* 4 Dials thực tế lấy từ Open-Meteo (ĐÃ LOẠI BỎ ĐỘ pH ĐẤT VÌ WEATHER API KHÔNG ĐO pH) */}
+                      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200/80 text-center space-y-1">
+                          <Thermometer className="w-5 h-5 text-amber-600 mx-auto" />
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Nhiệt độ không khí</span>
+                          <strong className="text-lg font-heading font-black text-stone-900 block font-mono">{modalWeather.metrics.temp}</strong>
+                          <span className="text-[10px] text-amber-700 font-medium">Cảm biến nhiệt 2m</span>
+                        </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-sky-50 to-blue-50/40 border border-sky-200/80 text-center space-y-1">
-                      <Droplets className="w-5 h-5 text-sky-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ ẩm đất</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.soilMoisture || '68%'}</strong>
-                      <span className="text-[10px] text-sky-700 font-medium">Độ ẩm tối ưu</span>
-                    </div>
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-cyan-50 to-teal-50/40 border border-cyan-200/80 text-center space-y-1">
+                          <Droplets className="w-5 h-5 text-cyan-600 mx-auto" />
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ ẩm không khí</span>
+                          <strong className="text-lg font-heading font-black text-stone-900 block font-mono">{modalWeather.metrics.airHumidity}</strong>
+                          <span className="text-[10px] text-cyan-700 font-medium">Ẩm độ khí quyển</span>
+                        </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-cyan-50 to-teal-50/40 border border-cyan-200/80 text-center space-y-1">
-                      <Droplets className="w-5 h-5 text-cyan-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ ẩm không khí</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.airHumidity || '74%'}</strong>
-                      <span className="text-[10px] text-cyan-700 font-medium">Ẩm độ thích hợp</span>
-                    </div>
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-sky-50 to-blue-50/40 border border-sky-200/80 text-center space-y-1">
+                          <Droplets className="w-5 h-5 text-sky-600 mx-auto" />
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ ẩm tầng đất mặt</span>
+                          <strong className="text-lg font-heading font-black text-stone-900 block font-mono">{modalWeather.metrics.soilMoisture}</strong>
+                          <span className="text-[10px] text-sky-700 font-medium">{parseFloat(modalWeather.metrics.soilMoisture) >= 80 ? 'Bão hòa ẩm (≥80%)' : 'Ngưỡng an toàn'}</span>
+                        </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-yellow-50 to-amber-50/40 border border-yellow-200/80 text-center space-y-1">
-                      <Sun className="w-5 h-5 text-yellow-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Cường độ sáng</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.light || '45.000 Lux'}</strong>
-                      <span className="text-[10px] text-yellow-800 font-medium">Quang hợp mạnh</span>
-                    </div>
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-yellow-50 to-amber-50/40 border border-yellow-200/80 text-center space-y-1">
+                          <Sun className="w-5 h-5 text-yellow-600 mx-auto" />
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Bức xạ quang học</span>
+                          <strong className="text-lg font-heading font-black text-stone-900 block font-mono">{modalWeather.metrics.light}</strong>
+                          <span className="text-[10px] text-yellow-800 font-medium">Bức xạ mặt trời</span>
+                        </div>
+                      </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-green-50/40 border border-emerald-200/80 text-center space-y-1">
-                      <Gauge className="w-5 h-5 text-emerald-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ pH đất</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.ph || '6.5'}</strong>
-                      <span className="text-[10px] text-emerald-700 font-medium">Đất trung tính</span>
-                    </div>
-                  </div>
+                      {/* Các chỉ số khí tượng bổ trợ từ Open-Meteo */}
+                      <div className="grid grid-cols-3 gap-2.5 text-xs">
+                        <div className="p-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-center">
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Lượng mưa</span>
+                          <strong className="text-stone-900 font-bold font-mono mt-0.5 block">{modalWeather.metrics.precipitation || '0.0 mm'}</strong>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-center">
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Tốc độ gió</span>
+                          <strong className="text-stone-900 font-bold font-mono mt-0.5 block">{modalWeather.metrics.windSpeed || '—'}</strong>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-center">
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Nhiệt độ mặt đất</span>
+                          <strong className="text-stone-900 font-bold font-mono mt-0.5 block">{modalWeather.metrics.soilTemp || '—'}</strong>
+                        </div>
+                      </div>
 
-                  {/* Irrigation Rule Notice */}
-                  <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-sky-950 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-sky-700" />
-                      <strong className="font-heading font-black text-sky-900">Quy tắc điều tiết tưới tự động:</strong>
-                    </div>
-                    <p className="text-sky-800 leading-relaxed">
-                      Trạm quan trắc sẽ <strong>tự động tạm hoãn lệnh tưới</strong> nếu độ ẩm đất đo được vượt ngưỡng <strong>80%</strong> để chống ngập úng rễ và ngăn ngừa nấm bệnh. Hệ thống sẽ kích hoạt lại khi độ ẩm đất hạ về dưới 65%.
-                    </p>
-                  </div>
+                      {/* Irrigation Rule Notice (BR18) */}
+                      <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-sky-950 space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-sky-700" />
+                          <strong className="font-heading font-black text-sky-900">Quy tắc điều tiết tưới tự động (BR18):</strong>
+                        </div>
+                        <p className="text-sky-800 leading-relaxed">
+                          Hệ thống sẽ <strong>tự động tạm hoãn lệnh tưới</strong> nếu độ ẩm đất đo được từ Open-Meteo vượt ngưỡng <strong>80%</strong> ({modalWeather.metrics.soilMoisture}) để chống ngập úng rễ và ngăn ngừa nấm bệnh. Hệ thống sẽ kích hoạt lại khi độ ẩm đất hạ về dưới 65%.
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
