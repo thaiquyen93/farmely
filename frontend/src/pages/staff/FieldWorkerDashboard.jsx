@@ -206,7 +206,11 @@ const isTaskToday = (t, plotCurrentDay = null) => {
   return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
 };
 
-const isHarvestTaskTitle = (title) => /thu hoạch|cân|đóng thùng/i.test(title);
+const isHarvestTaskTitle = (title) => {
+  if (!title) return false;
+  if (/trước thu hoạch|chuẩn bị thu hoạch/i.test(title)) return false;
+  return /thu hoạch|cân|đóng thùng/i.test(title);
+};
 
 // Left accent + status word for a task card. Default "Hôm nay" shows no status word.
 const getTaskCardAccent = (task, variant, plotCurrentDay = null) => {

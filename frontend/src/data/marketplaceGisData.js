@@ -1051,7 +1051,10 @@ export function buildGeoJsonFromDbPlots(plots = []) {
         String(c).toLowerCase() === String(p.plotId || p.id).toLowerCase()
     );
 
-    const rawStatus = isRecentlyBooked ? 'RENT' : (p.status || '').toUpperCase();
+    // SSoT: Ưu tiên tuyệt đối trạng thái thực tế từ CSDL PostgreSQL (p.status)
+    // Chỉ fallback sang localStorage khi dữ liệu DB chưa kịp nạp
+    const dbStatus = (p.status || p.statusCode || '').toUpperCase();
+    const rawStatus = dbStatus ? dbStatus : (isRecentlyBooked ? 'RENT' : 'AVAIL');
     const statusLabel = rawStatus === 'AVAIL' || rawStatus === 'AVAILABLE'
       ? 'Đang trống'
       : (rawStatus === 'RENT' || rawStatus === 'RENTED'

@@ -198,6 +198,8 @@ UPDATE conversations SET participant_one = 8, participant_two = 5 WHERE type = '
 
 -- Dọn dẹp dữ liệu test thừa và chuẩn hóa chuỗi mô tả
 DELETE FROM care_tasks WHERE task_id IN (11, 12, 14);
+DELETE FROM care_tasks WHERE title ILIKE '%Thiết lập thời gian cách ly%' OR title ILIKE '%cách ly an toàn VietGAP trước thu hoạch%';
+DELETE FROM template_steps WHERE step_name ILIKE '%Thiết lập thời gian cách ly%' OR step_name ILIKE '%cách ly an toàn VietGAP trước thu hoạch%';
 UPDATE care_tasks SET notes = 'Bón thúc đợt 2 phân trùn quế quanh vùng rễ' WHERE notes LIKE '%Test auto assign Zone B%';
 UPDATE care_tasks SET notes = '[LÀM NGAY] Xử lý rệp sáp bùng phát mặt dưới lá - Pha chế phẩm sinh học thảo mộc tỏi ớt 1:200, phun đều 2 mặt lá sau 16:30.' WHERE task_id = 15;
 
@@ -5396,6 +5398,7 @@ END $$;
             if (rentalIdParam && parseInt(rentalIdParam, 10)) {
               taskWhere.push(`ct.rental_id = ${parseInt(rentalIdParam, 10)}`);
             }
+            taskWhere.push(`(ct.title NOT ILIKE '%Thiết lập thời gian cách ly%' AND ct.title NOT ILIKE '%cách ly an toàn VietGAP trước thu hoạch%')`);
             const taskWhereSql = taskWhere.length > 0 ? `WHERE ${taskWhere.join(' AND ')}` : '';
 
             const sql = `
