@@ -1,4 +1,4 @@
-export const RENTAL_TERMS_VERSION = 'FARMELY-LEASE-2026-10-15-DRAFT';
+export const RENTAL_TERMS_VERSION = 'FARMELY-LEASE-2026-11-04-DRAFT';
 
 /**
  * THÔNG TIN PHÁP LÝ & ĐẠI DIỆN BÊN CHO THUÊ (BÊN A) - CÔNG TY TNHH FARMELY
@@ -24,7 +24,7 @@ export const RENTAL_TERMS = [
   },
   {
     title: 'Điều 2. Thông tin thửa đất và thời hạn canh tác',
-    content: 'Khách hàng kiểm tra mã thửa, diện tích, cây trồng, hình thức chăm sóc, ngày bắt đầu và ngày kết thúc của từng thửa trước khi thanh toán. Ngày bắt đầu phải từ 10 ngày sau ngày đặt thuê; Farmely dùng khoảng thời gian này để chuẩn bị đất, vật tư và kế hoạch vận hành.'
+    content: 'Khách hàng kiểm tra mã thửa, diện tích, cây trồng, hình thức chăm sóc, ngày bắt đầu và ngày kết thúc của từng thửa trước khi thanh toán. Ngày bắt đầu được chọn trong khoảng từ 5 đến 14 ngày sau ngày đặt thuê để Farmely chuẩn bị đất, vật tư và kế hoạch vận hành. Thời hạn thuê tối thiểu phải đáp ứng chu kỳ sinh trưởng của giống đã chọn cộng thêm 10 ngày dự phòng.'
   },
   {
     title: 'Điều 3. Mục đích sử dụng và quy trình canh tác',
@@ -53,5 +53,29 @@ export const RENTAL_TERMS = [
   {
     title: 'Điều 9. Khiếu nại và giải quyết tranh chấp',
     content: 'Khách hàng gửi yêu cầu hỗ trợ hoặc khiếu nại qua kênh công bố trên Farmely kèm mã hợp đồng và tài liệu liên quan. Các bên ưu tiên trao đổi, đối chiếu dữ liệu hệ thống và thương lượng; nếu không giải quyết được thì thực hiện theo thỏa thuận hợp đồng và pháp luật Việt Nam.'
+  },
+  {
+    title: 'Điều 10. Hủy hợp đồng và hoàn tiền',
+    content: 'Khách hàng gửi yêu cầu hủy trên hệ thống trước ngày bắt đầu canh tác sớm nhất trong hợp đồng. Gửi trước ngày bắt đầu từ 3 ngày trở lên: hoàn 80% số tiền đã thanh toán. Gửi trước ngày bắt đầu dưới 3 ngày: hoàn 50%. Từ ngày bắt đầu trở đi: không hoàn tiền. Yêu cầu cần được quản trị viên duyệt; mức hoàn cuối cùng được hiển thị trong kết quả xử lý yêu cầu.'
+  },
+  {
+    title: 'Điều 11. Gia hạn và kết thúc thuê',
+    content: 'Khách hàng gửi yêu cầu gia hạn trước ngày kết thúc hợp đồng ít nhất 3 ngày. Việc gia hạn phụ thuộc vào khả năng tiếp tục cung cấp plot và xác nhận thanh toán. Nếu không gia hạn, khi hết hợp đồng plot được chuyển sang bảo dưỡng 4 ngày để vệ sinh, xử lý đất và chuẩn bị cho lượt canh tác tiếp theo; trong thời gian này plot chưa mở cho lượt thuê mới.'
+  },
+  {
+    title: 'Điều 12. Hình thức canh tác và dịch vụ chăm sóc',
+    content: 'Khách hàng chọn tự canh tác hoặc Farmely chăm sóc cho từng plot. Với hình thức tự canh tác, khách hàng thực hiện công việc theo quy trình của giống đã chọn và ghi nhật ký theo yêu cầu hiển thị trên hệ thống. Với hình thức Farmely chăm sóc, nhân viên được phân công thực hiện các công việc theo quy trình canh tác và cập nhật nhật ký, minh chứng. Dịch vụ chăm sóc phát sinh riêng chỉ áp dụng theo nội dung, thời gian và mức phí được hiển thị trước khi khách hàng đặt.'
+  },
+  {
+    title: 'Điều 13. Giống cây, thời hạn và quy trình canh tác',
+    content: 'Khách hàng chỉ chọn giống tương thích và được Farmely cung cấp cho plot. Thời hạn thuê tối thiểu phải đáp ứng chu kỳ sinh trưởng cùng khoảng dự phòng được hiển thị khi cấu hình đơn. Khách hàng không tự ý thay giống, dùng vật tư chưa được chấp thuận hoặc thực hiện hoạt động gây ảnh hưởng đến đất, hệ thống tưới, thiết bị và các plot lân cận. Các mốc công việc, hướng dẫn và vật tư áp dụng theo quy trình canh tác của giống đã xác nhận trong đơn.'
+  },
+  {
+    title: 'Điều 14. Đặt giữ plot và thanh toán',
+    content: 'Khi bắt đầu đặt thuê, hệ thống giữ plot trong 15 phút và có thể cộng thêm 10 phút ân hạn khi khách hàng chuyển sang thanh toán. Khách hàng thanh toán 100% tổng giá trị đơn, gồm tiền thuê và dịch vụ đã chọn; hệ thống không thu tiền đặt cọc. Hợp đồng chỉ được kích hoạt sau khi hệ thống xác nhận giao dịch thanh toán thành công. Nếu thời gian giữ chỗ hết hạn trước khi hoàn tất, plot có thể được mở lại cho khách hàng khác.'
+  },
+  {
+    title: 'Điều 15. Sản lượng và điều kiện tự nhiên',
+    content: 'Kết quả và sản lượng phụ thuộc vào giống, thời tiết, sâu bệnh, điều kiện tự nhiên và việc tuân thủ quy trình canh tác; Farmely không cam kết sản lượng cố định. Farmely ghi nhận và thông báo các sự cố vận hành trong phạm vi dịch vụ đã chọn. Các bên phối hợp xử lý sự kiện bất khả kháng theo thỏa thuận và quy định pháp luật.'
   }
 ];

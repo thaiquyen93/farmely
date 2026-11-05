@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
 import { chatService } from '../../api/communication/chatService';
-import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
+import { DEMO_CUSTOMERS, getPlotChatThreadId } from '../../api/communication/chatStorage';
 import {
   loadLeaseConfigMap,
   saveLeaseConfigMap,
@@ -44,6 +44,7 @@ import {
   ALLOWED_TERM_MONTHS,
   getMinTermMonths
 } from '../../utils/leaseSelection';
+import { RENTAL_TERMS, RENTAL_TERMS_VERSION } from '../../data/rentalTerms';
 
 // Danh mục tương thích sinh học chuẩn hóa từ PostgreSQL table plot_variety_compatibility (BR03)
 const PLOT_COMPATIBLE_VARIETIES = {
@@ -240,6 +241,9 @@ export default function BookPlot() {
   const [isAddPlotModalOpen, setIsAddPlotModalOpen] = useState(false);
   const [createdContractId, setCreatedContractId] = useState(null);
   const [bookingError, setBookingError] = useState('');
+  const [showContractTerms, setShowContractTerms] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsDialogAccepted, setTermsDialogAccepted] = useState(false);
   const [isExtendingGrace, setIsExtendingGrace] = useState(false);
   const [graceApplied, setGraceApplied] = useState(false);
 
@@ -254,6 +258,11 @@ export default function BookPlot() {
   const [cropValidationError, setCropValidationError] = useState(false);
   const [modeValidationError, setModeValidationError] = useState(false);
   const [startDate, setStartDate] = useState(() => getEarliestCultivationDate());
+
+  const clearTermsAcceptance = () => {
+    setAcceptedTerms(false);
+    setTermsDialogAccepted(false);
+  };
 
   // 15-minute reservation timer (BR08) & checkout settings
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
@@ -391,6 +400,7 @@ export default function BookPlot() {
   const handleUpdatePlotConfig = (plot, patch) => {
     const pCode = normalizePlotCode(plot.code || plot.plotCode || plot.plot_code || plot.id);
     if (!pCode) return;
+    clearTermsAcceptance();
 
     setPlotConfigs((prev) => {
       const current = prev[pCode] || prev[plot.id] || {};
@@ -651,6 +661,7 @@ export default function BookPlot() {
   );
 
   const handleAddPlot = (plotToAdd) => {
+    clearTermsAcceptance();
     const updated = [...selectedPlots, plotToAdd];
     setSelectedPlots(updated);
     setIsAddPlotModalOpen(false);
@@ -660,6 +671,7 @@ export default function BookPlot() {
 
   const handleRemovePlot = (plotIdToRemove) => {
     if (selectedPlots.length <= 1) return; // Keep at least 1 plot
+    clearTermsAcceptance();
     const updated = selectedPlots.filter((p) => p.id !== plotIdToRemove);
     setSelectedPlots(updated);
     const newCodes = updated.map((p) => p.code || p.id).join(',');
@@ -702,6 +714,20 @@ export default function BookPlot() {
       plotCode: plotCodesList,
       plotName: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`,
       crop: primaryCrop?.variety || primaryPlot.compatibleCrops?.[0] || 'Cây trồng tiêu chuẩn'
+    });
+    selectedPlots.forEach((plot) => {
+      const plotCode = normalizePlotCode(plot.code || plot.plotCode || plot.id);
+      const plotCrop = getPlotSelectedCrop(plot);
+      chatService.upsertPlotThread({
+        threadId: getPlotChatThreadId({ userId: user.id, email: user.email, plotCode }),
+        customerName: user.fullName || demoProfile?.name,
+        customerEmail: user.email,
+        customerAvatar: user.avatar || demoProfile?.avatar,
+        plotCode,
+        plotName: plot.name || `Thửa ${plotCode}`,
+        crop: plotCrop?.variety || plotCrop?.name || 'Cây trồng tiêu chuẩn',
+        rentalStatus: 'RENTED'
+      });
     });
   };
 
@@ -799,23 +825,6 @@ export default function BookPlot() {
     });
   };
 
-  const markPlotsAsBookedLocally = () => {
-    try {
-      localStorage.removeItem('farmely_master_lease_selected_plots');
-      const recent = JSON.parse(localStorage.getItem('farmely_recently_booked_plots') || '[]');
-      selectedPlots.forEach((sp) => {
-        const c1 = sp.code || sp.id;
-        const c2 = sp.id;
-        if (c1 && !recent.includes(c1)) recent.push(c1);
-        if (c2 && !recent.includes(c2)) recent.push(c2);
-      });
-      localStorage.setItem('farmely_recently_booked_plots', JSON.stringify(recent));
-      window.dispatchEvent(new CustomEvent('farmely_plot_booked', { detail: selectedPlots }));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const buildPendingBookingPayload = (contractIdToUse) => ({
     contractId: contractIdToUse || createdContractId || null,
     customerId: user?.userId || user?.id || 1,
@@ -848,8 +857,13 @@ export default function BookPlot() {
     })
   });
 
-  const handleConfirmBooking = async () => {
+  const handleConfirmBooking = async (termsConfirmed = false) => {
     setBookingError('');
+
+    if (!acceptedTerms && !termsConfirmed) {
+      setBookingError('Vui lòng đọc và xác nhận hợp đồng cùng điều khoản trước khi thanh toán.');
+      return;
+    }
 
     if (!startDate) {
       setBookingError('Vui lòng chọn ngày bắt đầu canh tác.');
@@ -947,7 +961,8 @@ export default function BookPlot() {
       }
 
       syncRentalToChat();
-      markPlotsAsBookedLocally();
+      localStorage.removeItem('farmely_master_lease_selected_plots');
+      window.dispatchEvent(new CustomEvent('farmely_plot_booked', { detail: selectedPlots }));
 
       // Thông báo cho toàn bộ các tab và component làm mới dữ liệu
       window.dispatchEvent(new Event('farmely_plot_booked'));
@@ -1579,7 +1594,10 @@ export default function BookPlot() {
                       value={startDate}
                       min={getEarliestCultivationDate()}
                       max={getLatestCultivationDate()}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => {
+                        clearTermsAcceptance();
+                        setStartDate(e.target.value);
+                      }}
                       className="w-full py-2.5 px-3.5 rounded-xl border border-brand-border text-sm font-semibold text-brand-dark focus:border-brand-green focus:ring-2 focus:ring-brand-green/20 outline-hidden bg-white shadow-2xs cursor-pointer"
                     />
                     <p className="text-[11px] text-stone-500 mt-1">
@@ -1725,15 +1743,29 @@ export default function BookPlot() {
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-brand-cream/60 border border-brand-border text-[11px] text-stone-600 space-y-1">
-                  <p className="font-bold text-brand-dark flex items-center gap-1.5">
-                    <ShieldCheck className="w-3.5 h-3.5 text-brand-green" />
-                    Chính sách hoàn tiền hợp đồng:
-                  </p>
-                  <p>• Gửi yêu cầu hủy trước ngày bắt đầu ít nhất 3 ngày: hoàn 80% số tiền đã thanh toán.</p>
-                  <p>• Gửi trước 1–2 ngày: hoàn 50% số tiền đã thanh toán.</p>
-                  <p>• Gửi vào hoặc sau ngày bắt đầu: không hoàn tiền.</p>
-                  <p>Ngày bắt đầu áp dụng là ngày sớm nhất trong hợp đồng; yêu cầu hủy cần được quản trị viên duyệt.</p>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5">
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={acceptedTerms}
+                    onClick={() => setAcceptedTerms((checked) => !checked)}
+                    className="flex w-full cursor-pointer select-none items-start gap-3 text-left text-xs leading-relaxed text-stone-700"
+                  >
+                    <span aria-hidden="true" className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${acceptedTerms ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-stone-400 bg-white text-transparent'}`}>
+                      {acceptedTerms ? '✓' : ''}
+                    </span>
+                    <span>Tôi xác nhận đã đọc và đồng ý với hợp đồng thuê plot, hình thức canh tác, thời hạn thuê và các điều khoản áp dụng.</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTermsDialogAccepted(false);
+                      setShowContractTerms(true);
+                    }}
+                    className="ml-7 mt-2 text-xs font-bold text-emerald-800 underline underline-offset-2 hover:text-emerald-950"
+                  >
+                    Xem hợp đồng và toàn bộ chính sách
+                  </button>
                 </div>
 
                 {selectedPlots.some((p) => !getPlotSelectedCrop(p)) && (
@@ -1765,16 +1797,17 @@ export default function BookPlot() {
                   variant="secondary"
                   size="lg"
                   className="w-full uppercase font-black tracking-wider text-sm shadow-md py-4 flex items-center justify-center gap-2 cursor-pointer transition-all"
-                  onClick={handleConfirmBooking}
+                  onClick={() => {
+                    setTermsDialogAccepted(false);
+                    setShowContractTerms(true);
+                  }}
                   loading={isProcessing}
                 >
                   <ShieldCheck className="w-5 h-5 text-brand-yellow" />
                   <span>TIẾP TỤC THANH TOÁN VNPAY SANDBOX ({totalAmount.toLocaleString('vi-VN')} đ)</span>
                 </Button>
 
-                <p className="text-[11px] text-center text-brand-muted">
-                  Bằng việc bấm xác nhận, bạn đồng ý với các điều khoản thuê thửa đất của Farmely.
-                </p>
+                <p className="text-[11px] text-center text-brand-muted">Cần xác nhận điều khoản trong popup trước khi chuyển sang thanh toán.</p>
               </div>
             </div>
           </div>
@@ -1864,6 +1897,58 @@ export default function BookPlot() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {showContractTerms && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-stone-950/70 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="contract-terms-title">
+          <section className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <header className="border-b border-brand-border px-5 py-4 sm:px-7">
+              <h2 id="contract-terms-title" className="text-xl font-black text-brand-dark">Hợp đồng thuê plot và điều khoản</h2>
+              <div className="mt-3 space-y-1.5 rounded-xl bg-stone-50 p-3">
+                {selectedPlots.map((plot) => {
+                  const crop = getPlotSelectedCrop(plot);
+                  const config = getPlotConfig(plot);
+                  const price = getPlotPriceDetails(plot);
+                  return (
+                    <p key={plot.id} className="text-xs text-stone-700">
+                      <strong>{plot.code || plot.id}</strong> · {crop?.variety || crop?.name || 'Chưa chọn giống'} · {config.cultivationMode === 'ASSISTED' ? 'Farmely chăm sóc' : 'Khách tự chăm sóc'} · {price.months} tháng · {price.total.toLocaleString('vi-VN')} đ
+                    </p>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-sm font-bold text-emerald-800">Tổng giá trị hợp đồng: {totalAmount.toLocaleString('vi-VN')} đ · Bắt đầu: {startDate || 'Chưa chọn'}</p>
+            </header>
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-7">
+              <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">Vui lòng đọc hợp đồng và các chính sách áp dụng cho những plot đã chọn. Tích xác nhận ở cuối để tiếp tục.</p>
+              {RENTAL_TERMS.map(({ title, content }) => (
+                <section key={title}><h3 className="font-bold text-brand-dark">{title}</h3><p className="mt-2 whitespace-pre-line text-sm leading-6 text-stone-600">{content}</p></section>
+              ))}
+              <p className="border-t border-brand-border pt-4 text-xs text-stone-500">Phiên bản điều khoản: {RENTAL_TERMS_VERSION}</p>
+            </div>
+            <footer className="space-y-4 border-t border-brand-border px-5 py-4 sm:px-7">
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={termsDialogAccepted}
+                onClick={() => setTermsDialogAccepted((checked) => !checked)}
+                className="flex w-full cursor-pointer select-none items-start gap-3 text-left text-sm text-stone-800"
+              >
+                <span aria-hidden="true" className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${termsDialogAccepted ? 'border-emerald-700 bg-emerald-700 text-white' : 'border-stone-400 bg-white text-transparent'}`}>
+                  {termsDialogAccepted ? '✓' : ''}
+                </span>
+                <span>Tôi xác nhận đã đọc và đồng ý với hợp đồng thuê plot, phương thức chăm sóc, thời hạn thuê và các chính sách áp dụng.</span>
+              </button>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowContractTerms(false)}>Quay lại</Button>
+                <Button variant="secondary" disabled={!termsDialogAccepted || isProcessing} loading={isProcessing} onClick={async () => {
+                  setAcceptedTerms(true);
+                  setShowContractTerms(false);
+                  await handleConfirmBooking(true);
+                }}>Xác nhận và tiếp tục thanh toán</Button>
+              </div>
+            </footer>
+          </section>
         </div>
       )}
 
