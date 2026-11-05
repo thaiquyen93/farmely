@@ -189,23 +189,23 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-[left] duration-200 ${hasDashboardRail ? (dashboardRailCollapsed ? 'lg:left-16' : 'lg:left-72') : ''} ${navBackgroundClass}`}>
       <div className="w-full px-4 sm:px-8">
-        <div className="flex items-center justify-between h-20">
+        <div className="flex items-center justify-between h-16">
           
           {/* LEFT: Brand Logo + Vertical Divider matching reference image */}
           <div className={hideBrand ? 'hidden' : 'flex items-center'}>
             <Link
               to={user && user.role !== 'CUSTOMER' ? getDashboardRoute(user.role) : "/"}
-              className="flex items-center gap-2.5 group pr-6 lg:pr-8 lg:border-r lg:border-white/20 h-12"
+              className="flex items-center gap-2.5 group pr-6 lg:pr-8 lg:border-r lg:border-white/20 h-10"
               title={user && user.role !== 'CUSTOMER' ? 'Trở về Bàn làm việc' : 'Trang chủ Farmely'}
             >
-              <div className="w-10 h-10 rounded-full bg-brand-yellow flex items-center justify-center text-brand-dark shadow-sm group-hover:scale-105 transition-transform">
-                <Sprout className="w-5 h-5 text-brand-dark stroke-[2.5]" />
+              <div className="w-9 h-9 rounded-full bg-brand-yellow flex items-center justify-center text-brand-dark shadow-sm group-hover:scale-105 transition-transform">
+                <Sprout className="w-4.5 h-4.5 text-brand-dark stroke-[2.5]" />
               </div>
               <div className="flex flex-col">
-                <span className="font-heading text-2xl font-black tracking-wider text-white">
+                <span className="font-heading text-xl font-black tracking-wider text-white">
                   FARMELY
                 </span>
-                <span className="text-[9px] tracking-widest text-brand-yellow uppercase font-bold -mt-1 hidden sm:block">
+                <span className="text-[9px] tracking-widest text-brand-yellow uppercase font-bold -mt-0.5 hidden sm:block">
                   Smart Agriculture
                 </span>
               </div>

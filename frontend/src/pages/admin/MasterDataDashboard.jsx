@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   Building2,
   Grid3X3,
-  CloudSun,
   Sprout,
   Wheat,
   BookOpen,
@@ -97,11 +96,10 @@ export default function MasterDataDashboard() {
       ]
     },
     {
-      group: 'Quy Trình & Khí Tượng',
-      caption: 'Quy trình chuẩn VietGAP, trạm khí tượng và tài liệu kỹ thuật',
+      group: 'Quy Trình & Kỹ Thuật Canh Tác',
+      caption: 'Quy trình chuẩn VietGAP và tài liệu kỹ thuật',
       items: [
         { label: 'Quy Trình Chuẩn VietGAP', value: activeTemplates, unit: 'quy trình', icon: FileSpreadsheet, link: '/admin/master-data/process-templates' },
-        { label: 'Trạm Khí Tượng & Thời Tiết', value: totalIoT, unit: 'trạm', icon: CloudSun, link: '/admin/master-data/iot-stations' },
         { label: 'Tài Liệu Kỹ Thuật (RAG)', value: totalDocs, unit: 'tài liệu', icon: BookOpen, link: '/admin/master-data/knowledge-documents' }
       ]
     }

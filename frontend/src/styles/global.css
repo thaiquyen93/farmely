@@ -3,6 +3,7 @@ html {
   scroll-behavior: smooth;
   font-family: 'Plus Jakarta Sans', 'Inter', 'Nunito', system-ui, -apple-system, sans-serif;
   color: var(--text-dark);
+  font-size: 15px; /* ponytail: balance site scale at 100% zoom so dashboards feel compact, not oversized */
 }
 
 body {
