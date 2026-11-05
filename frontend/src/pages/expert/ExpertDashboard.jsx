@@ -178,6 +178,8 @@ export default function ExpertDashboard() {
   });
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'pre_rental' | 'worker' | 'pending'
+  const [chatPlotFilter, setChatPlotFilter] = useState('ALL'); // 'ALL' | 'P-01' | 'P-14' ... (Kênh phân loại theo Thửa Đất)
+  const [selectedMessagePlot, setSelectedMessagePlot] = useState(''); // Thửa đất gắn thẻ khi gửi tin
   const [chatInputText, setChatInputText] = useState('');
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
@@ -247,12 +249,14 @@ export default function ExpertDashboard() {
   // Handle select conversation
   const handleSelectThread = (threadId) => {
     setSelectedThreadId(threadId);
+    setChatPlotFilter('ALL');
+    setSelectedMessagePlot('');
     setMobileShowChat(true);
     markExpertThreadAsRead(threadId);
   };
 
-  // Handle send message in Messenger chat
-  const handleSendCustomerMessage = (e) => {
+  // Handle send message in Messenger chat (hỗ trợ đính kèm mã Thửa Đất)
+  const handleSendCustomerMessage = (e, explicitPlotCode = null) => {
     if (e) e.preventDefault();
     if (!chatInputText.trim()) return;
 
@@ -260,7 +264,14 @@ export default function ExpertDashboard() {
       ? user.fullName
       : (activeRealtimeThread?.expertName || expertSenderName);
 
-    sendExpertMessage(chatInputText.trim(), currentExpert);
+    const targetPlot = explicitPlotCode || selectedMessagePlot || (chatPlotFilter !== 'ALL' ? chatPlotFilter : '');
+    const meta = {};
+    if (targetPlot) {
+      meta.plotCode = targetPlot;
+      meta.prescriptionTag = `CHỈ ĐẠO THỬA ${targetPlot}`;
+    }
+
+    sendExpertMessage(chatInputText.trim(), currentExpert, meta);
     setChatInputText('');
     setTimeout(() => {
       if (chatContainerRef.current) {
@@ -1199,7 +1210,7 @@ export default function ExpertDashboard() {
   };
 
   // Mở modal sinh task chỉ đạo trực tiếp từ hội thoại chat
-  const handleOpenDirectTaskModal = (thread, prefilled = null) => {
+  const handleOpenDirectTaskModal = (thread, prefilled = null, overridePlotCode = null) => {
     if (!thread) return;
 
     // Phân định rõ vai trò
@@ -1218,14 +1229,17 @@ export default function ExpertDashboard() {
         || availableFieldWorkers[0];
     }
 
+    const effectivePlotCode = overridePlotCode || (chatPlotFilter !== 'ALL' ? chatPlotFilter : selectedMessagePlot) || thread?.plotCode;
+
     const matchedPlot = assignedPlots.find((p) =>
+      (effectivePlotCode && (p.plotCode === effectivePlotCode || String(effectivePlotCode).includes(p.plotCode))) ||
       (thread?.plotCode && (p.plotCode === thread.plotCode || String(thread.plotCode).includes(p.plotCode))) ||
       (thread?.rentalId && p.rentalId === thread.rentalId) ||
       (!isWorker && thread?.customerName && p.renterName && String(thread.customerName).toLowerCase().includes(String(p.renterName).toLowerCase()))
     ) || assignedPlots[0] || {
       rentalId: 2,
-      plotCode: thread?.plotCode || 'P-01',
-      name: thread?.plotName || 'Thửa P-01',
+      plotCode: effectivePlotCode || thread?.plotCode || 'P-01',
+      name: thread?.plotName || `Thửa ${effectivePlotCode || thread?.plotCode || 'P-01'}`,
       crop: thread?.crop || 'Cải ngọt chuẩn VietGAP',
       staffId: 8,
       staffName: 'Trần Văn Lực'
@@ -2035,6 +2049,108 @@ export default function ExpertDashboard() {
                     const isWorkerThread = activeThread.role === 'worker' || activeThread.category === 'worker';
                     const isPreRental = isPreRentalThread(activeThread);
 
+                    // Trích xuất toàn bộ các thửa đất mà đối tượng chat (Khách thuê hoặc CVLĐ) đang phụ trách
+                    const participantPlots = (() => {
+                      const map = new Map();
+                      if (Array.isArray(activeThread.plots)) {
+                        activeThread.plots.forEach((p) => {
+                          if (p.plotCode) {
+                            const code = p.plotCode.toUpperCase().replace(/^PLOT-/, '').trim();
+                            map.set(code, {
+                              plotCode: code,
+                              plotName: p.plotName || `Thửa ${code}`,
+                              crop: p.crop || 'Chuẩn VietGAP'
+                            });
+                          }
+                        });
+                      }
+
+                      const cName = String(activeThread.customerName || '').toLowerCase().trim();
+                      assignedPlots.forEach((p) => {
+                        const rName = String(p.renterName || p.customerName || '').toLowerCase().trim();
+                        const sName = String(p.staffName || p.workerName || '').toLowerCase().trim();
+                        const isMatch = (cName && (rName.includes(cName) || cName.includes(rName))) ||
+                                        (cName && (sName.includes(cName) || cName.includes(sName)));
+                        if (isMatch && p.plotCode) {
+                          const code = p.plotCode.toUpperCase().replace(/^PLOT-/, '').trim();
+                          if (!map.has(code)) {
+                            map.set(code, {
+                              plotCode: code,
+                              plotName: p.plotName || p.name || `Thửa ${code}`,
+                              crop: p.crop || 'Chuẩn VietGAP'
+                            });
+                          }
+                        }
+                      });
+
+                      if (activeThread.plotCode) {
+                        const codes = String(activeThread.plotCode).split(',').map((s) => s.trim().toUpperCase().replace(/^PLOT-/, '').trim()).filter(Boolean);
+                        codes.forEach((code) => {
+                          if (!map.has(code)) {
+                            map.set(code, {
+                              plotCode: code,
+                              plotName: `Thửa ${code}`,
+                              crop: activeThread.crop || 'Chuẩn VietGAP'
+                            });
+                          }
+                        });
+                      }
+
+                      (activeThread.messages || []).forEach((m) => {
+                        if (m.plotCode) {
+                          const code = m.plotCode.toUpperCase().replace(/^PLOT-/, '').trim();
+                          if (!map.has(code)) {
+                            map.set(code, {
+                              plotCode: code,
+                              plotName: `Thửa ${code}`,
+                              crop: m.crop || 'Chuẩn VietGAP'
+                            });
+                          }
+                        } else if (m.text) {
+                          const matches = m.text.match(/\b(P-\d+)\b/gi);
+                          if (matches) {
+                            matches.forEach((match) => {
+                              const code = match.toUpperCase().replace(/^PLOT-/, '').trim();
+                              if (!map.has(code)) {
+                                map.set(code, {
+                                  plotCode: code,
+                                  plotName: `Thửa ${code}`,
+                                  crop: 'Chuẩn VietGAP'
+                                });
+                              }
+                            });
+                          }
+                        }
+                      });
+
+                      return Array.from(map.values());
+                    })();
+
+                    const detectMsgPlot = (m) => {
+                      if (m.plotCode) return m.plotCode.toUpperCase().replace(/^PLOT-/, '').trim();
+                      if (m.text) {
+                        const match = m.text.match(/\b(P-\d+)\b/i);
+                        if (match) return match[1].toUpperCase().replace(/^PLOT-/, '').trim();
+                        for (const p of participantPlots) {
+                          if (p.crop && p.crop.length >= 3) {
+                            const keyword = p.crop.toLowerCase().split(' ')[0];
+                            if (keyword.length >= 3 && m.text.toLowerCase().includes(keyword)) {
+                              return p.plotCode;
+                            }
+                          }
+                        }
+                      }
+                      return null;
+                    };
+
+                    const displayedMessages = (activeThread.messages || []).filter((m) => {
+                      if (chatPlotFilter === 'ALL') return true;
+                      const pCode = detectMsgPlot(m);
+                      return pCode === chatPlotFilter;
+                    });
+
+                    const filteredPlotInfo = participantPlots.find((p) => p.plotCode === chatPlotFilter);
+
                     return (
                       <div className={`flex-1 flex flex-col bg-white min-w-0 ${
                         !mobileShowChat ? 'hidden md:flex' : 'flex'
@@ -2093,10 +2209,18 @@ export default function ExpertDashboard() {
                                 {isAdminThread
                                   ? 'Ban Quản Trị Hệ Thống • Trao đổi nghiệp vụ & Điều phối nội bộ'
                                   : isWorkerThread
-                                    ? `Nhân viên hiện trường • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`
+                                    ? (chatPlotFilter !== 'ALL'
+                                        ? `Kênh chỉ đạo: Thửa ${chatPlotFilter} • Giống: ${filteredPlotInfo?.crop || 'Chuẩn VietGAP'}`
+                                        : (participantPlots.length > 1
+                                            ? `CVLĐ phụ trách ${participantPlots.length} thửa (${participantPlots.map(p => p.plotCode).join(', ')}) • Chọn kênh bên dưới`
+                                            : `Nhân viên hiện trường • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`))
                                     : isPreRental
                                       ? `Khách quan tâm • ${activeThread.crop || 'Tư vấn nông học'}`
-                                      : `Khách thuê • Giống: ${activeThread.crop || 'Chuẩn VietGAP'} • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`}
+                                      : (chatPlotFilter !== 'ALL'
+                                          ? `Kênh tư vấn riêng: Thửa ${chatPlotFilter} • Giống: ${filteredPlotInfo?.crop || 'Chuẩn VietGAP'}`
+                                          : (participantPlots.length > 1
+                                              ? `Khách thuê ${participantPlots.length} thửa: ${participantPlots.map(p => p.plotCode).join(', ')} • Bấm kênh bên dưới để lọc tin`
+                                              : `Khách thuê • Giống: ${activeThread.crop || 'Chuẩn VietGAP'} • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`))}
                               </p>
                             </div>
                           </div>
@@ -2106,7 +2230,7 @@ export default function ExpertDashboard() {
                             <div className="flex items-center gap-2 shrink-0">
                               <button
                                 type="button"
-                                onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText)}
+                                onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText, chatPlotFilter !== 'ALL' ? chatPlotFilter : selectedMessagePlot)}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
                                 title={isWorkerThread ? `Giao nhiệm vụ trực tiếp cho ${activeThread.customerName}` : "Tạo lệnh giao nhiệm vụ hiện trường cho CVLĐ phụ trách thửa đất này"}
                               >
@@ -2117,27 +2241,105 @@ export default function ExpertDashboard() {
                           )}
                         </div>
 
+                        {/* Plot Channels Bar (Kênh Thửa Đất - Lọc tin nhắn riêng từng thửa) */}
+                        {participantPlots.length > 1 && !isAdminThread && (
+                          <div className="px-4 sm:px-5 py-2 bg-stone-50/95 border-b border-stone-200/80 flex items-center justify-between gap-2 overflow-x-auto text-xs no-scrollbar">
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1">
+                                <Layers className="w-3.5 h-3.5 text-emerald-700" />
+                                Kênh Thửa:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setChatPlotFilter('ALL');
+                                  setSelectedMessagePlot('');
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                                  chatPlotFilter === 'ALL'
+                                    ? 'bg-emerald-800 text-white shadow-2xs'
+                                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                                }`}
+                              >
+                                Tất cả ({activeThread?.messages?.length || 0})
+                              </button>
+                              {participantPlots.map((p) => {
+                                const count = (activeThread?.messages || []).filter((m) => detectMsgPlot(m) === p.plotCode).length;
+                                const isSelected = chatPlotFilter === p.plotCode;
+                                return (
+                                  <button
+                                    key={p.plotCode}
+                                    type="button"
+                                    onClick={() => {
+                                      setChatPlotFilter(p.plotCode);
+                                      setSelectedMessagePlot(p.plotCode);
+                                    }}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-emerald-800 text-white shadow-2xs ring-1 ring-emerald-900/20'
+                                        : 'bg-white text-stone-700 hover:bg-emerald-50 border border-stone-200'
+                                    }`}
+                                  >
+                                    <span>📍 Thửa {p.plotCode}</span>
+                                    <span className={`text-[10px] font-normal ${isSelected ? 'text-emerald-200' : 'text-stone-400'}`}>
+                                      ({p.crop.split(' ')[0]})
+                                    </span>
+                                    {count > 0 && (
+                                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                                        isSelected ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
+                                      }`}>
+                                        {count}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {chatPlotFilter !== 'ALL' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setChatPlotFilter('ALL');
+                                  setSelectedMessagePlot('');
+                                }}
+                                className="text-[11px] font-semibold text-emerald-700 hover:underline shrink-0 cursor-pointer"
+                              >
+                                ✕ Xem tất cả
+                              </button>
+                            )}
+                          </div>
+                        )}
+
                         {/* Messenger Chat History Viewport */}
                         <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-[#FAF9F6]">
                           
                           {/* Date separator */}
                           <div className="flex items-center justify-center my-1">
                             <span className="text-[10px] font-medium text-stone-400 bg-white/90 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-stone-200/60 shadow-2xs">
-                              Hôm nay • Trao đổi với {activeThread.customerName}
+                              Hôm nay • Trao đổi với {activeThread.customerName} {chatPlotFilter !== 'ALL' ? `(Kênh Thửa ${chatPlotFilter})` : ''}
                             </span>
                           </div>
 
                           {/* Empty chat state */}
-                          {(!activeThread?.messages || activeThread.messages.length === 0) && (
+                          {(!displayedMessages || displayedMessages.length === 0) && (
                             <div className="flex flex-col items-center justify-center py-16 text-center text-stone-400 space-y-2">
                               <MessageSquare className="w-8 h-8 text-stone-300 stroke-[1.5]" />
-                              <p className="text-xs font-medium text-stone-600">Chưa có tin nhắn trong cuộc hội thoại này.</p>
-                              <p className="text-[11px] text-stone-400 max-w-xs">Nhập nội dung ở khung bên dưới để bắt đầu trao đổi với {activeThread?.customerName || 'đối tác'}.</p>
+                              <p className="text-xs font-medium text-stone-600">
+                                {chatPlotFilter !== 'ALL'
+                                  ? `Chưa có trao đổi nào riêng cho Thửa ${chatPlotFilter}.`
+                                  : 'Chưa có tin nhắn trong cuộc hội thoại này.'}
+                              </p>
+                              <p className="text-[11px] text-stone-400 max-w-xs">
+                                {chatPlotFilter !== 'ALL'
+                                  ? `Nhập nội dung ở khung bên dưới để chỉ đạo hoặc tư vấn riêng cho Thửa ${chatPlotFilter}.`
+                                  : `Nhập nội dung ở khung bên dưới để bắt đầu trao đổi với ${activeThread?.customerName || 'đối tác'}.`}
+                              </p>
                             </div>
                           )}
 
                           {/* Message Bubbles */}
-                          {(activeThread?.messages || []).map((msg) => {
+                          {displayedMessages.map((msg) => {
                             const isExpert = msg.sender === 'expert' ||
                               msg.senderRole === 'EXPERT' ||
                               Number(msg.senderId) === 2 ||
@@ -2145,15 +2347,38 @@ export default function ExpertDashboard() {
                               String(msg.senderName || '').includes('Nguyễn Hoàng Nam') ||
                               String(msg.senderName || '').includes('Chuyên gia');
 
+                            const msgPlot = detectMsgPlot(msg);
+                            const pObj = msgPlot ? participantPlots.find((p) => p.plotCode === msgPlot) : null;
+
                             if (isExpert) {
                               return (
                                 <div key={msg.id} className="flex flex-col items-end space-y-1 max-w-[85%] sm:max-w-[72%] ml-auto">
-                                  {msg.prescriptionTag && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md">
-                                      <ShieldCheck className="w-3 h-3 text-emerald-700" />
-                                      {msg.prescriptionTag}
-                                    </span>
-                                  )}
+                                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                    {msgPlot && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setChatPlotFilter(msgPlot);
+                                          setSelectedMessagePlot(msgPlot);
+                                        }}
+                                        className={`inline-flex items-center gap-1 font-mono text-[10px] font-bold px-2 py-0.5 rounded-md border transition cursor-pointer mb-0.5 ${
+                                          chatPlotFilter === msgPlot
+                                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                            : 'bg-stone-100 hover:bg-emerald-50 text-stone-600 hover:text-emerald-800 border-stone-200'
+                                        }`}
+                                        title={`Bấm để chỉ xem lịch sử trao đổi của Thửa ${msgPlot}`}
+                                      >
+                                        <span>📍 Thửa {msgPlot}</span>
+                                        {pObj?.crop && <span className="font-sans font-normal text-stone-500">({pObj.crop.split(' ')[0]})</span>}
+                                      </button>
+                                    )}
+                                    {msg.prescriptionTag && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                                        <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                                        {msg.prescriptionTag}
+                                      </span>
+                                    )}
+                                  </div>
 
                                   <div className="px-4 py-2.5 rounded-2xl rounded-tr-xs bg-emerald-800 text-white text-xs sm:text-sm leading-relaxed shadow-xs">
                                     {msg.text}
@@ -2180,11 +2405,29 @@ export default function ExpertDashboard() {
                                 />
 
                                 <div className="space-y-1 flex-1">
-                                  <div className="text-[11px] text-stone-500 font-medium px-0.5 flex items-center gap-1.5">
+                                  <div className="text-[11px] text-stone-500 font-medium px-0.5 flex items-center gap-1.5 flex-wrap">
                                     <span className="text-stone-800 font-semibold">
                                       {msg.senderName && msg.senderName !== 'Người dùng Farmely' ? msg.senderName : activeThread.customerName}
                                     </span>
                                     <span className="text-stone-400 font-mono text-[10px]">({msg.time})</span>
+                                    {msgPlot && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setChatPlotFilter(msgPlot);
+                                          setSelectedMessagePlot(msgPlot);
+                                        }}
+                                        className={`inline-flex items-center gap-1 font-mono text-[10px] font-bold px-2 py-0.5 rounded-md border transition cursor-pointer ${
+                                          chatPlotFilter === msgPlot
+                                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                            : 'bg-stone-100 hover:bg-emerald-50 text-stone-600 hover:text-emerald-800 border-stone-200'
+                                        }`}
+                                        title={`Bấm để chỉ xem lịch sử trao đổi của Thửa ${msgPlot}`}
+                                      >
+                                        <span>📍 Thửa {msgPlot}</span>
+                                        {pObj?.crop && <span className="font-sans font-normal text-stone-500">({pObj.crop.split(' ')[0]})</span>}
+                                      </button>
+                                    )}
                                   </div>
 
                                   {/* Attached Plant Photo (Clickable Lightbox) */}
@@ -2255,6 +2498,44 @@ export default function ExpertDashboard() {
                           className="p-3 sm:p-4 bg-white border-t border-stone-200/70 flex items-end gap-2 shrink-0"
                         >
                           <div className="flex-1 bg-stone-50/80 rounded-xl border border-stone-200 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-600/10 transition-all p-2 flex flex-col gap-1">
+                            {/* Plot Tagging Selector above Input */}
+                            {participantPlots.length > 1 && !isAdminThread && (
+                              <div className="flex items-center gap-1.5 text-xs px-1 pb-1 flex-wrap border-b border-stone-200/60 mb-1">
+                                <span className="text-[11px] font-bold text-stone-500 flex items-center gap-1">
+                                  <MapPin className="w-3 h-3 text-emerald-700" />
+                                  Thửa trao đổi:
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedMessagePlot('')}
+                                  className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                                    (!selectedMessagePlot && chatPlotFilter === 'ALL')
+                                      ? 'bg-stone-300 text-stone-900 font-bold'
+                                      : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                                  }`}
+                                >
+                                  Chung
+                                </button>
+                                {participantPlots.map((p) => {
+                                  const isAct = (selectedMessagePlot || (chatPlotFilter !== 'ALL' ? chatPlotFilter : '')) === p.plotCode;
+                                  return (
+                                    <button
+                                      key={p.plotCode}
+                                      type="button"
+                                      onClick={() => setSelectedMessagePlot(p.plotCode)}
+                                      className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                                        isAct
+                                          ? 'bg-emerald-700 text-white shadow-2xs'
+                                          : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/60'
+                                      }`}
+                                    >
+                                      📍 {p.plotCode} ({p.crop.split(' ')[0]})
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+
                             <textarea
                               ref={chatInputRef}
                               rows={2}
@@ -2270,8 +2551,8 @@ export default function ExpertDashboard() {
                                 isAdminThread
                                   ? `Soạn trao đổi công việc với Ban Quản Trị Farmely... (Enter để gửi)`
                                   : isWorkerThread
-                                    ? `Soạn chỉ đạo kỹ thuật cho ${activeThread.customerName}... (Enter để gửi)`
-                                    : `Soạn tư vấn kỹ thuật hoặc chỉ đạo cho ${activeThread.customerName}... (Enter để gửi)`
+                                    ? `Soạn chỉ đạo kỹ thuật cho ${activeThread.customerName}${chatPlotFilter !== 'ALL' ? ` (Thửa ${chatPlotFilter})` : ''}... (Enter để gửi)`
+                                    : `Soạn tư vấn kỹ thuật hoặc chỉ đạo cho ${activeThread.customerName}${chatPlotFilter !== 'ALL' ? ` (Thửa ${chatPlotFilter})` : ''}... (Enter để gửi)`
                               }
                               className="w-full bg-transparent border-0 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none resize-none px-1"
                             />

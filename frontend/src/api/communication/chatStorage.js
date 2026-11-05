@@ -4,7 +4,7 @@
  * No dummy mock clutter. Real-time cross-tab synchronization.
  */
 
-const STORAGE_KEY = 'farmely_chat_threads_v7';
+const STORAGE_KEY = 'farmely_chat_threads_v8';
 
 export const DEMO_CUSTOMERS = [
   {
@@ -14,10 +14,14 @@ export const DEMO_CUSTOMERS = [
     email: 'customer@farmely.vn',
     phone: '0901 234 567',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-01',
-    plotName: 'Thửa Sen Vàng A1',
-    crop: 'Cà chua bi Cherry F1',
-    expertName: 'ThS. Nguyễn Hoàng Nam'
+    plotCode: 'P-01, P-14',
+    plotName: 'Thửa P-01 & Thửa P-14',
+    crop: 'Cà chua bi & Dưa leo baby',
+    expertName: 'ThS. Nguyễn Hoàng Nam',
+    plots: [
+      { plotCode: 'P-01', plotName: 'Thửa P-01 (Sen Vàng A1)', crop: 'Cà chua bi Cherry F1' },
+      { plotCode: 'P-14', plotName: 'Thửa P-14 (Rừng Sác C3)', crop: 'Dưa leo baby F1' }
+    ]
   }
 ];
 
@@ -28,10 +32,14 @@ export const DEMO_WORKERS = [
     name: 'Trần Văn Lực (Tổ trưởng CVLĐ)',
     phone: '0933 111 222',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-03',
-    plotName: 'Thửa Rừng Sác C3',
-    crop: 'Dưa leo Baby Đà Lạt',
-    expertName: 'ThS. Nguyễn Hoàng Nam'
+    plotCode: 'P-03, P-12',
+    plotName: 'Thửa P-03 & Thửa P-12',
+    crop: 'Dưa leo Baby & Cà chua bi',
+    expertName: 'ThS. Nguyễn Hoàng Nam',
+    plots: [
+      { plotCode: 'P-03', plotName: 'Thửa P-03 (Rừng Sác C3)', crop: 'Dưa leo Baby Đà Lạt' },
+      { plotCode: 'P-12', plotName: 'Thửa P-12 (Vườn Ươm B2)', crop: 'Cà chua bi F1' }
+    ]
   }
 ];
 
@@ -46,7 +54,7 @@ export const DEMO_EXPERTS = [
 ];
 
 export const INITIAL_THREADS = [
-  // 1. Khách hàng SSoT: Lô Thái Quyền (Thửa P-01) - Đồng bộ 1:1 với PostgreSQL conversation_id = 1
+  // 1. Khách hàng SSoT: Lô Thái Quyền (Quản lý 2 Thửa: P-01 và P-14)
   {
     id: 'CONS-401',
     conversationId: 1,
@@ -55,15 +63,19 @@ export const INITIAL_THREADS = [
     rentalStatus: 'RENTED',
     customerName: 'Lô Thái Quyền',
     customerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-01',
-    plotName: 'Thửa Sen Vàng A1',
-    crop: 'Cà chua bi Cherry F1',
-    stage: 'Ngày 35 • Ra hoa & Đậu quả',
+    plotCode: 'P-01, P-14',
+    plotName: 'Thửa P-01 & Thửa P-14',
+    crop: 'Cà chua bi & Dưa leo baby',
+    stage: 'Đang theo dõi 2 thửa đất canh tác',
     expertName: 'ThS. Nguyễn Hoàng Nam',
     isOnline: true,
     lastTime: '15 phút trước',
     status: 'REPLIED',
     unread: false,
+    plots: [
+      { plotCode: 'P-01', plotName: 'Thửa P-01 (Sen Vàng A1)', crop: 'Cà chua bi Cherry F1' },
+      { plotCode: 'P-14', plotName: 'Thửa P-14 (Rừng Sác C3)', crop: 'Dưa leo baby F1' }
+    ],
     messages: [
       {
         id: 1,
@@ -71,15 +83,19 @@ export const INITIAL_THREADS = [
         senderName: 'Lô Thái Quyền',
         text: 'Chào chuyên gia Nam, cà chua bi của tôi ở thửa P-01 độ ẩm 68% đã đạt chuẩn chưa ạ?',
         time: '15:10',
-        seen: true
+        seen: true,
+        plotCode: 'P-01',
+        crop: 'Cà chua bi Cherry F1'
       },
       {
         id: 2,
         sender: 'expert',
         senderName: 'ThS. Nguyễn Hoàng Nam',
-        text: 'Chào anh Quyền! Độ ẩm 68% là hoàn hảo cho giai đoạn cây chuẩn bị bung hoa nhé.',
+        text: 'Chào anh Quyền! Độ ẩm 68% ở Thửa P-01 là hoàn hảo cho giai đoạn cây chuẩn bị bung hoa nhé.',
         time: '15:15',
-        seen: true
+        seen: true,
+        plotCode: 'P-01',
+        crop: 'Cà chua bi Cherry F1'
       },
       {
         id: 3,
@@ -87,11 +103,34 @@ export const INITIAL_THREADS = [
         senderName: 'Lô Thái Quyền',
         text: 'Cảm ơn Thạc sĩ rất nhiều!',
         time: '15:19',
-        seen: true
+        seen: true,
+        plotCode: 'P-01',
+        crop: 'Cà chua bi Cherry F1'
+      },
+      {
+        id: 4,
+        sender: 'customer',
+        senderName: 'Lô Thái Quyền',
+        text: 'Còn luống dưa leo baby ở thửa P-14 sáng nay em thấy lá hơi xoăn nhẹ, chuyên gia xem giúp em với ạ.',
+        time: '15:30',
+        seen: true,
+        plotCode: 'P-14',
+        crop: 'Dưa leo baby F1'
+      },
+      {
+        id: 5,
+        sender: 'expert',
+        senderName: 'ThS. Nguyễn Hoàng Nam',
+        text: 'Thửa P-14 do độ ẩm không khí hôm nay cao, em tưới sương nhẹ buổi sáng thôi và kiểm tra béc tưới nhỏ giọt lúc 16h nhé.',
+        time: '15:35',
+        seen: true,
+        plotCode: 'P-14',
+        crop: 'Dưa leo baby F1',
+        prescriptionTag: 'CHỈ ĐẠO THỬA P-14'
       }
     ]
   },
-  // 2. Nhân viên hiện trường SSoT: Trần Văn Lực (Thửa P-03) - Đồng bộ 1:1 với PostgreSQL conversation_id = 3
+  // 2. Nhân viên hiện trường SSoT: Trần Văn Lực (Phụ trách Thửa P-03 và Thửa P-12)
   {
     id: 'WORK-101',
     conversationId: 3,
@@ -100,15 +139,19 @@ export const INITIAL_THREADS = [
     category: 'worker',
     customerName: 'Trần Văn Lực (Tổ trưởng CVLĐ)',
     customerAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-03',
-    plotName: 'Thửa Rừng Sác C3',
-    crop: 'Dưa leo Baby Đà Lạt',
-    stage: 'Giám sát kỹ thuật & Béc tưới',
+    plotCode: 'P-03, P-12',
+    plotName: 'Thửa P-03 & Thửa P-12',
+    crop: 'Dưa leo Baby & Cà chua bi',
+    stage: 'Giám sát kỹ thuật & Điều phối hiện trường',
     expertName: 'ThS. Nguyễn Hoàng Nam',
     isOnline: true,
     lastTime: '10 phút trước',
     status: 'PENDING',
     unread: true,
+    plots: [
+      { plotCode: 'P-03', plotName: 'Thửa P-03 (Rừng Sác C3)', crop: 'Dưa leo Baby Đà Lạt' },
+      { plotCode: 'P-12', plotName: 'Thửa P-12 (Vườn Ươm B2)', crop: 'Cà chua bi F1' }
+    ],
     messages: [
       {
         id: 101,
@@ -116,7 +159,30 @@ export const INITIAL_THREADS = [
         senderName: 'Trần Văn Lực (CVLĐ)',
         text: 'Báo cáo Chuyên gia: Đã hoàn tất kiểm tra béc tưới và độ ẩm các luống dưa leo P-03.',
         time: '15:20',
-        seen: false
+        seen: true,
+        plotCode: 'P-03',
+        crop: 'Dưa leo Baby Đà Lạt'
+      },
+      {
+        id: 102,
+        sender: 'expert',
+        senderName: 'ThS. Nguyễn Hoàng Nam',
+        text: 'Tốt lắm Lực. Chiều nay qua tiếp thửa P-12 kiểm tra độ ẩm cà chua bi và bón lót vi sinh Trichoderma nhé.',
+        time: '15:25',
+        seen: true,
+        plotCode: 'P-12',
+        crop: 'Cà chua bi F1',
+        prescriptionTag: 'CHỈ ĐẠO THỬA P-12'
+      },
+      {
+        id: 103,
+        sender: 'worker',
+        senderName: 'Trần Văn Lực (CVLĐ)',
+        text: 'Dạ rõ thưa Thầy Nam, em đang chuẩn bị chế phẩm vi sinh để qua P-12 ngay.',
+        time: '15:28',
+        seen: false,
+        plotCode: 'P-12',
+        crop: 'Cà chua bi F1'
       }
     ]
   },
@@ -371,6 +437,25 @@ export function updateThreadRentalInStorage({ threadId, rentalId, customerName, 
     .replace(/\bThửa\s+Thửa\b/gi, 'Thửa')
     .trim();
 
+  // Duy trì và hợp nhất danh sách các thửa đất mà khách hàng/nhân viên này phụ trách
+  const existingPlots = Array.isArray(existing?.plots) ? [...existing.plots] : [];
+  if (cleanPlotCode) {
+    const foundIdx = existingPlots.findIndex(p => p.plotCode === cleanPlotCode);
+    const newPlotEntry = { 
+      plotCode: cleanPlotCode, 
+      plotName: plotName || `Thửa ${cleanPlotCode}`, 
+      crop: crop || 'Cây trồng VietGAP' 
+    };
+    if (foundIdx >= 0) {
+      existingPlots[foundIdx] = { ...existingPlots[foundIdx], ...newPlotEntry };
+    } else {
+      existingPlots.push(newPlotEntry);
+    }
+  }
+  const combinedPlotCodes = existingPlots.length > 0 
+    ? existingPlots.map(p => p.plotCode).join(', ')
+    : cleanPlotCode;
+
   const thread = {
     ...(existing || {}),
     id: existing?.id || threadId,
@@ -380,9 +465,10 @@ export function updateThreadRentalInStorage({ threadId, rentalId, customerName, 
     rentalStatus: 'RENTED',
     customerName: customerName || existing?.customerName || 'Khách hàng Farmely',
     customerAvatar: customerAvatar || existing?.customerAvatar || getSafeAvatar(null, 'customer'),
-    plotCode: cleanPlotCode,
+    plotCode: combinedPlotCodes,
     plotName: plotName || existing?.plotName || `Thửa ${cleanPlotCode}`,
     crop: crop || existing?.crop || 'Cây trồng VietGAP',
+    plots: existingPlots.length > 0 ? existingPlots : (cleanPlotCode ? [{ plotCode: cleanPlotCode, plotName: plotName || `Thửa ${cleanPlotCode}`, crop }] : []),
     stage: existing?.stage || 'Đã xác nhận thuê thửa',
     expertName: existing?.expertName || 'ThS. Nguyễn Hoàng Nam',
     isOnline: true,
