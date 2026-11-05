@@ -638,6 +638,83 @@ SELECT json_build_object(
           return;
         }
 
+        // 0.2b GET /api/audit-logs/overview (SCR-AD-10: Tổng quan vết kiểm toán Luồng 4)
+        if (req.method === 'GET' && (url === '/api/audit-logs/overview' || url.startsWith('/api/audit-logs/overview?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy tổng quan vết kiểm toán thành công từ PostgreSQL',
+  'data', json_build_object(
+    'totalLogs', (SELECT count(*)::int FROM audit_logs),
+    'loginsCount', (SELECT count(*)::int FROM audit_logs WHERE action ILIKE '%LOGIN%'),
+    'passwordResetsCount', (SELECT count(*)::int FROM audit_logs WHERE action ILIKE '%PASSWORD%' OR action ILIKE '%RESET%'),
+    'roleChangesCount', (SELECT count(*)::int FROM audit_logs WHERE action ILIKE '%STATUS%' OR action ILIKE '%ROLE%' OR action ILIKE '%CANCEL%'),
+    'activitiesToday', (SELECT count(*)::int FROM audit_logs WHERE created_at::date = CURRENT_DATE),
+    'totalUsers', (SELECT count(*)::int FROM users)
+  )
+);
+`;
+            const pgResult = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(pgResult || '{}');
+          } catch (err) {
+            console.error('PostgreSQL error on audit overview:', err);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 0.2c GET /api/audit-logs (SCR-AD-10: Danh sách vết kiểm toán hệ thống Luồng 4)
+        if (req.method === 'GET' && (url === '/api/audit-logs' || url.startsWith('/api/audit-logs?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh sách nhật ký kiểm toán thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
+      SELECT 
+        al.log_id AS "logId",
+        al.user_id AS "userId",
+        COALESCE(u.email, 'admin@farmely.vn') AS "userEmail",
+        COALESCE(u.full_name, 'Hệ thống') AS "userName",
+        al.action,
+        al.entity_name AS "entityType",
+        al.entity_id AS "entityId",
+        CASE
+          WHEN al.details->>'reason' IS NOT NULL THEN al.details->>'reason'
+          WHEN al.details->>'description' IS NOT NULL THEN al.details->>'description'
+          WHEN al.action = 'AUTH_LOGIN' THEN 'Đăng nhập hệ thống qua ' || COALESCE(al.details->>'platform', 'WEB')
+          WHEN al.action = 'APPROVE_CANCELLATION' THEN 'Duyệt hoàn tiền hủy hợp đồng #' || COALESCE(al.entity_id, '') || ' (' || COALESCE(ROUND(((al.details->>'refundRate')::numeric * 100), 0)::text, '0') || '%)'
+          WHEN al.action = 'CANCEL_REQUEST' THEN 'Yêu cầu hủy hợp đồng #' || COALESCE(al.entity_id, '') || ' - Lý do: ' || COALESCE(al.details->>'reason', 'Khách bận')
+          WHEN al.action = 'CHANGE_USER_STATUS' THEN 'Đổi trạng thái người dùng #' || COALESCE(al.entity_id, '') || ' thành ' || COALESCE(al.details->>'status', 'ACTIVE')
+          ELSE 'Thao tác ' || al.action || ' trên ' || al.entity_name
+        END AS description,
+        COALESCE(al.ip_address, '127.0.0.1') AS "ipAddress",
+        'SUCCESS' AS status,
+        al.created_at AS "createdAt",
+        al.details
+      FROM audit_logs al
+      LEFT JOIN users u ON al.user_id = u.user_id
+      ORDER BY al.created_at DESC
+      LIMIT 100
+    ) l
+  )
+);
+`;
+            const pgResult = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(pgResult || '{}');
+          } catch (err) {
+            console.error('PostgreSQL error on audit-logs:', err);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
         // 0.3 GET /api/admin/analytics or /api/v1/admin/analytics (SCR-AD-01: Thống Kê Tổng Hợp Doanh Thu & Vận Hành)
         if (req.method === 'GET' && (url === '/api/admin/analytics' || url === '/api/v1/admin/analytics' || url.startsWith('/api/admin/analytics?') || url.startsWith('/api/v1/admin/analytics?'))) {
           try {

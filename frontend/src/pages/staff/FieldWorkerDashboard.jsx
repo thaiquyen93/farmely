@@ -516,14 +516,6 @@ export default function FieldWorkerDashboard() {
   const [assignedPlots, setAssignedPlots] = useState([]);
   const [selectedPlotCode, setSelectedPlotCode] = useState('P-01');
   const [selectedPlotModalCode, setSelectedPlotModalCode] = useState(null);
-  const [rainSimulatedPlots, setRainSimulatedPlots] = useState({});
-
-  const togglePlotRainSimulation = useCallback((plotCode) => {
-    setRainSimulatedPlots((prev) => ({
-      ...prev,
-      [plotCode]: !prev[plotCode]
-    }));
-  }, []);
 
   const loadPlots = useCallback(() => {
     apiFetch('/api/rentals')
@@ -2159,10 +2151,8 @@ export default function FieldWorkerDashboard() {
 
                 {/* Dòng 3: Nhiệt Độ Thực Địa & Cảnh Báo Khí Tượng/Mưa (BR18) chuẩn như Cus */}
                 {(() => {
-                  const plotCode = activePlot.plotCode || activePlot.key;
-                  const isSimulated = Boolean(rainSimulatedPlots[plotCode]);
                   const sMoistureNum = parseFloat(String(activePlot.soilMoisture || '0'));
-                  const isRainAlert = isSimulated || sMoistureNum >= 80 || activePlot.isRaining || Boolean(activePlot.rainAlert);
+                  const isRainAlert = sMoistureNum >= 80 || activePlot.isRaining || Boolean(activePlot.rainAlert);
 
                   return (
                     <div className="flex flex-col sm:flex-row items-stretch gap-2.5 pt-1 text-xs">
@@ -2199,18 +2189,10 @@ export default function FieldWorkerDashboard() {
                                 </span>
                               </div>
                               <p className="mt-1 text-[11px] text-amber-800 leading-relaxed">
-                                Độ ẩm đất thực tế từ trạm là <strong className="font-mono font-bold text-amber-950">{isSimulated ? '84.5%' : (activePlot.soilMoisture || '82%')}</strong> (≥ 80%). Hệ thống đã tự động tạm hoãn các ca tưới hôm nay để tránh úng rễ cây.
+                                Độ ẩm đất thực tế từ trạm là <strong className="font-mono font-bold text-amber-950">{activePlot.soilMoisture || '82%'}</strong> (≥ 80%). Hệ thống đã tự động tạm hoãn các ca tưới hôm nay để tránh úng rễ cây.
                               </p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => togglePlotRainSimulation(plotCode)}
-                            className="shrink-0 self-start sm:self-center px-2 py-1 rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-900 text-[10px] font-bold transition cursor-pointer"
-                            title="Chuyển về trạng thái thời tiết bình thường"
-                          >
-                            Tắt cảnh báo
-                          </button>
                         </div>
                       ) : (
                         <div className="flex-1 p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-emerald-950">
@@ -2230,14 +2212,6 @@ export default function FieldWorkerDashboard() {
                               </p>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => togglePlotRainSimulation(plotCode)}
-                            className="shrink-0 self-start sm:self-center px-2 py-1 rounded-lg bg-white/80 hover:bg-white text-stone-600 hover:text-emerald-800 text-[10px] font-semibold border border-stone-200/80 shadow-2xs transition cursor-pointer"
-                            title="Thử nghiệm kích hoạt cảnh báo mưa lớn tự động hoãn tưới theo BR18 để demo"
-                          >
-                            ⚡ Test mưa BR18
-                          </button>
                         </div>
                       )}
                     </div>
