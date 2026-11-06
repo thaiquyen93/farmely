@@ -582,7 +582,7 @@ export default function PlotDetail() {
               <strong>{selectedCultivationMode === 'ASSISTED' ? `${plot.careServicePrice.toLocaleString('vi-VN')} đ/tháng` : '0 đ'}</strong>
             </div>
             <div className="flex justify-between pt-2 border-t border-brand-border text-sm font-extrabold text-brand-green">
-              <span>Tổng thanh toán 100% Upfront:</span>
+              <span>Tổng thanh toán một lần:</span>
               <span>{(plot.rentalPrice + (selectedCultivationMode === 'ASSISTED' ? plot.careServicePrice : 0)).toLocaleString('vi-VN')} đ</span>
             </div>
           </div>

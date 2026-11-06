@@ -9,12 +9,14 @@ import DashboardRail from '../../components/dashboard/DashboardRail';
 import IssueAssignmentPanel from '../../components/expert/IssueAssignmentPanel';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { getSafeAvatar, DEMO_CUSTOMERS, updateThreadRentalInStorage } from '../../api/communication/chatStorage';
+import { chatService } from '../../api/communication/chatService';
 import { resolveStandardCropProcess, getPersistedStaffActivities } from '../../services/cropStandardProcess';
 import PlotWorkProgressTimeline from '../../components/expert/PlotProgressTimeline';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import Crops from '../admin/Crops';
 import Varieties from '../admin/Varieties';
+import ProcessTemplates from '../admin/ProcessTemplates';
 import {
   Sprout,
   Wheat,
@@ -173,7 +175,7 @@ export default function ExpertDashboard() {
     refreshThreads
   } = useRealtimeChat({
     role: 'expert',
-    initialThreadId: 'CONS-401',
+    initialThreadId: null,
     senderName: expertSenderName
   });
   const [chatSearchQuery, setChatSearchQuery] = useState('');
@@ -186,7 +188,17 @@ export default function ExpertDashboard() {
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
   const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
-  const preRentalCount = chatThreads.filter(isPreRentalThread).length;
+  const visibleChatThreads = useMemo(() => chatThreads.filter((thread) => {
+    if (thread.role !== 'customer') return true;
+    if (isPreRentalThread(thread)) return Boolean(thread.messages?.length);
+    const assigned = assignedPlots.some((plot) => {
+      if (thread.customerEmail && plot.renterEmail && thread.customerEmail.toLowerCase() !== plot.renterEmail.toLowerCase()) return false;
+      const codes = [thread.plotCode, ...(thread.plots || []).map((item) => item.plotCode)].join(',').toUpperCase().split(',').map((code) => code.trim());
+      return codes.includes(String(plot.plotCode || '').toUpperCase());
+    });
+    return assigned;
+  }), [chatThreads, assignedPlots]);
+  const preRentalCount = visibleChatThreads.filter(isPreRentalThread).length;
 
   const formatPlotCode = (raw) => {
     if (!raw) return '';
@@ -431,6 +443,14 @@ export default function ExpertDashboard() {
         }
 
         setAssignedPlots([...plotsById.values()]);
+        for (const rental of plotsById.values()) {
+          const customerEmail = rental.renterEmail || '';
+          const demo = DEMO_CUSTOMERS.find((customer) => customer.email?.toLowerCase() === customerEmail.toLowerCase());
+          const threadId = demo?.threadId || `CONS-${customerEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          chatService.upsertPlotThread({ threadId, rentalId: rental.rentalId, customerName: rental.renterName, customerEmail, plotCode: rental.plotCode, plotName: rental.name, crop: rental.crop, rentalStatus: 'RENTED' });
+          updateThreadRentalInStorage({ threadId, rentalId: rental.rentalId, customerName: rental.renterName, plotCode: rental.plotCode, plotName: rental.name, crop: rental.crop });
+        }
+        refreshThreads();
       })
       .catch((err) => console.warn('Could not fetch live rentals:', err));
   };
@@ -1876,7 +1896,7 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          Tất cả ({chatThreads.length})
+                          Tất cả ({visibleChatThreads.length})
                         </button>
                         <button
                           onClick={() => setChatFilter('customer')}
@@ -1886,7 +1906,7 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          Đã thuê ({chatThreads.filter(c => c.role === 'customer' && !isPreRentalThread(c) && !/Ban Quản Trị|Admin/i.test(c.customerName || '')).length})
+                          Đã thuê ({visibleChatThreads.filter(c => c.role === 'customer' && !isPreRentalThread(c)).length})
                         </button>
                         <button
                           onClick={() => setChatFilter('pre_rental')}
@@ -1906,7 +1926,7 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          CVLĐ ({chatThreads.filter(c => c.role === 'worker').length})
+                          CVLĐ ({visibleChatThreads.filter(c => c.role === 'worker').length})
                         </button>
                         <button
                           onClick={() => setChatFilter('pending')}
@@ -1916,14 +1936,14 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          Chờ xử lý ({chatThreads.filter(c => c.status === 'PENDING').length})
+                          Chờ xử lý ({visibleChatThreads.filter(c => c.status === 'PENDING').length})
                         </button>
                       </div>
                     </div>
 
                     {/* Thread List (Scrollable) */}
                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                      {chatThreads
+                      {visibleChatThreads
                         .filter((thread) => {
                           const q = chatSearchQuery.toLowerCase();
                           const matchesQuery =
@@ -2040,8 +2060,8 @@ export default function ExpertDashboard() {
                   {/* Right Column: Active Messenger Conversation View */}
                   {(() => {
                     const activeThread =
-                      chatThreads.find((t) => t.id === selectedThreadId) ||
-                      chatThreads[0];
+                      visibleChatThreads.find((t) => t.id === selectedThreadId) ||
+                      visibleChatThreads[0];
 
                     if (!activeThread) return null;
 
@@ -2226,7 +2246,7 @@ export default function ExpertDashboard() {
                           </div>
 
                           {/* Right Action: Single SSOT Button (Không hiển thị khi chat với Ban Quản Trị) */}
-                          {!isAdminThread && (
+                          {isWorkerThread && (
                             <div className="flex items-center gap-2 shrink-0">
                               <button
                                 type="button"
@@ -2930,102 +2950,12 @@ export default function ExpertDashboard() {
               </div>
             )}
 
-            {/* TAB 3: VIETGAP PROCESS TEMPLATES (Quản lý Phác đồ canh tác chuẩn VietGAP) */}
+            {/* TAB 3: Quy trình chuẩn dùng chung với Admin */}
             {activeTab === 'templates' && (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
-                  <div>
-                    <h3 className="font-heading font-black text-xl text-brand-dark">
-                      Quy Trình Canh Tác Chuẩn VietGAP
-                    </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Danh mục phác đồ tiêu chuẩn cho từng giống cây, phân định ngày tuổi, mốc bón phân vi sinh và cách ly an toàn.
-                    </p>
-                  </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => setIsCreateTemplateOpen(true)}
-                    className="font-bold gap-1.5 self-start sm:self-auto cursor-pointer"
-                  >
-                    <span>+ Soạn Thảo Quy Trình Mới</span>
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
-                  {processTemplates.map((tmpl) => (
-                    <div
-                      key={tmpl.id}
-                      className="p-5 rounded-2xl border border-brand-border bg-stone-50/60 hover:bg-white transition-all space-y-3.5 shadow-xs flex flex-col justify-between"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-brand-green bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
-                              {tmpl.code}
-                            </span>
-                            <span className="text-[10px] font-bold text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
-                              {tmpl.version}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteTemplate(tmpl.id)}
-                            title="Xóa quy trình chuẩn"
-                            className="p-1 rounded text-stone-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        <div>
-                          <h4 className="font-bold text-brand-dark text-base">{tmpl.name}</h4>
-                          <p className="text-stone-500 text-[11px] mt-0.5">
-                            Giống cây: <strong className="text-stone-800">{tmpl.variety}</strong> • Chu kỳ: <strong className="text-brand-green">{tmpl.durationDays} ngày</strong>
-                          </p>
-                        </div>
-
-                        <p className="text-stone-600 text-xs leading-relaxed">
-                          {tmpl.description}
-                        </p>
-
-                        {/* Step roadmap summary pills */}
-                        <div className="pt-2 border-t border-brand-border/60">
-                          <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-1.5">
-                            Lộ trình các mốc kỹ thuật:
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {(tmpl.steps || []).map((st, i) => (
-                              <span
-                                key={i}
-                                className="px-2 py-0.5 rounded text-[10px] font-medium bg-white text-stone-700 border border-brand-border"
-                              >
-                                Ngày {st.day}: {st.name}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-brand-border/60 flex items-center justify-between">
-                        <span className="text-[11px] text-emerald-800 font-bold">
-                          ✓ Đang áp dụng tại hệ thống Farmely
-                        </span>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setViewTemplateDetail(tmpl)}
-                          className="font-bold text-xs cursor-pointer"
-                        >
-                          Xem Chi Tiết Quy Trình →
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm">
+                <ProcessTemplates detailBasePath="/expert/process-templates" />
               </div>
             )}
-
             {/* TAB 4: SOIL-CROP COMPATIBILITY MATRIX (Tick chọn giống cây thích hợp theo thửa đất - BR03 SSoT) */}
             {activeTab === 'compatibility' && (
               <div className="space-y-6">

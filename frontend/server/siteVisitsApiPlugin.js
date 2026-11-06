@@ -1850,8 +1850,8 @@ SELECT json_build_object(
   'contractNumber', contract_number,
   'totalAmount', total_amount,
   'status', status::text,
-  'reservationExpiresAt', TO_CHAR(reservation_expires_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-  'createdAt', TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+  'reservationExpiresAt', TO_CHAR(reservation_expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+  'createdAt', TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 )
 FROM contracts
 WHERE contract_number = '${contractNumber}'
@@ -2000,8 +2000,8 @@ SELECT json_build_object(
   'renterId', c.renter_id,
   'totalAmount', c.total_amount,
   'status', c.status::text,
-  'reservationExpiresAt', TO_CHAR(c.reservation_expires_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-  'createdAt', TO_CHAR(c.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+  'reservationExpiresAt', TO_CHAR(c.reservation_expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+  'createdAt', TO_CHAR(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
   'rentals', COALESCE((
     SELECT json_agg(json_build_object(
       'rentalId', r.rental_id,
@@ -2724,17 +2724,17 @@ SELECT json_build_object(
           return;
         }
 
-        // ponytail: BR21 thu hẹp phạm vi — KH chỉ theo dõi, không nghiệm thu nhận nông sản.
-        // Endpoint giữ lại cho Admin/đối soát dữ liệu; không có UI nào gọi. Xem docs/ssot-drift-log.md DRIFT-011.
-        if (req.method === 'POST' && (url === '/api/customer/harvest-results/confirm' || url === '/api/harvest-results/confirm')) {
+        if ((req.method === 'POST' && (url === '/api/customer/harvest-results/confirm' || url === '/api/harvest-results/confirm')) || (req.method === 'PUT' && /^\/api\/harvest\/\d+\/confirm$/.test(url))) {
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const harvestId = payload.harvestId ? parseInt(String(payload.harvestId).replace(/\D/g, ''), 10) : null;
+              const pathHarvestId = url.match(/^\/api\/harvest\/(\d+)\/confirm$/)?.[1];
+              const harvestId = pathHarvestId ? Number(pathHarvestId) : (payload.harvestId ? parseInt(String(payload.harvestId).replace(/\D/g, ''), 10) : null);
               const rentalId = payload.rentalId ? parseInt(String(payload.rentalId).replace(/\D/g, ''), 10) : null;
-              // BR21: thu hoạch diễn ra tại nông trại -> luôn PICKUP, không nhận tuỳ chọn từ payload.
+              const deliveryType = payload.deliveryType === 'DELIVERY' ? 'DELIVERY' : 'PICKUP';
+              const feedback = String(payload.customerFeedback || '').replace(/'/g, "''");
 
               let whereClause = '';
               if (harvestId) {
@@ -2749,10 +2749,19 @@ SELECT json_build_object(
               }
 
               const sql = `
-UPDATE harvest_results
-SET customer_confirmed = true, delivery_type = 'PICKUP'
-WHERE ${whereClause}
-RETURNING harvest_id, rental_id, customer_confirmed, delivery_type;
+DO $$ DECLARE v_rental_id integer; v_plot_id integer; v_contract_id integer; BEGIN
+  UPDATE harvest_results SET customer_confirmed = true, delivery_type = '${deliveryType}'::delivery_type_enum,
+    customer_feedback = '${feedback}', confirmed_at = NOW()
+  WHERE ${whereClause} RETURNING rental_id INTO v_rental_id;
+  IF v_rental_id IS NULL THEN RAISE EXCEPTION 'Không tìm thấy biên bản thu hoạch'; END IF;
+  UPDATE rentals SET status = 'DONE', updated_at = NOW() WHERE rental_id = v_rental_id AND status = 'ACTIVE'
+    RETURNING plot_id, contract_id INTO v_plot_id, v_contract_id;
+  IF v_plot_id IS NOT NULL THEN
+    UPDATE plots SET status = 'MAINT', is_published = false, updated_at = NOW() WHERE plot_id = v_plot_id;
+    UPDATE contracts SET status = 'COMPLETED'::contract_status_enum, updated_at = NOW() WHERE contract_id = v_contract_id
+      AND NOT EXISTS (SELECT 1 FROM rentals WHERE contract_id = v_contract_id AND status NOT IN ('DONE', 'CANCELLED'));
+  END IF;
+END $$;
 `;
               await runPostgreSql(sql);
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -6448,7 +6457,8 @@ SELECT json_build_object(
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const workerId = parseInt(payload.workerId || payload.worker_id || 8, 10);
+              const workerId = parseInt(payload.workerId || payload.worker_id || 0, 10);
+              if (!workerId) { res.statusCode = 400; res.end(JSON.stringify({ success: false, error: 'Cần chọn CVLĐ thực hiện dịch vụ' })); return; }
               const schedDate = payload.scheduledDate || payload.scheduled_date;
               const notes = (payload.notes || 'Thực hiện dịch vụ theo chỉ định của Quản trị viên').replace(/'/g, "''");
 
@@ -6888,9 +6898,9 @@ DECLARE
   v_notes TEXT := '${notes}';
   v_svc_name TEXT := '${serviceName}';
 BEGIN
-  -- 1. Update service_requests status to ASSIGNED
+  -- Payment creates a task; Admin can assign a worker afterward.
   UPDATE service_requests
-  SET status = 'ASSIGNED', scheduled_date = v_sched_date
+  SET status = 'PENDING', scheduled_date = v_sched_date
   WHERE request_id = v_req_id;
 
   -- 2. Update payment_transactions status to SUCCESS
@@ -6913,9 +6923,8 @@ BEGIN
     END IF;
 
     -- Tự động lấy nhân viên phụ trách của thửa đất hoặc theo Zone của thửa
-    SELECT COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8) INTO v_worker_id 
+    SELECT r.staff_id INTO v_worker_id
     FROM rentals r WHERE r.rental_id = v_rental_id;
-    IF v_worker_id IS NULL THEN v_worker_id := 8; END IF;
 
     INSERT INTO care_tasks (rental_id, service_request_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
     VALUES (
@@ -6948,7 +6957,7 @@ ins_req AS (
     (SELECT id FROM resolved_rental),
     ${serviceId},
     '${scheduledDate}'::date,
-    'ASSIGNED',
+    'PENDING',
     NOW()
   )
   RETURNING request_id, rental_id, service_id, scheduled_date, status
@@ -6971,7 +6980,7 @@ ins_task AS (
   SELECT 
     ins_req.rental_id, 
     ins_req.request_id, 
-    COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8), 
+    r.staff_id,
     ins_req.scheduled_date, 
     'PENDING'::task_status_enum, 
     '${serviceName}',

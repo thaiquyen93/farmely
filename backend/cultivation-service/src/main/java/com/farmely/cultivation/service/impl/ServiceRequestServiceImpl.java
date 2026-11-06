@@ -70,7 +70,7 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
         CareTaskEntity task = CareTaskEntity.builder()
                 .rentalId(saved.getRentalId())
                 .serviceRequestId(saved.getRequestId())
-                .taskAssignedTo(8)
+                .taskAssignedTo(null)
                 .dueDate(saved.getScheduledDate() != null ? saved.getScheduledDate() : LocalDate.now().plusDays(1))
                 .status(TaskStatus.PENDING)
                 .notes("Dịch vụ: " + service.getServiceName() + (request.getNotes() != null && !request.getNotes().isBlank() ? " - " + request.getNotes() : ""))
@@ -92,16 +92,18 @@ public class ServiceRequestServiceImpl implements ServiceRequestService {
         }
         ServiceRequestEntity saved = serviceRequestRepository.save(entity);
 
-        // Auto create care_task for the worker
-        CareTaskEntity task = CareTaskEntity.builder()
+        // Reuse the task created when the service was booked.
+        CareTaskEntity task = careTaskRepository.findByRentalIdOrderByDueDateAsc(saved.getRentalId()).stream()
+                .filter(existing -> saved.getRequestId().equals(existing.getServiceRequestId()))
+                .findFirst().orElseGet(() -> CareTaskEntity.builder()
                 .rentalId(saved.getRentalId())
                 .serviceRequestId(saved.getRequestId())
-                .taskAssignedTo(request.getWorkerId())
-                .dueDate(saved.getScheduledDate() != null ? saved.getScheduledDate() : LocalDate.now())
                 .status(TaskStatus.PENDING)
                 .notes("Thực hiện dịch vụ: " + saved.getService().getServiceName() +
                         (request.getNotes() != null ? " - " + request.getNotes() : ""))
-                .build();
+                .build());
+        task.setTaskAssignedTo(request.getWorkerId());
+        task.setDueDate(saved.getScheduledDate() != null ? saved.getScheduledDate() : LocalDate.now());
         careTaskRepository.save(task);
 
         return mapToResponse(saved);

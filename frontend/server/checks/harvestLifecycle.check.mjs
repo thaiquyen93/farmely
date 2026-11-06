@@ -21,11 +21,11 @@ for (const p of [path.join(REPO, '.env'), path.join(REPO, 'frontend/.env')]) {
 }
 
 const pool = new pg.Pool({
-  host: env.DB_HOST || 'localhost',
-  port: parseInt(env.DB_PORT || '5433', 10),
-  database: env.DB_NAME || 'farmely',
-  user: env.DB_USER || 'postgres',
-  password: env.DB_PASSWORD || env.DB_PASS || 'postgres'
+  host: process.env.DB_HOST || env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || env.DB_PORT || '5433', 10),
+  database: process.env.DB_NAME || env.DB_NAME || 'farmely',
+  user: process.env.DB_USER || env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || process.env.DB_PASS || env.DB_PASSWORD || env.DB_PASS || 'postgres'
 });
 
 // Trích đúng khối SQL từ plugin để test chính xác cái đang chạy production
@@ -237,6 +237,18 @@ END $$;`;
   )).rows[0].status;
   check('rental quá hạn chuyển DONE (không còn ACTIVE vĩnh viễn)', rFresh === 'DONE', rFresh);
 
+  const handover = (await c.query("SELECT hr.harvest_id, hr.rental_id, r.plot_id, r.contract_id FROM harvest_results hr JOIN rentals r ON r.rental_id = hr.rental_id WHERE r.status = 'ACTIVE' AND hr.customer_confirmed = false ORDER BY hr.harvest_id DESC LIMIT 1")).rows[0];
+  if (handover) {
+    await c.query("UPDATE harvest_results SET customer_confirmed = true, delivery_type = 'DELIVERY'::delivery_type_enum, confirmed_at = NOW() WHERE harvest_id = $1", [handover.harvest_id]);
+    await c.query("UPDATE rentals SET status = 'DONE' WHERE rental_id = $1 AND status = 'ACTIVE'", [handover.rental_id]);
+    await c.query("UPDATE plots SET status = 'MAINT', is_published = false WHERE plot_id = $1", [handover.plot_id]);
+    const h = await c.query('SELECT customer_confirmed, delivery_type FROM harvest_results WHERE harvest_id = $1', [handover.harvest_id]);
+    const r = await c.query('SELECT status FROM rentals WHERE rental_id = $1', [handover.rental_id]);
+    const p = await c.query('SELECT status, is_published FROM plots WHERE plot_id = $1', [handover.plot_id]);
+    check('bàn giao lưu phương thức giao hàng', h.rows[0].customer_confirmed && h.rows[0].delivery_type === 'DELIVERY');
+    check('bàn giao đóng lượt thuê', r.rows[0].status === 'DONE');
+    check('bàn giao đưa thửa về bảo trì', p.rows[0].status === 'MAINT' && p.rows[0].is_published === false);
+  }
   await c.query('ROLLBACK');
   console.log(`\nROLLBACK xong - dữ liệu demo nguyên vẹn.\nKẾT QUẢ: ${pass} pass / ${fail} fail`);
 } catch (e) {

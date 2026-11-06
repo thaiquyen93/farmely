@@ -14,6 +14,7 @@ export const normalizePlotCode = (value) => {
   } else if (str.startsWith('PLT-')) {
     str = 'P-' + str.replace('PLT-', '');
   }
+  if (/^P-\d+$/.test(str)) str = `P-${str.slice(2).padStart(2, '0')}`;
   return str;
 };
 
@@ -39,13 +40,6 @@ export const findPlotByCode = (plots, code) => {
   if (/^\d+$/.test(target)) {
     const byId = plots.find((p) => String(p?.plot_id ?? p?.plotId) === target);
     if (byId) return byId;
-  }
-  const targetNum = target.replace(/\D/g, '');
-  if (targetNum) {
-    return plots.find((p) => {
-      const pNum = String(p?.code || p?.plotCode || p?.plot_code || p?.plotId || p?.plot_id).replace(/\D/g, '');
-      return pNum && parseInt(pNum, 10) === parseInt(targetNum, 10);
-    }) || null;
   }
   return null;
 };

@@ -400,6 +400,7 @@ export default function AdminDashboard() {
           contractCode: r.contractCode || `CTR-${r.rental_id || r.rentalId}`,
           renterName: r.renterName || 'Khách hàng Farmely',
           renterEmail: r.renterEmail || '',
+          cultivationMode: r.cultivationMode || r.cultivation_mode || r.mode || '',
           startDate: r.startDate || '',
           endDate: r.endDate || '',
           status: r.status || 'ACTIVE',
@@ -1411,6 +1412,7 @@ export default function AdminDashboard() {
                                 <th className="py-3 px-4">Thửa & Hợp Đồng</th>
                                 <th className="py-3 px-4">Cây Trồng & Giai Đoạn</th>
                                 <th className="py-3 px-4">Khách Thuê</th>
+                                <th className="py-3 px-4">Hình thức canh tác</th>
                                 <th className="py-3 px-4">Thời Tiết & Khí Tượng</th>
                                 <th className="py-3 px-4">CVLĐ Hiện Trường</th>
                                 <th className="py-3 px-4">CGNN Giám Sát</th>
@@ -1443,6 +1445,9 @@ export default function AdminDashboard() {
                                     <td className="py-3.5 px-4 whitespace-nowrap">
                                       <div className="font-semibold text-stone-800">{rental.renterName}</div>
                                       <div className="text-[11px] text-stone-400 mt-0.5">{rental.renterEmail || 'Khách hàng'}</div>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap font-semibold text-stone-700">
+                                      {['SELF', 'SELF_GROWING', 'Self-Growing'].includes(rental.cultivationMode) ? 'Tự canh tác' : ['ASSISTED', 'ASSISTED_GROWING', 'Assisted-Growing'].includes(rental.cultivationMode) ? 'Ủy thác' : 'Chưa xác định'}
                                     </td>
                                     <td className="py-3.5 px-4 whitespace-nowrap">
                                       <div className="flex items-center gap-2 text-[11px]">

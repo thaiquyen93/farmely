@@ -275,8 +275,8 @@ function StandardProcessTimeline({
         ...latestHarvest,
         id: latestHarvest.harvestCode || latestHarvest.id || `HRV-${plot?.id || '88'}`,
         crop: latestHarvest.crop || latestHarvest.cropName || plot?.cropName || plot?.crop || 'Nông sản VietGAP',
-        yieldAmount: latestHarvest.yieldAmount || latestHarvest.actualWeight || 20.0,
-        formattedYield: latestHarvest.formattedYield || (latestHarvest.yieldAmount ? `${latestHarvest.yieldAmount} kg` : (latestHarvest.actualWeight || '20.00 kg')),
+        yieldAmount: latestHarvest.yieldAmount ?? latestHarvest.actualWeight ?? null,
+        formattedYield: latestHarvest.formattedYield || (latestHarvest.yieldAmount != null ? `${latestHarvest.yieldAmount} kg` : (latestHarvest.actualWeight != null ? `${latestHarvest.actualWeight} kg` : null)),
         harvestDateFormatted: latestHarvest.harvestDateFormatted || latestHarvest.harvestDate || '05/11/2026',
         workerName: latestHarvest.enteredByWorker || latestHarvest.workerName || latestHarvest.staffName || 'Trần Văn Lực'
       };
@@ -285,13 +285,13 @@ function StandardProcessTimeline({
       id: `HRV-${plot?.id || '88'}`,
       harvestCode: `HRV-${plot?.id || '88'}`,
       crop: plot?.cropName || plot?.crop || 'Nông sản VietGAP',
-      yieldAmount: plot?.expectedYield || 20.0,
-      formattedYield: `${plot?.expectedYield || 20.0} kg`,
-      harvestDate: new Date().toISOString().slice(0, 10),
-      harvestDateFormatted: new Date().toLocaleDateString('vi-VN'),
-      workerName: 'Trần Văn Lực',
-      enteredByWorker: 'Trần Văn Lực',
-      evidenceImageUrl: '/images/harvest/rau-muong-p03.jpg',
+      yieldAmount: null,
+      formattedYield: null,
+      harvestDate: null,
+      harvestDateFormatted: null,
+      workerName: null,
+      enteredByWorker: null,
+      evidenceImageUrl: null,
       status: 'COMPLETED',
       plotCode: plot?.plotCode || (plot?.rentalId ? `P-${String(plot.rentalId).padStart(2, '0')}` : 'P-01'),
       plotName: plot?.plotName || plot?.name || 'Thửa P-01',
@@ -1040,8 +1040,8 @@ function StandardProcessTimeline({
         {/* BR20/BR21: THÔNG BÁO THU HOẠCH VỤ MÙA KHI ĐẾN NGÀY THU HOẠCH (DUY NHẤT 1 BANNER ĐỒNG BỘ TRẠNG THÁI) */}
         {selectedDay === totalDays && (
           <div
-            onClick={() => onOpenHarvestReport?.(effectiveHarvest)}
-            className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100/40 to-lime-50/50 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 cursor-pointer hover:shadow-md hover:border-amber-400 transition group"
+            onClick={() => { if (latestHarvest) onOpenHarvestReport?.(effectiveHarvest); }}
+            className={`rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100/40 to-lime-50/50 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition group ${latestHarvest ? 'cursor-pointer hover:shadow-md hover:border-amber-400' : ''}`}
             title="Bấm để xem Báo cáo thu hoạch & Biên bản nghiệm thu (BR20)"
           >
             <div className="flex items-start gap-3 min-w-0">
@@ -1055,14 +1055,14 @@ function StandardProcessTimeline({
                   </span>
                   {effectiveHarvest?.formattedYield || effectiveHarvest?.yieldAmount ? (
                     <span className="rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-black text-amber-950 border border-amber-300">
-                      Sản lượng: {effectiveHarvest.formattedYield || `${effectiveHarvest.yieldAmount} kg`}
+                      Sản lượng thực tế: {String(effectiveHarvest.formattedYield || `${effectiveHarvest.yieldAmount} kg`).replace(/\bkg(?:\s+kg)+\b/gi, 'kg')}
                     </span>
                   ) : (
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-900 border border-amber-200">
-                      Ngày {totalDays} / {totalDays} ngày tuổi
+                      Chưa ghi nhận sản lượng thực tế
                     </span>
                   )}
-                  {effectiveHarvest?.harvestDateFormatted && (
+                  {latestHarvest && effectiveHarvest?.harvestDateFormatted && (
                     <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-200">
                       {effectiveHarvest.harvestDateFormatted}
                     </span>
@@ -1074,17 +1074,17 @@ function StandardProcessTimeline({
                 <h4 className="mt-1 text-sm font-heading font-black text-amber-950">
                   {latestHarvest
                     ? 'Nông sản đã thu hoạch hoàn tất — Đã chốt biên bản sản lượng!'
-                    : 'Nông sản đã chín đạt độ chuẩn — Đã phát lệnh thu hoạch & nghiệm thu!'}
+                    : 'Đến ngày dự kiến thu hoạch — Đang chờ nhân viên ghi nhận sản lượng.'}
                 </h4>
                 <p className="mt-0.5 text-xs text-amber-950/80 leading-relaxed max-w-2xl">
                   {latestHarvest
-                    ? `${effectiveHarvest.enteredByWorker || effectiveHarvest.workerName || 'Chuyên viên lao động'} đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Quý khách vui lòng đến nhận nông sản tại nông trại theo quy định BR21.`
-                    : 'Theo quy định BR20/BR21, Chuyên viên lao động (Trần Văn Lực) đang thực hiện thu hái nhẹ tay, cân điện tử và chụp ảnh nghiệm thu sản lượng thực tế. Quý khách vui lòng xác nhận hình thức nhận nông sản tại nông trại.'}
+                    ? `${effectiveHarvest.enteredByWorker || effectiveHarvest.workerName || 'Chuyên viên lao động'} đã ghi nhận sản lượng thực tế. Quý khách chọn hình thức nhận nông sản và xác nhận bàn giao.`
+                    : 'Chuyên viên lao động sẽ cập nhật số cân và ảnh minh chứng sau khi thu hoạch.'}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
-              <button
+              {latestHarvest && <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1094,8 +1094,8 @@ function StandardProcessTimeline({
               >
                 <Award className="w-3.5 h-3.5 text-amber-200" />
                 <span>Báo cáo thu hoạch</span>
-              </button>
-              <button
+              </button>}
+              {latestHarvest && <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1105,7 +1105,7 @@ function StandardProcessTimeline({
               >
                 <BookOpen className="w-3.5 h-3.5 text-amber-700" />
                 <span>Xem biên bản trong Nhật ký</span>
-              </button>
+              </button>}
             </div>
           </div>
         )}
@@ -1836,7 +1836,7 @@ function StaffActivitiesTab({
                   </span>
                 ) : (
                   <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300 self-start sm:self-auto flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5 stroke-[3]" /> Xong việc hôm nay
+                    <Check className="w-3.5 h-3.5 stroke-[3]" /> {upcomingList.length ? 'Chưa tới lịch' : 'Không có việc đến hạn'}
                   </span>
                 )}
               </div>
@@ -1845,10 +1845,10 @@ function StaffActivitiesTab({
                 <div className="p-6 text-center bg-emerald-50/40 rounded-2xl border border-dashed border-emerald-300 flex flex-col items-center gap-1.5">
                   <CheckCircle2 className="w-7 h-7 text-emerald-600" />
                   <p className="font-heading font-black text-stone-900 text-sm">
-                    Hôm nay không có việc tồn đọng tại {plot?.plotCode ? `Thửa ${plot.plotCode}` : (plot?.name || 'thửa đất này')}!
+                    Hôm nay chưa có việc đến hạn tại {plot?.plotCode ? `Thửa ${plot.plotCode}` : (plot?.name || 'thửa đất này')}.
                   </p>
                   <p className="text-xs text-stone-500 max-w-md">
-                    Toàn bộ nhiệm vụ chăm sóc ngày hôm nay của thửa đất này đã được thực hiện chu đáo. Cây trồng đang phát triển rất tốt.
+                    {upcomingList.length ? `Công việc tiếp theo: ${upcomingList[0].title}${upcomingList[0].date ? `, ngày ${upcomingList[0].date}` : ''}.` : 'Chưa có lịch công việc mới cho thửa này.'}
                   </p>
                 </div>
               ) : (
@@ -2755,7 +2755,8 @@ export default function CustomerPlotWorkspace({
   onOpenAiChat,
   onOpenTask,
   onSelectService,
-  onAddDiary
+  onAddDiary,
+  onHarvestConfirmed
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef(null);
@@ -3654,7 +3655,13 @@ export default function CustomerPlotWorkspace({
                       }
                     });
 
-                    const combined = [...syncedBase, ...harvestEntries, ...standaloneDiaries];
+                    const taskIds = new Set(syncedBase.map((item) => String(item.taskId || item.activityId || item.id || '').replace(/^(TSK-|TASK-DIR-|DIARY-FROM-TASK-)/, '')));
+                    const taskEvidence = new Set(syncedBase.map((item) => item.proofPhoto || item.imageUrl || item.image || item.photo).filter(Boolean));
+                    const combined = [...syncedBase, ...harvestEntries, ...standaloneDiaries.filter((item) => {
+                      if (item.taskId && taskIds.has(String(item.taskId).replace(/^(TSK-|TASK-DIR-|DIARY-FROM-TASK-)/, ''))) return false;
+                      const image = item.proofPhoto || item.imageUrl || item.image || item.photo;
+                      return !(image && taskEvidence.has(image) && /nhiệm vụ chăm sóc hiện trường/i.test(item.title || ''));
+                    })];
                     const seen = new Set();
                     return combined.filter((item) => {
                       const cleanTitle = (item.title || '').trim().toLowerCase();
@@ -3721,6 +3728,7 @@ export default function CustomerPlotWorkspace({
           plot={activePlot || plot}
           totalDays={cropProcess.totalDays}
           onClose={() => setSelectedHarvestReport(null)}
+          onConfirmed={onHarvestConfirmed}
           onGoToDiary={() => {
             setSelectedHarvestReport(null);
             goTab('tasks');

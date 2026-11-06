@@ -70,7 +70,7 @@ describe('BookPlot booking rules', () => {
       plotsList,
       plotsQuery: 'P-11,P-16',
       savedPlots: null,
-      fallbackId: 'P-11'
+      fallbackId: ''
     });
 
     expect(result).toHaveLength(2);
@@ -89,7 +89,7 @@ describe('BookPlot booking rules', () => {
       plotsList,
       plotsQuery: '',
       savedPlots: JSON.stringify(['P-11', 'P-16']),
-      fallbackId: 'P-11'
+      fallbackId: ''
     });
     expect(result1).toHaveLength(2);
     expect(result1.map((p) => p.code)).toEqual(['P-11', 'P-16']);
@@ -99,13 +99,13 @@ describe('BookPlot booking rules', () => {
       plotsList,
       plotsQuery: '',
       savedPlots: JSON.stringify([{ code: 'P-11' }, { code: 'P-16' }]),
-      fallbackId: 'P-11'
+      fallbackId: ''
     });
     expect(result2).toHaveLength(2);
     expect(result2.map((p) => p.code)).toEqual(['P-11', 'P-16']);
   });
 
-  it('preserves all selected plots when URL only specifies primary plot but cart has 2 plots', () => {
+  it('uses the requested plot even when an older cart contains other plots', () => {
     const plotsList = [
       { id: '4', plotId: 4, code: 'P-04' },
       { id: '5', plotId: 5, code: 'P-05' },
@@ -118,8 +118,22 @@ describe('BookPlot booking rules', () => {
       savedPlots: JSON.stringify(['P-04', 'P-05']),
       fallbackId: 'P-04'
     });
-    expect(result).toHaveLength(2);
-    expect(result.map((p) => p.code)).toEqual(['P-04', 'P-05']);
+    expect(result.map((p) => p.code)).toEqual(['P-04']);
+  });
+
+  it('keeps P-17 when its database id is 73 and a saved cart contains P-11', () => {
+    const plotsList = [
+      { id: '17', plotId: 17, code: 'P-11' },
+      { id: '73', plotId: 73, code: 'P-17' }
+    ];
+    const result = resolveInitialSelectedPlots({
+      plotsList,
+      plotsQuery: 'P-17',
+      savedPlots: JSON.stringify(['P-11']),
+      fallbackId: 'P-17'
+    });
+    expect(result.map((p) => p.code)).toEqual(['P-17']);
+    expect(result[0].plotId).toBe(73);
   });
 
   it('matches plot codes even with single digit or different zero padding', () => {

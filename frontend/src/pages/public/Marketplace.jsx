@@ -323,7 +323,7 @@ export default function Marketplace() {
     }, 0);
   }, [contractSelectedPlots]);
 
-  // "Thuê ngay thửa này": thuê thửa này và kết hợp cùng các thửa đã chọn trong hợp đồng
+  // "Thuê ngay thửa này" luôn bắt đầu với đúng thửa đang xem; giỏ nhiều thửa có nút riêng.
   const handleBookPlot = (plot) => {
     if (!plot) return;
     const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE' || plot.statusCode === 'AVAIL';
@@ -332,17 +332,14 @@ export default function Marketplace() {
     const code = getPlotKey(plot);
     if (!code) return;
 
-    // Nếu người dùng đã có các thửa được chọn trong hợp đồng, kết hợp tất cả các thửa
-    const codes = cartCodes && cartCodes.length > 0
-      ? dedupeCodes([...cartCodes, code])
-      : [code];
+    const codes = [code];
 
     saveLeaseConfigMap(leaseConfigByPlot);
     const primaryCode = codes[0];
     const cfg = leaseConfigByPlot[primaryCode];
 
     if (!isAuthenticated) {
-      setPlotToBook(contractSelectedPlots[0] || plot);
+      setPlotToBook(plot);
       setPendingBookingCodes(codes);
       setShowAuthModal(true);
     } else {

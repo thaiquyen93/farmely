@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Award,
@@ -12,7 +12,6 @@ import {
   Sprout,
   FileCheck
 } from 'lucide-react';
-import { resolveVietgapProofPhoto } from './CustomerPlotWorkspace';
 
 /**
  * Modal Báo Cáo Thu Hoạch & Biên Bản Đối Chứng Sản Lượng Thực Tế (BR20 & BR21)
@@ -23,16 +22,30 @@ export default function HarvestReportModal({
   plot,
   totalDays = 45,
   onClose,
+  onConfirmed,
   onGoToDiary
 }) {
+  const [deliveryChoice, setDeliveryChoice] = useState(harvest?.deliveryType || '');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [handoverError, setHandoverError] = useState('');
+  const [savingHandover, setSavingHandover] = useState(false);
   if (!harvest) return null;
+  const confirmHandover = async () => {
+    if (deliveryChoice === 'DELIVERY' && !deliveryAddress.trim()) { setHandoverError('Vui lòng nhập địa chỉ giao hàng.'); return; }
+    const harvestId = harvest.harvestId || Number(String(harvest.id || '').replace(/\D/g, ''));
+    if (!harvestId) { setHandoverError('Chưa có biên bản thu hoạch để xác nhận.'); return; }
+    setSavingHandover(true);
+    try {
+      const response = await fetch(`/api/harvest/${harvestId}/confirm`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmed: true, deliveryType: deliveryChoice, customerFeedback: deliveryChoice === 'DELIVERY' ? `Địa chỉ giao hàng: ${deliveryAddress.trim()}` : 'Khách tự nhận tại nông trại' }) });
+      if (!response.ok) throw new Error('Không lưu được lựa chọn bàn giao.');
+      onConfirmed?.();
+      onClose();
+    } catch (error) { setHandoverError(error.message); } finally { setSavingHandover(false); }
+  };
 
-  const photoUrl = resolveVietgapProofPhoto(
-    `Thu hoạch ${harvest.crop || harvest.cropName || 'nông sản'}`,
-    harvest.evidenceImageUrl || harvest.photoUrl || harvest.photo || harvest.proofPhoto || harvest.image
-  );
+  const photoUrl = harvest.evidenceImageUrl || harvest.photoUrl || harvest.photo || harvest.proofPhoto || harvest.image || null;
 
-  const yieldText = harvest.formattedYield || (harvest.yieldAmount ? `${harvest.yieldAmount} kg` : (harvest.actualWeight || '20.00 kg'));
+  const yieldText = harvest.formattedYield || (harvest.yieldAmount != null ? `${harvest.yieldAmount} kg` : (harvest.actualWeight != null ? `${harvest.actualWeight} kg` : 'Chưa cân'));
   const harvestCode = harvest.id || harvest.harvestCode || `HRV-${plot?.id || '88'}`;
   const workerName = harvest.enteredByWorker || harvest.workerName || harvest.staffName || 'Trần Văn Lực';
   const harvestDate = harvest.harvestDateFormatted || harvest.harvestDate || harvest.verifiedAt || '05/11/2026';
@@ -106,14 +119,14 @@ export default function HarvestReportModal({
           </div>
 
           {/* Ảnh cân đối chứng thực tế tại vườn */}
-          <div className="space-y-1.5">
+          {photoUrl && <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="font-bold text-stone-900 flex items-center gap-1.5">
                 <Scale className="w-3.5 h-3.5 text-emerald-600" />
                 Ảnh chụp cân đối chứng thực tế tại hiện trường (BR20):
               </span>
               <span className="text-[10px] text-stone-500 italic">
-                * Khách hàng nhận nông sản tại nông trại (BR21)
+                Ảnh do nhân viên tải lên
               </span>
             </div>
             <div className="relative overflow-hidden rounded-2xl border border-stone-200 bg-stone-100 max-h-64 sm:max-h-72">
@@ -133,7 +146,7 @@ export default function HarvestReportModal({
                 </span>
               </div>
             </div>
-          </div>
+          </div>}
 
           {/* Grid thông số đối chứng */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-stone-50/80 p-3.5 rounded-2xl border border-stone-200 text-stone-700">
@@ -165,8 +178,8 @@ export default function HarvestReportModal({
                 <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
                   Phương thức nhận (BR21):
                 </span>
-                <strong className="text-stone-900 font-semibold">Tự nhận tại nông trại Farmely</strong>
-                <span className="text-[10px] text-stone-500 block">Địa chỉ: Nông trại Farmely Củ Chi</span>
+                <strong className="text-stone-900 font-semibold">{harvest.customerConfirmed ? (harvest.deliveryType === 'DELIVERY' ? 'Giao tận nhà' : 'Tự nhận tại nông trại') : 'Khách hàng chưa chọn'}</strong>
+                {harvest.customerConfirmed && harvest.deliveryType === 'PICKUP' && <span className="text-[10px] text-stone-500 block">Nông trại Farmely Củ Chi</span>}
               </div>
             </div>
 
@@ -188,11 +201,18 @@ export default function HarvestReportModal({
               📝 Nhận xét kiểm nghiệm chất lượng nông sản:
             </span>
             <p className="text-xs text-amber-950/85 leading-relaxed">
-              {harvest.notes || harvest.note || 'Nông sản đã hoàn tất quy trình thu hái sáng sớm, cắt sạch cuống lá già chân gốc, khử khuẩn nước RO sơ bộ và cân điện tử đối chứng. Đạt chuẩn VietGAP 100%, không phát hiện tồn dư thuốc bảo vệ thực vật.'}
+              {harvest.notes || harvest.note || 'Chưa có nhận xét kiểm nghiệm.'}
             </p>
           </div>
         </div>
 
+        {!harvest.customerConfirmed && (harvest.harvestId || harvest.id) && <div className="px-5 pb-4 space-y-2 text-xs">
+          <strong>Chọn cách nhận nông sản để xác nhận bàn giao</strong>
+          <div className="flex gap-3"><label><input type="radio" name="deliveryChoice" checked={deliveryChoice === 'PICKUP'} onChange={() => setDeliveryChoice('PICKUP')} /> Tự nhận tại nông trại</label><label><input type="radio" name="deliveryChoice" checked={deliveryChoice === 'DELIVERY'} onChange={() => setDeliveryChoice('DELIVERY')} /> Giao tận nhà</label></div>
+          {deliveryChoice === 'DELIVERY' && <input className="w-full rounded border p-2" placeholder="Địa chỉ giao hàng" value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} />}
+          {handoverError && <p className="text-red-700">{handoverError}</p>}
+          <button type="button" disabled={!deliveryChoice || savingHandover} onClick={confirmHandover} className="rounded bg-emerald-700 px-4 py-2 font-bold text-white disabled:opacity-50">{savingHandover ? 'Đang lưu...' : 'Xác nhận bàn giao'}</button>
+        </div>}
         {/* Footer */}
         <div className="border-t border-stone-200/80 bg-stone-50 px-5 py-3 flex flex-wrap items-center justify-between gap-2.5">
           {onGoToDiary ? (

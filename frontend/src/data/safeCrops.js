@@ -135,7 +135,16 @@ export function mergeVarietiesIntoSafeCrops(varieties = []) {
 
   varieties.forEach((v) => {
     const vId = Number(v.varietyId ?? v.id);
-    if (!Number.isFinite(vId) || existingVarietyIds.has(vId)) return;
+    if (!Number.isFinite(vId)) return;
+    if (existingVarietyIds.has(vId)) {
+      const existing = result.find((crop) => Number(crop.varietyId) === vId);
+      if (existing) {
+        existing.expectedYield = v.expectedYield || existing.expectedYield || null;
+        existing.temperature = v.temperature || existing.temperature || null;
+        existing.soilMoisture = v.soilMoisture || existing.soilMoisture || null;
+      }
+      return;
+    }
 
     const padId = `CRP-${String(vId).padStart(2, '0')}`;
     const cName = v.cropName || v.crop_name || v.name || 'Cây trồng';
@@ -151,8 +160,9 @@ export function mergeVarietiesIntoSafeCrops(varieties = []) {
       icon: '🌱',
       duration: `${durationDays} ngày`,
       minDays: durationDays,
-      temperature: '20–32°C',
-      soilMoisture: '65–75%'
+      expectedYield: v.expectedYield || null,
+      temperature: v.temperature || null,
+      soilMoisture: v.soilMoisture || null
     });
     existingVarietyIds.add(vId);
   });

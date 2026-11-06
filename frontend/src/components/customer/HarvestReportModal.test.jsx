@@ -79,7 +79,8 @@ describe('HarvestReportModal & Workspace Integration', () => {
     expect(text).toContain('Trần Văn Lực');
     expect(text).toContain('05/11/2026');
     expect(text).toContain('VietGAP chuẩn xuất xưởng');
-    expect(text).toContain('Tự nhận tại nông trại Farmely');
+    expect(text).toContain('Khách hàng chưa chọn');
+    expect(text).toContain('Giao tận nhà');
     expect(text).toContain('Bảo trì & Cải tạo đất (Fallow)');
   });
 

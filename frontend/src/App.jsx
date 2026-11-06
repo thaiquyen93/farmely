@@ -112,6 +112,7 @@ export default function App() {
         <Route path="/expert/dashboard" element={<RoleRoute role="EXPERT"><ExpertDashboard /></RoleRoute>} />
         <Route path="/expert/crops" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=crops" replace /></RoleRoute>} />
         <Route path="/expert/varieties" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=varieties" replace /></RoleRoute>} />
+        <Route path="/expert/process-templates/:id" element={<RoleRoute role="EXPERT"><div className="min-h-screen bg-brand-cream p-6"><div className="mx-auto max-w-7xl"><ProcessTemplateDetail /></div></div></RoleRoute>} />
         <Route path="/staff/dashboard" element={<RoleRoute role="STAFF"><FieldWorkerDashboard /></RoleRoute>} />
         <Route path="/worker/dashboard" element={<Navigate to="/staff/dashboard" replace />} />
 

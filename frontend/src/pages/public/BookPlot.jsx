@@ -42,29 +42,11 @@ import {
   DEFAULT_TERM_MONTHS,
   calculateSuggestedMonths,
   ALLOWED_TERM_MONTHS,
-  getMinTermMonths
+  getMinTermMonths,
+  fetchCompatibleVarietyIds,
+  filterCompatibleCrops
 } from '../../utils/leaseSelection';
 import { RENTAL_TERMS, RENTAL_TERMS_VERSION } from '../../data/rentalTerms';
-
-// Danh mục tương thích sinh học chuẩn hóa từ PostgreSQL table plot_variety_compatibility (BR03)
-const PLOT_COMPATIBLE_VARIETIES = {
-  1: [1, 2, 3, 4, 8, 10], // P-01
-  2: [1, 2, 3, 6, 8, 10], // P-02
-  3: [4, 5, 6, 7],         // P-03
-  4: [3, 4, 6, 9],         // P-04
-  5: [1, 5, 7, 8, 9],      // P-05
-  6: [1, 2, 8, 10],        // P-06
-  13: [1, 2, 3, 10],       // P-07
-  14: [2, 3, 8, 10],       // P-08
-  15: [4, 5, 6, 7],        // P-09
-  16: [3, 4, 9],           // P-10
-  17: [1, 3, 5, 8],        // P-11
-  18: [2, 3, 6, 10],       // P-12
-  19: [1, 4, 7, 9],        // P-13
-  20: [4, 5, 6, 7],        // P-14
-  21: [1, 2, 3, 5, 8],     // P-15
-  22: [2, 3, 8, 10]        // P-16
-};
 
 export const BOOKING_MIN_LEAD_DAYS = 5;
 export const BOOKING_MAX_LEAD_DAYS = 14;
@@ -144,25 +126,12 @@ export const resolveInitialSelectedPlots = ({
     findFn ||
     ((code, list) => {
       if (!code) return null;
-      const clean = String(code).trim().toLowerCase();
+      const clean = normalizePlotCode(code).toLowerCase();
       const cleanDigits = clean.replace(/\D/g, '');
       return list.find((p) => {
         const pId = String(p.id || '').toLowerCase();
-        const pCode = String(p.code || p.plotCode || p.plot_code || '').toLowerCase();
-        const pLabel = String(p.label || '').toLowerCase();
-        const pDigits = pCode.replace(/\D/g, '') || String(p.plotId || p.plot_id || '');
-        return (
-          pId === clean ||
-          pCode === clean ||
-          pLabel === clean ||
-          pCode.replace(/^p-?/i, '') === clean.replace(/^p-?/i, '') ||
-          clean.replace(/^p-?/i, '') === pCode.replace(/^p-?/i, '') ||
-          pCode.replace('plot ', '').trim() === clean ||
-          clean.replace('plot ', '').trim() === pCode ||
-          pId.replace('plt-hv-', 'p-') === clean ||
-          (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', '')) ||
-          (cleanDigits && pDigits && parseInt(cleanDigits, 10) === parseInt(pDigits, 10))
-        );
+        const pCode = normalizePlotCode(p.code || p.plotCode || p.plot_code).toLowerCase();
+        return pCode === clean || (/^\d+$/.test(clean) && pId === clean);
       });
     });
 
@@ -186,17 +155,8 @@ export const resolveInitialSelectedPlots = ({
     }
   }
 
-  // Kết hợp: Nếu URL chỉ có 1 thửa nhưng giỏ hàng có nhiều thửa đã chọn, giữ trọn vẹn cả các thửa trong giỏ
-  let candidateCodes = urlCodes;
-  if (urlCodes.length > 1) {
-    candidateCodes = urlCodes;
-  } else if (savedCodes.length > 1) {
-    candidateCodes = [...new Set([...urlCodes, ...savedCodes])];
-  } else if (urlCodes.length === 1) {
-    candidateCodes = urlCodes;
-  } else if (savedCodes.length > 0) {
-    candidateCodes = savedCodes;
-  }
+  // URL là lựa chọn hiện tại; giỏ cũ chỉ dùng khi vào trang không có thửa trong URL.
+  const candidateCodes = urlCodes.length ? urlCodes : (fallbackId ? [fallbackId] : savedCodes);
 
   if (candidateCodes.length > 0) {
     const matchedMap = new Map();
@@ -211,6 +171,7 @@ export const resolveInitialSelectedPlots = ({
     });
     const matched = Array.from(matchedMap.values());
     if (matched.length > 0) return matched;
+    return [];
   }
 
   // 3. Fallback id
@@ -219,7 +180,7 @@ export const resolveInitialSelectedPlots = ({
     if (target) return [target];
   }
 
-  return plotsList.length > 0 ? [plotsList[0]] : [];
+  return [];
 };
 
 export const getBookingValidationError = ({ acceptedTerms, selectedMode, assistedService }) => {
@@ -265,6 +226,12 @@ export default function BookPlot() {
   };
 
   // 15-minute reservation timer (BR08) & checkout settings
+  const timerKey = `farmely_booking_deadline_${id}`;
+  const [reservationDeadlineMs, setReservationDeadlineMs] = useState(() => {
+    const saved = Number(sessionStorage.getItem(timerKey));
+    return saved > Date.now() && saved < Date.now() + 25 * 60 * 1000
+      ? saved : Date.now() + 15 * 60 * 1000;
+  });
   const [secondsRemaining, setSecondsRemaining] = useState(15 * 60);
 
   const [paymentMethod] = useState('VNPAY');
@@ -273,6 +240,18 @@ export default function BookPlot() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVnPayModal, setShowVnPayModal] = useState(false);
   const [allAvailableCrops, setAllAvailableCrops] = useState(getSafeCropsList);
+  const [compatByPlotId, setCompatByPlotId] = useState({});
+
+  useEffect(() => {
+    let active = true;
+    Promise.all(selectedPlots.map(async (plot) => {
+      const plotId = plot.plotId || plot.dbPlotId;
+      return [plotId, await fetchCompatibleVarietyIds(plotId, true)];
+    })).then((entries) => {
+      if (active) setCompatByPlotId((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+    });
+    return () => { active = false; };
+  }, [selectedPlots]);
 
   useEffect(() => {
     let active = true;
@@ -392,9 +371,11 @@ export default function BookPlot() {
   }, [getPlotSelectedCrop, getPlotConfig]);
 
   // Danh sách tất cả các giống cây trồng có sẵn
-  const getCompatibleCropsForPlot = useCallback(() => {
-    return allAvailableCrops && allAvailableCrops.length > 0 ? allAvailableCrops : safeCrops;
-  }, [allAvailableCrops]);
+  const getCompatibleCropsForPlot = useCallback((plot) => {
+    const ids = compatByPlotId[plot?.plotId || plot?.dbPlotId];
+    if (!Array.isArray(ids) || ids.length === 0) return [];
+    return filterCompatibleCrops(allAvailableCrops, ids).crops;
+  }, [allAvailableCrops, compatByPlotId]);
 
   // Cập nhật cấu hình riêng cho một thửa đất
   const handleUpdatePlotConfig = (plot, patch) => {
@@ -544,25 +525,12 @@ export default function BookPlot() {
   // Helper to match plot by any identifier
   const findPlotByAnyCode = useCallback((code, plotsList = allPlots) => {
     if (!code || !plotsList || !plotsList.length) return null;
-    const clean = String(code).trim().toLowerCase();
+      const clean = normalizePlotCode(code).toLowerCase();
     const cleanDigits = clean.replace(/\D/g, '');
     return plotsList.find((p) => {
-      const pId = String(p.id || '').toLowerCase();
-      const pCode = String(p.code || p.plotCode || p.plot_code || '').toLowerCase();
-      const pLabel = String(p.label || '').toLowerCase();
-      const pDigits = pCode.replace(/\D/g, '') || String(p.plotId || p.plot_id || '');
-      return (
-        pId === clean ||
-        pCode === clean ||
-        pLabel === clean ||
-        pCode.replace(/^p-?/i, '') === clean.replace(/^p-?/i, '') ||
-        clean.replace(/^p-?/i, '') === pCode.replace(/^p-?/i, '') ||
-        pCode.replace('plot ', '').trim() === clean ||
-        clean.replace('plot ', '').trim() === pCode ||
-        pId.replace('plt-hv-', 'p-') === clean ||
-        (clean.startsWith('p-') && pId.replace('plt-hv-', '') === clean.replace('p-', '')) ||
-        (cleanDigits && pDigits && parseInt(cleanDigits, 10) === parseInt(pDigits, 10))
-      );
+        const pId = String(p.id || '').toLowerCase();
+        const pCode = normalizePlotCode(p.code || p.plotCode || p.plot_code).toLowerCase();
+        return pCode === clean || (/^\d+$/.test(clean) && pId === clean);
     });
   }, [allPlots]);
 
@@ -586,7 +554,7 @@ export default function BookPlot() {
           careServicePrice: Math.round(Number(p.pricePerPeriod || p.price_per_period) * 0.5),
           status: (p.status === 'AVAIL' || p.status === 'AVAILABLE') ? 'AVAILABLE' : (p.status === 'RENT' || p.status === 'RENTED') ? 'RENTED' : 'MAINTENANCE',
           iotStationId: `IOT-${p.plotCode || p.plot_code}`,
-          compatibleCrops: safeCrops.map((crop) => crop.variety),
+          compatibleCrops: (p.compatibleVarieties || []).map((crop) => crop.varietyName),
           imageUrl: p.imageUrl || p.image_url || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
           dbPlotId: p.plotId || p.plot_id
         }));
@@ -609,12 +577,12 @@ export default function BookPlot() {
   }, [id, searchParams, findPlotByAnyCode]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-    const interval = setInterval(() => {
-      setSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+    sessionStorage.setItem(timerKey, String(reservationDeadlineMs));
+    const updateRemaining = () => setSecondsRemaining(Math.max(0, Math.ceil((reservationDeadlineMs - Date.now()) / 1000)));
+    updateRemaining();
+    const interval = setInterval(updateRemaining, 1000);
     return () => clearInterval(interval);
-  }, [isAuthenticated]);
+  }, [reservationDeadlineMs, timerKey]);
 
   // Đồng bộ lại selectedPlots khi searchParams hoặc allPlots thay đổi
   useEffect(() => {
@@ -741,9 +709,9 @@ export default function BookPlot() {
       setGraceApplied(true);
       if (res?.reservationExpiresAt) {
         const remainingMs = new Date(res.reservationExpiresAt).getTime() - Date.now();
-        setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
+        setReservationDeadlineMs(Date.now() + Math.max(0, remainingMs));
       } else {
-        setSecondsRemaining((prev) => prev + 600);
+        setReservationDeadlineMs((prev) => prev + 600000);
       }
     } catch (err) {
       console.error('Lỗi cộng thời gian ân hạn:', err);
@@ -755,7 +723,7 @@ export default function BookPlot() {
 
   // Helper xác định chính xác plotId số trong PostgreSQL database
   const resolvePlotDbId = useCallback((plot) => {
-    if (!plot) return 1;
+    if (!plot) return null;
     if (typeof plot.plotId === 'number' && !isNaN(plot.plotId)) return plot.plotId;
     if (typeof plot.plot_id === 'number' && !isNaN(plot.plot_id)) return plot.plot_id;
     if (typeof plot.dbPlotId === 'number' && !isNaN(plot.dbPlotId)) return plot.dbPlotId;
@@ -776,11 +744,7 @@ export default function BookPlot() {
       }
     }
 
-    const cleanDigits = String(plot.code || plot.id).replace(/\D/g, '');
-    if (cleanDigits) {
-      return parseInt(cleanDigits, 10);
-    }
-    return 1;
+    return null;
   }, [findPlotByAnyCode]);
 
   // Tạo hợp đồng giữ chỗ trực tiếp trong Database PostgreSQL qua rental-service (BR08)
@@ -796,6 +760,7 @@ export default function BookPlot() {
       const crop = getPlotSelectedCrop(p);
       const cfg = getPlotConfig(p);
       const plotDbId = resolvePlotDbId(p);
+      if (!plotDbId) throw new Error(`Không xác định được ID của thửa ${p.code || p.id}. Vui lòng tải lại trang.`);
       const termMonths = cfg.termMonths || 3;
       // Đảm bảo thỏa mãn BR04: rentDays >= variety.minDays
       const days = Math.max(termMonths * 30, crop?.minDays || 35);
@@ -906,7 +871,7 @@ export default function BookPlot() {
           setContractCode(reservation.contractNumber);
           if (reservation.reservationExpiresAt) {
             const remainingMs = new Date(reservation.reservationExpiresAt).getTime() - Date.now();
-            setSecondsRemaining(Math.max(0, Math.floor(remainingMs / 1000)));
+            setReservationDeadlineMs(Date.now() + Math.max(0, remainingMs));
           }
         }
       } catch (resErr) {
@@ -1738,7 +1703,7 @@ export default function BookPlot() {
                   </div>
 
                   <div className="flex justify-between pt-4 border-t border-brand-border text-base font-black text-brand-green">
-                    <span>Tổng thanh toán 100% Upfront:</span>
+                    <span>Tổng thanh toán một lần:</span>
                     <span>{totalAmount.toLocaleString('vi-VN')} đ</span>
                   </div>
                 </div>

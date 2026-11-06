@@ -327,6 +327,7 @@ export default function PlotForm() {
             </div>
             <div className="text-right">
               <p className="text-sm text-stone-600">Diện tích: <strong className="text-brand-dark">{currentArea > 0 ? formatArea(currentArea) : 'chưa vẽ'}</strong></p>
+              {currentArea > 2000 && <p className="max-w-xs text-xs font-semibold text-amber-700">Ranh giới đang rộng hơn 2.000 m²; hãy kiểm tra lại tỷ lệ bản đồ trước khi lưu.</p>}
               {suggestedPrice > 0 && (
                 <p className="text-xs font-semibold text-emerald-700">
                   Tạm tính: {suggestedPrice.toLocaleString('vi-VN')} đ/tháng ({Number(unitRate).toLocaleString('vi-VN')} đ/m²)

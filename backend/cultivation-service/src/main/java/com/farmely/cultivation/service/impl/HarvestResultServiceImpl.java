@@ -16,9 +16,11 @@ import com.farmely.cultivation.service.HarvestResultService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Slf4j
@@ -30,6 +32,7 @@ public class HarvestResultServiceImpl implements HarvestResultService {
     private final FarmDiaryRepository farmDiaryRepository;
     private final RentalReferenceRepository rentalReferenceRepository;
     private final UserReferenceRepository userReferenceRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional(readOnly = true)
@@ -113,6 +116,11 @@ public class HarvestResultServiceImpl implements HarvestResultService {
         entity.setConfirmedAt(OffsetDateTime.now());
 
         HarvestResultEntity saved = harvestResultRepository.save(entity);
+        if (Boolean.TRUE.equals(saved.getCustomerConfirmed()) && saved.getDeliveryType() != null) {
+            jdbcTemplate.update("UPDATE rentals SET status = 'DONE', updated_at = NOW() WHERE rental_id = ? AND status = 'ACTIVE'", saved.getRentalId());
+            jdbcTemplate.update("UPDATE plots SET status = 'MAINT', is_published = false, updated_at = NOW() WHERE plot_id = (SELECT plot_id FROM rentals WHERE rental_id = ?)", saved.getRentalId());
+            jdbcTemplate.update("UPDATE contracts SET status = 'COMPLETED', updated_at = NOW() WHERE contract_id = (SELECT contract_id FROM rentals WHERE rental_id = ?) AND NOT EXISTS (SELECT 1 FROM rentals r WHERE r.contract_id = contracts.contract_id AND r.status NOT IN ('DONE', 'CANCELLED'))", saved.getRentalId());
+        }
 
         log.info("Customer confirmed and rated harvest #{} with {} stars", saved.getHarvestId(), saved.getRating());
         return mapToResponse(saved);

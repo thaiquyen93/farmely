@@ -18,7 +18,8 @@ import CustomerContractCenter from '../../components/customer/CustomerContractCe
 import CustomerMobileNav from '../../components/customer/CustomerMobileNav';
 import CustomerWelcomeLounge from '../../components/customer/CustomerWelcomeLounge';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
-import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
+import { DEMO_CUSTOMERS, updateThreadRentalInStorage } from '../../api/communication/chatStorage';
+import { chatService } from '../../api/communication/chatService';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import { resolveStandardCropProcess } from '../../services/cropStandardProcess';
 import {
@@ -180,7 +181,7 @@ export default function CustomerDashboard() {
     if (e) e.preventDefault();
     if (!customerChatInput.trim()) return;
 
-    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName);
+    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName, { plotCode: currentSelectedPlot?.plotCode || currentSelectedPlot?.mapPlotId || '' });
     setCustomerChatInput('');
   };
 
@@ -294,6 +295,21 @@ export default function CustomerDashboard() {
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedContractForCancel, setSelectedContractForCancel] = useState(null);
   const [pendingCancellations, setPendingCancellations] = useState({});
+  useEffect(() => {
+    let active = true;
+    const refreshCancellations = () => fetch('/api/contracts/cancellations').then((response) => response.json()).then((body) => {
+      if (!active) return;
+      const pending = {};
+      for (const item of body?.data || []) {
+        if (item.status === 'PENDING' && item.contractCode) pending[item.contractCode] = item;
+      }
+      setPendingCancellations(pending);
+    }).catch(() => {});
+    refreshCancellations();
+    window.addEventListener('focus', refreshCancellations);
+    const timer = window.setInterval(refreshCancellations, 30000);
+    return () => { active = false; window.removeEventListener('focus', refreshCancellations); window.clearInterval(timer); };
+  }, []);
   const [emergencyRequests, setEmergencyRequests] = useState({});
 
   // Subsystem 3: Contracts & Renewal Management (UC07 / BR11)
@@ -892,6 +908,7 @@ export default function CustomerDashboard() {
       serviceId: numId
     };
     const targetPlot = customerPlots.find((plot) => plot.id === selectedPlotId) || selectedCheckoutPlot || customerPlots[0];
+    if (targetPlot && pendingCancellations[targetPlot.contractCode]) { window.alert('Thửa đang chờ hoàn tiền, không thể đặt thêm dịch vụ.'); return; }
     if (targetPlot) setCheckoutPlotId(targetPlot.id);
     if (!checkoutDate) setCheckoutDate(new Date(Date.now() + 86400000).toISOString().slice(0, 10));
     setSelectedServiceToBuy(resolvedSvc);
@@ -1959,7 +1976,14 @@ export default function CustomerDashboard() {
             {/* ============================================================== */}
             {/* VIEW A: CHI TIẾT DASHBOARD QUẢN LÝ 1 THỬA ĐẤT CỤ THỂ         */}
             {/* ============================================================== */}
-            {selectedPlotId && currentSelectedPlot && (
+            {selectedPlotId && currentSelectedPlot && pendingCancellations[currentSelectedPlot.contractCode] && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-6 text-amber-950">
+                <button type="button" onClick={() => navigate('/customer/dashboard')} className="mb-4 rounded border border-amber-400 px-3 py-1">← Về danh sách thửa</button>
+                <h2 className="text-xl font-bold">Đang chờ hoàn tiền</h2>
+                <p>Thửa này tạm khóa trong lúc quản trị viên xử lý yêu cầu hủy hợp đồng.</p>
+              </div>
+            )}
+            {selectedPlotId && currentSelectedPlot && !pendingCancellations[currentSelectedPlot.contractCode] && (
               <CustomerPlotWorkspace
                 plot={currentSelectedPlot}
                 plots={customerPlots}
@@ -1999,10 +2023,19 @@ export default function CustomerDashboard() {
                 onTabChange={(tab) => navigate(`/customer/dashboard?plot=${selectedPlotId || (currentSelectedPlot.rentalId ? `RENTAL-${currentSelectedPlot.rentalId}` : currentSelectedPlot.id)}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
                 onBack={() => navigate('/customer/dashboard')}
                 onSelectPlot={(plotId) => navigate(`/customer/dashboard?plot=${plotId}${plotTabFromUrl !== 'overview' ? `&tab=${plotTabFromUrl}` : ''}`)}
-                onOpenAiChat={() => { setChatOpenMode('ai'); setShowExpertChatModal(true); }}
+                onOpenAiChat={() => {
+                  const plotCode = currentSelectedPlot.plotCode || currentSelectedPlot.mapPlotId || String(currentSelectedPlot.id || '').replace(/^PLOT-/, '');
+                  const threadId = defaultUserThreadId;
+                  chatService.upsertPlotThread({ threadId, rentalId: currentSelectedPlot.rentalId, customerName: user?.fullName || 'Khách hàng', customerEmail: user?.email, plotCode, plotName: currentSelectedPlot.name, crop: currentSelectedPlot.crop, rentalStatus: 'RENTED' });
+                  updateThreadRentalInStorage({ threadId, rentalId: currentSelectedPlot.rentalId, customerName: user?.fullName || 'Khách hàng', plotCode, plotName: currentSelectedPlot.name, crop: currentSelectedPlot.crop });
+                  setSelectedCustomerThreadId(threadId);
+                  setChatOpenMode('expert');
+                  setShowExpertChatModal(true);
+                }}
                 onOpenTask={(task) => { setTaskPhotoPreview(''); setSelectedTaskDetail({ ...task, plot: currentSelectedPlot }); }}
                 onSelectService={(service) => { setCheckoutPlotId(currentSelectedPlot.id); handleOpenBuyServiceModal(service); }}
                 onAddDiary={(plot) => { setDiaryPlotId(plot.id); setShowNewDiaryModal(true); }}
+                onHarvestConfirmed={() => { fetchHarvestResults(); fetchCustomerPlots(false); }}
               />
             )}
 
@@ -3039,7 +3072,7 @@ export default function CustomerDashboard() {
                               <div className="flex items-center gap-2">
                                 <span className="font-mono font-bold text-brand-green text-sm">{plot.contractCode || `CTR-${plot.id}`}</span>
                                 <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                  {String(plot.contract_status || plot.rental_status || '').toUpperCase() === 'CANCELLED' ? 'Đã hủy' : pendingCancellations[plot.contractCode] ? 'Chờ duyệt yêu cầu hủy' : `Đang hiệu lực (${plot.mode === 'Assisted-Growing' ? 'Farmely chăm sóc' : 'Tự canh tác'})`}
+                                  {String(plot.contract_status || plot.rental_status || '').toUpperCase() === 'CANCELLED' ? 'Đã hủy' : pendingCancellations[plot.contractCode || `CTR-${plot.id}`] ? 'Đang chờ hoàn tiền' : `Đang hiệu lực (${plot.mode === 'Assisted-Growing' ? 'Farmely chăm sóc' : 'Tự canh tác'})`}
                                 </span>
                               </div>
                               <span className="text-[11px] text-stone-500">
@@ -3068,7 +3101,7 @@ export default function CustomerDashboard() {
 
                             {String(plot.contract_status || '').toUpperCase() !== 'CANCELLED' && pendingCancellations[plot.contractCode || `CTR-${plot.id}`] ? (
                               <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 font-bold">
-                                Đã gửi yêu cầu hủy, đang chờ quản trị viên duyệt.
+                                Đang chờ hoàn tiền. Các thao tác trên thửa tạm khóa cho đến khi quản trị viên duyệt.
                               </div>
                             ) : String(plot.contract_status || plot.rental_status || '').toUpperCase() === 'CANCELLED' ? (
                               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
@@ -3533,8 +3566,8 @@ export default function CustomerDashboard() {
                   <option value="">Chưa có thửa đất nào</option>
                 ) : (
                   customerPlots.map((p, idx) => (
-                    <option key={`${p.id}-${p.rentalId || p.rental_id || idx}`} value={p.id}>
-                      {p.name} ({p.plotCode || p.mapPlotId || p.id}) • {p.crop}
+                    <option key={`${p.id}-${p.rentalId || p.rental_id || idx}`} value={p.id} disabled={Boolean(pendingCancellations[p.contractCode])}>
+                      {p.name} ({p.plotCode || p.mapPlotId || p.id}) • {p.crop}{pendingCancellations[p.contractCode] ? ' • Đang chờ hoàn tiền' : ''}
                     </option>
                   ))
                 )}
@@ -3757,7 +3790,7 @@ export default function CustomerDashboard() {
               }}
             >
               <Eye className="w-4 h-4 text-emerald-300" />
-              <span>XEM CHI TIẾT THỬA ĐẤT</span>
+              <span>THEO DÕI CÔNG VIỆC</span>
             </button>
           </div>
         </div>

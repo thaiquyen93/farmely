@@ -4,7 +4,7 @@
  * No dummy mock clutter. Real-time cross-tab synchronization.
  */
 
-const STORAGE_KEY = 'farmely_chat_threads_v8';
+const STORAGE_KEY = 'farmely_chat_threads_v9';
 
 export const DEMO_CUSTOMERS = [
   {
@@ -235,7 +235,7 @@ export const getSafeAvatar = (url, role = 'customer') => {
  */
 export function getStoredThreads() {
   if (typeof window === 'undefined' || !window.localStorage) {
-    return INITIAL_THREADS;
+    return [];
   }
   try {
     // Dọn dẹp cache mock cũ
@@ -246,13 +246,11 @@ export function getStoredThreads() {
 
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_THREADS));
-      return INITIAL_THREADS;
+      return [];
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_THREADS));
-      return INITIAL_THREADS;
+    if (!Array.isArray(parsed)) {
+      return [];
     }
 
     // Lọc bỏ triệt để các mock user rác cũ (Mai Anh Thư, Hùng, Hương, Quân, Đạt, Hoa, Nam, qw, duplicate Ban Quản Trị)
@@ -276,7 +274,7 @@ export function getStoredThreads() {
     return parsed;
   } catch (err) {
     console.error('[ChatStorage] Error loading threads from localStorage:', err);
-    return INITIAL_THREADS;
+    return [];
   }
 }
 
