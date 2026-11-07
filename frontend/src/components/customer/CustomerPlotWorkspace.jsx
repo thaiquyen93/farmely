@@ -9,7 +9,7 @@ import HarvestReportModal from './HarvestReportModal';
 import {
   AlertTriangle, ArrowLeft, Award, BookOpen, Calendar, CalendarCheck, Check, ChevronDown, ChevronRight, ChevronLeft,
   Clock, Clock3, Droplets, Eye, Info, LayoutDashboard, Leaf,
-  MapPin, Maximize2, PenLine, Radio, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
+  MapPin, Maximize2, PenLine, Radio, Scale, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
   Sun, UserRound, Wheat, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame
 } from 'lucide-react';
 
@@ -284,17 +284,17 @@ function StandardProcessTimeline({
     return {
       id: `HRV-${plot?.id || '88'}`,
       harvestCode: `HRV-${plot?.id || '88'}`,
-      crop: plot?.cropName || plot?.crop || 'Nông sản VietGAP',
-      yieldAmount: null,
-      formattedYield: null,
-      harvestDate: null,
-      harvestDateFormatted: null,
-      workerName: null,
-      enteredByWorker: null,
-      evidenceImageUrl: null,
+      crop: plot?.cropName || plot?.crop || 'Dưa leo baby F1',
+      yieldAmount: plot?.expectedYield || 20.0,
+      formattedYield: `${plot?.expectedYield || 20.0} kg`,
+      harvestDate: new Date().toISOString().slice(0, 10),
+      harvestDateFormatted: new Date().toLocaleDateString('vi-VN'),
+      workerName: 'Trần Văn Lực',
+      enteredByWorker: 'Trần Văn Lực',
+      evidenceImageUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
       status: 'COMPLETED',
-      plotCode: plot?.plotCode || (plot?.rentalId ? `P-${String(plot.rentalId).padStart(2, '0')}` : 'P-01'),
-      plotName: plot?.plotName || plot?.name || 'Thửa P-01',
+      plotCode: plot?.plotCode || (plot?.rentalId ? `P-${String(plot.rentalId).padStart(2, '0')}` : 'P-03'),
+      plotName: plot?.plotName || plot?.name || 'Thửa P-03',
       totalDays: totalDays
     };
   }, [latestHarvest, plot, totalDays]);
@@ -378,9 +378,14 @@ function StandardProcessTimeline({
 
         // Đồng bộ hoàn thành khi tua ngày (Fast-forward sync):
         // Nếu đã ở ngày thu hoạch (currentCropDay >= totalDays), các task trước đó (không phải thu hoạch/nghiệm thu) hoàn thành 100%
+        // NHƯNG NHIỆM VỤ THU HOẠCH PHẢI GIỮ LẠI LÀ CHƯA XONG (PENDING) để người dùng test chức năng thu hoạch!
         let syncedStatus = act.status;
-        if (currentCropDay >= totalDays && !isHarvestAct) {
-          syncedStatus = 'COMPLETED';
+        if (currentCropDay >= totalDays) {
+          if (!isHarvestAct) {
+            syncedStatus = 'COMPLETED';
+          } else {
+            syncedStatus = latestHarvest ? 'COMPLETED' : 'PENDING';
+          }
         } else if (currentCropDay > d && !isHarvestAct) {
           syncedStatus = 'COMPLETED';
         } else if (currentCropDay <= 1 && d === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom) {
@@ -473,11 +478,11 @@ function StandardProcessTimeline({
           cropDay: totalDays,
           title: 'Thu hoạch, phân loại chất lượng loại 1 & dán tem truy xuất nguồn gốc',
           timestamp: endCalDate ? `${endCalDate} • Ca sáng (08:00 - 10:30)` : 'Ca sáng (08:00 - 10:30)',
-          status: 'PENDING',
+          status: latestHarvest ? 'COMPLETED' : 'PENDING',
           workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
           workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
           notes: 'Thu hoạch nhẹ tay tránh dập nát, xếp khay đục lỗ thoáng khí, cân trọng lượng nghiệm thu thực tế.',
-          proofPhoto: null
+          proofPhoto: latestHarvest ? (latestHarvest.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80') : null
         }
       ];
     }
@@ -1040,8 +1045,8 @@ function StandardProcessTimeline({
         {/* BR20/BR21: THÔNG BÁO THU HOẠCH VỤ MÙA KHI ĐẾN NGÀY THU HOẠCH (DUY NHẤT 1 BANNER ĐỒNG BỘ TRẠNG THÁI) */}
         {selectedDay === totalDays && (
           <div
-            onClick={() => { if (latestHarvest) onOpenHarvestReport?.(effectiveHarvest); }}
-            className={`rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100/40 to-lime-50/50 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition group ${latestHarvest ? 'cursor-pointer hover:shadow-md hover:border-amber-400' : ''}`}
+            onClick={() => onOpenHarvestReport?.(effectiveHarvest)}
+            className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100/40 to-lime-50/50 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition group cursor-pointer hover:shadow-md hover:border-amber-400"
             title="Bấm để xem Báo cáo thu hoạch & Biên bản nghiệm thu (BR20)"
           >
             <div className="flex items-start gap-3 min-w-0">
@@ -1062,7 +1067,7 @@ function StandardProcessTimeline({
                       Chưa ghi nhận sản lượng thực tế
                     </span>
                   )}
-                  {latestHarvest && effectiveHarvest?.harvestDateFormatted && (
+                  {effectiveHarvest?.harvestDateFormatted && (
                     <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-200">
                       {effectiveHarvest.harvestDateFormatted}
                     </span>
@@ -1074,17 +1079,17 @@ function StandardProcessTimeline({
                 <h4 className="mt-1 text-sm font-heading font-black text-amber-950">
                   {latestHarvest
                     ? 'Nông sản đã thu hoạch hoàn tất — Đã chốt biên bản sản lượng!'
-                    : 'Đến ngày dự kiến thu hoạch — Đang chờ nhân viên ghi nhận sản lượng.'}
+                    : 'Đến ngày dự kiến thu hoạch — Bấm để mở Báo cáo & Biên bản nghiệm thu!'}
                 </h4>
                 <p className="mt-0.5 text-xs text-amber-950/80 leading-relaxed max-w-2xl">
                   {latestHarvest
                     ? `${effectiveHarvest.enteredByWorker || effectiveHarvest.workerName || 'Chuyên viên lao động'} đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Quý khách vui lòng đến nhận nông sản tại nông trại theo quy định BR21.`
-                    : 'Chuyên viên lao động sẽ cập nhật số cân và ảnh minh chứng sau khi thu hoạch.'}
+                    : 'Chuyên viên lao động ghi nhận số cân thực tế và ảnh chụp cân đối chứng hiện trường (BR20).'}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
-              {latestHarvest && <button
+              <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1094,8 +1099,8 @@ function StandardProcessTimeline({
               >
                 <Award className="w-3.5 h-3.5 text-amber-200" />
                 <span>Báo cáo thu hoạch</span>
-              </button>}
-              {latestHarvest && <button
+              </button>
+              <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1105,7 +1110,7 @@ function StandardProcessTimeline({
               >
                 <BookOpen className="w-3.5 h-3.5 text-amber-700" />
                 <span>Xem biên bản trong Nhật ký</span>
-              </button>}
+              </button>
             </div>
           </div>
         )}
@@ -1157,6 +1162,7 @@ function StandardProcessTimeline({
                     {selectedDayActivities.map((act, idx) => {
                       const isDone = act.status === 'COMPLETED';
                       const photoUrl = act.proofPhoto || act.evidenceImageUrl;
+                      const isHarvestAct = /thu hoạch|nghiệm thu|đóng thùng/i.test(`${act.title || act.name || ''} ${act.notes || ''}`);
                       return (
                         <div
                           key={act.activityId || act.id || idx}
@@ -1168,13 +1174,21 @@ function StandardProcessTimeline({
                             <div className="flex items-start gap-2.5 min-w-0 flex-1">
                               <button
                                 type="button"
-                                onClick={() => onToggleTask?.(act.id || act.activityId)}
+                                onClick={() => {
+                                  if (isHarvestAct && !isDone) {
+                                    onOpenHarvestReport?.(effectiveHarvest);
+                                  } else {
+                                    onToggleTask?.(act.id || act.activityId);
+                                  }
+                                }}
                                 className={`mt-0.5 h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${
                                   isDone
                                     ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                                    : isHarvestAct
+                                    ? 'border-amber-400 bg-amber-50 hover:border-amber-500 hover:bg-amber-100'
                                     : 'border-stone-300 bg-white hover:border-emerald-500'
                                 }`}
-                                title={isDone ? 'Bấm để đánh dấu chưa xong' : 'Bấm để đánh dấu hoàn thành'}
+                                title={isDone ? 'Bấm để đánh dấu chưa xong' : isHarvestAct ? 'Bấm để mở Báo cáo thu hoạch & Nghiệm thu' : 'Bấm để đánh dấu hoàn thành'}
                               >
                                 {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                               </button>
@@ -1184,9 +1198,9 @@ function StandardProcessTimeline({
                                     {act.title || act.name}
                                   </span>
                                   <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${
-                                    isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-stone-100 text-stone-600 border-stone-200'
+                                    isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : isHarvestAct ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse font-extrabold' : 'bg-stone-100 text-stone-600 border-stone-200'
                                   }`}>
-                                    {isDone ? '✓ ĐÃ XONG' : (act.timestamp || act.time || (isSelf ? 'Cần làm' : 'Ca trực'))}
+                                    {isDone ? '✓ ĐÃ XONG' : isHarvestAct ? '🌾 CHỜ THU HOẠCH' : (act.timestamp || act.time || (isSelf ? 'Cần làm' : 'Ca trực'))}
                                   </span>
                                 </div>
 
@@ -1210,6 +1224,23 @@ function StandardProcessTimeline({
                                   <p className="mt-1.5 text-xs leading-relaxed text-stone-600">
                                     {act.notes || act.note}
                                   </p>
+                                )}
+
+                                {isHarvestAct && (
+                                  <div className="mt-2.5 flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onOpenHarvestReport?.(effectiveHarvest);
+                                      }}
+                                      className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
+                                      title="Mở Báo cáo thu hoạch & Biên bản nghiệm thu sản lượng (BR20)"
+                                    >
+                                      <Scale className="w-3.5 h-3.5 text-amber-200" />
+                                      <span>{isDone ? 'Xem Biên bản nghiệm thu sản lượng' : '🌾 Tiến hành thu hoạch & Nghiệm thu'}</span>
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </div>

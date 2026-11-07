@@ -5259,11 +5259,13 @@ END $$;
                   SET 
                     due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
                     status = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%') AND NOT EXISTS (SELECT 1 FROM harvest_results hr WHERE hr.rental_id = ${rentalId}) THEN 'IN_PROG'::task_status_enum
                       WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN 'DONE'::task_status_enum
                       WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date = CURRENT_DATE THEN 'IN_PROG'::task_status_enum
                       ELSE 'PENDING'::task_status_enum
                     END,
                     evidence_image_url = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%') AND NOT EXISTS (SELECT 1 FROM harvest_results hr WHERE hr.rental_id = ${rentalId}) THEN NULL
                       WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
                       ELSE NULL
                     END,

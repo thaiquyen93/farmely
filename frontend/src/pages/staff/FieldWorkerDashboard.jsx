@@ -1309,8 +1309,10 @@ export default function FieldWorkerDashboard() {
         effectiveStatus = 'COMPLETED';
       } else if (plotAge > 1 && taskAge < plotAge && !isHarvestTask) {
         effectiveStatus = 'COMPLETED';
-      } else if (plotAge >= totalPlotDays && isHarvestTask) {
-        if (effectiveStatus !== 'COMPLETED') effectiveStatus = 'IN_PROGRESS';
+      } else if (isHarvestTask) {
+        // Nhiệm vụ thu hoạch chỉ thực sự COMPLETED khi đã có bản ghi thu hoạch trong CSDL
+        const hasRealHarvest = harvestTasks.some(h => (h.rentalId && task.rentalId && Number(h.rentalId) === Number(task.rentalId)) || (h.plotCode && h.plotCode === targetPlot.plotCode));
+        effectiveStatus = hasRealHarvest ? 'COMPLETED' : 'IN_PROGRESS';
       }
 
       targetPlot.tasks.push({
@@ -1390,7 +1392,7 @@ export default function FieldWorkerDashboard() {
         crop: resolvedCrop,
         customerName: task.customerName,
         expectedYield: 'Theo kết quả cân thực tế',
-        status: task.status === 'COMPLETED' || recordedHarvest ? 'COMPLETED' : 'READY_TO_HARVEST',
+        status: recordedHarvest ? 'COMPLETED' : 'READY_TO_HARVEST',
         actualWeight: recordedHarvest?.actualWeight || '',
         deadline: task.deadline
       };
