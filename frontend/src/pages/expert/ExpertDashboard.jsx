@@ -187,11 +187,12 @@ export default function ExpertDashboard() {
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
+  const [assignedPlots, setAssignedPlots] = useState([]);
   const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
   const visibleChatThreads = useMemo(() => chatThreads.filter((thread) => {
     if (thread.role !== 'customer') return true;
     if (isPreRentalThread(thread)) return Boolean(thread.messages?.length);
-    const assigned = assignedPlots.some((plot) => {
+    const assigned = (assignedPlots || []).some((plot) => {
       if (thread.customerEmail && plot.renterEmail && thread.customerEmail.toLowerCase() !== plot.renterEmail.toLowerCase()) return false;
       const codes = [thread.plotCode, ...(thread.plots || []).map((item) => item.plotCode)].join(',').toUpperCase().split(',').map((code) => code.trim());
       return codes.includes(String(plot.plotCode || '').toUpperCase());
@@ -370,7 +371,6 @@ export default function ExpertDashboard() {
       .catch((err) => console.warn('Could not fetch live templates:', err));
   };
 
-  const [assignedPlots, setAssignedPlots] = useState([]);
   const [expandedPlotId, setExpandedPlotId] = useState(null);
   const [allCareTasks, setAllCareTasks] = useState([]);
   const [allDiaries, setAllDiaries] = useState([]);
