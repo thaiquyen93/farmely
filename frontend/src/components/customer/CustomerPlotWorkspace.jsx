@@ -1078,7 +1078,7 @@ function StandardProcessTimeline({
                 </h4>
                 <p className="mt-0.5 text-xs text-amber-950/80 leading-relaxed max-w-2xl">
                   {latestHarvest
-                    ? `${effectiveHarvest.enteredByWorker || effectiveHarvest.workerName || 'Chuyên viên lao động'} đã ghi nhận sản lượng thực tế. Quý khách chọn hình thức nhận nông sản và xác nhận bàn giao.`
+                    ? `${effectiveHarvest.enteredByWorker || effectiveHarvest.workerName || 'Chuyên viên lao động'} đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Quý khách vui lòng đến nhận nông sản tại nông trại theo quy định BR21.`
                     : 'Chuyên viên lao động sẽ cập nhật số cân và ảnh minh chứng sau khi thu hoạch.'}
                 </p>
               </div>
@@ -3728,7 +3728,6 @@ export default function CustomerPlotWorkspace({
           plot={activePlot || plot}
           totalDays={cropProcess.totalDays}
           onClose={() => setSelectedHarvestReport(null)}
-          onConfirmed={onHarvestConfirmed}
           onGoToDiary={() => {
             setSelectedHarvestReport(null);
             goTab('tasks');
