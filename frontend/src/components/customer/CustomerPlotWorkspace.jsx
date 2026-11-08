@@ -2398,9 +2398,11 @@ function OverviewTab({
 
   // Vụ chỉ ở trạng thái Soil Prep khi:
   // 1. Thửa đất có vụ đang chờ Admin phê duyệt hợp đồng gia hạn (bắt buộc KHÓA Ở BẢO TRÌ ĐẤT BR23)
-  // 2. HOẶC chính vụ đó đang ở chu kỳ SOIL_PREP/inFallow, HOẶC user bấm xem bảo trì cho vụ đang kết thúc
+  // 2. User chủ động bấm xem bảng bảo trì đất 4 ngày (showMaintenanceView)
+  // 3. HOẶC chính vụ đó đang ở chu kỳ SOIL_PREP/inFallow
   const isSoilPrep = hasPendingApprovalSeason
-    || (activeSeason?.status !== 'SCHEDULED' && activeSeason?.status !== 'ACTIVE' && (activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow || showMaintenanceView));
+    || showMaintenanceView
+    || (activeSeason?.status !== 'SCHEDULED' && (activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow));
 
   // Đất đang trong thời gian đệm (buffer/fallow BR23) khi có vụ mùa đang nghỉ đất/cải tạo hoặc đang bảo trì hoặc chờ duyệt
   const isPlotInBuffer = hasPendingApprovalSeason
