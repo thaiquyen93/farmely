@@ -1,0 +1,90 @@
+@startuml 00_Context_Diagram_ISAD_Final
+skinparam shadowing false
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam ranksep 60
+skinparam nodesep 30
+left to right direction
+
+' --- GANE & SARSON DFD NOTATION ---
+skinparam card {
+    BorderThickness 1.5
+    BorderColor #263238
+    BackgroundColor #FFFFFF
+    FontSize 11
+    FontStyle bold
+    RoundCorner 0
+}
+
+skinparam rectangle {
+    BorderThickness 2.5
+    BorderColor #1B5E20
+    BackgroundColor #E8F5E9
+    RoundCorner 20
+    FontSize 13
+}
+
+skinparam arrow {
+    Color #37474F
+    FontColor #0D47A1
+    FontSize 10
+    FontStyle bold
+    Thickness 1.3
+}
+
+title SƠ ĐỒ NGỮ CẢNH HỆ THỐNG (CONTEXT DIAGRAM - DFD MỨC 0)\nChuẩn Mực ISAD: Khái Quát Hóa Luồng Dữ Liệu & Đối Xứng 4-4 Hoàn Hảo
+
+' CỘT 1: HỆ THỐNG NGOẠI VI (CLUSTER TRÁI)
+package "  HỆ THỐNG NGOẠI VI (EXTERNAL SERVICES)  " as PKG_LEFT #F8FAFC {
+  card "DỊCH VỤ AI CHATBOT\n(AI Chatbot Service)" as AI #F3E5F5
+  card "CỔNG THANH TOÁN ĐỐI TÁC\n(Payment Gateway)" as PAY #E0F2F1
+  card "HỆ THỐNG CẢM BIẾN IOT\n(IoT Sensors & Telemetry)" as IOT #E0F7FA
+  card "DỊCH VỤ DỰ BÁO THỜI TIẾT\n(Weather Forecast Service)" as WEATHER #FFF3E0
+
+  AI -[hidden]down-> PAY
+  PAY -[hidden]down-> IOT
+  IOT -[hidden]down-> WEATHER
+}
+
+' CỘT 2: PROCESS 0 (TRUNG TÂM)
+rectangle "\n        === TIẾN TRÌNH 0 ===        \n\n   **HỆ THỐNG NỀN TẢNG AGRITECH**   \n   (QUẢN LÝ THUÊ PLOT & CANH TÁC)   \n\n" as SYS
+
+' CỘT 3: TÁC NHÂN CON NGƯỜI (CLUSTER PHẢI)
+package "  TÁC NHÂN CON NGƯỜI (HUMAN ACTORS)  " as PKG_RIGHT #F8FAFC {
+  card "KHÁCH HÀNG\n(Customer / Tenant)" as KH #E3F2FD
+  card "CHUYÊN GIA NÔNG NGHIỆP\n(Agronomy Expert)" as CGNN #EDE7F6
+  card "CHUYÊN VIÊN LAO ĐỘNG\n(Field Care Staff)" as CVLD #FFF8E1
+  card "QUẢN TRỊ VIÊN\n(Platform Admin)" as AD #FFEBEE
+
+  KH -[hidden]down-> CGNN
+  CGNN -[hidden]down-> CVLD
+  CVLD -[hidden]down-> AD
+}
+
+' --- LUỒNG DỮ LIỆU TỔNG HỢP: BÊN TRÁI <-> SYS ---
+SYS --> AI : [DF-01] Câu hỏi & ngữ cảnh thắc mắc của Khách hàng
+AI --> SYS : [DF-02] Phản hồi giải đáp kỹ thuật nông nghiệp 24/7
+
+SYS --> PAY : [DF-03] Yêu cầu thanh toán & Biểu phí trọn gói
+PAY --> SYS : [DF-04] Xác nhận kết quả giao dịch thanh toán
+
+IOT --> SYS : [DF-05] Chuỗi dữ liệu quan trắc vi khí hậu thời gian thực
+
+WEATHER --> SYS : [DF-06] Bản tin dự báo thời tiết địa phương 7 ngày
+
+' --- LUỒNG DỮ LIỆU TỔNG HỢP: SYS <-> BÊN PHẢI ---
+KH --> SYS : [DF-07] Thông tin đăng ký, Yêu cầu thuê & Phê duyệt
+SYS --> KH : [DF-08] Thông tin thửa đất, Hợp đồng & Nhật ký canh tác
+
+CGNN --> SYS : [DF-09] Tiêu chuẩn giống, Quy trình mẫu & Kế hoạch
+SYS --> CGNN : [DF-10] Yêu cầu tư vấn, Sự cố & Cảnh báo vi khí hậu
+
+CVLD --> SYS : [DF-11] Báo cáo hoàn thành, Ảnh thực địa & Tiêu hao
+SYS --> CVLD : [DF-12] Lịch công việc chăm sóc & Hướng dẫn kỹ thuật
+
+AD --> SYS : [DF-13] Dữ liệu phân lô, Đơn giá & Phân công nhân sự
+SYS --> AD : [DF-14] Báo cáo tài chính, Tỷ lệ lấp đầy & Audit Log
+
+@enduml

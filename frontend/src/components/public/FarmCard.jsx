@@ -10,6 +10,10 @@ export default function FarmCard({ land }) {
         <img
           src={land.imageUrl}
           alt={land.name}
+          onError={(event) => {
+            event.currentTarget.onerror = null;
+            event.currentTarget.src = '/images/farm_satellite_aerial.jpg';
+          }}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
@@ -23,7 +27,7 @@ export default function FarmCard({ land }) {
         <div className="absolute bottom-3 left-4 right-4 text-white">
           <p className="text-[11px] text-brand-yellow font-bold uppercase tracking-wider flex items-center gap-1 mb-1">
             <MapPin className="w-3.5 h-3.5" />
-            {land.location.split(',')[1] || land.location}
+            {land.location}
           </p>
           <h3 className="font-heading text-xl font-bold text-white drop-shadow">
             {land.name}
@@ -34,6 +38,11 @@ export default function FarmCard({ land }) {
       <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
         <p className="text-xs text-stone-600 line-clamp-3 leading-relaxed">
           {land.description}
+        </p>
+
+        <p className="flex items-start gap-1.5 rounded-xl bg-brand-cream/70 p-3 text-[11px] font-semibold leading-relaxed text-brand-dark">
+          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-green" />
+          <span><span className="block text-[9px] font-black uppercase tracking-wider text-brand-muted">Địa điểm</span>{land.location}</span>
         </p>
 
         <div className="grid grid-cols-2 gap-2 py-3 border-y border-brand-border/60 text-xs">
@@ -53,7 +62,7 @@ export default function FarmCard({ land }) {
         <div className="flex items-center justify-between pt-1">
           <span className="text-xs text-brand-muted flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-brand-green" />
-            Đất đã cải tạo sẵn
+            Thửa đất đã cải tạo sẵn
           </span>
           <Link
             to={`/marketplace?landId=${land.id}`}

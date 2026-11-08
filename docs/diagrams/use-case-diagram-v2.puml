@@ -1,0 +1,562 @@
+' ==============================================================================
+' PROJECT : FARMELY – AGRITECH PLOT RENTAL & CULTIVATION EXPERIENCE TRACKER
+' FILE    : use-case-diagram-v2.puml   (ISP392 – FPT University)
+' VERSION : 2.0  |  5 Diagrams  |  UML 2.5  |  NO-SPAGHETTI
+'
+' 4 Human Actors  : Customer (KH), Agri Expert (CGNN),
+'                    Field Staff (CVLĐ), Admin (AD)
+' 4 System Actors  : Payment Gateway, IoT & Sensors,
+'                    Weather Service, AI Service (LLM)
+'
+' UC-ID convention : UC-{actor}{seq}  →  matches SCR-{actor}-{seq}
+' ==============================================================================
+
+
+' ==============================================================================
+' DIAGRAM 1 – SYSTEM OVERVIEW  (12 high-level UC bubbles, 5 packages)
+' ==============================================================================
+@startuml 01_System_Overview_v2
+
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam titleFontSize 15
+skinparam titleFontStyle bold
+skinparam linetype ortho
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+  FontStyle bold
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #455A64
+  FontSize 10
+}
+skinparam package {
+  BackgroundColor #F5F5F5
+  BorderColor #B0BEC5
+  FontStyle bold
+}
+
+title Farmely - System Overview Use Case Diagram  (v2)
+
+' ── 4 Primary Human Actors (Left) ──
+actor "Customer\n(KH)" as KH
+actor "Agri Expert\n(CGNN)" as CGNN
+actor "Field Staff\n(CVLĐ)" as CVLD
+actor "Admin\n(AD)" as AD
+
+rectangle "Farmely - AgriTech Plot Rental & Cultivation Platform" {
+
+  package "1. Marketplace & Rental" as P1 #E8F5E9 {
+    usecase "UC-SYS01: Browse Plots &\nView Marketplace" as SYS01
+    usecase "UC-SYS02: Book & Pay Rental\n(100% Upfront)" as SYS02
+    usecase "UC-SYS03: Request Cancellation\n& Refund" as SYS03
+  }
+
+  package "2. Agronomy Knowledge" as P2 #EDE7F6 {
+    usecase "UC-SYS04: Manage Crops &\nStandard Templates" as SYS04
+    usecase "UC-SYS05: Review Cultivation\nPlan (48h Auto-Approve)" as SYS05
+    usecase "UC-SYS06: Consult Expert\n& AI Chatbot 24/7" as SYS06
+  }
+
+  package "3. Field Operations" as P3 #FFF8E1 {
+    usecase "UC-SYS07: Dispatch & Execute\nCare Tasks" as SYS07
+    usecase "UC-SYS08: Report Field Issues\n& On-site Guidance" as SYS08
+    usecase "UC-SYS09: Harvest Crop &\nHandover Produce" as SYS09
+  }
+
+  package "4. Monitoring & Services" as P4 #E0F2F1 {
+    usecase "UC-SYS10: Monitor IoT &\nFarm Diary" as SYS10
+    usecase "UC-SYS11: Order Ad-hoc\nServices & Chat" as SYS11
+  }
+
+  package "5. Platform Administration" as P5 #FFEBEE {
+    usecase "UC-SYS12: Manage Land, Plots\n& Rental Pricing" as SYS12
+    usecase "UC-SYS13: User Management,\nRBAC & Audit Log" as SYS13
+  }
+}
+
+' Enforce vertical package order
+P1 -[hidden]down- P2
+P2 -[hidden]down- P3
+P3 -[hidden]down- P4
+P4 -[hidden]down- P5
+
+' ── 4 Supporting System Actors (Right) ──
+actor "Payment\nGateway" as PAY <<System>>
+actor "IoT &\nSensors" as IOT <<System>>
+actor "Weather\nService" as WX <<System>>
+actor "AI Service\n(LLM)" as AI <<System>>
+
+' Customer connections
+KH -- SYS01
+KH -- SYS02
+KH -- SYS03
+KH -- SYS05
+KH -- SYS06
+KH -- SYS09
+KH -- SYS10
+KH -- SYS11
+
+' Agri Expert connections
+CGNN -- SYS04
+CGNN -- SYS05
+CGNN -- SYS06
+CGNN -- SYS08
+
+' Field Staff connections
+CVLD -- SYS07
+CVLD -- SYS08
+CVLD -- SYS09
+CVLD -- SYS10
+
+' Admin connections
+AD -- SYS07
+AD -- SYS11
+AD -- SYS12
+AD -- SYS13
+
+' System actor connections
+SYS02 -- PAY
+SYS03 -- PAY
+SYS11 -- PAY
+SYS04 -- AI
+SYS06 -- AI
+SYS10 -- IOT
+SYS10 -- WX
+
+@enduml
+
+
+' ==============================================================================
+' DIAGRAM 2 – CUSTOMER SUBSYSTEM  (19 UCs: UC-KH01 … UC-KH20)
+' Matches screens SCR-KH-01 → SCR-KH-17 + SCR-KH-19 + SCR-KH-20
+' ==============================================================================
+@startuml 02_Customer_Subsystem_v2
+
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam titleFontSize 15
+skinparam titleFontStyle bold
+skinparam linetype ortho
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+  FontStyle bold
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #455A64
+  FontSize 10
+}
+skinparam package {
+  BackgroundColor #F5F5F5
+  BorderColor #B0BEC5
+  FontStyle bold
+}
+
+title Customer (KH) Subsystem - Use Case Diagram  (v2)
+
+' ── Primary Actor (Left) ──
+actor "Customer\n(KH)" as KH
+
+rectangle "Customer Subsystem Boundary" {
+
+  ' ────── Package 1: Marketplace & Rental ──────
+  package "Marketplace & Rental" as P1 #E8F5E9 {
+    usecase "UC-KH02: Search & Browse\nMarketplace" as KH02
+    usecase "UC-KH03: View Plot Details\n(IoT, Weather, Calendar)" as KH03
+    usecase "UC-KH04: Request Pre-rental\nConsultation" as KH04
+    usecase "UC-KH05: Select Crop, Period\n& Cultivation Mode" as KH05
+    usecase "UC-KH06: Create Reservation\n(15-min Lock)" as KH06
+    usecase "UC-KH07: Pay Rental Fee\n(100% Upfront via Gateway)" as KH07
+    usecase "UC-KH09: Request Cancellation\n& Refund" as KH09
+  }
+
+  ' ────── Package 2: Cultivation & Planning ──────
+  package "Cultivation & Planning" as P2 #EDE7F6 {
+    usecase "UC-KH08: View Standard Process\nGuide (Self-growing)" as KH08
+    usecase "UC-KH10: Approve Cultivation Plan\n(Assisted, 48h SLA / Auto-Approve)" as KH10
+  }
+
+  ' ────── Package 3: Monitoring & Farm Diary ──────
+  package "Monitoring & Farm Diary" as P3 #FFF3E0 {
+    usecase "UC-KH11: View Dashboard\n(IoT Telemetry & Weather)" as KH11
+    usecase "UC-KH12: Monitor IoT Alerts &\nQuick Service Request" as KH12
+    usecase "UC-KH13: View Farm Diary\nTimeline" as KH13
+    usecase "UC-KH14: Record Personal Diary\nEntry (Self-growing)" as KH14
+  }
+
+  ' ────── Package 4: Services, Advisory & Harvest ──────
+  package "Services, Advisory & Harvest" as P4 #F3E5F5 {
+    usecase "UC-KH15: Order Ad-hoc\nService Request (BR27)" as KH15
+    usecase "UC-KH16: Chat 1-1 with\nAgri Expert" as KH16
+    usecase "UC-KH17: Chat with\nAI Chatbot 24/7" as KH17
+    usecase "UC-KH19: Confirm\nHarvest Result" as KH19
+    usecase "UC-KH20: View Rental\nHistory (Read-only)" as KH20
+  }
+
+  ' UC-KH01 inside boundary (account-level, always accessible)
+  usecase "UC-KH01: Register / Login /\nManage Profile" as KH01
+}
+
+' Enforce vertical package order
+P1 -[hidden]down- P2
+P2 -[hidden]down- P3
+P3 -[hidden]down- P4
+
+' ── Secondary / Supporting Actors (Right) ──
+actor "Payment\nGateway" as PAY <<System>>
+actor "Agri Expert\n(CGNN)" as CGNN
+actor "IoT &\nWeather" as IOT <<System>>
+actor "AI Service\n(LLM)" as AI <<System>>
+
+' ── Primary Actor Associations ──
+KH -- KH01
+KH -- KH02
+KH -- KH03
+KH -- KH05
+KH -- KH07
+KH -- KH08
+KH -- KH09
+KH -- KH10
+KH -- KH11
+KH -- KH12
+KH -- KH13
+KH -- KH15
+KH -- KH16
+KH -- KH17
+KH -- KH19
+KH -- KH20
+
+' ── UML 2.5 <<include>> & <<extend>> ──
+KH04 ..> KH03 : <<extend>>
+KH05 ..> KH06 : <<include>>
+KH14 ..> KH13 : <<extend>>
+
+' ── Supporting Actor Connections ──
+KH07 -- PAY
+KH09 -- PAY
+KH15 -- PAY
+
+KH04 -- CGNN
+KH10 -- CGNN
+KH16 -- CGNN
+
+KH03 -- IOT
+KH11 -- IOT
+KH12 -- IOT
+
+KH17 -- AI
+
+@enduml
+
+
+' ==============================================================================
+' DIAGRAM 3 – AGRI EXPERT SUBSYSTEM  (12 UCs: UC-CGNN01 … UC-CGNN12)
+' Matches screens SCR-CGNN-01 → SCR-CGNN-11 (+CGNN12 chat w/ staff)
+' ==============================================================================
+@startuml 03_Agri_Expert_Subsystem_v2
+
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam titleFontSize 15
+skinparam titleFontStyle bold
+skinparam linetype ortho
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+  FontStyle bold
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #455A64
+  FontSize 10
+}
+skinparam package {
+  BackgroundColor #F5F5F5
+  BorderColor #B0BEC5
+  FontStyle bold
+}
+
+title Agri Expert (CGNN) Subsystem - Use Case Diagram  (v2)
+
+' ── Primary Actor (Left) ──
+actor "Agri Expert\n(CGNN)" as CGNN
+
+rectangle "Agri Expert Subsystem Boundary" {
+
+  ' ────── Package 1: Agronomy Standards & Knowledge ──────
+  package "Agronomy Standards & Knowledge" as P1 #EDE7F6 {
+    usecase "UC-CGNN01: Manage Crops\n& Varieties" as CGNN01
+    usecase "UC-CGNN02: Update Ecological\n& Soil Characteristics" as CGNN02
+    usecase "UC-CGNN03: Manage Plot-Crop\nCompatibility" as CGNN03
+    usecase "UC-CGNN04: Manage Standard\nProcess Templates" as CGNN04
+    usecase "UC-CGNN05: Define Growth Stages\n& IoT Thresholds" as CGNN05
+    usecase "UC-CGNN06: Configure Material\nSpecs per Stage" as CGNN06
+    usecase "UC-CGNN07: Manage Knowledge\nDocuments (AI RAG KB)" as CGNN07
+  }
+
+  ' ────── Package 2: Cultivation Planning & Consultation ──────
+  package "Cultivation Planning & Consultation" as P2 #D1C4E9 {
+    usecase "UC-CGNN08: Conduct Pre-rental\nConsultation" as CGNN08
+    usecase "UC-CGNN09: Review & Customize\nCultivation Plan" as CGNN09
+    usecase "UC-CGNN10: Propose Plan\nRevision (BR13)" as CGNN10
+  }
+
+  ' ────── Package 3: Advisory & Technical Support ──────
+  package "Advisory & Technical Support" as P3 #F3E5F5 {
+    usecase "UC-CGNN11: Chat 1-1\nwith Customer" as CGNN11
+    usecase "UC-CGNN12: Handle Field Issues\n& Chat with Staff" as CGNN12
+  }
+}
+
+' Enforce vertical package order
+P1 -[hidden]down- P2
+P2 -[hidden]down- P3
+
+' ── Secondary / Supporting Actors (Right) ──
+actor "AI Service\n(LLM)" as AI <<System>>
+actor "Customer\n(KH)" as KH
+actor "Field Staff\n(CVLĐ)" as CVLD
+
+AI -[hidden]down- KH
+KH -[hidden]down- CVLD
+
+' ── Primary Actor Associations ──
+CGNN -- CGNN01
+CGNN -- CGNN03
+CGNN -- CGNN04
+CGNN -- CGNN06
+CGNN -- CGNN07
+CGNN -- CGNN08
+CGNN -- CGNN09
+CGNN -- CGNN10
+CGNN -- CGNN11
+CGNN -- CGNN12
+
+' ── UML 2.5 <<include>> & <<extend>> ──
+CGNN01 ..> CGNN02 : <<include>>
+CGNN04 ..> CGNN05 : <<include>>
+
+' ── Supporting Actor Connections ──
+CGNN07 -- AI
+CGNN09 -- AI
+
+CGNN08 -- KH
+CGNN09 -- KH
+CGNN10 -- KH
+CGNN11 -- KH
+
+CGNN12 -- CVLD
+
+@enduml
+
+
+' ==============================================================================
+' DIAGRAM 4 – FIELD STAFF SUBSYSTEM  (8 UCs: UC-CVLD01 … UC-CVLD08)
+' Matches screens SCR-CVLD-01 → SCR-CVLD-08
+' ==============================================================================
+@startuml 04_Field_Staff_Subsystem_v2
+
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam titleFontSize 15
+skinparam titleFontStyle bold
+skinparam linetype ortho
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+  FontStyle bold
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #455A64
+  FontSize 10
+}
+skinparam package {
+  BackgroundColor #F5F5F5
+  BorderColor #B0BEC5
+  FontStyle bold
+}
+
+title Field Staff (CVLD) Subsystem - Use Case Diagram  (v2)
+
+' ── Primary Actor (Left) ──
+actor "Field Staff\n(CVLĐ)" as CVLD
+
+rectangle "Field Staff Subsystem Boundary" {
+
+  ' ────── Package 1: Task Reception ──────
+  package "Task Reception" as P1 #FFF8E1 {
+    usecase "UC-CVLD01: View Assigned Tasks\n& Plot Location" as CVLD01
+    usecase "UC-CVLD02: View Technical Guide\n& Material Specs" as CVLD02
+  }
+
+  ' ────── Package 2: Execution & Evidence ──────
+  package "Execution & Evidence" as P2 #FFF3E0 {
+    usecase "UC-CVLD03: Update Task Progress\n(In Progress)" as CVLD03
+    usecase "UC-CVLD04: Confirm Task\nCompletion" as CVLD04
+    usecase "UC-CVLD05: Upload Photo Evidence\n(Required >= 1)" as CVLD05
+    usecase "UC-CVLD06: Log Material\nUsage" as CVLD06
+  }
+
+  ' ────── Package 3: Issues & Harvest ──────
+  package "Issues & Harvest" as P3 #FFE0B2 {
+    usecase "UC-CVLD07: Report Field Issue\n& Chat with Expert" as CVLD07
+    usecase "UC-CVLD08: Assist Harvest &\nView Work History" as CVLD08
+  }
+}
+
+' Enforce vertical package order
+P1 -[hidden]down- P2
+P2 -[hidden]down- P3
+
+' ── Secondary / Supporting Actors (Right) ──
+actor "Agri Expert\n(CGNN)" as CGNN
+actor "Customer\n(KH)" as KH
+
+CGNN -[hidden]down- KH
+
+' ── Primary Actor Associations ──
+CVLD -- CVLD01
+CVLD -- CVLD03
+CVLD -- CVLD04
+CVLD -- CVLD07
+CVLD -- CVLD08
+
+' ── UML 2.5 <<include>> & <<extend>> ──
+CVLD02 ..> CVLD01 : <<extend>>
+CVLD04 ..> CVLD05 : <<include>>
+CVLD06 ..> CVLD04 : <<extend>>
+
+' ── Supporting Actor Connections ──
+CVLD07 -- CGNN
+CVLD08 -- KH
+
+@enduml
+
+
+' ==============================================================================
+' DIAGRAM 5 – ADMINISTRATOR SUBSYSTEM  (10 UCs: UC-AD01 … UC-AD10)
+' Matches screens SCR-AD-01 → SCR-AD-11 (AD05+AD07 merged into dispatch)
+' ==============================================================================
+@startuml 05_Admin_Subsystem_v2
+
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam titleFontSize 15
+skinparam titleFontStyle bold
+skinparam linetype ortho
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+  FontStyle bold
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #455A64
+  FontSize 10
+}
+skinparam package {
+  BackgroundColor #F5F5F5
+  BorderColor #B0BEC5
+  FontStyle bold
+}
+
+title Administrator (AD) Subsystem - Use Case Diagram  (v2)
+
+' ── Primary Actor (Left) ──
+actor "Admin\n(AD)" as AD
+
+rectangle "Administrator Subsystem Boundary" {
+
+  ' ────── Package 1: Identity & Access ──────
+  package "Identity & Access" as P1 #FFEBEE {
+    usecase "UC-AD01: Manage User Accounts\n& Security Lock" as AD01
+    usecase "UC-AD02: Assign Roles\n(RBAC)" as AD02
+  }
+
+  ' ────── Package 2: Land & Marketplace ──────
+  package "Land & Marketplace" as P2 #FFCDD2 {
+    usecase "UC-AD03: Manage Land Records\n& Plot Partitions" as AD03
+    usecase "UC-AD04: Configure Rental Pricing\n& Marketplace Visibility" as AD04
+    usecase "UC-AD05: Manage Service Catalog\n& Pricing (BR27)" as AD05
+  }
+
+  ' ────── Package 3: Operations & Dispatch ──────
+  package "Operations & Dispatch" as P3 #EF9A9A {
+    usecase "UC-AD06: Dispatch Care Tasks\nto Field Staff" as AD06
+    usecase "UC-AD07: Review & Dispatch\nService Requests" as AD07
+    usecase "UC-AD08: Monitor Reservations,\nRentals & Payments" as AD08
+  }
+
+  ' ────── Package 4: Monitoring & Governance ──────
+  package "Monitoring & Governance" as P4 #E57373 {
+    usecase "UC-AD09: Monitor IoT Alerts &\nEnvironmental Health" as AD09
+    usecase "UC-AD10: View Analytics Dashboard\n& System Audit Log" as AD10
+  }
+}
+
+' Enforce vertical package order
+P1 -[hidden]down- P2
+P2 -[hidden]down- P3
+P3 -[hidden]down- P4
+
+' ── Secondary / Supporting Actors (Right) ──
+actor "Field Staff\n(CVLĐ)" as CVLD
+actor "Payment\nGateway" as PAY <<System>>
+actor "IoT\nGateway" as IOT <<System>>
+
+CVLD -[hidden]down- PAY
+PAY -[hidden]down- IOT
+
+' ── Primary Actor Associations ──
+AD -- AD01
+AD -- AD03
+AD -- AD04
+AD -- AD05
+AD -- AD06
+AD -- AD07
+AD -- AD08
+AD -- AD09
+AD -- AD10
+
+' ── UML 2.5 <<extend>> ──
+AD02 ..> AD01 : <<extend>>
+
+' ── Supporting Actor Connections ──
+AD06 -- CVLD
+AD07 -- CVLD
+
+AD08 -- PAY
+
+AD09 -- IOT
+
+@enduml

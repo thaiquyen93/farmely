@@ -1,0 +1,62 @@
+@startuml uc_03_operations
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam titleFontSize 14
+skinparam titleFontStyle bold
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #37474F
+}
+skinparam package {
+  BackgroundColor #FAFAFA
+  BorderColor #90A4AE
+}
+
+actor "Agricultural Expert (CGNN)" as CGNN
+actor "Field Worker (CVLĐ)" as CVLD
+actor "Administrator (AD)" as AD
+
+rectangle "Farm Operations & Administration Subsystem" {
+  package "Agronomy & Technical Guidance" {
+    usecase "UC09: Formulate Standard Agronomy Process" as UC09
+    usecase "UC17: Provide Technical Consultation" as UC17
+    usecase "UC12b: Guide Field Issue Resolution" as UC12b
+  }
+
+  package "Field Operations & Execution" {
+    usecase "UC11: Execute Daily Care Task with Photos" as UC11
+    usecase "UC12: Submit Field Issue Report" as UC12
+    usecase "UC14: Auto-Sync Farm Diary" as UC14
+    usecase "UC15: Record Harvest Yield with Scale Photo" as UC15
+  }
+
+  package "Platform Administration" {
+    usecase "UC08b: Approve Lease Cancellation & Refund" as UC08b
+    usecase "UC20: Manage Farmland Plots & 4-Day Fallow" as UC20
+    usecase "UC21: Administer Users & Access Permissions" as UC21
+  }
+}
+
+CGNN --> UC09
+CGNN --> UC17
+CGNN --> UC12b
+
+CVLD --> UC11
+CVLD --> UC12
+CVLD --> UC15
+
+AD --> UC08b
+AD --> UC20
+AD --> UC21
+
+UC11 ..> UC14 : <<include>>
+UC12 ..> UC12b : <<extend>>
+@enduml

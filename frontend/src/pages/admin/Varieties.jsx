@@ -1,37 +1,69 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { varietiesData as initialVarieties } from '../../data/varieties';
-import { cropsData } from '../../data/crops';
+import { cropsData as initialCrops } from '../../data/crops';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
-import { Wheat, Plus, Eye, Edit, Clock, Layers, BookOpen, CheckCircle2 } from 'lucide-react';
+import { Wheat, Plus, Eye, Edit, Clock, Layers, BookOpen, CheckCircle2, Trash2, AlertCircle, X } from 'lucide-react';
 
 export default function Varieties() {
   const [varieties, setVarieties] = useState(initialVarieties);
+  const [crops, setCrops] = useState(initialCrops);
+  const [loading, setLoading] = useState(true);
+  const [isLiveDb, setIsLiveDb] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [formError, setFormError] = useState('');
 
   // Form State
   const [name, setName] = useState('');
-  const [cropId, setCropId] = useState('CRP-01');
+  const [cropId, setCropId] = useState('1');
   const [duration, setDuration] = useState('45');
   const [yieldVal, setYieldVal] = useState('4.0 kg/m²');
   const [desc, setDesc] = useState('');
   const [status, setStatus] = useState('ACTIVE');
 
+  const loadData = () => {
+    setLoading(true);
+    Promise.all([
+      fetch('/api/varieties').then((r) => r.json()),
+      fetch('/api/crops').then((r) => r.json())
+    ])
+      .then(([varRes, cropRes]) => {
+        if (varRes && varRes.success && Array.isArray(varRes.data) && varRes.data.length > 0) {
+          setVarieties(varRes.data);
+          setIsLiveDb(true);
+        }
+        if (cropRes && cropRes.success && Array.isArray(cropRes.data) && cropRes.data.length > 0) {
+          setCrops(cropRes.data);
+        }
+      })
+      .catch((err) => {
+        console.warn('Cannot fetch live varieties, fallback to mock:', err);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const openCreate = () => {
     setIsEditing(false);
     setName('');
-    setCropId('CRP-01');
+    setCropId(String(crops[0]?.id || '1'));
     setDuration('45');
     setYieldVal('4.0 kg/m²');
     setDesc('');
     setStatus('ACTIVE');
+    setFormError('');
     setShowModal(true);
   };
 
@@ -39,62 +71,83 @@ export default function Varieties() {
     setIsEditing(true);
     setCurrentId(v.id);
     setName(v.name);
-    setCropId(v.cropId);
-    setDuration(String(v.growthDuration));
-    setYieldVal(v.expectedYield);
-    setDesc(v.description);
-    setStatus(v.status);
+    setCropId(String(v.cropId || '1'));
+    setDuration(String(v.growthDuration || 45));
+    setYieldVal(v.expectedYield || '4.0 kg/m²');
+    setDesc(v.description || '');
+    setStatus(v.status || 'ACTIVE');
+    setFormError('');
     setShowModal(true);
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
-
-    const cropObj = cropsData.find((c) => c.id === cropId);
-
-    if (isEditing && currentId) {
-      setVarieties((prev) =>
-        prev.map((v) =>
-          v.id === currentId
-            ? {
-                ...v,
-                name,
-                cropId,
-                cropName: cropObj ? cropObj.name : v.cropName,
-                growthDuration: parseInt(duration, 10) || 45,
-                expectedYield: yieldVal,
-                description: desc,
-                status
-              }
-            : v
-        )
-      );
-    } else {
-      const newVar = {
-        id: `VAR-00${varieties.length + 1}`,
-        name,
-        cropId,
-        cropName: cropObj ? cropObj.name : 'Rau màu',
-        growthDuration: parseInt(duration, 10) || 45,
-        bufferTime: 7,
-        expectedYield: yieldVal,
-        description: desc,
-        compatiblePlotsCount: 3,
-        processTemplateId: null,
-        knowledgeDocsCount: 1,
-        status,
-        imageUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
-        growingCharacteristics: {
-          lightRequirement: 'Nắng trực tiếp',
-          soilMoistureTarget: '65% - 75%',
-          temperatureRange: '22°C - 30°C',
-          fertilizerNeeds: 'Hữu cơ vi sinh'
-        }
-      };
-      setVarieties((prev) => [...prev, newVar]);
+    if (!name.trim()) {
+      setFormError('Vui lòng nhập tên giống cây');
+      return;
     }
-    setShowModal(false);
+    setIsSaving(true);
+    setFormError('');
+
+    try {
+      const url = isEditing && currentId ? `/api/varieties/${currentId}` : '/api/varieties';
+      const method = isEditing && currentId ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          cropId: parseInt(cropId, 10),
+          growthDuration: parseInt(duration, 10),
+          bufferTime: 4
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Lỗi khi lưu giống cây');
+      }
+      setToast({ type: 'success', message: data.message || `Đã lưu giống cây "${name}" thành công vào PostgreSQL!` });
+      loadData();
+      try {
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_varieties_sync');
+          bc.postMessage({ type: 'VARIETIES_UPDATED' });
+          bc.close();
+        }
+      } catch {}
+      setShowModal(false);
+      setTimeout(() => setToast(null), 5000);
+    } catch (err) {
+      setFormError(err.message || 'Không thể kết nối đến máy chủ');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id, varName) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa giống cây "${varName || '#' + id}"?`)) return;
+    try {
+      const res = await fetch(`/api/varieties/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setToast({ type: 'error', message: data.message || 'Lỗi khi xóa giống cây' });
+        setTimeout(() => setToast(null), 5000);
+        return;
+      }
+      setToast({ type: 'success', message: `Đã xóa giống cây #${id} thành công khỏi PostgreSQL!` });
+      loadData();
+      try {
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_varieties_sync');
+          bc.postMessage({ type: 'VARIETIES_UPDATED' });
+          bc.close();
+        }
+      } catch {}
+      setTimeout(() => setToast(null), 4000);
+    } catch (err) {
+      setToast({ type: 'error', message: err.message || 'Lỗi kết nối khi xóa' });
+      setTimeout(() => setToast(null), 5000);
+    }
   };
 
   const columns = [
@@ -131,7 +184,7 @@ export default function Varieties() {
             <Clock className="w-3.5 h-3.5 text-brand-green" />
             {row.growthDuration} ngày
           </span>
-          <span className="text-[10px] text-stone-500">Buffer: +{row.bufferTime} ngày (BR04)</span>
+          <span className="text-[10px] text-stone-500">Đệm: +{row.bufferTime} ngày</span>
         </div>
       )
     },
@@ -191,6 +244,13 @@ export default function Varieties() {
           >
             <Edit className="w-4 h-4" />
           </button>
+          <button
+            onClick={() => handleDelete(row.id, row.name)}
+            className="p-1.5 text-stone-500 hover:text-red-600 hover:bg-stone-100 rounded-lg transition-colors"
+            title="Xóa giống cây"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       )
     }
@@ -198,11 +258,38 @@ export default function Varieties() {
 
   return (
     <div className="space-y-6">
+      {/* Toast Feedback */}
+      {toast && (
+        <div className={`p-4 rounded-xl flex items-center justify-between gap-3 text-sm font-medium border shadow-xs animate-in fade-in duration-200 ${
+          toast.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            {toast.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+            )}
+            <span>{toast.message}</span>
+          </div>
+          <button onClick={() => setToast(null)} className="p-1 hover:opacity-70">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: Variety (Giống cây trồng được kiểm định - BR03)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
+              Thực thể: Giống Cây Trồng (Variety)
+            </span>
+            {isLiveDb && (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live DB: {varieties.length} Giống cây</span>
+              </span>
+            )}
+          </div>
           <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
             Danh Mục Giống Cây Trồng
           </h2>
@@ -230,6 +317,13 @@ export default function Varieties() {
         title={isEditing ? 'Chỉnh Sửa Giống Cây Trồng' : 'Thêm Giống Cây Trồng Mới'}
       >
         <form onSubmit={handleSave} className="space-y-4">
+          {formError && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{formError}</span>
+            </div>
+          )}
+
           <Input
             label="Tên Giống Cây"
             required
@@ -243,7 +337,7 @@ export default function Varieties() {
             required
             value={cropId}
             onChange={(e) => setCropId(e.target.value)}
-            options={cropsData.map((c) => ({ value: c.id, label: c.name }))}
+            options={crops.map((c) => ({ value: c.id, label: c.name }))}
           />
 
           <div className="grid grid-cols-2 gap-3">

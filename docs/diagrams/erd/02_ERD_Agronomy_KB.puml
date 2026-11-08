@@ -1,0 +1,138 @@
+@startuml
+' Subject Area 2 — Agronomy & Knowledge Base (khop farmely_27tables_sqlserver.sql)
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+hide methods
+hide stereotypes
+title SUB-ERD 2 — NONG HOC & TRI THUC
+
+entity "lands" as lands {
+  * land_id : INT <<PK, Identity>>
+  --
+  * land_name : NVARCHAR(255)
+  address : NVARCHAR(500)
+  gps_lat : DECIMAL(10,7)
+  gps_lng : DECIMAL(10,7)
+  total_area_sqm : DECIMAL(10,2)
+  * created_at : DATETIME2
+  * updated_at : DATETIME2
+}
+
+entity "plots" as plots {
+  * plot_id : INT <<PK, Identity>>
+  --
+  * land_id : INT <<FK>>
+  * plot_code : VARCHAR(50) <<UQ>>
+  iot_device_code : VARCHAR(50)
+  * area : DECIMAL(10,2)
+  image_url : VARCHAR(500)
+  * price_per_period : DECIMAL(14,2)
+  water_source : NVARCHAR(100)
+  technical_condition : NVARCHAR(255)
+  * status : VARCHAR(50)
+  * created_at : DATETIME2
+  * updated_at : DATETIME2
+}
+
+entity "crops" as crops {
+  * crop_id : INT <<PK, Identity>>
+  --
+  * crop_name : NVARCHAR(100) <<UQ>>
+  category : NVARCHAR(50)
+  * created_at : DATETIME2
+}
+
+entity "varieties" as varieties {
+  * variety_id : INT <<PK, Identity>>
+  --
+  * crop_id : INT <<FK>>
+  * variety_name : NVARCHAR(100)
+  * expected_duration : INT
+  * buffer_time : INT
+  expected_yield_kg : DECIMAL(6,2)
+  * created_at : DATETIME2
+}
+
+entity "plot_crop_compatibility" as compat {
+  * plot_id : INT <<PK, FK>>
+  * variety_id : INT <<PK, FK>>
+  --
+  * suitability : VARCHAR(20)
+}
+
+entity "materials" as materials {
+  * material_id : INT <<PK, Identity>>
+  --
+  * material_name : NVARCHAR(100)
+  * unit : NVARCHAR(20)
+  unit_price : DECIMAL(12,2)
+}
+
+entity "process_templates" as templates {
+  * template_id : INT <<PK, Identity>>
+  --
+  * variety_id : INT <<FK>>
+  * expert_id : INT <<FK>>
+  * version : VARCHAR(20)
+  min_temp : DECIMAL(5,2)
+  max_temp : DECIMAL(5,2)
+  min_humidity : DECIMAL(5,2)
+  max_humidity : DECIMAL(5,2)
+  * created_at : DATETIME2
+}
+
+entity "template_steps" as steps {
+  * step_id : INT <<PK, Identity>>
+  --
+  * template_id : INT <<FK>>
+  * step_order : INT
+  * step_name : NVARCHAR(150)
+  description : NVARCHAR(MAX)
+  * day_offset : INT
+  * duration_days : INT
+  * task_type : VARCHAR(50)
+}
+
+entity "template_materials" as tmats {
+  * id : INT <<PK, Identity>>
+  --
+  * step_id : INT <<FK>>
+  * material_id : INT <<FK>>
+  * quantity : DECIMAL(10,2)
+}
+
+entity "knowledge_documents" as docs {
+  * document_id : INT <<PK, Identity>>
+  --
+  * expert_id : INT <<FK>>
+  * title : NVARCHAR(255)
+  content : NVARCHAR(MAX)
+  file_url : VARCHAR(500)
+  * created_at : DATETIME2
+}
+
+entity "users (proxy)" as user_proxy <<external>> {
+  * user_id : INT <<PK>>
+}
+
+lands ||--o{ plots
+crops ||--o{ varieties
+plots ||--o{ compat
+varieties ||--o{ compat
+varieties ||--o{ templates
+user_proxy ||--o{ templates : expert
+templates ||--o{ steps : "ON DELETE CASCADE"
+steps ||--o{ tmats : "ON DELETE CASCADE"
+materials ||--o{ tmats
+user_proxy ||--o{ docs : expert
+
+note bottom
+  iot_device_code chi la ma dinh danh mock tren Plot (RP 10.3).
+  CHECK: plots.status IN ('AVAILABLE','PUBLISHED','RESERVED','RENTED','MAINTENANCE')
+  CHECK: compat.suitability IN ('OPTIMAL','ACCEPTABLE')
+  CHECK: plots.area > 0, plots.price_per_period >= 0
+  Trigger trg_lands_updated, trg_plots_updated tu dong cap nhat updated_at.
+end note
+@enduml

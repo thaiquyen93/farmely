@@ -5,9 +5,9 @@ spring:
   application:
     name: monitoring-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartagrirent_monitoring
-    username: postgres
-    password: password
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/farmely}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

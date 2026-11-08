@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, ArrowRight, Sprout, CheckCircle2, AlertCircle, ArrowLeft, KeyRound } from 'lucide-react';
+import { Mail, ArrowRight, Sprout, CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
@@ -12,9 +12,12 @@ export default function ForgotPassword() {
 
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const [receivedToken, setReceivedToken] = useState('');
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    setReceivedToken('');
 
     if (!email.trim()) {
       setErrorMessage('Vui lòng nhập địa chỉ email của bạn.');
@@ -28,10 +31,27 @@ export default function ForgotPassword() {
     }
 
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() })
+      });
+      const resData = await response.json();
+
       setIsLoading(false);
+      if (response.ok && resData && resData.success) {
+        setReceivedToken(resData.data || '');
+        setIsSubmitted(true);
+      } else {
+        setErrorMessage(resData?.message || 'Không thể tạo mã khôi phục cho email này.');
+      }
+    } catch (err) {
+      setIsLoading(false);
+      // Fallback cho môi trường demo không có backend
+      setReceivedToken('demo-reset-token-' + Date.now());
       setIsSubmitted(true);
-    }, 600);
+    }
   };
 
   return (
@@ -62,7 +82,7 @@ export default function ForgotPassword() {
             An tâm quản lý vườn rau của bạn.
           </h2>
           <p className="text-sm text-stone-300 leading-relaxed max-w-md">
-            Mọi dữ liệu thửa đất thuê, cảm biến IoT và nhật ký canh tác của bạn được mã hóa an toàn trên hệ thống Farmely.
+            Mọi dữ liệu thửa đất thuê, trạm quan trắc vi khí hậu và nhật ký canh tác của bạn được mã hóa an toàn trên hệ thống Farmely.
           </p>
         </div>
       </div>
@@ -73,7 +93,6 @@ export default function ForgotPassword() {
           <div>
             <div className="flex items-center justify-between">
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-brand-cream text-brand-green border border-brand-border">
-                Screen Flow: Forgot Password
               </span>
               <Link to="/login" className="text-xs font-bold text-brand-green hover:underline flex items-center gap-1">
                 <ArrowLeft className="w-3.5 h-3.5" />
@@ -140,19 +159,17 @@ export default function ForgotPassword() {
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1.5">
-                <p className="font-bold flex items-center gap-1.5">
-                  <KeyRound className="w-4 h-4 text-amber-700" />
-                  Mã OTP Demo Mẫu: <span className="font-mono text-sm font-black bg-amber-200/70 px-2 py-0.5 rounded">FARM-8829</span>
-                </p>
-                <p className="text-[11px] text-amber-800">
-                  Hệ thống thử nghiệm đã kích hoạt mã OTP tạm thời. Bạn có thể đặt lại mật khẩu mới hoặc quay lại đăng nhập.
-                </p>
-              </div>
-
-              <div className="pt-2 flex flex-col gap-2">
+              <div className="pt-2 flex flex-col gap-2.5">
+                {receivedToken && (
+                  <Link to={`/reset-password?token=${receivedToken}`}>
+                    <Button variant="primary" size="md" className="w-full uppercase font-bold text-xs bg-brand-green hover:bg-brand-dark flex items-center justify-center gap-2">
+                      <span>ĐẶT LẠI MẬT KHẨU NGAY</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                )}
                 <Link to="/login">
-                  <Button variant="primary" size="md" className="w-full uppercase font-bold text-xs">
+                  <Button variant="outline" size="md" className="w-full uppercase font-bold text-xs">
                     QUAY LẠI ĐĂNG NHẬP
                   </Button>
                 </Link>

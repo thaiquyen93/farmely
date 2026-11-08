@@ -1,0 +1,178 @@
+@startuml 06_System_Architecture_Primer
+
+skinparam shadowing false
+skinparam roundcorner 10
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam ranksep 35
+skinparam nodesep 25
+
+skinparam package {
+  BackgroundColor #FAFAFA
+  BorderColor #9E9E9E
+  FontStyle bold
+}
+
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #455A64
+  FontSize 11
+}
+
+skinparam database {
+  BackgroundColor #E8F5E9
+  BorderColor #2E7D32
+}
+
+skinparam queue {
+  BackgroundColor #FFF3E0
+  BorderColor #E65100
+}
+
+title System Architecture Diagram (System Design Primer Blueprint)\nAgriTech Plot Rental & Cultivation Experience Platform (ISP392)
+
+' ==============================================================================
+' CLIENT TIER
+' ==============================================================================
+package "Client Tier (Người dùng & Thiết bị ngoại vi)" #E3F2FD {
+  [Customer Client\n(Browser / Mobile Web - Floating Chatbot)] as Client_KH
+  [Agri Expert Portal\n(Web Dashboard)] as Client_CGNN
+  [Field Staff Portal\n(Mobile Web / PWA)] as Client_CVLD
+  [Farm Admin Portal\n(Management Web)] as Client_AD
+  [IoT Sensor Station\n(Mock Gateway)] as Client_IoT
+}
+
+' ==============================================================================
+' EDGE & NETWORK TIER
+' ==============================================================================
+package "Edge & Network Layer" #EDE7F6 {
+  [DNS (Route 53 / Cloudflare)] as DNS
+  [CDN (Cloudflare / CloudFront)\nCached Photos & Static Assets] as CDN
+  [Reverse Proxy & L7 Load Balancer\n(NGINX: SSL, Rate Limit, Gzip)] as NGINX
+}
+
+' ==============================================================================
+' APPLICATION TIER (STATELESS BACKEND)
+' ==============================================================================
+package "Application Tier (Stateless Backend Services / Spring Boot MVC)" #F3E5F5 {
+  [API Gateway & Security\n(JWT Filter, RBAC, CORS)] as Gateway
+  
+  package "Core Business Modules" #FFFFFF {
+    [Marketplace & Rental Module\n(Plot search, Filter, 15m Booking, Payment)] as Mod_Market
+    [Cultivation & Agronomy Module\n(Standard templates, Plan review & approval)] as Mod_Agri
+    [Field Task & Operations Module\n(Staff dispatch, Task check-in, Supplies)] as Mod_Task
+    [IoT & Diary Telemetry Module\n(Telemetry ingestion, Farm diary)] as Mod_Diary
+    [Realtime Chat & Alert Hub\n(WebSocket / STOMP Server)] as Mod_Chat
+    [AI Chatbot Service\n(24/7 Gardening Q&A - SCR-KH-13)] as Mod_AIChat
+  }
+}
+
+' ==============================================================================
+' CACHING & DISTRIBUTED LOCK TIER
+' ==============================================================================
+package "In-Memory Cache & Lock Layer" #FFFDE7 {
+  database "Redis Cluster / Redis Standalone" as Redis {
+    [Marketplace Cache\n(Plot Catalog, Hot Crops)] as Cache_Plot
+    [Distributed Lock & TTL\n(15-min Reservation Lock: SET NX EX)] as Cache_Lock
+    [Session & Rate Limit Counters\n(Token Blacklist, IP Throttle)] as Cache_Session
+  }
+}
+
+' ==============================================================================
+' ASYNCHRONOUS TASK QUEUE & WORKERS (NO AI WORKER)
+' ==============================================================================
+package "Asynchronous Processing Tier" #FFF3E0 {
+  queue "Message Broker\n(RabbitMQ / Redis Streams)" as MQ
+  
+  package "Background Workers" #FFFFFF {
+    [Reservation Timeout Worker\n(Auto-cancel after 15 mins)] as Worker_TTL
+    [IoT Environmental Alert Worker\n(Threshold monitoring & Alert dispatch)] as Worker_Alert
+    [Media Processing Worker\n(Image compression, Watermark)] as Worker_Media
+    [Notification Dispatcher\n(Email / In-app Alerts)] as Worker_Notify
+  }
+}
+
+' ==============================================================================
+' PERSISTENCE & DATA TIER
+' ==============================================================================
+package "Data Persistence Tier (Polyglot Storage)" #E8F5E9 {
+  database "Primary RDBMS (Master)\n(PostgreSQL / MySQL)\n[Writes & Strong Consistency ACID]" as DB_Master
+  database "Read-Replica RDBMS (Slave)\n(PostgreSQL / MySQL)\n[Read-Heavy Queries, Reporting]" as DB_Slave
+  database "Time-Series Store\n(TimescaleDB / IoT Ingestion Table)\n[Sensor telemetry readings]" as DB_TS
+  database "Object Storage\n(MinIO / AWS S3)\n[Plot photos, Task proofs, Diary media]" as S3
+}
+
+' ==============================================================================
+' EXTERNAL 3RD-PARTY SERVICES
+' ==============================================================================
+package "External Integrations" #ECEFF1 {
+  [Payment Gateway\n(VNPay / MoMo / Stripe)] as Ext_Payment
+  [Weather API\n(OpenWeatherMap)] as Ext_Weather
+  [AI Provider LLM API\n(Google Gemini / OpenAI API)] as Ext_AI
+}
+
+' ==============================================================================
+' CONNECTIONS & FLOWS
+' ==============================================================================
+Client_KH --> DNS : Resolve domain
+Client_CGNN --> DNS
+Client_CVLD --> DNS
+Client_AD --> DNS
+
+DNS --> CDN : Static content & images
+CDN ..> S3 : Cache miss fetch
+DNS --> NGINX : Dynamic API requests
+Client_IoT --> NGINX : Telemetry Push (HTTP/MQTT)
+
+NGINX --> Gateway : Forward traffic (Layer 7)
+Gateway --> Mod_Market
+Gateway --> Mod_Agri
+Gateway --> Mod_Task
+Gateway --> Mod_Diary
+Gateway --> Mod_Chat
+Gateway --> Mod_AIChat
+
+' AI Chatbot Interactive Flow (Synchronous / Streaming SSE)
+Client_KH --> Mod_AIChat : User sends question (SCR-KH-13)
+Mod_AIChat --> Ext_AI : Direct Streaming Call (LLM Prompt)
+Mod_AIChat ..> DB_Slave : Query Agronomy Docs (RAG / Context)
+
+' Cache Interactions (Cache-aside & Distributed Lock)
+Mod_Market ..> Cache_Plot : Read Cache-aside
+Mod_Market --> Cache_Lock : Acquire 15-min Lock (SET NX)
+Gateway ..> Cache_Session : Validate Token / Rate limit
+
+' Database Operations
+Mod_Market --> DB_Master : Write Reservations, Rentals (ACID)
+Mod_Task --> DB_Master : Update Task status, Supplies
+Mod_Agri --> DB_Master : Save Cultivation Plans
+Mod_Market ..> DB_Slave : Read Plot search & catalog
+Mod_Diary --> DB_TS : Append sensor telemetry
+Mod_Diary ..> S3 : Upload diary & task proof photos
+DB_Master ..> DB_Slave : Asynchronous Replication
+
+' Asynchronous & Event-Driven Flows
+Mod_Market --> MQ : Publish ReservationCreatedEvent
+Mod_Diary --> MQ : Publish SensorTelemetryEvent
+Mod_Diary --> MQ : Publish MediaUploadEvent
+Mod_Task --> MQ : Publish TaskAssignedEvent
+
+MQ --> Worker_TTL : Consume (Auto-release expired plots)
+MQ --> Worker_Alert : Consume (Check min/max sensor thresholds)
+MQ --> Worker_Media : Consume (Compress images, thumbnail)
+MQ --> Worker_Notify : Consume (Send notification push)
+
+Worker_TTL --> DB_Master : Release expired Reservation (Plot -> AVAILABLE)
+Worker_Alert --> DB_Master : Insert EnvironmentalAlert
+Worker_Media --> S3 : Store optimized images
+Worker_Notify --> Client_KH : Push notice (In-app / Email)
+
+' External API calls
+Mod_Market --> Ext_Payment : Process checkout
+Mod_Diary --> Ext_Weather : Sync weather forecast
+Mod_Chat <--> Client_KH : Realtime Chat (WS)
+Mod_Chat <--> Client_CGNN : Realtime Chat (WS)
+
+@enduml

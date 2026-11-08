@@ -6,15 +6,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.smartagrirent</groupId>
-        <artifactId>smartagrirent-backend</artifactId>
+        <groupId>com.farmely</groupId>
+        <artifactId>farmely-backend</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>payment-service</artifactId>
     <name>payment-service</name>
-    <description>Payment-service for Smart AgriRent Platform</description>
+    <description>Payment-service for Farmely Platform</description>
 
     <dependencies>
         <dependency>
@@ -40,15 +40,27 @@
             <version>${springdoc.version}</version>
         </dependency>
         
+        <!-- Optional RabbitMQ (disable until message broker is active)
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
+        -->
         
     </dependencies>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <release>21</release>
+                    <compilerArgs>
+                        <arg>-proc:none</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

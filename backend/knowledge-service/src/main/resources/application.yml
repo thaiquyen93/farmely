@@ -4,19 +4,27 @@ server:
 spring:
   application:
     name: knowledge-service
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
   datasource:
-    url: jdbc:postgresql://localhost:5432/smartagrirent_knowledge
-    username: postgres
-    password: password
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:farmely}}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:@Bin054206}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+storage:
+  upload-dir: ${UPLOAD_DIR:uploads/documents}
+  docs-dir: ${DOCS_DIR:d:/S5/Farmely/docs}
 
 springdoc:
   api-docs:

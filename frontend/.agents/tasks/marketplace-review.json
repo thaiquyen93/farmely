@@ -1,0 +1,11 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    "Late 'load' un-degrades the page (confirmed, non-blocking) — degraded in MarketplaceInteractiveMap.jsx:224 stops holding once mapReady flips, so a 'load' arriving after MAP_LOAD_WATCHDOG_MS (6s) sends effectivePhase from 'done' back to 'waiting': the navbar and list return to opacity-0 pointer-events-none, the veil remounts, and anything typed in the search box is inaccessible for the length of the intro. Latch the degraded decision (sticky state, or skip the intro when the watchdog already fired).",
+    "Non-selected plots are dimmed twice (possible) — plots-dim holds fill-opacity 0.5 while setExtrusionSpotlight (mapLayers.js:173) paints the same plots near-black at fill-extrusion-opacity 0.55. The combination may crush them past legibility. Check in a browser; if so, drop the dim fill target or lighten DIM_EXTRUSION_COLOR.",
+    "Compact-viewport decision is frozen at mount (confirmed, non-blocking) — useState(() => isCompactViewport()) in MarketplaceInteractiveMap.jsx:52 never re-evaluates, so crossing the lg boundary by resize or rotation leaves the mobile pitch and skipRise in force while the Tailwind lg: layout switches. Re-read on resize, or accept and document it.",
+    "Badge occlusion at settle height still unobserved (possible) — whether a 4m slab clips the price badge of the plot behind it at pitch 40 has not been seen by anyone. Look at it in a browser; remedy is one constant, RISE_SETTLE_HEIGHT -> 2 in src/utils/mapTheme.js or CAMERA.settled.pitch -> 35.",
+    "Master-lease surface never clicked through (confirmed, non-blocking) — multi-select, floating-bar totals, the ?plots= round-trip, /book, the auth modal and the left-list scrollIntoView are verified by inspection only; the code is byte-identical apart from typography and shadow swaps, but no test and no click covers them. Run one manual pass before shipping."
+  ],
+  "reviewDoc": "d:\\isp392\\frontend/.agents/tasks/marketplace-review.md"
+}

@@ -1,0 +1,83 @@
+@startuml 05_Admin_Subsystem
+
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam titleFontSize 15
+skinparam titleFontStyle bold
+skinparam linetype ortho
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+  FontStyle bold
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #455A64
+  FontSize 10
+}
+skinparam package {
+  BackgroundColor #F5F5F5
+  BorderColor #B0BEC5
+  FontStyle bold
+}
+
+title Administrator Subsystem (Farm Owner) - Clean Architecture View
+
+actor "Admin\n(Farm Owner)" as AD
+
+rectangle "System Administration Functions" {
+
+  package "1. Identity & Access" #FFCDD2 {
+    usecase "UC-ADM01: Manage User Accounts\n& Security Lock" as A01
+    usecase "UC-ADM02: Assign Roles (RBAC)" as A02
+  }
+
+  package "2. Land & Marketplace" #EF9A9A {
+    usecase "UC-ADM03: Manage Land Records\n& Plot Partitions" as A03
+    usecase "UC-ADM04: Configure Rental Pricing\n& Marketplace Visibility" as A04
+    usecase "UC-ADM05: Attach IoT Sensor\nto Plot" as A05
+  }
+
+  package "3. Operations & Dispatch" #E57373 {
+    usecase "UC-ADM06: Dispatch Care Tasks\nto Field Staff" as A06
+    usecase "UC-ADM07: Manage Service Catalog\n& Dispatch Requests" as A07
+    usecase "UC-ADM08: Monitor Reservations,\nRentals & Payment Audit" as A08
+  }
+
+  package "4. Monitoring & Governance" #EF5350 {
+    usecase "UC-ADM09: Monitor IoT Alerts\n& Environmental Health" as A09
+    usecase "UC-ADM10: View Analytics Dashboard\n& System Audit Log" as A10
+  }
+}
+
+' Supporting Actors (Right)
+actor "Field Staff" as CVLD
+actor "Payment Gateway" as PAY <<System>>
+actor "IoT Gateway" as IOT <<System>>
+
+' Primary Actor Associations
+AD -- A01
+AD -- A03
+AD -- A04
+AD -- A06
+AD -- A07
+AD -- A08
+AD -- A09
+AD -- A10
+
+' UML 2.5 Behavioral Sub-flows
+A02 ..> A01 : <<extend>>
+A05 ..> A03 : <<extend>>
+
+' Supporting Connections
+A06 -- CVLD
+A07 -- CVLD
+A08 -- PAY
+A09 -- IOT
+
+@enduml

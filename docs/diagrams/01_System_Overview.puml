@@ -1,0 +1,109 @@
+@startuml 01_System_Overview
+
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam titleFontSize 15
+skinparam titleFontStyle bold
+skinparam linetype ortho
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+  FontStyle bold
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #455A64
+  FontSize 10
+}
+skinparam package {
+  BackgroundColor #F5F5F5
+  BorderColor #B0BEC5
+  FontStyle bold
+}
+
+title System Overview Use Case Diagram - Clean Architecture View
+
+' 4 Primary Human Actors (Left)
+actor "Customer\n(Tenant)" as KH
+actor "Agri Expert" as CGNN
+actor "Field Staff" as CVLD
+actor "Admin\n(Farm Owner)" as AD
+
+rectangle "Plot Rental & Cultivation Experience Tracking Platform" {
+
+  package "1. Marketplace & Rental" as P1 #E8F5E9 {
+    usecase "UC-SYS01: Rent Plot &\nProcess Payment (100% Upfront)" as UC01
+    usecase "UC-SYS02: Request Pre-rental\nConsultation" as UC02
+  }
+
+  package "2. Agronomy & Standards" as P2 #EDE7F6 {
+    usecase "UC-SYS03: Manage Crop Standards\n& Standard Process Templates" as UC03
+    usecase "UC-SYS04: Review Cultivation Plan\n& Plan Revision" as UC04
+    usecase "UC-SYS05: Consult Agronomy Advisory\n& AI Assistant 24/7" as UC05
+  }
+
+  package "3. Monitoring & Services" as P3 #E0F2F1 {
+    usecase "UC-SYS09: Monitor IoT Vi-climate\n& Farm Diary Feed" as UC09
+    usecase "UC-SYS10: Order & Dispatch\nAd-hoc Care Services" as UC10
+  }
+
+  package "4. Field Operations & Harvest" as P4 #FFF8E1 {
+    usecase "UC-SYS06: Dispatch & Execute\nField Care Tasks" as UC06
+    usecase "UC-SYS07: Report Field Issue\n& On-site Guidance" as UC07
+    usecase "UC-SYS08: Harvest Crop &\nHandover Produce" as UC08
+  }
+
+  package "5. Platform Administration" as P5 #FFEBEE {
+    usecase "UC-SYS11: Manage Land, Plots\n& Rental Pricing" as UC11
+    usecase "UC-SYS12: User Management,\nRBAC & System Audit Log" as UC12
+  }
+}
+
+' 3 Supporting External Systems (Right)
+actor "Payment Gateway" as PAY <<System>>
+actor "AI Service (LLM)" as AI <<System>>
+actor "IoT & Sensors" as IOT <<System>>
+
+' Customer Connections
+KH -- UC01
+KH -- UC02
+KH -- UC04
+KH -- UC05
+KH -- UC08
+KH -- UC09
+KH -- UC10
+
+' Agri Expert Connections
+CGNN -- UC02
+CGNN -- UC03
+CGNN -- UC04
+CGNN -- UC05
+CGNN -- UC07
+
+' Field Staff Connections
+CVLD -- UC06
+CVLD -- UC07
+CVLD -- UC08
+CVLD -- UC09
+
+' Admin Connections
+AD -- UC06
+AD -- UC10
+AD -- UC11
+AD -- UC12
+
+' Supporting External Systems Connections
+UC01 -- PAY
+UC10 -- PAY
+
+UC03 -- AI
+UC05 -- AI
+
+UC09 -- IOT
+
+@enduml

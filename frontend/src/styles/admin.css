@@ -75,3 +75,21 @@
 .admin-table tbody tr:hover td {
   background-color: rgba(245, 242, 233, 0.5);
 }
+
+.field-control {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.625rem 0.75rem;
+  color: var(--text-dark);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.field-control:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(41, 76, 59, 0.12);
+}

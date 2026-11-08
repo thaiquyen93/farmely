@@ -1,0 +1,73 @@
+@startuml uc_02_operations_farmely_v2
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam titleFontSize 14
+skinparam titleFontStyle bold
+skinparam linetype ortho
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #37474F
+}
+skinparam package {
+  BackgroundColor #FAFAFA
+  BorderColor #90A4AE
+}
+
+actor "Agricultural Expert (CGNN)" as CGNN
+actor "Field Worker (CVLĐ)" as CVLD
+actor "Administrator (AD)" as AD
+
+rectangle "Farm Operations & Administration Subsystem" {
+
+  package "1. Agronomy Knowledge & Technical Guidance" as P1 {
+    usecase "UC09: Formulate Standard Agronomy Process" as UC09
+    usecase "Configure Safe IoT Microclimate Thresholds" as ThreshUC
+    usecase "Provide Technical Issue Guidance" as GuideUC
+  }
+
+  package "2. Field Operations & Transparent Harvest" as P2 {
+    usecase "UC11: Execute Daily Care Task\n(No Material Tracking)" as UC11
+    usecase "Upload Mandatory On-Site Photo Proof" as PhotoUC
+    usecase "UC14: Synchronize Automated Farm Diary" as UC14
+    usecase "UC12: Submit Field Issue Report" as UC12
+    usecase "UC15: Record Harvest Yield Weight" as UC15
+    usecase "Attach Digital Scale Display Photo\n& Worker Staff ID" as ScaleUC
+  }
+
+  package "3. Soil Maintenance & Platform Governance" as P3 {
+    usecase "UC20: Manage Farmland Plots\n& 4-Day Fallow Cycle" as UC20
+    usecase "Approve Contract Refund Requests" as RefundUC
+    usecase "UC21: Administer Users and Access Permissions" as UC21
+  }
+}
+
+' Expert connections
+CGNN --> UC09
+CGNN --> ThreshUC
+CGNN --> GuideUC
+
+' Field worker connections
+CVLD --> UC11
+CVLD --> UC12
+CVLD --> UC15
+
+' Admin connections
+AD --> UC20
+AD --> RefundUC
+AD --> UC21
+
+' Internal Inclusions
+UC09 ..> ThreshUC : <<include>>
+UC11 ..> PhotoUC : <<include>>
+UC11 ..> UC14 : <<include>>
+UC15 ..> ScaleUC : <<include>>
+
+@enduml

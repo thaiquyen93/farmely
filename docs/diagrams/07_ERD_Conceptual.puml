@@ -1,0 +1,368 @@
+@startuml 07_ERD_Conceptual
+' =========================================================
+' ERD KHÁI NIỆM - NỀN TẢNG THUÊ PLOT & GIÁM SÁT CANH TÁC AGRITECH
+' ISP392 - Đồng bộ research-proposal.md v2.1 (BR01-BR27)
+' Nguồn: docs/database/entity-spec.md v1.0
+' =========================================================
+skinparam shadowing false
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 10
+skinparam classFontSize 10
+skinparam packageStyle rectangle
+title SƠ ĐỒ THỰC THỂ - QUAN HỆ (ERD) - NỀN TẢNG AGRITECH\n(35 Thực thể - 5 Cụm Nghiệp Vụ - Đồng bộ BR01-BR27 - IoT Mock-only)
+hide circle
+hide empty methods
+
+' ==== CỤM A: ĐỊNH DANH & TRUY CẬP ====
+entity "role" as role {
+  * id
+  --
+  code : UQ
+  name_vn
+}
+entity "user" as user {
+  * id
+  --
+  role_id : FK
+  email : UQ
+  phone : UQ
+  full_name
+  status
+}
+entity "audit_log" as audit_log {
+  * id
+  --
+  actor_user_id : FK
+  action_type
+  entity_type
+  entity_id
+  created_at
+}
+
+' ==== CỤM B: TÀI NGUYÊN & TRI THỨC ====
+entity "land" as land {
+  * id
+  --
+  name
+  gps_lat
+  gps_lng
+  total_area_sqm
+}
+entity "plot" as plot {
+  * id
+  --
+  land_id : FK
+  plot_code : UQ
+  daily_rent_price
+  status
+  listing_status
+}
+entity "crop" as crop {
+  * id
+  --
+  name
+  category
+}
+entity "variety" as variety {
+  * id
+  --
+  crop_id : FK
+  growth_duration_days
+  buffer_days
+}
+entity "plot_crop_compatibility" as plot_crop_compatibility {
+  * plot_id : PK/FK
+  * variety_id : PK/FK
+  --
+  suitability
+}
+entity "standard_process_template" as standard_process_template {
+  * id
+  --
+  variety_id : FK
+  expert_id : FK
+  version
+  status
+}
+entity "growth_stage" as growth_stage {
+  * id
+  --
+  template_id : FK
+  start_day_offset
+  end_day_offset
+  min_temp
+  max_temp
+  min_soil_moisture
+}
+entity "task_template" as task_template {
+  * id
+  --
+  stage_id : FK
+  task_type
+  day_offset
+}
+entity "template_material_norm" as template_material_norm {
+  * task_template_id : PK/FK
+  * material_id : PK/FK
+  --
+  quantity_per_sqm
+}
+entity "material" as material {
+  * id
+  --
+  name
+  unit
+  stock_quantity
+}
+entity "professional_source_document" as professional_source_document {
+  * id
+  --
+  expert_id : FK
+  title
+  category
+}
+
+' ==== CỤM C: GIAO DỊCH THUÊ & DỊCH VỤ ====
+entity "reservation" as reservation {
+  * id
+  --
+  customer_id : FK
+  plot_id : FK
+  variety_id : FK
+  cultivation_mode
+  status
+  lock_expires_at
+  grace_until
+}
+entity "rental" as rental {
+  * id
+  --
+  reservation_id : FK (UQ)
+  customer_id : FK
+  plot_id : FK
+  variety_id : FK
+  status
+}
+entity "payment_transaction" as payment_transaction {
+  * id
+  --
+  rental_id : FK
+  service_request_id : FK
+  txn_ref : UQ
+  amount
+  status
+}
+entity "refund_record" as refund_record {
+  * id
+  --
+  payment_transaction_id : FK
+  rental_id : FK
+  refund_rate
+  amount
+}
+entity "service_catalog" as service_catalog {
+  * id
+  --
+  name
+  unit_price
+}
+entity "service_request" as service_request {
+  * id
+  --
+  customer_id : FK
+  rental_id : FK
+  catalog_id : FK
+  request_type
+  status
+}
+entity "service_quote" as service_quote {
+  * id
+  --
+  service_request_id : FK
+  admin_id : FK
+  estimated_amount
+  status
+}
+
+' ==== CỤM D: KẾ HOẠCH & HIỆN TRƯỜNG ====
+entity "cultivation_plan" as cultivation_plan {
+  * id
+  --
+  rental_id : FK (UQ)
+  expert_id : FK
+  template_id : FK
+  approval_deadline
+  auto_approved
+}
+entity "plan_version" as plan_version {
+  * id
+  --
+  plan_id : FK
+  version_no
+  status
+}
+entity "care_task" as care_task {
+  * id
+  --
+  plan_version_id : FK
+  plot_id : FK
+  rental_id : FK
+  assigned_staff_id : FK
+  task_type
+  scheduled_date
+  status
+}
+entity "task_evidence_photo" as task_evidence_photo {
+  * id
+  --
+  task_id : FK
+  photo_url
+}
+entity "material_usage" as material_usage {
+  * id
+  --
+  task_id : FK
+  material_id : FK
+  quantity_used
+  is_abnormal
+}
+entity "issue_report" as issue_report {
+  * id
+  --
+  plot_id : FK
+  staff_id : FK
+  severity
+  status
+}
+entity "issue_comment" as issue_comment {
+  * id
+  --
+  issue_id : FK
+  sender_id : FK
+  message
+}
+
+' ==== CỤM E: GIÁM SÁT, HỖ TRỢ & KẾT THÚC ====
+entity "consultation_ticket" as consultation_ticket {
+  * id
+  --
+  customer_id : FK
+  expert_id : FK
+  ticket_type
+  status
+}
+entity "chat_message" as chat_message {
+  * id
+  --
+  ticket_id : FK
+  sender_id : FK
+  content
+}
+entity "sensor_reading" as sensor_reading {
+  * id
+  --
+  plot_id : FK
+  recorded_at
+  air_temp
+  air_humidity
+  soil_moisture
+  source
+}
+entity "environmental_alert" as environmental_alert {
+  * id
+  --
+  plot_id : FK
+  rental_id : FK
+  alert_type
+  action_taken
+  care_task_id : FK
+  service_request_id : FK
+}
+entity "farm_diary_entry" as farm_diary_entry {
+  * id
+  --
+  rental_id : FK
+  task_id : FK
+  entry_type
+}
+entity "harvest_result" as harvest_result {
+  * id
+  --
+  rental_id : FK (UQ)
+  harvest_date
+  actual_yield_kg
+  disposal_method
+  confirmed_by_user_id : FK
+}
+entity "notification" as notification {
+  * id
+  --
+  recipient_user_id : FK
+  type
+  is_read
+}
+
+' ================= QUAN HỆ =================
+role ||--o{ user
+user ||--o{ audit_log
+land ||--o{ plot
+crop ||--o{ variety
+plot ||--o{ plot_crop_compatibility
+variety ||--o{ plot_crop_compatibility
+variety ||--o{ standard_process_template
+standard_process_template ||--o{ growth_stage
+growth_stage ||--o{ task_template
+task_template ||--o{ template_material_norm
+material ||--o{ template_material_norm
+user ||--o{ professional_source_document
+user ||--o{ reservation
+plot ||--o{ reservation
+variety ||--o{ reservation
+reservation ||--o| rental
+rental ||--o{ payment_transaction
+payment_transaction ||--o{ refund_record
+rental ||--o{ refund_record
+service_catalog ||--o{ service_request
+rental ||--o{ service_request
+user ||--o{ service_request
+service_request ||--o{ service_quote
+user ||--o{ service_quote
+service_request ||--o{ payment_transaction
+rental ||--o| cultivation_plan
+user ||--o{ cultivation_plan
+cultivation_plan ||--o{ plan_version
+plan_version ||--o{ care_task
+user ||--o{ care_task
+plot ||--o{ care_task
+care_task ||--o{ task_evidence_photo
+care_task ||--o{ material_usage
+material ||--o{ material_usage
+service_request ||--o{ care_task
+plot ||--o{ issue_report
+user ||--o{ issue_report
+issue_report ||--o{ issue_comment
+user ||--o{ issue_comment
+user ||--o{ consultation_ticket
+consultation_ticket ||--o{ chat_message
+user ||--o{ chat_message
+plot ||--o{ sensor_reading
+plot ||--o{ environmental_alert
+environmental_alert ||--o| care_task
+environmental_alert ||--o| service_request
+rental ||--o{ farm_diary_entry
+care_task ||--o| farm_diary_entry
+user ||--o{ farm_diary_entry
+rental ||--|| harvest_result
+user ||--o{ harvest_result
+user ||--o{ notification
+user ||--o{ rental
+
+legend bottom right
+  |<#LightBlue>| PK = Khóa chính
+  |<#LightGreen>| FK = Khóa ngoại
+  |<#LightYellow>| UQ = Unique
+  ||--o{ : 1 - N
+  ||--|| : 1 - 1
+  ||--o| : 1 - 0..1
+endlegend
+@enduml

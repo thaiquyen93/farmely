@@ -1,0 +1,168 @@
+@startuml
+' ISP392 AgriTech (Farmely) — Conceptual ERD: khớp 27 bảng SQL Server
+skinparam shadowing false
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam classAttributeIconSize 0
+hide methods
+hide stereotypes
+
+skinparam package {
+  BackgroundColor #FFFFFF
+  BorderColor #CBD5E1
+  FontColor #1E3A8A
+  FontStyle bold
+  FontSize 15
+}
+
+title CONCEPTUAL ERD — NỀN TẢNG THUÊ PLOT & THEO DÕI CANH TÁC (FARMELY)
+caption 13 thực thể nghiệp vụ lõi · Thuộc tính chính + PK/FK · Chi tiết đầy đủ 27 bảng xem 5 Sub-ERD
+
+package "1. TÀI NGUYÊN NÔNG HỌC" {
+  entity "lands" as Lands {
+    * land_id : INT <<PK, Identity>>
+    --
+    * land_name : NVARCHAR
+    address : NVARCHAR
+    gps_lat : DECIMAL
+    gps_lng : DECIMAL
+  }
+
+  entity "plots" as Plots {
+    * plot_id : INT <<PK, Identity>>
+    --
+    * land_id : INT <<FK>>
+    * plot_code : VARCHAR <<UQ>>
+    * area : DECIMAL
+    * price_per_period : DECIMAL
+    * status : VARCHAR
+  }
+
+  entity "crops" as Crops {
+    * crop_id : INT <<PK, Identity>>
+    --
+    * crop_name : NVARCHAR <<UQ>>
+    category : NVARCHAR
+  }
+
+  entity "varieties" as Varieties {
+    * variety_id : INT <<PK, Identity>>
+    --
+    * crop_id : INT <<FK>>
+    * variety_name : NVARCHAR
+    * expected_duration : INT
+  }
+
+  entity "process_templates" as Templates {
+    * template_id : INT <<PK, Identity>>
+    --
+    * variety_id : INT <<FK>>
+    * expert_id : INT <<FK>>
+    * version : VARCHAR
+  }
+}
+
+package "2. GIAO DỊCH THUÊ" {
+  entity "users" as Users {
+    * user_id : INT <<PK, Identity>>
+    --
+    * role_id : INT <<FK>>
+    * email : VARCHAR <<UQ>>
+    * full_name : NVARCHAR
+    * status : VARCHAR
+  }
+
+  entity "orders" as Orders {
+    * order_id : INT <<PK, Identity>>
+    --
+    * customer_id : INT <<FK>>
+    * total_amount : DECIMAL
+    * status : VARCHAR
+    * expires_at : DATETIME2
+  }
+
+  entity "rentals" as Rentals {
+    * rental_id : INT <<PK, Identity>>
+    --
+    * order_id : INT <<FK>>
+    * plot_id : INT <<FK>>
+    * variety_id : INT <<FK>>
+    * cultivation_mode : VARCHAR
+    * locked_price : DECIMAL
+    * status : VARCHAR
+  }
+
+  entity "payment_transactions" as Payments {
+    * transaction_id : INT <<PK, Identity>>
+    --
+    order_id : INT <<FK, NULL>>
+    * amount : DECIMAL
+    * status : VARCHAR
+  }
+}
+
+package "3. CANH TÁC & KẾT QUẢ" {
+  entity "cultivation_plans" as Plans {
+    * plan_id : INT <<PK, Identity>>
+    --
+    * rental_id : INT <<FK, UQ>>
+    expert_id : INT <<FK>>
+    * status : VARCHAR
+  }
+
+  entity "care_tasks" as Tasks {
+    * task_id : INT <<PK, Identity>>
+    --
+    * rental_id : INT <<FK>>
+    * task_name : NVARCHAR
+    * task_type : VARCHAR
+    * due_date : DATE
+    * status : VARCHAR
+  }
+
+  entity "sensor_readings" as Sensors {
+    * reading_id : BIGINT <<PK, Identity>>
+    --
+    * plot_id : INT <<FK>>
+    * temperature : DECIMAL
+    * soil_humidity : DECIMAL
+    * recorded_at : DATETIME2
+  }
+
+  entity "harvest_results" as Harvests {
+    * harvest_id : INT <<PK, Identity>>
+    --
+    * rental_id : INT <<FK, UQ>>
+    * harvest_date : DATE
+    * yield_amount : DECIMAL
+    * disposal_method : NVARCHAR
+  }
+}
+
+' Luong tai nguyen
+Lands ||--o{ Plots
+Crops ||--o{ Varieties
+Plots }o--o{ Varieties : compatible
+Varieties ||--o{ Templates
+
+' Luong giao dich
+Users ||--o{ Orders : customer
+Orders ||--o{ Rentals : "1 order gom N rental"
+Plots ||--o{ Rentals
+Varieties ||--o{ Rentals
+Orders ||--o{ Payments
+
+' Luong canh tac
+Rentals ||--o| Plans : "Assisted only"
+Plans ||--o{ Tasks
+Rentals ||--o{ Tasks
+Plots ||--o{ Sensors : "mock / 3h"
+Rentals ||--|| Harvests
+
+legend bottom
+  Mỗi entity hiển thị thuộc tính chính (PK, FK, key business fields).
+  Bảng trung gian, template_steps, materials, chat, notifications và chi tiết nằm trong 5 Sub-ERD.
+  Khớp 100% với farmely_27tables_sqlserver.sql (INT IDENTITY, số nhiều, Orders cart model).
+endlegend
+@enduml

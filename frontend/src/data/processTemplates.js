@@ -26,7 +26,7 @@ export const processTemplatesData = [
         stepNumber: 2,
         dayOffset: 2,
         taskName: "Xuống giống cây con F1 đã ươm sẵn",
-        description: "Cấy cây con 4 lá thật từ bộ Starter Kit F1 vào hố đã chuẩn bị. Tưới đẫm nước gốc bằng dung dịch kích rễ sinh học Humic Acid.",
+        description: "Cấy cây con 4 lá thật đạt chuẩn kiểm định vào hố đã chuẩn bị. Tưới đẫm nước gốc bằng dung dịch kích rễ sinh học Humic Acid.",
         method: "Cấy tay nhẹ nhàng tránh vỡ bầu đất",
         durationMinutes: 60,
         status: "COMPLETED",

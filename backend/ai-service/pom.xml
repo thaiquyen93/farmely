@@ -6,15 +6,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.smartagrirent</groupId>
-        <artifactId>smartagrirent-backend</artifactId>
+        <groupId>com.farmely</groupId>
+        <artifactId>farmely-backend</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>ai-service</artifactId>
     <name>ai-service</name>
-    <description>AI & RAG Chatbot Service</description>
+    <description>AI &amp; RAG Chatbot Service</description>
 
     <dependencies>
         <dependency>

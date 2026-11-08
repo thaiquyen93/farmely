@@ -1,0 +1,59 @@
+@startuml uc_01_overview
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam titleFontSize 14
+skinparam titleFontStyle bold
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #37474F
+}
+skinparam package {
+  BackgroundColor #FAFAFA
+  BorderColor #90A4AE
+}
+
+actor "Customer (KH)" as KH
+actor "Agri Expert (CGNN)" as CGNN
+actor "Field Worker (CVLĐ)" as CVLD
+actor "Administrator (AD)" as AD
+
+actor "Payment Gateway" as PG <<System>>
+actor "IoT Station" as IOT <<System>>
+
+rectangle "Farmely System - High-Level Overview" {
+  usecase "UC-O1: Manage Account & Profile" as O1
+  usecase "UC-O2: Browse & Lease Farmland Plots" as O2
+  usecase "UC-O3: Monitor Cultivation & IoT Telemetry" as O3
+  usecase "UC-O4: Formulate Agronomy Standard Processes" as O4
+  usecase "UC-O5: Execute On-site Field Tasks" as O5
+  usecase "UC-O6: Log & Accept Crop Harvest" as O6
+  usecase "UC-O7: Administer Farmland & Operations" as O7
+}
+
+KH --> O1
+KH --> O2
+KH --> O3
+KH --> O6
+
+CGNN --> O1
+CGNN --> O4
+CGNN --> O3
+
+CVLD --> O1
+CVLD --> O5
+CVLD --> O6
+
+AD --> O1
+AD --> O7
+
+O2 --> PG
+O3 --> IOT
+@enduml

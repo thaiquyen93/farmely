@@ -1,0 +1,438 @@
+<mxfile host="Electron">
+  <diagram name="ERD 2.0 - Clean White Minimalist" id="ERD2-CLEAN-WHITE">
+    <mxGraphModel dx="1224" dy="553" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="5200" pageHeight="1800" background="#FFFFFF" math="0" shadow="0" adaptiveColors="none">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="SUB-1" parent="1" style="swimlane;startSize=34;fontStyle=1;align=center;verticalAlign=top;collapsible=0;rounded=1;arcSize=6;fillColor=light-dark(#F8FAFC,#F8FAFC);strokeColor=light-dark(#64748B,#64748B);strokeWidth=1.5;fontColor=light-dark(#0F172A,#0F172A);fontSize=13.5;" value="SUBSYSTEM 1: ACCOUNT &amp; AUTHORIZATION (RBAC)" vertex="1">
+          <mxGeometry height="1000" width="400" x="80" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="SUB-2" parent="1" style="swimlane;startSize=34;fontStyle=1;align=center;verticalAlign=top;collapsible=0;rounded=1;arcSize=6;fillColor=light-dark(#F0FDF4,#F0FDF4);strokeColor=light-dark(#16A34A,#16A34A);strokeWidth=1.5;fontColor=light-dark(#14532D,#14532D);fontSize=13.5;" value="SUBSYSTEM 2: LAND, BIOLOGY &amp; PROCESS (MASTER DATA)" vertex="1">
+          <mxGeometry height="1380" width="1380" x="520" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="SUB-3" parent="1" style="swimlane;startSize=34;fontStyle=1;align=center;verticalAlign=top;collapsible=0;rounded=1;arcSize=6;fillColor=light-dark(#FFF1F2,#FFF1F2);strokeColor=light-dark(#E11D48,#E11D48);strokeWidth=1.5;fontColor=light-dark(#881337,#881337);fontSize=13.5;" value="ư" vertex="1">
+          <mxGeometry height="790" width="1180" x="1970" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="SUB-4" parent="1" style="swimlane;startSize=34;fontStyle=1;align=center;verticalAlign=top;collapsible=0;rounded=1;arcSize=6;fillColor=light-dark(#FFFBEB,#FFFBEB);strokeColor=light-dark(#D97706,#D97706);strokeWidth=1.5;fontColor=light-dark(#78350F,#78350F);fontSize=13.5;" value="SUBSYSTEM 4: CULTIVATION PLAN &amp; FIELD OPERATIONS (OPERATIONS)" vertex="1">
+          <mxGeometry height="700" width="860" x="3170" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="SUB-5" parent="1" style="swimlane;startSize=34;fontStyle=1;align=center;verticalAlign=top;collapsible=0;rounded=1;arcSize=6;fillColor=light-dark(#FAF5FF,#FAF5FF);strokeColor=light-dark(#9333EA,#9333EA);strokeWidth=1.5;fontColor=light-dark(#581C87,#581C87);fontSize=13.5;" value="SUBSYSTEM 5: HARVEST, REPORTS &amp; SYSTEM INTERACTION (COMMUNICATIONS &amp; AUDIT)" vertex="1">
+          <mxGeometry height="950" width="860" x="4120" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-roles" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="roles" vertex="1">
+          <mxGeometry height="100" width="240" x="150" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-roles" parent="TBL-roles" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;role_id (PK)&lt;/div&gt;&lt;div&gt;role_name&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="68" width="240" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-users" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="users" vertex="1">
+          <mxGeometry height="265" width="280" x="130" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-users" parent="TBL-users" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;user_id (PK)&lt;/div&gt;&lt;div&gt;role_id (FK)&lt;/div&gt;&lt;div&gt;email&lt;/div&gt;&lt;div&gt;password_hash&lt;/div&gt;&lt;div&gt;full_name&lt;/div&gt;&lt;div&gt;phone_number&lt;/div&gt;&lt;div&gt;address&lt;/div&gt;&lt;div&gt;status&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="233" width="280" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-site_visits" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="site_visits" vertex="1">
+          <mxGeometry height="224" width="280" x="130" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-site_visits" parent="TBL-site_visits" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;visit_id (PK)&lt;/div&gt;&lt;div&gt;plot_id (FK)&lt;/div&gt;&lt;div&gt;visitor_name&lt;/div&gt;&lt;div&gt;visitor_phone&lt;/div&gt;&lt;div&gt;visit_date&lt;/div&gt;&lt;div&gt;visit_slot (MORNING/AFTERNOON)&lt;/div&gt;&lt;div&gt;status&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="192" width="280" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-lands" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="lands" vertex="1">
+          <mxGeometry height="162" width="250" x="595" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-lands" parent="TBL-lands" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;land_id (PK)&lt;/div&gt;&lt;div&gt;land_name&lt;/div&gt;&lt;div&gt;address&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="130" width="250" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-plots" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="plots" vertex="1">
+          <mxGeometry height="328" width="280" x="580" y="442" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-plots" parent="TBL-plots" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;plot_id (PK)&lt;/div&gt;&lt;div&gt;land_id (FK)&lt;/div&gt;&lt;div&gt;plot_code&lt;/div&gt;&lt;div&gt;area&lt;/div&gt;&lt;div&gt;image_url&lt;/div&gt;&lt;div&gt;price_per_period&lt;/div&gt;&lt;div&gt;status (AVAIL/RENT/MAINT)&lt;/div&gt;&lt;div&gt;is_published (BOOLEAN)&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="296" width="280" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-sensor_readings" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="sensor_readings" vertex="1">
+          <mxGeometry height="183" width="280" x="580" y="880" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-sensor_readings" parent="TBL-sensor_readings" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;reading_id (PK)&lt;/div&gt;&lt;div&gt;plot_id (FK)&lt;/div&gt;&lt;div&gt;temperature&lt;/div&gt;&lt;div&gt;air_humidity&lt;/div&gt;&lt;div&gt;soil_humidity&lt;/div&gt;&lt;div&gt;recorded_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="151" width="280" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-crops" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="crops" vertex="1">
+          <mxGeometry height="121" width="240" x="970" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-crops" parent="TBL-crops" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;crop_id (PK)&lt;/div&gt;&lt;div&gt;crop_name&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="89" width="240" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-varieties" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="varieties" vertex="1">
+          <mxGeometry height="183" width="260" x="960" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-varieties" parent="TBL-varieties" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;variety_id (PK)&lt;/div&gt;&lt;div&gt;crop_id (FK)&lt;/div&gt;&lt;div&gt;variety_name&lt;/div&gt;&lt;div&gt;expected_duration&lt;/div&gt;&lt;div&gt;buffer_time&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="151" width="260" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-plot_crop_compatibility" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="plot_variety_compatibility" vertex="1">
+          <mxGeometry height="100" width="260" x="960" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-plot_crop_compatibility" parent="TBL-plot_crop_compatibility" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;plot_id (PK, FK)&lt;/div&gt;&lt;div&gt;variety_id (PK, FK)&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="68" width="260" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-knowledge_documents" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="knowledge_documents" vertex="1">
+          <mxGeometry height="183" width="260" x="960" y="980" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-knowledge_documents" parent="TBL-knowledge_documents" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;document_id (PK)&lt;/div&gt;&lt;div&gt;kd_created_by (FK)&lt;/div&gt;&lt;div&gt;title&lt;/div&gt;&lt;div&gt;content&lt;/div&gt;&lt;div&gt;file_url&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="151" width="260" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-services" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="services" vertex="1">
+          <mxGeometry height="224" width="280" x="960" y="1260" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-services" parent="TBL-services" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;service_id (PK)&lt;/div&gt;&lt;div&gt;service_name&lt;/div&gt;&lt;div&gt;service_type (A_LA_CARTE/FULL)&lt;/div&gt;&lt;div&gt;price&lt;/div&gt;&lt;div&gt;unit&lt;/div&gt;&lt;div&gt;description&lt;/div&gt;&lt;div&gt;status (ACTIVE/INACTIVE)&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="192" width="280" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-process_templates" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="process_templates" vertex="1">
+          <mxGeometry height="162" width="260" x="1340" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-process_templates" parent="TBL-process_templates" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;template_id (PK)&lt;/div&gt;&lt;div&gt;variety_id (FK)&lt;/div&gt;&lt;div&gt;pt_created_by (FK)&lt;/div&gt;&lt;div&gt;version&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="130" width="260" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-template_steps" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="template_steps" vertex="1">
+          <mxGeometry height="286" width="260" x="1340" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-template_steps" parent="TBL-template_steps" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;step_id (PK)&lt;/div&gt;&lt;div&gt;template_id (FK)&lt;/div&gt;&lt;div&gt;step_name&lt;/div&gt;&lt;div&gt;description&lt;/div&gt;&lt;div&gt;day_offset&lt;/div&gt;&lt;div&gt;duration_days&lt;/div&gt;&lt;div&gt;task_type&lt;/div&gt;&lt;div&gt;min_temp&lt;/div&gt;&lt;div&gt;max_temp&lt;/div&gt;&lt;div&gt;min_humidity&lt;/div&gt;&lt;div&gt;max_humidity&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="254" width="260" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-rentals" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="rentals" vertex="1">
+          <mxGeometry height="320" width="330" x="2410" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-rentals" parent="TBL-rentals" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;rental_id (PK)&lt;/div&gt;&lt;div&gt;contract_id (FK)&lt;/div&gt;&lt;div&gt;service_id (FK, NULL = Self-growing)&lt;/div&gt;&lt;div&gt;plot_id (FK)&lt;/div&gt;&lt;div&gt;variety_id (FK)&lt;/div&gt;&lt;div&gt;parent_rental_id (FK, Renewal)&lt;/div&gt;&lt;div&gt;start_date&lt;/div&gt;&lt;div&gt;end_date&lt;/div&gt;&lt;div&gt;total_price&lt;/div&gt;&lt;div&gt;status (PENDING/CONFIRMED/ACTIVE/DONE/CANCELLED)&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="288" width="330" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-cancellation_requests" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="contract_cancellations" vertex="1">
+          <mxGeometry height="205" width="320" x="2020" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-cancellation_requests" parent="TBL-cancellation_requests" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;cancellation_id (PK)&lt;/div&gt;&lt;div&gt;contract_id (FK)&lt;/div&gt;&lt;div&gt;cancelled_by (FK)&lt;/div&gt;&lt;div&gt;reason&lt;/div&gt;&lt;div&gt;status (PENDING/APPROVED/DONE)&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;processed_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="173" width="320" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-service_requests" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="service_requests" vertex="1">
+          <mxGeometry height="205" width="300" x="2810" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-service_requests" parent="TBL-service_requests" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;request_id (PK)&lt;/div&gt;&lt;div&gt;rental_id (FK)&lt;/div&gt;&lt;div&gt;service_id (FK)&lt;/div&gt;&lt;div&gt;scheduled_date&lt;/div&gt;&lt;div&gt;status (PENDING/ASSIGNED/DONE)&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="173" width="300" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-payment_transactions" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="payment_transactions" vertex="1">
+          <mxGeometry height="260" width="330" x="2410" y="646" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-payment_transactions" parent="TBL-payment_transactions" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;transaction_id (PK)&lt;/div&gt;&lt;div&gt;contract_id (FK, NULL)&lt;/div&gt;&lt;div&gt;service_request_id (FK, NULL)&lt;/div&gt;&lt;div&gt;cancellation_request_id (FK, Refund, NULL)&lt;/div&gt;&lt;div&gt;type (PAYMENT / REFUND)&lt;/div&gt;&lt;div&gt;amount&lt;/div&gt;&lt;div&gt;payment_method&lt;/div&gt;&lt;div&gt;gateway_ref&lt;/div&gt;&lt;div&gt;status (PENDING/SUCCESS/FAILED)&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="205" width="330" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-care_tasks" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="care_tasks" vertex="1">
+          <mxGeometry height="307" width="340" x="3190" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-care_tasks" parent="TBL-care_tasks" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;task_id (PK)&lt;/div&gt;&lt;div&gt;rental_id (FK)&lt;/div&gt;&lt;div&gt;step_id (FK, NULL)&lt;/div&gt;&lt;div&gt;service_request_id (FK, NULL)&lt;/div&gt;&lt;div&gt;task_assigned_to (FK)&lt;/div&gt;&lt;div&gt;due_date&lt;/div&gt;&lt;div&gt;status (PENDING/IN_PROG/DONE)&lt;/div&gt;&lt;div&gt;evidence_image_url&lt;/div&gt;&lt;div&gt;notes&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="275" width="340" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-farm_diaries" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="farm_diaries" vertex="1">
+          <mxGeometry height="183" width="290" x="3630" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-farm_diaries" parent="TBL-farm_diaries" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;diary_id (PK)&lt;/div&gt;&lt;div&gt;rental_id (FK)&lt;/div&gt;&lt;div&gt;task_id (FK, Auto Sync Task)&lt;/div&gt;&lt;div&gt;content&lt;/div&gt;&lt;div&gt;image_url&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="151" width="290" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-harvest_results" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="harvest_results" vertex="1">
+          <mxGeometry height="245" width="340" x="4190" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-harvest_results" parent="TBL-harvest_results" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;harvest_id (PK)&lt;/div&gt;&lt;div&gt;rental_id (FK)&lt;/div&gt;&lt;div&gt;entered_by (FK)&lt;/div&gt;&lt;div&gt;harvest_date&lt;/div&gt;&lt;div&gt;yield_amount&lt;/div&gt;&lt;div&gt;evidence_image_url&lt;/div&gt;&lt;div&gt;delivery_type (PICKUP/DELIVERY)&lt;/div&gt;&lt;div&gt;customer_confirmed (BOOLEAN)&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="213" width="340" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-issue_reports" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="issue_reports" vertex="1">
+          <mxGeometry height="286" width="300" x="4190" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-issue_reports" parent="TBL-issue_reports" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;issue_id (PK)&lt;/div&gt;&lt;div&gt;rental_id (FK)&lt;/div&gt;&lt;div&gt;reported_by (FK)&lt;/div&gt;&lt;div&gt;handled_by (FK, CGNN)&lt;/div&gt;&lt;div&gt;issue_type&lt;/div&gt;&lt;div&gt;description&lt;/div&gt;&lt;div&gt;image_url&lt;/div&gt;&lt;div&gt;status (OPEN/RESOLVED)&lt;/div&gt;&lt;div&gt;resolution_notes&lt;/div&gt;&lt;div&gt;resolved_at&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="254" width="300" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-audit_logs" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="audit_logs" vertex="1">
+          <mxGeometry height="224" width="300" x="4190" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-audit_logs" parent="TBL-audit_logs" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;log_id (PK)&lt;/div&gt;&lt;div&gt;user_id (FK)&lt;/div&gt;&lt;div&gt;action&lt;/div&gt;&lt;div&gt;entity_name&lt;/div&gt;&lt;div&gt;entity_id&lt;/div&gt;&lt;div&gt;details&lt;/div&gt;&lt;div&gt;ip_address&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="192" width="300" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-conversations" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="conversations" vertex="1">
+          <mxGeometry height="224" width="320" x="4600" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-conversations" parent="TBL-conversations" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;conversation_id (PK)&lt;/div&gt;&lt;div&gt;participant_one (FK)&lt;/div&gt;&lt;div&gt;participant_two (FK, NULL)&lt;/div&gt;&lt;div&gt;rental_id (FK, NULL)&lt;/div&gt;&lt;div&gt;plot_id (FK, NULL)&lt;/div&gt;&lt;div&gt;type (AI/CUST_EXP/STAFF_EXP)&lt;/div&gt;&lt;div&gt;status (OPEN/CLOSED)&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="192" width="320" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-messages" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="messages" vertex="1">
+          <mxGeometry height="183" width="320" x="4600" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-messages" parent="TBL-messages" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;message_id (PK)&lt;/div&gt;&lt;div&gt;conversation_id (FK)&lt;/div&gt;&lt;div&gt;sender_id (FK, NULL)&lt;/div&gt;&lt;div&gt;content&lt;/div&gt;&lt;div&gt;attachment_url&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="151" width="320" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="TBL-notifications" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="notifications" vertex="1">
+          <mxGeometry height="183" width="300" x="4600" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-notifications" parent="TBL-notifications" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;notification_id (PK)&lt;/div&gt;&lt;div&gt;user_id (FK)&lt;/div&gt;&lt;div&gt;title&lt;/div&gt;&lt;div&gt;content&lt;/div&gt;&lt;div&gt;is_read (BOOLEAN)&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="151" width="300" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-roles-users" edge="1" parent="1" source="TBL-roles" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-users" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-lands-plots" edge="1" parent="1" source="TBL-lands" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-plots" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-plots-readings" edge="1" parent="1" source="TBL-plots" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-sensor_readings" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-plots-sitevisits" edge="1" parent="1" source="TBL-plots" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;entryX=1.0;entryY=0.359;entryDx=0;entryDy=0;;exitX=0.0;exitY=0.711;exitDx=0;exitDy=0;" target="TBL-site_visits" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="580" y="697" />
+              <mxPoint x="440" y="697" />
+              <mxPoint x="440" y="900.4" />
+            </Array>
+            <mxPoint x="580" y="697" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-crops-varieties" edge="1" parent="1" source="TBL-crops" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-varieties" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-plots-compatibility" edge="1" parent="1" source="TBL-plots" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.719;exitDx=0;exitDy=0;entryX=0.0;entryY=0.300;entryDx=0;entryDy=0;" target="TBL-plot_crop_compatibility" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="860" y="680" />
+              <mxPoint x="920" y="680" />
+              <mxPoint x="920" y="730" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-varieties-compatibility" edge="1" parent="1" source="TBL-varieties" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-plot_crop_compatibility" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-varieties-templates" edge="1" parent="1" source="TBL-varieties" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.321;exitDx=0;exitDy=0;entryX=0.0;entryY=0.506;entryDx=0;entryDy=0;" target="TBL-process_templates" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1260" y="498.79" />
+              <mxPoint x="1260" y="302.03" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-users-templates" edge="1" parent="1" source="CNT-users" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;entryX=0.3;entryY=0.0;entryDx=0;entryDy=0;exitX=1.005;exitY=0.362;exitDx=0;exitDy=0;exitPerimeter=0;" target="TBL-process_templates" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="470" y="536.3" />
+              <mxPoint x="470" y="100" />
+              <mxPoint x="1418" y="100" />
+            </Array>
+            <mxPoint x="400.09" y="420" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-templates-steps" edge="1" parent="1" source="TBL-process_templates" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERoneToMany;endFill=0;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-template_steps" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-users-knowledgedocs" edge="1" parent="1" source="TBL-users" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.870;exitDx=0;exitDy=0;entryX=0.0;entryY=0.268;entryDx=0;entryDy=0;" target="TBL-knowledge_documents" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="470" y="650" />
+              <mxPoint x="470" y="810" />
+              <mxPoint x="910" y="810" />
+              <mxPoint x="910" y="1029" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-plots-rentals" edge="1" parent="1" source="TBL-plots" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.368;exitDx=0;exitDy=0;entryX=0.25;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-rentals" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="895" y="563" />
+              <mxPoint x="895" y="170" />
+              <mxPoint x="2492" y="170" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-varieties-rentals" edge="1" parent="1" source="TBL-varieties" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.214;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-rentals" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1270" y="479" />
+              <mxPoint x="1910" y="479" />
+              <mxPoint x="1910" y="190" />
+              <mxPoint x="2575" y="190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-rentals-parent" edge="1" parent="1" source="TBL-rentals" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERzeroToOne;startFill=0;endArrow=ERzeroToOne;endFill=0;exitX=0.85;exitY=0.0;exitDx=0;exitDy=0;entryX=1.0;entryY=0.1;entryDx=0;entryDy=0;innerLoopWaypoints=1;" target="TBL-rentals" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2690.43" y="180" />
+              <mxPoint x="2760" y="180" />
+              <mxPoint x="2760" y="252" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-users-cancellation" edge="1" parent="1" source="TBL-users" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.36;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" target="TBL-cancellation_requests" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="460" y="515.4" />
+              <mxPoint x="460" y="80" />
+              <mxPoint x="1940" y="80" />
+              <mxPoint x="1940" y="712.5" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-services-srequests" edge="1" parent="1" source="TBL-services" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.393;exitDx=0;exitDy=0;entryX=0.4;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-service_requests" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1880" y="1348" />
+              <mxPoint x="1880" y="150" />
+              <mxPoint x="2930" y="150" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-rentals-srequests" edge="1" parent="1" source="TBL-rentals" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.16;exitDx=0;exitDy=0;entryX=0.0;entryY=0.25;entryDx=0;entryDy=0;" target="TBL-service_requests" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-cancellation-payments" edge="1" parent="1" source="TBL-cancellation_requests" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToOne;endFill=0;exitX=1.0;exitY=0.58;exitDx=0;exitDy=0;entryX=0.0;entryY=0.33;entryDx=0;entryDy=0;" target="TBL-payment_transactions" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-srequests-payments" edge="1" parent="1" source="TBL-service_requests" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToOne;endFill=0;exitX=0.33;exitY=1.0;exitDx=0;exitDy=0;entryX=1.0;entryY=0.57;entryDx=0;entryDy=0;" target="TBL-payment_transactions" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2910" y="720" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-rentals-caretasks" edge="1" parent="1" source="TBL-rentals" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.75;exitDx=0;exitDy=0;entryX=0.0;entryY=0.73;entryDx=0;entryDy=0;" target="TBL-care_tasks" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2760" y="460" />
+              <mxPoint x="3140" y="460" />
+              <mxPoint x="3140" y="444" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-steps-caretasks" edge="1" parent="1" source="TBL-template_steps" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.245;exitDx=0;exitDy=0;entryX=0.0;entryY=0.435;entryDx=0;entryDy=0;" target="TBL-care_tasks" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1680" y="610" />
+              <mxPoint x="1680" y="1070" />
+              <mxPoint x="3150" y="1070" />
+              <mxPoint x="3150" y="353" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-caretasks-diaries" edge="1" parent="1" source="TBL-care_tasks" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToOne;endFill=0;exitX=1.0;exitY=0.354;exitDx=0;exitDy=0;entryX=0.0;entryY=0.589;entryDx=0;entryDy=0;" target="TBL-farm_diaries" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-rentals-diaries" edge="1" parent="1" source="TBL-rentals" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.8;exitY=0.0;exitDx=0;exitDy=0;entryX=0.4;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-farm_diaries" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2674" y="110" />
+              <mxPoint x="3746" y="110" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-rentals-harvest" edge="1" parent="1" source="TBL-rentals" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToOne;endFill=0;exitX=0.8;exitY=1.0;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;" target="TBL-harvest_results" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2674.06" y="570" />
+              <mxPoint x="2770.06" y="570" />
+              <mxPoint x="2770.06" y="860" />
+              <mxPoint x="4090.06" y="860" />
+              <mxPoint x="4090.06" y="342.47" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-rentals-issuereports" edge="1" parent="1" source="TBL-rentals" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.85;exitY=1.0;exitDx=0;exitDy=0;entryX=0.0;entryY=0.49;entryDx=0;entryDy=0;" target="TBL-issue_reports" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2690" y="560" />
+              <mxPoint x="2780" y="560" />
+              <mxPoint x="2780" y="880" />
+              <mxPoint x="4140" y="880" />
+              <mxPoint x="4140" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-rentals-conversations" edge="1" parent="1" source="TBL-rentals" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.7;exitY=0.0;exitDx=0;exitDy=0;entryX=0.3;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-conversations" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2641" y="90" />
+              <mxPoint x="4696" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-conversations-messages" edge="1" parent="1" source="TBL-conversations" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-messages" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-users-notifications" edge="1" parent="1" source="CNT-users" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;entryX=1.0;entryY=0.536;entryDx=0;entryDy=0;exitX=1.003;exitY=0.123;exitDx=0;exitDy=0;exitPerimeter=0;" target="TBL-notifications" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440.06" y="480.69" />
+              <mxPoint x="440.06" y="40" />
+              <mxPoint x="4960.06" y="40" />
+              <mxPoint x="4960.06" y="918.11" />
+            </Array>
+            <mxPoint x="410" y="470" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-users-auditlogs" edge="1" parent="1" source="TBL-users" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;entryX=0.0;entryY=0.491;entryDx=0;entryDy=0;;exitX=1.0;exitY=0.154;exitDx=0;exitDy=0;" target="TBL-audit_logs" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="430.1" y="460.8" />
+              <mxPoint x="430.1" y="20" />
+              <mxPoint x="4070" y="20" />
+              <mxPoint x="4070" y="930" />
+            </Array>
+            <mxPoint x="410" y="460" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="VkKjGYEtX9G6XfylhRQ5-5" edge="1" parent="1" source="TBL-services" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.0;entryY=0.65;entryDx=0;entryDy=0;" target="TBL-rentals" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1099.94" y="1560" />
+              <mxPoint x="1929.94" y="1560" />
+              <mxPoint x="1929.94" y="850" />
+              <mxPoint x="2369.94" y="850" />
+              <mxPoint x="2369.94" y="428" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-srequests-caretasks" edge="1" parent="1" source="TBL-service_requests" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToOne;endFill=0;exitX=1.0;exitY=0.29;exitDx=0;exitDy=0;entryX=0.0;entryY=0.2;entryDx=0;entryDy=0;" target="TBL-care_tasks" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-rentals-payments" edge="1" parent="1" source="TBL-rentals" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.75;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="TBL-payment_transactions" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2657.47" y="600" />
+              <mxPoint x="2575" y="600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TBL-contracts" parent="1" style="swimlane;horizontal=1;startSize=32;rounded=1;arcSize=8;strokeWidth=1.5;strokeColor=light-dark(#232B35,#232B35);fillColor=light-dark(#232B35,#232B35);swimlaneFillColor=light-dark(#FFFFFF,#FFFFFF);fontColor=light-dark(#FFFFFF,#FFFFFF);fontStyle=1;fontSize=12.5;fontFamily=Helvetica;align=center;verticalAlign=middle;collapsible=0" value="contracts" vertex="1">
+          <mxGeometry height="275" width="330" x="2020" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="CNT-contracts" parent="TBL-contracts" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=14;spacingRight=14;spacingTop=10;spacingBottom=10;fontSize=11.5;fontFamily=Helvetica;fontColor=light-dark(#232B35,#232B35);overflow=visible;" value="&lt;div style=&quot;line-height: 1.8;&quot;&gt;&lt;div&gt;contract_id (PK)&lt;/div&gt;&lt;div&gt;renter_id (FK)&lt;/div&gt;&lt;div&gt;contract_number&lt;/div&gt;&lt;div&gt;total_amount&lt;/div&gt;&lt;div&gt;status (PENDING_PAYMENT/ACTIVE/COMPLETED/CANCELLED)&lt;/div&gt;&lt;div&gt;reservation_expires_at&lt;/div&gt;&lt;div&gt;contract_document_url&lt;/div&gt;&lt;div&gt;created_at&lt;/div&gt;&lt;div&gt;updated_at&lt;/div&gt;&lt;/div&gt;" vertex="1">
+          <mxGeometry height="228" width="330" y="32" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-users-contracts" edge="1" parent="1" source="TBL-users" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=1.0;exitY=0.275;exitDx=0;exitDy=0;entryX=0.2;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-contracts" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="450" y="493" />
+              <mxPoint x="450" y="60" />
+              <mxPoint x="2084" y="60" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="EDG-contracts-rentals" edge="1" parent="1" source="TBL-contracts" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERoneToMany;endFill=0;exitX=1.0;exitY=0.2;exitDx=0;exitDy=0;entryX=0.0;entryY=0.16;entryDx=0;entryDy=0;" target="TBL-rentals" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-contracts-cancellation" edge="1" parent="1" source="TBL-contracts" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToOne;endFill=0;exitX=0.37;exitY=1.0;exitDx=0;exitDy=0;entryX=0.37;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-cancellation_requests" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="EDG-contracts-payments" edge="1" parent="1" source="TBL-contracts" style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.5;strokeColor=light-dark(#475569,#475569);startArrow=ERmandOne;startFill=0;endArrow=ERzeroToMany;endFill=0;exitX=0.75;exitY=1.0;exitDx=0;exitDy=0;entryX=0.2;entryY=0.0;entryDx=0;entryDy=0;" target="TBL-payment_transactions" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2267.5" y="510" />
+              <mxPoint x="2375" y="510" />
+              <mxPoint x="2375" y="560" />
+              <mxPoint x="2476" y="560" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

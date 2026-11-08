@@ -1,0 +1,73 @@
+@startuml uc_02_operations_farmely
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam titleFontSize 14
+skinparam titleFontStyle bold
+skinparam linetype ortho
+left to right direction
+
+skinparam actor {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+}
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #37474F
+}
+skinparam package {
+  BackgroundColor #FAFAFA
+  BorderColor #90A4AE
+}
+
+actor "Agricultural Expert (CGNN)" as CGNN
+actor "Field Worker (CVLĐ)" as CVLD
+actor "Administrator (AD)" as AD
+
+rectangle "Farm Operations & Administration Subsystem" {
+
+  package "1. Agronomy Knowledge & Technical Guidance" as P1 {
+    usecase "UC-OPS01: Formulate Standard Crop Process Template" as OPS01
+    usecase "UC-OPS02: Configure Safe IoT Microclimate Thresholds" as OPS02
+    usecase "UC-OPS03: Guide Field Issue Resolution" as OPS03
+  }
+
+  package "2. Field Operations & Transparent Harvest" as P2 {
+    usecase "UC-OPS04: Execute Prioritized Daily Care Task\n(No Material Tracking)" as OPS04
+    usecase "UC-OPS05: Upload Mandatory On-Site Photo Proof" as OPS05
+    usecase "UC-OPS06: Trigger Automatic Farm Diary Sync" as OPS06
+    usecase "UC-OPS07: Report Field Anomaly & Pest Incident" as OPS07
+    usecase "UC-OPS08: Log Harvest Yield with Scale Photo & Staff ID" as OPS08
+  }
+
+  package "3. Soil Maintenance & Platform Governance" as P3 {
+    usecase "UC-OPS09: Enforce Automatic 4-Day Soil Fallow Period\n(Fixed Maintenance Cycle)" as OPS09
+    usecase "UC-OPS10: Manage Farmland Plots & IoT Bindings" as OPS10
+    usecase "UC-OPS11: Review & Approve Lease Refund Requests" as OPS11
+    usecase "UC-OPS12: Administer User Accounts & RBAC Roles" as OPS12
+  }
+}
+
+' Expert connections
+CGNN --> OPS01
+CGNN --> OPS02
+CGNN --> OPS03
+
+' Field worker connections
+CVLD --> OPS04
+CVLD --> OPS07
+CVLD --> OPS08
+
+' Admin connections
+AD --> OPS10
+AD --> OPS11
+AD --> OPS12
+
+' Operational inclusions and extensions
+OPS04 ..> OPS05 : <<include>>
+OPS05 ..> OPS06 : <<include>>
+OPS07 ..> OPS03 : <<extend>>
+OPS08 ..> OPS09 : <<include>>
+
+@enduml

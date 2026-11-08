@@ -14,12 +14,26 @@ target/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.run/
 .DS_Store
 Thumbs.db
 *.local
-.env.local
-.env.*.local
+.env
+.env.*
+!.env.example
+!.env.*.example
 
 # Context & uploaded assets
 /context
 /images/
+
+# Local tools & references (kept on local machine, excluded from git)
+/.vscode/
+/references/
+/tools/
+.cursorrules
+.agents/
+capture_*.py
+/docs/screenshots_srs/
+frontend/public/uploads/
+!frontend/public/uploads/.gitkeep

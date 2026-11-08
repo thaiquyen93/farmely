@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function Input({
   label,
@@ -10,6 +11,8 @@ export default function Input({
   required,
   ...props
 }) {
+  const [visible, setVisible] = useState(false);
+  const isPassword = props.type === 'password';
   const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
   return (
@@ -28,14 +31,16 @@ export default function Input({
         <input
           id={inputId}
           className={`w-full rounded-xl border bg-white text-sm text-brand-dark transition-all duration-200 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-green/20 ${
-            Icon ? 'pl-10 pr-3.5' : 'px-3.5'
+            `${Icon ? 'pl-10' : 'px-3.5'} ${isPassword ? 'pr-11' : 'pr-3.5'}`
           } py-2.5 ${
             error
               ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
               : 'border-brand-border focus:border-brand-green'
           }`}
           {...props}
+          type={isPassword && visible ? 'text' : props.type}
         />
+        {isPassword && <button type="button" aria-label={visible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} onClick={() => setVisible((value) => !value)} className="absolute inset-y-0 right-0 flex items-center px-3 text-brand-muted hover:text-brand-dark"><span className="sr-only">{visible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}</span>{visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>}
       </div>
       {error && <p className="mt-1.5 text-xs text-rose-600 font-medium">{error}</p>}
       {!error && helperText && <p className="mt-1.5 text-xs text-brand-muted">{helperText}</p>}
