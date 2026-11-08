@@ -2312,8 +2312,8 @@ function OverviewTab({
 
   return (
     <div className="space-y-6">
-      {/* 0. Chu kỳ mùa vụ thửa đất (Season Selector) - Luôn hiển thị tại Tab Tổng quan để khách thuê theo dõi toàn bộ các vụ */}
-      {seasons && seasons.length > 0 && (
+      {/* 0. Chu kỳ mùa vụ thửa đất (Season Selector) - Chỉ hiển thị tại Tổng quan khi đất đã xong vụ và đang trong thời gian đệm (buffer / fallow BR23) */}
+      {isSoilPrep && seasons && seasons.length > 0 && (
         <SeasonSelector
           seasons={seasons}
           activeSeasonId={activeSeasonId || activeSeason?.id}
