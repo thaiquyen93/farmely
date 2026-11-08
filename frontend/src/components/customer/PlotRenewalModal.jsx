@@ -517,9 +517,9 @@ export default function PlotRenewalModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl bg-emerald-700 px-6 py-2.5 text-xs font-black text-white hover:bg-emerald-800 shadow-md transition cursor-pointer"
+              className="rounded-xl bg-amber-700 px-6 py-2.5 text-xs font-black text-white hover:bg-amber-800 shadow-md transition cursor-pointer"
             >
-              Xem ngay trên Workspace
+              Quay lại Bảng Bảo Trì Chờ Duyệt
             </button>
           </div>
         ) : (

@@ -2995,6 +2995,11 @@ export default function CustomerPlotWorkspace({
         if (saved) {
           const parsed = JSON.parse(saved);
           setCustomSeasons(parsed);
+          const activeS = parsed.find((s) => s.isCurrent || s.status === 'ACTIVE' || s.isApprovedByAdmin);
+          if (activeS) {
+            setActiveSeasonId(activeS.id);
+          }
+          setIsSeasonStarted(true);
         }
       } catch {}
     };
@@ -4145,7 +4150,10 @@ export default function CustomerPlotWorkspace({
         onRenewSuccess={(updatedSeasons) => {
           setCustomSeasons(updatedSeasons);
           const newest = updatedSeasons[updatedSeasons.length - 1];
-          if (newest) setActiveSeasonId(newest.id);
+          // Khi vụ mới đang chờ duyệt, KHÔNG chuyển activeSeasonId để giữ nguyên ở view bảo trì đất (BR23)
+          if (newest && newest.status !== 'PENDING_APPROVAL') {
+            setActiveSeasonId(newest.id);
+          }
         }}
       />
 
