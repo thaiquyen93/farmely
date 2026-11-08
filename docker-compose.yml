@@ -13,7 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - farmely_postgres_data:/var/lib/postgresql/data
-      - ./context/farmely_full_database.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./Database/farmely_full_database.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d farmely"]
       interval: 5s
@@ -44,13 +44,22 @@ services:
     container_name: farmely-api-gateway
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - DB_URL=jdbc:postgresql://postgres:5432/farmely
-      - DB_HOST=postgres
+      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=farmely
       - DB_USER=postgres
-      - DB_PASS=password
-      - DB_PASSWORD=password
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
+      - IDENTITY_SERVICE_HOST=identity-service
+      - FARM_SERVICE_HOST=farm-service
+      - KNOWLEDGE_SERVICE_HOST=knowledge-service
+      - RENTAL_SERVICE_HOST=rental-service
+      - PAYMENT_SERVICE_HOST=payment-service
+      - CULTIVATION_SERVICE_HOST=cultivation-service
+      - COMMUNICATION_SERVICE_HOST=communication-service
+      - MONITORING_SERVICE_HOST=monitoring-service
+      - AI_SERVICE_HOST=ai-service
     ports:
       - "8080:8080"
     depends_on:
@@ -65,13 +74,13 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-identity-service
     environment:
-      - DB_URL=jdbc:postgresql://postgres:5432/farmely
-      - DB_HOST=postgres
+      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=farmely
       - DB_USER=postgres
-      - DB_PASS=password
-      - DB_PASSWORD=password
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8081:8081"
     depends_on:
@@ -86,13 +95,13 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-farm-service
     environment:
-      - DB_URL=jdbc:postgresql://postgres:5432/farmely
-      - DB_HOST=postgres
+      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=farmely
       - DB_USER=postgres
-      - DB_PASS=password
-      - DB_PASSWORD=password
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8082:8082"
     depends_on:
@@ -107,13 +116,13 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-knowledge-service
     environment:
-      - DB_URL=jdbc:postgresql://postgres:5432/farmely
-      - DB_HOST=postgres
+      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=farmely
       - DB_USER=postgres
-      - DB_PASS=password
-      - DB_PASSWORD=password
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8083:8083"
     depends_on:
@@ -128,13 +137,13 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-rental-service
     environment:
-      - DB_URL=jdbc:postgresql://postgres:5432/farmely
-      - DB_HOST=postgres
+      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=farmely
       - DB_USER=postgres
-      - DB_PASS=password
-      - DB_PASSWORD=password
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8084:8084"
     depends_on:
@@ -149,13 +158,13 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-payment-service
     environment:
-      - DB_URL=jdbc:postgresql://postgres:5432/farmely
-      - DB_HOST=postgres
+      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=farmely
       - DB_USER=postgres
-      - DB_PASS=password
-      - DB_PASSWORD=password
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8085:8085"
     depends_on:
@@ -170,13 +179,13 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-cultivation-service
     environment:
-      - DB_URL=jdbc:postgresql://postgres:5432/farmely
-      - DB_HOST=postgres
+      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=farmely
       - DB_USER=postgres
-      - DB_PASS=password
-      - DB_PASSWORD=password
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8086:8086"
     depends_on:
@@ -191,13 +200,13 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-communication-service
     environment:
-      - DB_URL=jdbc:postgresql://postgres:5432/farmely
-      - DB_HOST=postgres
+      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=farmely
       - DB_USER=postgres
-      - DB_PASS=password
-      - DB_PASSWORD=password
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8087:8087"
     depends_on:
@@ -212,13 +221,13 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-monitoring-service
     environment:
-      - DB_URL=jdbc:postgresql://postgres:5432/farmely
-      - DB_HOST=postgres
+      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_HOST=host.docker.internal
       - DB_PORT=5432
       - DB_NAME=farmely
       - DB_USER=postgres
-      - DB_PASS=password
-      - DB_PASSWORD=password
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8088:8088"
     depends_on:
@@ -234,7 +243,7 @@ services:
     container_name: farmely-ai-service
     environment:
       - PORT=8089
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/farmely
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-@Bin054206}@host.docker.internal:5432/farmely
       - FALLBACK_SQLITE=True
       - GEMINI_API_KEY=AQ.Ab8RN6K0wb1XH3ta2C6tAxmani1IxlCHdiySo0bwZPhd63KIWw
       - LLM_MODEL=gemini-3-flash-preview

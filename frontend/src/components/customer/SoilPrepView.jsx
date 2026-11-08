@@ -1,196 +1,154 @@
 import React from 'react';
-import { CheckCircle2, Clock, Sparkles, Sprout, ShieldCheck, Camera, Info, ArrowRight } from 'lucide-react';
-import { FALLOW_PROTOCOL_STEPS } from '../../services/cropStandardProcess';
+import {
+  Wrench,
+  Clock,
+  RotateCcw,
+  FileText,
+  ArrowRight,
+  CheckCircle2
+} from 'lucide-react';
 
 /**
- * Component hiển thị Tiến trình Cải tạo đất & Nghỉ đất chuẩn VietGAP (Fallow Protocol)
- * Cung cấp minh chứng thực địa minh bạch giữa 2 vụ canh tác.
+ * Component hiển thị thông báo Thửa đất đang trong thời gian Bảo trì 4 ngày (BR23).
+ * // ponytail: ceiling is hiển thị thẻ banner bảo trì 4 ngày tinh gọn; upgrade path is thêm nhật ký cải tạo chi tiết khi khách hàng có nhu cầu theo dõi từng lượt bón vôi/xới đất.
  */
 export default function SoilPrepView({
-  plot,
-  season,
+  plot = {},
+  season = {},
   nextSeason,
   onOpenRenewal,
-  onChangeCrop
+  onChangeCrop,
+  latestHarvest,
+  onOpenHarvestReport,
+  onSimulateDay1,
+  onBackToTimeline
 }) {
+  const plotCode = plot.plotCode || plot.mapPlotId || plot.key || 'P-12';
+  const cropName = season.cropName || plot.crop || 'Dưa leo baby F1';
+  const yieldKg = latestHarvest?.formattedYield
+    ? String(latestHarvest.formattedYield).replace(/\s*kg/gi, '')
+    : (latestHarvest?.yieldAmount ?? latestHarvest?.actualWeight ?? latestHarvest?.yieldKg ?? '18.50');
+
   return (
-    <div className="space-y-6">
-      {/* 1. Banner Trạng Thái Nghỉ Đất */}
-      <div className="rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50/70 via-white to-emerald-50/40 p-5 sm:p-7 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-600 text-white shadow-md">
-              <Sparkles className="h-6 w-6 text-amber-100 animate-pulse" />
+    <div className="py-2 animate-fadeIn space-y-6">
+      {/* THẺ BANNER BỰ: THỬA ĐẤT ĐANG TRONG THỜI GIAN BẢO TRÌ 4 NGÀY (MAINTENANCE - BR23) */}
+      <div className="rounded-3xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 via-white to-amber-50/40 p-6 sm:p-10 shadow-md text-center sm:text-left">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+            {/* Icon Cờ lê / Bảo trì bự */}
+            <span className="flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center rounded-3xl bg-amber-500 text-white shadow-lg ring-8 ring-amber-100">
+              <Wrench className="h-8 w-8 sm:h-10 sm:w-10 animate-pulse" />
             </span>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-amber-100 px-3 py-0.5 text-xs font-black text-amber-900 border border-amber-200">
-                  Chuẩn VietGAP · Giai đoạn Nghỉ đất 05 Ngày
+
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <span className="rounded-full bg-amber-500 px-3 py-1 text-xs font-black tracking-wide text-white uppercase shadow-xs">
+                  MAINTENANCE · BẢO TRÌ ĐẤT 4 NGÀY
                 </span>
-                <span className="text-xs text-stone-400">•</span>
-                <span className="text-xs font-bold text-stone-600">
-                  Thửa {plot.plotCode || plot.mapPlotId || plot.id}
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-900 border border-amber-300">
+                  Quy định BR23
+                </span>
+                <span className="text-xs font-bold text-stone-500">
+                  Thửa {plotCode}
                 </span>
               </div>
-              <h2 className="mt-1 text-xl font-black text-stone-900 sm:text-2xl">
-                Đang Cải Tạo & Phơi Ải Phục Hồi Độ Phì Nhiêu Đất
-              </h2>
-              <p className="mt-1 text-xs text-stone-600 max-w-2xl leading-relaxed">
-                Sau mỗi vụ thu hoạch, đất cần 5–7 ngày để khử khuẩn bằng vôi bột sinh học, phơi ải diệt mầm nấm bệnh và bón lót phân vi sinh hữu cơ nhằm bảo đảm năng suất tối đa cho vụ tiếp theo.
+
+              <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-black text-stone-900 tracking-tight">
+                Thửa Đất Đang Trong Thời Gian Bảo Trì 4 Ngày
+              </h1>
+
+              <p className="text-sm sm:text-base text-stone-600 max-w-2xl leading-relaxed">
+                Vụ mùa <strong className="text-stone-800">{cropName}</strong> vừa thu hoạch xong ({yieldKg} kg). Theo đúng quy định <strong>Business Rule BR23</strong>, thửa đất tự động chuyển sang trạng thái <strong>Bảo trì (Maintenance) trong 4 ngày</strong> để thu dọn gốc rễ, rải vôi khử trùng và phơi ải phục hồi đất trước khi cho thuê hoặc gieo trồng vụ mới.
               </p>
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-col items-end gap-2 border-t border-amber-100 pt-3 sm:border-t-0 sm:pt-0">
-            <div className="rounded-2xl bg-amber-100/90 px-4 py-2.5 text-right border border-amber-200">
-              <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                Thời gian còn lại
-              </span>
-              <span className="font-heading text-lg font-black text-amber-950">
-                2 Ngày Nữa
-              </span>
-              <span className="block text-[10px] text-amber-800">
-                vào giống vụ mới
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Quy trình 5 bước cải tạo đất chuẩn VietGAP kèm minh chứng thực địa */}
-      <div className="rounded-3xl border border-stone-200/90 bg-white p-5 sm:p-7 shadow-sm space-y-5">
-        <div className="flex items-center justify-between border-b border-stone-100 pb-4">
-          <div>
-            <h3 className="font-heading font-black text-base text-stone-900 flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-emerald-700" />
-              Quy Trình Xử Lý Đất Phơi Ải (Fallow Protocol)
-            </h3>
-            <p className="text-xs text-stone-500 mt-0.5">
-              Toàn bộ các khâu được thực hiện bởi kỹ thuật viên phụ trách thửa đất và được giám sát qua ảnh chụp thời gian thực.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {FALLOW_PROTOCOL_STEPS.map((step) => {
-            const isDone = step.status === 'COMPLETED';
-            const isDoing = step.status === 'IN_PROGRESS';
-
-            return (
-              <div
-                key={step.step}
-                className={`relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border p-4 transition-all ${
-                  isDone
-                    ? 'border-emerald-200 bg-emerald-50/30'
-                    : isDoing
-                    ? 'border-amber-300 bg-amber-50/40 ring-2 ring-amber-100 shadow-xs'
-                    : 'border-stone-200/80 bg-stone-50/40 opacity-75'
-                }`}
-              >
-                <div className="flex items-start gap-3.5">
-                  <span
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-black text-sm ${
-                      isDone
-                        ? 'bg-emerald-700 text-white'
-                        : isDoing
-                        ? 'bg-amber-600 text-white animate-pulse'
-                        : 'bg-stone-200 text-stone-600'
-                    }`}
-                  >
-                    {isDone ? <CheckCircle2 className="h-5 w-5" /> : step.step}
-                  </span>
-
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-heading font-black text-sm text-stone-900">
-                        {step.title}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          isDone
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : isDoing
-                            ? 'bg-amber-100 text-amber-900 animate-pulse'
-                            : 'bg-stone-200 text-stone-600'
-                        }`}
-                      >
-                        {isDone ? 'Đã hoàn thành' : isDoing ? 'Đang thực hiện' : 'Chờ tới lượt'}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-stone-600 leading-relaxed max-w-xl">
-                      {step.desc}
-                    </p>
-                    <div className="mt-2 flex items-center gap-3 text-[11px] text-stone-500">
-                      <span>⏱ {step.duration}</span>
-                      <span>•</span>
-                      <span>👤 {step.worker}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Ảnh minh chứng thực tế nếu có */}
-                {step.image && (
-                  <div className="flex shrink-0 items-center gap-2 self-end sm:self-center">
-                    <img
-                      src={step.image}
-                      alt={step.title}
-                      className="h-14 w-20 rounded-xl object-cover border border-stone-200 shadow-2xs cursor-pointer hover:scale-105 transition-transform"
-                      onClick={() => window.open(step.image, '_blank')}
-                      title="Bấm để xem ảnh minh chứng phóng to"
-                    />
-                    <div className="text-[10px] text-stone-500 hidden sm:block">
-                      <span className="font-semibold text-emerald-800 flex items-center gap-1">
-                        <Camera className="h-3 w-3" /> Minh chứng
-                      </span>
-                      <span>Tại luống</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 3. Khối Thông Tin Vụ Kế Tiếp & Đổi Giống Cây */}
-      <div className="rounded-3xl border border-stone-200 bg-white p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800">
-            <Sprout className="h-6 w-6 text-emerald-700" />
-          </span>
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">
-              Kế hoạch vụ tiếp theo
+          {/* Khối đếm ngày to rõ */}
+          <div className="shrink-0 rounded-2xl bg-amber-100/90 border-2 border-amber-300 p-4 sm:p-5 text-center min-w-[180px] shadow-sm">
+            <span className="flex items-center justify-center gap-1.5 text-xs font-bold text-amber-900 uppercase tracking-wider">
+              <Clock className="h-4 w-4" /> Tiến độ bảo trì
             </span>
-            <h4 className="font-heading font-black text-base text-stone-900">
-              {nextSeason ? nextSeason.cropName : 'Vụ kế tiếp theo kế hoạch'}
-            </h4>
-            <p className="text-xs text-stone-500">
-              {nextSeason
-                ? `Thời gian dự kiến: ${nextSeason.totalDays || 40} ngày sinh trưởng · Thời gian nghỉ đất: ${nextSeason.fallowDays || 5} ngày.`
-                : 'Bấm "Gia hạn vụ mới" để chọn giống canh tác tiếp theo cho thửa đất.'}
-            </p>
+            <div className="my-1.5 font-heading text-2xl sm:text-3xl font-black text-amber-950">
+              Ngày 3 / 4 Ngày
+            </div>
+            <span className="inline-block rounded-md bg-amber-200/80 px-2.5 py-1 text-xs font-extrabold text-amber-900">
+              Còn 1 ngày bảo dưỡng
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {onChangeCrop && (
+        {/* Thanh trạng thái tóm tắt 4 ngày đơn giản */}
+        <div className="mt-8 pt-6 border-t border-amber-200/80 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="p-3 rounded-xl bg-white/80 border border-emerald-200 flex items-center gap-2 text-emerald-800 font-bold">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>Ngày 1: Thu dọn tàn dư vụ cũ</span>
+          </div>
+          <div className="p-3 rounded-xl bg-white/80 border border-emerald-200 flex items-center gap-2 text-emerald-800 font-bold">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>Ngày 2: Rải vôi khử trùng đất</span>
+          </div>
+          <div className="p-3 rounded-xl bg-amber-100 border-2 border-amber-400 flex items-center gap-2 text-amber-950 font-black shadow-xs">
+            <Wrench className="h-4 w-4 text-amber-700 shrink-0 animate-spin" style={{ animationDuration: '6s' }} />
+            <span>Ngày 3: Cày xới & Phơi ải (Đang làm)</span>
+          </div>
+          <div className="p-3 rounded-xl bg-stone-50 border border-stone-200 flex items-center gap-2 text-stone-500 font-medium">
+            <Clock className="h-4 w-4 text-stone-400 shrink-0" />
+            <span>Ngày 4: Phục hồi vi sinh</span>
+          </div>
+        </div>
+
+        {/* Các nút hành động chính */}
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-amber-100">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {onBackToTimeline && (
+              <button
+                type="button"
+                onClick={onBackToTimeline}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-50 transition shadow-2xs cursor-pointer"
+                title="Quay lại xem dòng thời gian và nhật ký vụ vừa thu hoạch"
+              >
+                <span>‹ Xem lại Dòng thời gian vụ mùa</span>
+              </button>
+            )}
+
+            {onOpenHarvestReport && (
+              <button
+                type="button"
+                onClick={() => onOpenHarvestReport(latestHarvest)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-50 transition shadow-2xs cursor-pointer"
+              >
+                <FileText className="h-4 w-4 text-stone-600" />
+                <span>Xem Biên bản thu hoạch ({yieldKg} kg)</span>
+              </button>
+            )}
+
+            {onSimulateDay1 && (
+              <button
+                type="button"
+                onClick={() => onSimulateDay1(nextSeason)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-4 py-2.5 text-xs font-bold text-emerald-800 transition shadow-2xs cursor-pointer"
+                title={nextSeason ? `Bắt đầu canh tác Vụ ${nextSeason.seasonNumber} (Ngày 1)` : "Quay về Ngày 1 để chạy lại demo"}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>
+                  {nextSeason
+                    ? `🌱 Bắt đầu lại Vụ Mới (Vụ ${nextSeason.seasonNumber} · Ngày 1)`
+                    : '🌱 Bắt đầu lại Vụ Mới (Ngày 1)'}
+                </span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onChangeCrop}
-              className="rounded-xl border border-stone-300 bg-white px-3.5 py-2 text-xs font-bold text-stone-700 hover:bg-stone-50 transition cursor-pointer"
+              onClick={onOpenRenewal}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-5 py-2.5 text-xs font-black text-white shadow-sm transition cursor-pointer"
             >
-              Đổi giống cây khác
+              <span>Gia hạn / Đăng ký vụ mới</span>
+              <ArrowRight className="h-4 w-4" />
             </button>
-          )}
-          <button
-            type="button"
-            onClick={onOpenRenewal}
-            className="flex items-center gap-1.5 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-black text-white hover:bg-emerald-800 shadow-sm transition cursor-pointer"
-          >
-            <span>Gia hạn thêm vụ mới</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
+          </div>
         </div>
       </div>
     </div>

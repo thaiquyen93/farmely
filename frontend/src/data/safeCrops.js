@@ -111,7 +111,22 @@ export const safeCrops = [
   }
 ];
 
-let dynamicCropsRegistry = [...safeCrops];
+const DYNAMIC_CROPS_CACHE_KEY = 'farmely_dynamic_crops_cache';
+
+function loadCachedDynamicCrops() {
+  try {
+    if (typeof window !== 'undefined') {
+      const cached = sessionStorage.getItem(DYNAMIC_CROPS_CACHE_KEY) || localStorage.getItem(DYNAMIC_CROPS_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    }
+  } catch (_) {}
+  return [...safeCrops];
+}
+
+let dynamicCropsRegistry = loadCachedDynamicCrops();
 
 export function mergeVarietiesIntoSafeCrops(varieties = []) {
   if (!Array.isArray(varieties) || varieties.length === 0) return [...dynamicCropsRegistry];
@@ -120,7 +135,16 @@ export function mergeVarietiesIntoSafeCrops(varieties = []) {
 
   varieties.forEach((v) => {
     const vId = Number(v.varietyId ?? v.id);
-    if (!Number.isFinite(vId) || existingVarietyIds.has(vId)) return;
+    if (!Number.isFinite(vId)) return;
+    if (existingVarietyIds.has(vId)) {
+      const existing = result.find((crop) => Number(crop.varietyId) === vId);
+      if (existing) {
+        existing.expectedYield = v.expectedYield || existing.expectedYield || null;
+        existing.temperature = v.temperature || existing.temperature || null;
+        existing.soilMoisture = v.soilMoisture || existing.soilMoisture || null;
+      }
+      return;
+    }
 
     const padId = `CRP-${String(vId).padStart(2, '0')}`;
     const cName = v.cropName || v.crop_name || v.name || 'Cây trồng';
@@ -136,8 +160,9 @@ export function mergeVarietiesIntoSafeCrops(varieties = []) {
       icon: '🌱',
       duration: `${durationDays} ngày`,
       minDays: durationDays,
-      temperature: '20–32°C',
-      soilMoisture: '65–75%'
+      expectedYield: v.expectedYield || null,
+      temperature: v.temperature || null,
+      soilMoisture: v.soilMoisture || null
     });
     existingVarietyIds.add(vId);
   });
@@ -147,6 +172,13 @@ export function mergeVarietiesIntoSafeCrops(varieties = []) {
 
 export function registerDynamicCrops(varieties = []) {
   dynamicCropsRegistry = mergeVarietiesIntoSafeCrops(varieties);
+  try {
+    if (typeof window !== 'undefined') {
+      const json = JSON.stringify(dynamicCropsRegistry);
+      sessionStorage.setItem(DYNAMIC_CROPS_CACHE_KEY, json);
+      localStorage.setItem(DYNAMIC_CROPS_CACHE_KEY, json);
+    }
+  } catch (_) {}
   return [...dynamicCropsRegistry];
 }
 

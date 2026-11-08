@@ -12,33 +12,22 @@ import AssistedGrowingDashboard from '../../components/customer/AssistedGrowingD
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
-import PlotHarvestModal from '../../components/customer/PlotHarvestModal';
 import PlotRenewalModal from '../../components/customer/PlotRenewalModal';
 import ContractCancellationModal from '../../components/customer/ContractCancellationModal';
 import CustomerContractCenter from '../../components/customer/CustomerContractCenter';
 import CustomerMobileNav from '../../components/customer/CustomerMobileNav';
 import CustomerWelcomeLounge from '../../components/customer/CustomerWelcomeLounge';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
-import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
-import { useSensorStream } from '../../api/monitoring/useSensorStream';
+import { DEMO_CUSTOMERS, updateThreadRentalInStorage } from '../../api/communication/chatStorage';
+import { chatService } from '../../api/communication/chatService';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import { resolveStandardCropProcess } from '../../services/cropStandardProcess';
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid
-} from 'recharts';
 import {
   Sprout,
   Camera,
   PlusCircle,
   BookOpen,
   Apple,
-  Radio,
   Thermometer,
   Droplets,
   Calendar,
@@ -74,22 +63,16 @@ import {
   Wallet,
   LayoutDashboard,
   MessageCircle,
-  Star,
   ShieldAlert,
   Eye,
   Wheat,
   Truck,
   CalendarCheck,
-  Compass,
   UploadCloud,
   Image as ImageIcon,
   X,
-  Lock,
-  PanelLeftClose,
-  PanelLeftOpen
+  Lock
 } from 'lucide-react';
-
-const EMPTY_ARRAY = [];
 
 export default function CustomerDashboard() {
   const location = useLocation();
@@ -111,7 +94,6 @@ export default function CustomerDashboard() {
   const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
   const [taskPhotoPreview, setTaskPhotoPreview] = useState('');
   const [chatOpenMode, setChatOpenMode] = useState('expert');
-  const [iotReturnPlotId, setIotReturnPlotId] = useState(null);
   const [showExpertChatModal, setShowExpertChatModal] = useState(false);
 
   // Chat Communication & Identity Resolution:
@@ -199,13 +181,9 @@ export default function CustomerDashboard() {
     if (e) e.preventDefault();
     if (!customerChatInput.trim()) return;
 
-    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName);
+    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName, { plotCode: currentSelectedPlot?.plotCode || currentSelectedPlot?.mapPlotId || '' });
     setCustomerChatInput('');
   };
-
-  // IoT Section States
-  const [selectedIotPlotId, setSelectedIotPlotId] = useState('PLOT-CC-01');
-  const [iotTimeframe, setIotTimeframe] = useState('hourly'); // 'hourly' | 'daily' | 'weekly'
 
   // Service Shop States
   const [serviceCategoryFilter, setServiceCategoryFilter] = useState('ALL'); // 'ALL' | 'FULL' | 'CYCLE' | 'SINGLE' | 'ORDERS'
@@ -256,61 +234,6 @@ export default function CustomerDashboard() {
       setDiaryPlotId(selectedPlotId);
     }
   }, [selectedPlotId]);
-  const [showHarvestAcceptModal, setShowHarvestAcceptModal] = useState(false);
-  const [harvestDeliveryMethod, setHarvestDeliveryMethod] = useState('DELIVERY');
-  const [harvestAcceptance, setHarvestAcceptance] = useState({ status: 'PENDING', confirmedAt: null, deliveryMethod: null, rating: null, feedback: '' });
-  const [harvestRating, setHarvestRating] = useState(5);
-  const [harvestFreshness, setHarvestFreshness] = useState(5);
-  const [harvestPackaging, setHarvestPackaging] = useState(5);
-  const [harvestFeedback, setHarvestFeedback] = useState('');
-  const [isSubmittingHarvestRating, setIsSubmittingHarvestRating] = useState(false);
-
-  const handleConfirmHarvestAcceptance = async (e) => {
-    e?.preventDefault();
-    setIsSubmittingHarvestRating(true);
-    const targetHarvest = selectedHarvestForAccept || dbHarvestResults[0];
-    try {
-      if (targetHarvest?.harvestId || targetHarvest?.id) {
-        await fetch('/api/customer/harvest-results/confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            harvestId: targetHarvest?.harvestId || targetHarvest?.id,
-            rentalId: targetHarvest?.rentalId,
-            deliveryMethod: harvestDeliveryMethod,
-            rating: harvestRating,
-            freshnessRating: harvestFreshness,
-            packagingRating: harvestPackaging,
-            customerFeedback: harvestFeedback
-          })
-        }).catch(() => null);
-        fetchHarvestResults?.();
-      }
-
-      setHarvestAcceptance({
-        status: 'CONFIRMED',
-        confirmedAt: new Date().toISOString(),
-        deliveryMethod: harvestDeliveryMethod,
-        rating: harvestRating,
-        feedback: harvestFeedback
-      });
-      setShowHarvestAcceptModal(false);
-      alert('Cảm ơn bạn đã xác nhận và đánh giá chất lượng nông sản vụ mùa!');
-    } catch (err) {
-      console.warn('Lỗi xác nhận thu hoạch:', err);
-      setHarvestAcceptance({
-        status: 'CONFIRMED',
-        confirmedAt: new Date().toISOString(),
-        deliveryMethod: harvestDeliveryMethod,
-        rating: harvestRating,
-        feedback: harvestFeedback
-      });
-      setShowHarvestAcceptModal(false);
-    } finally {
-      setIsSubmittingHarvestRating(false);
-    }
-  };
-
   // Custom Service Request (UC10 / BR13)
   const [showCustomServiceModal, setShowCustomServiceModal] = useState(false);
   const [customServiceData, setCustomServiceData] = useState({
@@ -368,67 +291,25 @@ export default function CustomerDashboard() {
   // dữ liệu của ĐÚNG thửa đó (null = xem tất cả thửa, khi vào từ sidebar)
   const [plotScopeId, setPlotScopeId] = useState(null);
 
-  // Kế hoạch thu hoạch theo từng thửa: { [plotId]: plan }
-  const [harvestModalPlotId, setHarvestModalPlotId] = useState(null);
-  const harvestStorageKey = `farmely_harvest_plans_${user?.id || 'guest'}`;
-  const [harvestPlans, setHarvestPlans] = useState(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(harvestStorageKey) || '{}');
-      return saved && typeof saved === 'object' ? saved : {};
-    } catch {
-      return {};
-    }
-  });
-
-  useEffect(() => {
-    const handleSync = () => {
-      try {
-        const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
-        if (Array.isArray(shared) && shared.length > 0) {
-          setHarvestPlans((prev) => {
-            const next = { ...prev };
-            let changed = false;
-            shared.forEach((item) => {
-              const code = item.plotCode || item.plotId;
-              if (code && next[code]) {
-                if (next[code].status !== item.status) {
-                  next[code] = { ...next[code], status: item.status, approvedAt: item.approvedAt, approvedBy: item.approvedBy };
-                  changed = true;
-                }
-              }
-            });
-            return changed ? next : prev;
-          });
-        }
-      } catch {}
-    };
-
-    let bc = null;
-    try {
-      if (typeof window !== 'undefined' && window.BroadcastChannel) {
-        bc = new BroadcastChannel('farmely_harvest_sync');
-        bc.onmessage = handleSync;
-      }
-    } catch {}
-
-    window.addEventListener('storage', handleSync);
-    return () => {
-      if (bc) bc.close();
-      window.removeEventListener('storage', handleSync);
-    };
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(harvestStorageKey, JSON.stringify(harvestPlans));
-    } catch {
-      /* hết dung lượng / chế độ ẩn danh: bỏ qua, kế hoạch vẫn còn trong phiên */
-    }
-  }, [harvestPlans, harvestStorageKey]);
   const [showRenewContractModal, setShowRenewContractModal] = useState(false);
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [selectedContractForCancel, setSelectedContractForCancel] = useState(null);
   const [pendingCancellations, setPendingCancellations] = useState({});
+  useEffect(() => {
+    let active = true;
+    const refreshCancellations = () => fetch('/api/contracts/cancellations').then((response) => response.json()).then((body) => {
+      if (!active) return;
+      const pending = {};
+      for (const item of body?.data || []) {
+        if (item.status === 'PENDING' && item.contractCode) pending[item.contractCode] = item;
+      }
+      setPendingCancellations(pending);
+    }).catch(() => {});
+    refreshCancellations();
+    window.addEventListener('focus', refreshCancellations);
+    const timer = window.setInterval(refreshCancellations, 30000);
+    return () => { active = false; window.removeEventListener('focus', refreshCancellations); window.clearInterval(timer); };
+  }, []);
   const [emergencyRequests, setEmergencyRequests] = useState({});
 
   // Subsystem 3: Contracts & Renewal Management (UC07 / BR11)
@@ -620,14 +501,10 @@ export default function CustomerDashboard() {
   // Live Customer Rented Plots loaded from PostgreSQL database
   const [dbPlots, setDbPlots] = useState(null);
   const [isLoadingPlots, setIsLoadingPlots] = useState(true);
-  const dbPlotsRef = useRef(null);
-  dbPlotsRef.current = dbPlots;
 
   const fetchCustomerPlots = useCallback(async (isInitial = false) => {
     try {
-      if (isInitial || dbPlotsRef.current === null) {
-        setIsLoadingPlots(true);
-      }
+      if (isInitial) setIsLoadingPlots(true);
       const userId = user?.userId || user?.id;
       const email = user?.email;
       if (!userId && !email) {
@@ -643,63 +520,25 @@ export default function CustomerDashboard() {
       const res = await fetch(`/api/customer/rented-plots?${query}`);
       if (res.ok) {
         const data = await res.json();
-        const nextList = Array.isArray(data) ? data : [];
-        setDbPlots((prev) => {
-          if (!prev) return nextList;
-          if (prev.length !== nextList.length) return nextList;
-          let anyChanged = false;
-          const updated = nextList.map((nextP) => {
-            const prevP = prev.find((p) => p.id === nextP.id);
-            if (!prevP) {
-              anyChanged = true;
-              return nextP;
-            }
-            const keysToCheck = [
-              'name', 'status', 'crop', 'stage', 'mode', 'rentalId',
-              'contract_id', 'contract_status', 'rental_status', 'plot_status',
-              'openTasksCount', 'progressPercent', 'currentDay'
-            ];
-            const businessChanged = keysToCheck.some((k) => prevP[k] !== nextP[k]);
-            const telemetryChanged = (prevP.temp !== nextP.temp || prevP.soilMoisture !== nextP.soilMoisture || prevP.airHumidity !== nextP.airHumidity);
-
-            if (businessChanged) {
-              anyChanged = true;
-              return nextP;
-            }
-            if (telemetryChanged) {
-              anyChanged = true;
-              return {
-                ...prevP,
-                temp: nextP.temp,
-                soilMoisture: nextP.soilMoisture,
-                airHumidity: nextP.airHumidity
-              };
-            }
-            return prevP;
-          });
-          return anyChanged ? updated : prev;
-        });
+        setDbPlots(Array.isArray(data) ? data : []);
+      } else {
+        setDbPlots((prev) => prev || []);
       }
     } catch (err) {
       console.error('Failed to load customer plots from DB:', err);
-
+      setDbPlots((prev) => prev || []);
     } finally {
       if (isInitial) setIsLoadingPlots(false);
     }
-  }, [user?.id, user?.userId, user?.email]);
+  }, [user?.userId, user?.id, user?.email]);
 
   useEffect(() => {
     fetchCustomerPlots(true);
 
-    // Lắng nghe đồng bộ tức thì khi trạng thái thửa đất thay đổi (Booked / Cancelled / Admin change)
-    let plotBc = null;
+    // Lắng nghe cập nhật tức thì từ Admin qua BroadcastChannel & Storage Event
     let bc = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
-        plotBc = new BroadcastChannel('farmely_plot_updates');
-        plotBc.onmessage = () => {
-          fetchCustomerPlots(false);
-        };
         bc = new BroadcastChannel('farmely_iot_telemetry');
         bc.onmessage = (msg) => {
           if (msg.data?.type === 'TELEMETRY_UPDATED') {
@@ -710,25 +549,19 @@ export default function CustomerDashboard() {
     } catch {}
 
     const handleStorage = (e) => {
-      if (e.key === 'farmely_recently_booked_plots' || e.key === 'farmely_iot_sync_ping') {
+      if (e.key === 'farmely_iot_sync_ping') {
         fetchCustomerPlots(false);
       }
     };
-    const handlePlotSync = () => fetchCustomerPlots();
-
     window.addEventListener('storage', handleStorage);
-    window.addEventListener('farmely_plot_status_changed', handlePlotSync);
-    window.addEventListener('farmely_plot_booked', handlePlotSync);
 
-    // Chu kỳ đồng bộ ngầm định kỳ (chạy êm trong nền không gây giật lag giao diện)
-    const pollTimer = setInterval(() => fetchCustomerPlots(false), 20000);
+    // Cập nhật ngầm định kỳ 30 giây (không hiện loading che màn hình)
+    const pollTimer = setInterval(() => fetchCustomerPlots(false), 30000);
 
     return () => { 
       clearInterval(pollTimer);
-      if (plotBc) { try { plotBc.close(); } catch {} }
+      if (bc) { try { bc.close(); } catch {} }
       window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('farmely_plot_status_changed', handlePlotSync);
-      window.removeEventListener('farmely_plot_booked', handlePlotSync);
     };
   }, [fetchCustomerPlots]);
 
@@ -777,12 +610,6 @@ export default function CustomerDashboard() {
             });
           }
         });
-        if (pendingBooking.plots.every((p) => {
-          const code = p.code || p.id;
-          return list.some((cp) => (cp.mapPlotId || cp.plotCode || '').toLowerCase() === String(code).toLowerCase());
-        })) {
-          localStorage.removeItem('farmely_pending_vnpay_booking');
-        }
       }
     } catch (e) {
       console.warn('Fallback sync notice:', e);
@@ -796,9 +623,6 @@ export default function CustomerDashboard() {
     if (customerPlots.length > 0) {
       if (!customerPlots.some(p => p.id === checkoutPlotId)) {
         setCheckoutPlotId(customerPlots[0].id);
-      }
-      if (!customerPlots.some(p => p.id === selectedIotPlotId)) {
-        setSelectedIotPlotId(customerPlots[0].id);
       }
       if (!customerPlots.some(p => p.id === diaryPlotId)) {
         setDiaryPlotId(customerPlots[0].id);
@@ -820,6 +644,7 @@ export default function CustomerDashboard() {
   useEffect(() => {
     let cancelled = false;
     const unwrap = (body) => Array.isArray(body) ? body : (body?.data || []);
+
     const loadCustomerData = () => {
       Promise.all([
         fetch('/api/services?status=ACTIVE').then((r) => r.ok ? r.json() : { data: [] }),
@@ -844,205 +669,63 @@ export default function CustomerDashboard() {
         }));
         setApiServices(services);
         const rentals = unwrap(rentalsBody);
-        setApiCustomerPlots(rentals.map((r, index) => {
-          const start = r.startDate || r.start_date;
-          const end = r.endDate || r.end_date;
-          return {
-            id: `PLOT-${r.plotCode || r.plotId || r.rentalId}`,
-            rentalId: r.rentalId,
-            mapPlotId: r.plotCode,
-            plotCode: r.plotCode,
-            name: r.plotCode ? `Thửa ${r.plotCode}` : `Thửa đất ${index + 1}`,
+        setApiCustomerPlots(rentals.map((r, index) => ({
+          id: `PLOT-${r.plotCode || r.plotId || r.rentalId}`,
+          rentalId: r.rentalId,
+          mapPlotId: r.plotCode,
+          name: r.plotCode ? `Thửa ${r.plotCode}` : `Thửa đất ${index + 1}`,
           location: 'Khu canh tác Farmely',
           area: `${r.plotArea || 0}m²`,
           mode: r.cultivationMode === 'SELF_GROWING' ? 'Self-Growing' : 'Assisted-Growing',
           crop: r.varietyName || 'Chưa có giống cây',
           stage: r.displayStatus || 'Đang canh tác',
-          currentDay: r.currentDay ?? 0,
-          totalDays: r.totalDays || r.durationDays || 90,
-          progressPercent: r.progressPercent ?? 0,
+          currentDay: 0,
+          totalDays: r.durationDays || 0,
+          progressPercent: 0,
           image: r.plotImageUrl || '/images/Mucangchai3.jpg',
           temp: '—', soilMoisture: '—', airHumidity: '—', light: '—', ph: '—',
           stationId: '—', status: r.status || 'ACTIVE', worker: 'Farmely điều phối',
           contractCode: r.contractId ? `CTR-${r.contractId}` : '—',
-          startDate: start || '2026-10-25',
-          endDate: end || '2027-01-25',
-          expectedHarvestDate: end || r.expectedHarvestDate || '2027-01-25',
-          expectedYield: 'Chưa có dữ liệu'
-        };
-      }));
-      setActiveServiceOrders(unwrap(requestsBody).map((request) => ({
-        id: request.requestId || request.id,
-        serviceId: request.serviceId,
-        serviceName: request.serviceName || 'Dịch vụ nông nghiệp',
-        plotId: request.plotId,
-        plotCode: request.plotCode,
-        rentalId: request.rentalId,
-        plotName: request.plotName || (request.plotCode ? `Thửa ${request.plotCode}` : 'Thửa đất'),
-        requestedAt: request.requestedAt || request.createdAt || '2026-10-28',
-        requestedDate: request.requestedDate || request.deliveryDate || '2026-10-28',
-        scheduledDate: request.scheduledDate || request.requestedDate || request.deliveryDate || '2026-10-28',
-        price: Number(request.price || request.totalPrice || 0),
-        status: request.status || 'PENDING',
-        note: request.note || request.customerNote || '',
-        tasks: Array.isArray(request.tasks) ? request.tasks : []
-      })));
-    }).catch(() => {});
-  };
-
-  loadCustomerData();
-  window.addEventListener('farmely_services_updated', loadCustomerData);
-  window.addEventListener('storage', loadCustomerData);
-  return () => {
-    cancelled = true;
-    window.removeEventListener('farmely_services_updated', loadCustomerData);
-    window.removeEventListener('storage', loadCustomerData);
-  };
-  }, []);
-
-  // IoT Data for Different Timeframes (Hourly, Daily, Weekly)
-  const [iotDatasets, setIotDatasets] = useState({
-    'PLOT-CC-01': {
-      hourly: [
-        { time: '00:00', temp: 24.2, moisture: 65, airHumidity: 82, light: 0 },
-        { time: '04:00', temp: 23.5, moisture: 67, airHumidity: 85, light: 0 },
-        { time: '08:00', temp: 27.8, moisture: 70, airHumidity: 74, light: 32 },
-        { time: '12:00', temp: 31.2, moisture: 64, airHumidity: 68, light: 55 },
-        { time: '16:00', temp: 29.5, moisture: 66, airHumidity: 71, light: 42 },
-        { time: '20:00', temp: 26.1, moisture: 68, airHumidity: 78, light: 0 }
-      ],
-      daily: [
-        { time: 'Thứ 2', temp: 27.5, moisture: 66, airHumidity: 75, light: 45 },
-        { time: 'Thứ 3', temp: 28.0, moisture: 68, airHumidity: 72, light: 48 },
-        { time: 'Thứ 4', temp: 26.8, moisture: 71, airHumidity: 80, light: 39 },
-        { time: 'Thứ 5', temp: 29.2, moisture: 65, airHumidity: 70, light: 52 },
-        { time: 'Thứ 6', temp: 28.5, moisture: 68, airHumidity: 74, light: 46 },
-        { time: 'Thứ 7', temp: 27.9, moisture: 69, airHumidity: 76, light: 44 },
-        { time: 'Chủ Nhật', temp: 28.3, moisture: 67, airHumidity: 73, light: 47 }
-      ],
-      weekly: [
-        { time: 'Tuần 1', temp: 27.2, moisture: 67, airHumidity: 75, light: 44 },
-        { time: 'Tuần 2', temp: 28.1, moisture: 68, airHumidity: 73, light: 48 },
-        { time: 'Tuần 3', temp: 27.8, moisture: 70, airHumidity: 76, light: 45 },
-        { time: 'Tuần 4', temp: 28.6, moisture: 66, airHumidity: 72, light: 50 }
-      ]
-    },
-    'PLOT-MC-02': {
-      hourly: [
-        { time: '00:00', temp: 18.0, moisture: 60, airHumidity: 86, light: 0 },
-        { time: '04:00', temp: 17.2, moisture: 63, airHumidity: 88, light: 0 },
-        { time: '08:00', temp: 21.5, moisture: 64, airHumidity: 80, light: 28 },
-        { time: '12:00', temp: 24.8, moisture: 61, airHumidity: 74, light: 48 },
-        { time: '16:00', temp: 23.0, moisture: 62, airHumidity: 77, light: 35 },
-        { time: '20:00', temp: 19.5, moisture: 63, airHumidity: 82, light: 0 }
-      ],
-      daily: [
-        { time: 'Thứ 2', temp: 21.0, moisture: 61, airHumidity: 79, light: 40 },
-        { time: 'Thứ 3', temp: 22.4, moisture: 63, airHumidity: 76, light: 42 },
-        { time: 'Thứ 4', temp: 20.8, moisture: 65, airHumidity: 82, light: 35 },
-        { time: 'Thứ 5', temp: 23.1, moisture: 60, airHumidity: 75, light: 44 },
-        { time: 'Thứ 6', temp: 22.0, moisture: 62, airHumidity: 78, light: 38 },
-        { time: 'Thứ 7', temp: 21.5, moisture: 64, airHumidity: 80, light: 39 },
-        { time: 'Chủ Nhật', temp: 22.8, moisture: 62, airHumidity: 77, light: 41 }
-      ],
-      weekly: [
-        { time: 'Tuần 1', temp: 21.2, moisture: 62, airHumidity: 80, light: 38 },
-        { time: 'Tuần 2', temp: 22.0, moisture: 63, airHumidity: 78, light: 40 },
-        { time: 'Tuần 3', temp: 21.6, moisture: 64, airHumidity: 81, light: 37 },
-        { time: 'Tuần 4', temp: 22.5, moisture: 61, airHumidity: 76, light: 42 }
-      ]
-    },
-    'PLOT-CG-03': {
-      hourly: [
-        { time: '00:00', temp: 26.0, moisture: 68, airHumidity: 80, light: 0 },
-        { time: '04:00', temp: 25.0, moisture: 72, airHumidity: 84, light: 0 },
-        { time: '08:00', temp: 28.5, moisture: 71, airHumidity: 75, light: 36 },
-        { time: '12:00', temp: 32.0, moisture: 67, airHumidity: 69, light: 58 },
-        { time: '16:00', temp: 30.5, moisture: 69, airHumidity: 73, light: 44 },
-        { time: '20:00', temp: 27.5, moisture: 70, airHumidity: 77, light: 0 }
-      ],
-      daily: [
-        { time: 'Thứ 2', temp: 28.5, moisture: 69, airHumidity: 74, light: 49 },
-        { time: 'Thứ 3', temp: 29.2, moisture: 70, airHumidity: 71, light: 52 },
-        { time: 'Thứ 4', temp: 28.0, moisture: 72, airHumidity: 78, light: 43 },
-        { time: 'Thứ 5', temp: 30.1, moisture: 68, airHumidity: 70, light: 54 },
-        { time: 'Thứ 6', temp: 29.0, moisture: 70, airHumidity: 72, light: 50 },
-        { time: 'Thứ 7', temp: 28.7, moisture: 71, airHumidity: 75, light: 48 },
-        { time: 'Chủ Nhật', temp: 29.5, moisture: 69, airHumidity: 73, light: 51 }
-      ],
-      weekly: [
-        { time: 'Tuần 1', temp: 28.4, moisture: 70, airHumidity: 74, light: 48 },
-        { time: 'Tuần 2', temp: 29.0, moisture: 71, airHumidity: 72, light: 51 },
-        { time: 'Tuần 3', temp: 28.8, moisture: 69, airHumidity: 75, light: 49 },
-        { time: 'Tuần 4', temp: 29.4, moisture: 70, airHumidity: 71, light: 53 }
-      ]
-    }
-  });
-
-  const numericIotPlotId = useMemo(() => {
-    const match = String(selectedIotPlotId || '').match(/\d+/);
-    return match ? Number(match[0]) : 1;
-  }, [selectedIotPlotId]);
-
-  const { latest: iotLatest, history: iotHistory, isConnected: isIotConnected } = useSensorStream(numericIotPlotId, 24);
-
-  const baseIotPlot = customerPlots.find(p => p.id === selectedIotPlotId) || customerPlots[0] || {
-    id: 'NONE',
-    name: 'Chưa có thửa',
-    crop: '',
-    temp: '28°C',
-    soilMoisture: '65%',
-    airHumidity: '70%',
-    light: '40.000 Lux',
-    ph: '6.5',
-    stationId: 'IOT-NONE'
-  };
-  const currentIotPlot = useMemo(() => {
-    if (!iotLatest) return baseIotPlot;
-    const tempNum = typeof iotLatest.temperature === 'number' ? iotLatest.temperature.toFixed(1) : null;
-    const soilNum = typeof iotLatest.soilHumidity === 'number' ? Math.round(iotLatest.soilHumidity) : null;
-    const airNum = typeof iotLatest.airHumidity === 'number' ? Math.round(iotLatest.airHumidity) : null;
-
-    const recDate = iotLatest.recordedAt ? new Date(iotLatest.recordedAt) : new Date();
-    const hour = !isNaN(recDate.getTime()) ? recDate.getHours() + recDate.getMinutes() / 60 : 12;
-    const diff = Math.abs(hour - 12);
-    const lightVal = hour >= 6 && hour <= 18 ? Math.round(Math.max(0, 1 - (diff / 6) ** 2) * 50) : 0;
-    const lastUpdated = !isNaN(recDate.getTime())
-      ? recDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      : null;
-
-    return {
-      ...baseIotPlot,
-      temp: tempNum !== null ? `${tempNum}°C` : (baseIotPlot?.temp || '28°C'),
-      soilMoisture: soilNum !== null ? `${soilNum}%` : (baseIotPlot?.soilMoisture || '65%'),
-      airHumidity: airNum !== null ? `${airNum}%` : (baseIotPlot?.airHumidity || '70%'),
-      light: lightVal > 0 ? `${lightVal}.000 Lux` : (baseIotPlot?.light || '40.000 Lux'),
-      lastUpdated
+          startDate: r.startDate || r.start_date || '—',
+          expectedHarvestDate: r.endDate || '—', expectedYield: 'Chưa có dữ liệu'
+        })));
+        setActiveServiceOrders(unwrap(requestsBody).map((request) => ({
+          id: `REQ-${request.requestId}`,
+          serviceName: request.service?.serviceName || 'Dịch vụ canh tác',
+          plotName: request.plotName || request.plotCode || 'Chưa có dữ liệu thửa',
+          price: `${Number(request.service?.price || 0).toLocaleString('vi-VN')} đ`,
+          date: request.scheduledDate || (request.createdAt ? new Date(request.createdAt).toLocaleDateString('vi-VN') : 'Chưa có ngày'),
+          status: request.status || 'PENDING',
+          statusLabel: request.status === 'DONE' ? 'Đã hoàn thành' : request.status === 'ASSIGNED' ? 'Đã tiếp nhận & phân công' : request.status === 'IN_PROG' ? 'Đang thực hiện' : 'Đang chờ xử lý',
+          worker: request.status === 'ASSIGNED' || request.status === 'DONE' ? 'Farmely điều phối' : 'Chưa phân công',
+          paymentMethod: 'Theo giao dịch hệ thống'
+        })));
+      }).catch(() => {
+        if (!cancelled) { setApiServices([]); setApiCustomerPlots([]); setActiveServiceOrders([]); }
+      });
     };
-  }, [baseIotPlot, iotLatest]);
 
-  const currentIotData = useMemo(() => {
-    const fallbackDataset = (iotDatasets[selectedIotPlotId] || iotDatasets['PLOT-CC-01'] || {})[iotTimeframe] || [];
-    if (iotTimeframe !== 'hourly' || !Array.isArray(iotHistory) || iotHistory.length === 0) {
-      return fallbackDataset;
-    }
+    loadCustomerData();
 
-    const targetPoints = 16;
-    const sampled = iotHistory.length <= targetPoints ? iotHistory : iotHistory.slice(-targetPoints);
+    // Tự động đồng bộ ngay khi Admin thêm/sửa/tắt dịch vụ hoặc giả lập thời gian từ tab khác hoặc khi quay lại tab
+    const handleStorageChange = (e) => {
+      if (e.key === 'farmely_services_updated_at' || e.key === 'farmely_time_simulated_at' || e.key === 'farmely_task_sync') {
+        loadCustomerData();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('farmely_services_updated', loadCustomerData);
+    window.addEventListener('farmely_time_simulated', loadCustomerData);
+    window.addEventListener('focus', loadCustomerData);
 
-    return sampled.map((item) => {
-      const d = new Date(item.recordedAt);
-      const timeStr = !isNaN(d.getTime())
-        ? d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-        : '';
-      return {
-        time: timeStr,
-        temp: Number(Number(item.temperature).toFixed(1)),
-        moisture: Math.round(Number(item.soilHumidity)),
-        airHumidity: Math.round(Number(item.airHumidity)),
-      };
-    });
-  }, [selectedIotPlotId, iotTimeframe, iotHistory]);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('farmely_services_updated', loadCustomerData);
+      window.removeEventListener('farmely_time_simulated', loadCustomerData);
+      window.removeEventListener('focus', loadCustomerData);
+    };
+  }, []);
 
   // Service Catalog (Shop Dịch Vụ Nông Nghiệp)
   const serviceCatalog = [
@@ -1174,29 +857,7 @@ export default function CustomerDashboard() {
       const stored = localStorage.getItem('farmely_customer_service_orders');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          // Lọc các đơn cũ đã xóa trong DB (chỉ lọc các ID cũ <= 42 đã bị xóa, không lọc đơn mới đặt)
-          const deletedReqIds = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 31, 32, 33, 35, 36, 38, 39, 40, 41, 42];
-          const cleaned = parsed
-            .filter(o => {
-              const reqIdNum = Number(String(o.requestId || o.id || '').replace(/\D/g, ''));
-              if (reqIdNum > 0 && deletedReqIds.includes(reqIdNum)) return false;
-              return true;
-            })
-            .map(o => {
-              // Chuẩn hóa và tự động sửa các đơn bị gán nhầm tiền hợp đồng thuê đất (> 1.000.000đ)
-              const rawAmt = Number(o.amount || String(o.price || '').replace(/\D/g, '')) || 0;
-              if (rawAmt > 1000000) {
-                const normAmt = 25000;
-                return { ...o, amount: normAmt, price: `${normAmt.toLocaleString('vi-VN')} đ` };
-              }
-              return o;
-            });
-          if (JSON.stringify(cleaned) !== stored) {
-            localStorage.setItem('farmely_customer_service_orders', JSON.stringify(cleaned));
-          }
-          return cleaned;
-        }
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     return [];
@@ -1247,6 +908,7 @@ export default function CustomerDashboard() {
       serviceId: numId
     };
     const targetPlot = customerPlots.find((plot) => plot.id === selectedPlotId) || selectedCheckoutPlot || customerPlots[0];
+    if (targetPlot && pendingCancellations[targetPlot.contractCode]) { window.alert('Thửa đang chờ hoàn tiền, không thể đặt thêm dịch vụ.'); return; }
     if (targetPlot) setCheckoutPlotId(targetPlot.id);
     if (!checkoutDate) setCheckoutDate(new Date(Date.now() + 86400000).toISOString().slice(0, 10));
     setSelectedServiceToBuy(resolvedSvc);
@@ -1303,17 +965,8 @@ export default function CustomerDashboard() {
               plotId: req.plotCode ? `PLOT-${String(req.plotCode).replace(/^PLOT-/i, '')}` : undefined,
               serviceName: req.service?.serviceName || req.serviceName || 'Dịch vụ canh tác',
               plotName: req.plotName || (req.rentalId === 1 ? 'Thửa P-01' : `Rental #${req.rentalId}`),
-              price: (() => {
-                const stdPrice = Number(req.service?.price || req.price) || 25000;
-                const paid = Number(req.paidAmount || req.amount);
-                const finalAmt = (paid > 0 && paid <= 1000000) ? paid : stdPrice;
-                return `${finalAmt.toLocaleString('vi-VN')} đ`;
-              })(),
-              amount: (() => {
-                const stdPrice = Number(req.service?.price || req.price) || 25000;
-                const paid = Number(req.paidAmount || req.amount);
-                return (paid > 0 && paid <= 1000000) ? paid : stdPrice;
-              })(),
+              price: `${(Number(req.paidAmount || req.amount || req.service?.price || req.price) || 0).toLocaleString('vi-VN')} đ`,
+              amount: Number(req.paidAmount || req.amount || req.service?.price || req.price) || 0,
               date: req.scheduledDate ? `${req.scheduledDate} • Lịch làm việc` : 'Hôm nay',
               scheduledDate: req.scheduledDate || '',
               status: isCompleted ? 'COMPLETED' : 'IN_PROGRESS',
@@ -1328,16 +981,11 @@ export default function CustomerDashboard() {
               completedAt: req.completedAt || null
             };
           });
-          const deletedReqIds = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 31, 32, 33, 35, 36, 38, 39, 40, 41, 42];
-          const cleanBackendOrders = backendOrders.filter(o => {
-            const reqIdNum = Number(String(o.requestId || o.id || '').replace(/\D/g, ''));
-            return !deletedReqIds.includes(reqIdNum);
-          });
           setActiveServiceOrders(() => {
             try {
-              localStorage.setItem('farmely_customer_service_orders', JSON.stringify(cleanBackendOrders));
+              localStorage.setItem('farmely_customer_service_orders', JSON.stringify(backendOrders));
             } catch {}
-            return cleanBackendOrders;
+            return backendOrders;
           });
         }
       })
@@ -1452,6 +1100,18 @@ export default function CustomerDashboard() {
       if (typeof loadOperationsFromDb === 'function') {
         loadOperationsFromDb();
       }
+
+      // Lưu lại thửa đất vừa đặt dịch vụ để ưu tiên hiển thị công việc
+      try {
+        if (targetPlot?.id) {
+          localStorage.setItem('farmely_selected_task_plot', targetPlot.id);
+        }
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_staff_activity_channel');
+          bc.postMessage({ type: 'SERVICE_PAID', plotId: targetPlot?.id, rentalId: targetRentalId });
+          bc.close();
+        }
+      } catch {}
 
       window.dispatchEvent(new CustomEvent('farmely_service_paid', { detail: resultInfo }));
       setSelectedServiceToBuy(null);
@@ -1577,6 +1237,7 @@ export default function CustomerDashboard() {
     setShowCheckoutSuccessModal(true);
   };
 
+  // Kiểm tra thửa đất đã hủy / hết hạn
   const isPlotCancelled = (plot) => {
     if (!plot) return false;
     const rs = String(
@@ -1629,26 +1290,6 @@ export default function CustomerDashboard() {
     return matches.sort((a, b) => (Number(b.rentalId || b.rental_id || 0) - Number(a.rentalId || a.rental_id || 0)))[0];
   };
 
-  const handleDeleteServiceOrder = async (orderId) => {
-    if (!orderId) return;
-    try {
-      const numId = String(orderId).replace(/\D/g, '');
-      if (numId) {
-        await fetch(`/api/services/requests/${numId}`, { method: 'DELETE' }).catch(() => {});
-      }
-      setActiveServiceOrders((prev) => {
-        const next = prev.filter((o) => o.id !== orderId && o.requestId !== Number(numId));
-        try {
-          localStorage.setItem('farmely_customer_service_orders', JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-      fetchServiceOrders();
-    } catch (e) {
-      console.warn('Lỗi xóa đơn dịch vụ:', e);
-    }
-  };
-
   const currentSelectedPlot = useMemo(() => {
     return resolvePlotFromCollection(selectedPlotId, customerPlots);
   }, [customerPlots, selectedPlotId]);
@@ -1660,6 +1301,7 @@ export default function CustomerDashboard() {
   const scopedPlot = useMemo(() => {
     return resolvePlotFromCollection(plotScopeId, customerPlots) || null;
   }, [customerPlots, plotScopeId]);
+
   const scopedPlots = scopedPlot ? [scopedPlot] : customerPlots;
   const scopedServiceOrders = scopedPlot
     ? activeServiceOrders.filter((ord) =>
@@ -1671,7 +1313,6 @@ export default function CustomerDashboard() {
         ord.rentalId === scopedPlot.rentalId
       )
     : activeServiceOrders;
-  const harvestModalPlot = resolvePlotFromCollection(harvestModalPlotId, customerPlots) || null;
 
   /** Từ trang 1 thửa sang trang chức năng: giữ nguyên ngữ cảnh thửa đó */
   const openPlotScopedTab = (tab, plotId) => {
@@ -1688,59 +1329,6 @@ export default function CustomerDashboard() {
     setPlotScopeId(null);
     setSelectedPlotId(id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleConfirmHarvestPlan = (plan) => {
-    const targetKey = plan.plotCode || plan.plotId;
-    setHarvestPlans((prev) => ({ ...prev, [targetKey]: plan, [plan.plotId]: plan }));
-    try {
-      const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
-      const existingIdx = shared.findIndex(item => item.plotCode === (plan.plotCode || plan.plotId) || item.plotId === plan.plotId);
-      const newReq = {
-        id: existingIdx >= 0 ? shared[existingIdx].id : `HARV-REQ-${Date.now().toString().slice(-4)}`,
-        plotId: plan.plotId,
-        plotCode: plan.plotCode || plan.plotId,
-        plotName: plan.plotName || `Thửa ${plan.plotCode || plan.plotId}`,
-        crop: plan.crop || 'Cà chua bi đỏ F1',
-        renterName: user?.fullName || 'Lô Thái Quyền',
-        renterEmail: user?.email || 'customer@farmely.vn',
-        phone: plan.phone || user?.phone || '0901234567',
-        address: plan.address || '',
-        requestedDate: plan.date,
-        method: plan.method,
-        methodLabel: plan.methodLabel,
-        expectedYield: plan.expectedYield || 'Theo mùa vụ',
-        phiDays: 6,
-        phiStandardDays: 5,
-        status: 'PENDING',
-        notes: plan.notes || '',
-        createdAt: new Date().toISOString(),
-        workerName: 'Trần Văn Lực (CVLĐ)'
-      };
-      if (existingIdx >= 0) {
-        shared[existingIdx] = { ...shared[existingIdx], ...newReq };
-      } else {
-        shared.unshift(newReq);
-      }
-      localStorage.setItem('farmely_shared_harvest_plans', JSON.stringify(shared));
-      try {
-        const bc = new BroadcastChannel('farmely_harvest_sync');
-        bc.postMessage({ type: 'HARVEST_PLAN_UPDATED' });
-        bc.close();
-      } catch {}
-    } catch (err) {
-      console.warn('Sync harvest plans error:', err);
-    }
-    setHarvestModalPlotId(null);
-  };
-
-  const handleCancelHarvestPlan = (plotId) => {
-    setHarvestPlans((prev) => {
-      const next = { ...prev };
-      delete next[plotId];
-      return next;
-    });
-    setHarvestModalPlotId(null);
   };
 
   useEffect(() => {
@@ -1763,14 +1351,12 @@ export default function CustomerDashboard() {
       setActiveTab('yards');
       setSelectedPlotId(requestedPlot.rentalId ? `RENTAL-${requestedPlot.rentalId}` : requestedPlot.id);
       setCheckoutPlotId(requestedPlot.id);
-    } else if (['contracts', 'harvest', 'process', 'iot', 'diary', 'services', 'welcome', 'visits'].includes(requestedView)) {
+    } else if (['contracts', 'process', 'diary', 'services'].includes(requestedView)) {
       setSelectedPlotId(null);
       setActiveTab(requestedView);
-      if (requestedView === 'iot') setIotReturnPlotId(fromPlotId || null);
     } else if (!requestedPlotId && !requestedPlotCode && !requestedView) {
       setSelectedPlotId(null);
       setActiveTab('yards');
-      setIotReturnPlotId(null);
     }
   }, [location.search, customerPlots]);
 
@@ -1805,8 +1391,8 @@ export default function CustomerDashboard() {
 
   const loadOperationsFromDb = () => {
     Promise.allSettled([
-      fetch('/api/tasks').then((r) => r.json()),
-      fetch('/api/diary').then((r) => r.json())
+      fetch('/api/care-tasks').then((r) => r.json()),
+      fetch('/api/farm-diaries').then((r) => r.json())
     ]).then(([resTasks, resDiaries]) => {
       const liveTasks = resTasks.status === 'fulfilled' && resTasks.value?.data ? resTasks.value.data : [];
       const liveDiaries = resDiaries.status === 'fulfilled' && resDiaries.value?.data ? resDiaries.value.data : [];
@@ -1840,7 +1426,7 @@ export default function CustomerDashboard() {
               targetKeys.add(cleanCode);
             }
             if (matchingPlot) {
-              const isPlotSelf = matchingPlot.mode === 'Self-Growing' || matchingPlot.cultivationMode === 'SELF' || matchingPlot.service_type === 'SELF';
+              const isPlotSelf = matchingPlot.mode === 'Self-Growing' || matchingPlot.cultivationMode === 'SELF' || matchingPlot.service_type === 'SELF' || matchingPlot.cultivation_mode === 'SELF';
               if (isPlotSelf && !t.serviceRequestId) {
                 return;
               }
@@ -1853,7 +1439,7 @@ export default function CustomerDashboard() {
               }
             }
 
-            const resolvedTaskDay = (t.cropDay !== undefined && t.cropDay !== null)
+            let resolvedTaskDay = (t.cropDay !== undefined && t.cropDay !== null)
               ? Math.max(1, Number(t.cropDay))
               : (t.dayOffset !== undefined && t.dayOffset !== null)
               ? (Number(t.dayOffset) === 0 ? 1 : Math.max(1, Number(t.dayOffset)))
@@ -1861,11 +1447,42 @@ export default function CustomerDashboard() {
               ? Math.max(1, Number(t.day))
               : null;
 
+            if (!resolvedTaskDay && matchingPlot?.startDate) {
+              const rawDate = t.dueDate || t.completedAt || t.date;
+              if (rawDate) {
+                try {
+                  const d0 = new Date(matchingPlot.startDate);
+                  d0.setHours(0, 0, 0, 0);
+                  let d1 = null;
+                  const dmy = String(rawDate).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                  if (dmy) {
+                    d1 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+                  } else {
+                    const parsed = new Date(rawDate);
+                    if (!isNaN(parsed.getTime())) d1 = parsed;
+                  }
+                  if (d1 && !isNaN(d1.getTime())) {
+                    d1.setHours(0, 0, 0, 0);
+                    const diff = Math.round((d1.getTime() - d0.getTime()) / 86400000) + 1;
+                    if (diff >= 1) resolvedTaskDay = diff;
+                  }
+                } catch {}
+              }
+            }
+
+            let taskDisplayDate = '';
+            if (t.dueDate) {
+              try {
+                const parts = String(t.dueDate).split('T')[0].split('-');
+                if (parts.length === 3) taskDisplayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+              } catch { }
+            }
+
             const formattedTask = {
               id: t.id || `TSK-${t.taskId}`,
               taskId: t.taskId,
               title: t.title,
-              time: t.dueDate ? `${t.dueDate} (08:30)` : 'Hôm nay',
+              time: taskDisplayDate ? `${taskDisplayDate} • ${t.deadline || 'Ca sáng (07:30)'}` : (resolvedTaskDay ? `Ngày tuổi ${resolvedTaskDay}` : 'Hôm nay'),
               date: t.date || t.dueDate,
               day: resolvedTaskDay,
               cropDay: resolvedTaskDay,
@@ -1946,8 +1563,8 @@ export default function CustomerDashboard() {
               targetKeys.add(rawPlotCode);
             }
             if (matchingPlot) {
-              const isPlotSelf = matchingPlot.mode === 'Self-Growing' || matchingPlot.cultivationMode === 'SELF' || matchingPlot.service_type === 'SELF';
-              if (isPlotSelf && d.title === 'Nhiệm vụ chăm sóc hiện trường') {
+              const isPlotSelf = matchingPlot.mode === 'Self-Growing' || matchingPlot.cultivationMode === 'SELF' || matchingPlot.service_type === 'SELF' || matchingPlot.cultivation_mode === 'SELF';
+              if (isPlotSelf && (d.title === 'Nhiệm vụ chăm sóc hiện trường' || d.isStaffTask)) {
                 return;
               }
               targetKeys.add(matchingPlot.id);
@@ -1957,13 +1574,36 @@ export default function CustomerDashboard() {
               }
             }
 
-            const resolvedDiaryDay = (d.cropDay !== undefined && d.cropDay !== null)
+            let resolvedDiaryDay = (d.cropDay !== undefined && d.cropDay !== null)
               ? Math.max(1, Number(d.cropDay))
               : (d.dayOffset !== undefined && d.dayOffset !== null)
               ? (Number(d.dayOffset) === 0 ? 1 : Math.max(1, Number(d.dayOffset)))
               : (d.day !== undefined && d.day !== null)
               ? Math.max(1, Number(d.day))
               : null;
+
+            if (!resolvedDiaryDay && matchingPlot?.startDate) {
+              const rawDate = d.date || d.createdAt || d.time;
+              if (rawDate) {
+                try {
+                  const d0 = new Date(matchingPlot.startDate);
+                  d0.setHours(0, 0, 0, 0);
+                  let d1 = null;
+                  const dmy = String(rawDate).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                  if (dmy) {
+                    d1 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+                  } else {
+                    const parsed = new Date(rawDate);
+                    if (!isNaN(parsed.getTime())) d1 = parsed;
+                  }
+                  if (d1 && !isNaN(d1.getTime())) {
+                    d1.setHours(0, 0, 0, 0);
+                    const diff = Math.round((d1.getTime() - d0.getTime()) / 86400000) + 1;
+                    if (diff >= 1) resolvedDiaryDay = diff;
+                  }
+                } catch {}
+              }
+            }
 
             const formattedDiary = {
               id: d.id,
@@ -2004,10 +1644,53 @@ export default function CustomerDashboard() {
     }
   }, [customerPlots.length]);
 
+  // Đồng bộ thời gian thực từ Staff Dashboard khi nhân viên hoàn thành task hoặc báo cáo sự cố
+  useEffect(() => {
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_staff_activity_channel');
+        bc.onmessage = () => {
+          loadOperationsFromDb();
+        };
+      }
+    } catch {}
+
+    const onStorageSync = (e) => {
+      if (
+        e.key === 'farmely_task_sync' ||
+        e.key === 'farmely_persisted_staff_activities_v2' ||
+        e.key === 'farmely_customer_service_orders'
+      ) {
+        loadOperationsFromDb();
+      }
+    };
+    const onFocusOrVisible = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        loadOperationsFromDb();
+      }
+    };
+    const onTaskCompleted = () => {
+      loadOperationsFromDb();
+    };
+
+    window.addEventListener('storage', onStorageSync);
+    window.addEventListener('farmely_task_completed', onTaskCompleted);
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
+
+    return () => {
+      window.removeEventListener('storage', onStorageSync);
+      window.removeEventListener('farmely_task_completed', onTaskCompleted);
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
+      if (bc) bc.close();
+    };
+  }, []);
+
   // Load Cultivation Processes and Harvest Acceptance from PostgreSQL
   const [dbCultivationProcesses, setDbCultivationProcesses] = useState({});
   const [dbHarvestResults, setDbHarvestResults] = useState([]);
-  const [selectedHarvestForAccept, setSelectedHarvestForAccept] = useState(null);
 
   const fetchCultivationProcesses = useCallback(() => {
     const userId = user?.userId || user?.id || 1;
@@ -2017,37 +1700,38 @@ export default function CustomerDashboard() {
         const items = res?.data || (Array.isArray(res) ? res : []);
         const grouped = {};
         items.forEach((item) => {
-          const keys = [
+          const keys = Array.from(new Set([
+            item.rentalId ? `RENTAL-${item.rentalId}` : null,
+            item.rentalId ? String(item.rentalId) : null,
             item.plotId,
             item.plotCode,
-            `PLOT-${item.plotCode}`,
-            `RENTAL-${item.rentalId}`,
-            String(item.rentalId),
-            item.plotId,
-            item.plotCode
-          ];
+            item.plotCode ? `PLOT-${item.plotCode}` : null
+          ].filter(Boolean)));
+
+          const stepObj = {
+            ...item,
+            id: item.stepId ? `STAGE-${item.stepId}` : undefined,
+            stepId: item.stepId,
+            stage: item.stage,
+            name: item.stage,
+            date: item.date,
+            guide: item.guide,
+            status: item.status,
+            stepOrder: item.stepOrder,
+            materials: item.materialsNeeded,
+            materialsNeeded: item.materialsNeeded,
+            dayOffset: item.dayOffset,
+            durationDays: item.durationDays,
+            minTemp: item.minTemp,
+            maxTemp: item.maxTemp,
+            minHumidity: item.minHumidity,
+            maxHumidity: item.maxHumidity
+          };
+
           keys.forEach((k) => {
-            if (k) {
-              if (!grouped[k]) grouped[k] = [];
-              grouped[k].push({
-                ...item,
-                id: item.stepId ? `STAGE-${item.stepId}` : undefined,
-                stepId: item.stepId,
-                stage: item.stage,
-                name: item.stage,
-                date: item.date,
-                guide: item.guide,
-                status: item.status,
-                stepOrder: item.stepOrder,
-                materials: item.materialsNeeded,
-                materialsNeeded: item.materialsNeeded,
-                dayOffset: item.dayOffset,
-                durationDays: item.durationDays,
-                minTemp: item.minTemp,
-                maxTemp: item.maxTemp,
-                minHumidity: item.minHumidity,
-                maxHumidity: item.maxHumidity
-              });
+            if (!grouped[k]) grouped[k] = [];
+            if (!grouped[k].some((existing) => existing.stepId === item.stepId)) {
+              grouped[k].push(stepObj);
             }
           });
         });
@@ -2061,18 +1745,8 @@ export default function CustomerDashboard() {
     fetch(`/api/customer/harvest-results?userId=${userId}`)
       .then((r) => (r.ok ? r.json() : { data: [] }))
       .then((res) => {
-        const items = res?.data || (Array.isArray(res) ? res : []);
-        setDbHarvestResults(items);
-        if (items.length > 0) {
-          const confirmedOne = items.find((h) => h.customerConfirmed || h.status === 'CONFIRMED');
-          if (confirmedOne) {
-            setHarvestAcceptance({
-              status: 'CONFIRMED',
-              confirmedAt: confirmedOne.createdAt,
-              deliveryMethod: confirmedOne.deliveryType
-            });
-          }
-        }
+        // ponytail: KH chỉ theo dõi kết quả thu hoạch (hiển thị trong Nhật ký), không nghiệm thu
+        setDbHarvestResults(res?.data || (Array.isArray(res) ? res : []));
       })
       .catch(() => setDbHarvestResults([]));
   }, [user]);
@@ -2085,8 +1759,7 @@ export default function CustomerDashboard() {
   const cultivationProcesses = dbCultivationProcesses;
   const fallbackIotAlerts = {
     'PLOT-CC-01': [
-      { level: 'HIGH', title: 'Mưa có thể đến sau 45 phút', metric: 'Dự báo mưa 8.2 mm', time: '5 phút trước' },
-      { level: 'MEDIUM', title: 'Độ ẩm đất tăng nhanh', metric: '68% → 72% trong 30 phút', time: '12 phút trước' }
+      { level: 'MEDIUM', title: 'Độ ẩm đất ổn định', metric: '68% → 70% trong 30 phút', time: '12 phút trước' }
     ],
     'PLOT-MC-02': [
       { level: 'MEDIUM', title: 'Cường độ nắng cao lúc 12:00', metric: '38.000 Lux', time: '18 phút trước' },
@@ -2151,33 +1824,9 @@ export default function CustomerDashboard() {
   ];
 
   const isSelectedPlotSelf = currentSelectedPlot?.mode === 'Self-Growing' || currentSelectedPlot?.cultivationMode === 'SELF' || currentSelectedPlot?.service_type === 'SELF' || currentSelectedPlot?.cultivation_mode === 'SELF';
-  const currentPlotOperations = useMemo(() => {
-    if (!selectedPlotId && !currentSelectedPlot) return { tasks: EMPTY_ARRAY, diary: EMPTY_ARRAY };
-    if (currentSelectedPlot?.rentalId && plotOperations[`RENTAL-${currentSelectedPlot.rentalId}`]) {
-      return plotOperations[`RENTAL-${currentSelectedPlot.rentalId}`];
-    }
-    if (selectedPlotId && plotOperations[selectedPlotId]) return plotOperations[selectedPlotId];
-    if (currentSelectedPlot?.id && plotOperations[currentSelectedPlot.id]) return plotOperations[currentSelectedPlot.id];
-    if (currentSelectedPlot) return defaultOperationsForPlot(currentSelectedPlot);
-    return { tasks: EMPTY_ARRAY, diary: EMPTY_ARRAY };
-  }, [selectedPlotId, plotOperations, currentSelectedPlot?.id, currentSelectedPlot?.plotCode, currentSelectedPlot?.rentalId]);
-
-  const currentPlotServiceOrders = useMemo(() => {
-    if (!currentSelectedPlot) return EMPTY_ARRAY;
-    const pCode = (currentSelectedPlot.plotCode || currentSelectedPlot.mapPlotId || currentSelectedPlot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
-    return (activeServiceOrders || []).filter((o) => {
-      const oCode = (o.plotCode || o.plotId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
-      if (o.plotId && o.plotId === currentSelectedPlot.id) return true;
-      if (oCode && pCode && oCode === pCode) return true;
-      if (o.rentalId && (o.rentalId === currentSelectedPlot.rentalId || o.rentalId === currentSelectedPlot.rental_id)) return true;
-      if (o.plotName && currentSelectedPlot.name) {
-        if (o.plotName === currentSelectedPlot.name) return true;
-        if (pCode && o.plotName.toUpperCase().includes(pCode)) return true;
-        if (oCode && currentSelectedPlot.name.toUpperCase().includes(oCode)) return true;
-      }
-      return false;
-    });
-  }, [currentSelectedPlot?.id, currentSelectedPlot?.plotCode, currentSelectedPlot?.rentalId, currentSelectedPlot?.name, activeServiceOrders]);
+  const currentPlotOperations = (currentSelectedPlot?.rentalId && plotOperations[`RENTAL-${currentSelectedPlot.rentalId}`]) ||
+    (!isSelectedPlotSelf && (plotOperations[selectedPlotId] || (currentSelectedPlot?.id && plotOperations[currentSelectedPlot.id]))) ||
+    (currentSelectedPlot ? defaultOperationsForPlot(currentSelectedPlot) : { tasks: [], diary: [] });
   const plotTabFromUrl = new URLSearchParams(location.search).get('tab') || 'overview';
 
   const handleSendMessage = async (textToSend) => {
@@ -2294,12 +1943,6 @@ export default function CustomerDashboard() {
       badge: 'Trọn vụ & Lẻ'
     },
     {
-      id: 'iot',
-      label: 'Thời tiết & Vi khí hậu',
-      desc: 'Biểu đồ khí tượng theo giờ, ngày, tuần từ Weather API',
-      icon: Radio
-    },
-    {
       id: 'diary',
       label: 'Nhật ký canh tác',
       desc: 'Farm Diary & minh chứng ca trực',
@@ -2317,50 +1960,14 @@ export default function CustomerDashboard() {
 
   return (
     <div className="dashboard-readable min-h-screen bg-brand-cream flex flex-col font-sans overflow-x-hidden">
-      <aside className={`fixed inset-y-0 left-0 z-[60] hidden flex-col bg-[#063d2b] text-white shadow-2xl transition-[width] duration-200 lg:flex ${sidebarCollapsed ? 'w-16' : 'w-72'}`}>
-        <div className={`flex items-center border-b border-white/10 ${sidebarCollapsed ? 'flex-col justify-center gap-3 p-3' : 'gap-3 px-5 py-5'}`}>
-          <Link to="/" className="flex shrink-0 items-center gap-2 text-xl font-black tracking-wide"><Sprout className="h-8 w-8 text-lime-400" />{!sidebarCollapsed && 'FARMELY'}</Link>
-          <button type="button" onClick={() => setSidebarCollapsed((value) => !value)} className={`${sidebarCollapsed ? '' : 'ml-auto'} flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/70 transition hover:bg-white/10 hover:text-white`} aria-label={sidebarCollapsed ? 'Mở rộng thanh bên' : 'Thu gọn thanh bên'} title={sidebarCollapsed ? 'Mở rộng' : 'Thu gọn'}>
-            {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-          </button>
-        </div>
-        <div className="flex-1 space-y-2 px-3 py-6">
-          {!sidebarCollapsed && <p className="px-3 pb-2 text-xs font-bold uppercase tracking-widest text-white/55">Quản lý nông trại</p>}
-          {[
-            ['Tổng quan', LayoutDashboard, 'overview'],
-            ['Vé khảo sát & Trải nghiệm', Compass, 'welcome'],
-            ['Thu hoạch & Nghiệm thu', Apple, 'harvest']
-          ].map(([label, Icon, id]) => {
-            const isActive = id === 'overview'
-              ? (activeTab === 'yards' || Boolean(selectedPlotId))
-              : id === 'welcome'
-              ? (!selectedPlotId && (activeTab === 'welcome' || activeTab === 'visits'))
-              : (!selectedPlotId && activeTab === id);
-            return (
-              <button key={id} type="button" onClick={() => {
-                setSelectedPlotId(null);
-                setPlotScopeId(null);
-                const nextTab = id === 'overview' ? 'yards' : id;
-                setActiveTab(nextTab);
-                navigate(nextTab === 'yards' ? '/customer/dashboard' : nextTab === 'welcome' ? '/customer/dashboard?tab=welcome' : `/customer/dashboard?view=${nextTab}`);
-              }} className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold transition ${sidebarCollapsed ? 'justify-center px-0' : ''} ${isActive ? 'bg-white text-[#063d2b] shadow-md' : 'text-white hover:bg-white/10'}`} title={sidebarCollapsed ? label : undefined}>
-                <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-emerald-700' : 'text-white/85'}`} />
-                {!sidebarCollapsed && <span className="truncate">{label}</span>}
-                {sidebarCollapsed && <span className="pointer-events-none absolute left-full ml-3 hidden whitespace-nowrap rounded-lg bg-[#063d2b] px-3 py-2 text-xs font-bold text-white shadow-lg group-hover:block">{label}</span>}
-              </button>
-            );
-          })}
-        </div>
-      </aside>
-      {/* 1. Top Navbar giữ nguyên theo toàn bộ website */}
-      <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} hideBrand />
+      {/* 1. Top Navbar tiêu chuẩn toàn website */}
+      <PublicNavbar />
 
-      {/* 2. Main Page Container luôn co giãn theo phần màn hình còn lại */}
-      <div className={`box-border min-w-0 flex-1 w-full lg:w-auto transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'} ${selectedPlotId ? 'px-3 pb-16 pt-20 sm:px-5 lg:px-8' : activeTab === 'yards' ? 'pt-20' : 'space-y-6 px-4 pb-16 pt-24 sm:px-8 sm:pt-28 lg:px-10'}`}>
-
+      {/* 2. Main Page Container tràn đều màn hình */}
+      <div className={`box-border min-w-0 flex-1 w-full ${selectedPlotId ? 'px-3 pb-16 pt-16 sm:px-5 lg:px-8' : activeTab === 'yards' ? 'pt-16' : 'space-y-6 px-4 pb-16 pt-20 sm:px-8 sm:pt-24 lg:px-10'}`}>
         
         {/* 3. Layout with Left Sidebar + Right Content */}
-        <div className={`flex min-w-0 w-full flex-col items-start ${selectedPlotId ? '' : 'gap-6'}`}>
+        <div className={`flex min-w-0 flex-col items-start ${selectedPlotId ? '' : 'gap-6'}`}>
           
           {/* ================= RIGHT MAIN CONTENT ================= */}
           <main className={`min-w-0 w-full flex-1 ${selectedPlotId ? '' : 'space-y-6'}`}>
@@ -2368,45 +1975,66 @@ export default function CustomerDashboard() {
             {/* ============================================================== */}
             {/* VIEW A: CHI TIẾT DASHBOARD QUẢN LÝ 1 THỬA ĐẤT CỤ THỂ         */}
             {/* ============================================================== */}
-            {selectedPlotId && currentSelectedPlot && (
+            {selectedPlotId && currentSelectedPlot && pendingCancellations[currentSelectedPlot.contractCode] && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-6 text-amber-950">
+                <button type="button" onClick={() => navigate('/customer/dashboard')} className="mb-4 rounded border border-amber-400 px-3 py-1">← Về danh sách thửa</button>
+                <h2 className="text-xl font-bold">Đang chờ hoàn tiền</h2>
+                <p>Thửa này tạm khóa trong lúc quản trị viên xử lý yêu cầu hủy hợp đồng.</p>
+              </div>
+            )}
+            {selectedPlotId && currentSelectedPlot && !pendingCancellations[currentSelectedPlot.contractCode] && (
               <CustomerPlotWorkspace
                 plot={currentSelectedPlot}
                 plots={customerPlots}
                 operations={currentPlotOperations}
-                iotData={iotDatasets[currentSelectedPlot.id] || iotDatasets['PLOT-CC-01']}
-                alerts={iotAlerts[currentSelectedPlot.id] || iotAlerts['PLOT-CC-01'] || EMPTY_ARRAY}
+                alerts={iotAlerts[currentSelectedPlot.id] || []}
                 stages={
+                  (currentSelectedPlot.rentalId && cultivationProcesses[`RENTAL-${currentSelectedPlot.rentalId}`]) ||
+                  (currentSelectedPlot.rentalId && cultivationProcesses[String(currentSelectedPlot.rentalId)]) ||
                   cultivationProcesses[currentSelectedPlot.id] ||
                   cultivationProcesses[currentSelectedPlot.plotCode] ||
                   cultivationProcesses[`PLOT-${currentSelectedPlot.plotCode}`] ||
                   cultivationProcesses[currentSelectedPlot.mapPlotId] ||
-                  cultivationProcesses[`RENTAL-${currentSelectedPlot.rentalId}`] ||
-                  cultivationProcesses[String(currentSelectedPlot.rentalId)] ||
-                  EMPTY_ARRAY
+                  []
                 }
                 services={customerServiceCatalog}
-                serviceOrders={currentPlotServiceOrders}
-                harvestPlan={harvestPlans[currentSelectedPlot.id] || dbHarvestResults.find(h => h.plotScopeId === currentSelectedPlot.id || h.plotCode === currentSelectedPlot.plotCode || h.rentalId === currentSelectedPlot.rentalId) || null}
+                serviceOrders={activeServiceOrders.filter((o) => {
+                  if (!currentSelectedPlot) return false;
+                  const pCode = (currentSelectedPlot.plotCode || currentSelectedPlot.mapPlotId || currentSelectedPlot.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+                  const oCode = (o.plotCode || o.plotId || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+                  if (o.plotId && o.plotId === currentSelectedPlot.id) return true;
+                  if (oCode && pCode && oCode === pCode) return true;
+                  if (o.rentalId && (o.rentalId === currentSelectedPlot.rentalId || o.rentalId === currentSelectedPlot.rental_id)) return true;
+                  if (o.plotName && currentSelectedPlot.name) {
+                    if (o.plotName === currentSelectedPlot.name) return true;
+                    if (pCode && o.plotName.toUpperCase().includes(pCode)) return true;
+                    if (oCode && currentSelectedPlot.name.toUpperCase().includes(oCode)) return true;
+                  }
+                  return false;
+                })}
                 harvestResults={dbHarvestResults.filter(h => 
                   h.plotScopeId === currentSelectedPlot.id || 
                   h.plotCode === currentSelectedPlot.plotCode || 
                   h.plotCode === currentSelectedPlot.mapPlotId ||
                   (currentSelectedPlot.rentalId && Number(h.rentalId) === Number(currentSelectedPlot.rentalId))
                 )}
-                onAcceptHarvest={(hr) => {
-                  setSelectedHarvestForAccept(hr);
-                  setShowHarvestAcceptModal(true);
-                }}
                 activeTab={plotTabFromUrl}
                 onTabChange={(tab) => navigate(`/customer/dashboard?plot=${selectedPlotId || (currentSelectedPlot.rentalId ? `RENTAL-${currentSelectedPlot.rentalId}` : currentSelectedPlot.id)}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
                 onBack={() => navigate('/customer/dashboard')}
-                onOpenHarvest={(plot) => setHarvestModalPlotId(plot.id)}
                 onSelectPlot={(plotId) => navigate(`/customer/dashboard?plot=${plotId}${plotTabFromUrl !== 'overview' ? `&tab=${plotTabFromUrl}` : ''}`)}
-                onOpenAiChat={() => { setChatOpenMode('ai'); setShowExpertChatModal(true); }}
+                onOpenAiChat={() => {
+                  const plotCode = currentSelectedPlot.plotCode || currentSelectedPlot.mapPlotId || String(currentSelectedPlot.id || '').replace(/^PLOT-/, '');
+                  const threadId = defaultUserThreadId;
+                  chatService.upsertPlotThread({ threadId, rentalId: currentSelectedPlot.rentalId, customerName: user?.fullName || 'Khách hàng', customerEmail: user?.email, plotCode, plotName: currentSelectedPlot.name, crop: currentSelectedPlot.crop, rentalStatus: 'RENTED' });
+                  updateThreadRentalInStorage({ threadId, rentalId: currentSelectedPlot.rentalId, customerName: user?.fullName || 'Khách hàng', plotCode, plotName: currentSelectedPlot.name, crop: currentSelectedPlot.crop });
+                  setSelectedCustomerThreadId(threadId);
+                  setChatOpenMode('expert');
+                  setShowExpertChatModal(true);
+                }}
                 onOpenTask={(task) => { setTaskPhotoPreview(''); setSelectedTaskDetail({ ...task, plot: currentSelectedPlot }); }}
                 onSelectService={(service) => { setCheckoutPlotId(currentSelectedPlot.id); handleOpenBuyServiceModal(service); }}
                 onAddDiary={(plot) => { setDiaryPlotId(plot.id); setShowNewDiaryModal(true); }}
-                onDeleteServiceOrder={handleDeleteServiceOrder}
+                onHarvestConfirmed={() => { fetchHarvestResults(); fetchCustomerPlots(false); }}
               />
             )}
 
@@ -2448,7 +2076,17 @@ export default function CustomerDashboard() {
                     ].map(([label, Icon, id]) => (
                       <button key={id} type="button" onClick={() => {
                         if (id === 'overview') { setSelectedPlotId(null); setActiveTab('yards'); }
-                        else if (id === 'yards' || id === 'tasks') { setSelectedPlotId(customerPlots[0]?.id || null); }
+                        else if (id === 'yards') { setSelectedPlotId(customerPlots[0]?.id || null); }
+                        else if (id === 'tasks') {
+                          const savedPlotId = localStorage.getItem('farmely_selected_task_plot') || checkoutPlotId;
+                          const targetPlot = customerPlots.find(p => p.id === savedPlotId || (p.rentalId && `RENTAL-${p.rentalId}` === savedPlotId)) ||
+                                             customerPlots.find(p => p.rentalId === 5) ||
+                                             customerPlots[0];
+                          if (targetPlot) {
+                            setSelectedPlotId(targetPlot.rentalId ? `RENTAL-${targetPlot.rentalId}` : targetPlot.id);
+                            navigate(`/customer/dashboard?plot=${targetPlot.id}&tab=tasks`);
+                          }
+                        }
                         else if (id === 'chat') { setShowExpertChatModal(true); }
                         else { setActiveTab(id); }
                       }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-white/85 transition hover:bg-white/10">
@@ -2474,7 +2112,6 @@ export default function CustomerDashboard() {
                     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
                       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                         <div className="flex items-center justify-between"><div><h2 className="text-2xl font-black text-slate-900">📡 Cập nhật thời tiết & vi khí hậu</h2><p className="text-sm text-slate-500">Thửa Mộc Châu B2 · Cập nhật theo thời gian thực</p></div><Link to="#iot" className="text-sm font-bold text-emerald-700">Xem tất cả →</Link></div>
-                        <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4"><p className="font-bold text-orange-700">🌧️ Sắp có mưa trong 45 phút</p><p className="text-sm text-slate-600">Đã tự động hoãn lịch tưới để tránh ngập úng.</p></div>
                         <div className="mt-3 divide-y divide-slate-100">{[['💧','Độ ẩm đất đang ở mức tốt','68% · Trong ngưỡng tối ưu 60–75%','5 phút trước'],['🌿','Cây sinh trưởng ổn định','Không phát hiện dấu hiệu bất thường','20 phút trước'],['☀️','Cường độ sáng đang tăng','28.500 lux · Phù hợp giai đoạn phát triển','1 giờ trước']].map(([icon,title,note,time]) => <div key={title} className="flex items-center gap-3 py-3"><span className="text-2xl">{icon}</span><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">{title}</p><p className="truncate text-sm text-slate-500">{note}</p></div><span className="whitespace-nowrap text-xs text-slate-400">{time}</span></div>)}</div>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><h2 className="text-2xl font-black text-slate-900">✅ Việc cần làm</h2><div className="mt-2 divide-y divide-slate-100">{(plotOperations['PLOT-MC-02']?.tasks || []).map((task) => <button key={task.id} type="button" onClick={() => setSelectedPlotId('PLOT-MC-02')} className="flex w-full items-center gap-3 py-3 text-left"><span className="text-xl">{task.status === 'COMPLETED' ? '✅' : '🌱'}</span><span className="min-w-0 flex-1"><span className="block truncate font-bold text-slate-800">{task.title}</span><span className="block text-xs text-slate-500">Thửa Mộc Châu B2</span></span><span className="whitespace-nowrap rounded-lg bg-slate-50 px-2 py-1 text-xs text-slate-500">{task.time}</span></button>)}</div></div>
@@ -2746,26 +2383,10 @@ export default function CustomerDashboard() {
                         </div>
                       </div>
                     ) : (
-                      <div className="rounded-3xl border border-dashed border-stone-300 bg-white p-8 sm:p-12 text-center shadow-sm">
-                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                          <Sprout className="h-8 w-8" />
-                        </div>
-                        <h3 className="mt-4 font-heading text-xl font-bold text-[#18352b]">
-                          Bạn chưa có thửa đất nào đang canh tác
-                        </h3>
-                        <p className="mx-auto mt-2 max-w-md text-sm text-stone-500">
-                          Khám phá các thửa đất màu mỡ có sẵn trên sàn Marketplace để bắt đầu canh tác rau củ sạch chuẩn VietGAP.
-                        </p>
-                        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                          <Link
-                            to="/marketplace"
-                            className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-800 transition cursor-pointer"
-                          >
-                            <span>Khám phá Sàn Thửa Đất (Marketplace)</span>
-                            <ArrowRight className="h-4 w-4" />
-                          </Link>
-                        </div>
-                      </div>
+                      <CustomerWelcomeLounge
+                        user={user}
+                        onRefreshPlots={fetchCustomerPlots}
+                      />
                     )
                   ) : (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -2777,10 +2398,6 @@ export default function CustomerDashboard() {
                         const openCount = tasks.filter((t) => t.status !== 'COMPLETED').length;
                         const topAlert = (iotAlerts[plot.id] || defaultAlertsForPlot(plot) || []).find((a) => a.level === 'HIGH');
                         const daysLeft = Math.max(plot.totalDays - plot.currentDay, 0);
-                        const todayIso = new Date().toISOString().slice(0, 10);
-                        const startIso = (plot.startDate || plot.start_date || '').slice(0, 10);
-                        const isFutureStart = Boolean(startIso && startIso > todayIso);
-                        const daysUntilStart = isFutureStart ? Math.max(1, Math.ceil((new Date(`${startIso}T00:00:00`) - new Date()) / 86400000)) : 0;
 
                         // Kiểm tra ngày bắt đầu (Requirement #1 & #2)
                         const today = new Date();
@@ -2789,6 +2406,7 @@ export default function CustomerDashboard() {
                         const startDateObj = plotStartDateStr ? new Date(plotStartDateStr) : null;
                         if (startDateObj) startDateObj.setHours(0, 0, 0, 0);
                         const isNotStarted = !isCancelled && !isPendingPayment && Boolean(startDateObj && startDateObj > today);
+                        const daysUntilStart = isNotStarted ? Math.ceil((startDateObj - today) / (1000 * 60 * 60 * 24)) : 0;
 
                         return (
                           <article
@@ -2821,14 +2439,19 @@ export default function CustomerDashboard() {
                                 <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-rose-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
                                   🛑 Đã hủy
                                 </span>
-) : isPendingPayment ? (
+                              ) : isPendingPayment ? (
                                 <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
                                   ⏳ Chờ thanh toán
                                 </span>
-                              ) : isFutureStart ? (
-                                <span className="absolute left-3 top-3 rounded-full bg-amber-50/95 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-900 shadow-2xs">
-                                  ⏳ Bắt đầu {startIso.split('-').reverse().join('/')}
-                                </span>
+                              ) : isNotStarted ? (
+                                <div className="absolute left-3 top-3 flex items-center gap-1.5">
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
+                                    ⏳ Sắp tới
+                                  </span>
+                                  <span className="rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-[#18352b]">
+                                    {plot.mode === 'Self-Growing' ? 'Tự canh tác' : 'Farmely chăm sóc'}
+                                  </span>
+                                </div>
                               ) : (
                                 <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-0.5 text-[11px] font-semibold text-[#18352b]">
                                   {plot.mode === 'Self-Growing' ? 'Tự canh tác' : 'Farmely chăm sóc'}
@@ -2849,26 +2472,57 @@ export default function CustomerDashboard() {
                               </span>
                             </button>
 
-                            <div className="flex flex-1 flex-col justify-between gap-3 p-4">
-                              {/* Thông tin loại cây & thời hạn */}
-                              <div className="flex items-center justify-between gap-2 text-sm">
-                                <span className="flex min-w-0 items-center gap-1.5 font-semibold text-[#18352b]">
-                                  <Sprout className={`h-4 w-4 shrink-0 ${isCancelled ? 'text-stone-400' : 'text-emerald-600'}`} />
-                                  <span className="truncate">{plot.crop}</span>
-                                </span>
-                                <span className="shrink-0 text-xs text-stone-500 font-medium">
-                                  {isCancelled 
-                                    ? 'Hợp đồng kết thúc' 
-                                    : isFutureStart 
-                                      ? `Bắt đầu sau ${daysUntilStart} ngày` 
-                                      : daysLeft > 0 
-                                        ? `Còn ${daysLeft} ngày` 
-                                        : 'Đến vụ'}
-                                </span>
+                            <div className="flex flex-1 flex-col gap-3 p-4">
+                              {/* Thông tin mùa vụ */}
+                              <div>
+                                <div className="flex items-center justify-between gap-2 text-sm">
+                                  <span className="flex min-w-0 items-center gap-1.5 font-semibold text-[#18352b]">
+                                    <Sprout className={`h-4 w-4 shrink-0 ${isCancelled ? 'text-stone-400' : 'text-emerald-600'}`} />
+                                    <span className="truncate">{plot.crop}</span>
+                                  </span>
+                                  <span className="shrink-0 text-xs text-stone-500 font-semibold">
+                                    {isCancelled
+                                      ? 'Hợp đồng kết thúc'
+                                      : isNotStarted
+                                      ? `Bắt đầu sau ${daysUntilStart} ngày`
+                                      : daysLeft > 0
+                                      ? `Còn ${daysLeft} ngày`
+                                      : 'Đến vụ'}
+                                  </span>
+                                </div>
 
+                                {/* Hiển thị ngày bắt đầu plot (Requirement #1) */}
+                                <div className="mt-1 flex items-center justify-between text-xs text-stone-500">
+                                  <span className="inline-flex items-center gap-1">
+                                    <Calendar className="h-3.5 w-3.5 text-stone-400" />
+                                    <span>Bắt đầu: <strong className="text-stone-700">{plotStartDateStr ? new Date(plotStartDateStr).toLocaleDateString('vi-VN') : 'Chưa định'}</strong></span>
+                                  </span>
+                                  {isNotStarted && (
+                                    <span className="font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 text-[11px]">
+                                      Sắp tới
+                                    </span>
+                                  )}
+                                </div>
+
+                                {!isCancelled && (
+                                  <>
+                                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100">
+                                      <div
+                                        className={`h-full rounded-full transition-all ${isNotStarted ? 'bg-sky-400' : 'bg-emerald-500'}`}
+                                        style={{ width: `${isNotStarted ? 0 : plot.progressPercent}%` }}
+                                      />
+                                    </div>
+                                    <p className="mt-1 text-xs text-stone-500 truncate">
+                                      {isNotStarted
+                                        ? `Sắp tới: Bắt đầu gieo trồng từ ngày ${plotStartDateStr ? new Date(plotStartDateStr).toLocaleDateString('vi-VN') : 'dự kiến'}`
+                                        : plot.stage}
+                                    </p>
+                                  </>
+                                )}
                               </div>
 
-                              {isCancelled && (
+                              {/* Hiển thị chi tiết: Thửa đang chạy vs Thửa đã hủy */}
+                              {isCancelled ? (
                                 <div className="rounded-xl border border-rose-100 bg-rose-50/70 p-3 text-xs text-rose-900 space-y-1.5">
                                   <div className="flex items-center justify-between font-bold">
                                     <span className="text-[11px] text-stone-700">Mã HĐ: {plot.contractCode || 'HD-CANCELLED'}</span>
@@ -2880,13 +2534,37 @@ export default function CustomerDashboard() {
                                     Thời gian thuê: {plot.startDate || plot.start_date || '---'} đến {plot.expectedHarvestDate || plot.endDate || plot.end_date || '---'}
                                   </p>
                                 </div>
-)}
+                              ) : (
+                                <>
+                                  {topAlert ? (
+                                    <button type="button" onClick={() => openPlot(plot.id, 'overview', plot.rentalId)} className="flex items-start gap-2 rounded-xl bg-rose-50 px-3 py-2 text-left text-xs text-rose-800 hover:bg-rose-100">
+                                      <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span className="min-w-0"><span className="block font-semibold">{topAlert.title}</span><span className="opacity-80">{topAlert.time}</span></span>
+                                    </button>
+                                  ) : nextTask ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => openPlot(plot.id, null, plot.rentalId)}
+                                      className={`flex items-start gap-2 rounded-xl px-3 py-2 text-left text-xs transition ${
+                                        isNotStarted
+                                          ? 'border border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100'
+                                          : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+                                      }`}
+                                    >
+                                      <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                      <span className="min-w-0">
+                                        <span className="block truncate font-semibold">{nextTask.title}</span>
+                                        <span className="opacity-80">{isNotStarted ? `Dự kiến: ${nextTask.time}` : nextTask.time}</span>
+                                      </span>
+                                    </button>
+                                  ) : null}
+                                </>
+                              )}
 
                               {/* Hàng nút bấm hành động */}
-                              <div className="mt-auto flex flex-col gap-2 pt-2">
+                              <div className="mt-auto flex flex-col gap-2 pt-1">
                                 {isPendingPayment && (
                                   <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
-                                    <span className="font-semibold text-[11px]">Chờ thanh toán</span>
+                                    <span className="font-semibold text-[11px]">Chờ thanh toán (15 phút)</span>
                                     <button
                                       type="button"
                                       onClick={async (e) => {
@@ -2907,35 +2585,38 @@ export default function CustomerDashboard() {
                                   </div>
                                 )}
 
-                                {isCancelled ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenCancelModal(plot)}
-                                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-800 transition hover:bg-rose-100 cursor-pointer"
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                    Xem chi tiết hợp đồng đã hủy
-                                  </button>
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => openPlot(plot.id)}
-                                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20] cursor-pointer shadow-xs"
-                                    >
-                                      Mở thửa <ChevronRight className="h-4 w-4" />
-                                    </button>
+                                <div className="flex items-center gap-2">
+                                  {isCancelled ? (
                                     <button
                                       type="button"
                                       onClick={() => handleOpenCancelModal(plot)}
-                                      aria-label={`Hợp đồng & hủy ${plot.name}`}
-                                      title="Quản lý Hợp đồng & Hủy"
-                                      className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-stone-400 hover:bg-stone-50 cursor-pointer"
+                                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-800 transition hover:bg-rose-100 cursor-pointer"
                                     >
                                       <FileText className="h-4 w-4" />
+                                      Xem chi tiết hợp đồng đã hủy
                                     </button>
-                                  </div>
-                                )}
+                                  ) : (
+                                    <>
+                                      <button type="button" onClick={() => openPlot(plot.id, null, plot.rentalId)} className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#18352b] px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0f2a20]">
+                                        Mở thửa<ChevronRight className="h-4 w-4" />
+                                      </button>
+                                      {[['diary', BookOpen, 'Nhật ký']].map(([tab, Icon, label]) => (
+                                        <button key={tab} type="button" onClick={() => openPlot(plot.id, tab, plot.rentalId)} aria-label={`${label} của ${plot.name}`} title={label} className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800">
+                                          <Icon className="h-4 w-4" />
+                                        </button>
+                                      ))}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenCancelModal(plot)}
+                                        aria-label={`Hợp đồng & hủy ${plot.name}`}
+                                        title="Quản lý Hợp đồng & Hủy"
+                                        className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-600 transition hover:border-stone-400 hover:bg-stone-50"
+                                      >
+                                        <FileText className="h-4 w-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </article>
@@ -3145,237 +2826,6 @@ export default function CustomerDashboard() {
               </div>
             )}
 
-            {/* ============================================================== */}
-            {/* VIEW D: DỮ LIỆU VI KHÍ HẬU IOT (CHỈ THÔNG TIN, KHÔNG CẢNH BÁO) */}
-            {/* ============================================================== */}
-            {activeTab === 'iot' && !selectedPlotId && (
-              customerPlots.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-stone-300 bg-white p-8 sm:p-12 text-center shadow-sm">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                    <Radio className="h-8 w-8" />
-                  </div>
-                  <h3 className="mt-4 font-heading text-xl font-bold text-[#18352b]">
-                    Chưa có dữ liệu thời tiết thực địa
-                  </h3>
-                  <p className="mx-auto mt-2 max-w-md text-sm text-stone-500">
-                    Bạn chưa có thửa đất canh tác nào. Hãy thuê thửa đất tại Marketplace để theo dõi chỉ số nhiệt độ, độ ẩm không khí và độ ẩm đất từ Weather API theo thời gian thực.
-                  </p>
-                  <div className="mt-6">
-                    <Link
-                      to="/marketplace"
-                      className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-6 py-3 text-sm font-bold text-white shadow-md shadow-emerald-700/20 transition hover:bg-emerald-800"
-                    >
-                      <ShoppingBag className="h-4 w-4" />
-                      Khám phá Marketplace
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-              <div className="space-y-6">
-                
-                {/* Top Control Bar: Select Plot + Timeframe Switcher */}
-                <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <button type="button" onClick={() => { if (iotReturnPlotId) { navigate(`/customer/dashboard?plot=${iotReturnPlotId}`); } else { navigate('/customer/dashboard'); } }} className="mb-3 flex items-center gap-1.5 text-xs font-black text-brand-green hover:underline"><ArrowLeft className="h-4 w-4" />Quay lại {iotReturnPlotId ? 'chi tiết thửa' : 'tổng quan'}</button>
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-brand-cream text-brand-green border border-brand-border mb-2">
-                      <Radio className="w-3.5 h-3.5 text-brand-green" />
-                      <span>Dữ Liệu Khí Tượng Nông Trại (Weather API)</span>
-                      {isIotConnected ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full ml-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
-                          Trực tiếp (Weather API) {currentIotPlot.lastUpdated ? `· ${currentIotPlot.lastUpdated}` : ''}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-stone-600 bg-stone-200/60 px-2 py-0.5 rounded-full ml-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-stone-400"></span>
-                          Đồng bộ tự động {currentIotPlot.lastUpdated ? `· ${currentIotPlot.lastUpdated}` : ''}
-                        </span>
-                      )}
-                    </div>
-                    <h2 className="font-heading font-black text-2xl text-brand-dark">
-                      Thời Tiết &amp; Vi Khí Hậu Thực Địa
-                    </h2>
-                    <p className="text-xs text-brand-muted mt-1">
-                      Thông tin nhiệt độ, độ ẩm không khí và độ ẩm đất cập nhật liên tục từ Weather API theo tọa độ nông trại.
-                    </p>
-                  </div>
-
-                  {/* Controls: Select Plot & Timeframe */}
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    {/* Plot Selector */}
-                    <select
-                      value={selectedIotPlotId}
-                      onChange={(e) => setSelectedIotPlotId(e.target.value)}
-                      className="px-3.5 py-2 rounded-xl border border-brand-border bg-white text-xs font-bold text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-green/20"
-                    >
-                      {customerPlots.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.stationId})
-                        </option>
-                      ))}
-                    </select>
-
-                    {/* Timeframe Toggle: Hourly, Daily, Weekly */}
-                    <div className="inline-flex rounded-xl p-1 bg-brand-cream border border-brand-border text-xs font-bold">
-                      <button
-                        onClick={() => setIotTimeframe('hourly')}
-                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                          iotTimeframe === 'hourly'
-                            ? 'bg-brand-green text-white shadow-sm'
-                            : 'text-stone-600 hover:text-brand-dark'
-                        }`}
-                      >
-                        Theo Giờ (24h)
-                      </button>
-                      <button
-                        onClick={() => setIotTimeframe('daily')}
-                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                          iotTimeframe === 'daily'
-                            ? 'bg-brand-green text-white shadow-sm'
-                            : 'text-stone-600 hover:text-brand-dark'
-                        }`}
-                      >
-                        Theo Ngày (7 ngày)
-                      </button>
-                      <button
-                        onClick={() => setIotTimeframe('weekly')}
-                        className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                          iotTimeframe === 'weekly'
-                            ? 'bg-brand-green text-white shadow-sm'
-                            : 'text-stone-600 hover:text-brand-dark'
-                        }`}
-                      >
-                        Theo Tuần (4 tuần)
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Real-time Telemetry Metric Gauges */}
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="p-4 rounded-2xl bg-white border border-brand-border shadow-sm text-center space-y-1">
-                    <div className="flex items-center justify-center gap-1.5 text-xs text-brand-muted">
-                      <Thermometer className="w-4 h-4 text-rose-500" />
-                      <span>Nhiệt độ khí</span>
-                    </div>
-                    <div className="text-2xl font-black font-heading text-brand-dark">
-                      {currentIotPlot.temp}
-                    </div>
-                    <span className="text-[10px] text-emerald-600 font-bold block">Bình thường (20-32°C)</span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-white border border-brand-border shadow-sm text-center space-y-1">
-                    <div className="flex items-center justify-center gap-1.5 text-xs text-brand-muted">
-                      <Droplets className="w-4 h-4 text-emerald-600" />
-                      <span>Độ ẩm đất</span>
-                    </div>
-                    <div className="text-2xl font-black font-heading text-emerald-600">
-                      {currentIotPlot.soilMoisture}
-                    </div>
-                    <span className="text-[10px] text-emerald-600 font-bold block">Tối ưu (60-75%)</span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-white border border-brand-border shadow-sm text-center space-y-1">
-                    <div className="flex items-center justify-center gap-1.5 text-xs text-brand-muted">
-                      <Activity className="w-4 h-4 text-sky-500" />
-                      <span>Độ ẩm không khí</span>
-                    </div>
-                    <div className="text-2xl font-black font-heading text-brand-dark">
-                      {currentIotPlot.airHumidity}
-                    </div>
-                    <span className="text-[10px] text-stone-500 font-bold block">Ổn định</span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-white border border-brand-border shadow-sm text-center space-y-1">
-                    <div className="flex items-center justify-center gap-1.5 text-xs text-brand-muted">
-                      <Sun className="w-4 h-4 text-amber-500" />
-                      <span>Cường độ sáng</span>
-                    </div>
-                    <div className="text-2xl font-black font-heading text-brand-dark">
-                      {currentIotPlot.light}
-                    </div>
-                    <span className="text-[10px] text-amber-600 font-bold block">Đạt chuẩn quang hợp</span>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-white border border-brand-border shadow-sm text-center space-y-1 col-span-2 lg:col-span-1">
-                    <div className="flex items-center justify-center gap-1.5 text-xs text-brand-muted">
-                      <Layers className="w-4 h-4 text-purple-500" />
-                      <span>Độ pH đất</span>
-                    </div>
-                    <div className="text-2xl font-black font-heading text-brand-dark">
-                      {currentIotPlot.ph}
-                    </div>
-                    <span className="text-[10px] text-emerald-600 font-bold block">Thích hợp trồng rau sạch</span>
-                  </div>
-                </div>
-
-                <section className="rounded-3xl border border-brand-border bg-white p-5 shadow-sm sm:p-6">
-                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-orange-600">Theo dõi bất thường</p><h3 className="mt-1 font-heading text-xl font-black text-brand-dark">Cảnh báo vi khí hậu · {currentIotPlot.name}</h3></div><span className="rounded-full bg-orange-50 px-3 py-1 text-[10px] font-black text-orange-700">{(iotAlerts[currentIotPlot.id] || []).length} cảnh báo</span></div>
-                  <div className="mt-4 space-y-2">{(iotAlerts[currentIotPlot.id] || []).map((alert) => <div key={`${currentIotPlot.id}-${alert.title}`} className="flex flex-wrap items-center gap-3 rounded-2xl border border-brand-border bg-brand-cream/35 p-3"><span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${alert.level === 'HIGH' ? 'bg-rose-100 text-rose-700' : alert.level === 'MEDIUM' ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-600'}`}>{alert.level === 'HIGH' ? 'Cao' : alert.level === 'MEDIUM' ? 'Trung bình' : 'Thấp'}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-brand-dark">{alert.title}</p><p className="mt-0.5 text-xs text-brand-muted">{alert.metric} · {alert.time}</p></div></div>)}</div>
-                  {currentIotPlot.mode === 'Self-Growing' && <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4"><div><p className="text-sm font-black text-rose-900">Cần Farmely hỗ trợ ngay?</p><p className="mt-1 text-xs text-rose-800/80">Gửi yêu cầu chăm sóc khẩn cấp cho thửa tự trồng này.</p></div><button type="button" onClick={() => handleEmergencyCareRequest(currentIotPlot)} disabled={emergencyRequests[currentIotPlot.id]?.status === 'PROCESSING'} className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-rose-300">{emergencyRequests[currentIotPlot.id]?.status === 'PROCESSING' ? 'Đã gửi · Đang xử lý' : 'Yêu cầu chăm sóc khẩn cấp'}</button></div>}
-                  {emergencyRequests[currentIotPlot.id] && <div className="mt-3 rounded-xl bg-emerald-50 p-3 text-xs font-bold text-emerald-800">Service Request {emergencyRequests[currentIotPlot.id].id} · Đang tiếp nhận và điều phối nhân sự Farmely.</div>}
-                </section>
-
-                {/* Interactive Chart Container */}
-                <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border/60 pb-3">
-                    <div>
-                      <h3 className="font-heading font-black text-lg text-brand-dark">
-                        Biểu Đồ Quan Trắc Khí Tượng & Vi Khí Hậu • {currentIotPlot.name}
-                      </h3>
-                      <p className="text-xs text-brand-muted mt-0.5">
-                        Hiển thị theo: <strong>{iotTimeframe === 'hourly' ? 'Từng giờ trong ngày' : iotTimeframe === 'daily' ? 'Các ngày trong tuần' : 'Từng tuần trong tháng'}</strong>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-xs font-medium">
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
-                        <span>Độ ẩm đất (%)</span>
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-3 h-3 rounded bg-amber-500 inline-block" />
-                        <span>Nhiệt độ (°C)</span>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="h-72 w-full bg-stone-50/60 p-4 rounded-2xl border border-stone-200">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={currentIotData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="iotColorMoisture" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
-                          </linearGradient>
-                          <linearGradient id="iotColorTemp" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                        <XAxis dataKey="time" stroke="#9ca3af" fontSize={11} tickLine={false} interval="preserveStartEnd" />
-                        <YAxis stroke="#9ca3af" fontSize={11} tickLine={false} width={36} domain={[0, 100]} />
-                        <Tooltip
-                          contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', borderColor: '#e5e7eb', fontSize: '12px' }}
-                        />
-                        <Area type="monotone" dataKey="moisture" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#iotColorMoisture)" name="Độ ẩm đất (%)" isAnimationActive={false} />
-                        <Area type="monotone" dataKey="temp" stroke="#f59e0b" strokeWidth={2.5} fillOpacity={1} fill="url(#iotColorTemp)" name="Nhiệt độ (°C)" isAnimationActive={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  {/* Summary Footer of IoT Sensor Station */}
-                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-500 border-t border-brand-border/60">
-                    <span>Mã trạm: <strong className="text-brand-dark">{currentIotPlot.stationId}</strong> • Vị trí: {currentIotPlot.location}</span>
-                    <span className="text-emerald-700 font-semibold">✓ Tần suất cập nhật: 3 giờ/lần theo thời gian thực</span>
-                  </div>
-                </div>
-
-              </div>
-              )
-            )}
-
             {/* TAB 4: QUY TRÌNH CANH TÁC CHUẨN */}
             {activeTab === 'process' && !selectedPlotId && (
               <div className="space-y-5 rounded-3xl border border-brand-border bg-white p-5 shadow-sm sm:p-7">
@@ -3504,249 +2954,10 @@ export default function CustomerDashboard() {
                       ].map(([label, value, Icon, tone]) => <div key={label} className="rounded-xl border border-brand-border p-3"><span className={`flex h-8 w-8 items-center justify-center rounded-lg ${tone}`}><Icon className="h-4 w-4" /></span><p className="mt-2 text-[10px] text-brand-muted">{label}</p><p className="text-sm font-black text-brand-dark">{value}</p></div>)}
                     </div>
                     <div className="mt-3 rounded-xl bg-amber-50 p-3"><p className="text-xs font-black text-amber-900">Cảnh báo thời tiết đang được theo dõi</p><p className="mt-1 text-[11px] text-amber-800">Dữ liệu mới nhất được đồng bộ từ trạm của {diaryFocusPlot.name}.</p></div>
-                    <button type="button" onClick={() => { setSelectedIotPlotId(diaryFocusPlot.id); setIotReturnPlotId(scopedPlot ? scopedPlot.id : null); setPlotScopeId(null); setActiveTab('iot'); }} className="mt-4 w-full rounded-xl bg-brand-green px-4 py-3 text-xs font-black text-white transition hover:bg-brand-dark">Xem dashboard vi khí hậu chi tiết</button>
                   </aside>
                 )}
               </div>
               )
-            )}
-
-            {/* TAB 5: THU HOẠCH & BÀN GIAO NÔNG SẢN */}
-            {activeTab === 'harvest' && !selectedPlotId && (() => {
-              const displayedHarvests = scopedPlot
-                ? dbHarvestResults.filter(
-                    (h) =>
-                      h.plotScopeId === scopedPlot.id ||
-                      h.plotCode === scopedPlot.plotCode ||
-                      h.rentalId === scopedPlot.rentalId
-                  )
-                : dbHarvestResults;
-
-              const harvestTargetPlots = scopedPlot ? [scopedPlot] : customerPlots;
-
-              return (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-8">
-                {/* Tiêu đề chính */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-5">
-                  <div>
-                    <h3 className="font-heading font-black text-xl text-brand-dark flex items-center gap-2">
-                      <Apple className="w-6 h-6 text-emerald-700" />
-                      <span>Kế Hoạch Thu Hoạch Nông Sản</span>
-                    </h3>
-                    <p className="text-xs text-brand-muted mt-1">
-                      Đăng ký lịch hái theo dõi xác nhận từ nông trại và nhận bàn giao khối lượng thực tế đối chứng cân điện tử.
-                    </p>
-                  </div>
-                </div>
-
-                {/* PHẦN 1: KẾ HOẠCH THU HOẠCH THEO TỪNG THỬA ĐẤT */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-heading font-black text-base text-brand-dark flex items-center gap-2">
-                        <CalendarCheck className="w-4 h-4 text-emerald-700" />
-                        <span>1. Kế Hoạch Thu Hoạch Của Bạn</span>
-                      </h4>
-                      <p className="text-xs text-stone-500">
-                        Đăng ký ngày tới nông trại để trải nghiệm và tự tay thu hoạch nông sản của bạn.
-                      </p>
-                    </div>
-                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                      {harvestTargetPlots.length} Thửa Đất Canh Tác
-                    </span>
-                  </div>
-
-                  {harvestTargetPlots.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-6 text-center text-xs text-stone-500">
-                      Bạn chưa có thửa đất canh tác nào.
-                    </div>
-                  ) : (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {harvestTargetPlots.map((plot) => {
-                        const plan = harvestPlans[plot.id] || harvestPlans[plot.plotCode] || null;
-                        const isApproved = plan?.status === 'APPROVED';
-
-                        return (
-                          <div
-                            key={plot.id}
-                            className="p-3.5 sm:p-4 rounded-xl border border-brand-border bg-white hover:border-emerald-400 hover:shadow-xs transition-all flex flex-col justify-between space-y-3 text-xs"
-                          >
-                            <div className="space-y-2.5">
-                              {/* Header thửa đất & trạng thái */}
-                              <div className="flex items-center justify-between gap-1.5 border-b border-stone-100 pb-2">
-                                <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                                  <span className="shrink-0 font-mono font-bold text-emerald-800 text-xs bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                    {plot.plotCode || plot.id}
-                                  </span>
-                                  <span className="font-bold text-brand-dark text-xs truncate max-w-[110px] sm:max-w-[140px]" title={plot.name}>
-                                    {plot.name}
-                                  </span>
-                                  <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/60">
-                                    {plot.crop}
-                                  </span>
-                                </div>
-                                <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  isApproved
-                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                    : plan
-                                    ? 'bg-amber-100 text-amber-800 border-amber-300'
-                                    : 'bg-stone-100 text-stone-500 border-stone-200'
-                                }`}>
-                                  {isApproved
-                                    ? '✓ Đã duyệt'
-                                    : plan
-                                    ? '⏳ Chờ xác nhận'
-                                    : 'Chưa đăng ký'}
-                                </span>
-                              </div>
-
-                              {/* Thông số thu hoạch */}
-                              <div className="grid grid-cols-2 gap-2 bg-stone-50/80 p-2.5 rounded-lg border border-stone-200/60 text-stone-600">
-                                <div>
-                                  <span className="text-[10px] text-stone-400 block font-medium">Dự kiến vụ:</span>
-                                  <strong className="text-brand-dark text-xs block truncate">{plot.expectedHarvestDate || 'Đang cập nhật'}</strong>
-                                </div>
-                                <div>
-                                  <span className="text-[10px] text-stone-400 block font-medium">Sản lượng ước tính:</span>
-                                  <strong className="text-emerald-800 text-xs block truncate">{plot.expectedYield || 'Theo chuẩn'}</strong>
-                                </div>
-                                {plan && (
-                                  <>
-                                    <div className="pt-1 border-t border-stone-200/40">
-                                      <span className="text-[10px] text-stone-400 block font-medium">Ngày hái đề xuất:</span>
-                                      <strong className="text-emerald-700 text-xs flex items-center gap-1 truncate">
-                                        <Calendar className="w-3 h-3 text-emerald-600 shrink-0" /> {plan.date}
-                                      </strong>
-                                    </div>
-                                    <div>
-                                      <span className="text-[10px] text-stone-400 block font-bold">Hình thức trải nghiệm:</span>
-                                      <strong className="text-brand-dark flex items-center gap-1">
-                                        <Scissors className="w-3.5 h-3.5 text-emerald-700" /> {plan.methodLabel || plan.method}
-                                      </strong>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Nút thao tác */}
-                            <div className="pt-1">
-                              <Button
-                                size="sm"
-                                onClick={() => setHarvestModalPlotId(plot.id)}
-                                className={`w-full py-1.5 h-8 text-xs font-bold gap-1.5 cursor-pointer justify-center rounded-lg ${
-                                  plan
-                                    ? 'bg-stone-100 hover:bg-stone-200 text-brand-dark border border-stone-300'
-                                    : 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-2xs'
-                                }`}
-                              >
-                                <Wheat className="w-3.5 h-3.5" />
-                                <span>{plan ? 'Xem / Sửa kế hoạch' : 'Đăng ký thu hoạch ngay'}</span>
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* PHẦN 2: KẾT QUẢ THU HOẠCH & BÀN GIAO THỰC ĐỊA */}
-                <div className="space-y-4 pt-4 border-t border-brand-border/60">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-heading font-black text-base text-brand-dark flex items-center gap-2">
-                        <Apple className="w-4 h-4 text-emerald-700" />
-                        <span>2. Biên Bản Bàn Giao & Cân Đối Chứng Nông Sản (Thực tế sau khi thu hoạch)</span>
-                      </h4>
-                      <p className="text-xs text-stone-500">
-                        Đối chứng ảnh số cân điện tử do Chuyên viên lao động gửi về và xác nhận bàn giao nông sản.
-                      </p>
-                    </div>
-                  </div>
-
-                {customerPlots.length === 0 || displayedHarvests.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50/50 p-8 text-center">
-                    <Apple className="mx-auto h-10 w-10 text-stone-400" />
-                    <p className="mt-2 font-bold text-stone-700">Chưa có kết quả cân thu hoạch nào</p>
-                    <p className="mt-1 text-xs text-stone-500">Sau khi hoàn tất đăng ký và chuyên viên lao động cắt cân nông sản tại vườn, biên bản bàn giao sẽ xuất hiện ở đây.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {displayedHarvests.map((hr, idx) => {
-                      const isConfirmed = hr.customerConfirmed || hr.status === 'CONFIRMED';
-                      const seasonLabel = hr.seasonName || `Vụ ${idx % 2 === 0 ? 1 : 2}: ${hr.crop || 'Nông sản VietGAP'}`;
-                      return (
-                      <div key={hr.id || hr.harvestId} className="grid gap-3.5 rounded-xl border border-brand-border bg-stone-50/60 p-3.5 sm:grid-cols-[130px_minmax(0,1fr)]">
-                        <img 
-                          src={hr.evidenceImageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80'} 
-                          alt="Ảnh cân đối chứng" 
-                          onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80'; }}
-                          className="h-28 w-full rounded-lg object-cover sm:h-full" 
-                        />
-                        <div className="space-y-3 text-xs">
-                          <div className="flex flex-wrap justify-between items-center gap-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-brand-dark text-sm">{hr.plotName} · {hr.crop}</span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-lime-100 text-lime-900 border border-lime-200">
-                                {seasonLabel}
-                              </span>
-                            </div>
-                            <span className="text-emerald-700 font-black text-base">{hr.formattedYield || '35.0 kg'}</span>
-                          </div>
-                          <p className="text-stone-600">Ngày thu hoạch: <strong>{hr.harvestDateFormatted || hr.harvestDate}</strong>. Chuyên viên phụ trách: <strong>{hr.enteredByWorker || 'Trần Văn Lực'}</strong>.</p>
-                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-brand-border/60">
-                            <div className="flex flex-wrap gap-2">
-                              <span className="rounded-full bg-white px-3 py-1 font-bold text-stone-600 border border-brand-border">Mã biên bản: {hr.id}</span>
-                              <span className={`rounded-full px-3 py-1 font-bold ${isConfirmed ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                                {isConfirmed ? `✓ Đã xác nhận · ${hr.deliveryType === 'FARM' || hr.deliveryType === 'PICKUP' ? 'Nhận tại nông trại' : 'Giao tận nhà'}` : 'Chờ khách xác nhận'}
-                              </span>
-                            </div>
-                            {!isConfirmed && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedHarvestForAccept(hr);
-                                  setShowHarvestAcceptModal(true);
-                                }}
-                              >
-                                Xác nhận nhận nông sản
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                )}
-                </div>
-              </div>
-              );
-            })()}
-
-            {/* TAB WELCOME / VISITS: VÉ KHẢO SÁT THỰC ĐỊA & PHÒNG CHỜ TRẢI NGHIỆM (BOARDING PASS) */}
-            {(activeTab === 'welcome' || activeTab === 'visits') && !selectedPlotId && (
-              <div className="mx-auto max-w-[1400px] space-y-6 px-4 pb-16 pt-5 sm:px-6 lg:px-10 lg:pt-8 animate-fadeIn">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <p className="text-xs sm:text-sm font-semibold text-stone-500">Trải nghiệm thực địa trước khi thuê đất</p>
-                    <h1 className="mt-0.5 font-heading text-2xl font-black text-[#18352b] sm:text-3xl">
-                      Vé Khảo Sát Nông Trại Thực Địa
-                    </h1>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { setActiveTab('yards'); navigate('/customer/dashboard'); }}
-                    className="flex items-center gap-1.5 self-start sm:self-auto px-4 py-2 rounded-xl bg-white border border-stone-200 text-stone-700 hover:bg-stone-50 text-xs font-bold transition shadow-xs cursor-pointer"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    <span>Quay lại Vườn của tôi</span>
-                  </button>
-                </div>
-                <CustomerWelcomeLounge user={user} onRefreshPlots={fetchCustomerPlots} />
-              </div>
             )}
 
             {/* TAB 6: HỢP ĐỒNG THUÊ ĐẤT & QUY TRÌNH HỦY (BR10) / HỒ SƠ ĐIỆN TỬ */}
@@ -3859,7 +3070,7 @@ export default function CustomerDashboard() {
                               <div className="flex items-center gap-2">
                                 <span className="font-mono font-bold text-brand-green text-sm">{plot.contractCode || `CTR-${plot.id}`}</span>
                                 <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                                  {String(plot.contract_status || plot.rental_status || '').toUpperCase() === 'CANCELLED' ? 'Đã hủy' : pendingCancellations[plot.contractCode] ? 'Chờ duyệt yêu cầu hủy' : `Đang hiệu lực (${plot.mode === 'Assisted-Growing' ? 'Farmely chăm sóc' : 'Tự canh tác'})`}
+                                  {String(plot.contract_status || plot.rental_status || '').toUpperCase() === 'CANCELLED' ? 'Đã hủy' : pendingCancellations[plot.contractCode || `CTR-${plot.id}`] ? 'Đang chờ hoàn tiền' : `Đang hiệu lực (${plot.mode === 'Assisted-Growing' ? 'Farmely chăm sóc' : 'Tự canh tác'})`}
                                 </span>
                               </div>
                               <span className="text-[11px] text-stone-500">
@@ -3888,7 +3099,7 @@ export default function CustomerDashboard() {
 
                             {String(plot.contract_status || '').toUpperCase() !== 'CANCELLED' && pendingCancellations[plot.contractCode || `CTR-${plot.id}`] ? (
                               <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 font-bold">
-                                Đã gửi yêu cầu hủy, đang chờ quản trị viên duyệt.
+                                Đang chờ hoàn tiền. Các thao tác trên thửa tạm khóa cho đến khi quản trị viên duyệt.
                               </div>
                             ) : String(plot.contract_status || plot.rental_status || '').toUpperCase() === 'CANCELLED' ? (
                               <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 font-bold flex items-center justify-between">
@@ -4353,8 +3564,8 @@ export default function CustomerDashboard() {
                   <option value="">Chưa có thửa đất nào</option>
                 ) : (
                   customerPlots.map((p, idx) => (
-                    <option key={`${p.id}-${p.rentalId || p.rental_id || idx}`} value={p.id}>
-                      {p.name} ({p.plotCode || p.mapPlotId || p.id}) • {p.crop}
+                    <option key={`${p.id}-${p.rentalId || p.rental_id || idx}`} value={p.id} disabled={Boolean(pendingCancellations[p.contractCode])}>
+                      {p.name} ({p.plotCode || p.mapPlotId || p.id}) • {p.crop}{pendingCancellations[p.contractCode] ? ' • Đang chờ hoàn tiền' : ''}
                     </option>
                   ))
                 )}
@@ -4565,9 +3776,10 @@ export default function CustomerDashboard() {
                 setLastPaymentResult(null);
                 setActiveTab('yards');
                 if (targetPlot) {
-                  setSelectedPlotId(targetPlot.id);
+                  setSelectedPlotId(targetPlot.rentalId ? `RENTAL-${targetPlot.rentalId}` : targetPlot.id);
                   setCheckoutPlotId(targetPlot.id);
-                  navigate(`/customer/dashboard?plot=${targetPlot.id}`);
+                  try { localStorage.setItem('farmely_selected_task_plot', targetPlot.id); } catch {}
+                  navigate(`/customer/dashboard?plot=${targetPlot.id}&tab=tasks`);
                 } else {
                   setSelectedPlotId(null);
                   navigate('/customer/dashboard');
@@ -4576,7 +3788,7 @@ export default function CustomerDashboard() {
               }}
             >
               <Eye className="w-4 h-4 text-emerald-300" />
-              <span>XEM CHI TIẾT THỬA ĐẤT</span>
+              <span>THEO DÕI CÔNG VIỆC</span>
             </button>
           </div>
         </div>
@@ -4909,137 +4121,6 @@ export default function CustomerDashboard() {
           </Modal>
         );
       })()}
-
-      {/* Modal: Chuẩn bị thu hoạch cho RIÊNG 1 thửa */}
-      <PlotHarvestModal
-        plot={harvestModalPlot}
-        isOpen={Boolean(harvestModalPlot)}
-        existingPlan={harvestModalPlot ? harvestPlans[harvestModalPlot.id] || null : null}
-        onClose={() => setHarvestModalPlotId(null)}
-        onConfirm={handleConfirmHarvestPlan}
-        onCancelPlan={handleCancelHarvestPlan}
-      />
-
-      {/* Modal: Accept Harvest & Quality Rating */}
-      <Modal
-        isOpen={showHarvestAcceptModal}
-        onClose={() => setShowHarvestAcceptModal(false)}
-        title="Xác Nhận Sản Lượng & Đánh Giá Chất Lượng Vụ Mùa"
-        subtitle="Đối chứng cân điện tử, chọn phương thức giao nhận và đánh giá chất lượng nông sản từ CSDL PostgreSQL"
-      >
-        <form onSubmit={handleConfirmHarvestAcceptance} className="space-y-4 text-left text-xs max-h-[75vh] overflow-y-auto pr-1">
-          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
-            <p className="font-bold text-sm">✓ Sản lượng dự kiến/thực tế: {selectedHarvestForAccept?.formattedYield || '35.0 kg'} {selectedHarvestForAccept?.crop || 'Nông sản VietGAP'}</p>
-            <p className="text-[11px] text-emerald-800">Áp dụng cho: <strong>{selectedHarvestForAccept?.plotName || customerPlots[0]?.name || 'Thửa đất của bạn'}</strong>. Ảnh cân đối chứng và tem truy xuất QR đã được xác thực tại trạm đóng gói Farmely.</p>
-          </div>
-
-          <div>
-            <label className="block font-bold text-brand-dark mb-1.5">1. Phương thức nhận nông sản:</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${harvestDeliveryMethod === 'DELIVERY' ? 'border-brand-green bg-emerald-50/50 shadow-xs' : 'border-brand-border bg-white'}`}>
-                <input type="radio" name="deliver" checked={harvestDeliveryMethod === 'DELIVERY'} onChange={() => setHarvestDeliveryMethod('DELIVERY')} className="mt-0.5" />
-                <div>
-                  <span className="font-bold text-brand-dark block">Giao tận nhà (24h)</span>
-                  <span className="text-[10px] text-stone-500">Đóng thùng bảo quản lạnh, giữ trọn độ tươi giòn</span>
-                </div>
-              </label>
-              <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${harvestDeliveryMethod === 'FARM' ? 'border-brand-green bg-emerald-50/50 shadow-xs' : 'border-brand-border bg-white'}`}>
-                <input type="radio" name="deliver" checked={harvestDeliveryMethod === 'FARM'} onChange={() => setHarvestDeliveryMethod('FARM')} className="mt-0.5" />
-                <div>
-                  <span className="font-bold text-brand-dark block">Tự đến nông trại nhận</span>
-                  <span className="text-[10px] text-stone-500">Nhận tại trạm đóng gói, kết hợp dã ngoại tham quan</span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200 space-y-3">
-            <label className="block font-bold text-brand-dark text-xs uppercase tracking-wider">
-              2. Đánh giá chất lượng nông sản thu hoạch:
-            </label>
-
-            {/* Overall Rating */}
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-stone-700">Mức độ hài lòng chung:</span>
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setHarvestRating(s)}
-                    className="p-0.5 hover:scale-110 transition-transform cursor-pointer"
-                  >
-                    <Star className={`w-4 h-4 ${s <= harvestRating ? 'fill-amber-400 text-amber-500' : 'text-stone-300'}`} />
-                  </button>
-                ))}
-                <span className="ml-1 font-bold text-amber-600 text-xs">{harvestRating}/5 sao</span>
-              </div>
-            </div>
-
-            {/* Freshness Rating */}
-            <div className="flex items-center justify-between">
-              <span className="text-stone-600">Độ tươi ngon, giòn ngọt:</span>
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setHarvestFreshness(s)}
-                    className="p-0.5 hover:scale-110 transition-transform cursor-pointer"
-                  >
-                    <Star className={`w-4 h-4 ${s <= harvestFreshness ? 'fill-amber-400 text-amber-500' : 'text-stone-300'}`} />
-                  </button>
-                ))}
-                <span className="ml-1 font-bold text-amber-600 text-xs">{harvestFreshness}/5</span>
-              </div>
-            </div>
-
-            {/* Packaging Rating */}
-            <div className="flex items-center justify-between">
-              <span className="text-stone-600">Quy cách sơ chế & đóng gói:</span>
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setHarvestPackaging(s)}
-                    className="p-0.5 hover:scale-110 transition-transform cursor-pointer"
-                  >
-                    <Star className={`w-4 h-4 ${s <= harvestPackaging ? 'fill-amber-400 text-amber-500' : 'text-stone-300'}`} />
-                  </button>
-                ))}
-                <span className="ml-1 font-bold text-amber-600 text-xs">{harvestPackaging}/5</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-stone-600 mb-1">Ý kiến đóng góp cho Nông dân & Chuyên gia:</label>
-              <textarea
-                rows={2}
-                value={harvestFeedback}
-                onChange={(e) => setHarvestFeedback(e.target.value)}
-                placeholder="Ví dụ: Rau rất tươi, vị ngọt tự nhiên, khâu đóng thùng cẩn thận..."
-                className="w-full p-2.5 rounded-xl border border-stone-300 text-xs bg-white focus:ring-2 focus:ring-brand-green/20"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-brand-border">
-            <Button type="button" variant="outline" size="sm" onClick={() => setShowHarvestAcceptModal(false)}>
-              HỦY
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={isSubmittingHarvestRating}
-              className="bg-brand-green hover:bg-[#203c2c] text-white font-bold"
-            >
-              {isSubmittingHarvestRating ? 'Đang gửi...' : 'GỬI ĐÁNH GIÁ & XÁC NHẬN'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
 
       {/* Modal: Renew Contract theo Vụ Mùa (BR12) */}
       <PlotRenewalModal

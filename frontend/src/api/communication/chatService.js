@@ -11,6 +11,7 @@ import {
   appendMessage,
   markThreadAsReadInStorage,
   updateThreadRentalInStorage,
+  upsertPlotChatThread,
   DEMO_CUSTOMERS,
   DEMO_WORKERS,
   DEMO_EXPERTS
@@ -29,6 +30,22 @@ export const chatService = {
 
   getThreadById(threadId) {
     return getStoredThreadById(threadId);
+  },
+
+  upsertPlotThread(payload) {
+    const result = upsertPlotChatThread(payload);
+    if (result) {
+      communicationBus.postMessage({ type: CHAT_EVENTS.RENTAL_UPDATED, threadId: payload.threadId, thread: result.thread, timestamp: Date.now() });
+    }
+    return result;
+  },
+
+  setThreadConversationId(threadId, conversationId) {
+    if (!threadId || !conversationId) return null;
+    const updated = getStoredThreads().map((thread) => thread.id === threadId ? { ...thread, conversationId: Number(conversationId) } : thread);
+    saveThreads(updated);
+    communicationBus.postMessage({ type: CHAT_EVENTS.RENTAL_UPDATED, threadId, timestamp: Date.now() });
+    return updated.find((thread) => thread.id === threadId) || null;
   },
 
   /**
@@ -57,8 +74,8 @@ export const chatService = {
 
       // Asynchronously sync with Backend PostgreSQL / Spring Boot service
       try {
-        const numericConvId = parseInt(String(threadId).replace(/\D/g, ''), 10) || 1;
-        fetch(`/api/conversations/${numericConvId}/messages`, {
+        const numericConvId = getStoredThreadById(threadId)?.conversationId || (/^(CONS|WORK)-\d+$/.test(threadId) ? parseInt(threadId.replace(/\D/g, ''), 10) : null);
+        if (numericConvId) fetch(`/api/conversations/${numericConvId}/messages`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -158,9 +175,11 @@ export const chatService = {
 
       backendConvs.forEach((bConv) => {
         const threadIndex = threads.findIndex((t) =>
+          (bConv.conversationId && Number(t.conversationId) === Number(bConv.conversationId)) ||
           t.id === bConv.id ||
           (bConv.conversationId && (t.id === `CONS-${bConv.conversationId}` || t.conversationId === bConv.conversationId)) ||
-          (bConv.customerName && t.customerName && t.customerName.toLowerCase() === bConv.customerName.toLowerCase())
+          (bConv.plotId && t.plotChat && String(t.plotCode) === `P-${bConv.plotId}` && bConv.messages?.some((message) => message.senderName && message.senderName === t.customerName)) ||
+          (!bConv.plotId && bConv.customerName && t.customerName && t.customerName.toLowerCase() === bConv.customerName.toLowerCase())
         );
 
         if (threadIndex >= 0) {
@@ -175,30 +194,60 @@ export const chatService = {
           if (Array.isArray(bConv.messages) && bConv.messages.length > 0) {
             const currentTexts = new Set(thread.messages.map((m) => m.text));
             bConv.messages.forEach((bMsg) => {
-              if (!currentTexts.has(bMsg.text)) {
+              const messageText = bMsg.text || bMsg.content || '';
+              if (!currentTexts.has(messageText)) {
                 hasNewOverall = true;
+                const inquiry = messageText.match(/Mình đang xem (.+?) \((P-?\d+)\)(?: và quan tâm giống (.+?))?\. Nhờ chuyên gia tư vấn giúp mình\./i);
                 thread.messages.push({
-                  id: bMsg.id || Date.now() + Math.random(),
-                  sender: bMsg.sender,
+                  id: bMsg.id || bMsg.messageId || Date.now() + Math.random(),
+                  sender: bMsg.sender || (Number(bMsg.senderId) === 5 ? 'expert' : 'customer'),
                   senderId: bMsg.senderId,
                   senderName: bMsg.senderName,
-                  text: bMsg.text,
+                  text: messageText,
                   time: bMsg.time || 'Vừa xong',
-                  seen: true
+                  seen: true,
+                  ...(inquiry ? { plotContext: { plotName: inquiry[1], plotCode: inquiry[2], crop: inquiry[3] || '' } } : {})
                 });
               }
             });
           }
           threads[threadIndex] = thread;
+        } else if (bConv.plotId && bConv.type === 'CUST_EXP') {
+          const plotCode = `P-${bConv.plotId}`;
+          const messages = Array.isArray(bConv.messages) ? bConv.messages.map((bMsg) => {
+            const text = bMsg.text || bMsg.content || '';
+            const inquiry = text.match(/Mình đang xem (.+?) \((P-?\d+)\)(?: và quan tâm giống (.+?))?\. Nhờ chuyên gia tư vấn giúp mình\./i);
+            const plotContext = inquiry ? { plotName: inquiry[1], plotCode: inquiry[2], crop: inquiry[3] || '' } : undefined;
+            return {
+              id: bMsg.id || bMsg.messageId || Date.now() + Math.random(),
+              sender: bMsg.sender || (Number(bMsg.senderId) === 5 ? 'expert' : 'customer'),
+              senderId: bMsg.senderId,
+              senderName: bMsg.senderName || 'Khách hàng',
+              text,
+              time: bMsg.time || 'Vừa xong',
+              seen: true,
+              ...(plotContext ? { plotContext } : {})
+            };
+          }) : [];
+          threads.unshift({
+            id: `CONS-${bConv.participantOne || 'CUSTOMER'}-PLOT-${plotCode.replace(/[^a-zA-Z0-9]/g, '_')}`,
+            conversationId: bConv.conversationId,
+            role: 'customer', roleLabel: bConv.rentalId ? 'Khách thuê đất' : 'Khách tư vấn trước thuê', category: 'expert', plotChat: true,
+            rentalStatus: bConv.rentalId ? 'RENTED' : 'NOT_RENTED', rentalId: bConv.rentalId || null,
+            customerName: messages.find((message) => message.sender !== 'expert')?.senderName || `Khách hàng #${bConv.participantOne || ''}`,
+            customerAvatar: getSafeAvatar(null, 'customer'), plotCode, plotName: `Thửa ${plotCode}`,
+            crop: messages.find((message) => message.plotContext)?.plotContext.crop || '',
+            stage: bConv.rentalId ? 'Đang thuê thửa đất' : 'Đang tìm hiểu thửa đất', expertName: 'ThS. Nguyễn Hoàng Nam', isOnline: false,
+            lastTime: messages.at(-1)?.time || 'Chưa có tin nhắn',
+            status: messages.some((message) => message.sender !== 'expert') ? 'PENDING' : 'REPLIED', unread: false, messages
+          });
+          hasNewOverall = true;
         }
       });
 
       if (hasNewOverall) {
         saveThreads(threads);
-        communicationBus.postMessage({
-          type: CHAT_EVENTS.SYNC_COMPLETED,
-          timestamp: Date.now()
-        });
+        communicationBus.postMessage({ type: CHAT_EVENTS.RENTAL_UPDATED, timestamp: Date.now() });
       }
     } catch (_) {
       // offline fallback

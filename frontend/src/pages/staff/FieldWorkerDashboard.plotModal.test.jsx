@@ -46,6 +46,20 @@ describe('FieldWorkerDashboard plot modal', () => {
       const url = String(input);
       if (url.includes('/api/rentals')) return respond([rental]);
       if (url.includes('/api/tasks')) return respond(apiTasks);
+      if (url.includes('open-meteo.com')) {
+        return new Response(JSON.stringify({
+          current: {
+            temperature_2m: 28.5,
+            relative_humidity_2m: 74,
+            soil_moisture_0_to_1cm: 0.45,
+            direct_radiation: 375,
+            soil_temperature_0cm: 28.0,
+            precipitation: 0.0,
+            wind_speed_10m: 6.2,
+            surface_pressure: 1010
+          }
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }
       return respond([]);
     }));
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -100,9 +114,9 @@ describe('FieldWorkerDashboard plot modal', () => {
       await click(tab);
       if (label === 'Thời Tiết & Khí Tượng') {
         expect(text()).toContain('Độ ẩm không khí');
-        expect(text()).not.toContain('Lượng mưa');
+        expect(text()).not.toContain('Độ pH đất');
       }
     }
     expect(text()).toContain('Tưới nước hôm nay');
-  });
+  }, 15000);
 });

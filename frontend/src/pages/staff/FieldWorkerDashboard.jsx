@@ -17,7 +17,6 @@ import {
   Apple,
   Droplets,
   Flame,
-  ShieldCheck,
   Layers,
   Calendar,
   Sparkles,
@@ -47,8 +46,10 @@ import {
   Activity,
   Sun,
   Thermometer,
-  Gauge
+  Gauge,
+  RefreshCw
 } from 'lucide-react';
+import { fetchLiveAgroIotData } from '../../services/weatherIotService';
 import { recordStaffActivity, resolveStandardCropProcess } from '../../services/cropStandardProcess';
 import { shouldShowExpertNote, splitLeadingTag, formatAgendaDate, groupTasksByDueDate } from '../../utils/staffTaskDisplay';
 
@@ -96,7 +97,7 @@ const normalizeTaskStatus = (status) => {
   return status || 'PENDING';
 };
 
-const getTaskTimingMeta = (task) => {
+const getTaskTimingMeta = (task, plotCurrentDay = null) => {
   if (task.status === 'COMPLETED') {
     return {
       key: 'COMPLETED',
@@ -110,12 +111,15 @@ const getTaskTimingMeta = (task) => {
   const rawDate = task.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(task.deadline || '') ? task.deadline : null);
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
 
-  // 1. Nếu hạn ở tương lai (sau ngày hôm nay) -> Bắt buộc là Chưa tới hạn (không lôi vào Việc Hôm Nay)
-  if (rawDate && rawDate > todayStr) {
+  const taskAge = task.cropDay !== undefined && task.cropDay !== null ? Number(task.cropDay) : (task.dayOffset !== undefined && task.dayOffset !== null ? Number(task.dayOffset) : null);
+  const plotAge = plotCurrentDay !== null && plotCurrentDay !== undefined ? Number(plotCurrentDay) : (task.plotCurrentDay !== undefined && task.plotCurrentDay !== null ? Number(task.plotCurrentDay) : null);
+
+  // 1. Nếu hạn ở tương lai (sau ngày hôm nay) HOẶC task thuộc ngày tuổi tương lai của vụ mùa -> Bắt buộc là Chưa tới hạn
+  if ((rawDate && rawDate > todayStr) || (plotAge !== null && taskAge !== null && taskAge > plotAge)) {
     const isPriority = task.priority === 'HIGH' || task.priority === 'URGENT' || task.priority === 'EMERGENCY';
     return {
       key: 'NOT_DUE',
-      label: isPriority ? 'Ưu tiên cao (Chưa tới hạn)' : 'Chưa tới hạn',
+      label: isPriority ? 'Ưu tiên cao (Chưa tới hạn)' : (taskAge ? `Chưa tới hạn (Ngày ${taskAge})` : 'Chưa tới hạn'),
       tone: isPriority ? 'bg-amber-50 text-amber-900 border border-amber-200' : 'bg-stone-100 text-stone-600 border border-stone-200',
       dot: isPriority ? 'bg-amber-500' : 'bg-stone-400',
       row: 'border-l-stone-300 bg-white'
@@ -176,32 +180,62 @@ const getTaskTimingMeta = (task) => {
   };
 };
 
-const isTaskToday = (t) => {
+// ponytail: parse an toàn qua Date + Intl stdlib; nâng lên date-fns khi cần nhiều format lạ
+const formatHarvestTimestamp = (raw) => {
+  if (!raw) return '';
+  const d = new Date(String(raw).replace(' ', 'T'));
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('vi-VN', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+};
+
+const HARVEST_PHOTO_FALLBACK = '/images/harvest/rau-muong-p03.jpg';
+
+const isHarvestTaskTitle = (title) => {
+  if (!title) return false;
+  if (/trước thu hoạch|chuẩn bị thu hoạch/i.test(title)) return false;
+  return /thu hoạch|cân|đóng thùng|nghiệm thu/i.test(title);
+};
+
+const isTaskToday = (t, plotCurrentDay = null) => {
   if (t.status === 'COMPLETED') return false;
+
+  const isHarvest = isHarvestTaskTitle(t.title);
+  const plotAge = plotCurrentDay !== null && plotCurrentDay !== undefined ? Number(plotCurrentDay) : (t.plotCurrentDay !== undefined && t.plotCurrentDay !== null ? Number(t.plotCurrentDay) : null);
+
+  // Nếu là task thu hoạch và thửa đang ở giai đoạn thu hoạch (ngày tuổi >= 25) -> Luôn là việc HÔM NAY cần làm
+  if (isHarvest && plotAge !== null && plotAge >= 25) {
+    return true;
+  }
+
   const rawDate = t.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(t.deadline || '') ? t.deadline : null);
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-  if (rawDate && rawDate > todayStr) return false;
-  const meta = getTaskTimingMeta(t);
+  if (rawDate && rawDate > todayStr && !isHarvest) return false;
+
+  const taskAge = t.cropDay !== undefined && t.cropDay !== null ? Number(t.cropDay) : (t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null);
+  if (plotAge !== null && taskAge !== null && taskAge > plotAge && !isHarvest) return false;
+
+  const meta = getTaskTimingMeta(t, plotCurrentDay);
   return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
 };
 
-const isHarvestTaskTitle = (title) => /thu hoạch|cân|đóng thùng/i.test(title);
-
 // Left accent + status word for a task card. Default "Hôm nay" shows no status word.
-const getTaskCardAccent = (task, variant) => {
+const getTaskCardAccent = (task, variant, plotCurrentDay = null) => {
   if (variant === 'done') return { border: 'border-l-emerald-300', dot: 'bg-emerald-500', label: null };
   if (variant === 'upcoming') return { border: 'border-l-stone-300', dot: 'bg-stone-400', label: null };
-  const timing = getTaskTimingMeta(task);
+  const timing = getTaskTimingMeta(task, plotCurrentDay);
   if (timing.key === 'URGENT') return { border: 'border-l-rose-500', dot: 'bg-rose-500', label: 'Khẩn cấp', text: 'text-rose-700' };
   if (timing.key === 'OVERDUE') return { border: 'border-l-rose-500', dot: 'bg-rose-500', label: 'Quá hạn', text: 'text-rose-700' };
-  if (task.status === 'IN_PROGRESS') return { border: 'border-l-sky-500', dot: 'bg-sky-500', label: 'Đang làm trong ca', text: 'text-sky-700' };
+  if (task.status === 'IN_PROGRESS' && timing.key === 'TODAY') return { border: 'border-l-sky-500', dot: 'bg-sky-500', label: 'Đang làm trong ca', text: 'text-sky-700' };
   if (timing.label === 'Ưu tiên hôm nay') return { border: 'border-l-amber-400', dot: 'bg-amber-500', label: 'Ưu tiên hôm nay', text: 'text-amber-800' };
   return { border: 'border-l-emerald-500', dot: 'bg-emerald-500', label: null };
 };
 
-function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onToggleExpand, fallbackWorker }) {
+function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onToggleExpand, fallbackWorker, plotCurrentDay = null }) {
   const { tag, text: titleText } = splitLeadingTag(task.title);
-  const accent = getTaskCardAccent(task, variant);
+  const accent = getTaskCardAccent(task, variant, plotCurrentDay || task.plotCurrentDay);
   const isDone = variant === 'done';
   const isHarvest = isHarvestTaskTitle(task.title);
   const dayAge = task.cropDay || task.dayOffset;
@@ -570,6 +604,7 @@ export default function FieldWorkerDashboard() {
           stepOrder: task.stepOrder || 1,
           cropDay: task.cropDay || task.dayOffset || null,
           dayOffset: task.dayOffset || task.cropDay || null,
+          plotCurrentDay: task.plotCurrentDay !== undefined ? Number(task.plotCurrentDay) : null,
           workerName: task.workerName || task.assignedTo || 'Kỹ thuật viên hiện trường chuyên trách',
           assignedTo: task.assignedTo || task.workerName || 'Kỹ thuật viên hiện trường chuyên trách',
           taskAssignedTo: task.taskAssignedTo || task.workerId,
@@ -606,11 +641,12 @@ export default function FieldWorkerDashboard() {
           crop: harvest.cropName || harvest.crop || 'Nông sản VietGAP',
           customerName: harvest.customerName || 'Khách thuê',
           expectedYield: 'Theo kết quả cân thực tế',
-          status: harvest.customerConfirmed ? 'COMPLETED' : 'READY_TO_HARVEST',
+          // Với CVLĐ, phiếu hoàn tất ngay khi đã cân thực tế — không chờ khách nghiệm thu
+          status: Number(harvest.yieldAmount) > 0 ? 'COMPLETED' : 'READY_TO_HARVEST',
           actualWeight: harvest.yieldAmount ? `${harvest.yieldAmount} kg` : '',
           photoUrl: harvest.evidenceImageUrl || '',
           staffName: harvest.workerName || user?.fullName || 'Nhân viên hiện trường',
-          verifiedAt: harvest.createdAt ? new Date(harvest.createdAt).toLocaleString('vi-VN') : ''
+          verifiedAt: formatHarvestTimestamp(harvest.createdAt || harvest.harvestDate)
         }));
         setHarvestTasks(mappedHarvests);
         setSelectedHarvestTask((current) => current || mappedHarvests.find((item) => item.status !== 'COMPLETED') || mappedHarvests[0] || null);
@@ -692,12 +728,17 @@ export default function FieldWorkerDashboard() {
       if (e.key === 'farmely_iot_sync_ping') {
         loadPlots();
       }
-      if (e.key === 'farmely_task_sync' || e.key === 'farmely_staff_sync_ping' || e.key === 'farmely_persisted_staff_activities_v2') {
+      if (e.key === 'farmely_task_sync' || e.key === 'farmely_staff_sync_ping' || e.key === 'farmely_persisted_staff_activities_v2' || e.key === 'farmely_time_simulated_at') {
         loadTasksAndData();
         loadPlots();
       }
     };
+    const handleTimeSimulated = () => {
+      loadPlots();
+      loadTasksAndData();
+    };
     window.addEventListener('storage', handleStorage);
+    window.addEventListener('farmely_time_simulated', handleTimeSimulated);
 
     // Chu kỳ 10 giây đồng bộ số liệu IoT và công việc thực địa
     const pollInterval = setInterval(() => {
@@ -712,6 +753,7 @@ export default function FieldWorkerDashboard() {
       if (bcDispatch) try { bcDispatch.close(); } catch {}
       if (bcTasks) try { bcTasks.close(); } catch {}
       window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('farmely_time_simulated', handleTimeSimulated);
     };
   }, [loadPlots, loadTasksAndData]);
 
@@ -767,6 +809,10 @@ export default function FieldWorkerDashboard() {
       try {
         const pCode = selectedTaskToExecute.plotCode || (selectedTaskToExecute.rentalId ? `P-${String(selectedTaskToExecute.rentalId).padStart(2, '0')}` : 'Chưa gán');
         const matchedPlot = assignedPlots.find(p => p.plotCode === pCode);
+        const resolvedTaskCropDay = selectedTaskToExecute.cropDay || selectedTaskToExecute.day || matchedPlot?.currentDay || 1;
+        const now = new Date();
+        const dateFormatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+        const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         recordStaffActivity({
           activityId: `ACT-${targetTaskId}-${Date.now()}`,
           plotId: pCode,
@@ -775,14 +821,13 @@ export default function FieldWorkerDashboard() {
           workerName: user?.fullName || 'Kỹ thuật viên hiện trường chuyên trách',
           workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
           title: selectedTaskToExecute.title || 'Chăm sóc luống cây trồng',
-          timestamp: `${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Hôm nay`,
+          timestamp: `${dateFormatted} • ${timeFormatted}`,
           status: 'COMPLETED',
+          day: resolvedTaskCropDay,
+          cropDay: resolvedTaskCropDay,
+          completedAt: now.toISOString(),
           notes: taskProofNote || 'Nhiệm vụ đã được hoàn tất và báo cáo xong việc.',
-          proofPhoto: taskProofPhoto,
-          sensorSnapshot: {
-            temp: matchedPlot?.temp || '28.0°C',
-            soilMoisture: matchedPlot?.soilMoisture || '65%'
-          }
+          proofPhoto: taskProofPhoto
         });
       } catch (e) {
         console.warn('Could not record staff activity:', e);
@@ -800,13 +845,16 @@ export default function FieldWorkerDashboard() {
             photo: taskProofPhoto,
             timestamp: Date.now()
           });
-          bc.close();
+          setTimeout(() => {
+            try { bc.close(); } catch {}
+          }, 1500);
         }
       } catch {}
 
       try {
         localStorage.setItem('farmely_task_sync', String(Date.now()));
         localStorage.setItem('farmely_persisted_staff_activities_v2', String(Date.now()));
+        window.dispatchEvent(new CustomEvent('farmely_task_completed', { detail: { taskId: targetTaskId } }));
       } catch {}
 
       // 4. Cập nhật state nội bộ của FieldWorkerDashboard
@@ -1085,8 +1133,7 @@ export default function FieldWorkerDashboard() {
           enteredBy,
           harvestDate: new Date().toISOString().slice(0, 10),
           yieldAmount: parsedWeight,
-          evidenceImageUrl: harvestPhotos[0],
-          deliveryType: 'PICKUP'
+          evidenceImageUrl: harvestPhotos[0]
         })
       })) || {};
     } catch (error) {
@@ -1159,7 +1206,7 @@ export default function FieldWorkerDashboard() {
   const nextTask = tasks.find((task) => task.status === 'IN_PROGRESS') || tasks.find((task) => task.status === 'OVERDUE') || tasks.find((task) => task.status === 'PENDING');
   const focusedTask = tasks.find((task) => task.id === focusedTaskId) || nextTask || tasks[0] || null;
   const taskRank = (task) => task.status === 'COMPLETED' ? 4 : task.priority === 'HIGH' ? 0 : task.status === 'OVERDUE' ? 1 : task.status === 'IN_PROGRESS' ? 2 : 3;
-  const orderedTasks = [...tasks].sort((first, second) => taskRank(first) - taskRank(second));
+  const orderedTasks = useMemo(() => [...tasks].sort((first, second) => taskRank(first) - taskRank(second)), [tasks]);
   const tasksByPlot = orderedTasks.reduce((groups, task) => {
     const key = task.plotCode || task.plotName || 'Chưa xác định';
     if (!groups[key]) groups[key] = { plotCode: task.plotCode, plotName: task.plotName, crop: task.crop, plotImage: task.plotImage, tasks: [] };
@@ -1256,7 +1303,30 @@ export default function FieldWorkerDashboard() {
         map.set(fallbackKey, targetPlot);
       }
 
-      targetPlot.tasks.push(task);
+      // Tự động đồng bộ các task khi tua ngày (Fast-forward sync cho Demo):
+      // Nếu thửa đã ở Ngày N (ví dụ Ngày 30), toàn bộ các task kỹ thuật từ các ngày trước
+      // (trừ Thu hoạch & Nghiệm thu) tự động đánh dấu là COMPLETED
+      const isHarvestTask = /thu hoạch|nghiệm thu/i.test(`${task.title} ${task.instructions || ''}`);
+      const taskAge = task.cropDay !== null && task.cropDay !== undefined ? Number(task.cropDay) : (task.dayOffset !== null && task.dayOffset !== undefined ? Number(task.dayOffset) : 1);
+      const plotAge = Number(targetPlot.currentDay) || 1;
+      const totalPlotDays = Number(targetPlot.totalDays) || 30;
+
+      let effectiveStatus = task.status;
+      if (plotAge >= totalPlotDays && !isHarvestTask) {
+        effectiveStatus = 'COMPLETED';
+      } else if (plotAge > 1 && taskAge < plotAge && !isHarvestTask) {
+        effectiveStatus = 'COMPLETED';
+      } else if (isHarvestTask) {
+        // Nhiệm vụ thu hoạch chỉ thực sự COMPLETED khi đã có bản ghi thu hoạch trong CSDL
+        const hasRealHarvest = harvestTasks.some(h => (h.rentalId && task.rentalId && Number(h.rentalId) === Number(task.rentalId)) || (h.plotCode && h.plotCode === targetPlot.plotCode));
+        effectiveStatus = hasRealHarvest ? 'COMPLETED' : 'IN_PROGRESS';
+      }
+
+      targetPlot.tasks.push({
+        ...task,
+        status: effectiveStatus,
+        plotCurrentDay: targetPlot.currentDay !== undefined ? targetPlot.currentDay : task.plotCurrentDay
+      });
     });
 
     const list = Array.from(map.values());
@@ -1266,6 +1336,43 @@ export default function FieldWorkerDashboard() {
       return bPending - aPending;
     });
   }, [assignedPlots, orderedTasks]);
+
+  // Tích hợp Open-Meteo Weather API thực địa cho Modal chi tiết thửa đất (SSoT: Không mock)
+  const [modalWeather, setModalWeather] = useState(null);
+  const [modalWeatherLoading, setModalWeatherLoading] = useState(false);
+  const [modalWeatherError, setModalWeatherError] = useState(null);
+
+  const loadPlotWeather = useCallback(async (plot, force = false) => {
+    if (!plot) return;
+    setModalWeatherLoading(true);
+    setModalWeatherError(null);
+    try {
+      const res = await fetchLiveAgroIotData(plot, force);
+      if (res && res.isLive3rdParty) {
+        setModalWeather(res);
+      } else {
+        setModalWeather(null);
+        setModalWeatherError('Không thể kết nối đến máy chủ Open-Meteo API. Vui lòng kiểm tra kết nối mạng.');
+      }
+    } catch (err) {
+      setModalWeather(null);
+      setModalWeatherError('Lỗi kết nối Weather API: ' + (err.message || 'Không có phản hồi'));
+    } finally {
+      setModalWeatherLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedPlotModalCode) {
+      setModalWeather(null);
+      setModalWeatherError(null);
+      return;
+    }
+    const current = plotSummaryList.find((p) => p.key === selectedPlotModalCode || String(p.rentalId) === String(selectedPlotModalCode) || p.plotCode === selectedPlotModalCode);
+    if (current) {
+      loadPlotWeather(current);
+    }
+  }, [selectedPlotModalCode, loadPlotWeather]);
   const currentSession = new Date().getHours() < 12 ? 'MORNING' : 'AFTERNOON';
   const currentSessionTasks = tasks.filter((task) => task.session === currentSession);
   const harvestedWeight = harvestTasks.reduce((sum, item) => sum + (Number.parseFloat(item.actualWeight) || 0), 0);
@@ -1292,7 +1399,7 @@ export default function FieldWorkerDashboard() {
         crop: resolvedCrop,
         customerName: task.customerName,
         expectedYield: 'Theo kết quả cân thực tế',
-        status: task.status === 'COMPLETED' || recordedHarvest ? 'COMPLETED' : 'READY_TO_HARVEST',
+        status: recordedHarvest ? 'COMPLETED' : 'READY_TO_HARVEST',
         actualWeight: recordedHarvest?.actualWeight || '',
         deadline: task.deadline
       };
@@ -1597,18 +1704,6 @@ export default function FieldWorkerDashboard() {
                               <p className="text-stone-400 text-[11px]">📍 {plot.location || 'Trang trại Farmely'} {plot.area ? `• ${plot.area}` : ''}</p>
                             </div>
 
-                            {/* Trạm Quan Trắc IoT Vi Khí Hậu (BR18) */}
-                            <div className="mt-2 flex items-center justify-between text-[11px] bg-sky-50/60 px-2.5 py-1.5 rounded-xl border border-sky-100 text-sky-950">
-                              <span className="font-semibold flex items-center gap-1">
-                                🌡️ {plot.temp || '28.5°C'}
-                              </span>
-                              <span className="font-semibold flex items-center gap-1">
-                                💧 Ẩm đất: {plot.soilMoisture || '68%'}
-                              </span>
-                              <span className="text-[10px] text-stone-500">
-                                {plot.ph ? `pH ${plot.ph}` : 'pH 6.5'}
-                              </span>
-                            </div>
                           </div>
 
                           {/* Chu kỳ vườn & Tiến độ ca trực */}
@@ -1930,7 +2025,6 @@ export default function FieldWorkerDashboard() {
                     <div className="grid gap-4 md:grid-cols-2">
                       {completedHarvests.map((h, idx) => {
                         const seasonLabel = h.seasonName || `Vụ ${idx % 2 === 0 ? 1 : 2}: ${h.crop || 'Nông sản VietGAP'}`;
-                        const isConfirmed = h.customerConfirmed || h.status === 'CONFIRMED';
                         return (
                           <div
                             key={h.id || h.apiId || idx}
@@ -1938,26 +2032,23 @@ export default function FieldWorkerDashboard() {
                           >
                             <div className="space-y-3">
                               <div className="flex items-center justify-between gap-2 border-b border-stone-200/60 pb-2.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-lg bg-emerald-800 text-white">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-lg bg-emerald-800 text-white shrink-0">
                                     {h.plotCode || 'P-01'}
                                   </span>
-                                  <strong className="text-brand-dark font-heading text-sm">{h.plotName}</strong>
+                                  <strong className="text-brand-dark font-heading text-sm truncate">{h.plotName}</strong>
                                 </div>
-                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  isConfirmed
-                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                    : 'bg-amber-100 text-amber-800 border border-amber-300'
-                                }`}>
-                                  {isConfirmed ? '✓ Khách đã nghiệm thu' : '⏳ Chờ khách xác nhận'}
+                                <span className="shrink-0 whitespace-nowrap rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                                  ✓ Đã cân &amp; ghi nhận
                                 </span>
                               </div>
 
                               <div className="grid grid-cols-[100px_minmax(0,1fr)] gap-3 items-center">
                                 <img
-                                  src={h.photoUrl || '/images/harvest/rau-muong-p03.jpg'}
+                                  src={h.photoUrl || HARVEST_PHOTO_FALLBACK}
                                   alt="Ảnh cân thu hoạch"
-                                  className="h-24 w-full rounded-xl object-cover border border-stone-200"
+                                  onError={(e) => { e.currentTarget.src = HARVEST_PHOTO_FALLBACK; }}
+                                  className="h-24 w-full rounded-xl object-cover border border-stone-200 bg-stone-100"
                                 />
                                 <div className="space-y-1.5 min-w-0">
                                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -2015,8 +2106,15 @@ export default function FieldWorkerDashboard() {
         const completedTasks = plotTasks.filter((t) => t.status === 'COMPLETED');
         const pendingTasks = plotTasks.filter((t) => t.status !== 'COMPLETED');
 
-        const todayTasks = pendingTasks.filter(isTaskToday);
-        const upcomingTasks = pendingTasks.filter((t) => !isTaskToday(t));
+        const todayTasks = pendingTasks.filter((t) => isTaskToday(t, activePlot.currentDay));
+        const upcomingTasks = pendingTasks.filter((t) => !isTaskToday(t, activePlot.currentDay));
+        const completedTodayTasks = completedTasks.filter((t) => {
+          if (isHarvestTaskTitle(t.title)) return true;
+          const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+          if (t.completedAt && String(t.completedAt).includes(todayStr)) return true;
+          const taskAge = t.cropDay !== undefined && t.cropDay !== null ? Number(t.cropDay) : (t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null);
+          return activePlot.currentDay && taskAge === Number(activePlot.currentDay);
+        });
         const plotServices = serviceRequests.filter((s) => (s.rentalId && activePlot.rentalId ? Number(s.rentalId) === Number(activePlot.rentalId) : s.plotCode === activePlot.plotCode));
         const harvest = harvestWorkItems.find((item) => (item.rentalId && activePlot.rentalId ? Number(item.rentalId) === Number(activePlot.rentalId) : item.plotCode === activePlot.plotCode));
 
@@ -2106,37 +2204,73 @@ export default function FieldWorkerDashboard() {
                   </div>
                 </div>
 
-                {/* Dòng 3: 4 Trạm IoT & Chỉ số Vi Khí Hậu Trực Quan (BR18) */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
-                  <div className="p-2 rounded-xl bg-stone-50 border border-stone-200/70 flex items-center gap-2">
-                    <span className="text-base">🌡️</span>
-                    <div>
-                      <span className="text-[10px] text-stone-400 block uppercase font-bold">Nhiệt độ</span>
-                      <strong className="text-stone-800 font-mono">{activePlot.temp || '28.5°C'}</strong>
+                {/* Dòng 3: Nhiệt Độ Thực Địa & Cảnh Báo Khí Tượng/Mưa (BR18) từ Open-Meteo Live API */}
+                {(() => {
+                  const liveTemp = modalWeather?.metrics?.temp;
+                  const liveSoilMoisture = modalWeather?.metrics?.soilMoisture;
+                  const livePrecip = modalWeather?.metrics?.precipitation;
+                  const sMoistureNum = liveSoilMoisture ? parseFloat(String(liveSoilMoisture)) : parseFloat(String(activePlot.soilMoisture || '0'));
+                  const precipNum = livePrecip ? parseFloat(String(livePrecip)) : 0;
+                  const isRainAlert = sMoistureNum >= 80 || precipNum >= 5 || activePlot.isRaining || Boolean(activePlot.rainAlert);
+
+                  return (
+                    <div className="flex flex-col sm:flex-row items-stretch gap-2.5 pt-1 text-xs">
+                      {/* Thẻ 1: Nhiệt độ thực địa từ Open-Meteo */}
+                      <div className="p-3 rounded-2xl bg-stone-50/90 border border-stone-200/80 flex items-center gap-3 shrink-0 sm:min-w-[190px]">
+                        <span className="text-2xl leading-none">🌡️</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-stone-500 uppercase font-black tracking-wider">Nhiệt độ</span>
+                            {modalWeather?.isLive3rdParty ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-600" />
+                                Live API
+                              </span>
+                            ) : modalWeatherLoading ? (
+                              <span className="text-[9px] text-stone-400">Đang tải...</span>
+                            ) : null}
+                          </div>
+                          <div className="flex items-baseline gap-1 mt-0.5">
+                            {liveTemp ? (
+                              <>
+                                <strong className="text-lg font-heading font-black text-stone-900 font-mono">{liveTemp}</strong>
+                                <span className="text-[10px] text-stone-400 font-medium">· Chuẩn 18–32°C</span>
+                              </>
+                            ) : modalWeatherLoading ? (
+                              <span className="text-stone-400 italic">Đang đồng bộ...</span>
+                            ) : (
+                              <span className="text-stone-400 italic">Chưa có kết nối</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Thẻ 2: Khí tượng thực địa từ Open-Meteo */}
+                      <div className="flex-1 p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-emerald-950">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span className="text-2xl leading-none shrink-0 mt-0.5">🌤️</span>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <strong className="font-heading font-bold text-emerald-950 text-xs">
+                                Khí tượng thực địa: Thời tiết ổn định
+                              </strong>
+                              <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black text-emerald-800 uppercase tracking-wide">
+                                Đủ điều kiện chăm sóc
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[11px] text-emerald-800 leading-relaxed">
+                              {liveSoilMoisture ? (
+                                <>Không có mưa bão · Độ ẩm đất ổn định <strong className="font-mono font-bold text-emerald-950">{liveSoilMoisture}</strong> (chuẩn 65–75%). Điều kiện lý tưởng cho các ca chăm sóc theo quy trình VietGAP.</>
+                              ) : (
+                                <>Điều kiện thời tiết ổn định, phù hợp tiến hành chăm sóc theo quy trình VietGAP.</>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-stone-50 border border-stone-200/70 flex items-center gap-2">
-                    <span className="text-base">💧</span>
-                    <div>
-                      <span className="text-[10px] text-stone-400 block uppercase font-bold">Ẩm độ đất</span>
-                      <strong className="text-emerald-800 font-mono">{activePlot.soilMoisture || '68%'}</strong>
-                    </div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-stone-50 border border-stone-200/70 flex items-center gap-2">
-                    <span className="text-base">🧪</span>
-                    <div>
-                      <span className="text-[10px] text-stone-400 block uppercase font-bold">Độ pH đất</span>
-                      <strong className="text-stone-800 font-mono">{activePlot.ph ? `pH ${activePlot.ph}` : 'pH 6.5'}</strong>
-                    </div>
-                  </div>
-                  <div className="p-2 rounded-xl bg-stone-50 border border-stone-200/70 flex items-center gap-2">
-                    <span className="text-base">📦</span>
-                    <div>
-                      <span className="text-[10px] text-stone-400 block uppercase font-bold">Dự kiến thu</span>
-                      <strong className="text-stone-800 font-mono">{formatDateVN(activePlot.expectedHarvestDate) || '—'}</strong>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
 
               {/* 4 SUB-TABS NAVIGATION: CÔNG VIỆC, IOT, YÊU CẦU DỊCH VỤ, THU HOẠCH */}
@@ -2191,6 +2325,7 @@ export default function FieldWorkerDashboard() {
                     key={task.id}
                     task={task}
                     variant={variant}
+                    plotCurrentDay={activePlot?.currentDay}
                     onOpenDetail={setSelectedTaskDetail}
                     onExecute={handleExecuteTask}
                     isExpanded={expandedTaskIds.has(task.id)}
@@ -2215,7 +2350,12 @@ export default function FieldWorkerDashboard() {
                 };
                 const chips = [
                   { id: 'ALL', label: 'Tất cả', count: plotTasks.length },
-                  { id: 'TODAY', label: 'Hôm nay', count: todayTasks.length, emphasize: true },
+                  {
+                    id: 'TODAY',
+                    label: 'Hôm nay',
+                    count: todayTasks.length > 0 ? todayTasks.length : (completedTodayTasks.length > 0 ? `${completedTodayTasks.length} đã xong` : 0),
+                    emphasize: true
+                  },
                   { id: 'UPCOMING', label: 'Sắp tới', count: upcomingTasks.length },
                   { id: 'COMPLETED', label: 'Đã hoàn thành', count: completedTasks.length }
                 ];
@@ -2257,10 +2397,30 @@ export default function FieldWorkerDashboard() {
                             {sectionHeader(`Hôm nay · ${todayLabel}`, 'bg-emerald-600')}
                             {todayTasks.length > 0 ? (
                               <div className="grid gap-2">{todayTasks.map((task) => renderCard(task, 'today'))}</div>
-                            ) : (
-                              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2.5 text-xs font-semibold text-emerald-800">
+                            ) : completedTodayTasks.length > 0 ? (
+                              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2.5 text-xs font-bold text-emerald-800">
                                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                                <span>Đã xong việc hôm nay tại thửa này</span>
+                                <span>Đã hoàn thành công việc hôm nay ({completedTodayTasks.length} việc đã xong)</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-xs font-semibold text-stone-600">
+                                <Clock className="h-4 w-4 shrink-0 text-stone-400" />
+                                <span>Chưa có việc mới đến hạn hôm nay tại thửa này</span>
+                              </div>
+                            )}
+
+                            {/* Nếu đang lọc HÔM NAY và có việc đã hoàn thành (nhất là thu hoạch) -> Hiện rõ ràng */}
+                            {plotTaskFilter === 'TODAY' && completedTodayTasks.length > 0 && (
+                              <div className="pt-2 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                  <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
+                                    Đã hoàn thành hôm nay ({completedTodayTasks.length})
+                                  </h4>
+                                </div>
+                                <div className="grid gap-2">
+                                  {completedTodayTasks.map((task) => renderCard(task, 'done'))}
+                                </div>
                               </div>
                             )}
                           </section>
@@ -2320,73 +2480,111 @@ export default function FieldWorkerDashboard() {
                 );
               })()}
 
-              {/* SUBTAB 2: THỜI TIẾT & KHÍ TƯỢNG */}
+              {/* SUBTAB 2: THỜI TIẾT & KHÍ TƯỢNG (SSoT Open-Meteo Live API - Không mock) */}
               {plotModalTab === 'iot' && (
                 <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200 pb-2">
-                    <div>
-                      <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-emerald-700" />
-                        <span>Dữ Liệu Thời Tiết &amp; Khí Tượng Nông Trại (Weather API)</span>
-                      </h4>
-                      <p className="text-xs text-stone-500">
-                        Cập nhật tự động theo tọa độ địa lý nông trại (10.97°N, 106.49°E), hỗ trợ kiểm soát vi khí hậu và cảnh báo kịp thời.
-                      </p>
+                  {modalWeatherLoading ? (
+                    <div className="p-8 text-center bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+                      <div className="w-8 h-8 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                      <div>
+                        <p className="text-sm font-bold text-stone-800">Đang truy vấn số liệu vi khí hậu từ Open-Meteo API...</p>
+                        <p className="text-xs text-stone-500 mt-1">Hệ thống đang kết nối trực tiếp đến trạm thời tiết theo tọa độ GPS nông trại</p>
+                      </div>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 self-start sm:self-auto">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      Weather API · Trực tuyến
-                    </span>
-                  </div>
+                  ) : modalWeatherError || !modalWeather?.isLive3rdParty ? (
+                    <div className="p-6 text-center bg-rose-50 rounded-2xl border border-rose-200 space-y-3">
+                      <AlertTriangle className="w-8 h-8 text-rose-600 mx-auto" />
+                      <div>
+                        <p className="text-sm font-bold text-rose-900">Không thể kết nối đến máy chủ Open-Meteo API</p>
+                        <p className="text-xs text-rose-700 max-w-md mx-auto mt-1">
+                          Hệ thống tuân thủ nguyên tắc SSoT: Chỉ hiển thị các thông số thời tiết khi nhận được phản hồi trực tiếp từ API thực địa, không sử dụng số liệu mô phỏng/mock.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => loadPlotWeather(activePlot, true)}
+                        className="mt-2"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 mr-1" /> Thử kết nối lại
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200 pb-2">
+                        <div>
+                          <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-emerald-700" />
+                            <span>Dữ Liệu Thời Tiết &amp; Khí Tượng Nông Trại (Open-Meteo API)</span>
+                          </h4>
+                          <p className="text-xs text-stone-500">
+                            Trực tiếp từ trạm vệ tinh khí tượng theo tọa độ GPS ({modalWeather.coordinates?.lat?.toFixed(4)}°N, {modalWeather.coordinates?.lon?.toFixed(4)}°E) · Cập nhật lúc {modalWeather.lastUpdated}.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            Open-Meteo Live API
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => loadPlotWeather(activePlot, true)}
+                            title="Làm mới dữ liệu từ API"
+                            className="p-1.5 rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
 
-                  {/* 5 Sensor Dials */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200/80 text-center space-y-1">
-                      <Thermometer className="w-5 h-5 text-amber-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Nhiệt độ KK</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.temp || '28.5°C'}</strong>
-                      <span className="text-[10px] text-amber-700 font-medium">Lý tưởng 25-32°C</span>
-                    </div>
+                      {/* 4 Dials thực tế lấy từ Open-Meteo (ĐÃ LOẠI BỎ ĐỘ pH ĐẤT VÌ WEATHER API KHÔNG ĐO pH) */}
+                      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200/80 text-center space-y-1">
+                          <Thermometer className="w-5 h-5 text-amber-600 mx-auto" />
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Nhiệt độ không khí</span>
+                          <strong className="text-lg font-heading font-black text-stone-900 block font-mono">{modalWeather.metrics.temp}</strong>
+                          <span className="text-[10px] text-amber-700 font-medium">Cảm biến nhiệt 2m</span>
+                        </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-sky-50 to-blue-50/40 border border-sky-200/80 text-center space-y-1">
-                      <Droplets className="w-5 h-5 text-sky-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ ẩm đất</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.soilMoisture || '68%'}</strong>
-                      <span className="text-[10px] text-sky-700 font-medium">Độ ẩm tối ưu</span>
-                    </div>
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-cyan-50 to-teal-50/40 border border-cyan-200/80 text-center space-y-1">
+                          <Droplets className="w-5 h-5 text-cyan-600 mx-auto" />
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ ẩm không khí</span>
+                          <strong className="text-lg font-heading font-black text-stone-900 block font-mono">{modalWeather.metrics.airHumidity}</strong>
+                          <span className="text-[10px] text-cyan-700 font-medium">Ẩm độ khí quyển</span>
+                        </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-cyan-50 to-teal-50/40 border border-cyan-200/80 text-center space-y-1">
-                      <Droplets className="w-5 h-5 text-cyan-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ ẩm không khí</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.airHumidity || '74%'}</strong>
-                      <span className="text-[10px] text-cyan-700 font-medium">Ẩm độ thích hợp</span>
-                    </div>
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-sky-50 to-blue-50/40 border border-sky-200/80 text-center space-y-1">
+                          <Droplets className="w-5 h-5 text-sky-600 mx-auto" />
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ ẩm tầng đất mặt</span>
+                          <strong className="text-lg font-heading font-black text-stone-900 block font-mono">{modalWeather.metrics.soilMoisture}</strong>
+                          <span className="text-[10px] text-sky-700 font-medium">{parseFloat(modalWeather.metrics.soilMoisture) >= 80 ? 'Bão hòa ẩm (≥80%)' : 'Ngưỡng an toàn'}</span>
+                        </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-yellow-50 to-amber-50/40 border border-yellow-200/80 text-center space-y-1">
-                      <Sun className="w-5 h-5 text-yellow-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Cường độ sáng</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.light || '45.000 Lux'}</strong>
-                      <span className="text-[10px] text-yellow-800 font-medium">Quang hợp mạnh</span>
-                    </div>
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-yellow-50 to-amber-50/40 border border-yellow-200/80 text-center space-y-1">
+                          <Sun className="w-5 h-5 text-yellow-600 mx-auto" />
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Bức xạ quang học</span>
+                          <strong className="text-lg font-heading font-black text-stone-900 block font-mono">{modalWeather.metrics.light}</strong>
+                          <span className="text-[10px] text-yellow-800 font-medium">Bức xạ mặt trời</span>
+                        </div>
+                      </div>
 
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-green-50/40 border border-emerald-200/80 text-center space-y-1">
-                      <Gauge className="w-5 h-5 text-emerald-600 mx-auto" />
-                      <span className="text-[10px] text-stone-500 uppercase font-bold block">Độ pH đất</span>
-                      <strong className="text-lg font-heading font-black text-stone-900 block">{activePlot.ph || '6.5'}</strong>
-                      <span className="text-[10px] text-emerald-700 font-medium">Đất trung tính</span>
-                    </div>
-                  </div>
-
-                  {/* Irrigation Rule Notice */}
-                  <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-sky-950 space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="w-4 h-4 text-sky-700" />
-                      <strong className="font-heading font-black text-sky-900">Quy tắc điều tiết tưới tự động:</strong>
-                    </div>
-                    <p className="text-sky-800 leading-relaxed">
-                      Trạm quan trắc sẽ <strong>tự động tạm hoãn lệnh tưới</strong> nếu độ ẩm đất đo được vượt ngưỡng <strong>80%</strong> để chống ngập úng rễ và ngăn ngừa nấm bệnh. Hệ thống sẽ kích hoạt lại khi độ ẩm đất hạ về dưới 65%.
-                    </p>
-                  </div>
+                      {/* Các chỉ số khí tượng bổ trợ từ Open-Meteo */}
+                      <div className="grid grid-cols-3 gap-2.5 text-xs">
+                        <div className="p-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-center">
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Lượng mưa</span>
+                          <strong className="text-stone-900 font-bold font-mono mt-0.5 block">{modalWeather.metrics.precipitation || '0.0 mm'}</strong>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-center">
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Tốc độ gió</span>
+                          <strong className="text-stone-900 font-bold font-mono mt-0.5 block">{modalWeather.metrics.windSpeed || '—'}</strong>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-center">
+                          <span className="text-[10px] text-stone-500 uppercase font-bold block">Nhiệt độ mặt đất</span>
+                          <strong className="text-stone-900 font-bold font-mono mt-0.5 block">{modalWeather.metrics.soilTemp || '—'}</strong>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -2735,7 +2933,11 @@ export default function FieldWorkerDashboard() {
       {/* Modal 1: Execute Task & Upload Proof Photo */}
       <Modal
         isOpen={Boolean(selectedTaskToExecute)}
-        onClose={() => setSelectedTaskToExecute(null)}
+        onClose={() => {
+          setSelectedTaskToExecute(null);
+          setTaskProofPhoto('');
+          setTaskProofNote('');
+        }}
         title="Xác Nhận Hoàn Thành Ca Trực Hiện Trường"
         subtitle={selectedTaskToExecute?.title}
         zIndex="z-[110]"
@@ -2748,18 +2950,56 @@ export default function FieldWorkerDashboard() {
               <p><strong>Khách hàng:</strong> {selectedTaskToExecute.customerName}</p>
             </div>
 
-            <div className="p-4 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-1.5 bg-stone-50">
-              <Camera className="w-7 h-7 text-brand-green mx-auto" />
-              <p className="font-bold text-stone-700">Đính kèm ảnh minh chứng thực tế</p>
-              <p className="text-[10px] text-stone-400">Ảnh này sẽ tự động xuất hiện trên Farm Diary của khách hàng</p>
-              <input
-                type="file"
-                accept="image/*"
-                required
-                onChange={(event) => readPhoto(event.target.files?.[0], setTaskProofPhoto)}
-                className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-3 file:py-1.5 file:font-bold file:text-emerald-800"
-              />
-              {taskProofPhoto && <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold text-emerald-800">✓ Đã chọn ảnh minh chứng</span>}
+            <div className="p-4 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-2 bg-stone-50">
+              {taskProofPhoto ? (
+                <div className="space-y-2.5">
+                  <div className="relative inline-block max-w-full">
+                    <img
+                      src={taskProofPhoto}
+                      alt="Ảnh minh chứng thực tế"
+                      className="max-h-56 w-auto mx-auto rounded-xl object-contain shadow-xs border border-stone-200 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setTaskProofPhoto('')}
+                      className="absolute -top-2 -right-2 p-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-md cursor-pointer transition-colors"
+                      title="Gỡ ảnh để chọn lại"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div>
+                    <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold text-emerald-800">
+                      ✓ Đã chọn ảnh minh chứng
+                    </span>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) readPhoto(file, setTaskProofPhoto);
+                    }}
+                    className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-3 file:py-1.5 file:font-bold file:text-emerald-800 cursor-pointer"
+                  />
+                </div>
+              ) : (
+                <>
+                  <Camera className="w-7 h-7 text-brand-green mx-auto" />
+                  <p className="font-bold text-stone-700">Đính kèm ảnh minh chứng thực tế</p>
+                  <p className="text-[10px] text-stone-400">Ảnh này sẽ tự động xuất hiện trên Farm Diary của khách hàng</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    required
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) readPhoto(file, setTaskProofPhoto);
+                    }}
+                    className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-3 file:py-1.5 file:font-bold file:text-emerald-800 cursor-pointer"
+                  />
+                </>
+              )}
             </div>
 
             <div>
@@ -2776,7 +3016,16 @@ export default function FieldWorkerDashboard() {
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setSelectedTaskToExecute(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedTaskToExecute(null);
+                  setTaskProofPhoto('');
+                  setTaskProofNote('');
+                }}
+              >
                 Hủy
               </Button>
               <Button type="submit" variant="primary" size="sm" className="font-bold">
@@ -2876,16 +3125,55 @@ export default function FieldWorkerDashboard() {
             />
           </div>
 
-          <div className="p-3 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-1 bg-stone-50">
-            <Camera className="w-5 h-5 text-stone-400 mx-auto" />
-            <p className="font-bold text-stone-600">Đính kèm ảnh chụp lá / hiện trường</p>
-            <input
-              type="file"
-              accept="image/*"
-              required
-              onChange={(event) => readPhoto(event.target.files?.[0], setNewIssuePhoto)}
-              className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:font-bold"
-            />
+          <div className="p-3 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-2 bg-stone-50">
+            {newIssuePhoto ? (
+              <div className="space-y-1.5">
+                <div className="relative inline-block max-w-full">
+                  <img
+                    src={newIssuePhoto}
+                    alt="Ảnh sự cố hiện trường"
+                    className="max-h-44 w-auto mx-auto rounded-lg object-contain shadow-xs border border-stone-200 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setNewIssuePhoto('')}
+                    className="absolute -top-2 -right-2 p-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-md cursor-pointer transition-colors"
+                    title="Gỡ ảnh để chọn lại"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                <div>
+                  <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-800">
+                    ✓ Đã chọn ảnh sự cố
+                  </span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) readPhoto(file, setNewIssuePhoto);
+                  }}
+                  className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:font-bold cursor-pointer"
+                />
+              </div>
+            ) : (
+              <>
+                <Camera className="w-5 h-5 text-stone-400 mx-auto" />
+                <p className="font-bold text-stone-600">Đính kèm ảnh chụp lá / hiện trường</p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  required
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) readPhoto(file, setNewIssuePhoto);
+                  }}
+                  className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:font-bold cursor-pointer"
+                />
+              </>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
@@ -2910,7 +3198,6 @@ export default function FieldWorkerDashboard() {
         zIndex="z-[110]"
       >
         {selectedHarvestProofModal && (() => {
-          const isConfirmed = selectedHarvestProofModal.customerConfirmed || selectedHarvestProofModal.status === 'CONFIRMED';
           return (
             <div className="space-y-4 text-left text-xs max-h-[75vh] overflow-y-auto pr-1">
               {/* 1. Header Khối lượng & Vụ mùa */}
@@ -2938,9 +3225,10 @@ export default function FieldWorkerDashboard() {
               <div className="space-y-1.5">
                 <span className="font-bold text-stone-700 block">Ảnh chụp cân đối chứng thực tế tại vườn (BR20):</span>
                 <img
-                  src={selectedHarvestProofModal.photoUrl || '/images/harvest/rau-muong-p03.jpg'}
+                  src={selectedHarvestProofModal.photoUrl || HARVEST_PHOTO_FALLBACK}
                   alt="Ảnh cân đối chứng"
-                  className="w-full max-h-72 object-cover rounded-2xl border border-stone-200 shadow-2xs"
+                  onError={(e) => { e.currentTarget.src = HARVEST_PHOTO_FALLBACK; }}
+                  className="w-full max-h-72 object-cover rounded-2xl border border-stone-200 bg-stone-100 shadow-2xs"
                 />
               </div>
 
@@ -2957,14 +3245,13 @@ export default function FieldWorkerDashboard() {
                 <div>
                   <span className="text-[10px] text-stone-400 block font-bold">Phương thức nhận (BR21):</span>
                   <strong className="text-stone-900">
-                    {selectedHarvestProofModal.deliveryType === 'DELIVERY' || selectedHarvestProofModal.deliveryType === 'HOME' ? 'Giao tận nhà' : 'Tự nhận tại nông trại'}
+                    {/* BR21: thu hoạch luôn diễn ra tại nông trại */}
+                    Tự nhận tại nông trại
                   </strong>
                 </div>
                 <div>
-                  <span className="text-[10px] text-stone-400 block font-bold">Trạng thái nghiệm thu:</span>
-                  <span className={`inline-block font-bold mt-0.5 ${isConfirmed ? 'text-emerald-700' : 'text-amber-700'}`}>
-                    {isConfirmed ? '✓ Đã nghiệm thu nhận hàng' : '⏳ Chờ khách xác nhận (SCR-Customer-14)'}
-                  </span>
+                  <span className="text-[10px] text-stone-400 block font-bold">Thửa đất canh tác:</span>
+                  <strong className="text-stone-900">{selectedHarvestProofModal.plotCode || '—'}</strong>
                 </div>
               </div>
 

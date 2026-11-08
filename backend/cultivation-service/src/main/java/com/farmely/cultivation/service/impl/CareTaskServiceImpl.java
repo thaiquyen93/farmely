@@ -166,9 +166,7 @@ public class CareTaskServiceImpl implements CareTaskService {
         if (!Boolean.FALSE.equals(request.getSyncToDiary())) {
             boolean diaryExists = farmDiaryRepository.existsByTaskId(saved.getTaskId());
             if (!diaryExists) {
-                String taskTitle = (saved.getTitle() != null && !saved.getTitle().trim().isEmpty())
-                        ? saved.getTitle()
-                        : "Nhiệm vụ chăm sóc hiện trường";
+                String taskTitle = "Nhiệm vụ chăm sóc hiện trường";
                 String diaryContent = (saved.getNotes() != null && !saved.getNotes().trim().isEmpty())
                         ? "[" + taskTitle + "] " + saved.getNotes()
                         : "Đã hoàn thành công tác: " + taskTitle + ". Minh chứng ảnh hiện trường đã được xác thực.";

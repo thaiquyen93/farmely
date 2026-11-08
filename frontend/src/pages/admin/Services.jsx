@@ -157,7 +157,7 @@ export default function Services() {
           </div>
           <Field label="Mô tả"><textarea required rows="4" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="field-control" /></Field>
           {actionError && <p role="alert" className="text-sm font-bold text-rose-700">{actionError}</p>}
-          <div className="flex justify-end gap-3"><Button type="button" variant="ghost" onClick={() => setShowCreate(false)}>Hủy</Button><Button type="submit" loading={saving}>Lưu vào database</Button></div>
+          <div className="flex justify-end gap-3"><Button type="button" variant="ghost" onClick={() => setShowCreate(false)}>Hủy</Button><Button type="submit" loading={saving}>Lưu</Button></div>
         </form>
       </Modal>
     </div>

@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { processTemplatesData as initialTemplates } from '../../data/processTemplates';
 import { varietiesData as initialVarieties } from '../../data/varieties';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
@@ -29,11 +28,11 @@ import {
 import { useAuthStore } from '../../stores/authStore';
 import { parseProcessDocument } from '../../utils/processDocumentParser';
 
-export default function ProcessTemplates() {
+export default function ProcessTemplates({ detailBasePath = '/admin/master-data/process-templates' }) {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const { user } = useAuthStore();
-  const [templates, setTemplates] = useState(initialTemplates);
+  const [templates, setTemplates] = useState([]);
   const [varieties, setVarieties] = useState(initialVarieties);
   const [loading, setLoading] = useState(true);
   const [isLiveDb, setIsLiveDb] = useState(false);
@@ -56,13 +55,14 @@ export default function ProcessTemplates() {
     fetch('/api/process-templates')
       .then((res) => res.json())
       .then((res) => {
-        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+        if (res && res.success && Array.isArray(res.data)) {
           setTemplates(res.data);
           setIsLiveDb(true);
         }
       })
       .catch((err) => {
-        console.warn('Cannot fetch live process templates, fallback to mock:', err);
+        console.warn('Cannot fetch process templates:', err);
+        setTemplates([]);
       })
       .finally(() => {
         setLoading(false);
@@ -131,7 +131,6 @@ export default function ProcessTemplates() {
     setIsSubmitting(true);
 
     const numericVarietyId = parseInt(String(varietyId).replace(/\D/g, ''), 10) || 1;
-    const varObj = varieties.find((v) => String(v.id || v.varietyId) === String(varietyId));
 
     try {
       const payload = {
@@ -149,35 +148,18 @@ export default function ProcessTemplates() {
         body: JSON.stringify(payload)
       });
       const json = await res.json();
-      if (json.success && json.data?.id) {
+      if (res.ok && json.success && json.data?.id) {
         setShowModal(false);
         // Chuyển thẳng tới trang chi tiết quy trình vừa tạo
-        navigate(`/admin/master-data/process-templates/${json.data.id}`);
+        navigate(`${detailBasePath}/${json.data.id}`);
         return;
       }
+      throw new Error(json.message || 'Không thể lưu quy trình.');
     } catch (err) {
-      console.warn('Tạo quy trình qua API lỗi, fallback lưu tạm:', err);
+      alert(err.message || 'Không thể lưu quy trình. Vui lòng thử lại.');
     } finally {
       setIsSubmitting(false);
     }
-
-    const newTemplate = {
-      id: `TMPL-00${templates.length + 1}`,
-      name: name || `Quy trình VietGAP - ${varObj?.name || 'Cây trồng'}`,
-      varietyId,
-      varietyName: varObj ? (varObj.name || varObj.varietyName) : 'Giống cây',
-      cropName: varObj ? (varObj.cropName || 'Rau màu') : 'Rau màu',
-      version,
-      status,
-      totalSteps: parsedSteps.length,
-      createdDate: new Date().toISOString().split('T')[0],
-      author: user?.fullName || 'Chuyên Gia Nông Nghiệp',
-      description: desc,
-      steps: parsedSteps
-    };
-
-    setTemplates((prev) => [...prev, newTemplate]);
-    setShowModal(false);
   };
 
   const columns = [
@@ -189,7 +171,7 @@ export default function ProcessTemplates() {
         <div>
           <span className="font-mono text-[10px] text-brand-muted uppercase block">{row.id || row.code}</span>
           <Link
-            to={`/admin/master-data/process-templates/${row.id}`}
+            to={`${detailBasePath}/${row.id}`}
             className="font-bold text-brand-dark hover:text-brand-green text-xs block mt-0.5"
           >
             {row.name}
@@ -239,7 +221,7 @@ export default function ProcessTemplates() {
       render: (row) => (
         <div className="flex items-center gap-1.5">
           <Link
-            to={`/admin/master-data/process-templates/${row.id}`}
+            to={`${detailBasePath}/${row.id}`}
             className="p-1.5 text-stone-400 hover:text-brand-green hover:bg-brand-cream/50 rounded-lg transition-colors"
             title="Xem chi tiết lộ trình"
           >

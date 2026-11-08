@@ -29,7 +29,6 @@ import {
 import { safeCrops, getSafeCropsList } from '../../data/safeCrops';
 import PlotLeaseOptions from './PlotLeaseOptions';
 import { getLeaseConfigError, computePlotLeasePrice } from '../../utils/leaseSelection';
-import { CROP_STANDARDS, detectCropKey } from '../../services/cropStandardProcess';
 
 /* ──────────────────────────────────────────────────────────────────────────────
    MarketplacePlotDetailPanel — Per-plot lease config + responsive 1366x768
@@ -175,25 +174,45 @@ export default function MarketplacePlotDetailPanel({
 
   const allSafeFallback = getSafeCropsList();
   const effectiveCropOptions = cropOptions && cropOptions.length > 0 ? cropOptions : allSafeFallback;
-  const selectedCrop = effectiveCropOptions.find((c) => c.id === leaseConfig?.cropId) || null;
-  const currentTechnicalCrop = selectedCrop || effectiveCropOptions[0];
+  const selectedCrop = effectiveCropOptions.find((c) => String(c.id) === String(leaseConfig?.cropId)) || null;
+  const currentTechnicalCrop = selectedCrop;
+  const [liveTemplate, setLiveTemplate] = useState(null);
+
+  useEffect(() => {
+    const varietyId = Number(currentTechnicalCrop?.varietyId);
+    setLiveTemplate(null);
+    if (!varietyId) return;
+    let active = true;
+    fetch('/api/process-templates')
+      .then((response) => response.ok ? response.json() : null)
+      .then((result) => {
+        if (!active) return;
+        const templates = Array.isArray(result?.data) ? result.data : [];
+        setLiveTemplate(templates.find((item) => Number(item.varietyId) === varietyId && item.status === 'ACTIVE') || null);
+      })
+      .catch(() => { if (active) setLiveTemplate(null); });
+    return () => { active = false; };
+  }, [currentTechnicalCrop?.varietyId]);
 
   const cropProcessData = useMemo(() => {
-    if (!currentTechnicalCrop) return null;
-    const cropKey = detectCropKey(currentTechnicalCrop.variety || currentTechnicalCrop.name || '');
-    const standard = CROP_STANDARDS[cropKey] || CROP_STANDARDS['lettuce'];
+    if (!currentTechnicalCrop || !liveTemplate) return null;
+    const durationDays = Number(currentTechnicalCrop.minDays) || Number(liveTemplate.totalDays) || 0;
     return {
-      cropKey,
-      standard,
-      cropName: currentTechnicalCrop.variety || currentTechnicalCrop.name || standard.cropName,
+      cropName: currentTechnicalCrop.variety || currentTechnicalCrop.name,
       cropIcon: currentTechnicalCrop.icon || '🌱',
-      duration: currentTechnicalCrop.duration || `${standard.totalDays} ngày`,
-      totalDays: standard.totalDays,
-      expectedYield: standard.expectedYield,
-      optimalConditions: standard.optimalConditions,
-      stages: standard.stages || []
+      duration: currentTechnicalCrop.duration || `${durationDays} ngày`,
+      totalDays: durationDays,
+      expectedYield: currentTechnicalCrop.expectedYield || 'Chưa cập nhật',
+      optimalConditions: { tempRange: currentTechnicalCrop.temperature || 'Chưa cập nhật', soilMoistureRange: currentTechnicalCrop.soilMoisture || 'Chưa cập nhật' },
+      stages: (liveTemplate.steps || []).map((step, index) => ({
+        id: step.stepId || step.id || index,
+        stepOrder: step.stepOrder || index + 1,
+        name: step.stepName || step.name,
+        label: `Ngày ${step.dayOffset ?? step.day ?? 0}`,
+        guide: step.description || step.details || 'Chưa có hướng dẫn kỹ thuật.'
+      }))
     };
-  }, [currentTechnicalCrop]);
+  }, [currentTechnicalCrop, liveTemplate]);
 
   if (!plot) return null;
 
@@ -767,6 +786,7 @@ export default function MarketplacePlotDetailPanel({
                     }}
                     className="w-full appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-800 hover:border-emerald-500 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/20 outline-hidden transition cursor-pointer"
                   >
+                    <option value="">Chọn giống cây để xem quy trình</option>
                     {effectiveCropOptions.map((crop) => (
                       <option key={crop.id} value={crop.id}>
                         {crop.icon ? `${crop.icon} ` : ''}{crop.name} — {crop.variety}
@@ -778,6 +798,9 @@ export default function MarketplacePlotDetailPanel({
               </div>
 
               {/* Thẻ chỉ số tổng quan mùa vụ */}
+              {selectedCrop && !cropProcessData && (
+                <p className="text-[10px] text-amber-700">Giống này chưa có quy trình kỹ thuật được lưu trong hệ thống.</p>
+              )}
               {cropProcessData && (
                 <div className="grid grid-cols-3 gap-1.5 text-center">
                   <div className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/80">

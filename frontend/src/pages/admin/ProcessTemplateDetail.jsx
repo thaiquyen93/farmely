@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { processTemplatesData } from '../../data/processTemplates';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
@@ -33,12 +32,11 @@ import { parseProcessDocument } from '../../utils/processDocumentParser';
 export default function ProcessTemplateDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const bulkFileRef = useRef(null);
 
   // Template State
-  const [template, setTemplate] = useState(() => {
-    return processTemplatesData.find((t) => String(t.id) === String(id) || t.code === id || t.id === `TMPL-00${id}`) || processTemplatesData[0];
-  });
+  const [template, setTemplate] = useState({ id, steps: [] });
   const [loading, setLoading] = useState(true);
   const [isLiveDb, setIsLiveDb] = useState(false);
 
@@ -76,7 +74,7 @@ export default function ProcessTemplateDetail() {
         }
       })
       .catch((err) => {
-        console.warn('Lỗi tải quy trình từ database, giữ mock:', err);
+        console.warn('Lỗi tải quy trình từ database:', err);
       })
       .finally(() => {
         setLoading(false);
@@ -178,37 +176,12 @@ export default function ProcessTemplateDetail() {
           return;
         }
       }
+      throw new Error('Không thể lưu bước kỹ thuật vào hệ thống.');
     } catch (err) {
-      console.warn('Lưu bước kỹ thuật qua API thất bại, lưu tạm local:', err);
+      alert(err.message || 'Không thể lưu bước kỹ thuật.');
     } finally {
       setIsSubmitting(false);
     }
-
-    // Local fallback update if offline
-    if (editingStep) {
-      setTemplate(prev => ({
-        ...prev,
-        steps: (prev.steps || []).map(s => {
-          if (s === editingStep || s.id === editingStep.id || s.stepId === editingStep.stepId) {
-            return { ...s, ...payload, stepNumber: s.stepNumber || 1 };
-          }
-          return s;
-        }).sort((a, b) => Number(a.dayOffset) - Number(b.dayOffset))
-      }));
-    } else {
-      const newStep = {
-        id: Date.now(),
-        stepId: Date.now(),
-        stepNumber: (template.steps?.length || 0) + 1,
-        ...payload,
-        status: day === 0 ? 'COMPLETED' : 'SCHEDULED'
-      };
-      setTemplate(prev => ({
-        ...prev,
-        steps: [...(prev.steps || []), newStep].sort((a, b) => Number(a.dayOffset) - Number(b.dayOffset))
-      }));
-    }
-    setShowStepModal(false);
   };
 
   // Delete Step
@@ -231,15 +204,9 @@ export default function ProcessTemplateDetail() {
           return;
         }
       } catch (err) {
-        console.warn('Xóa bước qua API thất bại:', err);
+        alert(err.message || 'Không thể xóa bước kỹ thuật.');
       }
     }
-
-    // Local fallback removal
-    setTemplate(prev => ({
-      ...prev,
-      steps: (prev.steps || []).filter(s => s !== step && s.id !== step.id && s.stepId !== step.stepId)
-    }));
   };
 
   // Bulk File Handling
@@ -330,7 +297,7 @@ export default function ProcessTemplateDetail() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link
-            to="/admin/master-data/process-templates"
+            to={location.pathname.startsWith('/expert/') ? '/expert/dashboard?tab=templates' : '/admin/master-data/process-templates'}
             className="p-2 text-stone-500 hover:text-brand-dark hover:bg-stone-100 rounded-xl transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
