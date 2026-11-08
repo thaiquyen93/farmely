@@ -1,0 +1,357 @@
+﻿<mxfile host="app.diagrams.net" agent="Antigravity" version="21.0.0">
+  <diagram id="farmely-system-architecture-standard" name="Farmely System Architecture">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1380" pageHeight="870" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ==================== TIER 1: PRESENTATION TIER ==================== -->
+        <!-- Container Box -->
+        <mxCell id="box-tier1" parent="1" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#F0F9FF;strokeColor=#0284C7;strokeWidth=1.6;verticalAlign=top;align=left;" value="" vertex="1">
+          <mxGeometry x="40" y="25" width="1020" height="175" as="geometry" />
+        </mxCell>
+
+        <!-- Tier Header Badge -->
+        <mxCell id="badge-tier1" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#0369A1;strokeColor=none;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 13px; color: #FFFFFF;&quot;&gt;Presentation Tier&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #BAE6FD;&quot;&gt;User Interface&lt;/font&gt;" vertex="1">
+          <mxGeometry x="58" y="41" width="150" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- Actor 1: Customer (KH) -->
+        <mxCell id="actor-kh" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=1.8;fontStyle=1;fontSize=11;fontColor=#0F172A;" value="Customer&lt;br&gt;&lt;font color=&quot;#64748B&quot; style=&quot;font-size: 9.5px; font-weight: normal;&quot;&gt;(KH)&lt;/font&gt;" vertex="1">
+          <mxGeometry x="300" y="39" width="30" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Actor 2: Agri Expert (CGNN) -->
+        <mxCell id="actor-cgnn" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.8;fontStyle=1;fontSize=11;fontColor=#0F172A;" value="Agri Expert&lt;br&gt;&lt;font color=&quot;#64748B&quot; style=&quot;font-size: 9.5px; font-weight: normal;&quot;&gt;(CGNN)&lt;/font&gt;" vertex="1">
+          <mxGeometry x="470" y="39" width="30" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Actor 3: Field Staff (CVLD) -->
+        <mxCell id="actor-cvld" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#DCFCE7;strokeColor=#16A34A;strokeWidth=1.8;fontStyle=1;fontSize=11;fontColor=#0F172A;" value="Field Staff&lt;br&gt;&lt;font color=&quot;#64748B&quot; style=&quot;font-size: 9.5px; font-weight: normal;&quot;&gt;(CVLĐ)&lt;/font&gt;" vertex="1">
+          <mxGeometry x="640" y="39" width="30" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- Actor 4: Administrator (AD) -->
+        <mxCell id="actor-ad" parent="1" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fillColor=#F3E8FF;strokeColor=#9333EA;strokeWidth=1.8;fontStyle=1;fontSize=11;fontColor=#0F172A;" value="Administrator&lt;br&gt;&lt;font color=&quot;#64748B&quot; style=&quot;font-size: 9.5px; font-weight: normal;&quot;&gt;(AD)&lt;/font&gt;" vertex="1">
+          <mxGeometry x="810" y="39" width="30" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- React SPA Client Card -->
+        <mxCell id="card-react-spa" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0284C7;strokeWidth=1.8;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 13px; color: #0369A1;&quot;&gt;«Single Page Application» React SPA (Web Application)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #64748B;&quot;&gt;React 18 · Vite · Tailwind CSS · React Router 6 · Zustand State · TanStack Query&lt;/font&gt;" vertex="1">
+          <mxGeometry x="240" y="143" width="650" height="46" as="geometry" />
+        </mxCell>
+
+        <!-- Edges: Actors to React SPA -->
+        <mxCell id="edge-kh-spa" parent="1" source="actor-kh" target="card-react-spa" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#0284C7;strokeWidth=1.4;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-cgnn-spa" parent="1" source="actor-cgnn" target="card-react-spa" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#D97706;strokeWidth=1.4;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-cvld-spa" parent="1" source="actor-cvld" target="card-react-spa" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#16A34A;strokeWidth=1.4;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-ad-spa" parent="1" source="actor-ad" target="card-react-spa" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#9333EA;strokeWidth=1.4;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Protocol Pill Badge (HTTPS / REST + JWT) -->
+        <mxCell id="badge-protocol" parent="1" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#E2E8F0;strokeColor=#94A3B8;fontColor=#334155;fontStyle=1;fontSize=11;align=center;" value="HTTPS / REST + Bearer JWT" vertex="1">
+          <mxGeometry x="460" y="212" width="170" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- Connector: React SPA -> API Gateway -->
+        <mxCell id="edge-spa-gateway" parent="1" source="card-react-spa" target="card-gateway" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#1E293B;strokeWidth=1.8;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+
+        <!-- ==================== TIER 2: APPLICATION TIER ==================== -->
+        <!-- Container Box -->
+        <mxCell id="box-tier2" parent="1" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#16A34A;strokeWidth=1.6;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;" value="" vertex="1">
+          <mxGeometry x="40" y="250" width="1020" height="325" as="geometry" />
+        </mxCell>
+
+        <!-- Tier Header Badge -->
+        <mxCell id="badge-tier2" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#15803D;strokeColor=none;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 13px; color: #FFFFFF;&quot;&gt;Application Tier&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #BBF7D0;&quot;&gt;Business Logic&lt;/font&gt;" vertex="1">
+          <mxGeometry x="58" y="266" width="150" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- API Gateway Card -->
+        <mxCell id="card-gateway" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;strokeWidth=1.8;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 13px; color: #15803D;&quot;&gt;«API Gateway» API Gateway (:8080)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #166534;&quot;&gt;Spring Cloud Gateway · Path Routing · JwtAuthenticationFilter · CORS&lt;/font&gt;" vertex="1">
+          <mxGeometry x="330" y="266" width="420" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- AI Service Card (Python FastAPI) -->
+        <mxCell id="card-ai" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#9333EA;strokeWidth=1.8;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 12.5px; color: #6B21A8;&quot;&gt;«Microservice» AI Service (:8089)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 9.5px; color: #7E22CE;&quot;&gt;Python FastAPI · RAG Engine · Gemini LLM&lt;/font&gt;" vertex="1">
+          <mxGeometry x="800" y="266" width="240" height="52" as="geometry" />
+        </mxCell>
+
+        <!-- Gateway to AI Service Edge (Solid Sync REST) -->
+        <mxCell id="edge-gateway-ai" parent="1" source="card-gateway" target="card-ai" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#9333EA;strokeWidth=1.6;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl-gw-ai" parent="edge-gateway-ai" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=bottom;fontSize=9;fontColor=#6B21A8;fontStyle=1;" value="REST" vertex="1" connectable="0">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint y="-2" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Microservices Grid (8 Spring Boot Services) -->
+        <!-- S1: Identity Service -->
+        <mxCell id="srv-identity" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B82F6;strokeWidth=1.5;align=center;verticalAlign=top;spacingTop=6;" value="&lt;font color=&quot;#1E40AF&quot; style=&quot;font-size: 10.5px; font-weight: bold;&quot;&gt;«Service»&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Identity&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#2563EB&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;:8081&lt;/font&gt;&lt;hr style=&quot;border:none;border-top:1px solid #E2E8F0;margin:4px 0;&quot;&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;Auth · JWT&lt;br&gt;RBAC · Users&lt;br&gt;Audit Logs&lt;br&gt;&lt;font color=&quot;#94A3B8&quot; style=&quot;font-size: 8.5px;&quot;&gt;Spring Security&lt;/font&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry x="60" y="400" width="112" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- S2: Farm Service -->
+        <mxCell id="srv-farm" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#16A34A;strokeWidth=1.5;align=center;verticalAlign=top;spacingTop=6;" value="&lt;font color=&quot;#15803D&quot; style=&quot;font-size: 10.5px; font-weight: bold;&quot;&gt;«Service»&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Farm&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#16A34A&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;:8082&lt;/font&gt;&lt;hr style=&quot;border:none;border-top:1px solid #E2E8F0;margin:4px 0;&quot;&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;Land &amp;amp; Plots&lt;br&gt;GeoJSON Poly&lt;br&gt;Site Visits&lt;br&gt;&lt;font color=&quot;#94A3B8&quot; style=&quot;font-size: 8.5px;&quot;&gt;Soil Fallow (BR23)&lt;/font&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry x="184" y="400" width="112" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- S3: Rental Service -->
+        <mxCell id="srv-rental" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2563EB;strokeWidth=1.5;align=center;verticalAlign=top;spacingTop=6;" value="&lt;font color=&quot;#1D4ED8&quot; style=&quot;font-size: 10.5px; font-weight: bold;&quot;&gt;«Service»&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Rental&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#2563EB&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;:8084&lt;/font&gt;&lt;hr style=&quot;border:none;border-top:1px solid #E2E8F0;margin:4px 0;&quot;&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;Master Lease&lt;br&gt;Lock 15m (BR08)&lt;br&gt;Cancellation&lt;br&gt;&lt;font color=&quot;#94A3B8&quot; style=&quot;font-size: 8.5px;&quot;&gt;Rental Schedulers&lt;/font&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry x="308" y="400" width="112" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- S4: Payment Service -->
+        <mxCell id="srv-payment" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D97706;strokeWidth=1.5;align=center;verticalAlign=top;spacingTop=6;" value="&lt;font color=&quot;#B45309&quot; style=&quot;font-size: 10.5px; font-weight: bold;&quot;&gt;«Service»&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Payment&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#D97706&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;:8085&lt;/font&gt;&lt;hr style=&quot;border:none;border-top:1px solid #E2E8F0;margin:4px 0;&quot;&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;VNPay Sandbox&lt;br&gt;VietQR Generator&lt;br&gt;Lump-sum BR09&lt;br&gt;&lt;font color=&quot;#94A3B8&quot; style=&quot;font-size: 8.5px;&quot;&gt;Sync Care Tasks&lt;/font&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry x="432" y="400" width="112" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- S5: Cultivation Service -->
+        <mxCell id="srv-cultivation" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#16A34A;strokeWidth=1.5;align=center;verticalAlign=top;spacingTop=6;" value="&lt;font color=&quot;#15803D&quot; style=&quot;font-size: 10.5px; font-weight: bold;&quot;&gt;«Service»&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Cultivation&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#16A34A&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;:8086&lt;/font&gt;&lt;hr style=&quot;border:none;border-top:1px solid #E2E8F0;margin:4px 0;&quot;&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;Care Tasks BR15&lt;br&gt;Farm Diary BR17&lt;br&gt;Harvest BR20&lt;br&gt;&lt;font color=&quot;#94A3B8&quot; style=&quot;font-size: 8.5px;&quot;&gt;Issue Reports&lt;/font&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry x="556" y="400" width="112" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- S6: Monitoring Service -->
+        <mxCell id="srv-monitoring" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0891B2;strokeWidth=1.5;align=center;verticalAlign=top;spacingTop=6;" value="&lt;font color=&quot;#0E7490&quot; style=&quot;font-size: 10.5px; font-weight: bold;&quot;&gt;«Service»&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Monitoring&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#0891B2&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;:8088&lt;/font&gt;&lt;hr style=&quot;border:none;border-top:1px solid #E2E8F0;margin:4px 0;&quot;&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;Sensor Stream&lt;br&gt;Weather BR18&lt;br&gt;SSE Realtime&lt;br&gt;&lt;font color=&quot;#94A3B8&quot; style=&quot;font-size: 8.5px;&quot;&gt;File Upload API&lt;/font&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry x="680" y="400" width="112" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- S7: Knowledge Service -->
+        <mxCell id="srv-knowledge" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4F46E5;strokeWidth=1.5;align=center;verticalAlign=top;spacingTop=6;" value="&lt;font color=&quot;#4338CA&quot; style=&quot;font-size: 10.5px; font-weight: bold;&quot;&gt;«Service»&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Knowledge&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#4F46E5&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;:8083&lt;/font&gt;&lt;hr style=&quot;border:none;border-top:1px solid #E2E8F0;margin:4px 0;&quot;&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;VietGAP Matrix&lt;br&gt;Crops &amp;amp; Varieties&lt;br&gt;Process Steps&lt;br&gt;&lt;font color=&quot;#94A3B8&quot; style=&quot;font-size: 8.5px;&quot;&gt;Doc Repository&lt;/font&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry x="804" y="400" width="112" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- S8: Communication Service -->
+        <mxCell id="srv-communication" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0284C7;strokeWidth=1.5;align=center;verticalAlign=top;spacingTop=6;" value="&lt;font color=&quot;#0369A1&quot; style=&quot;font-size: 10.5px; font-weight: bold;&quot;&gt;«Service»&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Comm&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#0284C7&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;:8087&lt;/font&gt;&lt;hr style=&quot;border:none;border-top:1px solid #E2E8F0;margin:4px 0;&quot;&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;Consultation 1-1&lt;br&gt;Issue Chat BR25&lt;br&gt;In-App Alerts&lt;br&gt;&lt;font color=&quot;#94A3B8&quot; style=&quot;font-size: 8.5px;&quot;&gt;WebSocket /ws&lt;/font&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry x="928" y="400" width="112" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Dispatcher Bus from Gateway to 8 Microservices -->
+        <mxCell id="bus-gw-line" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=1.6;endArrow=none;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="116" y="365" as="sourcePoint" />
+            <mxPoint x="984" y="365" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <!-- Trunk down from Gateway to Bus -->
+        <mxCell id="trunk-gw-bus" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=1.6;endArrow=none;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="540" y="318" as="sourcePoint" />
+            <mxPoint x="540" y="365" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <!-- 8 Drops from Bus to Services -->
+        <mxCell id="drop-s1" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=1.6;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="116" y="365" as="sourcePoint" />
+            <mxPoint x="116" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="drop-s2" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=1.6;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="365" as="sourcePoint" />
+            <mxPoint x="240" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="drop-s3" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=1.6;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="364" y="365" as="sourcePoint" />
+            <mxPoint x="364" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="drop-s4" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=1.6;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="488" y="365" as="sourcePoint" />
+            <mxPoint x="488" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="drop-s5" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=1.6;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="612" y="365" as="sourcePoint" />
+            <mxPoint x="612" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="drop-s6" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=1.6;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="736" y="365" as="sourcePoint" />
+            <mxPoint x="736" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="drop-s7" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=1.6;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="365" as="sourcePoint" />
+            <mxPoint x="860" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="drop-s8" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=1.6;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="984" y="365" as="sourcePoint" />
+            <mxPoint x="984" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+
+        <!-- ==================== TIER 3: DATA TIER ==================== -->
+        <!-- Container Box -->
+        <mxCell id="box-tier3" parent="1" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=1.6;verticalAlign=top;align=left;" value="" vertex="1">
+          <mxGeometry x="40" y="605" width="1020" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Tier Header Badge -->
+        <mxCell id="badge-tier3" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#B45309;strokeColor=none;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 13px; color: #FFFFFF;&quot;&gt;Data Tier&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #FDE68A;&quot;&gt;Data Storage&lt;/font&gt;" vertex="1">
+          <mxGeometry x="58" y="621" width="150" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- D1: PostgreSQL Database (Standard Cylinder) -->
+        <mxCell id="db-postgres" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFFFFF;strokeColor=#0284C7;strokeWidth=1.6;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 13px; color: #0F172A;&quot;&gt;PostgreSQL 16&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#0284C7&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;Main Relational DB&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;Shared Schema: farmely&lt;br&gt;3NF Tables · ACID Trans&lt;/font&gt;" vertex="1">
+          <mxGeometry x="235" y="620" width="185" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- D2: File Storage (Standard Folder) -->
+        <mxCell id="db-files" parent="1" style="shape=folder;fontStyle=1;tabWidth=45;tabHeight=14;tabPosition=left;html=1;boundedLbl=1;fillColor=#FFFFFF;strokeColor=#D97706;strokeWidth=1.6;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 13px; color: #0F172A;&quot;&gt;File Storage&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#D97706&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;Local File System&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;Path: /uploads&lt;br&gt;Proof Photos · Docs&lt;/font&gt;" vertex="1">
+          <mxGeometry x="445" y="620" width="185" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- D3: SQLite Fallback (Standard Cylinder) -->
+        <mxCell id="db-sqlite" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=10;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=1.6;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 13px; color: #0F172A;&quot;&gt;SQLite 3&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;Fallback DB&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;ai-service: chat.db&lt;br&gt;Local Fault Tolerance&lt;/font&gt;" vertex="1">
+          <mxGeometry x="655" y="620" width="185" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- D4: Vector Store (Standard Cube / Memory) -->
+        <mxCell id="db-vector" parent="1" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;darkOpacity=0.08;darkOpacity2=0.15;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1.6;align=center;verticalAlign=middle;" value="&lt;font color=&quot;#6D28D9&quot; style=&quot;font-size: 10px; font-weight: bold;&quot;&gt;«In-Memory Store»&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 13px; color: #0F172A;&quot;&gt;Vector Store&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7C3AED&quot; style=&quot;font-size: 11px; font-weight: bold;&quot;&gt;NumPy In-RAM&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#475569&quot; style=&quot;font-size: 9.5px;&quot;&gt;vectors.npy + chunks.json&lt;br&gt;Cosine Similarity Search&lt;/font&gt;" vertex="1">
+          <mxGeometry x="865" y="620" width="175" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Connector: App Tier to Data Tier -->
+        <mxCell id="edge-app-data" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#1E293B;strokeWidth=1.8;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="550" y="575" as="sourcePoint" />
+            <mxPoint x="550" y="605" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl-app-data" parent="edge-app-data" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=10.5;fontColor=#475569;fontStyle=1;" value="Spring Data JPA · Hibernate ORM · Direct File I/O · RAM Vector" vertex="1" connectable="0">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint x="180" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+
+        <!-- ==================== EXTERNAL SERVICES (RIGHT PANEL) ==================== -->
+        <!-- External Container Box -->
+        <mxCell id="box-external" parent="1" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FAF5FF;strokeColor=#9333EA;strokeWidth=1.6;verticalAlign=top;align=left;" value="" vertex="1">
+          <mxGeometry x="1090" y="250" width="250" height="505" as="geometry" />
+        </mxCell>
+
+        <!-- External Header Badge -->
+        <mxCell id="badge-external" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#7E22CE;strokeColor=none;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 13px; color: #FFFFFF;&quot;&gt;External Services&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #E9D5FF;&quot;&gt;Third-Party Integrations&lt;/font&gt;" vertex="1">
+          <mxGeometry x="1105" y="266" width="220" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- Ext 1: VNPay & VietQR -->
+        <mxCell id="ext-vnpay" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9333EA;strokeWidth=1.4;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;VNPay &amp;amp; VietQR&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#6B21A8&quot; style=&quot;font-size: 10px;&quot;&gt;Payment Gateway Sandbox&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#64748B&quot; style=&quot;font-size: 9.5px;&quot;&gt;Dynamic Banking QR Code&lt;/font&gt;" vertex="1">
+          <mxGeometry x="1105" y="332" width="220" height="68" as="geometry" />
+        </mxCell>
+
+        <!-- Ext 2: Gemini API -->
+        <mxCell id="ext-gemini" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9333EA;strokeWidth=1.4;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Google Gemini API&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#6B21A8&quot; style=&quot;font-size: 10px;&quot;&gt;gemini-3-flash-preview&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#64748B&quot; style=&quot;font-size: 9.5px;&quot;&gt;gemini-embedding-001&lt;/font&gt;" vertex="1">
+          <mxGeometry x="1105" y="412" width="220" height="68" as="geometry" />
+        </mxCell>
+
+        <!-- Ext 3: Weather API -->
+        <mxCell id="ext-weather" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9333EA;strokeWidth=1.4;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Weather &amp;amp; Agro API&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#6B21A8&quot; style=&quot;font-size: 10px;&quot;&gt;Open-Meteo Global Service&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#64748B&quot; style=&quot;font-size: 9.5px;&quot;&gt;GPS Temp, Rain, Soil (BR18)&lt;/font&gt;" vertex="1">
+          <mxGeometry x="1105" y="492" width="220" height="68" as="geometry" />
+        </mxCell>
+
+        <!-- Ext 4: Esri ArcGIS -->
+        <mxCell id="ext-esri" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9333EA;strokeWidth=1.4;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Esri ArcGIS Online&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#6B21A8&quot; style=&quot;font-size: 10px;&quot;&gt;World Imagery Satellite Tiles&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#64748B&quot; style=&quot;font-size: 9.5px;&quot;&gt;Boundary GeoJSON Rendering&lt;/font&gt;" vertex="1">
+          <mxGeometry x="1105" y="572" width="220" height="68" as="geometry" />
+        </mxCell>
+
+        <!-- Ext 5: Google Maps -->
+        <mxCell id="ext-maps" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9333EA;strokeWidth=1.4;align=center;verticalAlign=middle;" value="&lt;b style=&quot;font-size: 12px; color: #0F172A;&quot;&gt;Google Maps&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#6B21A8&quot; style=&quot;font-size: 10px;&quot;&gt;Location &amp;amp; Geocoding&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#64748B&quot; style=&quot;font-size: 9.5px;&quot;&gt;Site Visit Navigation Links&lt;/font&gt;" vertex="1">
+          <mxGeometry x="1105" y="652" width="220" height="68" as="geometry" />
+        </mxCell>
+
+        <!-- Double-headed Connector between App Tier and External Services -->
+        <mxCell id="edge-app-ext" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#9333EA;strokeWidth=2;startArrow=classic;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1060" y="500" as="sourcePoint" />
+            <mxPoint x="1090" y="500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl-app-ext" parent="edge-app-ext" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=bottom;fontSize=9.5;fontColor=#6B21A8;fontStyle=1;" value="HTTPS" vertex="1" connectable="0">
+          <mxGeometry x="-0.1" relative="1" as="geometry">
+            <mxPoint y="-2" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+
+        <!-- ==================== FOOTER: LEGEND & BRANDING ==================== -->
+        <!-- Legend Box -->
+        <mxCell id="box-legend" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.4;verticalAlign=middle;align=left;spacingLeft=15;" value="" vertex="1">
+          <mxGeometry x="40" y="775" width="730" height="70" as="geometry" />
+        </mxCell>
+        <!-- Legend Title -->
+        <mxCell id="lbl-legend-title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=12;fontStyle=1;fontColor=#0F172A;" value="Legend:" vertex="1">
+          <mxGeometry x="55" y="785" width="60" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- Legend Item 1: Sync Request -->
+        <mxCell id="leg-sync-line" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="125" y="798" as="sourcePoint" />
+            <mxPoint x="175" y="798" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl-leg-sync" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontColor=#334155;" value="Synchronous Request (HTTP / REST / Feign)" vertex="1">
+          <mxGeometry x="185" y="786" width="220" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- Legend Item 2: Bus / Gateway Routing -->
+        <mxCell id="leg-bus-line" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#16A34A;strokeWidth=2;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="450" y="798" as="sourcePoint" />
+            <mxPoint x="500" y="798" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl-leg-bus" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontColor=#334155;" value="Gateway Routing / Bus" vertex="1">
+          <mxGeometry x="510" y="786" width="160" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- Legend Item 3: External Integration -->
+        <mxCell id="leg-ext-line" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#9333EA;strokeWidth=2;startArrow=classic;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="125" y="826" as="sourcePoint" />
+            <mxPoint x="175" y="826" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="lbl-leg-ext" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontColor=#334155;" value="External 3rd-Party Integration (HTTPS)" vertex="1">
+          <mxGeometry x="185" y="814" width="220" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- Legend Item 4: Standard UML note -->
+        <mxCell id="lbl-leg-note" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontColor=#64748B;" value="Standard UML 2.5 Components · Cylinder DB · UML Actors" vertex="1">
+          <mxGeometry x="450" y="814" width="300" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- Branding & Project Info Box -->
+        <mxCell id="box-branding" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.4;align=left;verticalAlign=middle;spacingLeft=18;" value="&lt;b style=&quot;font-size: 14px; color: #15803D;&quot;&gt;🌾 Farmely — Smart Farm Plot Rental Platform&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #475569;&quot;&gt;FPT University · Course ISP392 · Official 3-Tier System Architecture Blueprint&lt;br&gt;&lt;font style=&quot;font-size: 9.5px; color: #94A3B8;&quot;&gt;Traceable to SSoT RP39 v2.2 &amp;amp; Business Rules BR01–BR27&lt;/font&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry x="790" y="775" width="550" height="70" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

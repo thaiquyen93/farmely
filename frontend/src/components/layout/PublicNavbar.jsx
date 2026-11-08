@@ -165,9 +165,9 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
   }, []);
 
   const isHome = location.pathname === '/';
-  const navBackgroundClass = isHome && !isScrolled
+  const navBackgroundClass = (isHome && !isScrolled && !mobileMenuOpen)
     ? 'bg-transparent border-b border-white/15 text-white'
-    : 'bg-[#294C3B]/95 backdrop-blur-md border-b border-white/10 text-white shadow-lg';
+    : 'bg-[#294C3B] backdrop-blur-md border-b border-white/10 text-white shadow-lg';
 
   const handleLogout = () => {
     logout();
@@ -188,24 +188,24 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-[left] duration-200 ${hasDashboardRail ? (dashboardRailCollapsed ? 'lg:left-16' : 'lg:left-72') : ''} ${navBackgroundClass}`}>
-      <div className="w-full px-4 sm:px-8">
-        <div className="flex items-center justify-between h-16">
+      <div className="w-full px-2 sm:px-4 lg:px-8">
+        <div className="flex items-center justify-between h-16 gap-2">
           
           {/* LEFT: Brand Logo + Vertical Divider matching reference image */}
-          <div className={hideBrand ? 'hidden' : 'flex items-center'}>
+          <div className={hideBrand ? 'hidden' : 'flex items-center shrink-0'}>
             <Link
               to={user && user.role !== 'CUSTOMER' ? getDashboardRoute(user.role) : "/"}
-              className="flex items-center gap-2.5 group pr-6 lg:pr-8 lg:border-r lg:border-white/20 h-10"
+              className="flex items-center gap-2 group pr-2.5 sm:pr-4 lg:pr-6 md:border-r md:border-white/20 h-10 shrink-0"
               title={user && user.role !== 'CUSTOMER' ? 'Trở về Bàn làm việc' : 'Trang chủ Farmely'}
             >
-              <div className="w-9 h-9 rounded-full bg-brand-yellow flex items-center justify-center text-brand-dark shadow-sm group-hover:scale-105 transition-transform">
-                <Sprout className="w-4.5 h-4.5 text-brand-dark stroke-[2.5]" />
+              <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-full bg-brand-yellow flex items-center justify-center text-brand-dark shadow-sm group-hover:scale-105 transition-transform shrink-0">
+                <Sprout className="w-4 h-4 lg:w-4.5 lg:h-4.5 text-brand-dark stroke-[2.5]" />
               </div>
               <div className="flex flex-col">
-                <span className="font-heading text-xl font-black tracking-wider text-white">
+                <span className="font-heading text-lg lg:text-xl font-black tracking-wider text-white leading-tight">
                   FARMELY
                 </span>
-                <span className="text-[9px] tracking-widest text-brand-yellow uppercase font-bold -mt-0.5 hidden sm:block">
+                <span className="text-[8px] lg:text-[9px] tracking-widest text-brand-yellow uppercase font-bold -mt-0.5 hidden sm:block">
                   Smart Agriculture
                 </span>
               </div>
@@ -213,46 +213,46 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
           </div>
 
           {/* CENTER: Navigation Links (Tách biệt nghiêm ngặt theo vai trò / RBAC) */}
-          <div className="hidden min-w-0 flex-1 items-center justify-center gap-5 overflow-hidden whitespace-nowrap px-4 xl:flex xl:gap-7 2xl:gap-9">
+          <div className="hidden md:flex min-w-0 flex-1 items-center justify-center gap-1.5 lg:gap-3 xl:gap-5 2xl:gap-8 overflow-hidden whitespace-nowrap px-1 lg:px-3">
             {/* 1. KHÁCH HÀNG & KHÁCH VÃNG LAI (CUSTOMER / GUEST) */}
             {isCustomerOrGuest && (
               <>
                 <Link
                   to="/"
-                  className={`whitespace-nowrap text-sm xl:text-[15px] 2xl:text-base font-semibold transition-colors hover:text-brand-yellow py-1 ${
+                  className={`whitespace-nowrap text-[11px] lg:text-xs xl:text-sm 2xl:text-[15px] font-semibold transition-colors hover:text-brand-yellow py-1 px-1 lg:px-1.5 rounded-lg ${
                     location.pathname === '/' ? 'text-brand-yellow font-bold' : 'text-white/95'
                   }`}
                 >
-                  <span className="flex items-center gap-2"><Home className="h-4 w-4" />Trang chủ</span>
+                  <span className="flex items-center gap-1 lg:gap-1.5"><Home className="h-3.5 w-3.5 lg:h-4 lg:w-4 shrink-0" />Trang chủ</span>
                 </Link>
 
                 <Link
                   to="/marketplace"
-                  className={`whitespace-nowrap text-sm xl:text-[15px] 2xl:text-base font-semibold transition-colors hover:text-brand-yellow py-1 ${
+                  className={`whitespace-nowrap text-[11px] lg:text-xs xl:text-sm 2xl:text-[15px] font-semibold transition-colors hover:text-brand-yellow py-1 px-1 lg:px-1.5 rounded-lg ${
                     location.pathname.startsWith('/marketplace') ? 'text-brand-yellow font-bold' : 'text-white/95'
                   }`}
                 >
-                  <span className="flex items-center gap-2"><ShoppingCart className="h-4 w-4" />Marketplace</span>
+                  <span className="flex items-center gap-1 lg:gap-1.5"><ShoppingCart className="h-3.5 w-3.5 lg:h-4 lg:w-4 shrink-0" />Marketplace</span>
                 </Link>
 
                 <Link
                   to="/site-visit/book"
-                  className={`flex items-center gap-2 whitespace-nowrap text-sm xl:text-[15px] 2xl:text-base font-semibold transition-colors hover:text-brand-yellow py-1 ${
+                  className={`flex items-center gap-1 lg:gap-1.5 whitespace-nowrap text-[11px] lg:text-xs xl:text-sm 2xl:text-[15px] font-semibold transition-colors hover:text-brand-yellow py-1 px-1 lg:px-1.5 rounded-lg ${
                     location.pathname.startsWith('/site-visit') ? 'text-brand-yellow font-bold' : 'text-white/95'
                   }`}
                 >
-                  <Calendar className="w-4 h-4 text-brand-yellow" />
+                  <Calendar className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-brand-yellow shrink-0" />
                   <span>Đặt lịch tham quan</span>
                 </Link>
 
                 {isAuthenticated && !location.pathname.startsWith('/marketplace') && (
                   <Link
                     to="/customer/dashboard"
-                    className={`flex items-center gap-2 whitespace-nowrap text-sm xl:text-[15px] 2xl:text-base font-semibold transition-colors hover:text-brand-yellow py-1 ${
+                    className={`flex items-center gap-1 lg:gap-1.5 whitespace-nowrap text-[11px] lg:text-xs xl:text-sm 2xl:text-[15px] font-semibold transition-colors hover:text-brand-yellow py-1 px-1 lg:px-1.5 rounded-lg ${
                       location.pathname.includes('/customer/dashboard') ? 'text-brand-yellow font-bold' : 'text-white/95'
                     }`}
                   >
-                    <Sprout className="w-4 h-4 text-brand-yellow" />
+                    <Sprout className="h-3.5 w-3.5 lg:h-4 lg:w-4 text-brand-yellow shrink-0" />
                     <span>Vườn của tôi</span>
                   </Link>
                 )}
@@ -265,14 +265,14 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                 >
                   <Link
                     to="/about"
-                    className={`flex items-center gap-2 whitespace-nowrap text-sm xl:text-[15px] 2xl:text-base font-semibold hover:text-brand-yellow transition-colors py-1 ${
+                    className={`flex items-center gap-1 lg:gap-1.5 whitespace-nowrap text-[11px] lg:text-xs xl:text-sm 2xl:text-[15px] font-semibold hover:text-brand-yellow transition-colors py-1 px-1 lg:px-1.5 rounded-lg ${
                       location.pathname === '/about' ? 'text-brand-yellow font-bold' : 'text-white/95'
                     }`}
                   >
-                    <Info className="h-4 w-4" />
+                    <Info className="h-3.5 w-3.5 lg:h-4 lg:w-4 shrink-0" />
                     <span>Về Farmely</span>
                     <ChevronDown
-                      className={`w-4 h-4 transition-transform duration-200 ${
+                      className={`w-3.5 h-3.5 transition-transform duration-200 ${
                         aboutDropdownOpen ? 'rotate-180 text-brand-yellow' : 'text-white/70'
                       }`}
                     />
@@ -347,28 +347,28 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               <>
                 <Link
                   to="/staff/dashboard"
-                  className={`text-sm font-bold transition-all flex items-center gap-2 px-3.5 py-1.5 rounded-xl ${
+                  className={`text-[11px] lg:text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3.5 py-1.5 rounded-xl ${
                     location.pathname.includes('/staff/dashboard')
                       ? 'bg-amber-400 text-brand-dark shadow-sm'
                       : 'text-white/95 hover:text-brand-yellow hover:bg-white/10'
                   }`}
                 >
-                  <Clock className="w-4 h-4" />
+                  <Clock className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" />
                   <span>Ca Trực Hiện Trường</span>
                 </Link>
 
-                <div className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-brand-yellow border border-amber-400/30 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span>Khu Vực Tác Nghiệp: Chuyên Viên Lao Động</span>
+                <div className="hidden lg:flex px-2.5 lg:px-3 py-1 rounded-full text-[10px] xl:text-xs font-bold bg-amber-500/20 text-brand-yellow border border-amber-400/30 items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span><span className="hidden xl:inline">Khu Vực Tác Nghiệp: </span>Chuyên Viên Lao Động</span>
                 </div>
 
                 <Link
                   to="/"
-                  className="text-xs text-stone-300 hover:text-brand-yellow transition-colors flex items-center gap-1 ml-2"
+                  className="text-[11px] lg:text-xs text-stone-300 hover:text-brand-yellow transition-colors flex items-center gap-1 ml-1"
                   title="Xem Cổng thông tin công khai Farmely"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span className="hidden 2xl:inline">Cổng công khai</span>
+                  <ExternalLink className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
+                  <span className="hidden xl:inline">Cổng công khai</span>
                 </Link>
               </>
             )}
@@ -378,28 +378,28 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               <>
                 <Link
                   to="/expert/dashboard"
-                  className={`text-sm font-bold transition-all flex items-center gap-2 px-3.5 py-1.5 rounded-xl ${
+                  className={`text-[11px] lg:text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3.5 py-1.5 rounded-xl ${
                     location.pathname.includes('/expert/dashboard')
                       ? 'bg-brand-yellow text-brand-dark shadow-sm'
                       : 'text-white/95 hover:text-brand-yellow hover:bg-white/10'
                   }`}
                 >
-                  <ClipboardCheck className="w-4 h-4" />
+                  <ClipboardCheck className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" />
                   <span>Bàn Làm Việc Chuyên Gia</span>
                 </Link>
 
-                <div className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Giám Sát Canh Tác & Chuẩn VietGAP</span>
+                <div className="hidden lg:flex px-2.5 lg:px-3 py-1 rounded-full text-[10px] xl:text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span><span className="hidden xl:inline">Giám Sát Canh Tác & </span>Chuẩn VietGAP</span>
                 </div>
 
                 <Link
                   to="/"
-                  className="text-xs text-stone-300 hover:text-brand-yellow transition-colors flex items-center gap-1 ml-2"
+                  className="text-[11px] lg:text-xs text-stone-300 hover:text-brand-yellow transition-colors flex items-center gap-1 ml-1"
                   title="Xem Cổng thông tin công khai Farmely"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span className="hidden 2xl:inline">Cổng công khai</span>
+                  <ExternalLink className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
+                  <span className="hidden xl:inline">Cổng công khai</span>
                 </Link>
               </>
             )}
@@ -409,59 +409,59 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               <>
                 <Link
                   to="/admin/dashboard"
-                  className={`text-sm font-bold transition-all flex items-center gap-2 px-3.5 py-1.5 rounded-xl ${
+                  className={`text-[11px] lg:text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3.5 py-1.5 rounded-xl ${
                     location.pathname === '/admin/dashboard'
                       ? 'bg-brand-yellow text-brand-dark shadow-sm'
                       : 'text-white/95 hover:text-brand-yellow hover:bg-white/10'
                   }`}
                 >
-                  <LayoutDashboard className="w-4 h-4" />
+                  <LayoutDashboard className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" />
                   <span>Bảng Quản Trị</span>
                 </Link>
 
                 <Link
                   to="/admin/master-data"
-                  className={`text-sm font-bold transition-all flex items-center gap-2 px-3.5 py-1.5 rounded-xl ${
+                  className={`text-[11px] lg:text-xs xl:text-sm font-bold transition-all flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3.5 py-1.5 rounded-xl ${
                     location.pathname.startsWith('/admin/master-data')
                       ? 'bg-brand-yellow text-brand-dark shadow-sm'
                       : 'text-white/95 hover:text-brand-yellow hover:bg-white/10'
                   }`}
                 >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Dữ Liệu Nền Tảng (Master Data)</span>
+                  <ShieldCheck className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" />
+                  <span>Dữ Liệu Nền Tảng<span className="hidden xl:inline"> (Master Data)</span></span>
                 </Link>
 
                 <Link
                   to="/"
-                  className="text-xs text-stone-300 hover:text-brand-yellow transition-colors flex items-center gap-1 ml-2"
+                  className="text-[11px] lg:text-xs text-stone-300 hover:text-brand-yellow transition-colors flex items-center gap-1 ml-1"
                   title="Xem Cổng thông tin công khai Farmely"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Cổng công khai</span>
+                  <ExternalLink className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
+                  <span className="hidden xl:inline">Cổng công khai</span>
                 </Link>
               </>
             )}
           </div>
 
           {/* RIGHT: Customer Dashboard shortcut (if logged in) + Search + Role Switcher + Auth */}
-          <div className="hidden shrink-0 items-center gap-2 md:flex 2xl:gap-3">
+          <div className="hidden md:flex shrink-0 items-center gap-1.5 lg:gap-2.5 2xl:gap-3">
 
             {/* Search Icon (Chỉ hiển thị cho Customer hoặc Guest tìm kiếm đất) */}
             {isCustomerOrGuest && (
-              <div className="flex items-center pr-2 border-r border-white/20 h-10">
+              <div className="flex items-center pr-1.5 lg:pr-2 border-r border-white/20 h-8 lg:h-10">
                 <Link
                   to="/marketplace"
-                  className="p-2 text-white/90 hover:text-brand-yellow hover:bg-white/10 rounded-full transition-colors"
+                  className="p-1.5 lg:p-2 text-white/90 hover:text-brand-yellow hover:bg-white/10 rounded-full transition-colors"
                   title="Tìm kiếm thửa đất"
                 >
-                  <Search className="w-5 h-5 stroke-[2.2]" />
+                  <Search className="w-4 h-4 lg:w-5 lg:h-5 stroke-[2.2]" />
                 </Link>
               </div>
             )}
 
             {isAuthenticated && user?.role === 'CUSTOMER' && (
               <div className="relative">
-                <button type="button" onClick={toggleNotifications} className="relative flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10 hover:text-brand-yellow" aria-label="Thông báo">
+                <button type="button" onClick={toggleNotifications} className="relative flex h-8 w-8 lg:h-9 lg:w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10 hover:text-brand-yellow" aria-label="Thông báo">
                   <Bell className="h-4 w-4" />
                   <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-[#294C3B] bg-orange-400" />
                 </button>
@@ -487,15 +487,15 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
             )}
 
             {/* Auth Button or User Menu */}
-            <div className="pl-3 flex items-center gap-2">
+            <div className="pl-1.5 lg:pl-3 flex items-center gap-1.5 lg:gap-2">
               {/* Quick direct return button to Dashboard for Staff / Expert / Admin on non-dashboard routes */}
               {isAuthenticated && userRole !== 'CUSTOMER' && !location.pathname.includes('/dashboard') && (
                 <Link
                   to={getDashboardRoute(userRole)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-yellow hover:bg-amber-300 text-brand-dark text-xs font-black shadow-sm transition-all whitespace-nowrap"
+                  className="flex items-center gap-1 lg:gap-1.5 px-2.5 lg:px-3 py-1 lg:py-1.5 rounded-full bg-brand-yellow hover:bg-amber-300 text-brand-dark text-[11px] lg:text-xs font-black shadow-sm transition-all whitespace-nowrap"
                   title="Quay lại bàn làm việc tác nghiệp"
                 >
-                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <LayoutDashboard className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
                   <span>
                     {userRole === 'STAFF' ? 'Vào Ca Trực' : userRole === 'EXPERT' ? 'Bàn Làm Việc' : 'Trang Quản Trị'}
                   </span>
@@ -503,14 +503,14 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               )}
 
               {!isAuthenticated ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 lg:gap-2">
                   <Link to="/login">
-                    <Button variant="outline-light" size="sm" className="px-3 py-1.5 text-xs">
+                    <Button variant="outline-light" size="sm" className="px-2.5 lg:px-3 py-1 lg:py-1.5 text-[11px] lg:text-xs">
                       Đăng nhập
                     </Button>
                   </Link>
                   <Link to="/register">
-                    <Button variant="primary" size="sm" className="px-3 py-1.5 text-xs">
+                    <Button variant="primary" size="sm" className="px-2.5 lg:px-3 py-1 lg:py-1.5 text-[11px] lg:text-xs">
                       Đăng ký
                     </Button>
                   </Link>
@@ -519,15 +519,15 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                 <div className="relative">
                   <button
                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                    className="flex items-center gap-2 pl-2 pr-3 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 transition-all text-white"
+                    className="flex items-center gap-1.5 lg:gap-2 pl-1.5 lg:pl-2 pr-2 lg:pr-3 py-1 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 transition-all text-white"
                   >
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/40 bg-brand-cream text-[10px] font-black text-brand-dark">
+                    <span className="flex h-6 w-6 lg:h-7 lg:w-7 items-center justify-center rounded-full border border-white/40 bg-brand-cream text-[9px] lg:text-[10px] font-black text-brand-dark shrink-0">
                       {(user?.fullName || 'U').trim().charAt(0).toUpperCase()}
                     </span>
-                    <span className="text-xs font-bold truncate max-w-[160px] sm:max-w-[220px]">
+                    <span className="text-[11px] lg:text-xs font-bold truncate max-w-[70px] lg:max-w-[130px] xl:max-w-[200px]">
                       {user?.fullName}
                     </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-white/70" />
+                    <ChevronDown className="w-3 h-3 lg:w-3.5 lg:h-3.5 text-white/70 shrink-0" />
                   </button>
 
                   {userDropdownOpen && (
@@ -635,10 +635,11 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="flex xl:hidden items-center gap-2">
+          <div className="flex md:hidden items-center gap-2">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
+              aria-label={mobileMenuOpen ? 'Đóng menu' : 'Mở menu'}
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -649,7 +650,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
 
       {/* Mobile Menu Drawer (Tách biệt theo vai trò) */}
       {mobileMenuOpen && (
-        <div className="xl:hidden bg-brand-dark/98 border-t border-white/15 px-4 pt-3 pb-6 space-y-3">
+        <div className="md:hidden bg-[#1D3B2C] border-t border-white/15 px-4 pt-3 pb-6 space-y-3 shadow-2xl">
           {/* KHÁCH HÀNG & GUEST */}
           {isCustomerOrGuest && (
             <>

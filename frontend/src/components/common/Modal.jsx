@@ -9,9 +9,13 @@ export default function Modal({
   subtitle,
   children,
   maxWidth = 'max-w-xl',
-  headerVariant = 'default', // 'default' | 'green'
+  headerVariant = 'default', // 'default' | 'green' | 'clean'
   variant,
-  headerColor
+  headerColor,
+  headerIcon,
+  hideHeader = false,
+  bodyClassName,
+  className
 }) {
   const dialogRef = useRef(null);
   const closeButtonRef = useRef(null);
@@ -77,50 +81,56 @@ export default function Modal({
       {/* Modal Dialog */}
       <div
         ref={dialogRef}
-        className={`relative z-10 my-auto flex max-h-[calc(100dvh-1.5rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl border border-brand-border bg-white shadow-elevated animate-scaleUp sm:max-h-[calc(100dvh-2rem)]`}
+        className={`relative z-10 my-auto flex max-h-[calc(100dvh-1.5rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-3xl border border-brand-border bg-white shadow-elevated animate-scaleUp sm:max-h-[calc(100dvh-2rem)] ${className || ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
         {/* Header */}
-        {(() => {
+        {!hideHeader && (() => {
           const isGreenHeader = headerVariant === 'green' || variant === 'green' || headerColor === 'green';
+          const isCleanHeader = headerVariant === 'clean';
           return (
             <div
-              className={`flex shrink-0 items-start justify-between border-b px-4 py-3 sm:px-6 sm:py-5 ${
+              className={`flex shrink-0 items-center justify-between border-b px-5 py-3.5 sm:px-6 sm:py-4 ${
                 isGreenHeader
                   ? 'bg-[#294C3B] text-white border-[#1f3a2d]'
-                  : 'border-brand-border/60 bg-brand-cream/40'
+                  : isCleanHeader
+                    ? 'border-stone-100 bg-white'
+                    : 'border-brand-border/60 bg-brand-cream/40'
               }`}
             >
-              <div>
-                <h3
-                  id={titleId}
-                  className={`font-heading text-xl font-bold ${
-                    isGreenHeader ? 'text-white' : 'text-brand-dark'
-                  }`}
-                >
-                  {title}
-                </h3>
-                {subtitle && (
-                  <p
-                    className={`text-xs mt-0.5 ${
-                      isGreenHeader ? 'text-emerald-100/90' : 'text-brand-muted'
+              <div className="flex items-center gap-2.5">
+                {headerIcon && <div className="shrink-0">{headerIcon}</div>}
+                <div>
+                  <h3
+                    id={titleId}
+                    className={`font-heading text-lg sm:text-xl font-bold ${
+                      isGreenHeader ? 'text-white' : 'text-stone-900'
                     }`}
                   >
-                    {subtitle}
-                  </p>
-                )}
+                    {title}
+                  </h3>
+                  {subtitle && (
+                    <p
+                      className={`text-xs mt-0.5 ${
+                        isGreenHeader ? 'text-emerald-100/90' : 'text-stone-500 font-medium'
+                      }`}
+                    >
+                      {subtitle}
+                    </p>
+                  )}
+                </div>
               </div>
               <button
                 ref={closeButtonRef}
                 type="button"
                 onClick={onClose}
                 aria-label="Đóng hộp thoại"
-                className={`min-w-11 min-h-11 inline-flex items-center justify-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green ${
+                className={`min-w-9 min-h-9 inline-flex items-center justify-center rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green ${
                   isGreenHeader
                     ? 'text-white/80 hover:text-white hover:bg-white/10'
-                    : 'text-stone-400 hover:text-brand-dark hover:bg-stone-100'
+                    : 'text-stone-400 hover:text-stone-700 hover:bg-stone-100'
                 }`}
               >
                 <X className="w-5 h-5" />
@@ -130,7 +140,7 @@ export default function Modal({
         })()}
 
         {/* Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${bodyClassName ?? 'px-4 py-4 sm:px-6 sm:py-5'}`}>
           {children}
         </div>
       </div>

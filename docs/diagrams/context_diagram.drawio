@@ -1,0 +1,167 @@
+<mxfile host="app.diagrams.net" agent="Antigravity">
+  <diagram id="farmely-context-diagram" name="Context Diagram (DFD Level 0)">
+    <mxGraphModel dx="2260" dy="1109" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="process-0" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2.8;shadow=1;align=center;verticalAlign=middle;rounded=0;" value="&lt;b style=&quot;font-size: 20px; color: #0F172A; line-height: 1.35;&quot;&gt;Farmely — Urban Agricultural&lt;br&gt;Farming Experience and&lt;br&gt;Management Support System&lt;/b&gt;" vertex="1">
+          <mxGeometry height="305" width="305" x="635" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-customer" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2.2;shadow=1;align=center;verticalAlign=middle;fontSize=20;" value="&lt;b style=&quot;font-size: 27px; color: rgb(15, 23, 42);&quot;&gt;Customer&lt;/b&gt;" vertex="1">
+          <mxGeometry height="68" width="270" x="665" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-admin" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2.2;shadow=1;align=center;verticalAlign=middle;fontSize=20;" value="&lt;b style=&quot;font-size: 27px; color: rgb(15, 23, 42);&quot;&gt;Administrator&lt;/b&gt;" vertex="1">
+          <mxGeometry height="68" width="265" x="35" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-ai" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2.2;shadow=1;align=center;verticalAlign=middle;fontSize=18;" value="&lt;b style=&quot;font-size: 25px; color: rgb(15, 23, 42);&quot;&gt;AI Chatbot Service&lt;/b&gt;" vertex="1">
+          <mxGeometry height="68" width="265" x="10" y="438.5" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-payment" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2.2;shadow=1;align=center;verticalAlign=middle;fontSize=20;fontStyle=1;" value="&lt;span style=&quot;font-size: 27px; color: rgb(15, 23, 42);&quot;&gt;Payment Gateway&lt;/span&gt;" vertex="1">
+          <mxGeometry height="68" width="265" x="70" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-weather" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2.2;shadow=1;align=center;verticalAlign=middle;fontSize=25;fontStyle=1;" value="&lt;span style=&quot;color: rgb(15, 23, 42);&quot;&gt;Weather Service&lt;/span&gt;" vertex="1">
+          <mxGeometry height="68" width="270" x="665" y="828" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-expert" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2.2;shadow=1;align=center;verticalAlign=middle;fontSize=24;" value="&lt;b style=&quot;color: rgb(15, 23, 42);&quot;&gt;Agricultural Expert&lt;/b&gt;" vertex="1">
+          <mxGeometry height="68" width="265" x="1240" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-staff" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2.2;shadow=1;align=center;verticalAlign=middle;fontSize=26;" value="&lt;b style=&quot;color: rgb(15, 23, 42);&quot;&gt;Field Staff&lt;/b&gt;" vertex="1">
+          <mxGeometry height="68" width="265" x="1310" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="ent-map" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2.2;shadow=1;align=center;verticalAlign=middle;fontSize=25;fontFamily=Helvetica;fontColor=default;fontStyle=1;" value="&lt;span style=&quot;&quot;&gt;GIS / Map Service&lt;/span&gt;" vertex="1">
+          <mxGeometry height="68" width="265" x="1180" y="744" as="geometry" />
+        </mxCell>
+        <mxCell id="df-cust-in-1" edge="1" parent="1" source="ent-customer" style="edgeStyle=none;curved=1;html=1;exitX=0.14;exitY=1;exitDx=0;exitDy=0;entryX=0.22;entryY=0.06;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="process-0" value="Account &amp;amp;&lt;br&gt;Search Queries">
+          <mxGeometry relative="1" x="-0.25" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="185" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-cust-in-2" edge="1" parent="1" source="ent-customer" style="edgeStyle=none;curved=1;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="process-0" value="Rental &amp;amp;&lt;br&gt;Service Requests">
+          <mxGeometry relative="1" x="0.22" as="geometry" />
+        </mxCell>
+        <mxCell id="df-cust-out" edge="1" parent="1" source="process-0" style="edgeStyle=none;curved=1;html=1;exitX=0.78;exitY=0.06;exitDx=0;exitDy=0;entryX=0.86;entryY=1;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="ent-customer" value="Plots, Contracts&lt;br&gt;&amp;amp; Farm Diary">
+          <mxGeometry relative="1" x="0.3713" y="34" as="geometry">
+            <mxPoint x="1" as="offset" />
+            <Array as="points">
+              <mxPoint x="960" y="185" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-admin-in" edge="1" parent="1" source="ent-admin" style="edgeStyle=none;curved=1;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.09;entryY=0.23;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="process-0" value="Plot Configs &amp;amp;&lt;br&gt;Shift Schedules">
+          <mxGeometry relative="1" x="-0.3491" y="-30" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="460" y="170" />
+              <mxPoint x="585" y="255" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-admin-out" edge="1" parent="1" source="process-0" style="edgeStyle=none;curved=1;html=1;exitX=0.03;exitY=0.36;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="ent-admin" value="Revenue Reports&lt;br&gt;&amp;amp; Audit Logs">
+          <mxGeometry relative="1" x="0.2157" y="-17" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="420" y="385" />
+              <mxPoint x="210" y="315" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-ai-in" edge="1" parent="1" source="ent-ai" style="edgeStyle=none;curved=1;html=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.45;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="process-0" value="AI Farming Advice">
+          <mxGeometry relative="1" x="-0.0446" y="-15" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="468" y="418" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-ai-out" edge="1" parent="1" source="process-0" style="edgeStyle=none;curved=1;html=1;exitX=0;exitY=0.57;exitDx=0;exitDy=0;entryX=1;entryY=0.7;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="ent-ai" value="Farming Query &amp;amp; Context">
+          <mxGeometry relative="1" x="-0.0206" y="-3" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="468" y="505" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-pay-out" edge="1" parent="1" source="process-0" style="edgeStyle=none;curved=1;html=1;exitX=0.05;exitY=0.72;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="ent-payment" value="Payment Requests">
+          <mxGeometry relative="1" x="0.2604" y="15" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="460" y="580" />
+              <mxPoint x="280" y="630" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-pay-in" edge="1" parent="1" source="ent-payment" style="edgeStyle=none;curved=1;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.16;entryY=0.88;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="process-0" value="Payment Status (IPN)">
+          <mxGeometry relative="1" x="-0.22" as="geometry">
+            <Array as="points">
+              <mxPoint x="480" y="745" />
+              <mxPoint x="550" y="720" />
+              <mxPoint x="615" y="670" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-weather-out" edge="1" parent="1" source="process-0" style="edgeStyle=none;curved=1;html=1;exitX=0.36;exitY=0.98;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="ent-weather" value="Farm GPS&lt;br&gt;Coordinates">
+          <mxGeometry relative="1" x="0.15" as="geometry">
+            <Array as="points">
+              <mxPoint x="705" y="715" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-weather-in" edge="1" parent="1" source="ent-weather" style="edgeStyle=none;curved=1;html=1;exitX=0.7;exitY=0;exitDx=0;exitDy=0;entryX=0.64;entryY=0.98;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="process-0" value="Forecast &amp;amp;&lt;br&gt;Microclimate Data">
+          <mxGeometry relative="1" x="-0.15" as="geometry">
+            <Array as="points">
+              <mxPoint x="895" y="715" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-expert-in" edge="1" parent="1" source="ent-expert" style="edgeStyle=none;curved=1;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.91;entryY=0.23;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="process-0" value="Crop Standards&lt;br&gt;&amp;amp; Farming Advice">
+          <mxGeometry relative="1" x="-0.28" as="geometry">
+            <Array as="points">
+              <mxPoint x="1140" y="170" />
+              <mxPoint x="1015" y="255" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-expert-out" edge="1" parent="1" source="process-0" style="edgeStyle=none;curved=1;html=1;exitX=0.97;exitY=0.36;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="ent-expert" value="Consultation Requests&lt;br&gt;&amp;amp; Field Alerts">
+          <mxGeometry relative="1" x="0.1626" y="8" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1180" y="385" />
+              <mxPoint x="1390" y="315" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-staff-out" edge="1" parent="1" source="process-0" style="edgeStyle=none;curved=1;html=1;exitX=1;exitY=0.45;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="ent-staff" value="Assigned Tasks &amp;amp;&amp;nbsp;&lt;div&gt;Harvest Orders&lt;/div&gt;">
+          <mxGeometry relative="1" x="-0.1231" y="-29" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1132" y="418" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-staff-in" edge="1" parent="1" source="ent-staff" style="edgeStyle=none;curved=1;html=1;exitX=0;exitY=0.7;exitDx=0;exitDy=0;entryX=1;entryY=0.57;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="process-0" value="Task Evidence &amp;amp;&lt;div&gt;&amp;nbsp;Harvest Logs&lt;/div&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-map-out" edge="1" parent="1" source="process-0" style="edgeStyle=none;curved=1;html=1;exitX=0.95;exitY=0.72;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="ent-map" value="Plot Boundaries&lt;br&gt;&amp;amp; Coordinates">
+          <mxGeometry relative="1" x="0.1836" y="-9" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1140" y="600" />
+              <mxPoint x="1250" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="df-map-in" edge="1" parent="1" source="ent-map" style="edgeStyle=none;curved=1;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.84;entryY=0.88;entryDx=0;entryDy=0;strokeColor=#1E293B;strokeWidth=2;endArrow=classic;endSize=6;fontSize=20;fontStyle=1;fontColor=#0F172A;labelBackgroundColor=#FFFFFF;align=center;rounded=0;" target="process-0" value="Satellite Map Tiles&lt;br&gt;&amp;amp; Geospatial Data">
+          <mxGeometry relative="1" x="-0.22" as="geometry">
+            <Array as="points">
+              <mxPoint x="985" y="670" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

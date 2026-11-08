@@ -28,6 +28,13 @@ export const PLOT_TABS = [
   { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag }
 ];
 
+const LEVEL_STYLE = {
+  OK: { chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', marker: 'bg-emerald-600', hex: '#059669', dot: 'bg-lime-400' },
+  LOW: { chip: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200', marker: 'bg-sky-600', hex: '#0284c7', dot: 'bg-sky-400' },
+  HIGH: { chip: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200', marker: 'bg-rose-600', hex: '#e11d48', dot: 'bg-rose-400' },
+  UNKNOWN: { chip: 'bg-stone-100 text-stone-600', marker: 'bg-stone-400', hex: '#a8a29e', dot: 'bg-stone-400' }
+};
+
 const CARD_SHADOW = 'shadow-[0_1px_2px_rgba(24,53,43,0.04),0_12px_32px_-16px_rgba(24,53,43,0.22)]';
 
 function Card({ className = '', children, style, onClick }) {
@@ -67,6 +74,121 @@ function EmptyState({ icon: Icon = Leaf, title, note }) {
 /* ──────────────────────────────────────────────────────────────────────────
    1. QUY TRÌNH CHUẨN THEO NGÀY TUỔI & HIỆN TRẠNG CÂY TRỒNG
    ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Thẻ hiện trạng thửa đất, đọc từ trên xuống theo thứ bậc:
+ *   việc đang diễn ra (to nhất) > nhiệt độ thực địa > cảnh báo (gọn nhất).
+ */
+function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo }) {
+  const currentStage = cropProcess.currentStage;
+  // Chỉ nêu nhiệt độ: 3 chỉ số còn lại đã nằm trong chính câu cảnh báo khi vượt ngưỡng.
+  const temp = assessPlot(plot).find((m) => m.key === 'temp');
+  const isNotStarted = cropProcess.isNotStarted;
+
+  return (
+    <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1b4332] via-[#24533f] to-[#0f2a20] text-white ${CARD_SHADOW}`}>
+      <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/15 blur-3xl" />
+      <span aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl" />
+
+      {/* Tầng 1 — Việc đang diễn ra (chính) · Sức khoẻ thửa (phụ, tách bằng vách mờ) */}
+      <div className="relative p-4 sm:p-5">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/90 backdrop-blur">
+              Tiêu chuẩn VietGAP
+            </span>
+            {isNotStarted ? (
+              <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                <Calendar className="h-3 w-3 text-amber-300" />
+                Chưa bắt đầu · Ngày 0 / {cropProcess.totalDays}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                </span>
+                Ngày thứ {cropProcess.currentDay} / {cropProcess.totalDays}
+              </span>
+            )}
+          </div>
+
+          <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-lime-300">
+            {isNotStarted ? 'Vụ mùa sắp tới' : 'Đang trong giai đoạn'}
+          </p>
+          <h3 className="mt-0.5 font-heading text-lg font-bold tracking-tight text-white sm:text-xl drop-shadow-xs">
+            {isNotStarted
+              ? `${cropProcess.cropName ? (cropProcess.cropName.charAt(0).toUpperCase() + cropProcess.cropName.slice(1)) : 'Cây trồng'} · Chưa bắt đầu canh tác`
+              : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
+          </h3>
+          <p className="mt-1 text-xs sm:text-sm leading-relaxed text-white/90">
+            {isNotStarted
+              ? 'Vụ mùa kế tiếp đã được lên lịch. Tiến độ sẽ bắt đầu tính khi vào vụ mới (sau chu kỳ nghỉ đất và làm đất tiêu chuẩn 5 ngày).'
+              : (currentStage?.statusDesc || 'Cây trồng đang phát triển thuận lợi theo đúng chỉ dẫn kỹ thuật nông học.')}
+          </p>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-white/10 text-xs">
+            <span className="font-semibold text-lime-300">
+              {isNotStarted
+                ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày`
+                : `Ngày thứ ${cropProcess.currentDay}/${cropProcess.totalDays} · Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}
+            </span>
+            <span className="text-white/70">
+              {isNotStarted ? 'Dự kiến bắt đầu theo lịch vụ mùa' : `Tiến độ chu kỳ: ${cropProcess.progressPercent}%`}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tầng 2 — Nhiệt độ thực địa & nguồn dữ liệu, cùng một hàng */}
+      {temp && (
+        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/10 px-4 py-2.5 sm:px-5">
+          <span className="flex items-baseline gap-1.5 text-xs">
+            <span className={`h-2 w-2 shrink-0 self-center rounded-full ${LEVEL_STYLE[temp.level].dot}`} />
+            <span className="font-medium text-white/85">{temp.label}</span>
+            {temp.value === null ? (
+              <span className="text-white/70">chưa có số liệu</span>
+            ) : (
+              <>
+                <strong className="font-bold text-white">{temp.value}{temp.unit}</strong>
+                <span className="text-white/70">chuẩn {temp.min}–{temp.max}{temp.unit}</span>
+              </>
+            )}
+          </span>
+          {liveProviderInfo?.isLive3rdParty && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-lime-300">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-lime-300" />
+              Open-Meteo Live Feed
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Tầng 3 — Cảnh báo BR18, mỗi cảnh báo một dòng gọn trong cùng thẻ */}
+      {topAlerts.length > 0 && (
+        <div className="relative border-t border-white/10" aria-label="Cảnh báo thời tiết thực địa">
+          {topAlerts.map((a, idx) => {
+            const info = explainAlert(a, plot.mode);
+            const isHigh = a?.level === 'HIGH';
+            return (
+              <div
+                key={a.id || `${info.title}-${idx}`}
+                className={`flex items-start gap-2.5 px-4 py-2 text-xs sm:px-5 ${idx > 0 ? 'border-t border-white/5' : ''}`}
+              >
+                <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${isHigh ? 'text-rose-300' : 'text-amber-300'}`} />
+                <span className="leading-relaxed text-white/95">
+                  <strong className={isHigh ? 'text-rose-200' : 'text-amber-200'}>{info.title}:</strong>{' '}
+                  {info.explanation}{' '}
+                  <strong className="text-white">{info.action}</strong>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Hàm chuẩn hóa ngày tuổi của một mục nhật ký hoặc hoạt động
@@ -2435,6 +2557,16 @@ function OverviewTab({
               </span>
             </div>
           )}
+
+          {/* 1. Hiện trạng thửa đất: quy trình + sức khoẻ + cảnh báo trong một thẻ */}
+          <section aria-label="Hiện trạng thửa đất">
+            <PlotStatusHero
+              plot={plot}
+              cropProcess={cropProcess}
+              topAlerts={topAlerts}
+              liveProviderInfo={liveProviderInfo}
+            />
+          </section>
 
           {/* 2. Dòng thời gian mốc ngày chuẩn VietGAP */}
           <Card className="p-5">

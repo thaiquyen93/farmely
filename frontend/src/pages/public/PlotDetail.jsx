@@ -7,6 +7,7 @@ import { varietiesData } from '../../data/varieties';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
+import AuthRequiredBookingModal from '../../components/marketplace/AuthRequiredBookingModal';
 import SiteVisitForm from '../../components/public/SiteVisitForm';
 import { useAuthStore } from '../../stores/authStore';
 import { loadCartCodes, normalizePlotCode, dedupeCodes } from '../../utils/leaseSelection';
@@ -31,7 +32,7 @@ export default function PlotDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, login } = useAuthStore();
   const [plot, setPlot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -450,66 +451,28 @@ export default function PlotDetail() {
       </main>
 
       {/* Modal: Sign In Required matching Screen Flow */}
-      <Modal
+      <AuthRequiredBookingModal
         isOpen={showSignInModal}
         onClose={() => setShowSignInModal(false)}
-        title="Yêu Cầu Đăng Nhập (Sign In Required)"
-        subtitle={`Thửa đất: ${plot.code} - ${plot.name}`}
-      >
-        <div className="space-y-5 text-left">
-          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2">
-            <p className="font-bold flex items-center gap-1.5 text-amber-800">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              Quy Trình Thuê Thửa Đất: Cần Đăng Nhập Tài Khoản
-            </p>
-            <p className="leading-relaxed">
-              Để khóa giữ chỗ 15 phút cho thửa <strong>{plot.name}</strong> và hoàn tất thủ tục thuê, vui lòng đăng nhập hoặc đăng ký tài khoản mới.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-brand-cream/60 border border-brand-border flex items-center gap-3">
-            <img
-              src={plot.imageUrl}
-              alt={plot.name}
-              className="w-14 h-14 rounded-xl object-cover border border-brand-border shrink-0"
-            />
-            <div className="text-xs">
-              <span className="font-bold text-brand-green">{plot.code}</span>
-              <p className="font-heading font-bold text-brand-dark text-sm">{plot.name}</p>
-              <p className="text-stone-500">{plot.area} • {plot.formattedPrice}/tháng</p>
-            </div>
-          </div>
-
-          <div className="space-y-2 pt-1">
-            <Link
-              to={`/login?redirect=${encodeURIComponent(`/marketplace/plot/${plot.id}/book`)}`}
-              className="w-full block"
-            >
-              <Button variant="primary" size="lg" className="w-full uppercase font-black text-xs tracking-wider">
-                ĐĂNG NHẬP NGAY ĐỂ TIẾP TỤC
-              </Button>
-            </Link>
-
-            <Link
-              to={`/register?redirect=${encodeURIComponent(`/marketplace/plot/${plot.id}/book`)}`}
-              className="w-full block"
-            >
-              <Button variant="outline" size="md" className="w-full uppercase font-bold text-xs tracking-wider">
-                ĐĂNG KÝ TÀI KHOẢN MỚI
-              </Button>
-            </Link>
-          </div>
-
-          <div className="border-t border-brand-border/60 pt-3 text-center">
-            <Link
-              to={`/site-visit/book?plotId=${plot.id}`}
-              className="text-xs text-brand-green font-semibold hover:underline"
-            >
-              Hoặc đặt lịch tham quan trước (không cần đăng nhập) →
-            </Link>
-          </div>
-        </div>
-      </Modal>
+        plot={plot}
+        onLogin={() => {
+          setShowSignInModal(false);
+          navigate(`/login?redirect=${encodeURIComponent(`/marketplace/plot/${plot.id}/book`)}`);
+        }}
+        onQuickDemoLogin={async () => {
+          await login('customer@farmely.vn', '123456');
+          setShowSignInModal(false);
+          navigate(`/marketplace/plot/${plot.id}/book`);
+        }}
+        onRegister={() => {
+          setShowSignInModal(false);
+          navigate(`/register?redirect=${encodeURIComponent(`/marketplace/plot/${plot.id}/book`)}`);
+        }}
+        onViewMap={() => {
+          setShowSignInModal(false);
+          navigate(`/marketplace?plotId=${encodeURIComponent(plot.code || plot.id)}`);
+        }}
+      />
 
       {/* Modal: Site Visit Booking */}
       <Modal
