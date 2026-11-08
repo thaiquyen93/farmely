@@ -764,41 +764,76 @@ export default function AdminDashboard() {
 
       // Cập nhật local storage cho thửa tương ứng nếu có
       const targetReq = renewalRequests.find((r) => r.id === renewalId);
-      if (targetReq) {
-        const plotKey = String(targetReq.plotCode || 'P-05').replace(/^PLOT-/i, '').trim().toUpperCase();
+      const rawCode = targetReq?.plotCode || targetReq?.plot_code || 'P-05';
+      const m = String(rawCode).match(/P-\d+/i) || String(rawCode).match(/\b\d+\b/);
+      const plotKey = m ? (m[0].toUpperCase().startsWith('P-') ? m[0].toUpperCase() : `P-${m[0]}`) : 'P-05';
+      const targetSeasonNum = Number(targetReq?.seasonNumber || targetReq?.season_number || 2);
+      const targetSeasonId = `SEASON-${targetSeasonNum}`;
+
+      const keysToUpdate = [
+        `farmely_plot_seasons_${plotKey}`,
+        `farmely_plot_seasons_PLOT-${plotKey}`,
+        `farmely_plot_seasons_Thửa ${plotKey}`,
+        targetReq?.rentalId ? `farmely_plot_seasons_${plotKey}_${targetReq.rentalId}` : null
+      ].filter(Boolean);
+
+      keysToUpdate.forEach((k) => {
         try {
-          const savedSeasons = localStorage.getItem(`farmely_plot_seasons_${plotKey}`);
+          const savedSeasons = localStorage.getItem(k);
           if (savedSeasons) {
             const parsed = JSON.parse(savedSeasons);
             const updated = parsed.map((s) => {
-              if (s.seasonNumber === (targetReq.seasonNumber || 2) || s.status === 'PENDING_APPROVAL') {
+              if (s.seasonNumber === targetSeasonNum || (s.seasonNumber >= targetSeasonNum && s.status === 'PENDING_APPROVAL')) {
                 return {
                   ...s,
                   status: 'ACTIVE',
                   currentDay: 1,
                   isCurrent: true,
+                  inFallow: false,
                   isApprovedByAdmin: true
                 };
               }
-              return {
-                ...s,
-                status: 'COMPLETED',
-                isCurrent: false,
-                inFallow: false
-              };
+              if (s.seasonNumber < targetSeasonNum) {
+                return {
+                  ...s,
+                  status: 'COMPLETED',
+                  isCurrent: false,
+                  inFallow: false
+                };
+              }
+              return s;
             });
-            localStorage.setItem(`farmely_plot_seasons_${plotKey}`, JSON.stringify(updated));
+            localStorage.setItem(k, JSON.stringify(updated));
           }
         } catch {}
-      }
+      });
 
-      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+      // Lưu cờ mùa vụ đang kích hoạt để Customer tab tự động chuyển
+      try {
+        localStorage.setItem(`farmely_active_season_${plotKey}`, targetSeasonId);
+        localStorage.setItem(`farmely_season_approved_event_${plotKey}`, JSON.stringify({
+          plotKey,
+          seasonNumber: targetSeasonNum,
+          seasonId: targetSeasonId,
+          timestamp: Date.now()
+        }));
+      } catch {}
+
+      // Phát tín hiệu đồng bộ tức thì qua BroadcastChannel
+      ['farmely_contract_channel', 'farmely_iot_telemetry', 'farmely_admin_channel'].forEach((ch) => {
         try {
-          const bc = new BroadcastChannel('farmely_contract_channel');
-          bc.postMessage({ type: 'CONTRACT_RENEWAL_APPROVED', renewalId, timestamp: Date.now() });
+          const bc = new BroadcastChannel(ch);
+          bc.postMessage({
+            type: 'CONTRACT_RENEWAL_APPROVED',
+            renewalId,
+            plotKey,
+            seasonNumber: targetSeasonNum,
+            seasonId: targetSeasonId,
+            timestamp: Date.now()
+          });
           setTimeout(() => { try { bc.close(); } catch {} }, 1000);
         } catch {}
-      }
+      });
 
       await loadAdminData();
     } catch (error) {
