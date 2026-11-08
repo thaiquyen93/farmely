@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Rebuild,
     [switch]$Wait
 )
@@ -226,7 +226,7 @@ try {
             }
             if (-not $runningPostgres) {
                 Write-Host 'Dang tu dong khoi dong PostgreSQL local...' -ForegroundColor Yellow
-                Start-Process -FilePath $pgCtlBin -ArgumentList @('start', '-D', $pgDataDir, '-o', '-h 127.0.0.1 -p 5432') -WindowStyle Hidden
+                Start-Process -FilePath $pgCtlBin -ArgumentList @('start', '-D', $pgDataDir) -WindowStyle Hidden
             } else {
                 Write-Host 'PostgreSQL dang chay, dang doi mo cong 5432...' -ForegroundColor Yellow
             }
@@ -248,7 +248,7 @@ try {
                     if (Test-Path -LiteralPath $pidPath) {
                         Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
                     }
-                    Start-Process -FilePath $pgCtlBin -ArgumentList @('start', '-D', $pgDataDir, '-o', '-h 127.0.0.1 -p 5432') -WindowStyle Hidden
+                    Start-Process -FilePath $pgCtlBin -ArgumentList @('start', '-D', $pgDataDir) -WindowStyle Hidden
                     for ($attempt2 = 1; $attempt2 -le 30; $attempt2++) {
                         Start-Sleep -Seconds 1
                         if (Test-PortListening -port 5432) {
@@ -266,7 +266,7 @@ try {
     }
     $localPostgres = ($null -ne $localPostgresPort)
 
-    $dbHost = if ($env:DB_HOST) { $env:DB_HOST } else { 'localhost' }
+    $dbHost = if ($env:DB_HOST) { $env:DB_HOST } else { '127.0.0.1' }
     $dbName = if ($env:DB_NAME) { $env:DB_NAME } else { 'farmely' }
     $dbUser = if ($env:DB_USER) { $env:DB_USER } else { 'postgres' }
     $dbPassword = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } elseif ($env:DB_PASS) { $env:DB_PASS } else { '@Bin054206' }
@@ -287,12 +287,18 @@ try {
             $passCandidates = @($dbPassword, '@Bin054206', '12345', 'postgres', '123456', 'admin', 'root')
             foreach ($cand in $passCandidates) {
                 $env:PGPASSWORD = $cand
-                $null = & $psqlBin -U $dbUser -p $localPostgresPort -d $dbName -c 'SELECT 1;' 2>&1
-                if ($LASTEXITCODE -eq 0) {
-                    $dbPassword = $cand
-                    $env:DB_PASSWORD = $cand
-                    $env:DB_PASS = $cand
-                    break
+                $prevEap = $ErrorActionPreference
+                $ErrorActionPreference = 'SilentlyContinue'
+                try {
+                    $null = & $psqlBin -h 127.0.0.1 -U $dbUser -p $localPostgresPort -d $dbName -c 'SELECT 1;' 2>&1
+                    if ($LASTEXITCODE -eq 0) {
+                        $dbPassword = $cand
+                        $env:DB_PASSWORD = $cand
+                        $env:DB_PASS = $cand
+                        break
+                    }
+                } catch {} finally {
+                    $ErrorActionPreference = $prevEap
                 }
             }
         }
