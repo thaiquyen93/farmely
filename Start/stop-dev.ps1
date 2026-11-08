@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
 
 $projectRoot = if (Test-Path (Join-Path $PSScriptRoot 'backend')) {
     $PSScriptRoot
@@ -36,14 +36,17 @@ if (Test-Path -LiteralPath $pidFile) {
 
 # 2. Giai phong them cac cong Farmely neu con tien trinh treo (3000, 8080-8089)
 $ports = @(3000, 8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087, 8088, 8089)
+$netstatLines = & netstat.exe -ano -p tcp 2>$null | Select-String "LISTENING"
 foreach ($port in $ports) {
-    $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-    foreach ($conn in $conns) {
-        if ($conn.OwningProcess -and $conn.OwningProcess -gt 0) {
-            $proc = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
-            if ($proc -and ($proc.ProcessName -match 'java|node|python')) {
-                & taskkill.exe /PID $conn.OwningProcess /T /F | Out-Null
-                Write-Host "  -> Giai phong cong $port (PID $($conn.OwningProcess) - $($proc.ProcessName))." -ForegroundColor Gray
+    foreach ($line in $netstatLines) {
+        if ($line -match ":$port\s+.*LISTENING\s+(\d+)") {
+            $ownerPid = [int]$matches[1]
+            if ($ownerPid -gt 0) {
+                $proc = Get-Process -Id $ownerPid -ErrorAction SilentlyContinue
+                if ($proc -and ($proc.ProcessName -match 'java|node|python')) {
+                    & taskkill.exe /PID $ownerPid /T /F | Out-Null
+                    Write-Host "  -> Giai phong cong $port (PID $ownerPid - $($proc.ProcessName))." -ForegroundColor Gray
+                }
             }
         }
     }

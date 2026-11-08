@@ -3,9 +3,13 @@ $ErrorActionPreference = 'SilentlyContinue'
 function Test-PortListening {
     param([int]$port)
     try {
+        $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop
+        if ($conn) { return $true }
+    } catch {}
+    try {
         $client = New-Object System.Net.Sockets.TcpClient
         $async = $client.BeginConnect('127.0.0.1', $port, $null, $null)
-        $wait = $async.AsyncWaitHandle.WaitOne(350, $false)
+        $wait = $async.AsyncWaitHandle.WaitOne(300, $false)
         if ($wait) {
             $client.EndConnect($async)
             $client.Close()

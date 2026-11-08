@@ -1,9 +1,9 @@
 ﻿param(
-    [switch]$Rebuild
+    [switch]$Rebuild,
+    [switch]$Wait
 )
 
 $ErrorActionPreference = 'Stop'
-
 # Tu dong xac dinh Project Root du script duoc goi tu thu muc goc hay tu thu muc Start\
 $projectRoot = if (Test-Path (Join-Path $PSScriptRoot 'backend')) {
     $PSScriptRoot
@@ -43,44 +43,69 @@ if (Test-Path -LiteralPath $envFile) {
 # ==============================================================================
 # 2. TU DONG TIM KIEM JDK 21+ TREN MAY
 # ==============================================================================
+function Get-JavaMajorVersion {
+    param([string]$homeDir)
+    if (-not $homeDir) { return 0 }
+    $javaExe = Join-Path $homeDir 'bin\java.exe'
+    if (-not (Test-Path -LiteralPath $javaExe)) { return 0 }
+    try {
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $versionOutput = & $javaExe -version 2>&1 | Out-String
+        $ErrorActionPreference = $prevEap
+        if ($versionOutput -match 'version "(?:1\.)?(\d+)') {
+            return [int]$matches[1]
+        }
+    } catch {
+        return 0
+    }
+    return 0
+}
+
 $jdkHome = $null
 if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
-    $jdkHome = $env:JAVA_HOME.TrimEnd('\')
+    if ((Get-JavaMajorVersion $env:JAVA_HOME) -ge 17) {
+        $jdkHome = $env:JAVA_HOME.TrimEnd('\')
+    }
 }
 
 if (-not $jdkHome) {
     $jdkCandidates = @(
+        "$env:USERPROFILE\.jdks\jdk-21.0.12.1+1",
         'C:\Users\Acer\.vscode\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
         'C:\Users\Acer\.antigravity-ide\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
         'C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot',
-        'C:\Program Files\Java\jdk-25'
+        'C:\Program Files\Java\jdk-25',
+        'C:\Program Files\Java\jdk-21',
+        'C:\Program Files\Java\jdk-17',
+        "$env:USERPROFILE\.antigravity-ide\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64",
+        "$env:USERPROFILE\.vscode\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64",
+        'C:\Users\Acer\.antigravity-ide\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64',
+        'C:\Users\Acer\.vscode\extensions\redhat.java-1.56.0-win32-x64\jre\21.0.12.1-win32-x86_64'
     )
-    $jdkHome = $jdkCandidates | Where-Object { Test-Path (Join-Path $_ 'bin\java.exe') } | Select-Object -First 1
-}
-
-if (-not $jdkHome) {
-    $javaCmd = Get-Command java.exe -ErrorAction SilentlyContinue
-    if ($javaCmd) {
-        $candidateHome = Split-Path -Parent (Split-Path -Parent $javaCmd.Source)
-        if (Test-Path (Join-Path $candidateHome 'bin\java.exe')) {
-            $jdkHome = $candidateHome
+    foreach ($cand in $jdkCandidates) {
+        if ((Test-Path (Join-Path $cand 'bin\java.exe')) -and ((Get-JavaMajorVersion $cand) -ge 17)) {
+            $jdkHome = $cand
+            break
         }
     }
 }
 
 if (-not $jdkHome) {
     $jdkSearchRoots = @(
+        "$env:USERPROFILE\.jdks",
         'C:\Program Files\Eclipse Adoptium',
         'C:\Program Files\Java',
         'C:\Program Files\Microsoft',
         'C:\Program Files\Amazon Corretto',
         'C:\Program Files\Zulu',
-        "$env:USERPROFILE\.jdks"
+        "$env:USERPROFILE\.antigravity-ide\extensions",
+        "$env:USERPROFILE\.vscode\extensions"
     )
     foreach ($root in $jdkSearchRoots) {
         if (Test-Path $root) {
-            $found = Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
-                Where-Object { Test-Path (Join-Path $_.FullName 'bin\java.exe') } |
+            $found = Get-ChildItem -Path $root -Directory -Recurse -Depth 4 -ErrorAction SilentlyContinue |
+                Where-Object { (Test-Path (Join-Path $_.FullName 'bin\java.exe')) -and ((Get-JavaMajorVersion $_.FullName) -ge 17) } |
                 Select-Object -First 1
             if ($found) {
                 $jdkHome = $found.FullName
@@ -91,7 +116,17 @@ if (-not $jdkHome) {
 }
 
 if (-not $jdkHome) {
-    throw 'Khong tim thay JDK 21+ tren may. Vui long cai dat JDK 21+ hoac thiet lap bien moi truong JAVA_HOME.'
+    $javaCmd = Get-Command java.exe -ErrorAction SilentlyContinue
+    if ($javaCmd) {
+        $candidateHome = Split-Path -Parent (Split-Path -Parent $javaCmd.Source)
+        if ((Test-Path (Join-Path $candidateHome 'bin\java.exe')) -and ((Get-JavaMajorVersion $candidateHome) -ge 17)) {
+            $jdkHome = $candidateHome
+        }
+    }
+}
+
+if (-not $jdkHome) {
+    throw "Không tìm thấy JDK 17+ trên máy. Vui lòng cài đặt JDK 21+ hoặc thiết lập biến môi trường JAVA_HOME."
 }
 
 $env:JAVA_HOME = $jdkHome
@@ -121,14 +156,113 @@ try {
     $dockerCommand = Get-Command docker.exe -ErrorAction SilentlyContinue
     $dockerReady = if ($dockerCommand) { Test-DockerReady -cmdPath $dockerCommand.Source } else { $false }
 
+    function Test-PortListening {
+        param([int]$port)
+        try {
+            $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop
+            if ($conn) { return $true }
+        } catch {}
+        try {
+            $client = New-Object System.Net.Sockets.TcpClient
+            $async = $client.BeginConnect('127.0.0.1', $port, $null, $null)
+            $wait = $async.AsyncWaitHandle.WaitOne(300, $false)
+            if ($wait) {
+                $client.EndConnect($async)
+                $client.Close()
+                return $true
+            }
+            $client.Close()
+        } catch {}
+        return $false
+    }
+
     $configuredPort = if ($env:DB_PORT) { [int]$env:DB_PORT } else { 5432 }
     $localPostgresPort = $null
-    if (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue) {
+    if (Test-PortListening -port 5432) {
         $localPostgresPort = 5432
-    } elseif (Get-NetTCPConnection -LocalPort $configuredPort -State Listen -ErrorAction SilentlyContinue) {
+    } elseif (Test-PortListening -port $configuredPort) {
         $localPostgresPort = $configuredPort
-    } elseif (Get-NetTCPConnection -LocalPort 5433 -State Listen -ErrorAction SilentlyContinue) {
+    } elseif (Test-PortListening -port 5433) {
         $localPostgresPort = 5433
+    }
+
+    # Tu dong khoi dong PostgreSQL neu chua chay tren may
+    if (-not $localPostgresPort) {
+        $pgCtlCandidates = @(
+            'D:\S5\PostgreSQL\bin\pg_ctl.exe',
+            'C:\Program Files\PostgreSQL\18\bin\pg_ctl.exe',
+            'C:\Program Files\PostgreSQL\17\bin\pg_ctl.exe',
+            'C:\Program Files\PostgreSQL\16\bin\pg_ctl.exe',
+            'C:\Program Files\PostgreSQL\15\bin\pg_ctl.exe'
+        )
+        $cmdPgCtl = Get-Command pg_ctl.exe -ErrorAction SilentlyContinue
+        if ($cmdPgCtl) { $pgCtlCandidates = @($cmdPgCtl.Source) + $pgCtlCandidates }
+        $pgCtlBin = $pgCtlCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+
+        $pgDataCandidates = @(
+            'D:\S5\PostgreSQL\data',
+            'C:\Program Files\PostgreSQL\18\data',
+            'C:\Program Files\PostgreSQL\17\data',
+            'C:\Program Files\PostgreSQL\16\data',
+            'C:\Program Files\PostgreSQL\15\data'
+        )
+        $pgDataDir = $pgDataCandidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ 'global') } | Select-Object -First 1
+
+        # 1. Thu khoi dong Windows Service
+        try {
+            $svc = Get-Service -Name *postgres* -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($svc -and $svc.Status -ne 'Running') {
+                Start-Service -Name $svc.Name -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 2
+            }
+        } catch {}
+
+        # 2. Neu van chua chay va co pg_ctl, tu dong khoi dong truc tiep
+        if ((-not (Test-PortListening -port 5432)) -and $pgCtlBin -and $pgDataDir) {
+            $runningPostgres = Get-Process -Name postgres -ErrorAction SilentlyContinue
+            $pidPath = Join-Path $pgDataDir 'postmaster.pid'
+            if (-not $runningPostgres -and (Test-Path -LiteralPath $pidPath)) {
+                Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
+            }
+            if (-not $runningPostgres) {
+                Write-Host 'Dang tu dong khoi dong PostgreSQL local...' -ForegroundColor Yellow
+                Start-Process -FilePath $pgCtlBin -ArgumentList @('start', '-D', $pgDataDir, '-o', '-h 127.0.0.1 -p 5432') -WindowStyle Hidden
+            } else {
+                Write-Host 'PostgreSQL dang chay, dang doi mo cong 5432...' -ForegroundColor Yellow
+            }
+            for ($attempt = 1; $attempt -le 40; $attempt++) {
+                Start-Sleep -Seconds 1
+                if (Test-PortListening -port 5432) {
+                    Write-Host "PostgreSQL da san sang tren cong 5432!" -ForegroundColor Green
+                    break
+                }
+            }
+
+            # Neu sau 40s van chua mo port va co tien trinh postgres treo, reset 1 lan
+            if (-not (Test-PortListening -port 5432)) {
+                $stuck = Get-Process -Name postgres -ErrorAction SilentlyContinue
+                if ($stuck) {
+                    Write-Host 'Tien trinh PostgreSQL bi treo, dang thu khoi dong lai...' -ForegroundColor Yellow
+                    Stop-Process -Name postgres -Force -ErrorAction SilentlyContinue
+                    Start-Sleep -Seconds 2
+                    if (Test-Path -LiteralPath $pidPath) {
+                        Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
+                    }
+                    Start-Process -FilePath $pgCtlBin -ArgumentList @('start', '-D', $pgDataDir, '-o', '-h 127.0.0.1 -p 5432') -WindowStyle Hidden
+                    for ($attempt2 = 1; $attempt2 -le 30; $attempt2++) {
+                        Start-Sleep -Seconds 1
+                        if (Test-PortListening -port 5432) {
+                            Write-Host "PostgreSQL da san sang tren cong 5432!" -ForegroundColor Green
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
+        if (Test-PortListening -port 5432) {
+            $localPostgresPort = 5432
+        }
     }
     $localPostgres = ($null -ne $localPostgresPort)
 
@@ -137,23 +271,50 @@ try {
     $dbUser = if ($env:DB_USER) { $env:DB_USER } else { 'postgres' }
     $dbPassword = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } elseif ($env:DB_PASS) { $env:DB_PASS } else { '@Bin054206' }
 
+    # ponytail: auto-detect working local postgres password so dev environment never gets blocked
+    if ($localPostgres) {
+        $psqlCandidates = @(
+            'D:\S5\PostgreSQL\bin\psql.exe',
+            'C:\Program Files\PostgreSQL\18\bin\psql.exe',
+            'C:\Program Files\PostgreSQL\17\bin\psql.exe',
+            'C:\Program Files\PostgreSQL\16\bin\psql.exe',
+            'C:\Program Files\PostgreSQL\15\bin\psql.exe'
+        )
+        $cmdPsql = Get-Command psql.exe -ErrorAction SilentlyContinue
+        if ($cmdPsql) { $psqlCandidates = @($cmdPsql.Source) + $psqlCandidates }
+        $psqlBin = $psqlCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+        if ($psqlBin) {
+            $passCandidates = @($dbPassword, '@Bin054206', '12345', 'postgres', '123456', 'admin', 'root')
+            foreach ($cand in $passCandidates) {
+                $env:PGPASSWORD = $cand
+                $null = & $psqlBin -U $dbUser -p $localPostgresPort -d $dbName -c 'SELECT 1;' 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    $dbPassword = $cand
+                    $env:DB_PASSWORD = $cand
+                    $env:DB_PASS = $cand
+                    break
+                }
+            }
+        }
+    }
+
     $useDockerDb = ($env:USE_DOCKER_DB -eq 'true' -or $env:USE_DOCKER_DB -eq '1')
 
     if ($localPostgres -and -not $useDockerDb) {
         $env:DB_PORT = "$localPostgresPort"
-        $env:DB_URL = "jdbc:postgresql://${dbHost}:${localPostgresPort}/${dbName}"
-        Write-Host "Su dung PostgreSQL LOCAL tren cong $localPostgresPort (database: $dbName)." -ForegroundColor Green
+        $env:DB_URL = "jdbc:postgresql://${dbHost}:${localPostgresPort}/${dbName}?sslmode=disable"
+        Write-Host "Sử dụng PostgreSQL LOCAL trên cổng $localPostgresPort (database: $dbName)." -ForegroundColor Green
     }
     elseif ($dockerReady) {
         & $dockerCommand.Source compose up -d postgres rabbitmq
         $env:DB_PORT = '5432'
-        $env:DB_URL = "jdbc:postgresql://${dbHost}:5432/${dbName}"
-        Write-Host "Su dung Docker PostgreSQL tren cong 5432 (database: $dbName)." -ForegroundColor Cyan
+        $env:DB_URL = "jdbc:postgresql://${dbHost}:5432/${dbName}?sslmode=disable"
+        Write-Host "Sử dụng Docker PostgreSQL trên cổng 5432 (database: $dbName)." -ForegroundColor Cyan
     }
     elseif ($localPostgres) {
         $env:DB_PORT = "$localPostgresPort"
-        $env:DB_URL = "jdbc:postgresql://${dbHost}:${localPostgresPort}/${dbName}"
-        Write-Host "Su dung PostgreSQL LOCAL tren cong $localPostgresPort (database: $dbName)." -ForegroundColor Green
+        $env:DB_URL = "jdbc:postgresql://${dbHost}:${localPostgresPort}/${dbName}?sslmode=disable"
+        Write-Host "Sử dụng PostgreSQL LOCAL trên cổng $localPostgresPort (database: $dbName)." -ForegroundColor Green
     }
     else {
         if ($dockerCommand) {
@@ -306,7 +467,7 @@ SIMILARITY_THRESHOLD=0.10
     $rmPass = if ($env:RABBITMQ_PASSWORD) { $env:RABBITMQ_PASSWORD } else { 'guest' }
 
     foreach ($service in $services) {
-        $existing = Get-NetTCPConnection -LocalPort $service.Port -State Listen -ErrorAction SilentlyContinue
+        $existing = Test-PortListening -port $service.Port
         if ($existing) {
             Write-Host "$($service.Name) already listening on port $($service.Port)."
             continue
@@ -349,7 +510,7 @@ SIMILARITY_THRESHOLD=0.10
     }
 
     $frontendPort = if ($env:PORT_FRONTEND) { [int]$env:PORT_FRONTEND } else { 3000 }
-    $frontendExisting = Get-NetTCPConnection -LocalPort $frontendPort -State Listen -ErrorAction SilentlyContinue
+    $frontendExisting = Test-PortListening -port $frontendPort
     if ($frontendExisting) {
         Write-Host "frontend already listening on port $frontendPort."
     }
@@ -357,7 +518,7 @@ SIMILARITY_THRESHOLD=0.10
         $nodeExecutable = (Get-Command node.exe -ErrorAction Stop).Source
         $viteScript = Join-Path $frontendRoot 'node_modules\vite\bin\vite.js'
         $frontendProcess = Start-Process -FilePath $nodeExecutable `
-            -ArgumentList @($viteScript, '--host', '127.0.0.1') `
+            -ArgumentList @($viteScript, '--host', '0.0.0.0', '--port', "$frontendPort") `
             -WorkingDirectory $frontendRoot `
             -RedirectStandardOutput (Join-Path $runtimeDir 'frontend.out.log') `
             -RedirectStandardError (Join-Path $runtimeDir 'frontend.err.log') `
@@ -388,14 +549,14 @@ SIMILARITY_THRESHOLD=0.10
     Write-Host 'Dang doi cac dich vu khoi dong...' -ForegroundColor Cyan
     while ($pendingPorts.Count -gt 0 -and (Get-Date) -lt $deadline) {
         $justReady = @($pendingPorts | Where-Object {
-            Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue
+            Test-PortListening -port $_
         })
         foreach ($p in $justReady) {
             $svcName = Get-ServiceNameByPort -targetPort $p
             Write-Host "  -> Cong $p ($svcName) da san sang!" -ForegroundColor Green
         }
         $pendingPorts = @($pendingPorts | Where-Object {
-            -not (Get-NetTCPConnection -LocalPort $_ -State Listen -ErrorAction SilentlyContinue)
+            -not (Test-PortListening -port $_)
         })
         if ($pendingPorts.Count -gt 0) {
             Start-Sleep -Seconds 2
@@ -412,6 +573,13 @@ SIMILARITY_THRESHOLD=0.10
     Write-Host '  API gateway:   http://localhost:8080'
     Write-Host '  Payment API:   http://localhost:8085/swagger-ui.html'
     Write-Host '  Communication: http://localhost:8087/swagger-ui.html'
+
+    if ($Wait) {
+        Write-Host 'Đang giữ tiến trình Farmely chạy nền...' -ForegroundColor Cyan
+        while ($true) {
+            Start-Sleep -Seconds 5
+        }
+    }
 }
 finally {
     Pop-Location

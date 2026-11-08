@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Rebuild,
     [switch]$Wait
 )
@@ -159,9 +159,13 @@ try {
     function Test-PortListening {
         param([int]$port)
         try {
+            $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop
+            if ($conn) { return $true }
+        } catch {}
+        try {
             $client = New-Object System.Net.Sockets.TcpClient
             $async = $client.BeginConnect('127.0.0.1', $port, $null, $null)
-            $wait = $async.AsyncWaitHandle.WaitOne(400, $false)
+            $wait = $async.AsyncWaitHandle.WaitOne(300, $false)
             if ($wait) {
                 $client.EndConnect($async)
                 $client.Close()
@@ -205,30 +209,53 @@ try {
         $pgDataDir = $pgDataCandidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ 'global') } | Select-Object -First 1
 
         # 1. Thu khoi dong Windows Service
-        $svc = Get-Service -Name *postgres* -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($svc -and $svc.Status -ne 'Running') {
-            try {
+        try {
+            $svc = Get-Service -Name *postgres* -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($svc -and $svc.Status -ne 'Running') {
                 Start-Service -Name $svc.Name -ErrorAction SilentlyContinue
                 Start-Sleep -Seconds 2
-            } catch {}
-        }
+            }
+        } catch {}
 
         # 2. Neu van chua chay va co pg_ctl, tu dong khoi dong truc tiep
         if ((-not (Test-PortListening -port 5432)) -and $pgCtlBin -and $pgDataDir) {
+            $runningPostgres = Get-Process -Name postgres -ErrorAction SilentlyContinue
             $pidPath = Join-Path $pgDataDir 'postmaster.pid'
-            if (Test-Path -LiteralPath $pidPath) {
-                $runningPostgres = Get-Process -Name postgres -ErrorAction SilentlyContinue
-                if (-not $runningPostgres) {
-                    Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
-                }
+            if (-not $runningPostgres -and (Test-Path -LiteralPath $pidPath)) {
+                Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
             }
-            Write-Host 'Dang tu dong khoi dong PostgreSQL local...' -ForegroundColor Yellow
-            $logFile = Join-Path $pgDataDir 'server_local.log'
-            Start-Process -FilePath $pgCtlBin -ArgumentList @('start', '-D', $pgDataDir, '-o', '-h 127.0.0.1 -p 5432', '-l', $logFile) -WindowStyle Hidden
-            for ($attempt = 0; $attempt -lt 15; $attempt++) {
+            if (-not $runningPostgres) {
+                Write-Host 'Dang tu dong khoi dong PostgreSQL local...' -ForegroundColor Yellow
+                Start-Process -FilePath $pgCtlBin -ArgumentList @('start', '-D', $pgDataDir, '-o', '-h 127.0.0.1 -p 5432') -WindowStyle Hidden
+            } else {
+                Write-Host 'PostgreSQL dang chay, dang doi mo cong 5432...' -ForegroundColor Yellow
+            }
+            for ($attempt = 1; $attempt -le 40; $attempt++) {
                 Start-Sleep -Seconds 1
                 if (Test-PortListening -port 5432) {
+                    Write-Host "PostgreSQL da san sang tren cong 5432!" -ForegroundColor Green
                     break
+                }
+            }
+
+            # Neu sau 40s van chua mo port va co tien trinh postgres treo, reset 1 lan
+            if (-not (Test-PortListening -port 5432)) {
+                $stuck = Get-Process -Name postgres -ErrorAction SilentlyContinue
+                if ($stuck) {
+                    Write-Host 'Tien trinh PostgreSQL bi treo, dang thu khoi dong lai...' -ForegroundColor Yellow
+                    Stop-Process -Name postgres -Force -ErrorAction SilentlyContinue
+                    Start-Sleep -Seconds 2
+                    if (Test-Path -LiteralPath $pidPath) {
+                        Remove-Item -LiteralPath $pidPath -Force -ErrorAction SilentlyContinue
+                    }
+                    Start-Process -FilePath $pgCtlBin -ArgumentList @('start', '-D', $pgDataDir, '-o', '-h 127.0.0.1 -p 5432') -WindowStyle Hidden
+                    for ($attempt2 = 1; $attempt2 -le 30; $attempt2++) {
+                        Start-Sleep -Seconds 1
+                        if (Test-PortListening -port 5432) {
+                            Write-Host "PostgreSQL da san sang tren cong 5432!" -ForegroundColor Green
+                            break
+                        }
+                    }
                 }
             }
         }
@@ -491,7 +518,7 @@ SIMILARITY_THRESHOLD=0.10
         $nodeExecutable = (Get-Command node.exe -ErrorAction Stop).Source
         $viteScript = Join-Path $frontendRoot 'node_modules\vite\bin\vite.js'
         $frontendProcess = Start-Process -FilePath $nodeExecutable `
-            -ArgumentList @($viteScript, '--host', '127.0.0.1') `
+            -ArgumentList @($viteScript, '--host', '0.0.0.0', '--port', "$frontendPort") `
             -WorkingDirectory $frontendRoot `
             -RedirectStandardOutput (Join-Path $runtimeDir 'frontend.out.log') `
             -RedirectStandardError (Join-Path $runtimeDir 'frontend.err.log') `
