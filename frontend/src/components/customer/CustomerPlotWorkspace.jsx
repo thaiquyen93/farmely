@@ -10,7 +10,7 @@ import {
   AlertTriangle, ArrowLeft, Award, BookOpen, Calendar, CalendarCheck, Check, ChevronDown, ChevronRight, ChevronLeft,
   Clock, Clock3, Droplets, Eye, Info, LayoutDashboard, Leaf,
   MapPin, Maximize2, PenLine, Radio, Scale, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
-  Sun, UserRound, Wheat, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame
+  Sun, UserRound, Wheat, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame, Wrench
 } from 'lucide-react';
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -249,9 +249,9 @@ export function calculateEntryCropDay(entry, startDate, currentCropDay = 1, tota
  */
 function StandardProcessTimeline({
   cropProcess,
-  operations = { tasks: [], diary: [] },
+  operations,
   staffActivities = [],
-  plot,
+  plot = {},
   isSelf = false,
   onToggleTask,
   onSelectStage,
@@ -261,7 +261,8 @@ function StandardProcessTimeline({
   latestHarvest = null,
   onGoToDiary,
   onOpenHarvestReport,
-  onOpenPhoto
+  onOpenPhoto,
+  onGoToMaintenance
 }) {
   if (!cropProcess?.stages?.length) return null;
 
@@ -1088,6 +1089,20 @@ function StandardProcessTimeline({
                   <BookOpen className="w-3.5 h-3.5 text-emerald-700" />
                   <span>Xem biên bản trong Nhật ký</span>
                 </button>
+                {onGoToMaintenance && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onGoToMaintenance();
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500 bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-black text-white shadow-xs transition cursor-pointer"
+                    title="Chuyển sang chu kỳ cải tạo đất 4 ngày theo BR23 & gia hạn vụ mới"
+                  >
+                    <Wrench className="w-3.5 h-3.5 text-white" />
+                    <span>🧹 Sang Bảo Trì Đất 4 Ngày & Gia Hạn (BR23) ›</span>
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -2278,7 +2293,8 @@ function OverviewTab({
   onOpenHarvestReport,
   onSimulateDay1
 }) {
-  const isSoilPrep = activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow;
+  const [showMaintenanceView, setShowMaintenanceView] = useState(false);
+  const isSoilPrep = activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow || showMaintenanceView;
 
   // BR20 + BR21: CVLĐ cân, chụp ảnh rồi chốt biên bản -> Tổng quan chỉ THÔNG BÁO đã thu hoạch.
   // KH không nghiệm thu trên hệ thống, việc xác nhận nhận nông sản diễn ra tại nông trại.
@@ -2334,6 +2350,7 @@ function OverviewTab({
           latestHarvest={latestHarvest}
           onOpenHarvestReport={onOpenHarvestReport}
           onSimulateDay1={onSimulateDay1}
+          onBackToTimeline={() => setShowMaintenanceView(false)}
         />
       ) : (
         <>
@@ -2408,6 +2425,7 @@ function OverviewTab({
                 onGoToDiary={() => goTab?.('tasks')}
                 onOpenHarvestReport={onOpenHarvestReport}
                 onOpenPhoto={onOpenActivityPhoto}
+                onGoToMaintenance={() => setShowMaintenanceView(true)}
               />
             </div>
           </Card>

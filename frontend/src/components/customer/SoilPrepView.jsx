@@ -20,11 +20,14 @@ export default function SoilPrepView({
   onChangeCrop,
   latestHarvest,
   onOpenHarvestReport,
-  onSimulateDay1
+  onSimulateDay1,
+  onBackToTimeline
 }) {
   const plotCode = plot.plotCode || plot.mapPlotId || plot.key || 'P-12';
   const cropName = season.cropName || plot.crop || 'Dưa leo baby F1';
-  const yieldKg = latestHarvest?.yieldKg || '18.50';
+  const yieldKg = latestHarvest?.formattedYield
+    ? String(latestHarvest.formattedYield).replace(/\s*kg/gi, '')
+    : (latestHarvest?.yieldAmount ?? latestHarvest?.actualWeight ?? latestHarvest?.yieldKg ?? '18.50');
 
   return (
     <div className="py-2 animate-fadeIn space-y-6">
@@ -97,6 +100,17 @@ export default function SoilPrepView({
         {/* Các nút hành động chính */}
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-amber-100">
           <div className="flex flex-wrap items-center gap-2.5">
+            {onBackToTimeline && (
+              <button
+                type="button"
+                onClick={onBackToTimeline}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-50 transition shadow-2xs cursor-pointer"
+                title="Quay lại xem dòng thời gian và nhật ký vụ vừa thu hoạch"
+              >
+                <span>‹ Xem lại Dòng thời gian vụ mùa</span>
+              </button>
+            )}
+
             {onOpenHarvestReport && (
               <button
                 type="button"
