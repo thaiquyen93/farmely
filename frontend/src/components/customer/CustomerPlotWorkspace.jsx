@@ -473,8 +473,43 @@ function StandardProcessTimeline({
     }
   };
 
-  const handleSimulateDay1 = async () => {
+  const handleSimulateDay1 = async (targetSeason) => {
     setSelectedDay(1);
+
+    // Xác định vụ mùa cần kích hoạt
+    const candidateNext = targetSeason
+      || plotSeasons.find((s) => s.status === 'ACTIVE' || s.isApprovedByAdmin)
+      || plotSeasons.find((s) => s.seasonNumber > (activeSeason?.seasonNumber || 1));
+
+    const nextId = candidateNext?.id || (activeSeason?.seasonNumber ? `SEASON-${activeSeason.seasonNumber + 1}` : 'SEASON-2');
+
+    if (nextId) {
+      setActiveSeasonId(nextId);
+    }
+    setShowMaintenanceView(false);
+    setIsSeasonStarted(true);
+
+    const m = String(plot?.plotCode || plot?.mapPlotId || plot?.code || plot?.name || 'P-05').match(/P-\d+/i) || String(plot?.code || 'P-05').match(/\b\d+\b/);
+    const plotKey = m ? (m[0].toUpperCase().startsWith('P-') ? m[0].toUpperCase() : `P-${m[0]}`) : 'P-05';
+
+    setCustomSeasons((prev) => {
+      const base = prev && prev.length > 0 ? prev : plotSeasons;
+      const updated = base.map((s) => {
+        if (s.id === nextId || s.seasonNumber === candidateNext?.seasonNumber) {
+          return { ...s, status: 'ACTIVE', currentDay: 1, isCurrent: true, inFallow: false };
+        }
+        if (s.seasonNumber < (candidateNext?.seasonNumber || 2)) {
+          return { ...s, status: 'COMPLETED', isCurrent: false, inFallow: false };
+        }
+        return s;
+      });
+      try {
+        localStorage.setItem(`farmely_plot_seasons_${plotKey}`, JSON.stringify(updated));
+        localStorage.setItem(`farmely_active_season_${plotKey}`, nextId);
+      } catch {}
+      return updated;
+    });
+
     const rentalId = plot?.rentalId || plot?.rental_id;
     if (rentalId) {
       try {
@@ -2278,7 +2313,7 @@ function OverviewTab({
   // 1. Thửa đất có vụ đang chờ Admin phê duyệt hợp đồng gia hạn (bắt buộc KHÓA Ở BẢO TRÌ ĐẤT BR23)
   // 2. HOẶC chính vụ đó đang ở chu kỳ SOIL_PREP/inFallow, HOẶC user bấm xem bảo trì cho vụ đang kết thúc
   const isSoilPrep = hasPendingApprovalSeason
-    || (activeSeason?.status !== 'SCHEDULED' && (activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow || showMaintenanceView));
+    || (activeSeason?.status !== 'SCHEDULED' && activeSeason?.status !== 'ACTIVE' && (activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow || showMaintenanceView));
 
   // Đất đang trong thời gian đệm (buffer/fallow BR23) khi có vụ mùa đang nghỉ đất/cải tạo hoặc đang bảo trì hoặc chờ duyệt
   const isPlotInBuffer = hasPendingApprovalSeason
@@ -2986,22 +3021,59 @@ export default function CustomerPlotWorkspace({
   const [customSeasons, setCustomSeasons] = useState(null);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
 
-  // Lắng nghe sự kiện Admin duyệt gia hạn (qua BroadcastChannel hoặc localStorage)
+  // Lắng nghe sự kiện Admin duyệt gia hạn (qua BroadcastChannel, localStorage, hoặc API)
   useEffect(() => {
-    const plotKey = String(plot?.code || plot?.name || 'P-05').replace(/^PLOT-|^Thửa\s*/i, '').trim().toUpperCase();
-    const handleCheckApproved = () => {
+    const rawCode = plot?.plotCode || plot?.mapPlotId || plot?.code || plot?.name || 'P-05';
+    const m = String(rawCode).match(/P-\d+/i) || String(rawCode).match(/\b\d+\b/);
+    const plotKey = m ? (m[0].toUpperCase().startsWith('P-') ? m[0].toUpperCase() : `P-${m[0]}`) : 'P-05';
+
+    const handleCheckApproved = (eventData) => {
       try {
-        const saved = localStorage.getItem(`farmely_plot_seasons_${plotKey}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          setCustomSeasons(parsed);
-          const activeS = parsed.find((s) => s.isCurrent || s.status === 'ACTIVE' || s.isApprovedByAdmin);
-          if (activeS) {
-            setActiveSeasonId(activeS.id);
+        const targetSeasonNum = eventData?.seasonNumber;
+        const targetSeasonId = eventData?.seasonId;
+
+        const saved = localStorage.getItem(`farmely_plot_seasons_${plotKey}`)
+          || localStorage.getItem(`farmely_plot_seasons_PLOT-${plotKey}`)
+          || (plot?.rentalId ? localStorage.getItem(`farmely_plot_seasons_${plotKey}_${plot.rentalId}`) : null);
+
+        let parsed = saved ? JSON.parse(saved) : null;
+        if (parsed && Array.isArray(parsed)) {
+          if (targetSeasonNum) {
+            parsed = parsed.map((s) => {
+              if (s.seasonNumber === targetSeasonNum || (s.seasonNumber >= targetSeasonNum && s.status === 'PENDING_APPROVAL')) {
+                return { ...s, status: 'ACTIVE', currentDay: 1, isCurrent: true, inFallow: false, isApprovedByAdmin: true };
+              }
+              if (s.seasonNumber < targetSeasonNum) {
+                return { ...s, status: 'COMPLETED', isCurrent: false, inFallow: false };
+              }
+              return s;
+            });
           }
-          setIsSeasonStarted(true);
+          setCustomSeasons(parsed);
+
+          const nextActive = (targetSeasonId && parsed.find((s) => s.id === targetSeasonId))
+            || parsed.find((s) => s.isApprovedByAdmin)
+            || parsed.find((s) => s.isCurrent && s.status === 'ACTIVE')
+            || parsed.find((s) => s.status === 'ACTIVE')
+            || (targetSeasonNum ? parsed.find((s) => s.seasonNumber === targetSeasonNum) : null);
+
+          if (nextActive) {
+            setActiveSeasonId(nextActive.id);
+            try {
+              localStorage.setItem(`farmely_active_season_${plotKey}`, nextActive.id);
+            } catch {}
+          }
+        } else if (targetSeasonId) {
+          setActiveSeasonId(targetSeasonId);
         }
-      } catch {}
+
+        // TỰ ĐỘNG TẮT NGAY BẢNG BẢO TRÌ ĐẤT & BẮT ĐẦU VỤ MỚI
+        setShowMaintenanceView(false);
+        setIsSeasonStarted(true);
+        setSelectedDay(1);
+      } catch (err) {
+        console.warn('Lỗi đồng bộ phê duyệt hợp đồng:', err);
+      }
     };
 
     let bc = null;
@@ -3010,26 +3082,59 @@ export default function CustomerPlotWorkspace({
         bc = new BroadcastChannel('farmely_contract_channel');
         bc.onmessage = (event) => {
           if (event?.data?.type === 'CONTRACT_RENEWAL_APPROVED') {
-            handleCheckApproved();
+            handleCheckApproved(event.data);
           }
         };
       }
     } catch {}
 
     const onStorage = (e) => {
-      if (e.key === `farmely_plot_seasons_${plotKey}`) {
-        handleCheckApproved();
+      if (e.key === `farmely_plot_seasons_${plotKey}` || e.key === `farmely_season_approved_event_${plotKey}`) {
+        let pData = null;
+        try { pData = JSON.parse(e.newValue); } catch {}
+        handleCheckApproved(pData);
       }
     };
     window.addEventListener('storage', onStorage);
+
+    // Khi tab Customer được kích hoạt lại (Focus), tự động kiểm tra xem Admin đã duyệt chưa
+    const onFocus = () => {
+      const savedActive = localStorage.getItem(`farmely_active_season_${plotKey}`);
+      if (savedActive) {
+        setActiveSeasonId(savedActive);
+        setShowMaintenanceView(false);
+      }
+      fetch('/api/contracts/renewals')
+        .then((res) => res.json())
+        .then((json) => {
+          const list = Array.isArray(json) ? json : (json?.data || []);
+          if (list.length > 0) {
+            const approvedReq = list.find((r) => {
+              const rCode = String(r.plotCode || r.plot_code || '');
+              const mMatch = rCode.match(/P-\d+/i) || rCode.match(/\b\d+\b/);
+              const rKey = mMatch ? (mMatch[0].toUpperCase().startsWith('P-') ? mMatch[0].toUpperCase() : `P-${mMatch[0]}`) : 'P-05';
+              return (rKey === plotKey || plotKey.includes(rKey)) && r.status === 'APPROVED';
+            });
+            if (approvedReq) {
+              const targetNum = Number(approvedReq.seasonNumber || approvedReq.season_number || 2);
+              const targetId = `SEASON-${targetNum}`;
+              handleCheckApproved({ seasonNumber: targetNum, seasonId: targetId });
+            }
+          }
+        })
+        .catch(() => {});
+    };
+    window.addEventListener('focus', onFocus);
+    onFocus();
 
     return () => {
       if (bc) {
         try { bc.close(); } catch {}
       }
       window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', onFocus);
     };
-  }, [plot?.code, plot?.name]);
+  }, [plot?.plotCode, plot?.mapPlotId, plot?.code, plot?.name]);
 
   // Trạng thái kích hoạt mùa vụ: Trước khi bấm nút bắt đầu mùa vụ thì giữ trạng thái Sắp tới
   const [isSeasonStarted, setIsSeasonStarted] = useState(() => {
@@ -3074,6 +3179,17 @@ export default function CustomerPlotWorkspace({
   }, [plot, customSeasons, plots]);
 
   const [activeSeasonId, setActiveSeasonId] = useState(() => {
+    const rawCode = plot?.plotCode || plot?.mapPlotId || plot?.code || plot?.name || 'P-05';
+    const m = String(rawCode).match(/P-\d+/i) || String(rawCode).match(/\b\d+\b/);
+    const plotKey = m ? (m[0].toUpperCase().startsWith('P-') ? m[0].toUpperCase() : `P-${m[0]}`) : 'P-05';
+    try {
+      const savedActive = localStorage.getItem(`farmely_active_season_${plotKey}`);
+      if (savedActive && plotSeasons.some((s) => s.id === savedActive)) {
+        return savedActive;
+      }
+    } catch {}
+    const approved = plotSeasons.find((s) => s.isApprovedByAdmin);
+    if (approved) return approved.id;
     const current = plotSeasons.find((s) => s.isCurrent || s.status === 'ACTIVE');
     return current?.id || plotSeasons[0]?.id || 'SEASON-1';
   });
