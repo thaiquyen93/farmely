@@ -193,24 +193,32 @@ const formatHarvestTimestamp = (raw) => {
 
 const HARVEST_PHOTO_FALLBACK = '/images/harvest/rau-muong-p03.jpg';
 
-const isTaskToday = (t, plotCurrentDay = null) => {
-  if (t.status === 'COMPLETED') return false;
-  const rawDate = t.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(t.deadline || '') ? t.deadline : null);
-  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-  if (rawDate && rawDate > todayStr) return false;
-
-  const taskAge = t.cropDay !== undefined && t.cropDay !== null ? Number(t.cropDay) : (t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null);
-  const plotAge = plotCurrentDay !== null && plotCurrentDay !== undefined ? Number(plotCurrentDay) : (t.plotCurrentDay !== undefined && t.plotCurrentDay !== null ? Number(t.plotCurrentDay) : null);
-  if (plotAge !== null && taskAge !== null && taskAge > plotAge) return false;
-
-  const meta = getTaskTimingMeta(t, plotCurrentDay);
-  return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
-};
-
 const isHarvestTaskTitle = (title) => {
   if (!title) return false;
   if (/trước thu hoạch|chuẩn bị thu hoạch/i.test(title)) return false;
-  return /thu hoạch|cân|đóng thùng/i.test(title);
+  return /thu hoạch|cân|đóng thùng|nghiệm thu/i.test(title);
+};
+
+const isTaskToday = (t, plotCurrentDay = null) => {
+  if (t.status === 'COMPLETED') return false;
+
+  const isHarvest = isHarvestTaskTitle(t.title);
+  const plotAge = plotCurrentDay !== null && plotCurrentDay !== undefined ? Number(plotCurrentDay) : (t.plotCurrentDay !== undefined && t.plotCurrentDay !== null ? Number(t.plotCurrentDay) : null);
+
+  // Nếu là task thu hoạch và thửa đang ở giai đoạn thu hoạch (ngày tuổi >= 25) -> Luôn là việc HÔM NAY cần làm
+  if (isHarvest && plotAge !== null && plotAge >= 25) {
+    return true;
+  }
+
+  const rawDate = t.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(t.deadline || '') ? t.deadline : null);
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+  if (rawDate && rawDate > todayStr && !isHarvest) return false;
+
+  const taskAge = t.cropDay !== undefined && t.cropDay !== null ? Number(t.cropDay) : (t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null);
+  if (plotAge !== null && taskAge !== null && taskAge > plotAge && !isHarvest) return false;
+
+  const meta = getTaskTimingMeta(t, plotCurrentDay);
+  return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
 };
 
 // Left accent + status word for a task card. Default "Hôm nay" shows no status word.
@@ -2100,6 +2108,13 @@ export default function FieldWorkerDashboard() {
 
         const todayTasks = pendingTasks.filter((t) => isTaskToday(t, activePlot.currentDay));
         const upcomingTasks = pendingTasks.filter((t) => !isTaskToday(t, activePlot.currentDay));
+        const completedTodayTasks = completedTasks.filter((t) => {
+          if (isHarvestTaskTitle(t.title)) return true;
+          const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+          if (t.completedAt && String(t.completedAt).includes(todayStr)) return true;
+          const taskAge = t.cropDay !== undefined && t.cropDay !== null ? Number(t.cropDay) : (t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null);
+          return activePlot.currentDay && taskAge === Number(activePlot.currentDay);
+        });
         const plotServices = serviceRequests.filter((s) => (s.rentalId && activePlot.rentalId ? Number(s.rentalId) === Number(activePlot.rentalId) : s.plotCode === activePlot.plotCode));
         const harvest = harvestWorkItems.find((item) => (item.rentalId && activePlot.rentalId ? Number(item.rentalId) === Number(activePlot.rentalId) : item.plotCode === activePlot.plotCode));
 
@@ -2360,7 +2375,12 @@ export default function FieldWorkerDashboard() {
                 };
                 const chips = [
                   { id: 'ALL', label: 'Tất cả', count: plotTasks.length },
-                  { id: 'TODAY', label: 'Hôm nay', count: todayTasks.length, emphasize: true },
+                  {
+                    id: 'TODAY',
+                    label: 'Hôm nay',
+                    count: todayTasks.length > 0 ? todayTasks.length : (completedTodayTasks.length > 0 ? `${completedTodayTasks.length} đã xong` : 0),
+                    emphasize: true
+                  },
                   { id: 'UPCOMING', label: 'Sắp tới', count: upcomingTasks.length },
                   { id: 'COMPLETED', label: 'Đã hoàn thành', count: completedTasks.length }
                 ];
@@ -2402,10 +2422,30 @@ export default function FieldWorkerDashboard() {
                             {sectionHeader(`Hôm nay · ${todayLabel}`, 'bg-emerald-600')}
                             {todayTasks.length > 0 ? (
                               <div className="grid gap-2">{todayTasks.map((task) => renderCard(task, 'today'))}</div>
-                            ) : (
-                              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-2.5 text-xs font-semibold text-emerald-800">
+                            ) : completedTodayTasks.length > 0 ? (
+                              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2.5 text-xs font-bold text-emerald-800">
                                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                                <span>Đã xong việc hôm nay tại thửa này</span>
+                                <span>Đã hoàn thành công việc hôm nay ({completedTodayTasks.length} việc đã xong)</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-xs font-semibold text-stone-600">
+                                <Clock className="h-4 w-4 shrink-0 text-stone-400" />
+                                <span>Chưa có việc mới đến hạn hôm nay tại thửa này</span>
+                              </div>
+                            )}
+
+                            {/* Nếu đang lọc HÔM NAY và có việc đã hoàn thành (nhất là thu hoạch) -> Hiện rõ ràng */}
+                            {plotTaskFilter === 'TODAY' && completedTodayTasks.length > 0 && (
+                              <div className="pt-2 space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                  <h4 className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
+                                    Đã hoàn thành hôm nay ({completedTodayTasks.length})
+                                  </h4>
+                                </div>
+                                <div className="grid gap-2">
+                                  {completedTodayTasks.map((task) => renderCard(task, 'done'))}
+                                </div>
                               </div>
                             )}
                           </section>

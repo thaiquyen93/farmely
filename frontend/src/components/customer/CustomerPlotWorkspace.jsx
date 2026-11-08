@@ -1664,16 +1664,31 @@ function StaffActivitiesTab({
   const todayStr = useMemo(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date()), []);
   const currentDay = plot?.currentDay || 0;
 
+  const isHarvestTask = useCallback((title) => {
+    if (!title) return false;
+    if (/trước thu hoạch|chuẩn bị thu hoạch/i.test(title)) return false;
+    return /thu hoạch|cân|đóng thùng|nghiệm thu/i.test(title);
+  }, []);
+
   const isActivityToday = useCallback((act) => {
     if (act.status === 'COMPLETED' || act.status === 'DONE') return false;
-    // Chặn nghiêm ngặt: nếu task có ngày cụ thể và ngày đó trong tương lai (> hôm nay) -> KHÔNG phải hôm nay
+
+    const isHarvest = isHarvestTask(act.title);
+    // Nếu mùa vụ đang ở giai đoạn thu hoạch (currentDay >= totalDays hoặc >= 30) VÀ là task thu hoạch -> Luôn là việc HÔM NAY cần làm
+    if (isHarvest && currentDay > 0 && (currentDay >= (totalDays || 45) || currentDay >= 30)) {
+      return true;
+    }
+
+    // Chặn nghiêm ngặt: nếu task có ngày cụ thể và ngày đó trong tương lai (> hôm nay) -> KHÔNG phải hôm nay (trừ task thu hoạch)
     if (act.date && /^\d{4}-\d{2}-\d{2}$/.test(act.date) && act.date > todayStr) {
-      return false;
+      if (!isHarvest) return false;
     }
+
     const taskDay = act.cropDay !== undefined && act.cropDay !== null ? Number(act.cropDay) : act.day;
-    if (currentDay > 0 && taskDay && taskDay > currentDay) {
+    if (currentDay > 0 && taskDay && taskDay > currentDay && !isHarvest) {
       return false;
     }
+
     if (act.status === 'IN_PROGRESS' || act.status === 'IN_PROG') return true;
     if (act.priority === 'HIGH' || act.priority === 'URGENT') return true;
     if (currentDay > 0 && taskDay) {
@@ -1683,7 +1698,7 @@ function StaffActivitiesTab({
       return act.date === todayStr;
     }
     return false;
-  }, [currentDay, todayStr]);
+  }, [currentDay, totalDays, todayStr, isHarvestTask]);
 
   const isActivityUpcoming = useCallback((act) => {
     if (act.status === 'COMPLETED' || act.status === 'DONE') return false;
@@ -1717,6 +1732,18 @@ function StaffActivitiesTab({
     });
   }, [activities, searchQuery, statusFilter, isSelf, isActivityToday, isActivityUpcoming]);
 
+  const doneTodayList = useMemo(() => {
+    return activities.filter((act) => {
+      if (act.status !== 'COMPLETED' && act.status !== 'DONE') return false;
+      const isHarvest = isHarvestTask(act.title);
+      if (isHarvest) return true; // Luôn hiển thị task thu hoạch đã hoàn thành để khách đối chứng
+      if (act.completedAt && String(act.completedAt).includes(todayStr)) return true;
+      const taskDay = act.cropDay !== undefined && act.cropDay !== null ? Number(act.cropDay) : act.day;
+      if (currentDay > 0 && taskDay === currentDay) return true;
+      return false;
+    });
+  }, [activities, currentDay, todayStr, isHarvestTask]);
+
   const { todayList, upcomingList, doneList } = useMemo(() => {
     const today = [];
     const upcoming = [];
@@ -1746,9 +1773,10 @@ function StaffActivitiesTab({
       all: activities.length,
       today: todayCount,
       upcoming: upcomingCount,
-      done: doneCount
+      done: doneCount,
+      doneToday: doneTodayList.length
     };
-  }, [activities, isActivityToday, isActivityUpcoming]);
+  }, [activities, isActivityToday, isActivityUpcoming, doneTodayList]);
 
   const handleCreateTask = (e) => {
     e.preventDefault();
@@ -1793,7 +1821,15 @@ function StaffActivitiesTab({
           <div className="flex items-center gap-1.5">
             {[
               { id: 'ALL', label: `Tất cả (${counts.all})` },
-              { id: 'TODAY', label: `🔥 Việc hôm nay (${counts.today})`, highlight: counts.today > 0 },
+              {
+                id: 'TODAY',
+                label: counts.today > 0
+                  ? `🔥 Việc hôm nay (${counts.today})`
+                  : counts.doneToday > 0
+                    ? `🔥 Việc hôm nay (${counts.doneToday} đã xong)`
+                    : `🔥 Việc hôm nay (0)`,
+                highlight: counts.today > 0
+              },
               { id: 'UPCOMING', label: `⏳ Việc chưa tới (${counts.upcoming})` },
               { id: 'COMPLETED', label: `✅ Đã xong & Nhật ký (${counts.done})` }
             ].map((btn) => (
@@ -1873,13 +1909,19 @@ function StaffActivitiesTab({
               </div>
 
               {todayList.length === 0 ? (
-                <div className="p-6 text-center bg-emerald-50/40 rounded-2xl border border-dashed border-emerald-300 flex flex-col items-center gap-1.5">
+                <div className="p-5 text-center bg-emerald-50/70 rounded-2xl border border-emerald-300 flex flex-col items-center gap-1.5 shadow-2xs">
                   <CheckCircle2 className="w-7 h-7 text-emerald-600" />
                   <p className="font-heading font-black text-stone-900 text-sm">
-                    Hôm nay chưa có việc đến hạn tại {plot?.plotCode ? `Thửa ${plot.plotCode}` : (plot?.name || 'thửa đất này')}.
+                    {doneTodayList.some(a => isHarvestTask(a.title))
+                      ? 'Nhiệm vụ thu hoạch và toàn bộ công việc hôm nay đã hoàn thành!'
+                      : doneTodayList.length > 0
+                        ? 'Đã hoàn thành toàn bộ công việc cần làm hôm nay tại thửa đất này!'
+                        : `Hôm nay chưa có việc mới đến hạn tại ${plot?.plotCode ? `Thửa ${plot.plotCode}` : (plot?.name || 'thửa đất này')}.`}
                   </p>
-                  <p className="text-xs text-stone-500 max-w-md">
-                    {upcomingList.length ? `Công việc tiếp theo: ${upcomingList[0].title}${upcomingList[0].date ? `, ngày ${upcomingList[0].date}` : ''}.` : 'Chưa có lịch công việc mới cho thửa này.'}
+                  <p className="text-xs text-stone-600 max-w-md">
+                    {doneTodayList.length > 0
+                      ? `Đã nghiệm thu ${doneTodayList.length} công việc có kèm ảnh minh chứng thực địa và cập nhật vào Nhật ký canh tác.`
+                      : (upcomingList.length ? `Công việc tiếp theo: ${upcomingList[0].title}${upcomingList[0].date ? `, ngày ${upcomingList[0].date}` : ''}.` : 'Chưa có lịch công việc mới cho thửa này.')}
                   </p>
                 </div>
               ) : (
@@ -1894,6 +1936,30 @@ function StaffActivitiesTab({
                       onDeleteTask={onDeleteTask}
                     />
                   ))}
+                </div>
+              )}
+
+              {/* Nếu xem tab HÔM NAY và có việc đã xong hôm nay (nhất là Thu hoạch) -> Hiển thị để đối chứng */}
+              {statusFilter === 'TODAY' && doneTodayList.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-emerald-200/80">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                    <h5 className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
+                      Công việc đã hoàn thành hôm nay ({doneTodayList.length})
+                    </h5>
+                  </div>
+                  <div className="space-y-3">
+                    {doneTodayList.map((act) => (
+                      <StaffActivityCard
+                        key={act.activityId || act.id}
+                        activity={{ ...act, isToday: true, isDone: true }}
+                        onOpenPhoto={onOpenPhoto}
+                        isSelf={isSelf}
+                        onToggleTask={onToggleTask}
+                        onDeleteTask={onDeleteTask}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -2889,14 +2955,29 @@ export default function CustomerPlotWorkspace({
   // 1. Phân tích và sinh quy trình canh tác chuẩn VietGAP tính theo ngày tuổi cho Vụ mùa đang chọn
   const cropProcess = useMemo(() => {
     if (!activeSeason) return resolveStandardCropProcess(plot, stages);
+    const isCurrentSeason = activeSeason.isCurrent || activeSeason.status === 'ACTIVE';
     const isFuture = plot.startDate && new Date(plot.startDate).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
-    const isSeasonScheduled = !isSeasonStarted && (activeSeason.status === 'SCHEDULED' || activeSeason.currentDay === 0 || isFuture);
+
+    // Đối với vụ đang chạy (isCurrentSeason): phụ thuộc vào isSeasonStarted
+    // Đối với vụ tương lai (Vụ 2, Vụ 3): luôn ở trạng thái SCHEDULED (Ngày 0) cho đến khi vụ trước hoàn tất
+    const isSeasonScheduled = !isCurrentSeason
+      ? (activeSeason.status === 'SCHEDULED')
+      : (!isSeasonStarted && (activeSeason.status === 'SCHEDULED' || activeSeason.currentDay === 0 || isFuture));
+
+    const effectiveCurrentDay = !isCurrentSeason
+      ? (activeSeason.status === 'COMPLETED' ? activeSeason.totalDays : 0)
+      : (isSeasonStarted ? Math.max(1, Number(plot.currentDay) || 1) : (isSeasonScheduled ? 0 : plot.currentDay));
+
+    const effectiveSeasonStatus = !isCurrentSeason
+      ? activeSeason.status
+      : (isSeasonStarted ? 'ACTIVE' : activeSeason.status);
+
     const plotForSeason = {
       ...plot,
       crop: activeSeason.cropName || plot.crop,
       totalDays: activeSeason.totalDays || plot.totalDays,
-      currentDay: isSeasonStarted ? Math.max(1, Number(plot.currentDay) || 1) : (isSeasonScheduled ? 0 : plot.currentDay),
-      seasonStatus: isSeasonStarted ? 'ACTIVE' : activeSeason.status,
+      currentDay: effectiveCurrentDay,
+      seasonStatus: effectiveSeasonStatus,
       isScheduled: isSeasonScheduled
     };
     return resolveStandardCropProcess(plotForSeason, stages);
