@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Zap,
   X,
@@ -22,12 +22,13 @@ import {
   Compass,
   BookOpen,
   Info,
-  Clock
+  Clock,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { safeCrops, getSafeCropsList } from '../../data/safeCrops';
 import PlotLeaseOptions from './PlotLeaseOptions';
 import { getLeaseConfigError, computePlotLeasePrice } from '../../utils/leaseSelection';
-import { CROP_STANDARDS, detectCropKey } from '../../services/cropStandardProcess';
 
 /* ──────────────────────────────────────────────────────────────────────────────
    MarketplacePlotDetailPanel — Per-plot lease config + responsive 1366x768
@@ -53,6 +54,115 @@ export default function MarketplacePlotDetailPanel({
   const [expandedStageId, setExpandedStageId] = useState(null);
   const [showTechnicalHandbookModal, setShowTechnicalHandbookModal] = useState(false);
 
+  // Resizeable panel width state (kéo rộng thanh chi tiết theo ý muốn)
+  const MIN_PANEL_WIDTH = 340;
+  const getMaxPanelWidth = () => Math.min(840, typeof window !== 'undefined' ? window.innerWidth - 60 : 700);
+
+  const [panelWidth, setPanelWidth] = useState(() => {
+    if (typeof window === 'undefined') return 370;
+    try {
+      const saved = Number(localStorage.getItem('farmely_marketplace_panel_width'));
+      if (saved && saved >= 340 && saved <= window.innerWidth - 60) return saved;
+    } catch {}
+    return window.innerWidth >= 1536 ? 400 : 370;
+  });
+
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 640 : true);
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef({ startX: 0, startWidth: 370 });
+
+  useEffect(() => {
+    const handleResize = () => {
+      const desktop = window.innerWidth >= 640;
+      setIsDesktop(desktop);
+      setPanelWidth((prev) => Math.min(prev, Math.max(MIN_PANEL_WIDTH, window.innerWidth - 60)));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleMouseDownResize = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    dragStartRef.current = {
+      startX: e.clientX,
+      startWidth: panelWidth
+    };
+
+    const handleMouseMove = (moveEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = dragStartRef.current.startX - moveEvent.clientX;
+      const maxW = getMaxPanelWidth();
+      const nextWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxW, dragStartRef.current.startWidth + delta));
+      setPanelWidth(nextWidth);
+    };
+
+    const handleMouseUp = (upEvent) => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
+      setIsDragging(false);
+
+      const delta = dragStartRef.current.startX - upEvent.clientX;
+      const maxW = getMaxPanelWidth();
+      const finalWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxW, dragStartRef.current.startWidth + delta));
+      try {
+        localStorage.setItem('farmely_marketplace_panel_width', String(Math.round(finalWidth)));
+      } catch {}
+
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleTouchStartResize = (e) => {
+    if (!e.touches || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    dragStartRef.current = {
+      startX: touch.clientX,
+      startWidth: panelWidth
+    };
+
+    const handleTouchMove = (moveEvent) => {
+      if (!isDraggingRef.current || !moveEvent.touches || moveEvent.touches.length !== 1) return;
+      const delta = dragStartRef.current.startX - moveEvent.touches[0].clientX;
+      const maxW = getMaxPanelWidth();
+      const nextWidth = Math.max(MIN_PANEL_WIDTH, Math.min(maxW, dragStartRef.current.startWidth + delta));
+      setPanelWidth(nextWidth);
+    };
+
+    const handleTouchEnd = () => {
+      isDraggingRef.current = false;
+      setIsDragging(false);
+      try {
+        localStorage.setItem('farmely_marketplace_panel_width', String(Math.round(panelWidth)));
+      } catch {}
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd);
+  };
+
+  const handleToggleExpand = () => {
+    const isExpanded = panelWidth > 460;
+    const nextWidth = isExpanded ? 370 : 560;
+    setPanelWidth(nextWidth);
+    try {
+      localStorage.setItem('farmely_marketplace_panel_width', String(nextWidth));
+    } catch {}
+  };
+
   // Reset photo index, tab & error khi đổi thửa đất
   useEffect(() => {
     setPhotoIndex(0);
@@ -64,25 +174,45 @@ export default function MarketplacePlotDetailPanel({
 
   const allSafeFallback = getSafeCropsList();
   const effectiveCropOptions = cropOptions && cropOptions.length > 0 ? cropOptions : allSafeFallback;
-  const selectedCrop = effectiveCropOptions.find((c) => c.id === leaseConfig?.cropId) || null;
-  const currentTechnicalCrop = selectedCrop || effectiveCropOptions[0];
+  const selectedCrop = effectiveCropOptions.find((c) => String(c.id) === String(leaseConfig?.cropId)) || null;
+  const currentTechnicalCrop = selectedCrop;
+  const [liveTemplate, setLiveTemplate] = useState(null);
+
+  useEffect(() => {
+    const varietyId = Number(currentTechnicalCrop?.varietyId);
+    setLiveTemplate(null);
+    if (!varietyId) return;
+    let active = true;
+    fetch('/api/process-templates')
+      .then((response) => response.ok ? response.json() : null)
+      .then((result) => {
+        if (!active) return;
+        const templates = Array.isArray(result?.data) ? result.data : [];
+        setLiveTemplate(templates.find((item) => Number(item.varietyId) === varietyId && item.status === 'ACTIVE') || null);
+      })
+      .catch(() => { if (active) setLiveTemplate(null); });
+    return () => { active = false; };
+  }, [currentTechnicalCrop?.varietyId]);
 
   const cropProcessData = useMemo(() => {
-    if (!currentTechnicalCrop) return null;
-    const cropKey = detectCropKey(currentTechnicalCrop.variety || currentTechnicalCrop.name || '');
-    const standard = CROP_STANDARDS[cropKey] || CROP_STANDARDS['lettuce'];
+    if (!currentTechnicalCrop || !liveTemplate) return null;
+    const durationDays = Number(currentTechnicalCrop.minDays) || Number(liveTemplate.totalDays) || 0;
     return {
-      cropKey,
-      standard,
-      cropName: currentTechnicalCrop.variety || currentTechnicalCrop.name || standard.cropName,
+      cropName: currentTechnicalCrop.variety || currentTechnicalCrop.name,
       cropIcon: currentTechnicalCrop.icon || '🌱',
-      duration: currentTechnicalCrop.duration || `${standard.totalDays} ngày`,
-      totalDays: standard.totalDays,
-      expectedYield: standard.expectedYield,
-      optimalConditions: standard.optimalConditions,
-      stages: standard.stages || []
+      duration: currentTechnicalCrop.duration || `${durationDays} ngày`,
+      totalDays: durationDays,
+      expectedYield: currentTechnicalCrop.expectedYield || 'Chưa cập nhật',
+      optimalConditions: { tempRange: currentTechnicalCrop.temperature || 'Chưa cập nhật', soilMoistureRange: currentTechnicalCrop.soilMoisture || 'Chưa cập nhật' },
+      stages: (liveTemplate.steps || []).map((step, index) => ({
+        id: step.stepId || step.id || index,
+        stepOrder: step.stepOrder || index + 1,
+        name: step.stepName || step.name,
+        label: `Ngày ${step.dayOffset ?? step.day ?? 0}`,
+        guide: step.description || step.details || 'Chưa có hướng dẫn kỹ thuật.'
+      }))
     };
-  }, [currentTechnicalCrop]);
+  }, [currentTechnicalCrop, liveTemplate]);
 
   if (!plot) return null;
 
@@ -230,18 +360,51 @@ export default function MarketplacePlotDetailPanel({
 
   return (
     <>
+      {isDragging && (
+        <div className="fixed inset-0 z-[9999] cursor-col-resize select-none pointer-events-auto" />
+      )}
       <aside
       id="detail-panel"
       data-plot-detail-panel={isOpen && plot ? 'open' : 'closed'}
       aria-label={`Chi tiết thửa đất ${plot?.code || ''}`}
       onWheel={(e) => e.stopPropagation()}
       onTouchMove={(e) => e.stopPropagation()}
-      className={`absolute inset-x-2 top-20 bottom-2 z-40 flex w-auto flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_16px_48px_rgba(0,0,0,0.16)] transition-transform duration-300 ease-out sm:inset-x-auto sm:right-3 sm:bottom-3 sm:w-[340px] sm:rounded-3xl 2xl:right-4 2xl:bottom-4 2xl:w-[370px] ${
+      style={isDesktop ? { width: `${panelWidth}px` } : undefined}
+      className={`absolute inset-x-2 top-20 bottom-2 z-40 flex w-auto flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_16px_48px_rgba(0,0,0,0.16)] sm:inset-x-auto sm:right-3 sm:bottom-3 sm:rounded-3xl 2xl:right-4 2xl:bottom-4 ${
+        isDragging
+          ? 'transition-none select-none'
+          : 'transition-transform duration-300 ease-out'
+      } ${
         isOpen
           ? 'translate-x-0 translate-y-0 opacity-100 pointer-events-auto'
-          : 'translate-y-[110%] opacity-0 pointer-events-none sm:translate-x-[400px] sm:translate-y-0'
+          : 'translate-y-[110%] opacity-0 pointer-events-none sm:translate-x-[calc(100%+2rem)] sm:translate-y-0'
       }`}
     >
+      {/* ─────────────────────────────────────────────────────────────────────────────
+          DRAGGABLE RESIZE HANDLE (Kéo mép trái để điều chỉnh độ rộng linh hoạt)
+      ───────────────────────────────────────────────────────────────────────────── */}
+      <div
+        onMouseDown={handleMouseDownResize}
+        onTouchStart={handleTouchStartResize}
+        onDoubleClick={handleToggleExpand}
+        title="Kéo sang trái để mở rộng độ rộng bảng, nhấp đúp để phóng to/thu nhỏ nhanh"
+        className={`hidden sm:flex absolute left-0 top-0 bottom-0 w-3.5 -ml-1.5 z-50 cursor-col-resize items-center justify-center group touch-none select-none ${
+          isDragging ? 'bg-emerald-500/20' : 'hover:bg-emerald-500/10'
+        }`}
+      >
+        <div
+          className={`w-1 h-14 rounded-full transition-all ${
+            isDragging
+              ? 'bg-emerald-600 scale-y-125 w-1.5 shadow-sm'
+              : 'bg-slate-300 group-hover:bg-emerald-500 group-hover:scale-y-110'
+          }`}
+        />
+        {isDragging && (
+          <div className="absolute top-4 -left-16 bg-slate-900/95 text-white text-[10px] font-mono font-bold px-2 py-0.5 rounded-md shadow-lg pointer-events-none z-50 border border-slate-700">
+            {Math.round(panelWidth)}px
+          </div>
+        )}
+      </div>
       {/* ─────────────────────────────────────────────────────────────────────────────
           1. HERO IMAGE (h-[128px] sm:h-[136px] 2xl:h-[160px])
       ───────────────────────────────────────────────────────────────────────────── */}
@@ -301,6 +464,14 @@ export default function MarketplacePlotDetailPanel({
           </div>
 
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleToggleExpand}
+              className="hidden sm:flex w-7 h-7 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all items-center justify-center border border-white/20 cursor-pointer"
+              title={panelWidth > 460 ? 'Thu gọn độ rộng bảng (370px)' : 'Mở rộng độ rộng bảng (560px)'}
+            >
+              {panelWidth > 460 ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
             <button
               type="button"
               onClick={handleShare}
@@ -615,6 +786,7 @@ export default function MarketplacePlotDetailPanel({
                     }}
                     className="w-full appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-7 py-1.5 text-xs font-bold text-slate-800 hover:border-emerald-500 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500/20 outline-hidden transition cursor-pointer"
                   >
+                    <option value="">Chọn giống cây để xem quy trình</option>
                     {effectiveCropOptions.map((crop) => (
                       <option key={crop.id} value={crop.id}>
                         {crop.icon ? `${crop.icon} ` : ''}{crop.name} — {crop.variety}
@@ -626,6 +798,9 @@ export default function MarketplacePlotDetailPanel({
               </div>
 
               {/* Thẻ chỉ số tổng quan mùa vụ */}
+              {selectedCrop && !cropProcessData && (
+                <p className="text-[10px] text-amber-700">Giống này chưa có quy trình kỹ thuật được lưu trong hệ thống.</p>
+              )}
               {cropProcessData && (
                 <div className="grid grid-cols-3 gap-1.5 text-center">
                   <div className="p-1.5 rounded-lg bg-emerald-50/70 border border-emerald-100/80">
@@ -744,7 +919,7 @@ export default function MarketplacePlotDetailPanel({
                                 <div className="p-1.5 rounded-lg bg-teal-50/60 border border-teal-100 flex items-start gap-1.5">
                                   <ShieldCheck className="w-3.5 h-3.5 text-teal-600 shrink-0 mt-0.5" />
                                   <div className="min-w-0">
-                                    <span className="font-bold text-teal-900 block text-[9px]">Tiêu chí nghiệm thu VietGAP:</span>
+                                    <span className="font-bold text-teal-900 block text-[9px]">Tiêu chí hoàn thành kỹ thuật:</span>
                                     <span className="text-slate-600 text-[10px] leading-tight block">{stage.inspectionCriteria}</span>
                                   </div>
                                 </div>
@@ -1059,7 +1234,7 @@ function TechnicalHandbookModal({ isOpen, onClose, cropData, onSelectCrop, isSel
                   )}
                 </div>
 
-                {/* Sâu bệnh & Nghiệm thu */}
+                {/* Sâu bệnh & Tiêu chuẩn hoàn thành */}
                 {st.pestAlert && (
                   <div className="p-2.5 rounded-xl bg-rose-50/60 border border-rose-100">
                     <span className="text-[11px] font-bold text-rose-800 flex items-center gap-1 mb-0.5">
@@ -1074,7 +1249,7 @@ function TechnicalHandbookModal({ isOpen, onClose, cropData, onSelectCrop, isSel
                   <div className="p-2.5 rounded-xl bg-teal-50/60 border border-teal-100">
                     <span className="text-[11px] font-bold text-teal-800 flex items-center gap-1 mb-0.5">
                       <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                      Tiêu chí nghiệm thu VietGAP của Kỹ sư
+                      Tiêu chí hoàn thành của Kỹ sư
                     </span>
                     <p className="text-teal-950 text-xs leading-relaxed">{st.inspectionCriteria}</p>
                   </div>
@@ -1087,7 +1262,7 @@ function TechnicalHandbookModal({ isOpen, onClose, cropData, onSelectCrop, isSel
         {/* Footer modal */}
         <div className="px-5 py-3.5 border-t border-stone-100 bg-stone-50/80 flex items-center justify-between gap-3 shrink-0">
           <p className="text-[11px] text-stone-500 font-medium">
-            100% quy trình được giám sát nhật ký số và hỗ trợ bởi đội ngũ kỹ sư Farmely.
+            100% quy trình được cập nhật nhật ký thực địa và hỗ trợ bởi đội ngũ kỹ sư Farmely.
           </p>
           <div className="flex items-center gap-2">
             <button

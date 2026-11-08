@@ -125,22 +125,52 @@ ALTER TABLE farm_diaries ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
 ALTER TABLE farm_diaries DROP CONSTRAINT IF EXISTS farm_diaries_task_id_fkey;
 ALTER TABLE farm_diaries ADD CONSTRAINT farm_diaries_task_id_fkey FOREIGN KEY (task_id) REFERENCES care_tasks(task_id) ON DELETE SET NULL;
 
--- Đồng bộ trạng thái: Thửa đất không có hợp đồng ACTIVE thì trở về AVAIL (trừ thửa đang nghỉ phơi ải MAINT)
-UPDATE plots SET status = 'AVAIL'
-WHERE status = 'RENT' AND plot_id NOT IN (
-  SELECT plot_id FROM rentals WHERE status = 'ACTIVE'
-);
+-- Cập nhật gói thuê 12 tháng chuẩn cho thửa P-16 (rental_id = 61)
+UPDATE rentals SET term_months = 12, end_date = (start_date + INTERVAL '12 months')::date WHERE rental_id = 61;
+
+-- BR23: Hết hạn thuê -> rental chuyển DONE -> thửa đất nghỉ phơi ải MAINT 4 ngày -> mới mở lại AVAIL.
+-- Mốc đếm 4 ngày lấy từ rentals.end_date nên KHÔNG cần thêm cột mới vào ERD.
+
+-- 1. Đóng các lượt thuê đã quá hạn (trước đây rentals nằm ACTIVE vĩnh viễn nên BR23 không bao giờ chạy)
+UPDATE rentals SET status = 'DONE', updated_at = NOW()
+WHERE status = 'ACTIVE' AND end_date < CURRENT_DATE;
+
+-- 2. Thửa vừa kết thúc hợp đồng trong 4 ngày gần nhất -> chuyển nghỉ phơi ải, ngừng hiển thị cho thuê
+UPDATE plots p SET status = 'MAINT', is_published = false, updated_at = NOW()
+WHERE p.status = 'RENT'
+  AND NOT EXISTS (SELECT 1 FROM rentals r WHERE r.plot_id = p.plot_id AND r.status = 'ACTIVE')
+  AND EXISTS (
+    SELECT 1 FROM rentals r
+    WHERE r.plot_id = p.plot_id AND r.end_date >= CURRENT_DATE - INTERVAL '4 days'
+  );
+
+-- 3. Hết 4 ngày phơi ải -> mở lại cho thuê
+-- ponytail: giới hạn cửa sổ 4..30 ngày để không tự mở những thửa Admin chủ động đặt MAINT;
+-- upgrade path: thêm cột plots.maintenance_until khi cần tạm dừng cho thuê dài hạn có chủ đích.
+UPDATE plots p SET status = 'AVAIL', updated_at = NOW()
+WHERE p.status IN ('RENT', 'MAINT')
+  AND NOT EXISTS (SELECT 1 FROM rentals r WHERE r.plot_id = p.plot_id AND r.status = 'ACTIVE')
+  AND EXISTS (
+    SELECT 1 FROM rentals r
+    WHERE r.plot_id = p.plot_id
+      AND r.end_date BETWEEN CURRENT_DATE - INTERVAL '30 days' AND CURRENT_DATE - INTERVAL '4 days'
+  );
+
+-- 3b. Dọn dữ liệu rác: thửa mang trạng thái RENT nhưng chưa từng có lượt thuê nào
+UPDATE plots p SET status = 'AVAIL', updated_at = NOW()
+WHERE p.status = 'RENT'
+  AND NOT EXISTS (SELECT 1 FROM rentals r WHERE r.plot_id = p.plot_id);
 
 -- Dọn dẹp các tác vụ rác của các hợp đồng/thửa đã hủy
 DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE status = 'CANCELLED');
 
--- SSoT: Tự động đồng bộ các nhiệm vụ chăm sóc thực địa đã nghiệm thu (DONE) vào nhật ký farm_diaries
+-- SSoT: Tự động đồng bộ các nhiệm vụ chăm sóc thực địa đã hoàn thành (DONE) vào nhật ký farm_diaries
 INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
 SELECT 
   ct.rental_id,
   ct.task_id,
   COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
-  COALESCE(ct.notes, ts.description, 'Đã hoàn tất nghiệm thu kỹ thuật theo quy trình VietGAP.'),
+  COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
   COALESCE(ct.step_order, ts.step_order, 1),
   COALESCE(ct.evidence_image_url, 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=600&q=80'),
   COALESCE(ct.updated_at, NOW())
@@ -171,6 +201,8 @@ UPDATE conversations SET participant_one = 8, participant_two = 5 WHERE type = '
 
 -- Dọn dẹp dữ liệu test thừa và chuẩn hóa chuỗi mô tả
 DELETE FROM care_tasks WHERE task_id IN (11, 12, 14);
+DELETE FROM care_tasks WHERE title ILIKE '%Thiết lập thời gian cách ly%' OR title ILIKE '%cách ly an toàn VietGAP trước thu hoạch%';
+DELETE FROM template_steps WHERE step_name ILIKE '%Thiết lập thời gian cách ly%' OR step_name ILIKE '%cách ly an toàn VietGAP trước thu hoạch%';
 UPDATE care_tasks SET notes = 'Bón thúc đợt 2 phân trùn quế quanh vùng rễ' WHERE notes LIKE '%Test auto assign Zone B%';
 UPDATE care_tasks SET notes = '[LÀM NGAY] Xử lý rệp sáp bùng phát mặt dưới lá - Pha chế phẩm sinh học thảo mộc tỏi ớt 1:200, phun đều 2 mặt lá sau 16:30.' WHERE task_id = 15;
 
@@ -609,6 +641,83 @@ SELECT json_build_object(
           return;
         }
 
+        // 0.2b GET /api/audit-logs/overview (SCR-AD-10: Tổng quan vết kiểm toán Luồng 4)
+        if (req.method === 'GET' && (url === '/api/audit-logs/overview' || url.startsWith('/api/audit-logs/overview?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy tổng quan vết kiểm toán thành công từ PostgreSQL',
+  'data', json_build_object(
+    'totalLogs', (SELECT count(*)::int FROM audit_logs),
+    'loginsCount', (SELECT count(*)::int FROM audit_logs WHERE action ILIKE '%LOGIN%'),
+    'passwordResetsCount', (SELECT count(*)::int FROM audit_logs WHERE action ILIKE '%PASSWORD%' OR action ILIKE '%RESET%'),
+    'roleChangesCount', (SELECT count(*)::int FROM audit_logs WHERE action ILIKE '%STATUS%' OR action ILIKE '%ROLE%' OR action ILIKE '%CANCEL%'),
+    'activitiesToday', (SELECT count(*)::int FROM audit_logs WHERE created_at::date = CURRENT_DATE),
+    'totalUsers', (SELECT count(*)::int FROM users)
+  )
+);
+`;
+            const pgResult = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(pgResult || '{}');
+          } catch (err) {
+            console.error('PostgreSQL error on audit overview:', err);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 0.2c GET /api/audit-logs (SCR-AD-10: Danh sách vết kiểm toán hệ thống Luồng 4)
+        if (req.method === 'GET' && (url === '/api/audit-logs' || url.startsWith('/api/audit-logs?'))) {
+          try {
+            const sql = `
+SELECT json_build_object(
+  'success', true,
+  'message', 'Lấy danh sách nhật ký kiểm toán thành công từ PostgreSQL',
+  'data', (
+    SELECT COALESCE(json_agg(row_to_json(l)), '[]'::json) FROM (
+      SELECT 
+        al.log_id AS "logId",
+        al.user_id AS "userId",
+        COALESCE(u.email, 'admin@farmely.vn') AS "userEmail",
+        COALESCE(u.full_name, 'Hệ thống') AS "userName",
+        al.action,
+        al.entity_name AS "entityType",
+        al.entity_id AS "entityId",
+        CASE
+          WHEN al.details->>'reason' IS NOT NULL THEN al.details->>'reason'
+          WHEN al.details->>'description' IS NOT NULL THEN al.details->>'description'
+          WHEN al.action = 'AUTH_LOGIN' THEN 'Đăng nhập hệ thống qua ' || COALESCE(al.details->>'platform', 'WEB')
+          WHEN al.action = 'APPROVE_CANCELLATION' THEN 'Duyệt hoàn tiền hủy hợp đồng #' || COALESCE(al.entity_id, '') || ' (' || COALESCE(ROUND(((al.details->>'refundRate')::numeric * 100), 0)::text, '0') || '%)'
+          WHEN al.action = 'CANCEL_REQUEST' THEN 'Yêu cầu hủy hợp đồng #' || COALESCE(al.entity_id, '') || ' - Lý do: ' || COALESCE(al.details->>'reason', 'Khách bận')
+          WHEN al.action = 'CHANGE_USER_STATUS' THEN 'Đổi trạng thái người dùng #' || COALESCE(al.entity_id, '') || ' thành ' || COALESCE(al.details->>'status', 'ACTIVE')
+          ELSE 'Thao tác ' || al.action || ' trên ' || al.entity_name
+        END AS description,
+        COALESCE(al.ip_address, '127.0.0.1') AS "ipAddress",
+        'SUCCESS' AS status,
+        al.created_at AS "createdAt",
+        al.details
+      FROM audit_logs al
+      LEFT JOIN users u ON al.user_id = u.user_id
+      ORDER BY al.created_at DESC
+      LIMIT 100
+    ) l
+  )
+);
+`;
+            const pgResult = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(pgResult || '{}');
+          } catch (err) {
+            console.error('PostgreSQL error on audit-logs:', err);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
         // 0.3 GET /api/admin/analytics or /api/v1/admin/analytics (SCR-AD-01: Thống Kê Tổng Hợp Doanh Thu & Vận Hành)
         if (req.method === 'GET' && (url === '/api/admin/analytics' || url === '/api/v1/admin/analytics' || url.startsWith('/api/admin/analytics?') || url.startsWith('/api/v1/admin/analytics?'))) {
           try {
@@ -953,7 +1062,7 @@ BEGIN
                   const parsedVarId = typeof rawVarId === 'number'
                     ? rawVarId
                     : parseInt(String(rawVarId || '').replace(/\D/g, ''), 10);
-                  const varietyId = !isNaN(parsedVarId) && parsedVarId > 0 && parsedVarId <= 10 ? parsedVarId : 1;
+                  const varietyId = !isNaN(parsedVarId) && parsedVarId > 0 ? parsedVarId : 1;
 
                   pgSql += `
     -- Tìm plot_id chính xác
@@ -981,15 +1090,16 @@ BEGIN
 
     -- 1. TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP CỦA GIỐNG CÂY (CHỈ KHI THUÊ GÓI HỖ TRỢ)
     IF '${itemMode}' <> 'SELF' THEN
-        INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+        INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
         SELECT 
             v_rental_id,
             ts.step_id,
             v_staff_id,
             DATE '${itemCultivationDate}' + (ts.day_offset || ' days')::INTERVAL,
-            'PENDING'::task_status_enum,
+            CASE WHEN DATE '${itemCultivationDate}' <= CURRENT_DATE AND (COALESCE(ts.day_offset, 0) = 0 OR COALESCE(ts.step_order, 1) = 1) THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
             ts.step_name,
             ts.description || ' (Vật tư: ' || COALESCE(ts.materials_needed, 'Theo quy chuẩn VietGAP') || ')',
+            COALESCE(ts.step_order, 1),
             NOW(),
             NOW()
         FROM template_steps ts
@@ -997,10 +1107,22 @@ BEGIN
         ORDER BY ts.day_offset;
     END IF;
 
-    -- Tự động mở kênh chat CUST_EXP
-    INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
-    VALUES (v_renter_id, fn_resolve_expert_for_variety(${varietyId}), v_rental_id, v_plot_id, 'CUST_EXP', 'OPEN', NOW())
-    ON CONFLICT DO NOTHING;
+    -- Tự động mở kênh chat CUST_EXP (chống tạo trùng lặp kênh chat cho cùng một khách hàng và chuyên gia)
+    IF NOT EXISTS (
+        SELECT 1 FROM conversations 
+        WHERE participant_one = v_renter_id 
+          AND participant_two = fn_resolve_expert_for_variety(${varietyId}) 
+          AND type = 'CUST_EXP'
+    ) THEN
+        INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
+        VALUES (v_renter_id, fn_resolve_expert_for_variety(${varietyId}), v_rental_id, v_plot_id, 'CUST_EXP', 'OPEN', NOW());
+    ELSE
+        UPDATE conversations 
+        SET rental_id = v_rental_id, plot_id = v_plot_id
+        WHERE participant_one = v_renter_id 
+          AND participant_two = fn_resolve_expert_for_variety(${varietyId}) 
+          AND type = 'CUST_EXP';
+    END IF;
 
     -- 2. TỰ ĐỘNG KHỞI TẠO BẢN GHI NHẬT KÝ NÔNG TRẠI (FARM DIARY)
     INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
@@ -1011,7 +1133,7 @@ BEGIN
         NOW()
     FROM varieties v WHERE v.variety_id = ${varietyId};
 
-    -- 3. TỰ ĐỘNG KHỞI TẠO HỒ SƠ THU HOẠCH & NGHIỆM THU (HARVEST RESULTS)
+    -- 3. TỰ ĐỘNG KHỞI TẠO HỒ SƠ THU HOẠCH & BÀN GIAO (HARVEST RESULTS)
     INSERT INTO harvest_results (rental_id, entered_by, harvest_date, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at)
     VALUES (
         v_rental_id,
@@ -1252,8 +1374,8 @@ SELECT COALESCE(json_agg(row_to_json(c)), '[]'::json) FROM (
         ELSE 0 
       END), 2) AS "refundAmount",
     CASE 
-      WHEN dates.start_date - cn.created_at::date >= 3 THEN 'Trước ngày bắt đầu ≥ 3 ngày: Khấu trừ 20%, hoàn trả 80% (Theo BR10)'
-      WHEN dates.start_date > cn.created_at::date THEN 'Trước ngày bắt đầu 1–2 ngày: Khấu trừ 50%, hoàn trả 50% (Theo BR10)'
+      WHEN dates.start_date - cn.created_at::date >= 3 THEN 'Trước ngày bắt đầu ≥ 3 ngày: Khấu trừ 20%, hoàn trả 80%'
+      WHEN dates.start_date > cn.created_at::date THEN 'Trước ngày bắt đầu 1–2 ngày: Khấu trừ 50%, hoàn trả 50%'
       ELSE 'Đã đến hoặc qua ngày bắt đầu canh tác: Khấu trừ 100%, không hoàn tiền'
     END AS "refundPolicyNote",
     TO_CHAR(cn.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt"
@@ -1408,7 +1530,7 @@ LIMIT 1;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-message: 'Đã nhận yêu cầu hủy hợp đồng, đang chờ quản trị viên phê duyệt theo chính sách BR10.',
+                message: 'Đã nhận yêu cầu hủy hợp đồng, đang chờ quản trị viên phê duyệt theo chính sách hoàn tiền.',
                 data: {
                   ...cancelData,
                   refundPercentage,
@@ -1442,59 +1564,74 @@ BEGIN
     SELECT contract_id INTO v_contract_id
     FROM contract_cancellations
     WHERE cancellation_id = ${cancellationId} AND status = 'PENDING';
-
-    IF v_contract_id IS NULL THEN
-        RAISE EXCEPTION 'Không tìm thấy yêu cầu hủy đang chờ duyệt';
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Yêu cầu hủy không tồn tại hoặc đã xử lý';
     END IF;
 
     SELECT total_amount INTO v_total_amount FROM contracts WHERE contract_id = v_contract_id;
     SELECT MIN(start_date) INTO v_start_date FROM rentals WHERE contract_id = v_contract_id;
 
-    IF v_start_date IS NOT NULL AND (v_start_date - CURRENT_DATE) >= 3 THEN
-        v_refund_rate := 0.8;
-    ELSIF v_start_date IS NOT NULL AND (v_start_date - CURRENT_DATE) > 0 THEN
-        v_refund_rate := 0.5;
-    ELSE
-        v_refund_rate := 0.0;
-    END IF;
+    -- Tỷ lệ hoàn tiền tính theo NGÀY KHÁCH GỬI YÊU CẦU (created_at), không phải ngày Admin bấm duyệt,
+    -- để khớp 1:1 với số tiền đã hiển thị ở danh sách chờ duyệt (GET /api/contracts/cancellations).
+    SELECT
+      CASE
+        WHEN v_start_date - cn.created_at::date >= 3 THEN 0.8
+        WHEN v_start_date > cn.created_at::date THEN 0.5
+        ELSE 0.0
+      END
+    INTO v_refund_rate
+    FROM contract_cancellations cn
+    WHERE cn.cancellation_id = ${cancellationId};
 
-    v_refund_amount := ROUND(COALESCE(v_total_amount, 0) * v_refund_rate, 2);
+    v_refund_amount := ROUND(COALESCE(v_total_amount, 0) * COALESCE(v_refund_rate, 0), 2);
 
-    -- 1. Cập nhật cancellation status -> APPROVED
+    -- 1. Cập nhật contract_cancellations
+    -- ponytail: bảng này KHÔNG có cột refund_amount trong DDL -> số tiền hoàn lưu ở
+    -- payment_transactions (type='REFUND', cancellation_request_id) đúng theo ERD, không thêm cột mới.
     UPDATE contract_cancellations
-    SET status = 'APPROVED'
+    SET status = 'APPROVED',
+        processed_at = NOW()
     WHERE cancellation_id = ${cancellationId};
 
-    -- 2. Cập nhật contract status -> CANCELLED
-    UPDATE contracts
-    SET status = 'CANCELLED', updated_at = NOW()
-    WHERE contract_id = v_contract_id;
-
-    -- 3. Cập nhật rentals status -> CANCELLED
-    UPDATE rentals
-    SET status = 'CANCELLED', updated_at = NOW()
-    WHERE contract_id = v_contract_id;
-
-    -- 4. Chuyển các plots sang MAINTENANCE 4 ngày (BR23)
-    UPDATE plots
-    SET status = 'MAINT', updated_at = NOW()
-    WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = v_contract_id);
-
-    -- 4.1 Xóa sạch các tác vụ chăm sóc thực địa chưa hoàn thành của hợp đồng bị hủy
-    DELETE FROM care_tasks
-    WHERE rental_id IN (SELECT rental_id FROM rentals WHERE contract_id = v_contract_id)
-      AND status IN ('PENDING', 'IN_PROG');
-
-    -- 5. Ghi nhận giao dịch hoàn tiền nếu có refund_amount > 0
-    IF v_refund_amount > 0 THEN
-        INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status, created_at)
-        VALUES (v_contract_id, 'REFUND', v_refund_amount, 'VNPAY', 'REF-' || TO_CHAR(NOW(), 'YYYYMMDDHH24MISS'), 'SUCCESS', NOW());
+    -- 1b. Ghi bút toán hoàn tiền (nguồn số liệu cho báo cáo doanh thu: type='REFUND' bị trừ ra)
+    IF v_refund_amount > 0 AND NOT EXISTS (
+        SELECT 1 FROM payment_transactions
+        WHERE cancellation_request_id = ${cancellationId} AND type = 'REFUND'
+    ) THEN
+        INSERT INTO payment_transactions
+          (contract_id, cancellation_request_id, type, amount, payment_method, gateway_ref, status, created_at)
+        VALUES
+          (v_contract_id, ${cancellationId}, 'REFUND', v_refund_amount, 'VNPAY',
+           'VNP-REFUND-' || ${cancellationId}, 'SUCCESS', NOW());
     END IF;
 
-    -- 6. Ghi log kiểm toán vận hành
-    INSERT INTO audit_logs (user_id, action, entity_name, entity_id, details, ip_address, created_at)
-    VALUES (1, 'APPROVE_CANCELLATION', 'contracts', v_contract_id::text, 
-      json_build_object('cancellationId', ${cancellationId}, 'refundRate', v_refund_rate, 'refundAmount', v_refund_amount), '127.0.0.1', NOW());
+    -- 2. Cập nhật contracts
+    UPDATE contracts
+    SET status = 'CANCELLED',
+        updated_at = NOW()
+    WHERE contract_id = v_contract_id;
+
+    -- 3. Cập nhật rentals
+    UPDATE rentals
+    SET status = 'CANCELLED',
+        updated_at = NOW()
+    WHERE contract_id = v_contract_id;
+
+    -- 4. Chuyển các plots sang MAINTENANCE 4 ngày
+    UPDATE plots
+    SET status = 'MAINT',
+        is_published = false,
+        updated_at = NOW()
+    WHERE plot_id IN (
+        SELECT plot_id FROM rentals WHERE contract_id = v_contract_id
+    );
+
+    -- 5. Dọn các care_tasks chưa hoàn thành của hợp đồng đã thanh lý
+    -- task_status_enum chỉ có ('PENDING','IN_PROG','DONE') -> không thể set 'CANCELLED', phải DELETE
+    DELETE FROM care_tasks
+    WHERE rental_id IN (
+        SELECT rental_id FROM rentals WHERE contract_id = v_contract_id
+    ) AND status <> 'DONE'::task_status_enum;
 END $$;
 `;
             await runPostgreSql(approveSql);
@@ -1502,7 +1639,7 @@ END $$;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
-              message: `Phê duyệt yêu cầu hủy #${cancellationId} thành công. Thửa đất đã chuyển sang bảo dưỡng 4 ngày (BR23).`
+              message: `Phê duyệt yêu cầu hủy #${cancellationId} thành công. Thửa đất đã chuyển sang bảo dưỡng 4 ngày.`
             }));
           } catch (err) {
             console.error('Error on POST /api/contracts/cancellations/:id/approve:', err);
@@ -1537,13 +1674,13 @@ END $$;
 
               for (const it of items) {
                 const rawPlotId = it.plotId || 1;
+                const rawPlotCode = String(it.plotCode || it.code || '').trim().replace(/^PLOT-/i, '');
                 const findPlotSql = `
 SELECT plot_id, plot_code, price_per_period, status 
 FROM plots 
-WHERE plot_id = ${parseInt(rawPlotId, 10) || 0}
-   OR plot_code = 'P-' || LPAD('${rawPlotId}', 2, '0')
-   OR plot_code = 'P-' || '${rawPlotId}'
-   OR plot_code = '${rawPlotId}'
+WHERE (${rawPlotCode ? `plot_code = '${rawPlotCode}' OR plot_code = 'P-' || '${rawPlotCode.replace(/^P-/i, '')}' OR ` : ''} plot_code = 'P-' || LPAD('${rawPlotId}', 2, '0') OR plot_code = 'P-' || '${rawPlotId}' OR plot_code = '${rawPlotId}')
+   OR plot_id = ${parseInt(rawPlotId, 10) || 0}
+ORDER BY (CASE WHEN ${rawPlotCode ? `plot_code = '${rawPlotCode}' OR plot_code = 'P-' || '${rawPlotCode.replace(/^P-/i, '')}'` : 'FALSE'} THEN 1 ELSE 2 END)
 LIMIT 1;
 `;
                 const plotOut = await runPostgreSql(findPlotSql);
@@ -1580,7 +1717,7 @@ LIMIT 1;
                   res.setHeader('Content-Type', 'application/json; charset=utf-8');
                   res.end(JSON.stringify({
                     success: false,
-                    message: `Giống cây '${varietyName}' không tương thích với thửa đất '${plotCode}' (Theo BR03)`
+                    message: `Giống cây '${varietyName}' không tương thích với thửa đất '${plotCode}'`
                   }));
                   return;
                 }
@@ -1716,8 +1853,8 @@ SELECT json_build_object(
   'contractNumber', contract_number,
   'totalAmount', total_amount,
   'status', status::text,
-  'reservationExpiresAt', TO_CHAR(reservation_expires_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-  'createdAt', TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+  'reservationExpiresAt', TO_CHAR(reservation_expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+  'createdAt', TO_CHAR(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
 )
 FROM contracts
 WHERE contract_number = '${contractNumber}'
@@ -1730,7 +1867,7 @@ LIMIT 1;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: 'Tạo đơn giữ chỗ thành công (Hiệu lực 15 phút theo quy định BR08)',
+                message: 'Tạo đơn giữ chỗ thành công (Hiệu lực giữ chỗ 15 phút)',
                 data: {
                   contractId: createdData?.contractId || Date.now(),
                   contractNumber: createdData?.contractNumber || contractNumber,
@@ -1769,7 +1906,7 @@ WHERE contract_id = ${contractId};
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
-              message: 'Cộng thời gian ân hạn 10 phút thành công (BR08)',
+              message: 'Cộng thời gian ân hạn 10 phút thành công',
               data: { contractId }
             }));
           } catch (err) {
@@ -1801,15 +1938,16 @@ BEGIN
     UPDATE plots SET status = 'RENT', updated_at = NOW() WHERE plot_id IN (SELECT plot_id FROM rentals WHERE contract_id = ${contractId});
     
     -- Tự động sinh Care Tasks chuẩn VietGAP cho các thửa thuê gói Hỗ trợ (Assisted) nếu chưa có (tính ngày theo start_date)
-    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
     SELECT 
         r.rental_id,
         ts.step_id,
         r.staff_id,
         r.start_date + (ts.day_offset || ' days')::interval,
-        CASE WHEN r.start_date <= CURRENT_DATE AND COALESCE(ts.step_order, 1) = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        CASE WHEN r.start_date <= CURRENT_DATE AND (COALESCE(ts.day_offset, 0) = 0 OR COALESCE(ts.step_order, 1) = 1) THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
         ts.step_name,
         ts.step_name || ' - ' || ts.description,
+        COALESCE(ts.step_order, 1),
         NOW(),
         NOW()
     FROM rentals r
@@ -1820,13 +1958,16 @@ BEGIN
       AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id)
     ORDER BY COALESCE(ts.step_order, 1), ts.day_offset, ts.step_id;
 
-    -- Tự động mở kênh chat CUST_EXP
+    -- Tự động mở kênh chat CUST_EXP (chống tạo trùng lặp)
     INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
     SELECT c.renter_id, r.expert_id, r.rental_id, r.plot_id, 'CUST_EXP', 'OPEN', NOW()
     FROM rentals r
     JOIN contracts c ON r.contract_id = c.contract_id
     WHERE r.contract_id = ${contractId} AND r.expert_id IS NOT NULL
-    ON CONFLICT DO NOTHING;
+      AND NOT EXISTS (
+        SELECT 1 FROM conversations conv
+        WHERE conv.participant_one = c.renter_id AND conv.participant_two = r.expert_id AND conv.type = 'CUST_EXP'
+      );
 
     INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status, created_at)
     SELECT contract_id, 'PAYMENT', total_amount, 'VNPAY', 'VNP-' || TO_CHAR(NOW(), 'YYYYMMDDHH24MISS'), 'SUCCESS', NOW()
@@ -1838,7 +1979,7 @@ END $$;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({
               success: true,
-              message: 'Kích hoạt hợp đồng và nhận bàn giao thửa đất thành công (BR09)',
+              message: 'Kích hoạt hợp đồng và nhận bàn giao thửa đất thành công',
               data: { contractId, status: 'ACTIVE' }
             }));
           } catch (err) {
@@ -1862,8 +2003,8 @@ SELECT json_build_object(
   'renterId', c.renter_id,
   'totalAmount', c.total_amount,
   'status', c.status::text,
-  'reservationExpiresAt', TO_CHAR(c.reservation_expires_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-  'createdAt', TO_CHAR(c.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+  'reservationExpiresAt', TO_CHAR(c.reservation_expires_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+  'createdAt', TO_CHAR(c.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
   'rentals', COALESCE((
     SELECT json_agg(json_build_object(
       'rentalId', r.rental_id,
@@ -1975,19 +2116,20 @@ Write-Output $json
         }
 
         // 5.4b GET /api/users/staff (Fetch agricultural experts & field workers directly from PostgreSQL)
-        if (req.method === 'GET' && (url === '/api/users/staff' || url.startsWith('/api/users/staff?') || url === '/api/users' || url.startsWith('/api/users?'))) {
+        if (req.method === 'GET' && (url === '/api/users/staff' || url.startsWith('/api/users/staff?'))) {
           try {
             const staffSql = `
 SELECT json_agg(json_build_object(
   'userId', u.user_id,
   'fullName', u.full_name,
   'email', u.email,
-  'role', r.role_name,
+  'role', CASE WHEN r.role_name IN ('FIELD_WORKER', 'STAFF') THEN 'STAFF' ELSE r.role_name END,
   'phoneNumber', u.phone_number
 ))
 FROM users u
 JOIN roles r ON u.role_id = r.role_id
-WHERE r.role_name IN ('EXPERT', 'FIELD_WORKER');
+WHERE r.role_name IN ('EXPERT', 'FIELD_WORKER', 'STAFF')
+ORDER BY u.user_id ASC;
 `;
             const pgRes = await runPostgreSql(staffSql);
             if (pgRes && pgRes.trim()) {
@@ -2002,7 +2144,7 @@ WHERE r.role_name IN ('EXPERT', 'FIELD_WORKER');
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.end(JSON.stringify([
             { userId: 5, fullName: 'ThS. Nguyễn Hoàng Nam', email: 'expert@farmely.vn', role: 'EXPERT', phoneNumber: '0903888999' },
-            { userId: 8, fullName: 'Trần Văn Lực', email: 'worker@farmely.vn', role: 'FIELD_WORKER', phoneNumber: '0933111222' }
+            { userId: 8, fullName: 'Trần Văn Lực', email: 'worker@farmely.vn', role: 'STAFF', phoneNumber: '0933111222' }
           ]));
           return;
         }
@@ -2191,14 +2333,16 @@ LIMIT 1;
 
 
         // 7. GET /api/users (List all registered users from PostgreSQL)
-        if (req.method === 'GET' && url === '/api/users') {
+        if (req.method === 'GET' && (url === '/api/users' || url.startsWith('/api/users?'))) {
           try {
             const sql = `
 SELECT COALESCE(json_agg(row_to_json(u)), '[]'::json) FROM (
-  SELECT u.user_id, u.email, u.full_name, u.phone_number, CASE WHEN r.role_name IN ('FIELD_WORKER', 'STAFF') THEN 'STAFF' ELSE r.role_name END AS role, u.status, TO_CHAR(u.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
+  SELECT u.user_id, u.user_id AS id, u.user_id AS "userId", u.email, u.full_name AS "fullName", u.full_name, u.phone_number AS "phoneNumber",
+         CASE WHEN r.role_name IN ('FIELD_WORKER', 'STAFF') THEN 'STAFF' ELSE r.role_name END AS role,
+         u.status, TO_CHAR(u.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
   FROM users u
   JOIN roles r ON u.role_id = r.role_id
-  ORDER BY u.user_id DESC
+  ORDER BY u.user_id ASC
 ) u;
 `;
             const data = await runPostgreSql(sql);
@@ -2416,11 +2560,15 @@ SELECT json_build_object(
       JOIN plots p ON r.plot_id = p.plot_id
       JOIN contracts c ON r.contract_id = c.contract_id
       JOIN users u ON c.renter_id = u.user_id
-      JOIN process_templates pt ON r.variety_id = pt.variety_id
+      JOIN process_templates pt ON pt.template_id = (
+        SELECT template_id FROM process_templates 
+        WHERE variety_id = r.variety_id 
+        ORDER BY template_id DESC LIMIT 1
+      )
       JOIN template_steps ts ON pt.template_id = ts.template_id
       JOIN varieties v ON r.variety_id = v.variety_id
-      WHERE ${userClause}
-      ORDER BY r.rental_id ASC, ts.step_order ASC
+      WHERE r.status IN ('ACTIVE', 'PENDING') AND ${userClause}
+      ORDER BY r.rental_id ASC, ts.day_offset ASC, ts.step_id ASC
     ) cp
   )
 );
@@ -2526,13 +2674,29 @@ SELECT json_build_object(
               const harvestDate = payload.harvestDate || new Date().toISOString().slice(0, 10);
               const yieldAmount = payload.yieldAmount ? parseFloat(payload.yieldAmount) : 0;
               const evidenceImageUrl = payload.evidenceImageUrl || '';
-              const deliveryType = payload.deliveryType === 'DELIVERY' ? 'DELIVERY' : 'PICKUP';
+              // BR21: thu hoạch luôn diễn ra tại nông trại -> delivery_type cố định PICKUP.
+              // ponytail: ceiling is hằng số 'PICKUP'; upgrade path is mở lại tuỳ chọn giao hàng
+              // khi nghiệp vụ thực sự có dịch vụ vận chuyển nông sản.
 
+              // BR20: ghi nhận cân thực tế VÀ đóng luôn nhiệm vụ thu hoạch trong CSDL
+              // (trước đây chỉ đổi state React nên F5 là task hiện lại PENDING)
               const sql = `
 WITH ins AS (
   INSERT INTO harvest_results (rental_id, entered_by, harvest_date, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at)
-  VALUES (${rentalId}, ${enteredBy}, '${harvestDate}', ${yieldAmount}, '${evidenceImageUrl.replace(/'/g, "''")}', '${deliveryType}', false, NOW())
+  VALUES (${rentalId}, ${enteredBy}, '${harvestDate}', ${yieldAmount}, '${evidenceImageUrl.replace(/'/g, "''")}', 'PICKUP', false, NOW())
   RETURNING harvest_id, rental_id, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at
+), closed_tasks AS (
+  UPDATE care_tasks ct
+  SET status = 'DONE'::task_status_enum,
+      evidence_image_url = COALESCE(NULLIF('${evidenceImageUrl.replace(/'/g, "''")}', ''), ct.evidence_image_url),
+      updated_at = NOW()
+  WHERE ct.rental_id = ${rentalId}
+    AND ct.status <> 'DONE'::task_status_enum
+    AND (
+      LOWER(COALESCE(ct.title, '')) LIKE '%thu hoạch%'
+      OR ct.step_id IN (SELECT step_id FROM template_steps WHERE LOWER(step_name) LIKE '%thu hoạch%')
+    )
+  RETURNING ct.task_id
 )
 SELECT json_build_object(
   'success', true,
@@ -2563,15 +2727,17 @@ SELECT json_build_object(
           return;
         }
 
-        if (req.method === 'POST' && (url === '/api/customer/harvest-results/confirm' || url === '/api/harvest-results/confirm')) {
+        if ((req.method === 'POST' && (url === '/api/customer/harvest-results/confirm' || url === '/api/harvest-results/confirm')) || (req.method === 'PUT' && /^\/api\/harvest\/\d+\/confirm$/.test(url))) {
           let body = '';
           req.on('data', chunk => body += chunk);
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const harvestId = payload.harvestId ? parseInt(String(payload.harvestId).replace(/\D/g, ''), 10) : null;
+              const pathHarvestId = url.match(/^\/api\/harvest\/(\d+)\/confirm$/)?.[1];
+              const harvestId = pathHarvestId ? Number(pathHarvestId) : (payload.harvestId ? parseInt(String(payload.harvestId).replace(/\D/g, ''), 10) : null);
               const rentalId = payload.rentalId ? parseInt(String(payload.rentalId).replace(/\D/g, ''), 10) : null;
-              const deliveryType = (payload.deliveryMethod === 'FARM' || payload.deliveryMethod === 'PICKUP' ? 'PICKUP' : 'DELIVERY');
+              const deliveryType = payload.deliveryType === 'DELIVERY' ? 'DELIVERY' : 'PICKUP';
+              const feedback = String(payload.customerFeedback || '').replace(/'/g, "''");
 
               let whereClause = '';
               if (harvestId) {
@@ -2579,18 +2745,30 @@ SELECT json_build_object(
               } else if (rentalId) {
                 whereClause = `rental_id = ${rentalId}`;
               } else {
-                whereClause = `1=1`;
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, error: 'Thiếu harvestId hoặc rentalId' }));
+                return;
               }
 
               const sql = `
-UPDATE harvest_results
-SET customer_confirmed = true, delivery_type = '${deliveryType}'
-WHERE ${whereClause}
-RETURNING harvest_id, rental_id, customer_confirmed, delivery_type;
+DO $$ DECLARE v_rental_id integer; v_plot_id integer; v_contract_id integer; BEGIN
+  UPDATE harvest_results SET customer_confirmed = true, delivery_type = '${deliveryType}'::delivery_type_enum,
+    customer_feedback = '${feedback}', confirmed_at = NOW()
+  WHERE ${whereClause} RETURNING rental_id INTO v_rental_id;
+  IF v_rental_id IS NULL THEN RAISE EXCEPTION 'Không tìm thấy biên bản thu hoạch'; END IF;
+  UPDATE rentals SET status = 'DONE', updated_at = NOW() WHERE rental_id = v_rental_id AND status = 'ACTIVE'
+    RETURNING plot_id, contract_id INTO v_plot_id, v_contract_id;
+  IF v_plot_id IS NOT NULL THEN
+    UPDATE plots SET status = 'MAINT', is_published = false, updated_at = NOW() WHERE plot_id = v_plot_id;
+    UPDATE contracts SET status = 'COMPLETED'::contract_status_enum, updated_at = NOW() WHERE contract_id = v_contract_id
+      AND NOT EXISTS (SELECT 1 FROM rentals WHERE contract_id = v_contract_id AND status NOT IN ('DONE', 'CANCELLED'));
+  END IF;
+END $$;
 `;
               await runPostgreSql(sql);
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: true, message: 'Xác nhận nghiệm thu nông sản thành công vào CSDL' }));
+              res.end(JSON.stringify({ success: true, message: 'Xác nhận nhận nông sản thành công vào CSDL' }));
             } catch (err) {
               console.error('Error on /api/customer/harvest-results/confirm:', err);
               res.statusCode = 500;
@@ -2794,7 +2972,7 @@ SELECT row_to_json(l) FROM (
                   UPDATE lands SET is_published = true, updated_at = NOW() WHERE land_id = ${landId};
                   UPDATE plots
                   SET is_published = true,
-                      status = CASE WHEN status = 'MAINT' THEN 'AVAIL'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'MAINT' THEN 'AVAIL' ELSE status END,
                       updated_at = NOW()
                   WHERE land_id = ${landId};
                 `);
@@ -2803,7 +2981,7 @@ SELECT row_to_json(l) FROM (
                   UPDATE lands SET is_published = false, updated_at = NOW() WHERE land_id = ${landId};
                   UPDATE plots
                   SET is_published = false,
-                      status = CASE WHEN status = 'AVAIL' THEN 'MAINT'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'AVAIL' THEN 'MAINT' ELSE status END,
                       updated_at = NOW()
                   WHERE land_id = ${landId};
                 `);
@@ -3094,6 +3272,36 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
       ),
       '[]'::json
     ) AS "compatibleVarieties",
+    (
+      SELECT row_to_json(act_rent) FROM (
+        SELECT 
+          r.rental_id AS "rentalId",
+          r.contract_id AS "contractId",
+          r.variety_id AS "varietyId",
+          COALESCE(v.variety_name, 'Cây trồng') AS "varietyName",
+          COALESCE(v.expected_duration, 45) AS "expectedDuration",
+          TO_CHAR(r.start_date, 'YYYY-MM-DD') AS "startDate",
+          TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "endDate",
+          r.status,
+          COALESCE(u.full_name, 'Khách thuê') AS "renterName",
+          CASE 
+            WHEN CURRENT_DATE < r.start_date THEN 0
+            ELSE (CURRENT_DATE - r.start_date) + 1
+          END AS "currentDay",
+          COALESCE(v.expected_duration, 45) AS "totalDays",
+          CASE
+            WHEN CURRENT_DATE < r.start_date THEN 0
+            ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - r.start_date + 1)::numeric / NULLIF(COALESCE(v.expected_duration, 45), 0)::numeric) * 100)))
+          END AS "progressPercent"
+        FROM rentals r
+        LEFT JOIN varieties v ON r.variety_id = v.variety_id
+        LEFT JOIN contracts c ON r.contract_id = c.contract_id
+        LEFT JOIN users u ON c.renter_id = u.user_id
+        WHERE r.plot_id = p.plot_id AND r.status IN ('ACTIVE', 'CONFIRMED', 'RENTED', 'IN_PROGRESS', 'PENDING')
+        ORDER BY r.rental_id DESC
+        LIMIT 1
+      ) act_rent
+    ) AS "activeRental",
     TO_CHAR(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
     TO_CHAR(p.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "updatedAt"
   FROM plots p
@@ -3192,7 +3400,7 @@ FROM (
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: `Chuyên gia đã lưu cấu hình ${varietyIds.length} giống cây tương thích (BR03) cho thửa đất #${plotId}. Thửa đất đã sẵn sàng để Admin duyệt lên Marketplace!`,
+                message: `Chuyên gia đã lưu cấu hình ${varietyIds.length} giống cây tương thích cho thửa đất #${plotId}. Thửa đất đã sẵn sàng để Admin duyệt lên Marketplace!`,
                 data: { plotId, varietyIds }
               }));
             } catch (err) {
@@ -3550,7 +3758,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                 await runPostgreSql(`
                   UPDATE plots
                   SET is_published = true,
-                      status = CASE WHEN status = 'MAINT' THEN 'AVAIL'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'MAINT' THEN 'AVAIL' ELSE status END,
                       updated_at = NOW()
                   WHERE plot_id = ${plotId};
                   UPDATE lands
@@ -3562,7 +3770,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                 await runPostgreSql(`
                   UPDATE plots
                   SET is_published = false,
-                      status = CASE WHEN status = 'AVAIL' THEN 'MAINT'::plot_status_enum ELSE status END,
+                      status = CASE WHEN status::text = 'AVAIL' THEN 'MAINT' ELSE status END,
                       updated_at = NOW()
                   WHERE plot_id = ${plotId};
                 `);
@@ -3884,7 +4092,7 @@ SELECT json_build_object(
               'method', CASE 
                 WHEN ts.task_type = 'SOIL_PREP' THEN 'Làm đất, đánh luống cao ráo & bón lót vi sinh Trichoderma'
                 WHEN ts.task_type = 'PLANTING' THEN 'Cấy cây con giống F1 đạt chuẩn tỷ lệ sống'
-                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo dữ liệu thời tiết Weather API (BR18)'
+                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo dữ liệu thời tiết Weather API'
                 WHEN ts.task_type = 'FERTILIZATION' THEN 'Bón thúc đạm hữu cơ vi sinh / phân trùn quế quanh tán'
                 WHEN ts.task_type = 'PEST_CONTROL' THEN 'Phun phòng sinh học tỏi ớt gừng / thảo mộc Matrine'
                 WHEN ts.task_type = 'PRUNING' THEN 'Cắm giàn cọc & tỉa chồi nách, cắt bỏ lá già chân'
@@ -3982,7 +4190,7 @@ SELECT json_build_object(
               'method', CASE 
                 WHEN ts.task_type = 'SOIL_PREP' THEN 'Làm đất, đánh luống cao ráo & bón lót vi sinh Trichoderma'
                 WHEN ts.task_type = 'PLANTING' THEN 'Cấy cây con giống F1 đạt chuẩn tỷ lệ sống'
-                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo dữ liệu thời tiết Weather API (BR18)'
+                WHEN ts.task_type = 'IRRIGATION' THEN 'Tưới phun sương định kỳ theo dữ liệu thời tiết Weather API'
                 WHEN ts.task_type = 'FERTILIZATION' THEN 'Bón thúc đạm hữu cơ vi sinh / phân trùn quế quanh tán'
                 WHEN ts.task_type = 'PEST_CONTROL' THEN 'Phun phòng sinh học tỏi ớt gừng / thảo mộc Matrine'
                 WHEN ts.task_type = 'PRUNING' THEN 'Cắm giàn cọc & tỉa chồi nách, cắt bỏ lá già chân'
@@ -4854,12 +5062,18 @@ ON CONFLICT DO NOTHING;
               const newEndDate = String(payload.newEndDate || '').replace(/'/g, "''");
               const additionalAmount = parseFloat(payload.additionalAmount || 0) || 1200000;
               const gatewayRef = String(payload.gatewayRef || ('VNP-RENEW-' + Date.now().toString().slice(-8))).replace(/'/g, "''");
+              const newVarId = parseInt(payload.newVarietyId || payload.varietyId, 10);
+              const varClause = (!isNaN(newVarId) && newVarId > 0) ? `, variety_id = ${newVarId}, expert_id = fn_resolve_expert_for_variety(${newVarId})` : '';
 
               const sql = `
 DO $$
 DECLARE
   v_contract_id INT;
   v_new_end DATE := NULLIF('${newEndDate}', '')::date;
+  v_variety_id INT;
+  v_mode VARCHAR(20);
+  v_staff_id INT;
+  v_season_start DATE;
 BEGIN
   SELECT contract_id INTO v_contract_id FROM rentals WHERE rental_id = ${rentalId};
   IF v_contract_id IS NOT NULL THEN
@@ -4868,8 +5082,45 @@ BEGIN
       end_date = COALESCE(GREATEST(end_date, v_new_end), end_date + INTERVAL '40 days'),
       term_months = GREATEST(COALESCE(term_months, 1), ROUND((COALESCE(GREATEST(end_date, v_new_end), end_date + INTERVAL '40 days')::date - start_date) / 30.0)::int),
       total_price = COALESCE(total_price, 0) + ${additionalAmount},
-      updated_at = NOW()
+      updated_at = NOW()${varClause}
     WHERE rental_id = ${rentalId};
+
+    -- BR11b: vụ mới phải có bộ nhiệm vụ VietGAP riêng, nếu không CVLĐ không có việc và nhật ký trống.
+    -- Mốc ngày xuống giống vụ mới = hôm nay + 4 ngày phơi ải (BR23).
+    SELECT variety_id, cultivation_mode, staff_id
+      INTO v_variety_id, v_mode, v_staff_id
+      FROM rentals WHERE rental_id = ${rentalId};
+
+    IF COALESCE(v_mode, 'ASSISTED') <> 'SELF' THEN
+      v_season_start := CURRENT_DATE + INTERVAL '4 days';
+
+      INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
+      SELECT
+        ${rentalId},
+        ts.step_id,
+        COALESCE(v_staff_id, fn_resolve_staff_for_plot((SELECT plot_id FROM rentals WHERE rental_id = ${rentalId}))),
+        (v_season_start + (ts.day_offset || ' days')::INTERVAL)::date,
+        'PENDING'::task_status_enum,
+        ts.step_name,
+        COALESCE(ts.description, 'Theo quy chuẩn VietGAP'),
+        ts.step_order,
+        NOW(),
+        NOW()
+      FROM template_steps ts
+      WHERE ts.template_id = (
+        SELECT pt.template_id FROM process_templates pt
+        WHERE pt.variety_id = v_variety_id
+        ORDER BY pt.template_id DESC LIMIT 1
+      )
+      -- Chống sinh trùng khi khách bấm gia hạn 2 lần: so khớp đúng mốc ngày tính được,
+      -- không chặn theo "có task tương lai" vì task vụ đang chạy cũng nằm ở tương lai.
+      AND NOT EXISTS (
+        SELECT 1 FROM care_tasks ct
+        WHERE ct.rental_id = ${rentalId}
+          AND ct.step_id = ts.step_id
+          AND ct.due_date = (v_season_start + (ts.day_offset || ' days')::INTERVAL)::date
+      );
+    END IF;
 
     UPDATE contracts
     SET
@@ -4888,7 +5139,7 @@ END $$;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
-                message: 'Gia hạn hợp đồng thuê thửa đất theo vụ mùa thành công (BR12)',
+                message: 'Gia hạn hợp đồng thuê thửa đất theo vụ mùa thành công',
                 data: { rentalId, newEndDate, additionalAmount }
               }));
             } catch (err) {
@@ -4896,6 +5147,332 @@ END $$;
               res.statusCode = 500;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+          });
+          return;
+        }
+
+        // 17D. SIMULATE CULTIVATION TIME FOR DEMO (POST /api/rentals/:id/simulate-time & POST /api/plots/:id/simulate-time)
+        if (req.method === 'POST' && (url.match(/^\/api\/(?:v1\/)?rentals\/(\d+)\/simulate-time/) || url.match(/^\/api\/(?:v1\/)?plots\/(\d+)\/simulate-time/))) {
+          const isPlotRoute = url.includes('/plots/');
+          const rawId = parseInt(url.match(/^\/api\/(?:v1\/)?(?:rentals|plots)\/(\d+)\/simulate-time/)[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const action = String(payload.action || 'START_NOW').toUpperCase();
+
+              // Resolve rental_id
+              let rentalId = rawId;
+              if (isPlotRoute) {
+                const findRentSql = `
+                  SELECT COALESCE(
+                    (
+                      SELECT json_build_object('rentalId', rental_id)
+                      FROM rentals 
+                      WHERE plot_id = ${rawId} AND status IN ('ACTIVE', 'CONFIRMED', 'RENTED', 'IN_PROGRESS', 'PENDING')
+                      ORDER BY rental_id DESC 
+                      LIMIT 1
+                    ),
+                    '{}'::json
+                  );
+                `;
+                const rentRes = await runPostgreSql(findRentSql);
+                const parsed = typeof rentRes === 'string' ? JSON.parse(rentRes || '{}') : rentRes;
+                rentalId = Number(parsed?.rentalId || (Array.isArray(parsed) ? parsed[0]?.rentalId : parsed));
+                if (!rentalId || isNaN(rentalId)) {
+                  res.statusCode = 400;
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.end(JSON.stringify({ success: false, message: 'Thửa đất này hiện chưa có hợp đồng thuê hoặc chưa canh tác' }));
+                  return;
+                }
+              }
+
+              // Fetch current rental details
+              const rentalSql = `
+                SELECT row_to_json(r) FROM (
+                  SELECT 
+                    r.rental_id, r.plot_id, r.start_date, r.end_date, r.variety_id,
+                    COALESCE(v.expected_duration, 45) AS expected_duration,
+                    COALESCE(v.variety_name, 'Cây trồng') AS variety_name,
+                    p.plot_code
+                  FROM rentals r
+                  JOIN plots p ON r.plot_id = p.plot_id
+                  LEFT JOIN varieties v ON r.variety_id = v.variety_id
+                  WHERE r.rental_id = ${rentalId}
+                ) r;
+              `;
+              const rentalRaw = await runPostgreSql(rentalSql);
+              const rental = typeof rentalRaw === 'string' ? JSON.parse(rentalRaw || '{}') : rentalRaw;
+              if (!rental || !rental.rental_id) {
+                res.statusCode = 404;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Không tìm thấy thông tin hợp đồng thuê' }));
+                return;
+              }
+
+              const totalDays = Number(rental.expected_duration) || 45;
+              let message = '';
+
+              if (action === 'START_NOW' || action === 'RESET') {
+                await runPostgreSql(`
+                  UPDATE rentals 
+                  SET start_date = CURRENT_DATE, status = 'ACTIVE' 
+                  WHERE rental_id = ${rentalId};
+                `);
+                await runPostgreSql(`UPDATE plots SET status = 'RENT' WHERE plot_id = ${rental.plot_id};`);
+                
+                // Xóa sạch biên bản thu hoạch và các bài nhật ký tự sinh khi reset về Ngày 1
+                await runPostgreSql(`DELETE FROM harvest_results WHERE rental_id = ${rentalId};`);
+                await runPostgreSql(`DELETE FROM farm_diaries WHERE rental_id = ${rentalId};`);
+
+                // Reset toàn bộ care_tasks về PENDING (chỉ Ngày 1 là IN_PROG), xóa sạch ảnh minh chứng & thời gian hoàn thành cũ
+                await runPostgreSql(`
+                  UPDATE care_tasks
+                  SET 
+                    due_date = (CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
+                    status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+                    evidence_image_url = NULL,
+                    updated_at = NOW()
+                  FROM template_steps ts
+                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = ${rentalId};
+                `);
+
+                await runPostgreSql(`
+                  UPDATE care_tasks
+                  SET 
+                    status = 'PENDING'::task_status_enum,
+                    evidence_image_url = NULL,
+                    updated_at = NOW()
+                  WHERE rental_id = ${rentalId} AND (step_id IS NULL OR step_id NOT IN (SELECT step_id FROM template_steps WHERE day_offset = 0));
+                `);
+
+                cachedPlotsData = null;
+                message = `Đã kích hoạt canh tác ngay hôm nay cho thửa ${rental.plot_code} (Ngày 1/${totalDays})`;
+              } else if (action === 'ADD_DAYS') {
+                const days = Math.max(1, Number(payload.days) || 7);
+                await runPostgreSql(`
+                  UPDATE rentals 
+                  SET start_date = start_date - INTERVAL '${days} days' 
+                  WHERE rental_id = ${rentalId};
+                `);
+                await runPostgreSql(`
+                  UPDATE care_tasks
+                  SET 
+                    due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
+                    status = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%') AND NOT EXISTS (SELECT 1 FROM harvest_results hr WHERE hr.rental_id = ${rentalId}) THEN 'IN_PROG'::task_status_enum
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN 'DONE'::task_status_enum
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date = CURRENT_DATE THEN 'IN_PROG'::task_status_enum
+                      ELSE 'PENDING'::task_status_enum
+                    END,
+                    evidence_image_url = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%') AND NOT EXISTS (SELECT 1 FROM harvest_results hr WHERE hr.rental_id = ${rentalId}) THEN NULL
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
+                      ELSE NULL
+                    END,
+                    updated_at = NOW()
+                  FROM template_steps ts, rentals r
+                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
+                `);
+
+                // Đồng bộ farm_diaries
+                await runPostgreSql(`
+                  DELETE FROM farm_diaries 
+                  WHERE rental_id = ${rentalId} 
+                    AND task_id IN (SELECT task_id FROM care_tasks WHERE rental_id = ${rentalId} AND status != 'DONE');
+                `);
+                await runPostgreSql(`
+                  INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
+                  SELECT 
+                    ct.rental_id,
+                    ct.task_id,
+                    COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
+                    COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
+                    COALESCE(ct.step_order, ts.step_order, 1),
+                    ct.evidence_image_url,
+                    NOW()
+                  FROM care_tasks ct
+                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+                  WHERE ct.rental_id = ${rentalId} AND ct.status = 'DONE'
+                    AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.task_id = ct.task_id);
+                `);
+
+                message = `Đã tua nhanh +${days} ngày canh tác cho thửa ${rental.plot_code}`;
+              } else if (action === 'HARVEST') {
+                const offset = totalDays - 1;
+                await runPostgreSql(`
+                  UPDATE rentals 
+                  SET start_date = CURRENT_DATE - INTERVAL '${offset} days', status = 'ACTIVE' 
+                  WHERE rental_id = ${rentalId};
+                `);
+
+                // Xóa bất kỳ biên bản thu hoạch cũ nào trước đó để đảm bảo khi tua tới Ngày thu hoạch,
+                // task thu hoạch ở trạng thái IN_PROG và nhân viên/khách hàng phải thực hiện thu hoạch thật!
+                await runPostgreSql(`DELETE FROM harvest_results WHERE rental_id = ${rentalId};`);
+                await runPostgreSql(`DELETE FROM farm_diaries WHERE rental_id = ${rentalId} AND title ILIKE '%thu hoạch%';`);
+
+                await runPostgreSql(`
+                  UPDATE care_tasks
+                  SET 
+                    due_date = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN CURRENT_DATE
+                      ELSE (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date
+                    END,
+                    status = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN 'IN_PROG'::task_status_enum
+                      ELSE 'DONE'::task_status_enum
+                    END,
+                    evidence_image_url = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN NULL
+                      ELSE COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
+                    END,
+                    updated_at = NOW()
+                  FROM template_steps ts, rentals r
+                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
+                `);
+
+                // Cập nhật cả các nhiệm vụ không gắn template_steps (dịch vụ, sự cố phát sinh) về trạng thái phù hợp
+                await runPostgreSql(`
+                  UPDATE care_tasks
+                  SET 
+                    status = CASE 
+                      WHEN title ILIKE '%thu hoạch%' THEN 'IN_PROG'::task_status_enum
+                      ELSE 'DONE'::task_status_enum
+                    END,
+                    evidence_image_url = CASE 
+                      WHEN title ILIKE '%thu hoạch%' THEN NULL
+                      ELSE COALESCE(evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
+                    END,
+                    updated_at = NOW()
+                  WHERE rental_id = ${rentalId} AND step_id IS NULL;
+                `);
+
+                // Đồng bộ farm_diaries
+                await runPostgreSql(`
+                  DELETE FROM farm_diaries 
+                  WHERE rental_id = ${rentalId} 
+                    AND task_id IN (SELECT task_id FROM care_tasks WHERE rental_id = ${rentalId} AND status != 'DONE');
+                `);
+                await runPostgreSql(`
+                  INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
+                  SELECT 
+                    ct.rental_id,
+                    ct.task_id,
+                    COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
+                    COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
+                    COALESCE(ct.step_order, ts.step_order, 1),
+                    ct.evidence_image_url,
+                    NOW()
+                  FROM care_tasks ct
+                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+                  WHERE ct.rental_id = ${rentalId} AND ct.status = 'DONE'
+                    AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.task_id = ct.task_id);
+                `);
+
+                message = `Đã giả lập thửa ${rental.plot_code} đến ngày thu hoạch (Ngày ${totalDays}/${totalDays})! Nhiệm vụ thu hoạch đã sẵn sàng cho CVLĐ và Khách hàng.`;
+              } else if (action === 'SET_DAY') {
+                const day = Math.max(1, Number(payload.day !== undefined ? payload.day : payload.days) || 1);
+                const offset = day - 1;
+                await runPostgreSql(`
+                  UPDATE rentals 
+                  SET start_date = CURRENT_DATE - INTERVAL '${offset} days', status = 'ACTIVE' 
+                  WHERE rental_id = ${rentalId};
+                `);
+
+                if (day >= totalDays) {
+                  await runPostgreSql(`DELETE FROM harvest_results WHERE rental_id = ${rentalId};`);
+                  await runPostgreSql(`DELETE FROM farm_diaries WHERE rental_id = ${rentalId} AND title ILIKE '%thu hoạch%';`);
+                }
+
+                await runPostgreSql(`
+                  UPDATE care_tasks
+                  SET 
+                    due_date = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) AND ${day} >= ${totalDays} THEN CURRENT_DATE
+                      ELSE (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date
+                    END,
+                    status = CASE 
+                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN (
+                        CASE WHEN ${day} >= ${totalDays} THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END
+                      )
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN 'DONE'::task_status_enum
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date = CURRENT_DATE THEN 'IN_PROG'::task_status_enum
+                      ELSE 'PENDING'::task_status_enum
+                    END,
+                    evidence_image_url = CASE 
+                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
+                      ELSE NULL
+                    END,
+                    updated_at = NOW()
+                  FROM template_steps ts, rentals r
+                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
+                `);
+
+                // Đồng bộ farm_diaries
+                await runPostgreSql(`
+                  DELETE FROM farm_diaries 
+                  WHERE rental_id = ${rentalId} 
+                    AND task_id IN (SELECT task_id FROM care_tasks WHERE rental_id = ${rentalId} AND status != 'DONE');
+                `);
+                await runPostgreSql(`
+                  INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
+                  SELECT 
+                    ct.rental_id,
+                    ct.task_id,
+                    COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
+                    COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
+                    COALESCE(ct.step_order, ts.step_order, 1),
+                    ct.evidence_image_url,
+                    NOW()
+                  FROM care_tasks ct
+                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+                  WHERE ct.rental_id = ${rentalId} AND ct.status = 'DONE'
+                    AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.task_id = ct.task_id);
+                `);
+
+                message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays}`;
+              }
+
+              const checkSql = `
+                SELECT row_to_json(r) FROM (
+                  SELECT 
+                    r.rental_id AS "rentalId",
+                    r.plot_id AS "plotId",
+                    p.plot_code AS "plotCode",
+                    COALESCE(v.variety_name, 'Cây trồng') AS "varietyName",
+                    TO_CHAR(r.start_date, 'YYYY-MM-DD') AS "startDate",
+                    TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "endDate",
+                    CASE 
+                      WHEN CURRENT_DATE < r.start_date THEN 0
+                      ELSE (CURRENT_DATE - r.start_date) + 1
+                    END AS "currentDay",
+                    COALESCE(v.expected_duration, 45) AS "totalDays",
+                    CASE
+                      WHEN CURRENT_DATE < r.start_date THEN 0
+                      ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - r.start_date + 1)::numeric / NULLIF(COALESCE(v.expected_duration, 45), 0)::numeric) * 100)))
+                    END AS "progressPercent"
+                  FROM rentals r
+                  JOIN plots p ON r.plot_id = p.plot_id
+                  LEFT JOIN varieties v ON r.variety_id = v.variety_id
+                  WHERE r.rental_id = ${rentalId}
+                ) r;
+              `;
+              const updatedRaw = await runPostgreSql(checkSql);
+              const updatedData = typeof updatedRaw === 'string' ? JSON.parse(updatedRaw || '{}') : updatedRaw;
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message,
+                data: updatedData
+              }));
+            } catch (err) {
+              console.error('Lỗi khi giả lập thời gian canh tác:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Lỗi server: ' + err.message }));
             }
           });
           return;
@@ -4924,6 +5501,7 @@ END $$;
             if (rentalIdParam && parseInt(rentalIdParam, 10)) {
               taskWhere.push(`ct.rental_id = ${parseInt(rentalIdParam, 10)}`);
             }
+            taskWhere.push(`(ct.title NOT ILIKE '%Thiết lập thời gian cách ly%' AND ct.title NOT ILIKE '%cách ly an toàn VietGAP trước thu hoạch%')`);
             const taskWhereSql = taskWhere.length > 0 ? `WHERE ${taskWhere.join(' AND ')}` : '';
 
             const sql = `
@@ -4968,11 +5546,14 @@ SELECT json_build_object(
         TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS date,
         COALESCE(ts.day_offset, 0) AS "dayOffset",
         CASE
-          WHEN ts.day_offset IS NOT NULL AND ts.day_offset > 0 THEN ts.day_offset
-          WHEN ts.day_offset = 0 THEN 1
+          WHEN ts.day_offset IS NOT NULL THEN ts.day_offset + 1
           WHEN rent.start_date IS NOT NULL AND ct.due_date IS NOT NULL THEN GREATEST(1, DATE(ct.due_date) - DATE(rent.start_date) + 1)
           ELSE 1
         END AS "cropDay",
+        CASE
+          WHEN rent.start_date IS NOT NULL THEN GREATEST(1, CURRENT_DATE - DATE(rent.start_date) + 1)
+          ELSE 1
+        END AS "plotCurrentDay",
         COALESCE(ct.step_order, ts.step_order, 1) AS "stepOrder",
         ts.duration_days AS "durationDays",
         '08:30 AM' AS deadline,
@@ -4987,7 +5568,7 @@ SELECT json_build_object(
           WHEN ct.notes IS NOT NULL AND ct.notes NOT LIKE '%Thửa ' || p.plot_code THEN ct.notes
           ELSE 'Tuân thủ định mức kỹ thuật VietGAP và hướng dẫn chuyên gia. Kiểm tra độ ẩm đất qua trạm IoT trước khi thực hiện.'
         END AS instructions,
-        TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') AS "completedAt"
+        CASE WHEN ct.status = 'DONE' THEN TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') ELSE NULL END AS "completedAt"
       FROM care_tasks ct
       JOIN rentals rent ON ct.rental_id = rent.rental_id
       JOIN plots p ON rent.plot_id = p.plot_id
@@ -5070,7 +5651,7 @@ RETURNING task_id, rental_id, status, step_order, title, notes, evidence_image_u
               let taskRow = null;
               try { taskRow = Array.isArray(updateRes) ? updateRes[0] : (typeof updateRes === 'string' ? JSON.parse(updateRes) : updateRes); } catch { }
 
-              // TỰ ĐỘNG ĐỒNG BỘ VÀO NHẬT KÝ NÔNG TRẠI (farm_diaries) KHI NGHIỆM THU HOÀN THÀNH (BR17) HOẶC CÓ MINH CHỨNG
+              // TỰ ĐỘNG ĐỒNG BỘ VÀO NHẬT KÝ NÔNG TRẠI (farm_diaries) KHI HOÀN THÀNH HOẶC CÓ MINH CHỨNG
               if (isComplete || payload.syncToDiary || proof) {
                 try {
                   const detailSql = `
@@ -5079,7 +5660,7 @@ SELECT
   ct.rental_id,
   COALESCE(ct.step_order, ts.step_order, 1) AS step_order,
   COALESCE(ct.title, ts.step_name, ct.notes, 'Nhiệm vụ chăm sóc hiện trường') AS title,
-  COALESCE(ct.notes, ts.description, 'Đã hoàn tất nghiệm thu đạt chuẩn VietGAP') AS notes,
+  COALESCE(ct.notes, ts.description, 'Đã hoàn thành công việc') AS notes,
   COALESCE(ct.evidence_image_url, '${proof ? proof.replace(/'/g, "''") : ''}') AS evidence_image_url
 FROM care_tasks ct
 LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
@@ -5096,7 +5677,7 @@ LIMIT 1;
                   const rId = taskDetail?.rental_id || taskRow?.rental_id || payload.rentalId || 1;
                   const sOrder = taskDetail?.step_order || taskRow?.step_order || payload.stepOrder || 1;
                   const taskTitle = (taskDetail?.title || taskRow?.title || payload.title || 'Nhiệm vụ chăm sóc hiện trường').replace(/'/g, "''");
-                  const taskContent = (payload.notes || payload.taskProofNote || taskDetail?.notes || 'Nhiệm vụ đã được hoàn tất và nghiệm thu đạt tiêu chuẩn VietGAP.').replace(/'/g, "''");
+                  const taskContent = (payload.notes || payload.taskProofNote || taskDetail?.notes || 'Nhiệm vụ đã được hoàn tất.').replace(/'/g, "''");
                   const diaryImg = (proof || taskDetail?.evidence_image_url || taskRow?.evidence_image_url || '').replace(/'/g, "''");
 
                   const syncDiarySql = `
@@ -5129,7 +5710,7 @@ END $$;
               res.end(JSON.stringify({
                 success: true,
                 message: isComplete
-                  ? `Nghiệm thu nhiệm vụ #${taskId} thành công và đã tự động đồng bộ vào nhật ký nông trại`
+                  ? `Hoàn thành nhiệm vụ #${taskId} thành công và đã tự động đồng bộ vào nhật ký nông trại`
                   : `Cập nhật nhiệm vụ #${taskId} thành công`,
                 data: taskRow
               }));
@@ -5366,7 +5947,7 @@ SELECT json_build_object(
   'message', 'Lấy danh sách hội thoại thành công từ PostgreSQL',
   'data', (
     SELECT COALESCE(json_agg(row_to_json(c_list)), '[]'::json) FROM (
-      SELECT 
+      SELECT DISTINCT ON (c.participant_one, c.participant_two, c.type)
         c.conversation_id AS "conversationId",
         'CONS-' || c.conversation_id AS id,
         c.type,
@@ -5415,7 +5996,7 @@ SELECT json_build_object(
       LEFT JOIN plots p ON COALESCE(c.plot_id, r.plot_id) = p.plot_id
       LEFT JOIN varieties v ON r.variety_id = v.variety_id
       ${whereClause}
-      ORDER BY c.conversation_id DESC
+      ORDER BY c.participant_one, c.participant_two, c.type, c.conversation_id DESC
     ) c_list
   )
 ) as result;
@@ -5788,6 +6369,32 @@ END $$;
           return;
         }
 
+        if (req.method === 'DELETE' && (url === '/api/issue-reports' || url === '/api/v1/issue-reports' || url === '/api/issues' || url === '/api/v1/issues' || url.match(/^\/api\/(?:v1\/)?(?:issue-reports|issues)\/(\d+)/))) {
+          try {
+            const match = url.match(/^\/api\/(?:v1\/)?(?:issue-reports|issues)\/(\d+)/);
+            if (match) {
+              const issueId = parseInt(match[1], 10);
+              await runPostgreSql(`
+                DELETE FROM care_tasks WHERE notes LIKE '%[ISS-' || ${issueId} || ']%' OR notes LIKE '%[ISSUE-' || ${issueId} || ']%';
+                DELETE FROM issue_reports WHERE issue_id = ${issueId};
+              `);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: `Đã xóa sự cố #${issueId}` }));
+            } else {
+              await runPostgreSql(`
+                DELETE FROM care_tasks WHERE notes LIKE '%[ISS-%' OR notes LIKE '%[CHỈ ĐẠO CGNN]%';
+                DELETE FROM issue_reports;
+              `);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Đã xóa toàn bộ báo cáo sự cố hiện trường' }));
+            }
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
         // 20B. SERVICE REQUESTS API (GET, PUT /api/services/requests)
         if (req.method === 'GET' && (url === '/api/services/requests' || url === '/api/v1/services/requests' || url.startsWith('/api/services/requests?') || url.startsWith('/api/v1/services/requests?'))) {
           try {
@@ -5867,7 +6474,8 @@ SELECT json_build_object(
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const workerId = parseInt(payload.workerId || payload.worker_id || 8, 10);
+              const workerId = parseInt(payload.workerId || payload.worker_id || 0, 10);
+              if (!workerId) { res.statusCode = 400; res.end(JSON.stringify({ success: false, error: 'Cần chọn CVLĐ thực hiện dịch vụ' })); return; }
               const schedDate = payload.scheduledDate || payload.scheduled_date;
               const notes = (payload.notes || 'Thực hiện dịch vụ theo chỉ định của Quản trị viên').replace(/'/g, "''");
 
@@ -5955,6 +6563,15 @@ END $$;
         // 21. SERVICES API (GET /api/services)
         if (req.method === 'GET' && (url === '/api/services' || url === '/api/v1/services' || url.startsWith('/api/services?') || url.startsWith('/api/v1/services?'))) {
           try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const statusParam = (urlObj.searchParams.get('status') || '').toUpperCase();
+            let whereClause = '';
+            if (statusParam === 'ACTIVE') {
+              whereClause = "WHERE status = 'ACTIVE'";
+            } else if (statusParam === 'INACTIVE') {
+              whereClause = "WHERE status = 'INACTIVE'";
+            }
+
             const sql = `
 SELECT json_build_object(
   'success', true,
@@ -5967,6 +6584,7 @@ SELECT json_build_object(
         'SVC-' || LPAD(service_id::text, 2, '0') AS id,
         service_code AS "serviceCode",
         service_name AS name,
+        service_name AS "serviceName",
         service_type AS "serviceType",
         CASE 
           WHEN service_type = 'FULL' THEN 'Trọn vụ'
@@ -5981,10 +6599,12 @@ SELECT json_build_object(
         price,
         unit,
         description,
+        status,
         (status = 'ACTIVE') AS active,
         1 AS duration,
         json_build_array(json_build_object('offset', 0, 'title', 'Thực hiện ' || service_name, 'assignee', 'STAFF', 'evidence', true)) AS tasks
       FROM services
+      ${whereClause}
       ORDER BY service_id ASC
     ) s
   )
@@ -5996,6 +6616,255 @@ SELECT json_build_object(
           } catch (err) {
             res.statusCode = 500;
             res.end(JSON.stringify({ success: false, error: String(err) }));
+          }
+          return;
+        }
+
+        // 21.0A POST /api/services & /api/v1/services (Create New Master Service)
+        if (req.method === 'POST' && (url === '/api/services' || url === '/api/v1/services' || url.startsWith('/api/services?') || url.startsWith('/api/v1/services?'))) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const name = (payload.serviceName || payload.name || '').trim();
+              if (!name) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Tên dịch vụ không được để trống' }));
+                return;
+              }
+
+              const rawType = String(payload.serviceType || payload.customerCategory || 'A_LA_CARTE').toUpperCase();
+              const serviceType = rawType.includes('FULL') ? 'FULL' : 'A_LA_CARTE';
+              const price = Math.max(0, Number(payload.price) || 0);
+              const unit = (payload.unit || 'lần/luống').trim();
+              const desc = (payload.description || '').trim();
+              const status = (payload.status === 'INACTIVE' || payload.active === false) ? 'INACTIVE' : 'ACTIVE';
+
+              // Synchronize sequence with current max ID
+              await runPostgreSql(`SELECT setval('services_service_id_seq', (SELECT COALESCE(MAX(service_id), 1) FROM services));`).catch(() => {});
+
+              // Auto-generate next service_code SXX
+              const maxRes = await runPostgreSql(`SELECT COALESCE(MAX(service_id), 0) + 1 AS next_id FROM services;`);
+              let nextId = 16;
+              try {
+                const parsed = typeof maxRes === 'string' ? JSON.parse(maxRes) : maxRes;
+                nextId = Number(parsed[0]?.next_id || parsed?.next_id) || 16;
+              } catch {
+                nextId = 16;
+              }
+              const serviceCode = payload.serviceCode || `S${String(nextId).padStart(2, '0')}`;
+
+              const sql = `
+WITH inserted AS (
+  INSERT INTO services (service_code, service_name, service_type, price, unit, description, status)
+  VALUES (
+    '${serviceCode.replace(/'/g, "''")}',
+    '${name.replace(/'/g, "''")}',
+    '${serviceType}',
+    ${price},
+    '${unit.replace(/'/g, "''")}',
+    '${desc.replace(/'/g, "''")}',
+    '${status}'
+  )
+  RETURNING *
+)
+SELECT row_to_json(s) FROM (
+  SELECT 
+    service_id AS "serviceId",
+    service_id AS "dbId",
+    'SVC-' || LPAD(service_id::text, 2, '0') AS id,
+    service_code AS "serviceCode",
+    service_name AS name,
+    service_name AS "serviceName",
+    service_type AS "serviceType",
+    CASE 
+      WHEN service_type = 'FULL' THEN 'Trọn vụ'
+      WHEN service_type = 'CYCLE' THEN 'Chăm sóc định kỳ'
+      ELSE 'Dịch vụ một lần'
+    END AS category,
+    CASE 
+      WHEN service_type = 'FULL' THEN 'FULL'
+      WHEN service_type = 'CYCLE' THEN 'CYCLE'
+      ELSE 'SINGLE'
+    END AS "customerCategory",
+    price,
+    unit,
+    description,
+    status,
+    (status = 'ACTIVE') AS active,
+    1 AS duration,
+    json_build_array(json_build_object('offset', 0, 'title', 'Thực hiện ' || service_name, 'assignee', 'STAFF', 'evidence', true)) AS tasks
+  FROM inserted
+) s;
+`;
+              const rawCreated = await runPostgreSql(sql);
+              let createdRow = {};
+              try {
+                createdRow = typeof rawCreated === 'string' ? JSON.parse(rawCreated) : rawCreated;
+              } catch {
+                createdRow = { name, serviceName: name, price, unit, status, serviceCode };
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: `Tạo dịch vụ "${name}" thành công và đã lưu vào CSDL`,
+                data: createdRow
+              }));
+            } catch (err) {
+              console.error('Lỗi khi tạo dịch vụ:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Lỗi khi lưu dịch vụ vào CSDL: ' + err.message }));
+            }
+          });
+          return;
+        }
+
+        // 21.0B PUT /api/services/:id & /api/v1/services/:id (Update or Toggle Service)
+        if (req.method === 'PUT' && (url.startsWith('/api/services/') || url.startsWith('/api/v1/services/')) && !url.includes('/requests') && !url.includes('/checkout')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const urlPath = url.split('?')[0];
+              const idRaw = urlPath.split('/').pop();
+              const numId = parseInt(String(idRaw).replace(/\D/g, ''), 10);
+              if (!numId) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Mã dịch vụ không hợp lệ' }));
+                return;
+              }
+
+              const payload = JSON.parse(body || '{}');
+              const updates = [];
+              if (payload.serviceName || payload.name) {
+                const name = (payload.serviceName || payload.name).trim();
+                updates.push(`service_name = '${name.replace(/'/g, "''")}'`);
+              }
+              if (payload.serviceType) {
+                const rawType = String(payload.serviceType).toUpperCase();
+                const sType = rawType.includes('FULL') ? 'FULL' : 'A_LA_CARTE';
+                updates.push(`service_type = '${sType}'`);
+              }
+              if (payload.price !== undefined) {
+                updates.push(`price = ${Math.max(0, Number(payload.price) || 0)}`);
+              }
+              if (payload.unit !== undefined) {
+                updates.push(`unit = '${String(payload.unit).trim().replace(/'/g, "''")}'`);
+              }
+              if (payload.description !== undefined) {
+                updates.push(`description = '${String(payload.description).trim().replace(/'/g, "''")}'`);
+              }
+              if (payload.status !== undefined) {
+                const sStatus = String(payload.status).toUpperCase() === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+                updates.push(`status = '${sStatus}'`);
+              }
+
+              if (updates.length === 0) {
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: true, message: 'Không có thông tin cần cập nhật' }));
+                return;
+              }
+
+              const sql = `
+WITH updated AS (
+  UPDATE services
+  SET ${updates.join(', ')}
+  WHERE service_id = ${numId}
+  RETURNING *
+)
+SELECT row_to_json(s) FROM (
+  SELECT 
+    service_id AS "serviceId",
+    service_id AS "dbId",
+    'SVC-' || LPAD(service_id::text, 2, '0') AS id,
+    service_code AS "serviceCode",
+    service_name AS name,
+    service_name AS "serviceName",
+    service_type AS "serviceType",
+    CASE 
+      WHEN service_type = 'FULL' THEN 'Trọn vụ'
+      WHEN service_type = 'CYCLE' THEN 'Chăm sóc định kỳ'
+      ELSE 'Dịch vụ một lần'
+    END AS category,
+    CASE 
+      WHEN service_type = 'FULL' THEN 'FULL'
+      WHEN service_type = 'CYCLE' THEN 'CYCLE'
+      ELSE 'SINGLE'
+    END AS "customerCategory",
+    price,
+    unit,
+    description,
+    status,
+    (status = 'ACTIVE') AS active,
+    1 AS duration,
+    json_build_array(json_build_object('offset', 0, 'title', 'Thực hiện ' || service_name, 'assignee', 'STAFF', 'evidence', true)) AS tasks
+  FROM updated
+) s;
+`;
+              const rawUpdated = await runPostgreSql(sql);
+              let updatedRow = {};
+              try {
+                updatedRow = typeof rawUpdated === 'string' ? JSON.parse(rawUpdated) : rawUpdated;
+              } catch {
+                updatedRow = { serviceId: numId };
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Cập nhật dịch vụ thành công',
+                data: updatedRow
+              }));
+            } catch (err) {
+              console.error('Lỗi khi cập nhật dịch vụ:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Lỗi khi cập nhật dịch vụ: ' + err.message }));
+            }
+          });
+          return;
+        }
+
+        // 21.0C DELETE /api/services/:id & /api/v1/services/:id (Delete or Inactivate Service)
+        if (req.method === 'DELETE' && (url.startsWith('/api/services/') || url.startsWith('/api/v1/services/')) && !url.includes('/requests')) {
+          try {
+            const urlPath = url.split('?')[0];
+            const idRaw = urlPath.split('/').pop();
+            const numId = parseInt(String(idRaw).replace(/\D/g, ''), 10);
+            if (!numId) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Mã dịch vụ không hợp lệ' }));
+              return;
+            }
+
+            const checkSql = `SELECT count(*)::int AS cnt FROM service_requests WHERE service_id = ${numId};`;
+            const checkRes = await runPostgreSql(checkSql);
+            let hasRequests = false;
+            try {
+              const parsed = typeof checkRes === 'string' ? JSON.parse(checkRes) : checkRes;
+              hasRequests = (parsed[0]?.cnt || parsed?.cnt || 0) > 0;
+            } catch {}
+
+            if (hasRequests) {
+              await runPostgreSql(`UPDATE services SET status = 'INACTIVE' WHERE service_id = ${numId};`);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Dịch vụ đã có đơn yêu cầu nên đã chuyển sang trạng thái tạm ẩn (INACTIVE)' }));
+            } else {
+              await runPostgreSql(`DELETE FROM services WHERE service_id = ${numId};`);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, message: 'Đã xóa dịch vụ khỏi CSDL' }));
+            }
+          } catch (err) {
+            console.error('Lỗi khi xóa dịch vụ:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: 'Lỗi khi xóa dịch vụ: ' + err.message }));
           }
           return;
         }
@@ -6046,9 +6915,9 @@ DECLARE
   v_notes TEXT := '${notes}';
   v_svc_name TEXT := '${serviceName}';
 BEGIN
-  -- 1. Update service_requests status to ASSIGNED
+  -- Payment creates a task; Admin can assign a worker afterward.
   UPDATE service_requests
-  SET status = 'ASSIGNED', scheduled_date = v_sched_date
+  SET status = 'PENDING', scheduled_date = v_sched_date
   WHERE request_id = v_req_id;
 
   -- 2. Update payment_transactions status to SUCCESS
@@ -6071,9 +6940,8 @@ BEGIN
     END IF;
 
     -- Tự động lấy nhân viên phụ trách của thửa đất hoặc theo Zone của thửa
-    SELECT COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8) INTO v_worker_id 
+    SELECT r.staff_id INTO v_worker_id
     FROM rentals r WHERE r.rental_id = v_rental_id;
-    IF v_worker_id IS NULL THEN v_worker_id := 8; END IF;
 
     INSERT INTO care_tasks (rental_id, service_request_id, task_assigned_to, due_date, status, title, notes, created_at, updated_at)
     VALUES (
@@ -6106,7 +6974,7 @@ ins_req AS (
     (SELECT id FROM resolved_rental),
     ${serviceId},
     '${scheduledDate}'::date,
-    'ASSIGNED',
+    'PENDING',
     NOW()
   )
   RETURNING request_id, rental_id, service_id, scheduled_date, status
@@ -6129,7 +6997,7 @@ ins_task AS (
   SELECT 
     ins_req.rental_id, 
     ins_req.request_id, 
-    COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8), 
+    r.staff_id,
     ins_req.scheduled_date, 
     'PENDING'::task_status_enum, 
     '${serviceName}',
@@ -6798,7 +7666,7 @@ GROUP BY p.plot_id, p.plot_code;
               rainfallProbability: 85,
               windSpeed: 14.2,
               wateringPostponementRecommended: true,
-              recommendationMessage: 'Quy tắc BR18: Xác suất mưa dông đạt 85% chiều nay (kết hợp độ ẩm đất 76%). Hệ thống đề xuất tạm hoãn ca tưới 16:30 để tiết kiệm nước và phòng ngừa ngập úng gốc rễ.',
+              recommendationMessage: 'Xác suất mưa dông đạt 85% chiều nay (kết hợp độ ẩm đất 76%). Hệ thống đề xuất tạm hoãn ca tưới 16:30 để tiết kiệm nước và phòng ngừa ngập úng gốc rễ.',
               forecastDays: [
                 { date: '2026-10-21', dayOfWeek: 'Hôm nay', condition: 'Mưa dông chiều', iconCode: 'RAIN', minTemp: 26.0, maxTemp: 32.5, rainProb: 85 },
                 { date: '2026-10-22', dayOfWeek: 'Thứ Năm', condition: 'Nắng ráo gián đoạn', iconCode: 'PARTLY_CLOUDY', minTemp: 25.5, maxTemp: 34.0, rainProb: 40 },
@@ -6889,9 +7757,9 @@ GROUP BY p.plot_id, p.plot_code;
                 const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('xà lách') || item.title.toLowerCase().includes('rau')) || liveRagDocs[0];
                 if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94, fileUrl: d.file_url });
               } else if (lower.includes('độ ẩm') || lower.includes('ẩm đất') || lower.includes('tưới nước') || lower.includes('tưới bù') || lower.includes('mưa')) {
-                reply = 'Theo quy tắc vi khí hậu BR18 của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
+                reply = 'Theo quy chuẩn vi khí hậu của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
                 const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('vi khí hậu') || item.title.toLowerCase().includes('tbkt')) || liveRagDocs[1] || liveRagDocs[0];
-                if (d) docs.push({ docTitle: d.title, source: 'Tài liệu Vận hành Trạm IoT Farmely (BR18)', similarityScore: 0.96, fileUrl: d ? d.file_url : '/docs/rau_an_toan_vietgap_huyen.pdf' });
+                if (d) docs.push({ docTitle: d.title, source: 'Tài liệu Vận hành Trạm Khí Tượng Nông Nghiệp Farmely', similarityScore: 0.96, fileUrl: d ? d.file_url : '/docs/rau_an_toan_vietgap_huyen.pdf' });
               } else if (lower.includes('sâu') || lower.includes('rầy') || lower.includes('bọ trĩ') || lower.includes('ốc sên') || lower.includes('bệnh')) {
                 reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Đối với bọ trĩ và rầy mềm thì phun dung dịch tỏi ớt gừng lên men vi sinh hoặc dầu khoáng sinh học SK Enspray 99EC. Đối với ốc sên thì rải vỏ trứng vụn hoặc bẫy sinh học men bia quanh gốc cây.';
                 const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('ipm') || item.title.toLowerCase().includes('qlsb') || item.title.toLowerCase().includes('sâu')) || liveRagDocs[2] || liveRagDocs[0];
@@ -6899,7 +7767,7 @@ GROUP BY p.plot_id, p.plot_code;
               } else if (lower.includes('thuê') || lower.includes('hợp đồng') || lower.includes('giá') || lower.includes('gia hạn')) {
                 reply = 'Quy trình thuê đất tại Farmely: Bạn chọn thửa đất ưng ý trên Marketplace bản đồ vệ tinh, chọn giống rau và gói chăm sóc, thanh toán trực tuyến 100% qua VNPay/VietQR. Hợp đồng điện tử có hiệu lực ngay và bạn có thể gia hạn trước 3 ngày với chiết khấu từ 5% – 15%.';
                 const d = liveRagDocs.find(item => item.title.includes('VietGAP')) || liveRagDocs[0];
-                if (d) docs.push({ docTitle: d.title, source: 'Trung tâm Pháp lý & Hợp đồng Farmely (BR11, BR12)', similarityScore: 0.93, fileUrl: d.file_url });
+                if (d) docs.push({ docTitle: d.title, source: 'Trung tâm Pháp lý & Hợp đồng Farmely', similarityScore: 0.93, fileUrl: d.file_url });
               } else if (matchedDocs.length > 0) {
                 const top = matchedDocs[0];
                 reply = `Dựa trên cẩm nang kỹ thuật "${top.title}": ${top.content ? top.content.slice(0, 260) + '...' : 'Tài liệu hướng dẫn kỹ thuật canh tác chuẩn của nông trại Farmely.'}`;

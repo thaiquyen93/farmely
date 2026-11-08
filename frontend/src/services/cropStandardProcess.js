@@ -719,6 +719,116 @@ export const CROP_STANDARDS = {
         inspectionCriteria: 'Rau dền tươi rói, không dập nát, thân mềm giòn ngọt.'
       }
     ]
+  },
+  'catnip': {
+    cropName: 'Cây mèo dã VietGAP',
+    totalDays: 45,
+    expectedYield: '8 - 12 kg/thửa',
+    optimalConditions: {
+      tempRange: '20 - 28°C',
+      soilMoistureRange: '60 - 70%',
+      airHumidityRange: '60 - 75%',
+      lightRequirement: '45.000 - 60.000 Lux'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Gieo ươm & Hồi xanh rễ non',
+        dayStart: 1,
+        dayEnd: 8,
+        label: 'Ngày 1 - 8',
+        statusDesc: 'Hạt nảy mầm, bén rễ và thích nghi giá thể đất mùn',
+        waterRegime: '1.2 L/m²/ngày (phun sương nhẹ giữ ẩm 65%)',
+        nutrition: 'Kích rễ hữu cơ sinh học loãng (tỷ lệ 1:1000)',
+        guide: 'Giữ đất ẩm nhẹ, che nắng gắt 2 ngày đầu.',
+        pestAlert: 'Đề phòng sâu cắn lá non và ốc sên ban đêm.',
+        inspectionCriteria: 'Mầm cây đứng thẳng, rễ trắng khỏe.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Phát triển thân nhánh & Tán lá thơm',
+        dayStart: 9,
+        dayEnd: 25,
+        label: 'Ngày 9 - 25',
+        statusDesc: 'Tăng trưởng cành lá mạnh, tích lũy tinh dầu thơm tự nhiên',
+        waterRegime: '1.8 L/m²/ngày (tưới nhỏ giọt buổi sáng)',
+        nutrition: 'Bón thúc hữu cơ vi sinh và phân trùn quế',
+        guide: 'Bấm ngọn nhẹ ở nách lá thứ 4 để kích thích đẻ nhánh dày.',
+        pestAlert: 'Bọ trĩ, rệp mềm. Phun dung dịch tỏi ớt sinh học phòng ngừa.',
+        inspectionCriteria: 'Thân cây cứng cáp, tán lá xanh đậm và thơm đặc trưng.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Tích tụ hoạt chất & Thu hoạch búp ngọn',
+        dayStart: 26,
+        dayEnd: 45,
+        label: 'Ngày 26 - 45',
+        statusDesc: 'Lá dày đượm tinh dầu thơm, sẵn sàng thu hoạch chuẩn VietGAP',
+        waterRegime: '1.0 L/m²/ngày (giảm tưới trước thu hoạch 3 ngày)',
+        nutrition: 'Ngừng bón phân trước 7 ngày để cách ly an toàn',
+        guide: 'Thu hoạch vào sáng sớm (06:00 - 08:30) khi lá còn đọng sương.',
+        pestAlert: 'Không sử dụng bất kỳ hóa chất nào trong giai đoạn này.',
+        inspectionCriteria: 'Lá thơm ngát, không sâu bệnh, búp ngọn tươi non.'
+      }
+    ]
+  },
+  'vietgap_standard': {
+    cropName: 'Cây trồng chuẩn VietGAP',
+    totalDays: 45,
+    expectedYield: '10 - 15 kg/thửa',
+    optimalConditions: {
+      tempRange: '22 - 30°C',
+      soilMoistureRange: '65 - 75%',
+      airHumidityRange: '60 - 80%',
+      lightRequirement: '40.000 - 65.000 Lux'
+    },
+    stages: [
+      {
+        id: 'STAGE-1',
+        stepOrder: 1,
+        name: 'Gieo hạt & Hồi xanh cây giống',
+        dayStart: 1,
+        dayEnd: 8,
+        label: 'Ngày 1 - 8',
+        statusDesc: 'Thiết lập bộ rễ và thích nghi môi trường luống đất',
+        waterRegime: '1.5 L/m²/ngày (phun sương nhẹ 2 lần/ngày)',
+        nutrition: 'Tưới kích rễ hữu cơ vi sinh loãng',
+        guide: 'Giữ ẩm tầng đất mặt, che lưới nhẹ trong những ngày đầu.',
+        pestAlert: 'Theo dõi nấm cổ rễ và côn trùng cắn mầm.',
+        inspectionCriteria: 'Cây giống hồi xanh, lá thật phát triển đều.'
+      },
+      {
+        id: 'STAGE-2',
+        stepOrder: 2,
+        name: 'Chăm sóc sinh trưởng & Dinh dưỡng',
+        dayStart: 9,
+        dayEnd: 30,
+        label: 'Ngày 9 - 30',
+        statusDesc: 'Tăng trưởng thân lá mạnh mẽ theo quy trình VietGAP',
+        waterRegime: '2.0 L/m²/ngày (tưới nhỏ giọt cân bằng ẩm)',
+        nutrition: 'Bón phân hữu cơ vi sinh định kỳ theo ngày tuổi',
+        guide: 'Làm cỏ xới xáo mặt đất nhẹ, kiểm tra độ thoát nước.',
+        pestAlert: 'Sử dụng bẫy pheromone và chế phẩm sinh học thảo mộc.',
+        inspectionCriteria: 'Cây phát triển đồng đều, thân khỏe, lá xanh tốt.'
+      },
+      {
+        id: 'STAGE-3',
+        stepOrder: 3,
+        name: 'Hoàn thiện chất lượng & Thu hoạch',
+        dayStart: 31,
+        dayEnd: 45,
+        label: 'Ngày 31 - 45',
+        statusDesc: 'Tích lũy sinh khối và nghiệm thu thu hoạch VietGAP',
+        waterRegime: '1.2 L/m²/ngày (giảm ẩm trước thu hái)',
+        nutrition: 'Cách ly phân bón và thuốc bảo vệ sinh học theo quy chuẩn',
+        guide: 'Thu hái đúng độ tuổi thu hoạch, phân loại đóng gói tại ruộng.',
+        pestAlert: 'Bảo đảm thời gian cách ly tuyệt đối an toàn.',
+        inspectionCriteria: 'Đạt chỉ tiêu ngoại quan, không dư lượng hóa chất.'
+      }
+    ]
   }
 };
 
@@ -729,7 +839,12 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
   if (!plot) return { cropName: 'Cây trồng', totalDays: 45, currentDay: 0, stages: [], isNotStarted: true };
 
   const cropKey = detectCropKey(plot.crop || plot.name || '');
-  const standardTemplate = CROP_STANDARDS[cropKey] || CROP_STANDARDS.tomato;
+  const standardTemplate = CROP_STANDARDS[cropKey] || CROP_STANDARDS.vietgap_standard || CROP_STANDARDS.tomato;
+
+  // Tên cây trồng ưu tiên 100% từ thông tin plot / hợp đồng thực tế của người dùng
+  const resolvedCropName = (plot.crop && String(plot.crop).trim() !== '')
+    ? String(plot.crop).trim()
+    : (plot.varietyName || plot.variety_name || standardTemplate.cropName);
 
   const totalDays = Number(plot.totalDays) || standardTemplate.totalDays || 45;
 
@@ -754,69 +869,143 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
     progressPercent = Math.min(100, Math.round((currentDay / totalDays) * 100));
   }
 
-  const baseTotal = standardTemplate.totalDays || 45;
-  const scale = totalDays > 0 ? totalDays / baseTotal : 1;
-  const shouldScale = Math.abs(scale - 1) > 0.05 && (!dbStages || dbStages.length === 0);
+  let computedStages = [];
 
-  let currentCursor = 1;
-  // Tính toán trạng thái các giai đoạn (tự động co giãn theo tổng ngày chu kỳ)
-  const computedStages = standardTemplate.stages.map((st, sIdx) => {
-    let dayStart = st.dayStart;
-    let dayEnd = st.dayEnd;
-
-    if (shouldScale) {
-      dayStart = currentCursor;
-      if (sIdx === standardTemplate.stages.length - 1) {
-        dayEnd = totalDays;
+  // Nếu có danh sách các bước quy trình thực tế từ CSDL (template_steps của giống cây này)
+  if (Array.isArray(dbStages) && dbStages.length > 0) {
+    // Gom nhóm các bước có cùng mốc ngày (dayOffset) thành một giai đoạn duy nhất
+    // Tránh tình trạng lặp dòng thời gian (ví dụ 2 bước cùng Ngày 1 sinh ra 2 mốc Ngày 1 và Ngày 1 – 9)
+    const stagesByDay = new Map();
+    dbStages.forEach((item) => {
+      const day = item.dayOffset !== undefined && item.dayOffset !== null
+        ? Math.max(1, Number(item.dayOffset))
+        : (item.dayStart || 1);
+      if (!stagesByDay.has(day)) {
+        stagesByDay.set(day, { ...item, dayOffset: day });
       } else {
-        const rawDur = Math.max(1, st.dayEnd - st.dayStart + 1);
-        const scaledDur = Math.max(2, Math.round(rawDur * scale));
-        dayEnd = Math.min(totalDays - (standardTemplate.stages.length - 1 - sIdx), currentCursor + scaledDur - 1);
+        const existing = stagesByDay.get(day);
+        const existingGuideLen = (existing.guide || existing.description || '').length;
+        const newGuideLen = (item.guide || item.description || '').length;
+        if (newGuideLen > existingGuideLen) {
+          stagesByDay.set(day, { ...existing, ...item, dayOffset: day });
+        }
       }
-      currentCursor = dayEnd + 1;
-    }
+    });
 
-    let status = 'PENDING';
-    if (!isNotStarted) {
-      if (currentDay > dayEnd) {
-        status = 'COMPLETED';
-      } else if (currentDay >= dayStart && currentDay <= dayEnd) {
-        status = 'IN_PROGRESS';
+    const sortedDb = Array.from(stagesByDay.values()).sort((a, b) => a.dayOffset - b.dayOffset);
+
+    computedStages = sortedDb.map((d, sIdx) => {
+      const rawStart = d.dayOffset !== undefined && d.dayOffset !== null
+        ? Math.max(1, Number(d.dayOffset))
+        : (d.dayStart || (sIdx === 0 ? 1 : Math.round((sIdx / sortedDb.length) * totalDays)));
+
+      let dayEnd = totalDays;
+      if (sIdx < sortedDb.length - 1) {
+        const nextStart = sortedDb[sIdx + 1].dayOffset !== undefined && sortedDb[sIdx + 1].dayOffset !== null
+          ? Math.max(rawStart, Number(sortedDb[sIdx + 1].dayOffset))
+          : Math.round(((sIdx + 1) / sortedDb.length) * totalDays);
+        dayEnd = Math.max(rawStart, nextStart - 1);
       }
-    }
 
-    // Nếu có dữ liệu từ DB (template_steps), merge thông tin
-    const matchingDb = dbStages.find((d) => 
-      d.stepOrder === st.stepOrder || 
-      (d.stage && d.stage.toLowerCase().includes(st.name.slice(0, 10).toLowerCase()))
-    );
+      let status = 'PENDING';
+      if (!isNotStarted) {
+        if (d.status === 'DONE' || d.status === 'COMPLETED') {
+          status = 'COMPLETED';
+        } else if (d.status === 'IN_PROG' || d.status === 'IN_PROGRESS') {
+          status = 'IN_PROGRESS';
+        } else if (currentDay > dayEnd) {
+          status = 'COMPLETED';
+        } else if (currentDay >= rawStart && currentDay <= dayEnd) {
+          status = 'IN_PROGRESS';
+        }
+      }
 
-    return {
-      ...st,
-      dayStart,
-      dayEnd,
-      label: `Ngày ${dayStart} - ${dayEnd}`,
-      status: matchingDb?.status || status,
-      guide: matchingDb?.guide || st.guide,
-      materials: matchingDb?.materials || st.nutrition,
-      isCurrent: !isNotStarted && status === 'IN_PROGRESS',
-      daysUntil: currentDay < dayStart ? dayStart - currentDay : 0,
-      daysElapsed: currentDay > dayEnd ? (dayEnd - dayStart + 1) : Math.max(0, currentDay - dayStart + 1)
-    };
-  });
+      const stageName = d.stage || d.name || d.stepName || d.title || `Giai đoạn ${sIdx + 1}`;
+      const guide = d.guide || d.description || d.instructions || 'Tuân thủ định mức và kỹ thuật chuẩn VietGAP.';
+      const materials = d.materials || d.materialsNeeded || d.materialsRequired || 'Phân bón & chế phẩm sinh học VietGAP';
+
+      return {
+        id: d.id || `STAGE-${d.stepId || sIdx + 1}`,
+        stepOrder: d.stepOrder || sIdx + 1,
+        name: stageName,
+        dayStart: rawStart,
+        dayEnd: dayEnd,
+        label: rawStart === dayEnd ? `Ngày ${rawStart}` : `Ngày ${rawStart} – ${dayEnd}`,
+        statusDesc: guide,
+        waterRegime: d.waterRegime || '1.5 - 2.0 L/m²/ngày (tưới nhỏ giọt bổ sung độ ẩm theo thời tiết)',
+        nutrition: materials,
+        guide: guide,
+        pestAlert: d.pestAlert || 'Phòng trừ sinh học tỏi ớt gừng, thảo mộc VietGAP.',
+        inspectionCriteria: d.inspectionCriteria || 'Kiểm tra tỷ lệ sinh trưởng và chụp ảnh hoàn thành hiện trường.',
+        status,
+        materials,
+        isCurrent: !isNotStarted && status === 'IN_PROGRESS',
+        daysUntil: currentDay < rawStart ? rawStart - currentDay : 0,
+        daysElapsed: currentDay > dayEnd ? (dayEnd - rawStart + 1) : Math.max(0, currentDay - rawStart + 1)
+      };
+    });
+  } else {
+    const baseTotal = standardTemplate.totalDays || 45;
+    const scale = totalDays > 0 ? totalDays / baseTotal : 1;
+    const shouldScale = Math.abs(scale - 1) > 0.05;
+
+    let currentCursor = 1;
+    computedStages = standardTemplate.stages.map((st, sIdx) => {
+      let dayStart = st.dayStart;
+      let dayEnd = st.dayEnd;
+
+      if (shouldScale) {
+        dayStart = currentCursor;
+        if (sIdx === standardTemplate.stages.length - 1) {
+          dayEnd = totalDays;
+        } else {
+          const rawDur = Math.max(1, st.dayEnd - st.dayStart + 1);
+          const scaledDur = Math.max(2, Math.round(rawDur * scale));
+          dayEnd = Math.min(totalDays - (standardTemplate.stages.length - 1 - sIdx), currentCursor + scaledDur - 1);
+        }
+        currentCursor = dayEnd + 1;
+      }
+
+      let status = 'PENDING';
+      if (!isNotStarted) {
+        if (currentDay > dayEnd) {
+          status = 'COMPLETED';
+        } else if (currentDay >= dayStart && currentDay <= dayEnd) {
+          status = 'IN_PROGRESS';
+        }
+      }
+
+      return {
+        ...st,
+        dayStart,
+        dayEnd,
+        label: `Ngày ${dayStart} - ${dayEnd}`,
+        status,
+        isCurrent: !isNotStarted && status === 'IN_PROGRESS',
+        daysUntil: currentDay < dayStart ? dayStart - currentDay : 0,
+        daysElapsed: currentDay > dayEnd ? (dayEnd - dayStart + 1) : Math.max(0, currentDay - dayStart + 1)
+      };
+    });
+  }
 
   const currentStageObj = isNotStarted
     ? {
         ...computedStages[0],
-        name: `Sắp tới: ${computedStages[0].name}`,
+        name: `Sắp tới: ${computedStages[0]?.name || 'Giai đoạn 1'}`,
         statusDesc: `Vụ mùa sắp tới (Khởi động ngày ${plot.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'Kỳ tới'}). Đất đang trong giai đoạn nghỉ hoặc hoàn thiện chuẩn bị xuống giống theo lịch canh tác.`,
         isCurrent: false
       }
-    : (computedStages.find((s) => s.isCurrent) || computedStages[computedStages.length - 1]);
+    : (computedStages.find((s) => s.isCurrent)
+        || computedStages.find((s) => s.status === 'IN_PROGRESS')
+        // Lịch có khoảng trống ngày: lấy giai đoạn sắp tới gần nhất, KHÔNG lấy giai đoạn cuối
+        // (nếu không, ngày 9/80 lại hiện "Thu hoạch vét & Thu dọn tàn dư").
+        || computedStages.find((s) => currentDay <= s.dayEnd)
+        || computedStages[computedStages.length - 1]
+        || computedStages[0]);
 
   return {
     cropKey,
-    cropName: standardTemplate.cropName,
+    cropName: resolvedCropName,
     plotName: plot.name,
     plotCode: plot.plotCode || plot.id,
     totalDays,
@@ -843,7 +1032,8 @@ export function detectCropKey(cropText) {
   if (t.includes('ớt') || t.includes('chili') || t.includes('cay')) return 'chili';
   if (t.includes('dền') || t.includes('amaranth')) return 'amaranth';
   if (t.includes('cà chua') || t.includes('cherry') || t.includes('tomato')) return 'tomato';
-  return 'tomato';
+  if (t.includes('mèo') || t.includes('catnip')) return 'catnip';
+  return 'vietgap_standard';
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -872,8 +1062,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     date: new Date().toISOString().split('T')[0],
     status: 'COMPLETED',
     notes: 'Đã tưới 15L nước vi sinh khử clo pha chế phẩm EM1 (tỷ lệ 1:500). Độ ẩm đất sau tưới đạt 68.5%, đất tơi xốp, giá thể ráo nước tốt.',
-    proofPhoto: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80',
-    sensorSnapshot: { temp: '26.8°C', soilMoisture: '68%', light: '42.000 Lux' }
+    proofPhoto: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80'
   },
   {
     activityId: 'ACT-002',
@@ -891,8 +1080,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
     status: 'COMPLETED',
     notes: 'Bón 2.0kg phân trùn quế hữu cơ quanh vùng rễ tán lá, bổ sung dịch chuối ủ Kali nhằm kích thích phân hóa mầm hoa và chống rụng hoa chùm 2.',
-    proofPhoto: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80',
-    sensorSnapshot: { temp: '28.1°C', soilMoisture: '65%', light: '48.000 Lux' }
+    proofPhoto: 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80'
   },
   {
     activityId: 'ACT-003',
@@ -910,8 +1098,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     date: new Date(Date.now() - 172800000).toISOString().split('T')[0],
     status: 'COMPLETED',
     notes: 'Vặt sạch các chồi nách dưới nách lá thứ 4 để tập trung dinh dưỡng nuôi thân chính. Buộc cố định ngọn dây leo chữ A đảm bảo thông thoáng.',
-    proofPhoto: 'https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=800&q=80',
-    sensorSnapshot: { temp: '27.4°C', soilMoisture: '64%', light: '45.000 Lux' }
+    proofPhoto: 'https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=800&q=80'
   },
   {
     activityId: 'ACT-004',
@@ -929,8 +1116,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     date: new Date().toISOString().split('T')[0],
     status: 'IN_PROGRESS',
     notes: 'Đang triển khai treo bẫy dính vàng cách ngọn 30cm để giám sát rầy phấn trắng, chuẩn bị phun sương nhẹ tinh dầu Neem sinh học vào lúc 16:30.',
-    proofPhoto: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985b?auto=format&fit=crop&w=800&q=80',
-    sensorSnapshot: { temp: '28.5°C', soilMoisture: '67%', light: '52.000 Lux' }
+    proofPhoto: 'https://images.unsplash.com/photo-1592417817098-8f3d6910985b?auto=format&fit=crop&w=800&q=80'
   },
   {
     activityId: 'ACT-005',
@@ -942,14 +1128,13 @@ export const DEFAULT_STAFF_ACTIVITIES = [
     workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
     workerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
     actionType: 'INSPECTION',
-    actionTypeName: 'Nghiệm thu & Đo đạc định kỳ',
+    actionTypeName: 'Đo đạc & Kiểm tra định kỳ',
     title: 'Đo lường độ tăng trưởng chiều cao thân và chỉ số Brix quả non',
     timestamp: '08:00 • Ngày mai',
     date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
     status: 'PENDING',
     notes: 'Kế hoạch kiểm tra tốc độ phát triển lóng cành, đo đếm số chùm hoa nở rộ và ghi chép nhật ký nông vụ định kỳ.',
-    proofPhoto: null,
-    sensorSnapshot: null
+    proofPhoto: null
   }
 ];
 
@@ -988,7 +1173,9 @@ export function saveStaffActivities(activities) {
     if (typeof window !== 'undefined' && window.BroadcastChannel) {
       const bc = new BroadcastChannel('farmely_staff_activity_channel');
       bc.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
-      bc.close();
+      setTimeout(() => {
+        try { bc.close(); } catch {}
+      }, 1500);
     }
   } catch (e) {
     console.warn('[StaffActivities] Không thể ghi vào localStorage:', e);
@@ -1006,7 +1193,11 @@ export function recordStaffActivity(activity) {
     ...activity,
     activityId: activity.activityId || `ACT-${Date.now()}`,
     timestamp: activity.timestamp || 'Vừa xong',
-    status: activity.status || 'COMPLETED'
+    status: activity.status || 'COMPLETED',
+    // ponytail: ghi rõ ngày tuổi + thời điểm hoàn thành để sync chính xác với Customer/Expert
+    day: activity.day || activity.cropDay || 1,
+    cropDay: activity.cropDay || activity.day || 1,
+    completedAt: activity.completedAt || new Date().toISOString()
   };
 
   let next;
@@ -1022,7 +1213,8 @@ export function recordStaffActivity(activity) {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   QUY TRÌNH NGHỈ ĐẤT & CẢI TẠO ĐẤT VIETGAP (FALLOW & SOIL REMEDIATION PROTOCOL)
+   QUY TRÌNH NGHỈ ĐẤT & CẢI TẠO ĐẤT VIETGAP (FALLOW & SOIL REMEDIATION PROTOCOL - BR23)
+   Bảo trì thửa đất 4 ngày trước khi cho thuê lại hoặc gieo trồng vụ mới.
    ────────────────────────────────────────────────────────────────────────── */
 
 export const FALLOW_PROTOCOL_STEPS = [
@@ -1042,32 +1234,25 @@ export const FALLOW_PROTOCOL_STEPS = [
     duration: 'Ngày 2',
     status: 'COMPLETED',
     worker: 'Trần Văn Lực (CVLĐ)',
-    image: '/images/Mucangchai1.jpg'
+    image: '/images/moc-chau-2811.jpg'
   },
   {
     step: 3,
     title: 'Cày xới sâu & Phơi ải diệt nấm bệnh tự nhiên',
     desc: 'Xới sâu 20 - 25cm, phơi ải dưới ánh nắng mặt trời giúp diệt nấm hại, tuyến trùng và ấu trùng sâu bọ.',
-    duration: 'Ngày 3 - 4',
+    duration: 'Ngày 3',
     status: 'IN_PROGRESS',
-    worker: 'Nguyễn Văn Hùng (KTV)',
-    image: '/images/Mucangchai2.jpg'
+    worker: 'Trần Văn Lực (CVLĐ)',
+    image: '/images/Mucangchai3.jpg'
   },
   {
     step: 4,
-    title: 'Bón lót phân trùn quế & Bổ sung vi sinh Trichoderma',
-    desc: 'Bổ sung nguồn hữu cơ hoai mục và hệ vi sinh đối kháng để tái tạo độ phì nhiêu màu mỡ cho vụ mùa mới.',
-    duration: 'Ngày 5 (Sáng)',
+    title: 'Bổ sung vi sinh hữu cơ Trichoderma & Hoàn tất phục hồi',
+    desc: 'Bổ sung nguồn phân trùn quế hoai mục và hệ vi sinh đối kháng Trichoderma để tái tạo độ phì nhiêu sẵn sàng cho vụ mùa mới.',
+    duration: 'Ngày 4',
     status: 'PENDING',
-    worker: 'Đội ngũ Kỹ thuật Farmely'
-  },
-  {
-    step: 5,
-    title: 'Lên luống mới & Cân chỉnh hệ thống tưới nhỏ giọt',
-    desc: 'Tạo luống cao ráo thoát nước, phủ màng giữ ẩm và chạy thử hệ thống tưới tự động sẵn sàng đón cây giống.',
-    duration: 'Ngày 5 (Chiều)',
-    status: 'PENDING',
-    worker: 'Đội ngũ Kỹ thuật Farmely'
+    worker: 'Trần Văn Lực (CVLĐ)',
+    image: '/images/moc-chau-2811.jpg'
   }
 ];
 
@@ -1098,7 +1283,7 @@ function enforceSequentialSeasons(rawSeasons = [], plot = {}) {
     const standard = CROP_STANDARDS[cropKey] || primaryStandard;
     const cropName = s.cropName || plot.crop || standard.cropName;
     const seasonDuration = Number(s.totalDays) || standard.totalDays || defaultDuration;
-    const fallowDays = Number(s.fallowDays) || 5;
+    const fallowDays = Number(s.fallowDays) || 4;
 
     const seasonStart = new Date(currentStart);
     const seasonEnd = new Date(seasonStart);
@@ -1113,11 +1298,22 @@ function enforceSequentialSeasons(rawSeasons = [], plot = {}) {
     let isCurrent = false;
     let inFallow = false;
 
-    if (earlierSeasonIncomplete) {
+    if (s.status === 'COMPLETED') {
+      status = 'COMPLETED';
+      currentDayInSeason = seasonDuration;
+      isCurrent = false;
+      inFallow = false;
+    } else if (earlierSeasonIncomplete) {
       status = 'SCHEDULED';
       currentDayInSeason = 0;
       isCurrent = false;
       inFallow = false;
+    } else if (s.status === 'ACTIVE' && Number(s.currentDay) > 0) {
+      status = 'ACTIVE';
+      currentDayInSeason = Number(s.currentDay) || 1;
+      isCurrent = true;
+      inFallow = false;
+      earlierSeasonIncomplete = true;
     } else if (rawCurrentDay <= 0) {
       status = 'SCHEDULED';
       currentDayInSeason = 0;
@@ -1213,7 +1409,15 @@ export function resolvePlotSeasons(plot, allRentals = []) {
   const cropDisplayName = plot.crop || primaryStandard.cropName;
   const cycleDays = Number(plot.cycleDays || (plot.termDays ? plot.totalDays : null)) || Number(plot.totalDays) || primaryStandard.totalDays || 55;
   const termDays = Number(plot.termDays) || 0;
-  const termMonths = Number(plot.termMonths) || 0;
+  let termMonths = Number(plot.termMonths) || 0;
+  if (!termMonths && plot.startDate && plot.endDate) {
+    try {
+      const d1 = new Date(plot.startDate);
+      const d2 = new Date(plot.endDate);
+      const diffMonths = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+      if (diffMonths > 0) termMonths = diffMonths;
+    } catch {}
+  }
 
   let targetSeasons = 1;
   if (plot.seasonsCount && Number(plot.seasonsCount) > 0) {

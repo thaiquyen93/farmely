@@ -253,7 +253,7 @@ export default function PlotDetail() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-heading text-base font-bold text-brand-dark flex items-center gap-2">
             <Sprout className="w-5 h-5 text-brand-green" />
-            Danh Mục Giống Cây Trồng Phù Hợp Thổ Nhưỡng (BR03 - Plot Compatibility)
+            Danh Mục Giống Cây Trồng Phù Hợp Thổ Nhưỡng
           </h3>
           <Link
             to={`/admin/master-data/plots/create?editId=${plot.id}`}
@@ -294,7 +294,7 @@ export default function PlotDetail() {
             ))
           ) : (
             <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 col-span-3 text-xs text-amber-900 space-y-1">
-              <p className="font-bold">⚠️ Chưa phân bổ giống cây tương thích cho thửa đất này (BR03)</p>
+              <p className="font-bold">⚠️ Chưa phân bổ giống cây tương thích cho thửa đất này</p>
               <p className="text-amber-800">
                 Theo quy trình nghiệp vụ, Chuyên Gia Nông Nghiệp (CGNN) phụ trách thửa đất này sẽ tiến hành khảo nghiệm thổ nhưỡng và phê duyệt danh mục giống cây được phép canh tác tại <strong>Bàn Làm Việc Chuyên Gia &gt; Ma Trận Thổ Nhưỡng – Giống Cây Trồng</strong>.
               </p>

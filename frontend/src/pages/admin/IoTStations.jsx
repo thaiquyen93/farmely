@@ -165,9 +165,9 @@ export default function IoTStations() {
         }
         let msg = `Đã ghi nhận ${result.count || 17} chu kỳ đo đạc mới vào PostgreSQL!`;
         if (mode === 'alert_flood') {
-          msg = '💧 Đã kích hoạt mô phỏng Ngập Úng (Độ ẩm ≥ 80% — Tự động hoãn tưới theo BR18)';
+          msg = '💧 Đã kích hoạt mô phỏng Ngập Úng (Độ ẩm ≥ 80% — Tự động hoãn tưới)';
         } else if (mode === 'alert_dry') {
-          msg = '☀️ Đã kích hoạt mô phỏng Khô Hạn (Độ ẩm < 50% — Kích hoạt cảnh báo khẩn theo BR18)';
+          msg = '☀️ Đã kích hoạt mô phỏng Khô Hạn (Độ ẩm < 50% — Kích hoạt cảnh báo khẩn cấp)';
         }
         setFeedbackMsg(msg);
         setTimeout(() => setFeedbackMsg(''), 4500);
@@ -225,12 +225,12 @@ export default function IoTStations() {
             </span>
             {isFlood && (
               <span className="inline-block mt-0.5 text-[9px] font-bold text-sky-800 bg-sky-100/90 px-1.5 py-0.2 rounded border border-sky-300">
-                BR18: Hoãn tưới
+                Tự động hoãn tưới
               </span>
             )}
             {isDry && (
               <span className="inline-block mt-0.5 text-[9px] font-bold text-amber-800 bg-amber-100/90 px-1.5 py-0.2 rounded border border-amber-300">
-                BR18: Cảnh báo
+                Cảnh báo khô hạn
               </span>
             )}
           </div>
@@ -324,7 +324,7 @@ export default function IoTStations() {
             Trạm Khí Tượng &amp; Dữ Liệu Thời Tiết Thực Địa
           </h2>
           <p className="text-xs text-brand-muted mt-0.5">
-            Cập nhật dữ liệu vi khí hậu từ Weather API theo tọa độ địa lý nông trại. Tự động kiểm soát ngưỡng an toàn sinh học và hoãn tưới khi có mưa lớn theo quy tắc BR18.
+            Cập nhật dữ liệu vi khí hậu từ Weather API theo tọa độ địa lý nông trại. Tự động kiểm soát ngưỡng an toàn sinh học và hoãn tưới khi có mưa lớn.
           </p>
         </div>
 

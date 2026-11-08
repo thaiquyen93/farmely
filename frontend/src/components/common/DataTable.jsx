@@ -59,7 +59,7 @@ export default function DataTable({
     <div className="space-y-4">
       {/* Controls Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-brand-border shadow-sm">
-        <div className="flex items-center gap-3 flex-1 max-w-md">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 max-w-2xl">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
             <input

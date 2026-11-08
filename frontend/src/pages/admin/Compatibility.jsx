@@ -272,7 +272,7 @@ export default function Compatibility() {
             Tương Thích Thổ Nhưỡng – Giống Cây
           </h2>
           <p className="text-xs text-brand-muted mt-0.5">
-            Xác lập quy tắc bắt buộc (BR03): Khách hàng chỉ được gieo trồng giống cây đã được kiểm định tương thích với đất của thửa.
+            Xác lập quy tắc bắt buộc: Khách hàng chỉ được gieo trồng giống cây đã được kiểm định tương thích với đất của thửa.
           </p>
         </div>
 

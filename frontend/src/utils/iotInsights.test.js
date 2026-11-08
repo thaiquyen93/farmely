@@ -118,6 +118,14 @@ describe('explainAlert', () => {
     expect(r.explanation).toBeTruthy();
     expect(r.action).toMatch(/^Bạn/);
   });
+  it('REGRESSION: rain and rising soil moisture are the same event (one group, so the UI states it once)', () => {
+    const rain = explainAlert({ level: 'HIGH', title: 'Mưa có thể đến sau 45 phút' });
+    const wet = explainAlert({ level: 'MEDIUM', title: 'Độ ẩm đất tăng nhanh' });
+    expect(rain.group).toBe('water');
+    expect(wet.group).toBe('water');
+    expect(explainAlert({ level: 'LOW', title: 'Nắng gắt giữa trưa' }).group).toBe('light');
+    expect(explainAlert({ level: 'LOW', title: 'Pin cảm biến yếu' }).group).toBe('other');
+  });
 });
 
 describe('describeSeries', () => {

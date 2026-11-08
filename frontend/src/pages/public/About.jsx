@@ -154,10 +154,10 @@ export default function About() {
               </div>
               <div className="space-y-1">
                 <h4 className="font-heading font-bold text-base text-brand-dark">
-                  Nghiệm Thu Sản Lượng Cân Điện Tử
+                  Bàn Giao Sản Lượng Cân Điện Tử
                 </h4>
                 <p className="text-xs text-stone-600 leading-relaxed">
-                  Rau củ thu hoạch được cân đo điện tử công khai có ảnh chụp, bạn có thể tự đến thu hoạch cuối tuần hoặc yêu cầu đóng thùng giao tận cửa nhà.
+                  Rau củ thu hoạch được cân đo điện tử công khai có ảnh chụp, bạn có thể tự đến trải nghiệm thu hoạch cuối tuần hoặc nhận trực tiếp tại nông trại.
                 </p>
               </div>
             </div>

@@ -41,6 +41,7 @@ import KnowledgeDocuments from './pages/admin/KnowledgeDocuments';
 import ProcessTemplates from './pages/admin/ProcessTemplates';
 import ProcessTemplateDetail from './pages/admin/ProcessTemplateDetail';
 import Services from './pages/admin/Services';
+import AuditLogs from './pages/admin/AuditLogs';
 import GlobalExpertChat from './components/customer/GlobalExpertChat';
 
 const dashboardByRole = {
@@ -111,6 +112,7 @@ export default function App() {
         <Route path="/expert/dashboard" element={<RoleRoute role="EXPERT"><ExpertDashboard /></RoleRoute>} />
         <Route path="/expert/crops" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=crops" replace /></RoleRoute>} />
         <Route path="/expert/varieties" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=varieties" replace /></RoleRoute>} />
+        <Route path="/expert/process-templates/:id" element={<RoleRoute role="EXPERT"><div className="min-h-screen bg-brand-cream p-6"><div className="mx-auto max-w-7xl"><ProcessTemplateDetail /></div></div></RoleRoute>} />
         <Route path="/staff/dashboard" element={<RoleRoute role="STAFF"><FieldWorkerDashboard /></RoleRoute>} />
         <Route path="/worker/dashboard" element={<Navigate to="/staff/dashboard" replace />} />
 
@@ -143,7 +145,14 @@ export default function App() {
           <Route path="services" element={<Services />} />
           <Route path="process-templates" element={<ProcessTemplates />} />
           <Route path="process-templates/:id" element={<ProcessTemplateDetail />} />
+
+          {/* Audit Logs & Operation Trail (SCR-AD-10) */}
+          <Route path="audit-logs" element={<AuditLogs />} />
         </Route>
+
+        {/* SSoT SCR-AD-10 Direct Route */}
+        <Route path="/admin/audit-log" element={<RoleRoute role="ADMIN"><Navigate to="/admin/master-data/audit-logs" replace /></RoleRoute>} />
+        <Route path="/admin/audit-logs" element={<RoleRoute role="ADMIN"><Navigate to="/admin/master-data/audit-logs" replace /></RoleRoute>} />
 
         {/* Fallback to Home */}
         <Route path="*" element={<Navigate to="/" replace />} />

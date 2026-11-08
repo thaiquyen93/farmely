@@ -138,3 +138,67 @@ ightarrow$ cập nhật `cancellation` sang `APPROVED`, cập nhật `contracts`
   - Quy tắc **BR18**: Tự động phát hiện điều kiện cực đoan (sốc nhiệt, hạn hán) và tự động hoãn lịch tưới khi lượng mưa hoặc xác suất mưa dự báo từ Weather API $\ge 70\%$.
   - Toàn bộ UI (Admin Dashboard, Field Worker Dashboard, Marketplace Plot Detail) đổi nhãn từ "Trạm IoT" sang "Thời Tiết & Khí Tượng Nông Nghiệp (Weather API)".
 - **Trạng thái:** ✅ Đã đồng bộ toàn bộ tài liệu và mã nguồn hệ thống.
+
+### [DRIFT-011] Thu Hẹp Phạm Vi BR21 — Khách Hàng Chỉ Theo Dõi Kết Quả Thu Hoạch, Không Nghiệm Thu Nhận Nông Sản
+- **Ngày:** 2026-11-02
+- **File:** `frontend/src/components/customer/CustomerPlotWorkspace.jsx` (`PLOT_TABS` dòng 23, `heroStats` dòng ~2731), `frontend/src/pages/customer/CustomerDashboard.jsx` (`fetchHarvestResults` dòng ~1625), `frontend/src/pages/staff/FieldWorkerDashboard.jsx` (dòng ~622, ~1940, ~2957), `frontend/server/siteVisitsApiPlugin.js` (dòng 2566)
+- **Docs nói:**
+  - Report 3 SRS §3.7, bảng MSG: `M15.2 | Yield approved | "Harvest approved. Prepare for pickup or delivery." | Toast (Success)`.
+  - Report 3 SRS (BR18, BR19, BR20, BR21): *"Once accepted and the lease term ends, the plot automatically enters status = 'MAINTENANCE' for a fixed 4-day soil turnaround before reopening as AVAILABLE."*
+  - Report 3 SRS, bảng BR: `BR21 | Harvest Time and Location. Harvesting takes place at the farm at the end of the cultivation season.`
+  - `RP39 (NEW).md:235` / `research-proposal.md:235` — **BR21 – Quyền quyết định sản lượng & Chính sách vận chuyển:** *"Khách có quyền tự đến nhận tại vườn cuối mùa vụ (miễn phí) hoặc yêu cầu giao tận nhà (tính phí ship)."*
+- **Code làm:**
+  - Quy trình thu hoạch kết thúc tại bước CVLĐ cân thực tế + chụp ảnh đối chứng (BR20). `POST /api/harvest` ghi `harvest_results` với `customer_confirmed = false`, `delivery_type = 'PICKUP'` mặc định.
+  - Phía Khách hàng **không còn** tab Thu hoạch (`PLOT_TABS` chỉ còn: Tổng quan · Hoạt động Staff · Nhật ký · Dịch vụ), không còn nút nghiệm thu / chọn phương thức nhận nông sản. Kết quả thu hoạch (khối lượng, ảnh đối chứng, tên CVLĐ) hiển thị **chỉ đọc** trong tab Nhật ký (`DiaryTab`).
+  - Phía CVLĐ đã gỡ badge `⏳ Chờ khách xác nhận` / `✓ Khách đã nghiệm thu` và dòng "Trạng thái nghiệm thu" khỏi biên bản bàn giao; phiếu tính `COMPLETED` ngay khi `yield_amount > 0`.
+  - Cột `harvest_results.customer_confirmed` và `delivery_type` **vẫn giữ nguyên trong DDL** (không thay đổi ERD), nhưng trên thực tế luôn ở giá trị lúc CVLĐ insert vì không có UI ghi đè.
+  - Endpoint `POST /api/customer/harvest-results/confirm` giữ lại ở backend (phục vụ đối soát dữ liệu / Admin), đánh dấu rõ là không có client nào gọi.
+- **Lý do lệch:** **User yêu cầu trực tiếp** — *"ở cái thu hoạch của staff bỏ hẳn cái chờ khách hàng xác nhận đi vì không cần thiết và ko làm tới mức độ đó"*. Nghiệp vụ nghiệm thu hai chiều (KH xác nhận → chốt phương thức giao → tính phí ship) vượt phạm vi đồ án ISP392, không đủ thời gian làm trọn vẹn và không phải trọng tâm bảo vệ.
+- **Cần cập nhật:** Report 3 (SRS) — xoá thông điệp `M15.2 Yield approved` khỏi bảng MSG của §3.7; diễn giải lại BR21 trong SRS theo hướng *"Khách hàng theo dõi kết quả thu hoạch (khối lượng thực cân + ảnh đối chứng) trên Nhật ký; mặc định tự nhận tại vườn cuối mùa vụ"*. Screen Spec — xoá màn hình/khối nghiệm thu nhận nông sản phía KH. **ERD / DDL: KHÔNG đổi** (giữ `customer_confirmed`, `delivery_type`).
+- **Cách sửa (nếu muốn align lại code theo docs):** Thêm lại tab `harvest` vào `PLOT_TABS`, dựng `HarvestTab` với nút chọn `PICKUP` / `DELIVERY`, gọi `POST /api/customer/harvest-results/confirm` (endpoint đã sẵn sàng, không cần viết thêm backend), rồi bật lại badge trạng thái nghiệm thu phía CVLĐ.
+- **Lập luận bảo vệ trước hội đồng:** BR21 về bản chất là **quyền của khách** (quyền quyết định sản lượng), không phải **nghĩa vụ xác nhận trong hệ thống**. Sản lượng đã thuộc về khách theo hợp đồng thuê (Lump-sum trả trước 100%), nên không cần một bước phê duyệt điện tử để chuyển giao quyền sở hữu. Hệ thống đảm bảo tính minh bạch bằng **bằng chứng một chiều từ CVLĐ** (ảnh cân điện tử tại hiện trường + `staff_id` người cân theo BR20) — đây mới là cơ chế chống gian lận thực sự. Mặc định "tự nhận tại vườn" đúng với `BR21 | Harvest Time and Location` trong SRS: *thu hoạch diễn ra tại nông trại*.
+- **Trạng thái:** ❌ Chưa align docs (code đã chốt theo yêu cầu user; cần sửa Report 3 khi nộp bản cập nhật)
+
+### [DRIFT-012] Khép Kín Vòng Đời Thu Hoạch — Đóng Task Trong CSDL (BR20), Sinh Nhiệm Vụ Vụ Mới Khi Gia Hạn (BR11b), Phơi Ải 4 Ngày Khi Hết Hạn Tự Nhiên (BR23)
+- **Ngày:** 2026-11-02
+- **File:** `frontend/server/siteVisitsApiPlugin.js` (khối đồng bộ BR23 dòng ~128, thanh lý hợp đồng dòng ~1491, `POST /api/harvest` dòng ~2534, `POST /api/rentals/:id/renew` dòng ~4910), `frontend/server/checks/harvestLifecycle.check.mjs` (mới)
+- **Docs nói:**
+  - `RP39 (NEW).md` **BR20** — CVLĐ nghiệm thu thực địa, mỗi bản ghi thu hoạch phải có `staff_id` người cân.
+  - `RP39 (NEW).md` **BR11b** — gia hạn vụ mùa mới trước 3 ngày kết thúc.
+  - `RP39 (NEW).md` **BR23** — *"Plot hết hợp đồng chuyển status Maintenance trong 4 ngày trước khi cho thuê lại."*
+  - Report 3 SRS (BR18–BR21): *"Once accepted and the lease term ends, the plot automatically enters status = 'MAINTENANCE' for a fixed 4-day soil turnaround before reopening as AVAILABLE."*
+- **Code làm (TRƯỚC khi sửa — 4 lỗ hổng thật):**
+  1. `POST /api/harvest` chỉ `INSERT harvest_results`, **không** `UPDATE care_tasks`. UI chỉ đổi React state → **F5 là nhiệm vụ thu hoạch hiện lại `PENDING`**, dữ liệu CSDL không bao giờ phản ánh việc đã làm.
+  2. `POST /api/rentals/:id/renew` chỉ nới `end_date` + `total_price`, **không sinh `care_tasks`** từ `template_steps` cho vụ mới → khách trả tiền vụ 2 nhưng CVLĐ không có việc, nhật ký trống.
+  3. BR23 chỉ chạy trong nhánh **thanh lý hợp đồng thủ công**. Hết hạn tự nhiên thì `rentals` **nằm `ACTIVE` vĩnh viễn** (không có cơ chế nào đóng theo `end_date`), nên điều kiện `plot NOT IN (SELECT plot_id FROM rentals WHERE status='ACTIVE')` **chưa bao giờ đúng** → 4 ngày phơi ải không bao giờ xảy ra.
+  4. Nhánh thanh lý set `care_tasks.status = 'CANCELLED'` — nhưng `task_status_enum` chỉ có `('PENDING','IN_PROG','DONE')`. **Đã kiểm chứng trên CSDL thật: PostgreSQL ném `invalid input value for enum task_status_enum: "CANCELLED"`** → toàn bộ block `DO $$` thanh lý hợp đồng rollback, Admin duyệt thanh lý thất bại.
+- **Code làm (SAU khi sửa):**
+  - `POST /api/harvest` dùng CTE `closed_tasks`: cùng transaction với `INSERT harvest_results`, set `care_tasks.status = 'DONE'` + lưu `evidence_image_url` cho task thu hoạch (khớp theo `title LIKE '%thu hoạch%'` hoặc `step_id` trỏ `template_steps.step_name LIKE '%thu hoạch%'`).
+  - `/renew` sinh đủ bộ `care_tasks` từ `template_steps` của giống (hỗ trợ cả đổi giống luân canh), mốc xuống giống vụ mới = `CURRENT_DATE + 4 ngày` (tôn trọng phơi ải BR23), có guard `NOT EXISTS` khớp **đúng `step_id` + đúng `due_date`** để bấm gia hạn 2 lần không sinh task trùng. Bỏ qua khi `cultivation_mode = 'SELF'`.
+  - Khối đồng bộ BR23 viết lại 4 bước: (1) `rentals ACTIVE` quá `end_date` → `DONE`; (2) thửa vừa kết thúc trong 4 ngày → `MAINT` + `is_published = false`; (3) qua 4 ngày (cửa sổ 4–30 ngày) → `AVAIL`; (3b) dọn thửa `RENT` mồ côi không có lượt thuê nào.
+  - Nhánh thanh lý đổi `UPDATE ... SET status='CANCELLED'` → `DELETE FROM care_tasks ... WHERE status <> 'DONE'` (hợp enum, giữ lịch sử việc đã làm).
+- **Lý do lệch:** Lỗi triển khai (các BR có trong docs nhưng code chưa khép vòng), không phải thay đổi phạm vi. **Không thêm/sửa bảng hay cột nào — ERD & DDL giữ nguyên 100%**; mốc đếm 4 ngày tái sử dụng `rentals.end_date` thay vì thêm cột mới.
+- **Cần cập nhật:** Không. Code nay **đúng theo docs**, đây là lần align chứ không phải lệch mới.
+- **Kiểm chứng:** `node server/checks/harvestLifecycle.check.mjs` (từ `frontend/`) — chạy trong transaction + `ROLLBACK` nên không làm bẩn dữ liệu demo. **Kết quả: 14 pass / 0 fail** trên PostgreSQL live, bao gồm: task thu hoạch chuyển `DONE` thật trong CSDL; gia hạn sinh đủ 9 nhiệm vụ vụ mới; gọi 2 lần không trùng; vụ mới bắt đầu đúng `+4 ngày`; thửa vừa hết hạn → `MAINT` và bị ẩn khỏi marketplace; thửa hết hạn >4 ngày → `AVAIL`; thửa còn hợp đồng giữ `RENT`; rental quá hạn → `DONE`.
+- **Trạng thái:** ✅ Đã align code với docs, kiểm chứng trên CSDL thật
+
+### [DRIFT-013] Admin Duyệt Thanh Lý Hợp Đồng Thất Bại Hoàn Toàn — Ghi Vào Cột `refund_amount` Không Tồn Tại Trong DDL
+- **Ngày:** 2026-11-02
+- **File:** `frontend/server/siteVisitsApiPlugin.js` (`POST /api/contracts/cancellations/:id/approve`, dòng ~1456–1560), `frontend/server/checks/contractCancellation.check.mjs` (mới)
+- **Docs nói:**
+  - Report 4 SDD / DDL `Database/farmely_full_database.sql`: bảng `contract_cancellations` có đúng 7 cột — `cancellation_id`, `contract_id`, `cancelled_by`, `reason`, `status`, `created_at`, `processed_at`. **KHÔNG có cột `refund_amount`.**
+  - Số tiền hoàn thuộc bảng `payment_transactions` (có sẵn khoá ngoại `cancellation_request_id` + `type = 'REFUND'`) — đúng chuẩn tách biệt sổ sách kế toán khỏi bảng yêu cầu.
+  - Report 3 SRS BR: chính sách hoàn tiền 80% / 50% / 0% theo thời điểm khách gửi yêu cầu so với ngày bắt đầu canh tác.
+- **Code làm (TRƯỚC khi sửa — 2 lỗi chí tử):**
+  1. Block `DO $$` duyệt thanh lý chạy `UPDATE contract_cancellations SET ... refund_amount = v_refund_amount` — **cột này không tồn tại trong CSDL**. PostgreSQL ném `column "refund_amount" of relation "contract_cancellations" does not exist`; vì nằm trong `DO $$` nên **toàn bộ 5 bước rollback**: yêu cầu không được duyệt, hợp đồng không huỷ, thửa đất không về `MAINT`, không có bút toán hoàn tiền. Admin bấm "Duyệt" chỉ nhận toast đỏ, nghiệp vụ UC08 **chưa bao giờ chạy được**.
+  2. **Tiền hoàn không bao giờ được ghi vào sổ sách.** Dù sửa được lỗi cột, block cũ cũng không `INSERT payment_transactions`, nên báo cáo doanh thu (`type='REFUND'` bị trừ ra ở `/api/admin/dashboard`) luôn thiếu khoản hoàn — doanh thu bị khai cao hơn thực tế.
+  3. **Lệch mốc tính tiền:** block duyệt tính tỷ lệ theo `CURRENT_DATE` (ngày Admin bấm), còn danh sách chờ duyệt `GET /api/contracts/cancellations` tính theo `cn.created_at` (ngày khách gửi). Admin thấy "hoàn 80% = 8.000.000đ" nhưng nếu duyệt muộn vài ngày thì hệ thống lại tính 50% hoặc 0% — số tiền thực thi khác số tiền đã phê duyệt.
+- **Code làm (SAU khi sửa):**
+  - Bỏ `refund_amount` khỏi `UPDATE`; chỉ set `status = 'APPROVED'`, `processed_at = NOW()`. **ERD & DDL giữ nguyên 100%, không thêm cột.**
+  - Thêm bước 1b: `INSERT INTO payment_transactions (contract_id, cancellation_request_id, type='REFUND', amount, payment_method='VNPAY', gateway_ref='VNP-REFUND-<id>', status='SUCCESS')`, có guard `NOT EXISTS` chống hoàn tiền 2 lần, và chỉ ghi khi `v_refund_amount > 0` (không sinh bút toán rác 0 đồng).
+  - Tỷ lệ hoàn chuyển sang tính theo `cn.created_at` — khớp 1:1 con số Admin thấy lúc duyệt.
+  - Giữ bản sửa enum ở DRIFT-012: `DELETE FROM care_tasks ... WHERE status <> 'DONE'` (xoá việc chưa làm, giữ lịch sử việc đã làm).
+- **Lý do lệch:** Lỗi triển khai — code viết theo một schema tưởng tượng có `contract_cancellations.refund_amount`, không đối soát DDL. Đây đúng là loại sai lệch mà guardrail cảnh báo: *"thêm bảng/cột DB mà ERD không có → hội đồng trừ điểm nặng"*.
+- **Cần cập nhật:** Không. Code nay đúng theo DDL/ERD hiện hành.
+- **Kiểm chứng:** `node server/checks/contractCancellation.check.mjs` (từ `frontend/`) — trích đúng khối `approveSql` đang chạy production từ plugin rồi thực thi trên PostgreSQL live, trong transaction + `ROLLBACK`. **Kết quả: 18 pass / 0 fail**, gồm: duyệt chạy không lỗi; yêu cầu → `APPROVED` + `processed_at`; hợp đồng → `CANCELLED`; mọi lượt thuê → `CANCELLED`; mọi thửa → `MAINT` và bị ẩn khỏi marketplace; xoá task chưa làm nhưng giữ task `DONE`; ghi đúng 1 bút toán `REFUND`; số tiền khớp con số Admin đã thấy; hoàn 80% khi huỷ trước vụ ≥ 3 ngày; bấm duyệt lần 2 bị từ chối và không hoàn tiền 2 lần; huỷ muộn vẫn duyệt được với 0đ và không sinh bút toán rác; duyệt ID không tồn tại báo lỗi rõ ràng.
+- **Trạng thái:** ✅ Đã sửa và kiểm chứng trên CSDL thật

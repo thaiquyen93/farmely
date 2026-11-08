@@ -1,10 +1,10 @@
 /**
  * ChatStorage - Manages persistence for conversations and messages in browser localStorage
- * Pre-seeded with 4 Customers, 4 Field Workers, and 4 Agricultural Experts.
- * Supports on-the-fly thread creation for new registered users and real-time read receipts.
+ * Cleaned to SSoT: 1 Demo Customer (Lô Thái Quyền), 1 Field Worker (Trần Văn Lực), 1 Admin (Ban Quản Trị).
+ * No dummy mock clutter. Real-time cross-tab synchronization.
  */
 
-const STORAGE_KEY = 'farmely_chat_threads_v6';
+const STORAGE_KEY = 'farmely_chat_threads_v9';
 
 export const DEMO_CUSTOMERS = [
   {
@@ -14,46 +14,14 @@ export const DEMO_CUSTOMERS = [
     email: 'customer@farmely.vn',
     phone: '0901 234 567',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-01',
-    plotName: 'Thửa Sen Vàng A1',
-    crop: 'Cà chua bi Cherry F1',
-    expertName: 'ThS. Nguyễn Hoàng Nam'
-  },
-  {
-    id: 'CUST-02',
-    threadId: 'CONS-402',
-    name: 'Nguyễn Văn Hùng',
-    email: 'hung.nguyen@farmely.vn',
-    phone: '0912 345 678',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-02',
-    plotName: 'Thửa Mộc Châu B2',
-    crop: 'Xà lách Romaine VietGAP',
-    expertName: 'ThS. Trần Phương Thảo'
-  },
-  {
-    id: 'CUST-03',
-    threadId: 'CONS-403',
-    name: 'Phạm Thu Hương',
-    email: 'huong.pham@farmely.vn',
-    phone: '0988 776 655',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-03',
-    plotName: 'Thửa Rừng Sác C3',
-    crop: 'Dưa leo Baby Đà Lạt',
-    expertName: 'ThS. Nguyễn Hoàng Nam'
-  },
-  {
-    id: 'CUST-04',
-    threadId: 'CONS-404',
-    name: 'Trần Minh Quân',
-    email: 'quan.tran@farmely.vn',
-    phone: '0977 123 456',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-04',
-    plotName: 'Thửa Đất Đỏ D4',
-    crop: 'Dâu tây Hana chịu nhiệt',
-    expertName: 'TS. Lê Hoàng Đức'
+    plotCode: 'P-01, P-14',
+    plotName: 'Thửa P-01 & Thửa P-14',
+    crop: 'Cà chua bi & Dưa leo baby',
+    expertName: 'ThS. Nguyễn Hoàng Nam',
+    plots: [
+      { plotCode: 'P-01', plotName: 'Thửa P-01 (Sen Vàng A1)', crop: 'Cà chua bi Cherry F1' },
+      { plotCode: 'P-14', plotName: 'Thửa P-14 (Rừng Sác C3)', crop: 'Dưa leo baby F1' }
+    ]
   }
 ];
 
@@ -64,43 +32,14 @@ export const DEMO_WORKERS = [
     name: 'Trần Văn Lực (Tổ trưởng CVLĐ)',
     phone: '0933 111 222',
     avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-03',
-    plotName: 'Thửa Rừng Sác C3',
-    crop: 'Dưa leo Baby Đà Lạt',
-    expertName: 'ThS. Nguyễn Hoàng Nam'
-  },
-  {
-    id: 'WORK-02',
-    threadId: 'WORK-102',
-    name: 'Nguyễn Văn Đạt (Kỹ thuật béc tưới)',
-    phone: '0933 222 333',
-    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-01',
-    plotName: 'Thửa Sen Vàng A1',
-    crop: 'Cà chua bi Cherry F1',
-    expertName: 'ThS. Nguyễn Hoàng Nam'
-  },
-  {
-    id: 'WORK-03',
-    threadId: 'WORK-103',
-    name: 'Lê Thị Hoa (CVLĐ Vườn ươm)',
-    phone: '0933 333 444',
-    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-02',
-    plotName: 'Thửa Mộc Châu B2',
-    crop: 'Xà lách Romaine VietGAP',
-    expertName: 'ThS. Trần Phương Thảo'
-  },
-  {
-    id: 'WORK-04',
-    threadId: 'WORK-104',
-    name: 'Hoàng Văn Nam (Đội trưởng hiện trường)',
-    phone: '0933 444 555',
-    avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-04',
-    plotName: 'Thửa Đất Đỏ D4',
-    crop: 'Dâu tây Hana chịu nhiệt',
-    expertName: 'TS. Lê Hoàng Đức'
+    plotCode: 'P-03, P-12',
+    plotName: 'Thửa P-03 & Thửa P-12',
+    crop: 'Dưa leo Baby & Cà chua bi',
+    expertName: 'ThS. Nguyễn Hoàng Nam',
+    plots: [
+      { plotCode: 'P-03', plotName: 'Thửa P-03 (Rừng Sác C3)', crop: 'Dưa leo Baby Đà Lạt' },
+      { plotCode: 'P-12', plotName: 'Thửa P-12 (Vườn Ươm B2)', crop: 'Cà chua bi F1' }
+    ]
   }
 ];
 
@@ -111,341 +50,143 @@ export const DEMO_EXPERTS = [
     title: 'Chuyên gia Cây ăn quả & Dây leo',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
     agency: 'Viện Khoa học Nông nghiệp Miền Nam'
-  },
-  {
-    id: 'EXP-02',
-    name: 'ThS. Trần Phương Thảo',
-    title: 'Chuyên gia VietGAP & Rau ăn lá an toàn',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=120&q=80',
-    agency: 'Trung tâm Khuyến nông TP.HCM'
-  },
-  {
-    id: 'EXP-03',
-    name: 'TS. Lê Hoàng Đức',
-    title: 'Chuyên gia Thổ nhưỡng & Dinh dưỡng hữu cơ',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=120&q=80',
-    agency: 'Khoa Nông học - ĐH Nông Lâm'
-  },
-  {
-    id: 'EXP-04',
-    name: 'KS. Phạm Quốc Huy',
-    title: 'Chuyên gia BVTV Sinh học & Quản lý IPHM',
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=120&q=80',
-    agency: 'Chi cục Trồng trọt & BVTV'
   }
 ];
 
 export const INITIAL_THREADS = [
-  // Khách tiềm năng: hỏi chuyên gia trước khi quyết định thuê thửa đất
-  {
-    id: 'CONS-PRE-01',
-    role: 'customer',
-    roleLabel: 'Khách chưa thuê',
-    rentalStatus: 'NOT_RENTED',
-    customerName: 'Mai Anh Thư',
-    customerAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'CHƯA CHỌN',
-    plotName: 'Đang tìm thửa phù hợp',
-    crop: 'Rau ăn lá cho gia đình',
-    stage: 'Tư vấn trước khi thuê',
-    expertName: 'ThS. Nguyễn Hoàng Nam',
-    isOnline: true,
-    lastTime: '5 phút trước',
-    status: 'PENDING',
-    unread: true,
-    messages: [
-      {
-        id: 'M-PRE-01',
-        sender: 'customer',
-        senderName: 'Mai Anh Thư',
-        text: 'Chào chuyên gia, gia đình tôi mới bắt đầu trồng rau và chưa thuê thửa nào. Diện tích khoảng 50–80m² có phù hợp để trồng rau ăn lá cuối tuần không ạ?',
-        time: '16:20',
-        seen: false
-      }
-    ]
-  },
-  // 1. Khách hàng 1: Lô Thái Quyền (Thửa Sen Vàng A1 - P-01)
+  // 1. Khách hàng SSoT: Lô Thái Quyền (Quản lý 2 Thửa: P-01 và P-14)
   {
     id: 'CONS-401',
+    conversationId: 1,
     role: 'customer',
     roleLabel: 'Khách Thuê Đất',
+    rentalStatus: 'RENTED',
     customerName: 'Lô Thái Quyền',
     customerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-01',
-    plotName: 'Thửa Sen Vàng A1',
-    crop: 'Cà chua bi Cherry F1',
-    stage: 'Ngày 35 • Ra hoa & Đậu quả',
+    plotCode: 'P-01, P-14',
+    plotName: 'Thửa P-01 & Thửa P-14',
+    crop: 'Cà chua bi & Dưa leo baby',
+    stage: 'Đang theo dõi 2 thửa đất canh tác',
     expertName: 'ThS. Nguyễn Hoàng Nam',
     isOnline: true,
     lastTime: '15 phút trước',
-    status: 'PENDING',
-    unread: true,
+    status: 'REPLIED',
+    unread: false,
+    plots: [
+      { plotCode: 'P-01', plotName: 'Thửa P-01 (Sen Vàng A1)', crop: 'Cà chua bi Cherry F1' },
+      { plotCode: 'P-14', plotName: 'Thửa P-14 (Rừng Sác C3)', crop: 'Dưa leo baby F1' }
+    ],
     messages: [
       {
         id: 1,
         sender: 'customer',
         senderName: 'Lô Thái Quyền',
-        text: 'Chào chuyên gia Nam! Lá cây cà chua của tôi ở tầng dưới hơi ngả vàng, liệu có phải do thiếu đạm cá hay độ ẩm đất quá cao không?',
-        photoUrl: 'https://images.unsplash.com/photo-1591857177580-dc82b9ac4e1e?auto=format&fit=crop&w=800&q=80',
-        photoCaption: 'Ảnh hiện trường: Lá cà chua tầng dưới có dấu hiệu vàng úa mép lá',
+        text: 'Chào chuyên gia Nam, cà chua bi của tôi ở thửa P-01 độ ẩm 68% đã đạt chuẩn chưa ạ?',
         time: '15:10',
-        seen: false
-      },
-      {
-        id: 2,
-        sender: 'customer',
-        senderName: 'Lô Thái Quyền',
-        text: 'Tôi xem trên app thấy độ ẩm đất báo 72%, không biết có cần chỉnh béc phun sương giảm lại không chuyên gia?',
-        time: '15:12',
-        seen: false
-      }
-    ]
-  },
-  // 2. Khách hàng 2: Nguyễn Văn Hùng (Thửa Mộc Châu B2 - P-02)
-  {
-    id: 'CONS-402',
-    role: 'customer',
-    roleLabel: 'Khách Thuê Đất',
-    customerName: 'Nguyễn Văn Hùng',
-    customerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-02',
-    plotName: 'Thửa Mộc Châu B2',
-    crop: 'Xà lách Romaine VietGAP',
-    stage: 'Ngày 24 • Chuẩn bị thu hoạch',
-    expertName: 'ThS. Trần Phương Thảo',
-    isOnline: false,
-    lastTime: '2 giờ trước',
-    status: 'REPLIED',
-    unread: false,
-    messages: [
-      {
-        id: 1,
-        sender: 'customer',
-        senderName: 'Nguyễn Văn Hùng',
-        text: 'Xà lách đã đạt ngày 24, tôi muốn thu hoạch vào sáng thứ Bảy này thì từ hôm nay có cần ngưng tưới đạm vi sinh không?',
-        photoUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80',
-        photoCaption: 'Ảnh hiện trường: Luống Romaine B2 lá nở tròn xòe giòn tươi',
-        time: '13:40',
         seen: true,
-        seenAt: '13:42'
-      },
-      {
-        id: 2,
-        sender: 'expert',
-        senderName: 'ThS. Trần Phương Thảo',
-        text: 'Chào anh Hùng! Đúng chuẩn VietGAP anh cần cách ly ngưng phân bón 5 ngày trước ngày thu hoạch. Từ hôm nay vườn chỉ duy trì tưới nước sạch mỗi sáng 15 phút là rau sẽ giòn ngọt tự nhiên nhé.',
-        prescriptionTag: 'Cách ly VietGAP 5 ngày',
-        time: '13:45',
-        seen: true,
-        seenAt: '13:46'
-      }
-    ]
-  },
-  // 3. Khách hàng 3: Phạm Thu Hương (Thửa Rừng Sác C3 - P-03)
-  {
-    id: 'CONS-403',
-    role: 'customer',
-    roleLabel: 'Khách Thuê Đất',
-    customerName: 'Phạm Thu Hương',
-    customerAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-03',
-    plotName: 'Thửa Rừng Sác C3',
-    crop: 'Dưa leo Baby Đà Lạt',
-    stage: 'Ngày 18 • Bắt đầu leo giàn',
-    expertName: 'ThS. Nguyễn Hoàng Nam',
-    isOnline: true,
-    lastTime: '3 giờ trước',
-    status: 'REPLIED',
-    unread: false,
-    messages: [
-      {
-        id: 1,
-        sender: 'customer',
-        senderName: 'Phạm Thu Hương',
-        text: 'Dưa leo bắt đầu leo giàn cao 80cm, tôi thấy ngọn vươn rất mạnh. Chuyên gia cho hỏi có cần bấm ngọn phụ để tập trung nhánh chính không?',
-        time: '11:20',
-        seen: true,
-        seenAt: '11:25'
+        plotCode: 'P-01',
+        crop: 'Cà chua bi Cherry F1'
       },
       {
         id: 2,
         sender: 'expert',
         senderName: 'ThS. Nguyễn Hoàng Nam',
-        text: 'Chào chị Hương! Giai đoạn này chị giữ thân chính và tỉa sạch nhánh phụ từ đốt thứ 1 đến đốt thứ 5 sát gốc để gốc thông thoáng, ngừa nấm mốc nhé.',
-        time: '11:28',
+        text: 'Chào anh Quyền! Độ ẩm 68% ở Thửa P-01 là hoàn hảo cho giai đoạn cây chuẩn bị bung hoa nhé.',
+        time: '15:15',
         seen: true,
-        seenAt: '11:30'
-      }
-    ]
-  },
-  // 4. Khách hàng 4: Trần Minh Quân (Thửa Đất Đỏ D4 - P-04)
-  {
-    id: 'CONS-404',
-    role: 'customer',
-    roleLabel: 'Khách Thuê Đất',
-    customerName: 'Trần Minh Quân',
-    customerAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-04',
-    plotName: 'Thửa Đất Đỏ D4',
-    crop: 'Dâu tây Hana chịu nhiệt',
-    stage: 'Ngày 42 • Quả non chuyển hồng',
-    expertName: 'TS. Lê Hoàng Đức',
-    isOnline: false,
-    lastTime: 'Hôm qua',
-    status: 'REPLIED',
-    unread: false,
-    messages: [
-      {
-        id: 1,
-        sender: 'customer',
-        senderName: 'Trần Minh Quân',
-        text: 'Dâu tây đang đỏ cuống, nắng trưa nay hơi gắt 33 độ C. Nhờ thầy Đức tư vấn giúp có nên kéo lưới đen che bớt nắng không?',
-        time: 'Hôm qua • 14:00',
-        seen: true,
-        seenAt: '14:05'
+        plotCode: 'P-01',
+        crop: 'Cà chua bi Cherry F1'
       },
       {
-        id: 'M-404-2',
-        sender: 'expert',
-        senderName: 'TS. Lê Hoàng Đức',
-        text: 'Nên kéo lưới lan 50% che nắng từ 11h đến 15h để tránh quả bị rám nắng và giữ cuống tươi mọng nước anh nhé.',
-        time: 'Hôm qua • 14:10',
+        id: 3,
+        sender: 'customer',
+        senderName: 'Lô Thái Quyền',
+        text: 'Cảm ơn Thạc sĩ rất nhiều!',
+        time: '15:19',
         seen: true,
-        seenAt: '14:12'
+        plotCode: 'P-01',
+        crop: 'Cà chua bi Cherry F1'
+      },
+      {
+        id: 4,
+        sender: 'customer',
+        senderName: 'Lô Thái Quyền',
+        text: 'Còn luống dưa leo baby ở thửa P-14 sáng nay em thấy lá hơi xoăn nhẹ, chuyên gia xem giúp em với ạ.',
+        time: '15:30',
+        seen: true,
+        plotCode: 'P-14',
+        crop: 'Dưa leo baby F1'
+      },
+      {
+        id: 5,
+        sender: 'expert',
+        senderName: 'ThS. Nguyễn Hoàng Nam',
+        text: 'Thửa P-14 do độ ẩm không khí hôm nay cao, em tưới sương nhẹ buổi sáng thôi và kiểm tra béc tưới nhỏ giọt lúc 16h nhé.',
+        time: '15:35',
+        seen: true,
+        plotCode: 'P-14',
+        crop: 'Dưa leo baby F1',
+        prescriptionTag: 'CHỈ ĐẠO THỬA P-14'
       }
     ]
   },
-  // 5. Nông Dân 1: Trần Văn Lực (Tổ trưởng CVLĐ Củ Chi - P-03)
+  // 2. Nhân viên hiện trường SSoT: Trần Văn Lực (Phụ trách Thửa P-03 và Thửa P-12)
   {
     id: 'WORK-101',
+    conversationId: 3,
     role: 'worker',
     roleLabel: 'CVLĐ Hiện Trường',
+    category: 'worker',
     customerName: 'Trần Văn Lực (Tổ trưởng CVLĐ)',
     customerAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-03',
-    plotName: 'Thửa Rừng Sác C3',
-    crop: 'Dưa leo Baby Đà Lạt',
-    stage: 'Sự cố sâu bệnh: Bọ trĩ mặt lá',
+    plotCode: 'P-03, P-12',
+    plotName: 'Thửa P-03 & Thửa P-12',
+    crop: 'Dưa leo Baby & Cà chua bi',
+    stage: 'Giám sát kỹ thuật & Điều phối hiện trường',
     expertName: 'ThS. Nguyễn Hoàng Nam',
     isOnline: true,
     lastTime: '10 phút trước',
     status: 'PENDING',
     unread: true,
+    plots: [
+      { plotCode: 'P-03', plotName: 'Thửa P-03 (Rừng Sác C3)', crop: 'Dưa leo Baby Đà Lạt' },
+      { plotCode: 'P-12', plotName: 'Thửa P-12 (Vườn Ươm B2)', crop: 'Cà chua bi F1' }
+    ],
     messages: [
       {
-        id: 1,
+        id: 101,
         sender: 'worker',
         senderName: 'Trần Văn Lực (CVLĐ)',
-        text: 'Báo cáo Chuyên gia Nam: Sáng nay đi kiểm tra thửa C3 của chị Hương, phát hiện mặt dưới lá non có dấu hiệu bọ trĩ li ti. Em đã chụp ảnh đính kèm, xin ý kiến chỉ đạo xử lý thuốc sinh học!',
-        photoUrl: 'https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?auto=format&fit=crop&w=800&q=80',
-        photoCaption: 'Ảnh vi thể: Mặt dưới lá dưa leo baby có bọ trĩ và xoăn mép lá',
-        time: '08:45',
-        seen: false
-      }
-    ]
-  },
-  // 6. Nông Dân 2: Nguyễn Văn Đạt (Kỹ thuật béc tưới - P-01)
-  {
-    id: 'WORK-102',
-    role: 'worker',
-    roleLabel: 'CVLĐ Hiện Trường',
-    customerName: 'Nguyễn Văn Đạt (Kỹ thuật béc tưới)',
-    customerAvatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-01',
-    plotName: 'Thửa Sen Vàng A1',
-    crop: 'Cà chua bi Cherry F1',
-    stage: 'Bảo trì trạm bơm & béc tưới',
-    expertName: 'ThS. Nguyễn Hoàng Nam',
-    isOnline: true,
-    lastTime: '30 phút trước',
-    status: 'REPLIED',
-    unread: false,
-    messages: [
-      {
-        id: 1,
-        sender: 'worker',
-        senderName: 'Nguyễn Văn Đạt (CVLĐ)',
-        text: 'Đã hoàn thành kiểm tra áp lực nước béc tưới nhỏ giọt luống cà chua A1. Áp suất đạt chuẩn 1.5 bar, nước tưới đều các gốc.',
-        time: '08:15',
+        text: 'Báo cáo Chuyên gia: Đã hoàn tất kiểm tra béc tưới và độ ẩm các luống dưa leo P-03.',
+        time: '15:20',
         seen: true,
-        seenAt: '08:20'
+        plotCode: 'P-03',
+        crop: 'Dưa leo Baby Đà Lạt'
       },
       {
-        id: 2,
+        id: 102,
         sender: 'expert',
         senderName: 'ThS. Nguyễn Hoàng Nam',
-        text: 'Cảm ơn Đạt. Tiếp tục theo dõi sensor độ ẩm đất sau 12h trưa xem có bị ứ nước không nhé.',
-        time: '08:20',
+        text: 'Tốt lắm Lực. Chiều nay qua tiếp thửa P-12 kiểm tra độ ẩm cà chua bi và bón lót vi sinh Trichoderma nhé.',
+        time: '15:25',
         seen: true,
-        seenAt: '08:22'
-      }
-    ]
-  },
-  // 7. Nông Dân 3: Lê Thị Hoa (CVLĐ Vườn ươm - P-02)
-  {
-    id: 'WORK-103',
-    role: 'worker',
-    roleLabel: 'CVLĐ Hiện Trường',
-    customerName: 'Lê Thị Hoa (CVLĐ Vườn ươm)',
-    customerAvatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-02',
-    plotName: 'Thửa Mộc Châu B2',
-    crop: 'Xà lách Romaine VietGAP',
-    stage: 'Chuẩn bị giỏ thu hoạch VietGAP',
-    expertName: 'ThS. Trần Phương Thảo',
-    isOnline: false,
-    lastTime: 'Hôm qua',
-    status: 'REPLIED',
-    unread: false,
-    messages: [
-      {
-        id: 1,
-        sender: 'worker',
-        senderName: 'Lê Thị Hoa (CVLĐ)',
-        text: 'Thưa cô Thảo, luống Romaine B2 đã chuẩn bị sẵn tem truy xuất nguồn gốc QR và giỏ nan tre. Sáng thứ Bảy em sẽ bắt đầu thu hoạch lúc 06:30 sáng.',
-        time: 'Hôm qua • 16:30',
-        seen: true,
-        seenAt: '16:35'
+        plotCode: 'P-12',
+        crop: 'Cà chua bi F1',
+        prescriptionTag: 'CHỈ ĐẠO THỬA P-12'
       },
       {
-        id: 2,
-        sender: 'expert',
-        senderName: 'ThS. Trần Phương Thảo',
-        text: 'Rất tốt Hoa nhé! Nhớ cắt tỉa gốc bằng kéo sát trùng và cân đối chứng ngay tại trạm đóng gói.',
-        time: 'Hôm qua • 16:40',
-        seen: true,
-        seenAt: '16:42'
-      }
-    ]
-  },
-  // 8. Nông Dân 4: Hoàng Văn Nam (Đội trưởng hiện trường - P-04)
-  {
-    id: 'WORK-104',
-    role: 'worker',
-    roleLabel: 'CVLĐ Hiện Trường',
-    customerName: 'Hoàng Văn Nam (Đội trưởng hiện trường)',
-    customerAvatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=80',
-    plotCode: 'P-04',
-    plotName: 'Thửa Đất Đỏ D4',
-    crop: 'Dâu tây Hana chịu nhiệt',
-    stage: 'Kéo lưới che nắng & phủ rơm',
-    expertName: 'TS. Lê Hoàng Đức',
-    isOnline: true,
-    lastTime: 'Vừa xong',
-    status: 'PENDING',
-    unread: true,
-    messages: [
-      {
-        id: 1,
+        id: 103,
         sender: 'worker',
-        senderName: 'Hoàng Văn Nam (CVLĐ)',
-        text: 'Thưa TS. Đức, thửa Dâu tây D4 sáng nay trời có sương mù ẩm 85%. Em có cần kéo bạt che mái vòm để ngừa nấm mốc xám ăn hoa không ạ?',
-        time: '08:30',
-        seen: false
+        senderName: 'Trần Văn Lực (CVLĐ)',
+        text: 'Dạ rõ thưa Thầy Nam, em đang chuẩn bị chế phẩm vi sinh để qua P-12 ngay.',
+        time: '15:28',
+        seen: false,
+        plotCode: 'P-12',
+        crop: 'Cà chua bi F1'
       }
     ]
   },
-  // 9. Quản Trị Viên: Ban Quản Trị Farmely
+  // 3. Quản Trị Viên: Ban Quản Trị Farmely
   {
     id: 'ADMIN-01',
     role: 'admin',
@@ -459,27 +200,17 @@ export const INITIAL_THREADS = [
     stage: 'Điều phối & Giám sát vận hành toàn trang trại',
     expertName: 'ThS. Nguyễn Hoàng Nam',
     isOnline: true,
-    lastTime: '15 phút trước',
+    lastTime: 'Hôm nay',
     status: 'REPLIED',
     unread: false,
     messages: [
       {
-        id: 1,
+        id: 201,
         sender: 'admin',
         senderName: 'Ban Quản Trị Farmely',
-        text: 'ThS. Nam lưu ý tuần này trang trại đón đoàn thanh tra VietGAP đợt 2, nhờ chuyên gia tổng hợp lại nhật ký và chỉ đạo kỹ thuật các thửa khu A và B.',
+        text: 'Ban Quản Trị lưu ý: Đã kích hoạt lịch kiểm tra định kỳ tiêu chuẩn VietGAP cho các thửa canh tác.',
         time: '08:00',
-        seen: true,
-        seenAt: '08:05'
-      },
-      {
-        id: 2,
-        sender: 'expert',
-        senderName: 'ThS. Nguyễn Hoàng Nam',
-        text: 'Dạ vâng, tôi đã rà soát và đôn đốc các bạn CVLĐ chụp ảnh nghiệm thu đầy đủ trên hệ thống rồi ạ.',
-        time: '08:10',
-        seen: true,
-        seenAt: '08:12'
+        seen: true
       }
     ]
   }
@@ -504,135 +235,46 @@ export const getSafeAvatar = (url, role = 'customer') => {
  */
 export function getStoredThreads() {
   if (typeof window === 'undefined' || !window.localStorage) {
-    return INITIAL_THREADS;
+    return [];
   }
   try {
+    // Dọn dẹp cache mock cũ
+    try {
+      window.localStorage.removeItem('farmely_chat_threads_v6');
+      window.localStorage.removeItem('farmely_chat_threads_v5');
+    } catch (_) {}
+
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_THREADS));
-      return INITIAL_THREADS;
+      return [];
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length < 8) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_THREADS));
-      return INITIAL_THREADS;
+    if (!Array.isArray(parsed)) {
+      return [];
     }
 
-    let needsUpdate = false;
-    // Auto-heal any threads that might have been corrupted with "Người dùng #" or missing avatars
-    const sanitized = parsed.map((thread) => {
-      let t = { ...thread };
-
-      // 1. Phục hồi vai trò Admin nếu bị biến dạng thành khách thuê
-      if (/Ban Quản Trị|Admin/i.test(t.customerName || '') || String(t.id || '').toLowerCase().includes('admin')) {
-        if (t.role !== 'admin' || t.plotCode || t.crop) {
-          t.role = 'admin';
-          t.roleLabel = 'Ban Quản Trị';
-          t.category = 'admin';
-          t.plotCode = '';
-          t.plotName = 'Hội đồng Quản trị Farmely';
-          t.crop = '';
-          t.stage = 'Điều phối & Giám sát vận hành toàn trang trại';
-          needsUpdate = true;
-        }
+    // Lọc bỏ triệt để các mock user rác cũ (Mai Anh Thư, Hùng, Hương, Quân, Đạt, Hoa, Nam, qw, duplicate Ban Quản Trị)
+    const validSeedIds = new Set(INITIAL_THREADS.map((t) => t.id));
+    const cleaned = parsed.filter((t) => {
+      if (validSeedIds.has(t.id)) return true;
+      if (/Mai Anh Thư|Nguyễn Văn Hùng|Phạm Thu Hương|Trần Minh Quân|Nguyễn Văn Đạt|Lê Thị Hoa|Hoàng Văn Nam|^qw$/i.test(t.customerName || '')) {
+        return false;
       }
-
-      // 2. Chuẩn hóa vai trò Nhân viên hiện trường (CVLĐ)
-      if (t.role === 'worker' || /Trần Văn Lực|Nguyễn Văn Đạt|Lê Thị Hoa|Hoàng Văn Nam/i.test(t.customerName || '')) {
-        if (t.role !== 'worker' || !t.workerId) {
-          t.role = 'worker';
-          t.roleLabel = 'CVLĐ Hiện Trường';
-          t.category = 'worker';
-          if (t.customerName?.includes('Đạt')) t.workerId = 9;
-          else if (t.customerName?.includes('Lực')) t.workerId = 8;
-          else if (t.customerName?.includes('Hải')) t.workerId = 10;
-          needsUpdate = true;
-        }
+      if (/Ban Quản Trị|Admin/i.test(t.customerName || '') && t.id !== 'ADMIN-01') {
+        return false;
       }
-
-      // 3. Chuẩn hóa plotCode tránh lặp "Plot Plot" hoặc "Thửa Thửa"
-      if (t.plotCode) {
-        const cleaned = String(t.plotCode)
-          .replace(/\bPlot\s+Plot\b/gi, 'Plot')
-          .replace(/\bThửa\s+Thửa\b/gi, 'Thửa')
-          .trim();
-        if (cleaned !== t.plotCode) {
-          t.plotCode = cleaned;
-          needsUpdate = true;
-        }
-      }
-
-      if (!t.customerName || t.customerName.startsWith('Người dùng #')) {
-        const seed = INITIAL_THREADS.find((s) => s.id === t.id || s.plotCode === t.plotCode);
-        if (seed) {
-          t.customerName = seed.customerName;
-          t.customerAvatar = seed.customerAvatar;
-          t.plotName = seed.plotName;
-          t.crop = seed.crop;
-          needsUpdate = true;
-        }
-      }
-      if (!t.customerAvatar || t.customerAvatar.length < 5) {
-        t.customerAvatar = getSafeAvatar(t.customerAvatar, t.role);
-        needsUpdate = true;
-      }
-      if (!t.plotName || t.plotName.includes('Chưa gắn thửa đất')) {
-        const seed = INITIAL_THREADS.find((s) => s.id === t.id);
-        if (seed?.plotName) {
-          t.plotName = seed.plotName;
-          needsUpdate = true;
-        }
-      }
-      if (Array.isArray(t.messages)) {
-        t.messages = t.messages.map((m) => {
-          let updatedMsg = { ...m };
-          const isExp = updatedMsg.sender === 'expert' ||
-            Number(updatedMsg.senderId) === 2 ||
-            Number(updatedMsg.senderId) === 5 ||
-            String(updatedMsg.senderName || '').includes('Nam') ||
-            String(updatedMsg.text || '').includes('Chào anh Quyền');
-
-          if (isExp) {
-            if (updatedMsg.sender !== 'expert') {
-              updatedMsg.sender = 'expert';
-              needsUpdate = true;
-            }
-            if (!updatedMsg.senderName || updatedMsg.senderName === 'Người dùng Farmely') {
-              updatedMsg.senderName = 'ThS. Nguyễn Hoàng Nam';
-              needsUpdate = true;
-            }
-          } else {
-            if (!updatedMsg.senderName || updatedMsg.senderName === 'Người dùng Farmely') {
-              updatedMsg.senderName = t.customerName || 'Lô Thái Quyền';
-              needsUpdate = true;
-            }
-          }
-          return updatedMsg;
-        });
-      }
-      return t;
+      return true;
     });
 
-    // Non-destructive seed migration: keep user's messages and ensure all initial threads exist
-    const existingIds = new Set(sanitized.map((t) => t.id));
-    const missingSeedThreads = INITIAL_THREADS.filter(
-      (seedThread) => !existingIds.has(seedThread.id)
-    );
-    if (missingSeedThreads.length > 0) {
-      const mergedThreads = [...missingSeedThreads, ...sanitized];
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(mergedThreads));
-      return mergedThreads;
+    if (cleaned.length !== parsed.length) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
+      return cleaned;
     }
 
-    if (needsUpdate) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
-      return sanitized;
-    }
-
-    return sanitized;
+    return parsed;
   } catch (err) {
     console.error('[ChatStorage] Error loading threads from localStorage:', err);
-    return INITIAL_THREADS;
+    return [];
   }
 }
 
@@ -642,6 +284,48 @@ export function getStoredThreads() {
 export function getStoredThreadById(threadId) {
   const threads = getStoredThreads();
   return threads.find((t) => t.id === threadId) || null;
+}
+
+export function getPlotChatThreadId({ userId, email, plotCode, role = 'customer' }) {
+  const identity = email || userId || role.toUpperCase();
+  const safeUser = String(identity).replace(/[^a-zA-Z0-9]/g, '_');
+  const safePlot = String(plotCode || 'UNKNOWN').replace(/[^a-zA-Z0-9]/g, '_');
+  return `${role === 'worker' ? 'WORK' : 'CONS'}-${safeUser}-PLOT-${safePlot}`;
+}
+
+export function upsertPlotChatThread({ threadId, rentalId, customerName, customerEmail, customerAvatar, plotCode, plotName, crop, rentalStatus = 'NOT_RENTED' }) {
+  if (!threadId) return null;
+  const threads = getStoredThreads();
+  const existingIndex = threads.findIndex((thread) => thread.id === threadId);
+  const existing = existingIndex >= 0 ? threads[existingIndex] : null;
+  const thread = {
+    ...(existing || {}),
+    id: threadId,
+    role: 'customer',
+    roleLabel: rentalStatus === 'RENTED' ? 'Khách thuê đất' : 'Khách tư vấn trước thuê',
+    category: 'expert',
+    plotChat: true,
+    rentalStatus,
+    rentalId: rentalId || existing?.rentalId || null,
+    customerName: customerName || existing?.customerName || 'Khách hàng Farmely',
+    customerEmail: customerEmail || existing?.customerEmail || '',
+    customerAvatar: customerAvatar || existing?.customerAvatar || getSafeAvatar(null, 'customer'),
+    plotCode: plotCode || existing?.plotCode || '',
+    plotName: plotName || existing?.plotName || '',
+    crop: crop || existing?.crop || '',
+    stage: rentalStatus === 'RENTED' ? 'Đang thuê thửa đất' : 'Đang tìm hiểu thửa đất',
+    expertName: existing?.expertName || 'ThS. Nguyễn Hoàng Nam',
+    isOnline: true,
+    lastTime: existing?.lastTime || 'Chưa có tin nhắn',
+    status: existing?.status || 'PENDING',
+    unread: existing?.unread || false,
+    messages: existing?.messages || []
+  };
+  const updatedThreads = existingIndex >= 0
+    ? threads.map((item, index) => index === existingIndex ? thread : item)
+    : [thread, ...threads];
+  saveThreads(updatedThreads);
+  return { thread, threads: updatedThreads };
 }
 
 /**
@@ -671,7 +355,7 @@ export function appendMessage(threadId, message) {
       role: message.sender === 'worker' ? 'worker' : 'customer',
       roleLabel: message.sender === 'worker' ? 'CVLĐ Hiện Trường' : 'Khách Thuê Đất',
       customerName: message.senderName || 'Khách Hàng Mới',
-      customerAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+      customerAvatar: getSafeAvatar(null, message.sender === 'worker' ? 'worker' : 'customer'),
       plotCode: 'P-01',
       plotName: 'Thửa Canh Tác Mới',
       crop: 'Rau củ VietGAP',
@@ -727,15 +411,23 @@ export function markThreadAsReadInStorage(threadId) {
   return { thread, threads: updatedThreads };
 }
 
-export function updateThreadRentalInStorage({ threadId, customerName, customerAvatar, plotCode, plotName, crop }) {
+export function updateThreadRentalInStorage({ threadId, rentalId, customerName, customerAvatar, plotCode, plotName, crop }) {
   const threads = getStoredThreads();
 
-  // Không bao giờ gán đè Ban Quản Trị thành Khách Thuê Đất
+  // Không bao giờ gán đè Ban Quản Trị hoặc tạo thêm Admin thành Khách Thuê Đất
   if (/Ban Quản Trị|Admin/i.test(customerName || '') || String(threadId || '').toLowerCase().includes('admin')) {
     return { thread: null, threads };
   }
 
-  const existingIndex = threads.findIndex((thread) => thread.id === threadId);
+  // Tìm thread hiện có theo threadId hoặc theo tên
+  const requestedThreadIndex = threads.findIndex((thread) => thread.id === threadId);
+  const normalizedPlotCode = String(plotCode || '').trim().toUpperCase().replace(/^PLOT-/, '');
+  const existingIndex = requestedThreadIndex >= 0 ? requestedThreadIndex : threads.findIndex((thread) => {
+    const existingPlotCode = String(thread.plotCode || '').trim().toUpperCase().replace(/^PLOT-/, '');
+    return customerName && thread.customerName
+      && thread.customerName.toLowerCase() === customerName.toLowerCase()
+      && existingPlotCode === normalizedPlotCode;
+  });
   const existing = existingIndex >= 0 ? threads[existingIndex] : null;
 
   const cleanPlotCode = (plotCode || '')
@@ -743,18 +435,39 @@ export function updateThreadRentalInStorage({ threadId, customerName, customerAv
     .replace(/\bThửa\s+Thửa\b/gi, 'Thửa')
     .trim();
 
+  // Duy trì và hợp nhất danh sách các thửa đất mà khách hàng/nhân viên này phụ trách
+  const existingPlots = Array.isArray(existing?.plots) ? [...existing.plots] : [];
+  if (cleanPlotCode) {
+    const foundIdx = existingPlots.findIndex(p => p.plotCode === cleanPlotCode);
+    const newPlotEntry = { 
+      plotCode: cleanPlotCode, 
+      plotName: plotName || `Thửa ${cleanPlotCode}`, 
+      crop: crop || 'Cây trồng VietGAP' 
+    };
+    if (foundIdx >= 0) {
+      existingPlots[foundIdx] = { ...existingPlots[foundIdx], ...newPlotEntry };
+    } else {
+      existingPlots.push(newPlotEntry);
+    }
+  }
+  const combinedPlotCodes = existingPlots.length > 0 
+    ? existingPlots.map(p => p.plotCode).join(', ')
+    : cleanPlotCode;
+
   const thread = {
     ...(existing || {}),
-    id: threadId,
+    id: existing?.id || threadId,
+    rentalId: rentalId || existing?.rentalId || null,
     role: 'customer',
     roleLabel: 'Khách Thuê Đất',
     rentalStatus: 'RENTED',
     customerName: customerName || existing?.customerName || 'Khách hàng Farmely',
-    customerAvatar: customerAvatar || existing?.customerAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-    plotCode: cleanPlotCode,
-    plotName,
-    crop: crop || 'Cây trồng VietGAP',
-    stage: 'Đã xác nhận thuê thửa',
+    customerAvatar: customerAvatar || existing?.customerAvatar || getSafeAvatar(null, 'customer'),
+    plotCode: combinedPlotCodes,
+    plotName: plotName || existing?.plotName || `Thửa ${cleanPlotCode}`,
+    crop: crop || existing?.crop || 'Cây trồng VietGAP',
+    plots: existingPlots.length > 0 ? existingPlots : (cleanPlotCode ? [{ plotCode: cleanPlotCode, plotName: plotName || `Thửa ${cleanPlotCode}`, crop }] : []),
+    stage: existing?.stage || 'Đã xác nhận thuê thửa',
     expertName: existing?.expertName || 'ThS. Nguyễn Hoàng Nam',
     isOnline: true,
     lastTime: 'Vừa cập nhật',
@@ -762,9 +475,11 @@ export function updateThreadRentalInStorage({ threadId, customerName, customerAv
     unread: existing?.unread || false,
     messages: existing?.messages || []
   };
+
   const updatedThreads = existingIndex >= 0
     ? threads.map((item, index) => index === existingIndex ? thread : item)
     : [thread, ...threads];
+
   saveThreads(updatedThreads);
   return { thread, threads: updatedThreads };
 }

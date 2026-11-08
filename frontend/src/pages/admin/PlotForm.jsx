@@ -7,7 +7,7 @@ import BoundaryDrawMap from '../../components/admin/BoundaryDrawMap';
 import { farmApi, PLOT_STATUS_OPTIONS } from '../../api/farm/farmApi';
 import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import { areaM2, cleanRing, formatArea, validateRing } from '../../utils/polygonGeometry';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Globe, Loader2, Lock, Save, Search, Sparkles, Sprout } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Calculator, CheckCircle2, Globe, Loader2, Lock, Save, Search, Sparkles, Sprout } from 'lucide-react';
 
 export default function PlotForm() {
   const [searchParams] = useSearchParams();
@@ -20,6 +20,8 @@ export default function PlotForm() {
   const [land, setLand] = useState(null); // chi tiết nông trại đang chọn (ranh giới + thửa khác)
   const [code, setCode] = useState('');
   const [manualArea, setManualArea] = useState('');
+  const [unitRate, setUnitRate] = useState('15000'); // Đơn giá định mức tham khảo (đ/m²/tháng)
+  const [autoCalc, setAutoCalc] = useState(!editId); // Mặc định tự tính khi tạo mới
   const [price, setPrice] = useState('1200000');
   const [status, setStatus] = useState('MAINT');
   const [isPublished, setIsPublished] = useState(false);
@@ -52,6 +54,11 @@ export default function PlotForm() {
           setOriginalCode(plot.plotCode || '');
           setManualArea(plot.area != null ? String(plot.area) : '');
           setPrice(plot.pricePerPeriod != null ? String(plot.pricePerPeriod) : '');
+          if (plot.area && Number(plot.area) > 0 && plot.pricePerPeriod) {
+            const calculatedRate = Math.round(Number(plot.pricePerPeriod) / Number(plot.area));
+            setUnitRate(String(calculatedRate));
+          }
+          setAutoCalc(false);
           setStatus(plot.status || 'MAINT');
           setOriginalStatus(plot.status);
           setIsPublished(Boolean(plot.isPublished));
@@ -95,6 +102,24 @@ export default function PlotForm() {
   const hasRing = ring.length >= 3;
   const ringCheck = hasRing ? validateRing(ring, { outer: outer?.ring, outerName: outer?.label, others }) : null;
   const lockedBoundary = editId && originalStatus === 'RENT';
+
+  const currentArea = useMemo(() => {
+    if (hasRing) return areaM2(ring);
+    return Number(manualArea) || 0;
+  }, [hasRing, ring, manualArea]);
+
+  const suggestedPrice = useMemo(() => {
+    const rate = Number(unitRate) || 0;
+    if (currentArea <= 0 || rate <= 0) return 0;
+    return Math.round((currentArea * rate) / 10000) * 10000;
+  }, [currentArea, unitRate]);
+
+  // Tự động nhảy giá khi vẽ bản đồ hoặc đổi đơn giá (nếu đang bật tự động tính)
+  useEffect(() => {
+    if (autoCalc && suggestedPrice > 0) {
+      setPrice(String(suggestedPrice));
+    }
+  }, [autoCalc, suggestedPrice]);
 
   const validate = () => {
     const errs = {};
@@ -184,8 +209,55 @@ export default function PlotForm() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Input label="Giá thuê / tháng (VND)" type="number" min={0} step={1000} required value={price} onChange={(e) => setPrice(e.target.value)} error={errors.price} />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+          <Input
+            label="Đơn giá định mức (đ/m²/tháng)"
+            type="number"
+            min={1000}
+            step={1000}
+            value={unitRate}
+            onChange={(e) => {
+              setUnitRate(e.target.value);
+              setAutoCalc(true);
+            }}
+            helperText="Nhân với m² để tự gợi ý giá thuê"
+          />
+          <Input
+            label="Giá thuê / tháng (VND)"
+            type="number"
+            min={0}
+            step={1000}
+            required
+            value={price}
+            onChange={(e) => {
+              setPrice(e.target.value);
+              setAutoCalc(false);
+            }}
+            error={errors.price}
+            helperText={
+              suggestedPrice > 0 ? (
+                <span className="flex items-center gap-1 text-[11px] text-emerald-700 font-medium">
+                  {autoCalc ? (
+                    '⚡ Tự động nhân theo diện tích'
+                  ) : (
+                    <>
+                      Gợi ý: <strong>{Number(suggestedPrice).toLocaleString('vi-VN')} đ</strong>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrice(String(suggestedPrice));
+                          setAutoCalc(true);
+                        }}
+                        className="ml-1 font-bold text-emerald-700 underline hover:text-emerald-900 cursor-pointer"
+                      >
+                        [Áp dụng]
+                      </button>
+                    </>
+                  )}
+                </span>
+              ) : 'Nhập tay hoặc vẽ bản đồ để tự tính'
+            }
+          />
           <Select label="Trạng thái" required value={status} onChange={(e) => setStatus(e.target.value)} options={PLOT_STATUS_OPTIONS} />
           <Input label="Ảnh đại diện (URL)" placeholder="https://…" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
         </div>
@@ -245,24 +317,6 @@ export default function PlotForm() {
           </div>
         </div>
 
-        {/* SSoT BR03 & RBAC: Ma Trận Thổ Nhưỡng & Giống Cây Trồng (Nghiệp Vụ Độc Quyền Của CGNN) */}
-        <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 sm:p-5 space-y-2.5">
-          <div className="flex items-center gap-2">
-            <Sprout className="h-5 w-5 text-emerald-700 shrink-0" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-950">
-              Ma Trận Thổ Nhưỡng &amp; Giống Cây Trồng (Nghiệp Vụ Chuyên Môn Độc Quyền Của CGNN - BR03)
-            </h3>
-          </div>
-          <p className="text-xs text-emerald-900 leading-relaxed">
-            Theo nguyên tắc phân quyền và chuẩn SSoT (BR03 / BR24), <strong>Quản trị viên (Admin)</strong> chỉ quản trị các thông số hạ tầng vật lý (mã thửa, diện tích, giá thuê, ranh giới GIS). Việc khảo nghiệm thực địa thổ nhưỡng (loại đất, dải pH, độ mùn, tầng canh tác) và phê duyệt danh mục giống cây tương thích được thực hiện độc quyền bởi <strong>Chuyên Gia Nông Nghiệp (CGNN)</strong>.
-          </p>
-          <div className="pt-1 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-300 text-xs font-bold text-emerald-800 shadow-2xs">
-              🌿 Bàn Làm Việc Chuyên Gia &gt; Ma Trận Thổ Nhưỡng – Giống (plot_variety_compatibility)
-            </span>
-          </div>
-        </section>
-
         <section className="space-y-2">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
@@ -271,7 +325,15 @@ export default function PlotForm() {
                 {outer ? `Vẽ bên trong ranh giới vàng của ${outer.label}. Đặt góc gần góc thửa bên cạnh để tự hút khít bờ.` : 'Nông trại này chưa khoanh vùng — bạn vẫn vẽ được thửa, nhưng nên khoanh vùng nông trại trước.'}
               </p>
             </div>
-            <p className="text-sm text-stone-600">Diện tích: <strong className="text-brand-dark">{hasRing ? formatArea(areaM2(ring)) : 'chưa vẽ'}</strong></p>
+            <div className="text-right">
+              <p className="text-sm text-stone-600">Diện tích: <strong className="text-brand-dark">{currentArea > 0 ? formatArea(currentArea) : 'chưa vẽ'}</strong></p>
+              {currentArea > 2000 && <p className="max-w-xs text-xs font-semibold text-amber-700">Ranh giới đang rộng hơn 2.000 m²; hãy kiểm tra lại tỷ lệ bản đồ trước khi lưu.</p>}
+              {suggestedPrice > 0 && (
+                <p className="text-xs font-semibold text-emerald-700">
+                  Tạm tính: {suggestedPrice.toLocaleString('vi-VN')} đ/tháng ({Number(unitRate).toLocaleString('vi-VN')} đ/m²)
+                </p>
+              )}
+            </div>
           </div>
 
           {lockedBoundary ? (

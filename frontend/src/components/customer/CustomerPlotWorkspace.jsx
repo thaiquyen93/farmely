@@ -1,17 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea } from 'recharts';
-import { assessMetric, summarizePlot, explainAlert, describeSeries, computeHealthScore, METRIC_RULES } from '../../utils/iotInsights';
-import { useSensorStream } from '../../api/monitoring/useSensorStream';
-import { fetchLiveAgroIotData, resolveFarmLocation } from '../../services/weatherIotService';
-import { resolveStandardCropProcess, getPersistedStaffActivities, recordStaffActivity, resolvePlotSeasons } from '../../services/cropStandardProcess';
+import { createPortal } from 'react-dom';
+import { assessPlot, explainAlert } from '../../utils/iotInsights';
+import { fetchLiveAgroIotData } from '../../services/weatherIotService';
+import { resolveStandardCropProcess, getPersistedStaffActivities, resolvePlotSeasons } from '../../services/cropStandardProcess';
 import SeasonSelector from './SeasonSelector';
 import SoilPrepView from './SoilPrepView';
 import PlotRenewalModal from './PlotRenewalModal';
+import HarvestReportModal from './HarvestReportModal';
 import {
-  AlertTriangle, ArrowLeft, BookOpen, Calendar, CalendarCheck, CalendarRange, Check, ChevronDown, ChevronRight, ChevronLeft,
-  Clock, Clock3, Droplets, ExternalLink, Eye, Filter, Info, LayoutDashboard, Leaf,
-  MapPin, Maximize2, PenLine, Radio, RefreshCw, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
-  Sun, Thermometer, Truck, UserRound, Wheat, Wind, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame, Scissors
+  AlertTriangle, ArrowLeft, Award, BookOpen, Calendar, CalendarCheck, Check, ChevronDown, ChevronRight, ChevronLeft,
+  Clock, Clock3, Droplets, Eye, Info, LayoutDashboard, Leaf,
+  MapPin, Maximize2, PenLine, Radio, Scale, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
+  Sun, UserRound, Wheat, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame, Wrench
 } from 'lucide-react';
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -24,19 +24,9 @@ import {
 
 export const PLOT_TABS = [
   { id: 'overview', label: 'Tổng quan', short: 'Tổng quan', icon: LayoutDashboard },
-  { id: 'tasks', label: 'Hoạt động Staff', short: 'Staff', icon: CalendarCheck },
-  { id: 'iot', label: 'Thời tiết & Vi khí hậu', short: 'Vi khí hậu', icon: Radio },
-  { id: 'diary', label: 'Nhật ký', short: 'Nhật ký', icon: BookOpen },
-  { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag },
-  { id: 'harvest', label: 'Thu hoạch', short: 'Thu hoạch', icon: Wheat }
+  { id: 'tasks', label: 'Công việc & Nhật ký', short: 'Việc & Nhật ký', icon: CalendarCheck },
+  { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag }
 ];
-
-const METRICS = [
-  { key: 'temp', series: 'temp', icon: Thermometer, color: '#f97316' },
-  { key: 'soilMoisture', series: 'moisture', icon: Droplets, color: '#0ea5e9' },
-  { key: 'airHumidity', series: 'airHumidity', icon: Wind, color: '#06b6d4' },
-  { key: 'light', series: 'light', icon: Sun, color: '#eab308' }
-].map((m) => ({ ...m, label: METRIC_RULES[m.key].label, unit: METRIC_RULES[m.key].unit }));
 
 const LEVEL_STYLE = {
   OK: { chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', marker: 'bg-emerald-600', hex: '#059669', dot: 'bg-lime-400' },
@@ -45,12 +35,6 @@ const LEVEL_STYLE = {
   UNKNOWN: { chip: 'bg-stone-100 text-stone-600', marker: 'bg-stone-400', hex: '#a8a29e', dot: 'bg-stone-400' }
 };
 
-const TIMEFRAMES = [
-  { id: 'hourly', label: 'Hôm nay' },
-  { id: 'daily', label: '7 ngày' },
-  { id: 'weekly', label: '4 tuần' }
-];
-
 const CARD_SHADOW = 'shadow-[0_1px_2px_rgba(24,53,43,0.04),0_12px_32px_-16px_rgba(24,53,43,0.22)]';
 
 function Card({ className = '', children, style, onClick }) {
@@ -58,68 +42,9 @@ function Card({ className = '', children, style, onClick }) {
     <div
       style={style}
       onClick={onClick}
-      className={`rounded-3xl border border-white/80 bg-white ${CARD_SHADOW} ${className}`}
+      className={`rounded-2xl border border-white/80 bg-white ${CARD_SHADOW} ${className}`}
     >
       {children}
-    </div>
-  );
-}
-
-const polar = (cx, cy, r, deg) => {
-  const a = (deg * Math.PI) / 180;
-  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
-};
-
-const arcPath = (cx, cy, r, start, end) => {
-  const [x1, y1] = polar(cx, cy, r, start);
-  const [x2, y2] = polar(cx, cy, r, end);
-  return `M ${x1} ${y1} A ${r} ${r} 0 ${end - start > 180 ? 1 : 0} 1 ${x2} ${y2}`;
-};
-
-function ArcGauge({ position, color, levelColor, children }) {
-  const START = 150;
-  const SWEEP = 240;
-  const at = (p) => START + SWEEP * p;
-  const valueEnd = position === null ? START : at(position);
-  const [mx, my] = polar(60, 60, 46, valueEnd);
-  return (
-    <div className="relative mx-auto h-[118px] w-[150px]" aria-hidden="true">
-      <svg viewBox="0 0 120 104" className="h-full w-full overflow-visible">
-        <defs>
-          <linearGradient id={`g-${color}`} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor={color} stopOpacity="0.55" />
-            <stop offset="100%" stopColor={color} />
-          </linearGradient>
-        </defs>
-        <path d={arcPath(60, 60, 46, START, START + SWEEP)} stroke="#eef1ec" strokeWidth="10" fill="none" strokeLinecap="round" />
-        <path d={arcPath(60, 60, 46, at(0.25), at(0.75))} stroke="#bbf7d0" strokeWidth="10" fill="none" />
-        {position !== null && (
-          <>
-            <path d={arcPath(60, 60, 46, START, Math.max(START + 0.1, valueEnd))} stroke={`url(#g-${color})`} strokeWidth="10" fill="none" strokeLinecap="round" className="transition-all duration-700" />
-            <circle cx={mx} cy={my} r="7.5" fill="#fff" stroke={levelColor} strokeWidth="3" />
-          </>
-        )}
-      </svg>
-      <div className="absolute inset-x-6 top-[44px] flex flex-col items-center text-center">{children}</div>
-    </div>
-  );
-}
-
-function HealthRing({ score, size = 112, stroke = 10, tone }) {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const pct = score === null ? 0 : score / 100;
-  const color = tone === 'OK' ? '#a3e635' : tone === 'WARN' ? '#fbbf24' : tone === 'BAD' ? '#fb7185' : '#a8a29e';
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.14)" strokeWidth={stroke} fill="none" />
-        <circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={stroke} fill="none" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - pct)} className="transition-[stroke-dashoffset] duration-1000 ease-out" style={{ filter: `drop-shadow(0 0 8px ${color}88)` }} />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-        <span className="text-3xl font-bold leading-none">{score ?? '—'}</span>
-        <span className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/60">/ 100</span>
-      </div>
     </div>
   );
 }
@@ -133,14 +58,6 @@ function SectionTitle({ eyebrow, title, action }) {
       </div>
       {action}
     </div>
-  );
-}
-
-function LinkButton({ onClick, children }) {
-  return (
-    <button type="button" onClick={onClick} className="flex shrink-0 items-center gap-0.5 rounded-lg px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
-      {children}<ChevronRight className="h-4 w-4" />
-    </button>
   );
 }
 
@@ -161,84 +78,171 @@ function EmptyState({ icon: Icon = Leaf, title, note }) {
 /**
  * Thanh hiện trạng sinh trưởng theo ngày tuổi của cây trồng
  */
-function CropGrowthHero({ cropProcess, onOpenStageDetail }) {
+/**
+ * Thẻ hiện trạng thửa đất, đọc từ trên xuống theo thứ bậc:
+ *   việc đang diễn ra (to nhất) > nhiệt độ thực địa > cảnh báo (gọn nhất).
+ * ponytail: ceiling is nhiệt độ + 2 cảnh báo trong cùng một thẻ.
+ * upgrade path is tách lại thành trang riêng khi KH cần tra cứu lịch sử khí tượng theo giờ.
+ */
+function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo }) {
   const currentStage = cropProcess.currentStage;
+  // Chỉ nêu nhiệt độ: 3 chỉ số còn lại đã nằm trong chính câu cảnh báo khi vượt ngưỡng.
+  const temp = assessPlot(plot).find((m) => m.key === 'temp');
+  const isNotStarted = cropProcess.isNotStarted;
+
   return (
-    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1b4332] via-[#24533f] to-[#0f2a20] p-5 text-white sm:p-6 ${CARD_SHADOW}`}>
+    <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1b4332] via-[#24533f] to-[#0f2a20] text-white ${CARD_SHADOW}`}>
       <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/15 blur-3xl" />
       <span aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl" />
 
-      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="flex items-center gap-1.5 rounded-full bg-lime-300/20 px-2.5 py-1 text-xs font-bold text-lime-300 ring-1 ring-lime-300/30">
-              <Sprout className="h-3.5 w-3.5" />
-              {cropProcess.cropName}
-            </span>
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold backdrop-blur text-white/90">
+      {/* Tầng 1 — Việc đang diễn ra (chính) · Sức khoẻ thửa (phụ, tách bằng vách mờ) */}
+      <div className="relative p-4 sm:p-5">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/90 backdrop-blur">
               Tiêu chuẩn VietGAP
             </span>
-            {cropProcess.isNotStarted ? (
-              <span className="flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-200">
-                <Calendar className="h-3.5 w-3.5 text-amber-300" />
-                Chưa bắt đầu · Ngày 0 / {cropProcess.totalDays} ngày tuổi
+            {isNotStarted ? (
+              <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
+                <Calendar className="h-3 w-3 text-amber-300" />
+                Chưa bắt đầu · Ngày 0 / {cropProcess.totalDays}
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-200">
+              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
                 </span>
-                Ngày thứ {cropProcess.currentDay} / {cropProcess.totalDays} ngày tuổi
+                Ngày thứ {cropProcess.currentDay} / {cropProcess.totalDays}
               </span>
             )}
           </div>
 
-          <h3 className="mt-3 text-xl font-bold tracking-tight text-white sm:text-2xl">
-            {cropProcess.isNotStarted ? `${cropProcess.cropName} · Chưa bắt đầu canh tác` : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
+          <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-lime-300">
+            {isNotStarted ? 'Vụ mùa sắp tới' : 'Đang trong giai đoạn'}
+          </p>
+          <h3 className="mt-0.5 font-heading text-lg font-bold tracking-tight text-white sm:text-xl drop-shadow-xs">
+            {isNotStarted
+              ? `${cropProcess.cropName ? (cropProcess.cropName.charAt(0).toUpperCase() + cropProcess.cropName.slice(1)) : 'Cây trồng'} · Chưa bắt đầu canh tác`
+              : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
           </h3>
-          <p className="mt-1 text-sm text-lime-100/90 leading-relaxed max-w-2xl">
-            {cropProcess.isNotStarted
+          <p className="mt-1 text-xs sm:text-sm leading-relaxed text-white/90">
+            {isNotStarted
               ? 'Vụ mùa kế tiếp đã được lên lịch. Tiến độ sẽ bắt đầu tính khi vào vụ mới (sau chu kỳ nghỉ đất và làm đất tiêu chuẩn 5 ngày).'
               : (currentStage?.statusDesc || 'Cây trồng đang phát triển thuận lợi theo đúng chỉ dẫn kỹ thuật nông học.')}
           </p>
 
-          {/* Thanh đo ngày tuổi */}
-          <div className="mt-4 max-w-xl">
-            <div className="flex items-center justify-between text-xs font-semibold text-lime-200/90 mb-1.5">
-              <span>Tiến độ chu kỳ: {cropProcess.progressPercent}%</span>
-              <span>{cropProcess.isNotStarted ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày` : `Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}</span>
-            </div>
-            <div className="h-3 w-full rounded-full bg-black/30 p-0.5 ring-1 ring-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-lime-400 via-emerald-400 to-teal-300 transition-all duration-1000 shadow-[0_0_12px_rgba(163,230,53,0.5)]"
-                style={{ width: `${cropProcess.progressPercent}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Thẻ vắn tắt điều kiện tối ưu */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:w-[420px] shrink-0">
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-md">
-            <span className="text-[10px] uppercase font-semibold text-white/70 block">Nhiệt độ tối ưu</span>
-            <span className="mt-1 text-sm font-bold text-white block">{cropProcess.optimalConditions?.tempRange || '22-28°C'}</span>
-            <span className="text-[10px] text-lime-300 flex items-center gap-1 mt-0.5"><Check className="h-3 w-3" />Đạt chuẩn</span>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-md">
-            <span className="text-[10px] uppercase font-semibold text-white/70 block">Độ ẩm đất chuẩn</span>
-            <span className="mt-1 text-sm font-bold text-white block">{cropProcess.optimalConditions?.soilMoistureRange || '65-75%'}</span>
-            <span className="text-[10px] text-lime-300 flex items-center gap-1 mt-0.5"><Check className="h-3 w-3" />Lý tưởng</span>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-md col-span-2 sm:col-span-1">
-            <span className="text-[10px] uppercase font-semibold text-white/70 block">Sản lượng dự kiến</span>
-            <span className="mt-1 text-sm font-bold text-white block">{cropProcess.expectedYield || '15 kg/vụ'}</span>
-            <span className="text-[10px] text-emerald-200 block truncate">Thu hái tiêu chuẩn</span>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-white/10 text-xs">
+            <span className="font-semibold text-lime-300">
+              {isNotStarted
+                ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày`
+                : `Ngày thứ ${cropProcess.currentDay}/${cropProcess.totalDays} · Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}
+            </span>
+            <span className="text-white/70">
+              {isNotStarted ? 'Dự kiến bắt đầu theo lịch vụ mùa' : `Tiến độ chu kỳ: ${cropProcess.progressPercent}%`}
+            </span>
           </div>
         </div>
       </div>
+
+      {/* Tầng 2 — Nhiệt độ thực địa & nguồn dữ liệu, cùng một hàng */}
+      {temp && (
+        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/10 px-4 py-2.5 sm:px-5">
+          <span className="flex items-baseline gap-1.5 text-xs">
+            <span className={`h-2 w-2 shrink-0 self-center rounded-full ${LEVEL_STYLE[temp.level].dot}`} />
+            <span className="font-medium text-white/85">{temp.label}</span>
+            {temp.value === null ? (
+              <span className="text-white/70">chưa có số liệu</span>
+            ) : (
+              <>
+                <strong className="font-bold text-white">{temp.value}{temp.unit}</strong>
+                <span className="text-white/70">chuẩn {temp.min}–{temp.max}{temp.unit}</span>
+              </>
+            )}
+          </span>
+          {liveProviderInfo?.isLive3rdParty && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-lime-300">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-lime-300" />
+              Open-Meteo Live Feed
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Tầng 3 — Cảnh báo BR18, mỗi cảnh báo một dòng gọn trong cùng thẻ */}
+      {topAlerts.length > 0 && (
+        <div className="relative border-t border-white/10" aria-label="Cảnh báo thời tiết thực địa">
+          {topAlerts.map((a, idx) => {
+            const info = explainAlert(a, plot.mode);
+            const isHigh = a?.level === 'HIGH';
+            return (
+              <div
+                key={a.id || `${info.title}-${idx}`}
+                className={`flex flex-wrap items-baseline gap-x-2 gap-y-1 px-5 py-3 text-xs sm:px-6 ${idx > 0 ? 'border-t border-white/5' : ''}`}
+              >
+                <AlertTriangle className={`h-4 w-4 shrink-0 self-center ${isHigh ? 'text-rose-300' : 'text-amber-300'}`} />
+                <strong className={`font-bold ${isHigh ? 'text-rose-100' : 'text-amber-100'}`}>{info.title}</strong>
+                <span className={`rounded px-1.5 py-0.5 text-[10px] font-extrabold ${isHigh ? 'bg-rose-400/20 text-rose-200' : 'bg-amber-400/20 text-amber-200'}`}>
+                  {info.levelText}
+                </span>
+                <span className="text-white/90">
+                  {info.explanation} <strong className="font-semibold text-white/95">{info.action}</strong>
+                </span>
+                {info.time && <span className="text-white/65">{info.time}</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
+}
+
+/**
+ * Hàm chuẩn hóa ngày tuổi của một mục nhật ký hoặc hoạt động
+ */
+export function calculateEntryCropDay(entry, startDate, currentCropDay = 1, totalDays = 60) {
+  if (!entry) return null;
+  if (entry.cropDay !== undefined && entry.cropDay !== null) return Number(entry.cropDay);
+  if (entry.day !== undefined && entry.day !== null) return Number(entry.day);
+  if (entry.dayOffset !== undefined && entry.dayOffset !== null) return Math.max(1, Number(entry.dayOffset));
+
+  const rawDateStr = entry.date || entry.createdAt || entry.created_at || entry.dueDate || entry.completedAt || entry.timestamp || entry.time;
+  if (rawDateStr && startDate) {
+    try {
+      let d1 = null;
+      const dmy = String(rawDateStr).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      if (dmy) {
+        d1 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+      } else {
+        const ymd = String(rawDateStr).match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (ymd) {
+          d1 = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+        } else {
+          const parsed = new Date(rawDateStr);
+          if (!isNaN(parsed.getTime())) d1 = parsed;
+        }
+      }
+      if (d1 && !isNaN(d1.getTime())) {
+        const d0 = new Date(startDate);
+        d0.setHours(0, 0, 0, 0);
+        d1.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((d1.getTime() - d0.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        if (diffDays >= 1 && diffDays <= totalDays) return diffDays;
+        if (diffDays <= 0) return 1;
+      }
+    } catch { }
+  }
+
+  const timeStr = String(entry.time || '') + ' ' + String(entry.dateFormatted || '');
+  if (timeStr.includes('Hôm nay')) {
+    return currentCropDay;
+  }
+  if (timeStr.includes('Hôm qua')) {
+    return Math.max(1, currentCropDay - 1);
+  }
+
+  return null;
 }
 
 /**
@@ -246,19 +250,41 @@ function CropGrowthHero({ cropProcess, onOpenStageDetail }) {
  */
 function StandardProcessTimeline({
   cropProcess,
-  operations = { tasks: [], diary: [] },
+  operations,
   staffActivities = [],
-  plot,
+  plot = {},
   isSelf = false,
   onToggleTask,
   onSelectStage,
-  onAddDiary
+  onAddDiary,
+  onStartSeason,
+  onResetSeason,
+  latestHarvest = null,
+  onGoToDiary,
+  onOpenHarvestReport,
+  onOpenPhoto,
+  onGoToMaintenance
 }) {
   if (!cropProcess?.stages?.length) return null;
 
   const currentCropDay = cropProcess.isNotStarted ? 0 : (cropProcess.currentDay || 1);
   const totalDays = cropProcess.totalDays || 45;
   const [selectedDay, setSelectedDay] = useState(cropProcess.isNotStarted ? 1 : currentCropDay);
+
+  const effectiveHarvest = useMemo(() => {
+    if (latestHarvest) {
+      return {
+        ...latestHarvest,
+        id: latestHarvest.harvestCode || latestHarvest.id || `HRV-${plot?.id || '88'}`,
+        crop: latestHarvest.crop || latestHarvest.cropName || plot?.cropName || plot?.crop || 'Nông sản VietGAP',
+        yieldAmount: latestHarvest.yieldAmount ?? latestHarvest.actualWeight ?? null,
+        formattedYield: latestHarvest.formattedYield || (latestHarvest.yieldAmount != null ? `${latestHarvest.yieldAmount} kg` : (latestHarvest.actualWeight != null ? `${latestHarvest.actualWeight} kg` : null)),
+        harvestDateFormatted: latestHarvest.harvestDateFormatted || latestHarvest.harvestDate || '05/11/2026',
+        workerName: latestHarvest.enteredByWorker || latestHarvest.workerName || latestHarvest.staffName || 'Trần Văn Lực'
+      };
+    }
+    return null;
+  }, [latestHarvest, plot]);
 
   useEffect(() => {
     setSelectedDay(cropProcess.isNotStarted ? 1 : (cropProcess.currentDay || 1));
@@ -274,31 +300,7 @@ function StandardProcessTimeline({
 
   // Hàm chuẩn hóa ngày tuổi của một mục nhật ký hoặc hoạt động
   const getEntryCropDay = useCallback((entry) => {
-    if (entry.cropDay !== undefined && entry.cropDay !== null) return Number(entry.cropDay);
-    if (entry.day !== undefined && entry.day !== null) return Number(entry.day);
-    if (entry.dayOffset !== undefined && entry.dayOffset !== null) return Math.max(1, Number(entry.dayOffset));
-
-    // Nếu có ngày thực tế so với startDate của thửa đất
-    const dateStr = entry.date || entry.createdAt || entry.created_at;
-    if (dateStr && plot?.startDate) {
-      try {
-        const d1 = new Date(dateStr);
-        const d0 = new Date(plot.startDate);
-        const diffDays = Math.floor((d1.getTime() - d0.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        if (diffDays >= 1 && diffDays <= totalDays) return diffDays;
-        if (diffDays <= 0) return 1;
-      } catch { }
-    }
-
-    const timeStr = String(entry.time || '') + ' ' + String(entry.dateFormatted || '');
-    if (timeStr.includes('Hôm nay')) {
-      return currentCropDay;
-    }
-    if (timeStr.includes('Hôm qua')) {
-      return Math.max(1, currentCropDay - 1);
-    }
-
-    return null;
+    return calculateEntryCropDay(entry, plot?.startDate, currentCropDay, totalDays);
   }, [plot?.startDate, currentCropDay, totalDays]);
 
   // Gom nhóm nhật ký theo ngày
@@ -324,51 +326,195 @@ function StandardProcessTimeline({
       const d = getEntryCropDay(e);
       if (d !== null && d !== undefined) {
         if (!map[d]) map[d] = [];
-        map[d].push(e);
+
+        // Tránh trùng lặp task nhân viên đã hiển thị ở phần công việc
+        const isFromTask = String(e.id || '').startsWith('DIARY-FROM-TASK-') || Boolean(e.taskId);
+        const titleLower = String(e.title || '').trim().toLowerCase();
+        const isDuplicateTaskMirror = isFromTask && (staffActivities || []).some(
+          (act) => {
+            const actDay = act.day || act.cropDay || getEntryCropDay(act);
+            return actDay === d && (
+              (e.taskId && (act.activityId === e.taskId || act.id === e.taskId)) ||
+              String(act.title || '').trim().toLowerCase() === titleLower
+            );
+          }
+        );
+
+        if (!isDuplicateTaskMirror) {
+          map[d].push(e);
+        }
       }
     });
     return map;
-  }, [operations?.diary, getEntryCropDay, isSelf]);
+  }, [operations?.diary, getEntryCropDay, isSelf, staffActivities]);
 
   // Gom nhóm hoạt động nhân viên theo ngày
   const activitiesByDay = useMemo(() => {
     const map = {};
     const list = staffActivities || [];
     list.forEach((act) => {
-      const d = act.day || act.cropDay || getEntryCropDay(act);
+      let d = act.day || act.cropDay || getEntryCropDay(act);
+      const titleLower = String(act.title || '').toLowerCase();
+      const isHarvestAct = titleLower.includes('thu hoạch') || titleLower.includes('nghiệm thu') || titleLower.includes('đóng thùng');
+      // Gom task thu hoạch vào totalDays nếu chưa có ngày
+      if ((d === null || d === undefined) && isHarvestAct) {
+        d = totalDays;
+      }
       if (d !== null && d !== undefined) {
         if (!map[d]) map[d] = [];
-        map[d].push(act);
+
+        // Đồng bộ hoàn thành khi tua ngày (Fast-forward sync):
+        // Nếu đã ở ngày thu hoạch (currentCropDay >= totalDays), các task trước đó (không phải thu hoạch/nghiệm thu) hoàn thành 100%
+        // NHƯNG NHIỆM VỤ THU HOẠCH PHẢI GIỮ LẠI LÀ CHƯA XONG (PENDING) để người dùng test chức năng thu hoạch!
+        let syncedStatus = act.status;
+        if (currentCropDay >= totalDays) {
+          if (!isHarvestAct) {
+            syncedStatus = 'COMPLETED';
+          } else {
+            syncedStatus = latestHarvest ? 'COMPLETED' : 'PENDING';
+          }
+        } else if (currentCropDay > d && !isHarvestAct) {
+          syncedStatus = 'COMPLETED';
+        } else if (!isSelf && currentCropDay <= 1 && d === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom) {
+          syncedStatus = !cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING';
+        }
+
+        map[d].push({
+          ...act,
+          status: syncedStatus,
+          proofPhoto: syncedStatus === 'COMPLETED' ? (act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80') : act.proofPhoto
+        });
       }
     });
+
+    // Tính ngày lịch tương ứng cho Ngày 1 và Ngày thu hoạch
+    let startCalDate = '';
+    let endCalDate = '';
+    if (plot?.startDate) {
+      try {
+        const d0 = new Date(plot.startDate);
+        startCalDate = d0.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const dEnd = new Date(plot.startDate);
+        dEnd.setDate(dEnd.getDate() + (totalDays - 1));
+        endCalDate = dEnd.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      } catch { }
+    }
+
+    // Đảm bảo Ngày 1 có đúng 2 công việc chuẩn mực, tinh gọn, không spam lặp
+    const defaultDay1Activities = [
+      {
+        activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-1`,
+        id: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-1`,
+        day: 1,
+        cropDay: 1,
+        title: 'Làm đất tơi xốp, bón lót phân trùn quế & xử lý Trichoderma',
+        timestamp: startCalDate ? `${startCalDate} • Ca sáng (07:30 - 09:00)` : 'Ca sáng (07:30 - 09:00)',
+        status: currentCropDay > 1 ? 'COMPLETED' : (!cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING'),
+        workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
+        workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
+        notes: 'Xử lý giá thể bầu ươm đạt chuẩn VietGAP, duy trì ẩm độ đất từ 65 - 70%.',
+        proofPhoto: currentCropDay > 1 ? 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80' : null
+      },
+      {
+        activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-2`,
+        id: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-2`,
+        day: 1,
+        cropDay: 1,
+        title: 'Tưới ẩm luống đất (65-70%) & xuống giống non theo mật độ VietGAP',
+        timestamp: startCalDate ? `${startCalDate} • Ca chiều (16:00 - 17:30)` : 'Ca chiều (16:00 - 17:30)',
+        status: currentCropDay > 1 ? 'COMPLETED' : (!cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING'),
+        workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
+        workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
+        notes: 'Khoảng cách cây cách cây đạt chuẩn 20 - 25cm, duy trì ẩm độ luống đất.'
+      }
+    ];
+
+    if (!map[1] || map[1].length === 0) {
+      map[1] = defaultDay1Activities;
+    } else {
+      // Giới hạn Ngày 1 tối đa 2 việc, lọc sạch các bản ghi trùng lặp
+      const seenTitles = new Set();
+      const cleanDay1 = [];
+      map[1].forEach((t) => {
+        const key = (t.title || '').trim().toLowerCase();
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key);
+          cleanDay1.push(t);
+        }
+      });
+      map[1] = cleanDay1.slice(0, 2);
+    }
+
+    if (!map[totalDays] || map[totalDays].length === 0) {
+      map[totalDays] = [
+        {
+          activityId: `STD-TASK-DAY-${totalDays}-1`,
+          day: totalDays,
+          cropDay: totalDays,
+          title: 'Kiểm nghiệm dư lượng an toàn và hoàn tất thời gian cách ly VietGAP',
+          timestamp: endCalDate ? `${endCalDate} • Ca sáng (06:30 - 08:00)` : 'Ca sáng (06:30 - 08:00)',
+          status: currentCropDay >= totalDays ? 'COMPLETED' : 'PENDING',
+          workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
+          workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
+          notes: 'Ngừng cấp dinh dưỡng trước 24h, test nhanh nitrat và hoạt chất bảo vệ sinh học đạt ngưỡng an toàn.',
+          proofPhoto: currentCropDay >= totalDays ? 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80' : null
+        },
+        {
+          activityId: `STD-TASK-DAY-${totalDays}-2`,
+          day: totalDays,
+          cropDay: totalDays,
+          title: 'Thu hoạch, phân loại chất lượng loại 1 & dán tem truy xuất nguồn gốc',
+          timestamp: endCalDate ? `${endCalDate} • Ca sáng (08:00 - 10:30)` : 'Ca sáng (08:00 - 10:30)',
+          status: latestHarvest ? 'COMPLETED' : 'PENDING',
+          workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
+          workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
+          notes: 'Thu hoạch nhẹ tay tránh dập nát, xếp khay đục lỗ thoáng khí, cân trọng lượng nghiệm thu thực tế.',
+          proofPhoto: latestHarvest ? (latestHarvest.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80') : null
+        }
+      ];
+    }
+
     return map;
-  }, [staffActivities, getEntryCropDay]);
+  }, [staffActivities, getEntryCropDay, totalDays, currentCropDay, cropProcess.isNotStarted, isSelf, plot?.startDate]);
 
   const trackRef = useRef(null);
   const isDraggingRef = useRef(false);
 
-  // Danh sách các mốc giai đoạn chính của quy trình canh tác (5 mốc chuẩn trải đều)
+  // Danh sách các mốc giai đoạn chính của quy trình canh tác (đã chuẩn hóa & gom theo mốc ngày)
   const majorEvents = useMemo(() => {
-    const events = [];
-    const stages = cropProcess.stages || [];
-    const numStages = stages.length;
+    const rawStages = cropProcess.stages || [];
+    // Gom nhóm tuyệt đối theo dayStart để đảm bảo mỗi mốc ngày chỉ xuất hiện đúng 1 lần trên dòng thời gian
+    const byDay = new Map();
+    rawStages.forEach((st) => {
+      const d = st.dayStart !== undefined ? Number(st.dayStart) : 1;
+      if (!byDay.has(d)) {
+        byDay.set(d, st);
+      } else {
+        const existing = byDay.get(d);
+        if ((st.guide?.length || 0) > (existing.guide?.length || 0)) {
+          byDay.set(d, st);
+        }
+      }
+    });
 
-    stages.forEach((st, idx) => {
+    const uniqueStages = Array.from(byDay.values()).sort((a, b) => a.dayStart - b.dayStart);
+    const numStages = uniqueStages.length;
+
+    return uniqueStages.map((st, idx) => {
       let icon = Leaf;
       const nameLower = (st.name || '').toLowerCase();
-      if (idx === 0 || nameLower.includes('gieo') || nameLower.includes('ươm') || nameLower.includes('mầm')) {
+      if (idx === 0 || nameLower.includes('gieo') || nameLower.includes('ươm') || nameLower.includes('làm đất') || nameLower.includes('mầm')) {
         icon = Sprout;
-      } else if (idx === numStages - 1 || nameLower.includes('thu hoạch') || nameLower.includes('thu hái') || nameLower.includes('hái')) {
+      } else if (idx === numStages - 1 || nameLower.includes('thu hoạch') || nameLower.includes('thu hái') || nameLower.includes('hái') || nameLower.includes('cách ly')) {
         icon = Wheat;
       } else if (nameLower.includes('hoa') || nameLower.includes('thụ phấn')) {
         icon = Sparkles;
-      } else if (nameLower.includes('quả') || nameLower.includes('trái') || nameLower.includes('chín')) {
+      } else if (nameLower.includes('quả') || nameLower.includes('trái') || nameLower.includes('chín') || nameLower.includes('bón')) {
         icon = Sun;
       } else {
         icon = Leaf;
       }
 
-      // Lấy tên chuẩn trực tiếp từ giai đoạn thực tế của loại cây trồng, rút gọn chữ rườm rà
       let shortTitle = st.name || `Giai đoạn ${idx + 1}`;
       if (shortTitle.includes('·')) {
         shortTitle = shortTitle.split('·')[0].trim();
@@ -377,92 +523,50 @@ function StandardProcessTimeline({
         .replace(/\s*tiêu chuẩn VietGAP\s*/gi, '')
         .trim();
 
-      // Mốc cuối cùng gắn với ngày thu hoạch kết thúc (totalDays)
-      const milestoneDay = idx === numStages - 1 ? totalDays : st.dayStart;
+      const isHarvest = idx === numStages - 1 || nameLower.includes('thu hoạch') || nameLower.includes('nghiệm thu');
+      const milestoneDay = isHarvest ? totalDays : st.dayStart;
 
-      events.push({
+      return {
+        stageIndex: idx + 1,
         day: milestoneDay,
+        displayDay: milestoneDay,
+        isHarvest,
+        dayStart: st.dayStart,
+        dayEnd: st.dayEnd,
         stage: st,
         title: st.name,
         shortTitle,
         icon,
-        isMajor: true,
-        type: 'STAGE_START'
-      });
+        label: isHarvest ? `Ngày ${totalDays} · Thu hoạch` : (st.label || (st.dayStart === st.dayEnd ? `Ngày ${st.dayStart}` : `Ngày ${st.dayStart} – ${st.dayEnd}`))
+      };
     });
-
-    return events.sort((a, b) => a.day - b.day);
   }, [cropProcess.stages, totalDays]);
 
   // Kiểm tra ngày đang chọn có phải là mốc sự kiện lớn hay không
   const activeEvent = useMemo(() => {
-    return majorEvents.find((e) => e.day === selectedDay);
+    return majorEvents.find((e) => e.displayDay === selectedDay || e.dayStart === selectedDay || e.day === selectedDay);
   }, [majorEvents, selectedDay]);
 
   // Tính % tiến độ thanh chạy nối liền các mốc sự kiện trải dài 100% khung rộng
   const timelineProgressPercent = useMemo(() => {
     if (cropProcess.isNotStarted) return 0;
     if (!majorEvents.length) return 0;
-    if (selectedDay <= majorEvents[0].day) return 0;
-    const lastDay = majorEvents[majorEvents.length - 1].day;
+    const firstDay = majorEvents[0].displayDay || majorEvents[0].dayStart;
+    const lastDay = majorEvents[majorEvents.length - 1].displayDay || majorEvents[majorEvents.length - 1].dayStart;
     if (selectedDay >= lastDay) return 100;
+    if (selectedDay <= firstDay) return 0;
 
     for (let i = 0; i < majorEvents.length - 1; i++) {
-      const d1 = majorEvents[i].day;
-      const d2 = majorEvents[i + 1].day;
+      const d1 = majorEvents[i].displayDay || majorEvents[i].dayStart;
+      const d2 = majorEvents[i + 1].displayDay || majorEvents[i + 1].dayStart;
       if (selectedDay >= d1 && selectedDay <= d2) {
-        const segRatio = (selectedDay - d1) / Math.max(1, d2 - d1);
         const stepWidth = 100 / (majorEvents.length - 1);
-        return (i + segRatio) * stepWidth;
+        const ratio = (selectedDay - d1) / (d2 - d1 || 1);
+        return Math.min(100, Math.max(0, i * stepWidth + ratio * stepWidth));
       }
     }
     return 100;
   }, [selectedDay, majorEvents, cropProcess.isNotStarted]);
-
-  // Chuyển đổi vị trí con trỏ chuột/chạm trên thanh ray thành Ngày tuổi tương ứng (chọn trực tiếp trên thanh)
-  const getDayFromPointer = useCallback((clientX) => {
-    if (!trackRef.current || !majorEvents.length) return selectedDay;
-    const rect = trackRef.current.getBoundingClientRect();
-    if (rect.width <= 0) return selectedDay;
-
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const N = majorEvents.length;
-    if (ratio <= 0) return majorEvents[0].day;
-    if (ratio >= 1) return totalDays;
-
-    const stepWidth = 1 / (N - 1);
-    const segIndex = Math.min(N - 2, Math.floor(ratio / stepWidth));
-    const segRatio = (ratio - segIndex * stepWidth) / stepWidth;
-
-    const d1 = majorEvents[segIndex].day;
-    const d2 = majorEvents[segIndex + 1].day;
-    const computedDay = Math.round(d1 + segRatio * (d2 - d1));
-    return Math.max(1, Math.min(totalDays, computedDay));
-  }, [majorEvents, totalDays, selectedDay]);
-
-  // Xử lý sự kiện bấm hoặc kéo rê trực tiếp trên thanh dòng thời gian
-  const handleTrackPointerDown = useCallback((e) => {
-    e.preventDefault();
-    isDraggingRef.current = true;
-    const day = getDayFromPointer(e.clientX);
-    setSelectedDay(day);
-
-    const onPointerMove = (moveEvent) => {
-      if (isDraggingRef.current) {
-        const d = getDayFromPointer(moveEvent.clientX);
-        setSelectedDay(d);
-      }
-    };
-
-    const onPointerUp = () => {
-      isDraggingRef.current = false;
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-  }, [getDayFromPointer]);
 
   // Danh sách nhật ký cho ngày đang chọn: CHỈ HIỂN THỊ ĐÚNG NGÀY ĐÓ
   const selectedDayDiaries = useMemo(() => {
@@ -473,6 +577,18 @@ function StandardProcessTimeline({
   const selectedDayActivities = useMemo(() => {
     return activitiesByDay[selectedDay] || [];
   }, [activitiesByDay, selectedDay]);
+
+  // Tính ngày lịch tương ứng cho ngày đang chọn
+  const selectedCalendarDateStr = useMemo(() => {
+    if (!plot?.startDate) return null;
+    try {
+      const d = new Date(plot.startDate);
+      d.setDate(d.getDate() + (selectedDay - 1));
+      return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch {
+      return null;
+    }
+  }, [plot?.startDate, selectedDay]);
 
   // Điều hướng ngày trước / sau
   const handlePrevDay = () => {
@@ -487,9 +603,76 @@ function StandardProcessTimeline({
     }
   };
 
+  const handleSimulateDay1 = async () => {
+    setSelectedDay(1);
+    const rentalId = plot?.rentalId || plot?.rental_id;
+    if (rentalId) {
+      try {
+        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'START_NOW' })
+        });
+      } catch (e) {
+        console.warn('Lỗi gọi API simulate START_NOW:', e);
+      }
+    }
+    try {
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith('farmely_self_tasks_') || k.includes('farmely_persisted_staff_activities') || k.includes('farmely_season_started')) {
+          localStorage.removeItem(k);
+        }
+      });
+    } catch {}
+    if (typeof window !== 'undefined' && window.BroadcastChannel) {
+      try {
+        const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
+        bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
+        setTimeout(() => { try { bc1.close(); } catch {} }, 1000);
+        const bc2 = new BroadcastChannel('farmely_iot_telemetry');
+        bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
+        setTimeout(() => { try { bc2.close(); } catch {} }, 1000);
+      } catch {}
+    }
+  };
+
+  const handleSimulateHarvest = async () => {
+    setSelectedDay(totalDays);
+    const rentalId = plot?.rentalId || plot?.rental_id;
+    if (rentalId) {
+      try {
+        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'HARVEST' })
+        });
+      } catch (e) {
+        console.warn('Lỗi gọi API simulate HARVEST:', e);
+      }
+    }
+    try {
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith('farmely_self_tasks_') || k.includes('farmely_persisted_staff_activities')) {
+          localStorage.removeItem(k);
+        }
+      });
+    } catch {}
+    if (typeof window !== 'undefined' && window.BroadcastChannel) {
+      try {
+        const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
+        bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
+        setTimeout(() => { try { bc1.close(); } catch {} }, 1000);
+        const bc2 = new BroadcastChannel('farmely_iot_telemetry');
+        bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
+        setTimeout(() => { try { bc2.close(); } catch {} }, 1000);
+      } catch {}
+    }
+    window.location.reload();
+  };
+
   return (
     <div className="space-y-5">
-      {/* 1. THANH CHẠY DÒNG THỜI GIAN THEO NGÀY: SỰ KIỆN LỚN TRẢI ĐỀU 100% KHUNG RỘNG */}
+      {/* 1. THANH CHẠY DÒNG THỜI GIAN THEO NGÀY: 1 DÒNG THỜI GIAN DUY NHẤT TRẢI RỘNG */}
       <div className="rounded-3xl border border-stone-200/90 bg-white p-5 shadow-sm space-y-6">
         {/* Header thanh thời gian */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3.5">
@@ -506,11 +689,37 @@ function StandardProcessTimeline({
               </span>
             </div>
             <p className="text-xs text-stone-500 mt-1">
-              Bấm hoặc kéo trực tiếp trên thanh thời gian để xem quy trình VietGAP và nhật ký của từng ngày tuổi.
+              Bấm trực tiếp vào các mốc giai đoạn trên dòng thời gian để xem quy trình VietGAP và nhật ký của từng ngày tuổi.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            <button
+              type="button"
+              onClick={handleSimulateDay1}
+              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition shadow-2xs cursor-pointer ${
+                selectedDay === 1
+                  ? 'border-emerald-600 bg-emerald-700 text-white'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+              }`}
+              title="Nhảy tới ngày bắt đầu canh tác (Ngày 1)"
+            >
+              🌱 Ngày 1
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSimulateHarvest}
+              className={`inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-bold transition shadow-2xs cursor-pointer ${
+                selectedDay === totalDays
+                  ? 'border-amber-600 bg-amber-700 text-white shadow-sm'
+                  : 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100'
+              }`}
+              title="Kích hoạt ngày thu hoạch vụ mùa và kiểm tra thông báo thu hoạch"
+            >
+              🌾 Ngày {totalDays} (Thu hoạch)
+            </button>
+
             {cropProcess.isNotStarted ? (
               <span className="inline-flex items-center gap-1.5 rounded-xl bg-sky-50 border border-sky-200 px-3 py-1.5 text-xs font-bold text-sky-800 shadow-xs">
                 <span className="h-2 w-2 rounded-full bg-sky-500 animate-pulse" />
@@ -525,7 +734,12 @@ function StandardProcessTimeline({
                 <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
                 Về Hôm nay (N{currentCropDay})
               </button>
-            ) : null}
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-800 shadow-xs">
+                <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
+                Hôm nay · Ngày {currentCropDay}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => onSelectStage?.(activeStage)}
@@ -539,19 +753,17 @@ function StandardProcessTimeline({
 
         {/* KHU VỰC TRỤC THANH CHẠY DÒNG THỜI GIAN TRẢI RỘNG 100% KHUNG */}
         <div className="relative pt-10 pb-3 px-4 sm:px-12 select-none overflow-x-auto no-scrollbar">
-          <div className="relative min-w-[720px]">
-            {/* Đường ray chính tương tác trực tiếp (hỗ trợ bấm hoặc kéo chọn ngày) */}
+          <div className="relative min-w-[640px]">
+            {/* Đường ray chính nối liền các mốc sự kiện */}
             <div
               ref={trackRef}
-              onPointerDown={handleTrackPointerDown}
-              className="absolute left-14 right-14 top-6 -translate-y-1/2 h-8 flex items-center cursor-pointer group/track z-10 touch-none"
-              title="Bấm hoặc kéo trực tiếp trên thanh để chọn ngày"
+              className="absolute left-14 right-14 top-6 -translate-y-1/2 h-8 flex items-center z-0"
             >
               {/* Thân ray nền xám bo góc */}
-              <div className="relative h-2.5 w-full rounded-full bg-stone-200 group-hover/track:h-3 group-hover/track:bg-stone-300 transition-all overflow-hidden shadow-inner">
+              <div className="relative h-2.5 w-full rounded-full bg-stone-200 overflow-hidden shadow-inner">
                 {/* Vạch tiến độ chạy xanh nối liền theo ngày */}
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600 transition-all duration-150 shadow-[0_0_12px_rgba(16,185,129,0.35)]"
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600 transition-all duration-300 shadow-[0_0_12px_rgba(16,185,129,0.35)]"
                   style={{ width: `${timelineProgressPercent}%` }}
                 />
               </div>
@@ -567,8 +779,9 @@ function StandardProcessTimeline({
                       <span>Ngày {selectedDay}</span>
                       {!cropProcess.isNotStarted && selectedDay === currentCropDay && <span className="text-lime-300">· Hôm nay</span>}
                       {cropProcess.isNotStarted && selectedDay === 1 && <span className="text-sky-300">· Sắp tới</span>}
+                      {!cropProcess.isNotStarted && selectedDay === 1 && currentCropDay !== 1 && <span className="text-lime-300">· Ngày bắt đầu</span>}
                     </div>
-                    <div className="h-6 w-6 rounded-full bg-emerald-700 ring-4 ring-white shadow-lg flex items-center justify-center group-hover/track:scale-125 transition-transform">
+                    <div className="h-6 w-6 rounded-full bg-emerald-700 ring-4 ring-white shadow-lg flex items-center justify-center">
                       <span className="h-2.5 w-2.5 rounded-full bg-lime-300 shadow-xs" />
                     </div>
                   </div>
@@ -577,25 +790,43 @@ function StandardProcessTimeline({
             </div>
 
             {/* CÁC ĐIỂM NÚT SỰ KIỆN LỚN: TRẢI ĐỀU 100% CHIỀU RỘNG, KHÔNG BAO GIỜ BỊ ĐÈ CHỮ */}
-            <div className="relative flex items-center justify-between w-full pointer-events-none">
+            <div className="relative flex items-center justify-between w-full pointer-events-none z-10">
               {majorEvents.map((evt, idx) => {
                 const Icon = evt.icon;
-                const isSelected = selectedDay === evt.day;
-                const isPassed = !cropProcess.isNotStarted && evt.day <= selectedDay;
-                const isToday = !cropProcess.isNotStarted && evt.day === currentCropDay;
-                const isUpcomingFirst = cropProcess.isNotStarted && evt.day === 1;
+                const isHarvestNode = evt.isHarvest || evt.displayDay === totalDays || evt.dayEnd >= totalDays;
+                const isSelected = selectedDay === evt.displayDay || selectedDay === evt.dayStart || (selectedDay >= evt.dayStart && selectedDay <= evt.dayEnd);
+                const isPassed = !cropProcess.isNotStarted && evt.dayEnd <= currentCropDay;
+                const isToday = !cropProcess.isNotStarted && currentCropDay >= evt.dayStart && currentCropDay <= evt.dayEnd;
+                const isUpcomingFirst = cropProcess.isNotStarted && evt.dayStart === 1;
 
                 return (
                   <div
-                    key={evt.day}
+                    key={evt.dayStart ?? idx}
                     className="relative flex flex-col items-center w-28 text-center pointer-events-auto"
                   >
-                    {/* Badge Hôm nay / Sắp tới / Đang xem trên nút */}
+                    {/* Badge Hôm nay / Sắp tới / Thu hoạch trên nút */}
                     <div className="absolute -top-8 pointer-events-none flex flex-col items-center">
                       {isSelected ? (
-                        <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black text-white shadow-md whitespace-nowrap ring-1 ${isToday ? 'bg-emerald-800 ring-emerald-400' : isUpcomingFirst ? 'bg-sky-700 ring-sky-300' : 'bg-emerald-800 ring-emerald-400'
-                          }`}>
-                          {isToday ? 'HÔM NAY' : isUpcomingFirst ? 'SẮP TỚI' : 'ĐANG XEM'}
+                        <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-black text-white shadow-md whitespace-nowrap ring-1 ${
+                          isHarvestNode || selectedDay === totalDays
+                            ? 'bg-amber-600 ring-amber-300'
+                            : isToday
+                            ? 'bg-emerald-800 ring-emerald-400'
+                            : isUpcomingFirst
+                            ? 'bg-sky-700 ring-sky-300'
+                            : 'bg-emerald-800 ring-emerald-400'
+                        }`}>
+                          {isHarvestNode || selectedDay === totalDays
+                            ? '🌾 THU HOẠCH'
+                            : isToday
+                            ? 'HÔM NAY'
+                            : isUpcomingFirst
+                            ? 'SẮP TỚI'
+                            : `GIAI ĐOẠN ${idx + 1}`}
+                        </span>
+                      ) : isHarvestNode ? (
+                        <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[9px] font-black text-white shadow-xs whitespace-nowrap">
+                          Thu hoạch
                         </span>
                       ) : isToday ? (
                         <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[9px] font-black text-white shadow-xs whitespace-nowrap animate-pulse">
@@ -611,32 +842,51 @@ function StandardProcessTimeline({
                     {/* Nút mốc sự kiện lớn */}
                     <button
                       type="button"
-                      onClick={() => setSelectedDay(evt.day)}
-                      onPointerDown={(e) => e.stopPropagation()}
-                      className={`group flex items-center justify-center rounded-2xl transition-all duration-300 cursor-pointer ${isSelected
-                          ? 'h-12 w-12 bg-emerald-800 text-white ring-4 ring-emerald-300 shadow-xl scale-110 z-20'
+                      onClick={() => {
+                        const targetDay = evt.displayDay || evt.dayStart;
+                        setSelectedDay(targetDay);
+                        if (isHarvestNode) {
+                          const rentalId = plot?.rentalId || plot?.rental_id;
+                          if (rentalId) {
+                            fetch(`/api/rentals/${rentalId}/simulate-time`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'HARVEST' })
+                            }).catch(() => {});
+                          }
+                        }
+                      }}
+                      className={`group flex items-center justify-center rounded-2xl transition-all duration-300 cursor-pointer ${
+                        isSelected
+                          ? isHarvestNode
+                            ? 'h-12 w-12 bg-amber-600 text-white ring-4 ring-amber-300 shadow-xl scale-110 z-20'
+                            : 'h-12 w-12 bg-emerald-800 text-white ring-4 ring-emerald-300 shadow-xl scale-110 z-20'
                           : isPassed
-                            ? 'h-10 w-10 bg-emerald-700 text-white ring-2 ring-emerald-200 shadow-md hover:scale-110 z-10'
-                            : 'h-10 w-10 bg-white text-stone-700 border-2 border-stone-300 shadow-xs hover:border-emerald-500 hover:scale-110 z-10'
-                        }`}
-                      title={`Ngày ${evt.day}: ${evt.title}`}
+                          ? 'h-10 w-10 bg-emerald-700 text-white ring-2 ring-emerald-200 shadow-md hover:scale-110 z-10'
+                          : isHarvestNode
+                          ? 'h-10 w-10 bg-amber-50 text-amber-800 border-2 border-amber-300 shadow-xs hover:border-amber-500 hover:scale-110 z-10'
+                          : 'h-10 w-10 bg-white text-stone-700 border-2 border-stone-300 shadow-xs hover:border-emerald-500 hover:scale-110 z-10'
+                      }`}
+                      title={`Ngày ${evt.displayDay || evt.dayStart}: ${evt.title}`}
                     >
                       <Icon className={isSelected ? 'h-5 w-5 text-lime-300' : 'h-4 w-4'} />
                     </button>
 
                     {/* Nhãn mô tả sự kiện bên dưới - Rộng rãi, cách đều nhau, không bao giờ bị đè */}
                     <div className="mt-3.5 flex flex-col items-center text-center w-full pointer-events-none">
-                      <span className={`text-xs font-black whitespace-nowrap ${isSelected ? 'text-emerald-950 scale-105' : 'text-stone-800'
-                        }`}>
-                        Ngày {evt.day}
+                      <span className={`text-xs font-black whitespace-nowrap ${
+                        isSelected ? (isHarvestNode ? 'text-amber-950 scale-105' : 'text-emerald-950 scale-105') : 'text-stone-800'
+                      }`}>
+                        Ngày {evt.displayDay || evt.dayStart}
                       </span>
-                      <span className={`text-[11px] font-semibold mt-0.5 leading-snug line-clamp-2 ${isSelected ? 'text-emerald-800 font-bold' : 'text-stone-600'
-                        }`}>
+                      <span className={`text-[11px] font-semibold mt-0.5 leading-snug line-clamp-2 ${
+                        isSelected ? (isHarvestNode ? 'text-amber-800 font-bold' : 'text-emerald-800 font-bold') : 'text-stone-600'
+                      }`}>
                         {evt.shortTitle}
                       </span>
-                      {evt.stage?.label && (
+                      {evt.label && (
                         <span className="text-[10px] text-stone-400 mt-0.5 font-medium whitespace-nowrap">
-                          ({evt.stage.label})
+                          ({evt.label})
                         </span>
                       )}
                     </div>
@@ -646,27 +896,57 @@ function StandardProcessTimeline({
             </div>
           </div>
 
-          {/* Nút chuyển ngày nhỏ gọn, không chiếm diện tích */}
-          <div className="mt-2 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={handlePrevDay}
-              disabled={selectedDay <= 1}
-              className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-30 shadow-2xs transition cursor-pointer"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              Ngày trước
-            </button>
+          {/* Nút điều hướng nhanh: Nhảy về Ngày Bắt Đầu & Nhảy đến Ngày Kết Thúc Thu Hoạch */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-stone-100">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSimulateDay1}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
+                  selectedDay === 1
+                    ? 'border-emerald-600 bg-emerald-700 text-white shadow-emerald-700/20'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                }`}
+                title="Bấm để kích hoạt/chuyển ngay tới Ngày 1 và đồng bộ toàn bộ quy trình"
+              >
+                <span>🌱 Ngày bắt đầu (Ngày 1)</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={handleNextDay}
-              disabled={selectedDay >= totalDays}
-              className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-30 shadow-2xs transition cursor-pointer"
-            >
-              Ngày sau
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+              <button
+                type="button"
+                onClick={handlePrevDay}
+                disabled={selectedDay <= 1}
+                className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-30 shadow-2xs transition cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Ngày trước</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleNextDay}
+                disabled={selectedDay >= totalDays}
+                className="inline-flex items-center gap-1 rounded-xl border border-stone-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-50 hover:text-stone-900 disabled:opacity-30 shadow-2xs transition cursor-pointer"
+              >
+                <span>Ngày sau</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSimulateHarvest}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer ${
+                  selectedDay === totalDays
+                    ? 'border-amber-600 bg-amber-700 text-white shadow-amber-700/20'
+                    : 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                }`}
+                title="Bấm để chuyển ngay tới Ngày Thu Hoạch và đồng bộ toàn bộ quy trình"
+              >
+                <span>🌾 Ngày kết thúc (Ngày {totalDays} · Thu hoạch)</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -680,28 +960,50 @@ function StandardProcessTimeline({
               N{selectedDay}
             </span>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-heading font-black text-base text-[#18352b]">
-                  Ngày {selectedDay} / {totalDays} ngày tuổi
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-heading font-black text-base text-[#18352b] flex items-center gap-2">
+                  <span>Ngày {selectedDay} / {totalDays} ngày tuổi</span>
+                  {selectedCalendarDateStr && (
+                    <span className="text-xs font-bold text-stone-500 bg-stone-100 px-2.5 py-0.5 rounded-full border border-stone-200">
+                      📅 {selectedCalendarDateStr}
+                    </span>
+                  )}
                 </h3>
-                {!cropProcess.isNotStarted && selectedDay === currentCropDay && (
+                {selectedDay === totalDays ? (
+                  <span className="rounded-full bg-amber-600 text-white px-3 py-0.5 text-[10px] font-black uppercase shadow-xs flex items-center gap-1.5 animate-pulse">
+                    🌾 NGÀY THU HOẠCH
+                  </span>
+                ) : cropProcess.isNotStarted && selectedDay === 1 ? (
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-sky-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase shadow-xs">
+                      Sắp tới · Bắt đầu {plot?.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'dự kiến'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={onStartSeason}
+                      className="inline-flex items-center gap-1 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white px-2.5 py-0.5 text-[10px] font-bold shadow-xs transition cursor-pointer"
+                      title="Bấm để kích hoạt bắt đầu mùa vụ ngay hôm nay"
+                    >
+                      <Sprout className="w-3 h-3 text-lime-300" />
+                      <span>Bắt đầu mùa vụ ngay</span>
+                    </button>
+                  </div>
+                ) : !cropProcess.isNotStarted && selectedDay === currentCropDay ? (
                   <span className="rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase shadow-xs">
                     Hôm nay
                   </span>
-                )}
-                {cropProcess.isNotStarted && selectedDay === 1 && (
+                ) : !cropProcess.isNotStarted && selectedDay === 1 ? (
+                  <span className="rounded-full bg-emerald-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase shadow-xs flex items-center gap-1">
+                    🌱 Đang canh tác · Ngày 1
+                  </span>
+                ) : (cropProcess.isNotStarted && selectedDay !== 1) ? (
                   <span className="rounded-full bg-sky-600 text-white px-2.5 py-0.5 text-[10px] font-black uppercase shadow-xs">
-                    Sắp tới · Bắt đầu {plot?.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'dự kiến'}
+                    Kế hoạch mùa vụ
                   </span>
-                )}
-                {activeEvent && (
-                  <span className="rounded-full bg-amber-100 text-amber-900 px-2.5 py-0.5 text-[10px] font-extrabold shadow-xs flex items-center gap-1">
-                    ⭐ {activeEvent.shortTitle}
-                  </span>
-                )}
+                ) : null}
               </div>
               <p className="text-xs text-stone-600 font-medium">
-                Giai đoạn {activeStage?.stepOrder}: <strong className="text-emerald-800">{activeStage?.name}</strong> ({activeStage?.label})
+                Giai đoạn {activeStage?.stepOrder || 1}: <strong className="text-emerald-800">{activeStage?.name}</strong> {activeStage?.label ? `(${activeStage.label})` : ''}
               </p>
             </div>
           </div>
@@ -726,186 +1028,350 @@ function StandardProcessTimeline({
           </div>
         </div>
 
-        {/* Lưới 2 cột: Cột 1 = Quy trình chuẩn VietGAP; Cột 2 = Nhật ký & Ảnh thực tế hôm đó */}
-        <div className="grid gap-5 lg:grid-cols-2">
-          {/* CỘT 1: QUY TRÌNH CHUẨN THEO TEMPLATE */}
-          <div className="rounded-2xl border border-emerald-200/90 bg-emerald-50/40 p-5 sm:p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-emerald-200/60 pb-3 gap-2">
-              <span className="flex items-center gap-2 font-black text-xs text-emerald-950 uppercase tracking-wider min-w-0 truncate">
-                <Sprout className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="truncate">Quy trình chuẩn VietGAP Ngày {selectedDay}</span>
-              </span>
-              <span className="rounded-md bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 shrink-0">
-                {activeStage?.label}
-              </span>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="rounded-xl border border-emerald-100/90 bg-white/90 p-3.5 shadow-2xs space-y-1">
-                <div className="flex items-center gap-2 font-bold text-emerald-950 text-xs">
-                  <span className="text-base leading-none">💧</span>
-                  <span>Chế độ tưới nước</span>
-                </div>
-                <p className="text-stone-600 text-xs leading-relaxed pl-6">
-                  {activeStage?.waterRegime || 'Duy trì ẩm độ 65 - 75%, tưới phun sương nhẹ buổi sáng sớm.'}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-emerald-100/90 bg-white/90 p-3.5 shadow-2xs space-y-1">
-                <div className="flex items-center gap-2 font-bold text-emerald-950 text-xs">
-                  <span className="text-base leading-none">🧪</span>
-                  <span>Dinh dưỡng hữu cơ</span>
-                </div>
-                <p className="text-stone-600 text-xs leading-relaxed pl-6">
-                  {activeStage?.nutrition || 'Bổ sung vi sinh cố định đạm và dịch chiết Humic hữu cơ định kỳ.'}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-emerald-100/90 bg-white/90 p-3.5 shadow-2xs space-y-1">
-                <div className="flex items-center gap-2 font-bold text-emerald-950 text-xs">
-                  <span className="text-base leading-none">🎯</span>
-                  <span>Yêu cầu kỹ thuật giai đoạn</span>
-                </div>
-                <p className="text-stone-600 text-xs leading-relaxed pl-6">
-                  {activeStage?.guide}
-                </p>
-              </div>
-
-              {activeStage?.inspectionCriteria && (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-100/40 p-3.5 shadow-2xs space-y-1">
-                  <div className="flex items-center gap-2 font-bold text-emerald-900 text-xs">
-                    <span className="text-base leading-none">🔍</span>
-                    <span>Tiêu chuẩn nghiệm thu VietGAP</span>
+        {/* BR20/BR21: THÔNG BÁO THU HOẠCH VỤ MÙA KHI ĐẾN NGÀY THU HOẠCH (ĐỒNG BỘ CHẶT CHẼ THEO TIẾN ĐỘ THỰC TẾ) */}
+        {selectedDay === totalDays && (
+          effectiveHarvest ? (
+            /* TRƯỜNG HỢP 1: ĐÃ THU HOẠCH THẬT (Staff đã cân đo & tạo biên bản thực tế) */
+            <div
+              onClick={() => onOpenHarvestReport?.(effectiveHarvest)}
+              className="rounded-2xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100/40 to-lime-50/50 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition group cursor-pointer hover:shadow-md hover:border-emerald-400"
+              title="Bấm để xem Báo cáo thu hoạch & Biên bản nghiệm thu (BR20)"
+            >
+              <div className="flex items-start gap-3 min-w-0">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md text-xl group-hover:scale-105 transition-transform">
+                  🌾
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="rounded-full bg-emerald-700 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
+                      🌾 Đã Thu Hoạch Vụ Mùa
+                    </span>
+                    <span className="rounded-full bg-emerald-200/90 px-2 py-0.5 text-[10px] font-black text-emerald-950 border border-emerald-300">
+                      Sản lượng thực tế: {String(effectiveHarvest.formattedYield || `${effectiveHarvest.yieldAmount} kg`).replace(/\bkg(?:\s+kg)+\b/gi, 'kg')}
+                    </span>
+                    {effectiveHarvest?.harvestDateFormatted && (
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-900 border border-emerald-200">
+                        {effectiveHarvest.harvestDateFormatted}
+                      </span>
+                    )}
+                    <span className="rounded-full bg-lime-100 px-2 py-0.5 text-[10px] font-bold text-lime-800 border border-lime-300">
+                      VietGAP chuẩn xuất xưởng
+                    </span>
                   </div>
-                  <p className="text-emerald-800 text-xs font-medium leading-relaxed pl-6">
-                    {activeStage.inspectionCriteria}
+                  <h4 className="mt-1 text-sm font-heading font-black text-emerald-950">
+                    Nông sản đã thu hoạch hoàn tất — Đã chốt biên bản sản lượng!
+                  </h4>
+                  <p className="mt-0.5 text-xs text-emerald-950/80 leading-relaxed max-w-2xl">
+                    {effectiveHarvest.enteredByWorker || effectiveHarvest.workerName || 'Chuyên viên lao động (Trần Văn Lực)'} đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Quý khách vui lòng đến nhận nông sản tại nông trại theo quy định BR21.
                   </p>
                 </div>
-              )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenHarvestReport?.(effectiveHarvest);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
+                >
+                  <Award className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Báo cáo thu hoạch</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenHarvestReport?.(effectiveHarvest);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400 bg-white px-3 py-1.5 text-xs font-bold text-emerald-900 shadow-xs hover:bg-emerald-50 transition cursor-pointer"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Xem biên bản trong Nhật ký</span>
+                </button>
+                {onGoToMaintenance && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onGoToMaintenance();
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500 bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-black text-white shadow-xs transition cursor-pointer"
+                    title="Chuyển sang chu kỳ cải tạo đất 4 ngày theo BR23 & gia hạn vụ mới"
+                  >
+                    <Wrench className="w-3.5 h-3.5 text-white" />
+                    <span>🧹 Sang Bảo Trì Đất 4 Ngày & Gia Hạn (BR23) ›</span>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* TRƯỜNG HỢP 2: ĐẾN NGÀY THU HOẠCH NHƯNG STAFF CHƯA HOÀN THÀNH -> HIỆN CHỜ THU HOẠCH, CÒN 1 TASK THU HOẠCH CHO STAFF */
+            <div
+              className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100/30 to-orange-50/40 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition"
+            >
+              <div className="flex items-start gap-3 min-w-0">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md text-xl animate-pulse">
+                  ⏳
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
+                      ⏳ Đang Chờ Thu Hoạch (Ngày {totalDays})
+                    </span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-200">
+                      Dự kiến: {plot?.expectedYield || '20 - 25 kg'} (Chưa cân thực tế)
+                    </span>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                      VietGAP chuẩn thu hái
+                    </span>
+                  </div>
+                  <h4 className="mt-1 text-sm font-heading font-black text-amber-950">
+                    Đến ngày thu hoạch vụ mùa — Chuyên viên lao động đang chuẩn bị tiến hành thu hoạch & cân thực địa (BR20)
+                  </h4>
+                  <p className="mt-0.5 text-xs text-amber-950/80 leading-relaxed max-w-2xl">
+                    Nhiệm vụ thu hoạch đã được phân công cho Chuyên viên lao động (Trần Văn Lực). Sau khi nhân viên hoàn tất việc cắt, cân điện tử và tải ảnh đối chứng hiện trường, Biên bản nghiệm thu & Sản lượng thực tế sẽ tự động cập nhật tại đây.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-100/70 px-3 py-1.5 text-xs font-bold text-amber-900">
+                  <Clock className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Đang chờ Lực (CVLĐ) thực hiện</span>
+                </span>
+              </div>
+            </div>
+          )
+        )}
 
-          {/* CỘT 2: NHẬT KÝ & HOẠT ĐỘNG THỰC TẾ HÔM ĐÓ */}
-          <div className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6 space-y-4 shadow-sm">
+        {/* Danh sách nhiệm vụ canh tác & Nhật ký thực tế hôm đó */}
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-stone-200 bg-white p-4 sm:p-5 space-y-3.5 shadow-sm">
             <div className="flex items-center justify-between border-b border-stone-200/60 pb-3 gap-2">
               <span className="flex items-center gap-2 font-black text-xs text-stone-900 uppercase tracking-wider min-w-0 truncate">
-                <BookOpen className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="truncate">Nhật ký & Thực địa Ngày {selectedDay}</span>
+                <CalendarCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="truncate">Nhiệm vụ canh tác & Nhật ký Ngày {selectedDay}</span>
               </span>
-              <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] font-bold text-stone-600 shrink-0 border border-stone-200/60">
-                {selectedDayDiaries.length + selectedDayActivities.length} ghi nhận
+              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold shrink-0 border ${
+                cropProcess.isNotStarted ? 'bg-sky-50 text-sky-800 border-sky-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              }`}>
+                {cropProcess.isNotStarted ? 'Kế hoạch sắp tới' : `${selectedDayActivities.length} công việc · ${selectedDayDiaries.length} nhật ký`}
               </span>
             </div>
 
-            {selectedDayDiaries.length > 0 || selectedDayActivities.length > 0 ? (
-              <div className="space-y-3.5 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar">
-                {/* 1. Các bài viết nhật ký của chủ vườn / kỹ thuật viên */}
-                {selectedDayDiaries.map((entry, idx) => (
-                  <div key={entry.id || idx} className="rounded-xl border border-emerald-100 bg-emerald-50/20 p-3.5 space-y-2 text-xs">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-stone-500 text-[11px] flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-stone-400" />
-                        {entry.time || 'Hôm nay'}
-                      </span>
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 flex items-center gap-1">
-                        <UserRound className="w-3 h-3" />
-                        {isSelf
-                          ? (entry.author && !entry.author.includes('CVLĐ') && !entry.author.includes('Trần Văn Lực') ? entry.author : 'Chủ vườn (Tự canh tác)')
-                          : (entry.author || 'Chủ vườn')}
+            {cropProcess.isNotStarted && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                <div className="flex items-center gap-2 text-sky-900">
+                  <Clock className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>Vụ mùa đang ở trạng thái <strong>Sắp tới</strong> (Bắt đầu {plot?.startDate ? new Date(plot.startDate).toLocaleDateString('vi-VN') : 'sắp tới'}).</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onStartSeason}
+                  className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Sprout className="w-3.5 h-3.5 text-lime-300" />
+                  <span>Bắt đầu mùa vụ ngay</span>
+                </button>
+              </div>
+            )}
+
+            {selectedDayActivities.length > 0 || selectedDayDiaries.length > 0 ? (
+              <div className="space-y-4">
+                {/* 1. Hoạt động thực địa hoặc công việc tự canh tác */}
+                {selectedDayActivities.length > 0 && (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-stone-500 uppercase tracking-wider">
+                      <span>{cropProcess.isNotStarted ? `Công việc chuẩn bị Ngày ${selectedDay}` : `Nhiệm vụ cần thực hiện (${selectedDayActivities.length})`}</span>
+                      <span className="text-emerald-700 normal-case">
+                        {cropProcess.isNotStarted ? 'Chờ kích hoạt vụ mùa' : `${selectedDayActivities.filter(a => a.status === 'COMPLETED').length}/${selectedDayActivities.length} hoàn thành`}
                       </span>
                     </div>
 
-                    <p className="font-bold text-stone-900 text-xs">{entry.title}</p>
-                    <p className="text-xs text-stone-600 leading-relaxed whitespace-pre-line">{entry.note}</p>
-
-                    {/* Ảnh hiện trường thực tế */}
-                    {(entry.image || entry.imageUrl || entry.photo) && (
-                      <div className="mt-2 overflow-hidden rounded-xl border border-stone-200 bg-stone-900/5 group">
-                        <img
-                          src={entry.image || entry.imageUrl || entry.photo}
-                          alt={entry.title || 'Ảnh hiện trường'}
-                          className="h-44 w-full object-cover transition duration-300 group-hover:scale-102 cursor-pointer"
-                          onClick={() => window.open(entry.image || entry.imageUrl || entry.photo, '_blank')}
-                          loading="lazy"
-                        />
-                        <div className="p-2 bg-white text-[11px] text-stone-600 flex items-center justify-between border-t border-stone-100">
-                          <span className="text-emerald-700 font-medium">📸 Ảnh chụp hiện trường thực tế</span>
-                          <span
-                            className="text-emerald-700 font-bold hover:underline cursor-pointer"
-                            onClick={() => window.open(entry.image || entry.imageUrl || entry.photo, '_blank')}
-                          >
-                            Mở ảnh to ↗
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* 2. Hoạt động thực địa hoặc công việc tự canh tác */}
-                {selectedDayActivities.map((act, idx) => {
-                  const isDone = act.status === 'COMPLETED';
-                  return (
-                    <div
-                      key={act.activityId || act.id || idx}
-                      className={`rounded-xl border p-3.5 space-y-2 text-xs transition ${isDone ? 'border-emerald-200 bg-emerald-50/40' : 'border-sky-100 bg-sky-50/30'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between text-xs gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {isSelf ? (
-                            <button
-                              type="button"
-                              onClick={() => onToggleTask?.(act.id || act.activityId)}
-                              className={`h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${isDone
-                                  ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
-                                  : 'border-stone-300 bg-white hover:border-emerald-500'
+                    {selectedDayActivities.map((act, idx) => {
+                      const isDone = act.status === 'COMPLETED';
+                      const photoUrl = act.proofPhoto || act.evidenceImageUrl;
+                      const isHarvestAct = /thu hoạch|nghiệm thu|đóng thùng/i.test(`${act.title || act.name || ''} ${act.notes || ''}`);
+                      return (
+                        <div
+                          key={act.activityId || act.id || idx}
+                          className={`rounded-2xl border p-3.5 sm:p-4 text-xs transition duration-200 ${
+                            isDone ? 'border-emerald-200/90 bg-emerald-50/30' : 'border-stone-200/90 bg-white hover:border-emerald-300 shadow-2xs'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isHarvestAct && !isDone) {
+                                    onOpenHarvestReport?.(effectiveHarvest);
+                                  } else {
+                                    onToggleTask?.(act.id || act.activityId);
+                                  }
+                                }}
+                                className={`mt-0.5 h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${
+                                  isDone
+                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                                    : isHarvestAct
+                                    ? 'border-amber-400 bg-amber-50 hover:border-amber-500 hover:bg-amber-100'
+                                    : 'border-stone-300 bg-white hover:border-emerald-500'
                                 }`}
-                              title={isDone ? 'Bấm để đánh dấu chưa xong' : 'Bấm để đánh dấu hoàn thành'}
-                            >
-                              {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                            </button>
-                          ) : (
-                            <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
-                          )}
-                          <span className={`font-bold truncate ${isDone && isSelf ? 'text-stone-400 line-through' : 'text-stone-900'}`}>
-                            {act.title || act.name}
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-semibold text-stone-500 bg-white/90 px-2 py-0.5 rounded-md border border-stone-200 shrink-0">
-                          {act.timestamp || act.time || (isSelf ? 'Hằng ngày' : 'Ca trực')}
-                        </span>
-                      </div>
-                      {(act.notes || act.note) && (
-                        <p className={`text-xs leading-relaxed ${isSelf ? 'pl-7' : 'pl-5.5'} text-stone-600`}>
-                          {act.notes || act.note}
-                        </p>
-                      )}
-                      {!isSelf && act.proofPhoto && (
-                        <div className="mt-2 pl-5.5">
-                          <div className="overflow-hidden rounded-xl border border-sky-200 bg-stone-900/5 group">
-                            <img
-                              src={act.proofPhoto}
-                              alt={act.title || 'Minh chứng'}
-                              className="h-44 w-full object-cover transition duration-300 group-hover:scale-102 cursor-pointer"
-                              onClick={() => window.open(act.proofPhoto, '_blank')}
-                              loading="lazy"
-                            />
-                            <div className="p-2 bg-white text-[11px] text-stone-600 flex items-center justify-between border-t border-sky-100">
-                              <span className="text-sky-800 font-medium">📸 Minh chứng ca trực thực địa</span>
-                              <span
-                                className="text-sky-800 font-bold hover:underline cursor-pointer"
-                                onClick={() => window.open(act.proofPhoto, '_blank')}
+                                title={isDone ? 'Bấm để đánh dấu chưa xong' : isHarvestAct ? 'Bấm để mở Báo cáo thu hoạch & Nghiệm thu' : 'Bấm để đánh dấu hoàn thành'}
                               >
-                                Mở ảnh to ↗
-                              </span>
+                                {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                              </button>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className={`font-bold text-xs sm:text-[13px] ${isDone ? 'text-stone-700' : 'text-stone-900'}`}>
+                                    {act.title || act.name}
+                                  </span>
+                                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${
+                                    isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : isHarvestAct ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse font-extrabold' : 'bg-stone-100 text-stone-600 border-stone-200'
+                                  }`}>
+                                    {isDone ? '✓ ĐÃ XONG' : isHarvestAct ? '🌾 CHỜ THU HOẠCH' : (act.timestamp || act.time || (isSelf ? 'Cần làm' : 'Ca trực'))}
+                                  </span>
+                                </div>
+
+                                <div className="mt-1 flex items-center gap-3 text-[11px] text-stone-500 flex-wrap">
+                                  <span className="flex items-center gap-1 font-medium text-stone-700">
+                                    <UserRound className="w-3 h-3 text-emerald-600" />
+                                    {act.workerName || (isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực (CVLĐ)')}
+                                  </span>
+                                  {act.timestamp && (
+                                    <span className="flex items-center gap-1 text-stone-400">
+                                      <Clock className="w-3 h-3 text-stone-400" />
+                                      {act.timestamp}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/80">
+                                    Quy trình VietGAP
+                                  </span>
+                                </div>
+
+                                {(act.notes || act.note) && (
+                                  <p className="mt-1.5 text-xs leading-relaxed text-stone-600">
+                                    {act.notes || act.note}
+                                  </p>
+                                )}
+
+                                {isHarvestAct && (
+                                  <div className="mt-2.5 flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onOpenHarvestReport?.(effectiveHarvest);
+                                      }}
+                                      className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
+                                      title="Mở Báo cáo thu hoạch & Biên bản nghiệm thu sản lượng (BR20)"
+                                    >
+                                      <Scale className="w-3.5 h-3.5 text-amber-200" />
+                                      <span>{isDone ? 'Xem Biên bản nghiệm thu sản lượng' : '🌾 Tiến hành thu hoạch & Nghiệm thu'}</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
+
+                            {/* Compact Photo Thumbnail on Right Side (Khắc phục triệt để ảnh to đùng) */}
+                            {photoUrl && (
+                              <div className="shrink-0 flex flex-col items-center gap-1 self-start">
+                                <button
+                                  type="button"
+                                  onClick={() => (onOpenPhoto ? onOpenPhoto(act) : window.open(photoUrl, '_blank'))}
+                                  className="group/thumb relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-stone-100 shadow-2xs hover:shadow-md hover:scale-105 transition-all duration-200 cursor-pointer"
+                                  title="Bấm để xem ảnh phóng to & biên bản đối chứng"
+                                >
+                                  <img
+                                    src={photoUrl}
+                                    alt={act.title || 'Minh chứng'}
+                                    className="h-full w-full object-cover group-hover/thumb:scale-110 transition-transform duration-300"
+                                    loading="lazy"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Maximize2 className="w-3.5 h-3.5 text-white drop-shadow" />
+                                  </div>
+                                </button>
+                                <span className="text-[9px] font-semibold text-stone-400 group-hover/thumb:text-emerald-700 flex items-center gap-0.5">
+                                  <Camera className="w-2.5 h-2.5" />
+                                  Minh chứng
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 2. Các bài viết nhật ký của chủ vườn / kỹ thuật viên */}
+                {selectedDayDiaries.length > 0 && (
+                  <div className="space-y-2.5 pt-2 border-t border-stone-100">
+                    <p className="text-[11px] font-bold text-stone-500 uppercase tracking-wider">
+                      Nhật ký ghi chép ({selectedDayDiaries.length})
+                    </p>
+                    {selectedDayDiaries.map((entry, idx) => {
+                      const displayTitle = entry.title || (entry.note ? entry.note.slice(0, 45) : 'Nhật ký ghi chép hiện trường');
+                      const displayAuthor = isSelf
+                        ? (entry.author && !entry.author.includes('CVLĐ') && !entry.author.includes('Trần Văn Lực') ? entry.author : 'Chủ vườn (Tự canh tác)')
+                        : (entry.author || 'Trần Văn Lực (Kỹ thuật viên)');
+                      const displayTime = entry.time || entry.date || 'Hôm nay';
+                      const entryImg = entry.image || entry.imageUrl || entry.photo;
+
+                      return (
+                        <div key={entry.id || idx} className="rounded-2xl border border-stone-200/90 bg-white p-3.5 sm:p-4 text-xs shadow-2xs hover:border-emerald-300 transition-all duration-200">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between text-xs gap-2">
+                                <span className="font-semibold text-stone-500 text-[11px] flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-stone-400" />
+                                  {displayTime}
+                                </span>
+                                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                  <UserRound className="w-3 h-3 text-emerald-600" />
+                                  {displayAuthor}
+                                </span>
+                              </div>
+
+                              <p className="mt-1 font-bold text-stone-900 text-xs sm:text-[13px]">{displayTitle}</p>
+                              {entry.note && (
+                                <p className="mt-1 text-xs text-stone-600 leading-relaxed whitespace-pre-line">{entry.note}</p>
+                              )}
+                            </div>
+
+                            {/* Compact Diary Photo Thumbnail on Right */}
+                            {entryImg && (
+                              <div className="shrink-0 flex flex-col items-center gap-1 self-start">
+                                <button
+                                  type="button"
+                                  onClick={() => (onOpenPhoto ? onOpenPhoto(entry) : window.open(entryImg, '_blank'))}
+                                  className="group/thumb relative h-14 w-14 sm:h-16 sm:w-16 shrink-0 overflow-hidden rounded-xl border border-stone-200 bg-stone-100 shadow-2xs hover:shadow-md hover:scale-105 transition-all duration-200 cursor-pointer"
+                                  title="Bấm để xem ảnh phóng to"
+                                >
+                                  <img
+                                    src={entryImg}
+                                    alt={displayTitle}
+                                    className="h-full w-full object-cover group-hover/thumb:scale-110 transition-transform duration-300"
+                                    loading="lazy"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Maximize2 className="w-3.5 h-3.5 text-white drop-shadow" />
+                                  </div>
+                                </button>
+                                <span className="text-[9px] font-semibold text-stone-400 group-hover/thumb:text-emerald-700 flex items-center gap-0.5">
+                                  <Camera className="w-2.5 h-2.5" />
+                                  Ảnh vườn
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="py-10 text-center space-y-3">
@@ -943,9 +1409,9 @@ function StandardProcessTimeline({
  * Modal xem chi tiết cẩm nang kỹ thuật của mốc ngày
  */
 function StageDetailModal({ stage, cropProcess, onClose }) {
-  if (!stage) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+  if (!stage || typeof document === 'undefined') return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
       <div className="relative w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-stone-900/10 max-h-[90vh] overflow-y-auto">
         <button
           type="button"
@@ -974,17 +1440,17 @@ function StageDetailModal({ stage, cropProcess, onClose }) {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-stone-200 p-3.5 bg-stone-50/50">
-              <span className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-                <Droplets className="h-4 w-4 text-sky-500" />Chế độ tưới nước đề xuất
+            <div className="rounded-2xl bg-stone-50 p-3.5 border border-stone-200">
+              <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                <Sun className="h-4 w-4 text-amber-500" />Ánh sáng & Nhiệt độ
               </span>
-              <p className="mt-1.5 text-xs text-stone-600 leading-relaxed">{stage.waterRegime}</p>
+              <p className="mt-1 text-xs text-stone-600 leading-relaxed">{stage.idealTemp}</p>
             </div>
-            <div className="rounded-2xl border border-stone-200 p-3.5 bg-stone-50/50">
-              <span className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-                <Leaf className="h-4 w-4 text-emerald-600" />Dinh dưỡng & Phân bón vi sinh
+            <div className="rounded-2xl bg-stone-50 p-3.5 border border-stone-200">
+              <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                <Droplets className="h-4 w-4 text-sky-500" />Chế độ nước tưới
               </span>
-              <p className="mt-1.5 text-xs text-stone-600 leading-relaxed">{stage.nutrition || stage.materials || 'Bón phân hữu cơ vi sinh'}</p>
+              <p className="mt-1 text-xs text-stone-600 leading-relaxed">{stage.idealMoisture}</p>
             </div>
           </div>
 
@@ -1000,7 +1466,7 @@ function StageDetailModal({ stage, cropProcess, onClose }) {
           {stage.inspectionCriteria && (
             <div className="rounded-2xl bg-blue-50/80 p-3.5 border border-blue-200">
               <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-blue-600" />Tiêu chí nghiệm thu của Kỹ sư
+                <ShieldCheck className="h-4 w-4 text-blue-600" />Tiêu chí hoàn thành của Kỹ sư
               </span>
               <p className="mt-1 text-xs text-blue-800 leading-relaxed">{stage.inspectionCriteria}</p>
             </div>
@@ -1017,7 +1483,8 @@ function StageDetailModal({ stage, cropProcess, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1032,9 +1499,21 @@ function StageDetailModal({ stage, cropProcess, onClose }) {
  * Thẻ hiển thị một hoạt động của Staff hoặc công việc Tự canh tác của chủ vườn
  */
 function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask, onDeleteTask }) {
-  const isDone = activity.status === 'COMPLETED';
-  const isInProg = activity.status === 'IN_PROGRESS';
+  const isDone = activity.status === 'COMPLETED' || activity.status === 'DONE';
+  const isInProg = activity.status === 'IN_PROGRESS' || activity.status === 'IN_PROG';
   const isToday = activity.isToday;
+
+  const displayTimestamp = useMemo(() => {
+    const raw = String(activity.timestamp || '');
+    const reversedMatch = raw.match(/^(\d{1,2}:\d{2})\s*-\s*(\d{1,2}\/\d{1,2}\/\d{4})$/);
+    if (reversedMatch) {
+      return `${reversedMatch[2]} • ${reversedMatch[1]}`;
+    }
+    return raw;
+  }, [activity.timestamp]);
+
+  const resolvedCropDay = activity.cropDay || activity.day;
+  const isTaskItem = !activity.isDiaryEntry && !activity.isHarvest;
 
   return (
     <div className={`group relative flex flex-col sm:flex-row items-start gap-4 rounded-2xl border transition hover:shadow-md ${isDone
@@ -1043,22 +1522,25 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
           ? 'border-2 border-amber-300 bg-gradient-to-r from-amber-50/40 via-white to-amber-50/20 shadow-xs hover:border-emerald-500'
           : 'border-stone-200/90 bg-stone-50/40 hover:bg-white hover:border-stone-300'
       } p-4 shadow-sm`}>
-      {/* Cột trái: Nút Checkbox (cho Tự canh tác) HOẶC Ảnh minh chứng (cho Staff) */}
-      {isSelf ? (
+      {/* Cột trái: Nút Checkbox (cho Tự canh tác) HOẶC Ảnh minh chứng (cho Staff / Dịch vụ) */}
+      {(isSelf && isTaskItem && !activity.serviceRequestId && (!activity.workerName || activity.workerName.includes('Chủ vườn'))) ? (
         <button
           type="button"
-          onClick={() => onToggleTask?.(activity.activityId || activity.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleTask?.(activity.activityId || activity.id || activity.title);
+          }}
           className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl border-2 flex items-center justify-center shrink-0 transition-all cursor-pointer ${isDone
               ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
               : isToday
-                ? 'border-amber-400 bg-amber-50 text-amber-500 hover:border-emerald-500 hover:bg-emerald-50'
+                ? 'border-amber-400 bg-amber-50 text-amber-500 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700'
                 : 'border-stone-300 bg-stone-50 hover:border-emerald-500 hover:bg-emerald-50/50 text-stone-300 hover:text-emerald-600'
             }`}
           title={isDone ? 'Bấm để đánh dấu chưa hoàn thành' : 'Bấm để đánh dấu hoàn thành'}
         >
-          <Check className={`h-5 w-5 stroke-[3] transition-transform ${isDone ? 'scale-100' : 'scale-75 opacity-30'}`} />
+          <Check className={`h-5 w-5 stroke-[3] transition-transform ${isDone ? 'scale-100 text-white' : 'scale-75 opacity-40'}`} />
         </button>
-      ) : activity.proofPhoto ? (
+      ) : (isDone && activity.proofPhoto) ? (
         <div className="relative h-28 w-full sm:h-24 sm:w-28 shrink-0 overflow-hidden rounded-xl bg-stone-100">
           <img
             src={activity.proofPhoto}
@@ -1068,7 +1550,7 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
           <button
             type="button"
             onClick={() => onOpenPhoto?.(activity)}
-            className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition group-hover:opacity-100 text-white"
+            className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition group-hover:opacity-100 text-white cursor-pointer"
             title="Xem ảnh phóng to"
           >
             <Maximize2 className="h-5 w-5 drop-shadow" />
@@ -1078,9 +1560,10 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
           </span>
         </div>
       ) : (
-        <div className={`flex h-20 w-full sm:h-24 sm:w-28 shrink-0 items-center justify-center rounded-xl ${isToday ? 'bg-amber-100/70 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-          }`}>
-          {isToday ? <Flame className="h-8 w-8 animate-pulse text-amber-600" /> : <CalendarCheck className="h-8 w-8 opacity-60" />}
+        <div className={`flex h-20 w-full sm:h-24 sm:w-28 shrink-0 items-center justify-center rounded-xl ${
+          activity.isDiaryEntry ? 'bg-emerald-100/70 text-emerald-800' : isToday ? 'bg-amber-100/70 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+        }`}>
+          {activity.isDiaryEntry ? <span className="text-2xl">📖</span> : isToday ? <Flame className="h-8 w-8 animate-pulse text-amber-600" /> : <CalendarCheck className="h-8 w-8 opacity-60" />}
         </div>
       )}
 
@@ -1099,24 +1582,30 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
               {isDone ? <Check className="h-3.5 w-3.5" /> : isToday ? <Flame className="h-3.5 w-3.5 text-amber-600" /> : <Clock className="h-3.5 w-3.5" />}
               {isDone ? 'Đã hoàn tất' : isInProg ? 'Đang thực hiện' : isToday ? 'Cần làm hôm nay' : 'Kế hoạch sắp tới'}
             </span>
-            <span className="text-xs text-stone-500 font-medium">{activity.timestamp}</span>
+            <span className="text-xs text-stone-500 font-medium">{displayTimestamp}</span>
           </div>
 
           {activity.actionTypeName ? (
             <span className="rounded-md bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600">
               {activity.actionTypeName}
             </span>
-          ) : activity.cropDay ? (
+          ) : resolvedCropDay ? (
             <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold border ${isToday
                 ? 'bg-amber-100 text-amber-900 border-amber-200'
                 : 'bg-emerald-50 text-emerald-800 border-emerald-100'
               }`}>
-              Ngày tuổi {activity.cropDay}
+              Ngày tuổi {resolvedCropDay}
             </span>
           ) : null}
         </div>
 
-        <h4 className={`mt-1.5 text-sm font-bold transition ${isDone && isSelf ? 'text-stone-400 line-through' : 'text-[#18352b] group-hover:text-emerald-800'
+        <h4
+          onClick={() => {
+            if (isSelf && isTaskItem) {
+              onToggleTask?.(activity.activityId || activity.id || activity.title);
+            }
+          }}
+          className={`mt-1.5 text-sm font-bold transition ${isSelf && isTaskItem ? 'cursor-pointer select-none hover:text-emerald-700' : ''} ${isDone && isSelf && isTaskItem ? 'text-stone-400 line-through' : 'text-[#18352b] group-hover:text-emerald-800'
           }`}>
           {activity.title}
         </h4>
@@ -1127,47 +1616,77 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
           </p>
         )}
 
-        {/* Thông tin người phụ trách: ẨN HOÀN TOÀN TÊN NHÂN VIÊN KHI LÀ TỰ CANH TÁC (Requirement #3) */}
-        {isSelf ? (
+        {/* Thông tin người phụ trách */}
+        {isSelf && !activity.serviceRequestId && !activity.isStaffTask ? (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 pt-2 text-xs">
             <div className="flex items-center gap-1.5 text-stone-500">
-              <Sprout className="h-3.5 w-3.5 text-emerald-600" />
-              <span className="font-semibold text-stone-700">Chủ vườn tự thực hiện</span>
-              <span className="text-stone-400">· Quy trình VietGAP</span>
+              {activity.isDiaryEntry ? (
+                <>
+                  <span className="text-base leading-none">📖</span>
+                  <span className="font-semibold text-stone-700">{activity.workerName || 'Chủ vườn'}</span>
+                  <span className="text-stone-400">· Nhật ký canh tác</span>
+                </>
+              ) : (
+                <>
+                  <Sprout className="h-3.5 w-3.5 text-emerald-600" />
+                  <span className="font-semibold text-stone-700">Chủ vườn tự thực hiện</span>
+                  <span className="text-stone-400">· Quy trình VietGAP</span>
+                </>
+              )}
             </div>
-            {activity.isCustom && onDeleteTask && (
-              <button
-                type="button"
-                onClick={() => onDeleteTask(activity.activityId || activity.id)}
-                className="text-stone-400 hover:text-rose-600 font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Xóa việc
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {isTaskItem && (
+                <button
+                  type="button"
+                  onClick={() => onToggleTask?.(activity.activityId || activity.id || activity.title)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs cursor-pointer ${
+                    isDone
+                      ? 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700'
+                  }`}
+                >
+                  <Check className="h-3 w-3 stroke-[2.5]" />
+                  <span>{isDone ? 'Đánh dấu chưa xong' : 'Xác nhận hoàn thành'}</span>
+                </button>
+              )}
+              {activity.isCustom && onDeleteTask && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteTask(activity.activityId || activity.id)}
+                  className="text-stone-400 hover:text-rose-600 font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Xóa việc
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 pt-2 text-xs">
             <div className="flex items-center gap-2">
-              {activity.workerAvatar ? (
+              {activity.isDiaryEntry ? (
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                  📖
+                </span>
+              ) : activity.isHarvest ? (
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">
+                  🌾
+                </span>
+              ) : activity.workerAvatar ? (
                 <img src={activity.workerAvatar} alt={activity.workerName} className="h-6 w-6 rounded-full object-cover ring-1 ring-emerald-300" />
               ) : (
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-[10px] text-white font-bold">
                   {activity.workerName?.charAt(0) || 'S'}
                 </span>
               )}
-              <span className="font-semibold text-stone-800">{activity.workerName}</span>
+              <span className="font-semibold text-stone-800">{activity.workerName || 'Nhân viên kỹ thuật'}</span>
               {activity.workerRole && <span className="text-[11px] text-stone-400">({activity.workerRole})</span>}
+              {activity.serviceRequestId && (
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
+                  Dịch vụ theo yêu cầu
+                </span>
+              )}
             </div>
-
-            {activity.sensorSnapshot && (
-              <div className="flex items-center gap-2 text-[11px] text-stone-500">
-                <span>Đo lúc làm:</span>
-                <span className="font-semibold text-emerald-700">{activity.sensorSnapshot.temp}</span>
-                <span>·</span>
-                <span className="font-semibold text-sky-700">Độ ẩm {activity.sensorSnapshot.soilMoisture}</span>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -1186,6 +1705,7 @@ function StaffActivitiesTab({
   onToggleTask,
   onAddTask,
   onDeleteTask,
+  onAddDiary,
   totalDays = 60
 }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -1199,14 +1719,57 @@ function StaffActivitiesTab({
   const todayStr = useMemo(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date()), []);
   const currentDay = plot?.currentDay || 0;
 
+  const isHarvestTask = useCallback((title) => {
+    if (!title) return false;
+    if (/trước thu hoạch|chuẩn bị thu hoạch/i.test(title)) return false;
+    return /thu hoạch|cân|đóng thùng|nghiệm thu/i.test(title);
+  }, []);
+
   const isActivityToday = useCallback((act) => {
-    if (act.status === 'COMPLETED') return false;
-    if (act.status === 'IN_PROGRESS') return true;
+    if (act.status === 'COMPLETED' || act.status === 'DONE') return false;
+
+    const isHarvest = isHarvestTask(act.title);
+    // Nếu mùa vụ đang ở giai đoạn thu hoạch (currentDay >= totalDays hoặc >= 30) VÀ là task thu hoạch -> Luôn là việc HÔM NAY cần làm
+    if (isHarvest && currentDay > 0 && (currentDay >= (totalDays || 45) || currentDay >= 30)) {
+      return true;
+    }
+
+    // Chặn nghiêm ngặt: nếu task có ngày cụ thể và ngày đó trong tương lai (> hôm nay) -> KHÔNG phải hôm nay (trừ task thu hoạch)
+    if (act.date && /^\d{4}-\d{2}-\d{2}$/.test(act.date) && act.date > todayStr) {
+      if (!isHarvest) return false;
+    }
+
+    const taskDay = act.cropDay !== undefined && act.cropDay !== null ? Number(act.cropDay) : act.day;
+    if (currentDay > 0 && taskDay && taskDay > currentDay && !isHarvest) {
+      return false;
+    }
+
+    if (act.status === 'IN_PROGRESS' || act.status === 'IN_PROG') return true;
     if (act.priority === 'HIGH' || act.priority === 'URGENT') return true;
-    if (currentDay > 0 && act.day && act.day <= currentDay) return true;
-    if (act.date && act.date <= todayStr) return true;
+    if (currentDay > 0 && taskDay) {
+      return taskDay === currentDay;
+    }
+    if (act.date && /^\d{4}-\d{2}-\d{2}$/.test(act.date)) {
+      return act.date === todayStr;
+    }
     return false;
-  }, [currentDay, todayStr]);
+  }, [currentDay, totalDays, todayStr, isHarvestTask]);
+
+  const isActivityUpcoming = useCallback((act) => {
+    if (act.status === 'COMPLETED' || act.status === 'DONE') return false;
+    if (isActivityToday(act)) return false;
+    // Nếu mùa vụ đã tới hoặc vượt quá ngày thu hoạch (currentDay >= totalDays): TUYỆT ĐỐI không còn việc chưa tới!
+    if (currentDay > 0 && totalDays > 0 && currentDay >= totalDays) return false;
+
+    const taskDay = act.cropDay !== undefined && act.cropDay !== null ? Number(act.cropDay) : act.day;
+    if (currentDay > 0 && taskDay) {
+      return taskDay > currentDay;
+    }
+    if (act.date && /^\d{4}-\d{2}-\d{2}$/.test(act.date)) {
+      return act.date > todayStr;
+    }
+    return false;
+  }, [currentDay, totalDays, isActivityToday, todayStr]);
 
   const filtered = useMemo(() => {
     return activities.filter((act) => {
@@ -1217,12 +1780,24 @@ function StaffActivitiesTab({
 
       if (!matchSearch) return false;
       if (statusFilter === 'ALL') return true;
-      if (statusFilter === 'COMPLETED') return act.status === 'COMPLETED';
+      if (statusFilter === 'COMPLETED') return act.status === 'COMPLETED' || act.status === 'DONE';
       if (statusFilter === 'TODAY') return isActivityToday(act);
-      if (statusFilter === 'UPCOMING') return act.status !== 'COMPLETED' && !isActivityToday(act);
+      if (statusFilter === 'UPCOMING') return isActivityUpcoming(act);
       return true;
     });
-  }, [activities, searchQuery, statusFilter, isSelf, isActivityToday]);
+  }, [activities, searchQuery, statusFilter, isSelf, isActivityToday, isActivityUpcoming]);
+
+  const doneTodayList = useMemo(() => {
+    return activities.filter((act) => {
+      if (act.status !== 'COMPLETED' && act.status !== 'DONE') return false;
+      const isHarvest = isHarvestTask(act.title);
+      if (isHarvest) return true; // Luôn hiển thị task thu hoạch đã hoàn thành để khách đối chứng
+      if (act.completedAt && String(act.completedAt).includes(todayStr)) return true;
+      const taskDay = act.cropDay !== undefined && act.cropDay !== null ? Number(act.cropDay) : act.day;
+      if (currentDay > 0 && taskDay === currentDay) return true;
+      return false;
+    });
+  }, [activities, currentDay, todayStr, isHarvestTask]);
 
   const { todayList, upcomingList, doneList } = useMemo(() => {
     const today = [];
@@ -1230,30 +1805,33 @@ function StaffActivitiesTab({
     const done = [];
 
     filtered.forEach((act) => {
-      if (act.status === 'COMPLETED') {
+      if (act.status === 'COMPLETED' || act.status === 'DONE') {
         done.push(act);
       } else if (isActivityToday(act)) {
         today.push(act);
-      } else {
+      } else if (isActivityUpcoming(act)) {
         upcoming.push(act);
+      } else {
+        done.push(act);
       }
     });
 
     return { todayList: today, upcomingList: upcoming, doneList: done };
-  }, [filtered, isActivityToday]);
+  }, [filtered, isActivityToday, isActivityUpcoming]);
 
   const counts = useMemo(() => {
-    const todayCount = activities.filter((a) => a.status !== 'COMPLETED' && isActivityToday(a)).length;
-    const upcomingCount = activities.filter((a) => a.status !== 'COMPLETED' && !isActivityToday(a)).length;
-    const doneCount = activities.filter((a) => a.status === 'COMPLETED').length;
+    const todayCount = activities.filter((a) => (a.status !== 'COMPLETED' && a.status !== 'DONE') && isActivityToday(a)).length;
+    const upcomingCount = activities.filter((a) => (a.status !== 'COMPLETED' && a.status !== 'DONE') && isActivityUpcoming(a)).length;
+    const doneCount = activities.filter((a) => a.status === 'COMPLETED' || a.status === 'DONE' || (!isActivityToday(a) && !isActivityUpcoming(a))).length;
 
     return {
       all: activities.length,
       today: todayCount,
       upcoming: upcomingCount,
-      done: doneCount
+      done: doneCount,
+      doneToday: doneTodayList.length
     };
-  }, [activities, isActivityToday]);
+  }, [activities, isActivityToday, isActivityUpcoming, doneTodayList]);
 
   const handleCreateTask = (e) => {
     e.preventDefault();
@@ -1294,13 +1872,21 @@ function StaffActivitiesTab({
         </div>
 
         {/* Nút lọc trạng thái & Nút thêm công việc (cho Tự canh tác) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar pr-3">
           <div className="flex items-center gap-1.5">
             {[
               { id: 'ALL', label: `Tất cả (${counts.all})` },
-              { id: 'TODAY', label: `🔥 Việc hôm nay (${counts.today})`, highlight: counts.today > 0 },
+              {
+                id: 'TODAY',
+                label: counts.today > 0
+                  ? `🔥 Việc hôm nay (${counts.today})`
+                  : counts.doneToday > 0
+                    ? `🔥 Việc hôm nay (${counts.doneToday} đã xong)`
+                    : `🔥 Việc hôm nay (0)`,
+                highlight: counts.today > 0
+              },
               { id: 'UPCOMING', label: `⏳ Việc chưa tới (${counts.upcoming})` },
-              { id: 'COMPLETED', label: `✅ Đã xong (${counts.done})` }
+              { id: 'COMPLETED', label: `✅ Đã xong & Nhật ký (${counts.done})` }
             ].map((btn) => (
               <button
                 key={btn.id}
@@ -1318,16 +1904,29 @@ function StaffActivitiesTab({
             ))}
           </div>
 
-          {isSelf && (
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 text-xs font-bold shadow-sm transition shrink-0 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Thêm việc mới</span>
-            </button>
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {isSelf && (
+              <button
+                type="button"
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white hover:bg-emerald-50 text-emerald-800 px-3 py-1.5 text-xs font-bold shadow-2xs transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Thêm việc</span>
+              </button>
+            )}
+            {onAddDiary && (
+              <button
+                type="button"
+                onClick={() => onAddDiary?.(plot)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1.5 text-xs font-bold shadow-xs transition cursor-pointer"
+                title="Ghi chép nhật ký, cảm xúc hoặc đăng ảnh thăm vườn"
+              >
+                <PenLine className="w-3.5 h-3.5 text-lime-300" />
+                <span>+ Viết nhật ký</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1344,7 +1943,14 @@ function StaffActivitiesTab({
                   </span>
                   <div>
                     <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
-                      <span>Việc Cần Thực Hiện Hôm Nay ({todayList.length})</span>
+                      <span>
+                        {todayList.length > 0
+                          ? `Việc Cần Thực Hiện Hôm Nay (${todayList.length})`
+                          : doneTodayList.length > 0
+                            ? `Công Việc Hôm Nay (${doneTodayList.length} việc đã xong)`
+                            : `Việc Hôm Nay (0)`}
+                        {plot?.plotCode ? ` • Thửa ${plot.plotCode}` : ''}
+                      </span>
                     </h4>
                     <p className="text-[11px] text-amber-800 font-medium">
                       {isSelf
@@ -1359,17 +1965,25 @@ function StaffActivitiesTab({
                   </span>
                 ) : (
                   <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300 self-start sm:self-auto flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5 stroke-[3]" /> Xong việc hôm nay
+                    <Check className="w-3.5 h-3.5 stroke-[3]" /> {upcomingList.length ? 'Chưa tới lịch' : 'Không có việc đến hạn'}
                   </span>
                 )}
               </div>
 
               {todayList.length === 0 ? (
-                <div className="p-6 text-center bg-emerald-50/40 rounded-2xl border border-dashed border-emerald-300 flex flex-col items-center gap-1.5">
+                <div className="p-5 text-center bg-emerald-50/70 rounded-2xl border border-emerald-300 flex flex-col items-center gap-1.5 shadow-2xs">
                   <CheckCircle2 className="w-7 h-7 text-emerald-600" />
-                  <p className="font-heading font-black text-stone-900 text-sm">Hôm nay không có việc tồn đọng!</p>
-                  <p className="text-xs text-stone-500">
-                    Toàn bộ nhiệm vụ chăm sóc ngày hôm nay đã được thực hiện chu đáo. Cây trồng đang phát triển rất tốt.
+                  <p className="font-heading font-black text-stone-900 text-sm">
+                    {doneTodayList.some(a => isHarvestTask(a.title))
+                      ? 'Nhiệm vụ thu hoạch và toàn bộ công việc hôm nay đã hoàn thành!'
+                      : doneTodayList.length > 0
+                        ? 'Đã hoàn thành toàn bộ công việc cần làm hôm nay tại thửa đất này!'
+                        : `Hôm nay chưa có việc mới đến hạn tại ${plot?.plotCode ? `Thửa ${plot.plotCode}` : (plot?.name || 'thửa đất này')}.`}
+                  </p>
+                  <p className="text-xs text-stone-600 max-w-md">
+                    {doneTodayList.length > 0
+                      ? `Đã nghiệm thu ${doneTodayList.length} công việc có kèm ảnh minh chứng thực địa và cập nhật vào Nhật ký canh tác.`
+                      : (upcomingList.length ? `Công việc tiếp theo: ${upcomingList[0].title}${upcomingList[0].date ? `, ngày ${upcomingList[0].date}` : ''}.` : 'Chưa có lịch công việc mới cho thửa này.')}
                   </p>
                 </div>
               ) : (
@@ -1384,6 +1998,30 @@ function StaffActivitiesTab({
                       onDeleteTask={onDeleteTask}
                     />
                   ))}
+                </div>
+              )}
+
+              {/* Hiển thị các việc đã xong hôm nay (nhất là Thu hoạch) để đối chứng và tiện theo dõi */}
+              {doneTodayList.length > 0 && (
+                <div className="space-y-3 pt-3 border-t border-emerald-200/80">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                    <h5 className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
+                      Công việc đã hoàn thành hôm nay ({doneTodayList.length})
+                    </h5>
+                  </div>
+                  <div className="space-y-3">
+                    {doneTodayList.map((act) => (
+                      <StaffActivityCard
+                        key={act.activityId || act.id}
+                        activity={{ ...act, isToday: true, isDone: true }}
+                        onOpenPhoto={onOpenPhoto}
+                        isSelf={isSelf}
+                        onToggleTask={onToggleTask}
+                        onDeleteTask={onDeleteTask}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1472,8 +2110,8 @@ function StaffActivitiesTab({
       )}
 
       {/* Modal Thêm công việc mới cho khách tự canh tác */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+      {showAddModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
           <div className="relative max-w-md w-full rounded-3xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div className="flex items-center gap-2">
@@ -1487,7 +2125,7 @@ function StaffActivitiesTab({
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-stone-400 hover:text-stone-600 rounded-lg p-1"
+                className="text-stone-400 hover:text-stone-600 rounded-lg p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1554,347 +2192,113 @@ function StaffActivitiesTab({
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2 text-xs font-bold shadow-sm transition cursor-pointer"
+                  disabled={!newTitle.trim()}
+                  className="rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 text-xs font-bold shadow-sm transition cursor-pointer"
                 >
                   Lưu công việc
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 }
 
+export const resolveVietgapProofPhoto = (title = '', existingPhoto = null) => {
+  if (existingPhoto && typeof existingPhoto === 'string' && existingPhoto.trim() !== '') {
+    return existingPhoto.trim();
+  }
+  const t = String(title || '').toLowerCase();
+  if (t.includes('thu hoạch') || t.includes('cân') || t.includes('nghiệm thu') || t.includes('kg')) {
+    return 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80';
+  }
+  if (t.includes('làm đất') || t.includes('bón lót') || t.includes('xới') || t.includes('luống')) {
+    return 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80';
+  }
+  if (t.includes('gieo') || t.includes('xuống giống') || t.includes('trồng') || t.includes('hạt') || t.includes('cát')) {
+    return 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80';
+  }
+  if (t.includes('mầm') || t.includes('tưới') || t.includes('phun') || t.includes('sương')) {
+    return 'https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&w=800&q=80';
+  }
+  if (t.includes('tỉa') || t.includes('thúc') || t.includes('cỏ') || t.includes('ngắt')) {
+    return 'https://images.unsplash.com/photo-1615811361523-6bd03d7748e7?auto=format&fit=crop&w=800&q=80';
+  }
+  if (t.includes('sâu') || t.includes('bệnh') || t.includes('cách ly') || t.includes('bảo vệ')) {
+    return 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80';
+  }
+  return 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80';
+};
+
 /**
  * Modal xem ảnh bằng chứng hiện trường phóng to
  */
 function ActivityProofModal({ activity, onClose }) {
-  if (!activity || !activity.proofPhoto) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
-      <div className="relative max-w-3xl w-full rounded-3xl bg-[#0f2a20] p-4 text-white shadow-2xl overflow-hidden ring-1 ring-white/10">
+  if (!activity || typeof document === 'undefined') return null;
+  const photoUrl = resolveVietgapProofPhoto(
+    activity.title,
+    activity.proofPhoto || activity.evidenceImageUrl || activity.image || activity.imageUrl || activity.photo
+  );
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-3xl w-full rounded-3xl bg-[#0f2a20] p-5 text-white shadow-2xl overflow-hidden ring-1 ring-white/10"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 rounded-full bg-black/50 p-2 text-white/80 hover:bg-black/70 hover:text-white"
+          className="absolute right-4 top-4 z-10 rounded-full bg-black/60 p-2 text-white/80 hover:bg-black/80 hover:text-white transition cursor-pointer"
+          title="Đóng"
         >
           <X className="h-5 w-5" />
         </button>
 
-        <div className="overflow-hidden rounded-2xl bg-black max-h-[70vh] flex items-center justify-center">
-          <img src={activity.proofPhoto} alt={activity.title} className="max-h-[70vh] w-auto object-contain" />
+        <div className="overflow-hidden rounded-2xl bg-black max-h-[62vh] flex items-center justify-center border border-white/10">
+          <img
+            src={photoUrl}
+            alt={activity.title || 'Ảnh minh chứng thực địa'}
+            className="max-h-[62vh] w-auto object-contain rounded-xl"
+          />
         </div>
 
         <div className="mt-4 px-2">
-          <div className="flex items-center justify-between gap-2">
-            <h4 className="font-bold text-base text-white">{activity.title}</h4>
-            <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
-              {activity.timestamp}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h4 className="font-bold text-base text-white">{activity.title || 'Nhiệm vụ chăm sóc canh tác'}</h4>
+            <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
+              {activity.timestamp || activity.time || 'Đã hoàn tất'}
             </span>
           </div>
-          <p className="mt-1 text-xs text-white/80">{activity.notes}</p>
-          <div className="mt-3 flex items-center gap-2 text-xs text-white/60">
-            <span>Thực hiện bởi:</span>
-            <strong className="text-white">{activity.workerName}</strong>
-            {activity.workerRole && <span>({activity.workerRole})</span>}
+          <p className="mt-2 text-xs text-white/85 leading-relaxed">
+            {activity.notes || activity.note || 'Nhiệm vụ kỹ thuật thực địa hoàn tất theo quy trình canh tác VietGAP.'}
+          </p>
+          <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-3 text-xs text-white/70">
+            <div className="flex items-center gap-2">
+              <span className="text-white/50">Phụ trách:</span>
+              <strong className="text-emerald-300">{activity.workerName || activity.author || 'Trần Văn Lực'}</strong>
+              <span className="text-white/40">({activity.workerRole || activity.authorRole || 'Kỹ thuật viên Farmely'})</span>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/80 px-2.5 py-1 text-[11px] font-bold text-emerald-300 border border-emerald-500/30">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Minh chứng đạt chuẩn VietGAP
+            </span>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
    3. IOT TAB VỚI LIVE 3RD-PARTY AGROMETEOROLOGY API (OPEN-METEO)
    ────────────────────────────────────────────────────────────────────────── */
-
-function ReadingCard({ metric, plot, onClick, active = false, showAction = true, delay = 0 }) {
-  const Icon = metric.icon;
-  const currentVal = plot[metric.key];
-  const reading = assessMetric(metric.key, currentVal, plot.mode);
-  const s = LEVEL_STYLE[reading.level];
-  const Tag = onClick ? 'button' : 'div';
-
-  const [pulsing, setPulsing] = useState(false);
-  const prevValRef = useRef(currentVal);
-
-  useEffect(() => {
-    if (prevValRef.current !== currentVal && prevValRef.current !== undefined) {
-      prevValRef.current = currentVal;
-      setPulsing(true);
-      const timer = setTimeout(() => setPulsing(false), 1000);
-      return () => clearTimeout(timer);
-    }
-    prevValRef.current = currentVal;
-  }, [currentVal]);
-
-  return (
-    <Tag
-      {...(onClick ? { type: 'button', onClick, 'aria-pressed': active } : {})}
-      aria-label={`${reading.label}: ${currentVal ?? 'chưa có'} — ${reading.chip}. ${reading.meaning}`}
-      style={{ animationDelay: `${delay}ms` }}
-      className={`group relative flex animate-fadeInUp flex-col overflow-hidden rounded-3xl border bg-white p-4 text-left transition duration-300 ${CARD_SHADOW} ${pulsing ? 'ring-2 ring-emerald-400 shadow-md scale-[1.01]' : active ? 'border-transparent ring-2' : 'border-white/80'
-        } ${onClick ? 'hover:-translate-y-1 hover:shadow-[0_20px_40px_-18px_rgba(24,53,43,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400' : ''}`}
-    >
-      <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-[0.12] blur-2xl transition-opacity group-hover:opacity-25" style={{ backgroundColor: metric.color }} />
-      {active && <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-3xl ring-2 ring-inset" style={{ '--tw-ring-color': metric.color }} />}
-
-      <div className="relative flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2 text-sm font-semibold text-stone-700">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm" style={{ background: `linear-gradient(135deg, ${metric.color}cc, ${metric.color})` }}>
-            <Icon className="h-[18px] w-[18px]" />
-          </span>
-          {reading.label}
-        </span>
-        <div className="flex items-center gap-1.5">
-          {pulsing && (
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-          )}
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-colors duration-300 ${s.chip}`}>{reading.chip}</span>
-        </div>
-      </div>
-
-      <div className="relative mt-2">
-        <ArcGauge position={reading.position} color={metric.color} levelColor={s.hex}>
-          <span className={`whitespace-nowrap font-bold leading-none tracking-tight transition-all duration-300 ${pulsing ? 'text-emerald-600 scale-105' : 'text-[#18352b]'} ${String(currentVal ?? '').length > 7 ? 'text-base' : 'text-[22px]'}`}>
-            {currentVal ?? '—'}
-          </span>
-          <span className="mt-1.5 text-[10px] font-medium text-emerald-700">An toàn {reading.min}–{reading.max}</span>
-        </ArcGauge>
-      </div>
-
-      <p className="relative -mt-1 text-center text-sm leading-snug text-stone-600">{reading.meaning}</p>
-      {showAction && reading.action && (
-        <p className="relative mt-3 flex items-start gap-1.5 rounded-xl bg-[#f3f6f0] px-3 py-2 text-xs font-medium text-[#18352b]">
-          <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-700" />{reading.action}
-        </p>
-      )}
-    </Tag>
-  );
-}
-
-function HealthHero({ plot, alerts = [], onMore, liveProviderInfo }) {
-  const summary = summarizePlot(plot, alerts);
-  const health = computeHealthScore(plot, alerts);
-  return (
-    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#123b2c] via-[#18493a] to-[#0f2a20] p-5 text-white sm:p-6 ${CARD_SHADOW}`}>
-      <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/20 blur-3xl" />
-      <span aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl" />
-
-      <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
-        <HealthRing score={health.score} tone={health.tone} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-lime-200/90">Sức khoẻ thửa đất</p>
-            <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold backdrop-blur">{health.label}</span>
-            {liveProviderInfo?.isLive3rdParty && (
-              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-lime-300 flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-lime-300 animate-pulse" />
-                Open-Meteo Agrometeorology Live Feed
-              </span>
-            )}
-          </div>
-          <p className="mt-2 text-base font-medium leading-relaxed text-white/95 sm:text-lg">{summary.headline}</p>
-          <ul className="mt-4 flex flex-wrap gap-2">
-            {summary.items.map((i) => (
-              <li key={i.key} className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white/90 ring-1 ring-white/10 backdrop-blur">
-                <span className={`h-2 w-2 rounded-full ${LEVEL_STYLE[i.level].dot}`} />{i.label}
-              </li>
-            ))}
-          </ul>
-        </div>
-        {onMore && (
-          <button type="button" onClick={onMore} className="flex shrink-0 items-center justify-center gap-1 self-start rounded-xl bg-lime-300 px-4 py-2.5 text-sm font-semibold text-[#17372c] transition hover:bg-lime-200 sm:self-center">
-            Chi tiết vi khí hậu<ChevronRight className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function IotTab({ plot, iotData, alerts, isConnected = false, onRefreshLive, isRefreshing = false, liveProviderInfo, cropProcess }) {
-  const [timeframe, setTimeframe] = useState('hourly');
-  const [metricKey, setMetricKey] = useState('temp');
-  const metric = METRICS.find((m) => m.key === metricKey);
-  const rule = METRIC_RULES[metricKey];
-  const data = iotData?.[timeframe] || iotData?.hourly || [];
-  const seriesSentence = describeSeries(metricKey, data, metric.series);
-
-  return (
-    <div className="space-y-5">
-      {/* Nguồn dữ liệu thời tiết 3rd party rõ ràng */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50/70 via-white to-teal-50/70 p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow">
-            <Radio className="h-5 w-5 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-emerald-900">
-                {liveProviderInfo?.provider || 'Open-Meteo Global Agrometeorology Live API'}
-              </span>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                Toạ độ GPS: {liveProviderInfo?.coordinates || '10.6877°N, 106.3503°E'}
-              </span>
-            </div>
-            <p className="text-xs text-stone-600 mt-0.5">
-              Cập nhật vi khí hậu thực tế: Tầng đất mặt, bức xạ quang năng, nhiệt ẩm tự nhiên không giả lập.
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={onRefreshLive}
-          disabled={isRefreshing}
-          className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#18352b] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#0f2a20] disabled:opacity-50"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {isRefreshing ? 'Đang cập nhật từ vệ tinh...' : 'Làm mới Live Feed'}
-        </button>
-      </div>
-
-      <HealthHero plot={plot} alerts={alerts} liveProviderInfo={liveProviderInfo} />
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {METRICS.map((m, i) => (
-          <ReadingCard key={m.key} metric={m} plot={plot} delay={i * 70} active={m.key === metricKey} onClick={() => setMetricKey(m.key)} />
-        ))}
-      </div>
-
-      {/* Thông số nông nghiệp mở rộng từ Open-Meteo */}
-      {plot.rawMetrics && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-sm">
-            <span className="text-[11px] font-semibold text-stone-500 uppercase">Nhiệt độ tầng đất</span>
-            <p className="mt-1 text-lg font-bold text-stone-800">{plot.soilTemp || '26.6°C'}</p>
-            <span className="text-[10px] text-emerald-700">Đo tại độ sâu 0-5cm</span>
-          </div>
-          <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-sm">
-            <span className="text-[11px] font-semibold text-stone-500 uppercase">Lượng mưa thời gian thực</span>
-            <p className="mt-1 text-lg font-bold text-stone-800">{plot.precipitation || '0.0 mm'}</p>
-            <span className="text-[10px] text-emerald-700">Dự báo tích lũy</span>
-          </div>
-          <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-sm">
-            <span className="text-[11px] font-semibold text-stone-500 uppercase">Tốc độ gió</span>
-            <p className="mt-1 text-lg font-bold text-stone-800">{plot.windSpeed || '6.3 km/h'}</p>
-            <span className="text-[10px] text-emerald-700">Thông thoáng tự nhiên</span>
-          </div>
-          <div className="rounded-2xl border border-stone-200/80 bg-white p-3.5 shadow-sm">
-            <span className="text-[11px] font-semibold text-stone-500 uppercase">Áp suất khí quyển</span>
-            <p className="mt-1 text-lg font-bold text-stone-800">{plot.pressure || '1009 hPa'}</p>
-            <span className="text-[10px] text-emerald-700">Áp suất ổn định</span>
-          </div>
-        </div>
-      )}
-
-      {/* Biểu đồ diện tích theo giờ thực tế */}
-      <Card className="p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                Trạm quan trắc {liveProviderInfo?.stationId || plot.stationId || 'AGRO-CUCHI'}
-              </p>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-                Open-Meteo 3rd Party · Cập nhật {plot.lastUpdated || 'Vừa xong'}
-              </span>
-            </div>
-            <h3 className="font-heading text-lg font-bold text-[#18352b]">Biểu đồ {metric.label.toLowerCase()} 24 giờ qua</h3>
-          </div>
-          <div className="inline-flex rounded-xl bg-stone-100 p-1" role="tablist" aria-label="Khoảng thời gian">
-            {TIMEFRAMES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={timeframe === t.id}
-                onClick={() => setTimeframe(t.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${timeframe === t.id ? 'bg-white text-emerald-800 shadow-sm' : 'text-stone-600 hover:text-stone-900'}`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-          {METRICS.map((m) => {
-            const Icon = m.icon;
-            const active = m.key === metricKey;
-            return (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() => setMetricKey(m.key)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${active ? 'border-transparent text-white' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300'
-                  }`}
-                style={active ? { backgroundColor: m.color } : undefined}
-              >
-                <Icon className="h-3.5 w-3.5" />{m.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {seriesSentence && <p className="mt-3 rounded-xl bg-stone-50 px-3 py-2.5 text-sm text-stone-700">{seriesSentence}</p>}
-
-        <div className="mt-4 h-60 sm:h-72">
-          {data.length ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-                <defs>
-                  <linearGradient id="iot-area" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={metric.color} stopOpacity={0.35} />
-                    <stop offset="100%" stopColor={metric.color} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#f1f5f0" vertical={false} />
-                <ReferenceArea
-                  y1={rule.min}
-                  y2={rule.max}
-                  fill="#10b981"
-                  fillOpacity={0.08}
-                  stroke="#10b981"
-                  strokeOpacity={0.25}
-                  strokeDasharray="4 4"
-                  ifOverflow="extendDomain"
-                  label={{ value: 'Vùng an toàn', position: 'insideTopRight', fontSize: 11, fill: '#047857' }}
-                />
-                <XAxis dataKey="time" tick={{ fontSize: 11, fill: '#78716c' }} tickLine={false} axisLine={false} />
-                <YAxis
-                  tick={{ fontSize: 11, fill: '#78716c' }}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-                  domain={[(min) => Math.floor(Math.min(min, rule.min) - 3), (max) => Math.ceil(Math.max(max, rule.max) + 3)]}
-                />
-                <Tooltip
-                  formatter={(v) => {
-                    const off = v < rule.min ? ' — dưới ngưỡng' : v > rule.max ? ' — vượt ngưỡng' : ' — trong ngưỡng';
-                    return [`${v} ${metric.unit}${metricKey === 'light' && v === 0 ? ' (ban đêm)' : off}`, metric.label];
-                  }}
-                  contentStyle={{ borderRadius: 12, border: '1px solid #e7e5e4', fontSize: 12 }}
-                />
-                <Area type="monotone" dataKey={metric.series} stroke={metric.color} strokeWidth={2.5} fill="url(#iot-area)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : <EmptyState icon={Radio} title="Đang tải dữ liệu cảm biến Open-Meteo" />}
-        </div>
-        <p className="mt-2 text-xs text-stone-500">
-          Dải xanh trên biểu đồ là vùng an toàn cho {cropProcess?.cropName || plot?.crop || 'cây trồng'}: {rule.min}–{rule.max} {metric.unit}.
-        </p>
-      </Card>
-    </div>
-  );
-}
 
 /* ──────────────────────────────────────────────────────────────────────────
    4. CÁC TAB KHÁC: OVERVIEW, DIARY, SERVICES, HARVEST
@@ -1909,77 +2313,146 @@ function OverviewTab({
   goTab,
   onOpenStageDetail,
   onOpenActivityPhoto,
-  onOpenHarvest,
   liveProviderInfo,
+  alerts = [],
   seasons = [],
   activeSeasonId,
   onSelectSeason,
   onOpenRenewal,
   activeSeason,
   isSelf = false,
-  onToggleTask
+  onToggleTask,
+  onStartSeason,
+  onResetSeason,
+  harvestResults = [],
+  latestHarvest: propLatestHarvest,
+  onOpenHarvestReport,
+  onSimulateDay1
 }) {
-  const daysLeft = cropProcess.daysLeft;
-  const recentActivities = staffActivities.slice(0, 3);
-  const isSoilPrep = activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow;
+  const [showMaintenanceView, setShowMaintenanceView] = useState(false);
+
+  // Tự động tắt view bảo trì khi chuyển sang mùa vụ khác (đặc biệt khi vừa gia hạn xong vụ mới)
+  useEffect(() => {
+    setShowMaintenanceView(false);
+  }, [activeSeasonId]);
+
+  // Vụ chỉ ở trạng thái Soil Prep khi chính vụ đó đang ở chu kỳ SOIL_PREP/inFallow, HOẶC user bấm xem bảo trì cho vụ đang kết thúc (không áp dụng cho vụ SCHEDULED sắp tới)
+  const isSoilPrep = activeSeason?.status !== 'SCHEDULED' && (activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow || showMaintenanceView);
+
+  // Đất đang trong thời gian đệm (buffer/fallow BR23) khi có vụ mùa đang nghỉ đất/cải tạo hoặc đang bảo trì
+  const isPlotInBuffer = seasons.some((s) => s.status === 'SOIL_PREP' || s.inFallow)
+    || showMaintenanceView
+    || plot?.status === 'MAINTENANCE'
+    || (seasons.length > 0 && seasons.every((s) => s.status === 'COMPLETED'));
+
+  // BR20 + BR21: CVLĐ cân, chụp ảnh rồi chốt biên bản -> Tổng quan chỉ THÔNG BÁO đã thu hoạch.
+  // KH không nghiệm thu trên hệ thống, việc xác nhận nhận nông sản diễn ra tại nông trại.
+  // ponytail: ceiling is hiển thị biên bản mới nhất; upgrade path is danh sách nhiều vụ khi KH thuê dài hạn.
+  const latestHarvest = useMemo(() => {
+    if (propLatestHarvest) return propLatestHarvest;
+    const list = (harvestResults || []).filter(Boolean);
+    if (list.length === 0) return null;
+    return [...list].sort((a, b) =>
+      String(b.harvestDate || '').localeCompare(String(a.harvestDate || ''))
+    )[0];
+  }, [harvestResults, propLatestHarvest]);
+
+  // Cảnh báo đáng xử lý nhất (đã loại bỏ cảnh báo hoãn lịch tưới)
+  const topAlerts = useMemo(() => {
+    const rank = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    const seenGroup = new Set();
+    return [...(alerts || [])]
+      .filter((a) => !/hoãn.*tưới|mưa.*45 phút|sắp có mưa/i.test(`${a?.title || ''} ${a?.explanation || ''} ${a?.action || ''} ${a?.metric || ''}`))
+      .sort((a, b) => (rank[a?.level] ?? 3) - (rank[b?.level] ?? 3))
+      .filter((a) => {
+        const g = explainAlert(a, plot.mode).group;
+        if (seenGroup.has(g)) return false;
+        seenGroup.add(g);
+        return true;
+      })
+      .slice(0, 2);
+  }, [alerts, plot.mode]);
 
   return (
     <div className="space-y-6">
-      {/* 0. Thanh chuyển đổi Vụ Mùa (Season Switcher) */}
-      <SeasonSelector
-        seasons={seasons}
-        activeSeasonId={activeSeasonId}
-        onSelectSeason={onSelectSeason}
-        onOpenRenewal={onOpenRenewal}
-        canRenew={true}
-        plot={plot}
-      />
+      {/* 0. Chu kỳ mùa vụ thửa đất (Season Selector) - Chỉ hiển thị khi đất đã xong vụ và đang trong thời gian đệm (buffer / fallow BR23) */}
+      {isPlotInBuffer && seasons && seasons.length > 0 && (
+        <SeasonSelector
+          seasons={seasons}
+          activeSeasonId={activeSeasonId || activeSeason?.id}
+          onSelectSeason={(seasonId) => {
+            setShowMaintenanceView(false);
+            onSelectSeason?.(seasonId);
+          }}
+          onOpenRenewal={onOpenRenewal}
+          canRenew={true}
+          plot={plot}
+        />
+      )}
 
       {isSoilPrep ? (
-        /* Giai đoạn nghỉ đất & cải tạo theo chuẩn VietGAP (Fallow Protocol) */
+        /* Giai đoạn nghỉ đất & cải tạo theo chuẩn VietGAP (Fallow Protocol - BR23) */
         <SoilPrepView
           plot={plot}
           season={activeSeason}
           nextSeason={seasons?.find((s) => s.seasonNumber > (activeSeason?.seasonNumber || 1))}
           onOpenRenewal={onOpenRenewal}
+          latestHarvest={latestHarvest}
+          onOpenHarvestReport={onOpenHarvestReport}
+          onSimulateDay1={onSimulateDay1}
+          onBackToTimeline={() => setShowMaintenanceView(false)}
         />
       ) : (
         <>
-          {/* Thông báo nếu vụ mùa đang chọn chưa tới ngày bắt đầu */}
+          {/* Thông báo nếu vụ mùa đang chọn chưa tới ngày bắt đầu (Vụ mới gia hạn hoặc vụ sắp tới) */}
           {activeSeason?.status === 'SCHEDULED' && (
-            <div className="rounded-2xl border border-sky-200/90 bg-gradient-to-r from-sky-50 via-white to-blue-50/50 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800 shadow-2xs">
-                  <Clock className="h-5 w-5" />
+            <div className="rounded-3xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md text-xl">
+                  🌱
                 </span>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="text-sm font-bold text-sky-950">
-                      {activeSeason.seasonName || `Vụ ${activeSeason.seasonNumber}`} · Chưa bắt đầu canh tác
-                    </h4>
-                    <span className="rounded-md bg-sky-200/70 px-2 py-0.5 text-[10px] font-extrabold text-sky-900">
+                    <span className="rounded-full bg-emerald-700 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
+                      {activeSeason.seasonNumber > 1 ? `🎉 Vụ ${activeSeason.seasonNumber} · Đã Gia Hạn Thành Công` : 'Kế Hoạch Vụ Mùa'}
+                    </span>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-900 border border-emerald-300">
+                      Giống: {activeSeason.cropName}
+                    </span>
+                    <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-stone-700 border border-stone-200">
                       Dự kiến gieo trồng: {activeSeason.startDate ? new Date(activeSeason.startDate).toLocaleDateString('vi-VN') : 'Kỳ tới'}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-sky-800/80">
-                    Vụ 2 sẽ tự động kích hoạt sau khi Vụ trước thu hoạch xong và hoàn thành 5 ngày nghỉ đất cải tạo theo VietGAP. Dưới đây là lộ trình canh tác tiêu chuẩn chuẩn bị cho vụ này.
+                  <h4 className="mt-1.5 text-base font-heading font-black text-emerald-950">
+                    {activeSeason.seasonName || `Vụ ${activeSeason.seasonNumber}`} — Đã Lên Lịch Sẵn Sàng Canh Tác
+                  </h4>
+                  <p className="mt-0.5 text-xs text-stone-600 max-w-2xl leading-relaxed">
+                    Hợp đồng gia hạn vụ mùa đã được ghi nhận vào Master Lease Agreement. Vụ mùa sẽ tự động bắt đầu xuống giống ngay sau khi hoàn tất 4 ngày cải tạo và nghỉ đất theo quy chuẩn VietGAP (Fallow Protocol - BR23). Dưới đây là lộ trình chăm sóc toàn trình của vụ này.
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={onOpenRenewal}
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-white px-3.5 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50 transition shadow-2xs cursor-pointer"
-              >
-                <Sprout className="h-3.5 w-3.5 text-sky-700" />
-                Đổi giống vụ này
-              </button>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={onOpenRenewal}
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 transition shadow-xs cursor-pointer"
+                >
+                  <Sprout className="h-3.5 w-3.5 text-emerald-700" />
+                  <span>Đổi giống vụ này</span>
+                </button>
+              </div>
             </div>
           )}
 
           {/* 1. Hiện trạng cây trồng & Quy trình chuẩn theo ngày */}
-          <section aria-label="Hiện trạng cây trồng">
-            <CropGrowthHero cropProcess={cropProcess} onOpenStageDetail={onOpenStageDetail} />
+          {/* 1. Hiện trạng thửa đất: quy trình + sức khoẻ + cảnh báo trong một thẻ */}
+          <section aria-label="Hiện trạng thửa đất">
+            <PlotStatusHero
+              plot={plot}
+              cropProcess={cropProcess}
+              topAlerts={topAlerts}
+              liveProviderInfo={liveProviderInfo}
+            />
           </section>
 
           {/* 2. Dòng thời gian mốc ngày chuẩn VietGAP */}
@@ -2004,80 +2477,37 @@ function OverviewTab({
                 onToggleTask={onToggleTask}
                 onSelectStage={onOpenStageDetail}
                 onAddDiary={onAddDiary}
+                onStartSeason={onStartSeason}
+                onResetSeason={onResetSeason}
+                latestHarvest={latestHarvest}
+                onGoToDiary={() => goTab?.('tasks')}
+                onOpenHarvestReport={onOpenHarvestReport}
+                onOpenPhoto={onOpenActivityPhoto}
+                onGoToMaintenance={() => setShowMaintenanceView(true)}
               />
             </div>
           </Card>
         </>
       )}
-
-      {/* 3. Hoạt động của Staff gần nhất hoặc Công việc tự canh tác */}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
-        <Card className="p-5">
-          <SectionTitle
-            eyebrow={`${staffActivities.length} ${isSelf ? 'công việc' : 'hoạt động được lưu trữ'}`}
-            title={isSelf ? "Công việc canh tác gần đây" : "Nhật ký chăm sóc của Staff"}
-            action={<LinkButton onClick={() => goTab('tasks')}>Xem tất cả</LinkButton>}
-          />
-          <div className="mt-4 space-y-2.5">
-            {recentActivities.length > 0 ? (
-              recentActivities.map((act) => (
-                <StaffActivityCard
-                  key={act.activityId || act.id}
-                  activity={act}
-                  isSelf={isSelf}
-                  onToggleTask={onToggleTask}
-                  onOpenPhoto={onOpenActivityPhoto}
-                />
-              ))
-            ) : (
-              <EmptyState title="Chưa có hoạt động nào" note={isSelf ? "Chưa có công việc nào." : "Kỹ thuật viên sẽ cập nhật ngay khi chăm sóc luống."} />
-            )}
-          </div>
-        </Card>
-
-        {/* Khối Thu hoạch */}
-        <div className={`relative flex flex-col overflow-hidden rounded-3xl bg-gradient-to-br from-[#f7fbe9] via-[#eef7d6] to-[#e2f0c4] p-5 ${CARD_SHADOW}`}>
-          <Wheat aria-hidden="true" className="pointer-events-none absolute -bottom-6 -right-6 h-40 w-40 rotate-12 text-lime-600/10" />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-lime-800">
-            {cropProcess.isNotStarted ? 'Kế hoạch mùa vụ' : 'Dự kiến thu hoạch'}
-          </p>
-          <div className="mt-3 flex items-center gap-4">
-            <div className="relative h-24 w-24 shrink-0">
-              <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-                <circle cx="50" cy="50" r="42" stroke="#d9e8b8" strokeWidth="9" fill="none" />
-                <circle cx="50" cy="50" r="42" stroke="#4d7c0f" strokeWidth="9" fill="none" strokeLinecap="round" strokeDasharray={2 * Math.PI * 42} strokeDashoffset={2 * Math.PI * 42 * (1 - (cropProcess.isNotStarted ? 0 : cropProcess.progressPercent) / 100)} className="transition-[stroke-dashoffset] duration-1000" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-bold leading-none text-[#18352b]">
-                  {cropProcess.isNotStarted ? (cropProcess.daysUntilStart || 0) : daysLeft}
-                </span>
-                <span className="text-[10px] font-semibold text-lime-800">
-                  {cropProcess.isNotStarted ? 'ngày nữa bắt đầu' : 'ngày nữa'}
-                </span>
-              </div>
-            </div>
-            <dl className="min-w-0 space-y-1.5 text-sm">
-              <div><dt className="text-xs text-lime-900/70">Ngày dự kiến</dt><dd className="font-semibold text-[#18352b]">{plot.expectedHarvestDate || 'Sau 19 ngày'}</dd></div>
-              <div><dt className="text-xs text-lime-900/70">Sản lượng tiêu chuẩn</dt><dd className="font-semibold text-[#18352b]">{cropProcess.expectedYield}</dd></div>
-            </dl>
-          </div>
-          <button type="button" onClick={() => onOpenHarvest?.(plot)} className="relative mt-auto pt-4">
-            <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#18352b] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#18352b]/20 transition hover:-translate-y-0.5 hover:bg-[#0f2a20]">
-              <Wheat className="h-4 w-4" />Chuẩn bị thu hoạch
-            </span>
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
 
-function DiaryTab({ plot, operations, staffActivities = [], onAddDiary }) {
+function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [], onAddDiary, onOpenPhoto }) {
   const canWrite = plot.mode === 'Self-Growing';
 
-  // SSoT: Tự động hợp nhất nhật ký khách hàng và toàn bộ công việc chăm sóc đã hoàn tất của Staff
+  // SSoT: Tự động hợp nhất nhật ký khách hàng và toàn bộ công việc chăm sóc đã hoàn tất của Staff kèm ảnh minh chứng thực địa
   const mergedDiaryEntries = useMemo(() => {
-    const list = [...(operations?.diary || [])];
+    const list = [...(operations?.diary || [])].map((item) => {
+      const photo = resolveVietgapProofPhoto(item.title, item.image || item.imageUrl || item.photo || item.proofPhoto || item.evidenceImageUrl);
+      return {
+        ...item,
+        image: photo,
+        imageUrl: photo,
+        photo: photo,
+        proofPhoto: photo
+      };
+    });
     const seen = new Set();
     list.forEach((e) => {
       if (e.taskId) seen.add(String(e.taskId));
@@ -2085,27 +2515,60 @@ function DiaryTab({ plot, operations, staffActivities = [], onAddDiary }) {
       if (e.title) seen.add(e.title.trim().toLowerCase());
     });
 
+    // BR20: CVLĐ cắt, cân điện tử, chụp ảnh rồi báo cáo hoàn thành -> vào Nhật ký như một task thường.
+    // KH chỉ theo dõi, không nghiệm thu. Lịch thu hoạch đến từ Quy trình canh tác chuẩn VietGAP
+    // (Assisted-growing) hoặc đơn dịch vụ thu hoạch hộ (Self-growing, BR27).
+    (harvestResults || []).forEach((hr) => {
+      const hrId = String(hr.harvestId || hr.id || '');
+      if (!hrId || seen.has(hrId)) return;
+      seen.add(hrId);
+      const hrPhoto = resolveVietgapProofPhoto(`Thu hoạch ${hr.crop || hr.cropName}`, hr.evidenceImageUrl || hr.photo || hr.image);
+      list.push({
+        id: hrId,
+        taskId: hrId,
+        time: hr.harvestDateFormatted || hr.harvestDate || 'Hôm nay',
+        date: hr.harvestDate,
+        title: `Thu hoạch ${hr.crop || hr.cropName || 'nông sản'} — ${hr.formattedYield || `${hr.yieldAmount || 0} kg`}`,
+        note: `Chuyên viên lao động đã cắt, cân điện tử và ghi nhận sản lượng thực tế. Mã biên bản: ${hrId}.`,
+        author: hr.enteredByWorker || hr.workerName || 'Chuyên viên lao động',
+        authorRole: 'Chuyên viên lao động (CVLĐ)',
+        image: hrPhoto,
+        imageUrl: hrPhoto,
+        photo: hrPhoto,
+        proofPhoto: hrPhoto,
+        status: 'COMPLETED'
+      });
+    });
+
+    const isHarvestPlot = Number(plot?.currentDay) >= Number(plot?.totalDays || 30) || String(plot?.stage || '').toLowerCase().includes('thu hoạch');
+
     (staffActivities || []).forEach((act) => {
-      const isCompleted = act.status === 'COMPLETED' || act.status === 'DONE' || Boolean(act.proofPhoto);
-      if (isCompleted) {
+      const titleLower = String(act.title || '').toLowerCase();
+      const isHarvestTask = titleLower.includes('thu hoạch') || titleLower.includes('nghiệm thu');
+      // Khi đã ở ngày thu hoạch (isHarvestPlot), các task kỹ thuật trước đó (không phải thu hoạch/nghiệm thu) tự động hoàn thành trên nhật ký khách hàng
+      const isAutoDone = isHarvestPlot && !isHarvestTask;
+      const isCompleted = act.status === 'COMPLETED' || act.status === 'DONE' || isAutoDone;
+
+      if (isCompleted && !isHarvestTask) {
         const titleKey = (act.title || '').trim().toLowerCase();
         const actId = String(act.activityId || act.id || '');
         if (!seen.has(actId) && !seen.has(titleKey)) {
           seen.add(actId);
           seen.add(titleKey);
+          const actPhoto = resolveVietgapProofPhoto(act.title, act.proofPhoto || act.evidenceImageUrl || act.image || act.imageUrl || act.photo);
           list.push({
             id: act.activityId || act.id,
             taskId: act.activityId || act.id,
-            time: act.timestamp || (act.date ? `${act.date} • Ca sáng` : 'Hôm nay'),
+            time: act.timestamp || (act.date ? `${act.date} • Ca sáng` : 'Đã hoàn tất'),
             date: act.date,
             title: act.title,
-            note: act.notes || 'Nhiệm vụ đã được kỹ thuật viên hoàn tất và nghiệm thu đạt chuẩn VietGAP.',
+            note: act.notes || 'Nhiệm vụ kỹ thuật đã được nhân viên hoàn tất đạt chuẩn VietGAP.',
             author: act.workerName || 'Trần Văn Lực (Kỹ thuật viên Farmely)',
             authorRole: act.workerRole || 'Kỹ thuật viên hiện trường chuyên trách',
-            image: act.proofPhoto || null,
-            imageUrl: act.proofPhoto || null,
-            photo: act.proofPhoto || null,
-            sensorSnapshot: act.sensorSnapshot || null,
+            image: actPhoto,
+            imageUrl: actPhoto,
+            photo: actPhoto,
+            proofPhoto: actPhoto,
             isStaffTask: true,
             status: 'COMPLETED'
           });
@@ -2114,70 +2577,106 @@ function DiaryTab({ plot, operations, staffActivities = [], onAddDiary }) {
     });
 
     return list;
-  }, [operations?.diary, staffActivities]);
+  }, [operations?.diary, staffActivities, harvestResults, plot?.currentDay, plot?.totalDays, plot?.stage]);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-stone-600">
-          {canWrite ? 'Bạn tự canh tác thửa này — hãy ghi lại mỗi lần chăm sóc và hình ảnh hiện trường.' : 'Farmely tự động đồng bộ toàn bộ nhật ký chăm sóc kèm ảnh minh chứng từ kỹ thuật viên & ghi chú của bạn.'}
+          {canWrite ? 'Bạn tự canh tác thửa này — hãy ghi lại mỗi lần chăm sóc và hình ảnh hiện trường.' : 'Farmely tự động đồng bộ toàn bộ nhật ký chăm sóc kèm ảnh minh chứng từ kỹ thuật viên. Bấm vào bất kỳ công việc nào để xem ảnh nghiệm thu thực địa.'}
         </p>
         <button type="button" onClick={() => onAddDiary?.(plot)} className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 shadow-sm transition cursor-pointer">
           <PenLine className="h-4 w-4" />+ Thêm nhật ký
         </button>
       </div>
       {mergedDiaryEntries.length ? (
-        <ol className="relative space-y-3 border-l-2 border-emerald-100 pl-5">
-          {mergedDiaryEntries.map((e, idx) => (
-            <li key={e.id || `${e.time}-${idx}`} className="relative">
-              <span className="absolute -left-[27px] top-4 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow" aria-hidden="true" />
-              <Card className="p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-stone-500">{e.time}</span>
-                  <div className="flex items-center gap-1.5">
-                    {(e.isStaffTask || e.author?.includes('Lực') || e.author?.includes('Kỹ thuật') || e.status === 'COMPLETED') && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
-                        <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Nghiệm thu VietGAP
+        <ol className="relative space-y-3.5 border-l-2 border-emerald-100 pl-5">
+          {mergedDiaryEntries.map((e, idx) => {
+            const photoUrl = e.proofPhoto || e.image || e.imageUrl || e.photo || resolveVietgapProofPhoto(e.title);
+            const proofActivity = {
+              title: e.title,
+              timestamp: e.time,
+              notes: e.note,
+              workerName: e.author,
+              workerRole: e.authorRole || (e.isStaffTask ? 'Kỹ thuật viên hiện trường chuyên trách' : 'Chủ vườn'),
+              proofPhoto: photoUrl,
+              status: 'COMPLETED'
+            };
+
+            return (
+              <li key={e.id || `${e.time}-${idx}`} className="relative">
+                <span className="absolute -left-[27px] top-4 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow" aria-hidden="true" />
+                <Card
+                  className="p-4.5 cursor-pointer hover:border-emerald-400 hover:shadow-md transition bg-white group rounded-2xl border border-stone-200/80"
+                  onClick={() => onOpenPhoto?.(proofActivity)}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-stone-500">{e.time}</span>
+                    <div className="flex items-center gap-1.5">
+                      {(e.isStaffTask || e.author?.includes('Lực') || e.author?.includes('Kỹ thuật') || e.status === 'COMPLETED') && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Đã hoàn thành
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-100">
+                        <UserRound className="h-3.5 w-3.5" />{e.author}
                       </span>
-                    )}
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-100">
-                      <UserRound className="h-3.5 w-3.5" />{e.author}
-                    </span>
-                  </div>
-                </div>
-                <p className="mt-2 text-sm font-bold text-[#18352b]">{e.title}</p>
-                <p className="mt-1 text-sm leading-relaxed text-stone-600 whitespace-pre-line">{e.note}</p>
-                {e.sensorSnapshot && (
-                  <div className="mt-2.5 flex items-center gap-3 text-[11px] text-stone-500 bg-stone-50/80 px-3 py-1.5 rounded-xl border border-stone-100 max-w-md">
-                    <span>🌡️ Nhiệt độ: <strong className="text-stone-700">{e.sensorSnapshot.temp}</strong></span>
-                    <span>💧 Ẩm đất: <strong className="text-stone-700">{e.sensorSnapshot.soilMoisture}</strong></span>
-                  </div>
-                )}
-                {(e.image || e.imageUrl || e.photo) && (
-                  <div className="mt-3 overflow-hidden rounded-xl border border-stone-200/80 bg-stone-50 max-w-md">
-                    <img
-                      src={e.image || e.imageUrl || e.photo}
-                      alt={e.title || 'Ảnh nhật ký hiện trường'}
-                      className="max-h-72 w-full object-cover transition-transform duration-300 hover:scale-[1.02] cursor-pointer"
-                      onClick={() => window.open(e.image || e.imageUrl || e.photo, '_blank')}
-                      loading="lazy"
-                    />
-                    <div className="p-2 bg-white/80 text-[11px] text-stone-500 flex items-center justify-between border-t border-stone-100">
-                      <span>📸 Ảnh minh chứng thực tế ca trực</span>
-                      <span className="text-[10px] text-emerald-700 font-semibold cursor-pointer hover:underline" onClick={() => window.open(e.image || e.imageUrl || e.photo, '_blank')}>Mở ảnh phóng to ↗</span>
                     </div>
                   </div>
-                )}
-              </Card>
-            </li>
-          ))}
+
+                  <p className="mt-2 text-sm font-bold text-[#18352b] group-hover:text-emerald-700 transition">
+                    {e.title}
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-stone-600 whitespace-pre-line">{e.note}</p>
+
+                  {/* Khung ảnh thu nhỏ minh chứng thực tế & nút bấm xem biên bản */}
+                  <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200/70 bg-stone-50/70 p-2.5 group-hover:border-emerald-300 transition">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-stone-200 border border-stone-300/50">
+                        <img
+                          src={photoUrl}
+                          alt={e.title || 'Ảnh minh chứng'}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-black/15 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                          <Maximize2 className="h-4 w-4 text-white drop-shadow" />
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-800">
+                          <Camera className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                          <span>Minh chứng hiện trường</span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 truncate mt-0.5">
+                          Bấm thẻ để phóng to ảnh & xem biên bản
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenPhoto?.(proofActivity);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs hover:bg-emerald-700 transition shrink-0 cursor-pointer"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" />
+                      <span>Xem minh chứng</span>
+                    </button>
+                  </div>
+                </Card>
+              </li>
+            );
+          })}
         </ol>
       ) : <EmptyState icon={BookOpen} title="Chưa có nhật ký" />}
     </div>
   );
 }
 
-function ServicesTab({ plot, services, orders, onSelectService }) {
+function ServicesTab({ plot, services, orders, onSelectService, seasons = [], activeSeasonId, onSelectSeason, onOpenRenewal }) {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedOrderForDetail, setSelectedOrderForDetail] = useState(null);
 
@@ -2194,8 +2693,24 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
   const inProgressCount = orders.filter((o) => o.status === 'IN_PROGRESS' || o.status === 'ASSIGNED' || o.status === 'PENDING').length;
   const completedCount = orders.filter((o) => o.status === 'COMPLETED' || o.status === 'DONE').length;
 
+  const isPlotInBuffer = seasons.some((s) => s.status === 'SOIL_PREP' || s.inFallow)
+    || plot?.status === 'MAINTENANCE'
+    || (seasons.length > 0 && seasons.every((s) => s.status === 'COMPLETED'));
+
   return (
     <div className="space-y-6">
+      {/* 0. Chu kỳ mùa vụ thửa đất — chỉ hiển thị khi đất đã xong vụ và đang trong thời gian đệm (buffer / fallow BR23) */}
+      {isPlotInBuffer && seasons && seasons.length > 0 && (
+        <SeasonSelector
+          seasons={seasons}
+          activeSeasonId={activeSeasonId}
+          onSelectSeason={onSelectSeason}
+          onOpenRenewal={onOpenRenewal}
+          canRenew={true}
+          plot={plot}
+        />
+      )}
+
       {/* 1. Đặt dịch vụ chăm sóc & vật tư */}
       <section>
         <SectionTitle eyebrow={`Cho ${plot.name}`} title="Đặt dịch vụ chăm sóc & vật tư" />
@@ -2223,7 +2738,7 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-200/80 pb-3">
           <div>
             <SectionTitle eyebrow={`${orders.length} đơn dịch vụ`} title="Lịch sử mua & sử dụng dịch vụ" />
-            <p className="text-xs text-stone-500 mt-0.5">Theo dõi chi tiết tiến độ thực hiện, nhân viên phụ trách và ảnh nghiệm thu thực địa (BR15).</p>
+            <p className="text-xs text-stone-500 mt-0.5">Theo dõi chi tiết tiến độ thực hiện, nhân viên phụ trách và ảnh hoàn thành thực địa.</p>
           </div>
           <div className="flex items-center gap-1.5 self-start sm:self-auto bg-stone-100 p-1 rounded-xl text-xs font-semibold">
             <button
@@ -2308,15 +2823,15 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
                           <div className="text-xs">
                             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                               <Camera className="w-3 h-3" />
-                              Minh chứng hiện trường (BR15)
+                              Minh chứng hiện trường
                             </span>
-                            <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-1">{o.proofNotes || 'Đã nghiệm thu đạt chuẩn'}</p>
+                            <p className="text-stone-500 text-[11px] mt-0.5 line-clamp-1">{o.proofNotes || 'Đã hoàn thành đạt chuẩn'}</p>
                           </div>
                         </div>
                       ) : (
                         <p className="text-[11px] text-stone-400 italic pt-1 flex items-center gap-1">
                           <Info className="w-3 h-3 text-stone-400" />
-                          {isCompleted ? 'Dịch vụ đã hoàn tất theo định mức' : 'Nhân viên sẽ chụp ảnh hiện trường gửi vào đây khi thực hiện (BR15)'}
+                          {isCompleted ? 'Dịch vụ đã hoàn tất theo định mức' : 'Nhân viên sẽ chụp ảnh hiện trường gửi vào đây khi thực hiện'}
                         </p>
                       )}
                     </div>
@@ -2347,13 +2862,13 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
       </section>
 
       {/* Modal chi tiết đơn dịch vụ */}
-      {selectedOrderForDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
+      {selectedOrderForDetail && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
           <div className="relative max-w-lg w-full rounded-3xl bg-white p-6 shadow-2xl overflow-hidden border border-stone-200 space-y-4">
             <button
               type="button"
               onClick={() => setSelectedOrderForDetail(null)}
-              className="absolute right-4 top-4 rounded-full bg-stone-100 p-2 text-stone-600 hover:bg-stone-200 transition"
+              className="absolute right-4 top-4 rounded-full bg-stone-100 p-2 text-stone-600 hover:bg-stone-200 transition cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
@@ -2399,7 +2914,7 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
               <div className="space-y-1.5">
                 <h5 className="font-bold text-xs text-[#18352b] flex items-center gap-1.5">
                   <Camera className="w-4 h-4 text-emerald-700" />
-                  Ảnh minh chứng hiện trường (BR15):
+                  Ảnh minh chứng hiện trường:
                 </h5>
                 <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-stone-900 flex items-center justify-center max-h-56">
                   <img
@@ -2426,47 +2941,9 @@ function ServicesTab({ plot, services, orders, onSelectService }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
-  );
-}
-
-function HarvestTab({ plot, harvestPlan, onOpenHarvest, cropProcess }) {
-  const daysLeft = cropProcess?.daysLeft || Math.max(plot.totalDays - plot.currentDay, 0);
-  const planDate = harvestPlan?.date ? harvestPlan.date.split('-').reverse().join('/') : '';
-  return (
-    <div className="grid gap-5 lg:grid-cols-2">
-      <Card className="p-5">
-        <SectionTitle eyebrow="Dự kiến thu hoạch" title={daysLeft > 0 ? `Còn ${daysLeft} ngày nữa` : 'Đã đến mùa thu hoạch'} />
-        <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Ngày thu hoạch</dt><dd className="font-semibold text-[#18352b]">{plot.expectedHarvestDate || 'Sau 19 ngày'}</dd></div>
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Sản lượng tiêu chuẩn</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.expectedYield || plot.expectedYield}</dd></div>
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Cây trồng</dt><dd className="font-semibold text-[#18352b]">{cropProcess?.cropName || plot.crop}</dd></div>
-          <div className="rounded-xl bg-stone-50 p-3"><dt className="text-xs text-stone-500">Hợp đồng thuê</dt><dd className="truncate font-semibold text-[#18352b]">{plot.contractCode || 'HD-2026'}</dd></div>
-        </dl>
-      </Card>
-      <Card className="flex flex-col p-5">
-        <SectionTitle eyebrow="Kế hoạch của bạn" title={harvestPlan ? 'Đã đăng ký thu hoạch' : 'Chưa đăng ký'} />
-        {harvestPlan ? (
-          <div className="mt-4 space-y-2 text-sm">
-            <p className="flex items-center gap-2 text-[#18352b]"><CalendarCheck className="h-4 w-4 text-emerald-700" />Ngày dự kiến đến hái: <strong>{planDate}</strong></p>
-            <p className="flex items-center gap-2 text-[#18352b]"><Scissors className="h-4 w-4 text-emerald-700" />{harvestPlan.methodLabel}</p>
-            {harvestPlan.status === 'APPROVED' ? (
-              <p className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">✓ Đã duyệt lịch hái · Nông trại sẵn sàng đón tiếp</p>
-            ) : (
-              <p className="inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Chờ kỹ sư xác nhận</p>
-            )}
-          </div>
-        ) : (
-          <p className="mt-4 text-sm text-stone-600">Đăng ký ngày tới nông trại để trải nghiệm và tự tay thu hoạch nông sản của bạn. Farmely sẽ nhắc bạn trước 3 ngày.</p>
-        )}
-        <button type="button" onClick={() => onOpenHarvest?.(plot)} className="mt-auto pt-5 cursor-pointer">
-          <span className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800">
-            <Wheat className="h-4 w-4" />{harvestPlan ? 'Sửa lịch trải nghiệm thu hoạch' : 'Đăng ký tới nông trại thu hoạch'}
-          </span>
-        </button>
-      </Card>
     </div>
   );
 }
@@ -2479,12 +2956,12 @@ export default function CustomerPlotWorkspace({
   plot,
   plots = [],
   operations = { tasks: [], diary: [] },
-  iotData,
   alerts = [],
   stages = [],
   services = [],
   serviceOrders = [],
-  harvestPlan = null,
+  harvestResults = [],
+  latestHarvest: propLatestHarvest = null,
   activeTab = 'overview',
   onTabChange,
   onSelectPlot,
@@ -2492,19 +2969,33 @@ export default function CustomerPlotWorkspace({
   onOpenAiChat,
   onOpenTask,
   onSelectService,
-  onOpenHarvest,
-  onAddDiary
+  onAddDiary,
+  onHarvestConfirmed
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef(null);
-  const tab = PLOT_TABS.some((t) => t.id === activeTab) ? activeTab : 'overview';
+  const [internalTab, setInternalTab] = useState(() => (activeTab === 'diary' ? 'tasks' : (activeTab || 'overview')));
+  useEffect(() => {
+    if (activeTab === 'diary') {
+      setInternalTab('tasks');
+      onTabChange?.('tasks');
+    } else if (activeTab && PLOT_TABS.some(t => t.id === activeTab)) {
+      setInternalTab(activeTab);
+    }
+  }, [activeTab, onTabChange]);
+  const activeTabResolved = activeTab === 'diary' ? 'tasks' : activeTab;
+  const tab = PLOT_TABS.some((t) => t.id === (onTabChange ? activeTabResolved : internalTab)) ? (onTabChange ? activeTabResolved : internalTab) : 'overview';
   const isSelf = plot.mode === 'Self-Growing' || plot.cultivationMode === 'SELF' || plot.cultivationMode === 'SELF_GROWING';
 
   // Dynamic Tabs definition for Self-Growing vs Assisted (Requirement #3)
   const displayTabs = useMemo(() => {
     return PLOT_TABS.map((t) => {
-      if (t.id === 'tasks' && isSelf) {
-        return { ...t, label: 'Công việc hằng ngày', short: 'Công việc' };
+      if (t.id === 'tasks') {
+        return {
+          ...t,
+          label: isSelf ? 'Công việc & Nhật ký' : 'Công việc & Nhật ký thực địa',
+          short: 'Công việc & Nhật ký'
+        };
       }
       return t;
     });
@@ -2513,6 +3004,43 @@ export default function CustomerPlotWorkspace({
   // 0. Quản lý Mùa vụ (Seasons) & Gia hạn hợp đồng thửa đất (BR12)
   const [customSeasons, setCustomSeasons] = useState(null);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
+
+  // Trạng thái kích hoạt mùa vụ: Trước khi bấm nút bắt đầu mùa vụ thì giữ trạng thái Sắp tới
+  const [isSeasonStarted, setIsSeasonStarted] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`farmely_season_started_${plot.id}`);
+      if (saved !== null) return saved === 'true';
+    } catch { }
+    const isFuture = plot.startDate && new Date(plot.startDate).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
+    return Number(plot.currentDay) > 0 && !isFuture;
+  });
+
+  const handleStartSeason = useCallback(async () => {
+    setIsSeasonStarted(true);
+    try {
+      localStorage.setItem(`farmely_season_started_${plot.id}`, 'true');
+    } catch { }
+
+    const rentalId = plot.rentalId || plot.rental_id;
+    if (rentalId) {
+      try {
+        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'START_NOW' })
+        });
+      } catch (e) {
+        console.warn('Lỗi gọi API start season:', e);
+      }
+    }
+  }, [plot.id, plot.rentalId, plot.rental_id]);
+
+  const handleResetSeason = useCallback(() => {
+    setIsSeasonStarted(false);
+    try {
+      localStorage.removeItem(`farmely_season_started_${plot.id}`);
+    } catch { }
+  }, [plot.id]);
 
   const plotSeasons = useMemo(() => {
     if (customSeasons && customSeasons.length > 0) return customSeasons;
@@ -2524,6 +3052,13 @@ export default function CustomerPlotWorkspace({
     return current?.id || plotSeasons[0]?.id || 'SEASON-1';
   });
 
+  useEffect(() => {
+    if (plotSeasons.length > 0 && !plotSeasons.some((s) => s.id === activeSeasonId)) {
+      const current = plotSeasons.find((s) => s.isCurrent || s.status === 'ACTIVE');
+      setActiveSeasonId(current?.id || plotSeasons[0]?.id || 'SEASON-1');
+    }
+  }, [plotSeasons, activeSeasonId]);
+
   const activeSeason = useMemo(() => {
     return plotSeasons.find((s) => s.id === activeSeasonId) || plotSeasons[0];
   }, [plotSeasons, activeSeasonId]);
@@ -2531,107 +3066,192 @@ export default function CustomerPlotWorkspace({
   // 1. Phân tích và sinh quy trình canh tác chuẩn VietGAP tính theo ngày tuổi cho Vụ mùa đang chọn
   const cropProcess = useMemo(() => {
     if (!activeSeason) return resolveStandardCropProcess(plot, stages);
-    const isSeasonScheduled = activeSeason.status === 'SCHEDULED' || activeSeason.currentDay === 0;
+    const isCurrentSeason = activeSeason.isCurrent || activeSeason.status === 'ACTIVE';
+    const isFuture = plot.startDate && new Date(plot.startDate).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
+
+    // Đối với vụ đang chạy (isCurrentSeason): phụ thuộc vào isSeasonStarted
+    // Đối với vụ tương lai (Vụ 2, Vụ 3): luôn ở trạng thái SCHEDULED (Ngày 0) cho đến khi vụ trước hoàn tất
+    const isSeasonScheduled = !isCurrentSeason
+      ? (activeSeason.status === 'SCHEDULED')
+      : (!isSeasonStarted && (activeSeason.status === 'SCHEDULED' || activeSeason.currentDay === 0 || isFuture));
+
+    const effectiveCurrentDay = !isCurrentSeason
+      ? (activeSeason.status === 'COMPLETED' ? activeSeason.totalDays : 0)
+      : (isSeasonStarted
+          ? Math.max(1, Number(activeSeason.currentDay !== undefined && activeSeason.currentDay !== null ? activeSeason.currentDay : plot.currentDay) || 1)
+          : (isSeasonScheduled ? 0 : (activeSeason.currentDay || plot.currentDay || 0)));
+
+    const effectiveSeasonStatus = !isCurrentSeason
+      ? activeSeason.status
+      : (isSeasonStarted ? 'ACTIVE' : activeSeason.status);
+
     const plotForSeason = {
       ...plot,
       crop: activeSeason.cropName || plot.crop,
       totalDays: activeSeason.totalDays || plot.totalDays,
-      currentDay: activeSeason.currentDay !== undefined ? activeSeason.currentDay : (isSeasonScheduled ? 0 : plot.currentDay),
-      seasonStatus: activeSeason.status,
+      currentDay: effectiveCurrentDay,
+      seasonStatus: effectiveSeasonStatus,
       isScheduled: isSeasonScheduled
     };
     return resolveStandardCropProcess(plotForSeason, stages);
-  }, [plot, stages, activeSeason]);
+  }, [plot, stages, activeSeason, isSeasonStarted]);
+
+  const taskStorageKey = useMemo(() => {
+    const cropKey = (cropProcess?.cropKey || cropProcess?.cropName || plot?.crop || 'crop').replace(/\s+/g, '_');
+    return `farmely_self_tasks_${plot.id}_${cropKey}_v4`;
+  }, [plot.id, cropProcess?.cropKey, cropProcess?.cropName, plot?.crop]);
 
   // Quản lý công việc hằng ngày cho khách hàng tự canh tác (Requirement #3)
   const defaultSelfTasks = useMemo(() => {
-    if (!cropProcess?.stages?.length) return [];
-    const tasks = [];
-    cropProcess.stages.forEach((st, idx) => {
-      tasks.push({
-        id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-1`,
-        activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-1`,
-        title: st.name ? `${st.name}: ${st.guide?.split('.')[0] || 'Chăm sóc sinh trưởng'}` : 'Chăm sóc theo quy trình VietGAP',
-        day: st.dayStart,
-        cropDay: st.dayStart,
-        date: st.label || `Ngày ${st.dayStart}`,
-        timestamp: `Ngày ${st.dayStart} • Ca sáng (07:00 - 08:30)`,
-        status: !cropProcess.isNotStarted && st.dayStart <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-        notes: st.guide || 'Tuân thủ định mức và kỹ thuật chuẩn VietGAP.',
-        stepOrder: st.stepOrder || idx + 1,
-        waterRegime: st.waterRegime,
-        nutrition: st.nutrition,
+    // Ngày 1 (Bắt đầu mùa vụ): Đúng 2 công việc chuẩn mực, tinh gọn, không spam
+    // ponytail: Chỉ tự động COMPLETED khi ngày hiện tại ĐÃ QUA ngày của task (> taskDay)
+    const isHarvestPlot = !cropProcess.isNotStarted && (cropProcess.currentDay >= cropProcess.totalDays);
+    const tasks = [
+      {
+        id: `SELF-${plot.id}-D1-PREP`,
+        activityId: `SELF-${plot.id}-D1-PREP`,
+        title: 'Làm đất tơi xốp, bón lót phân trùn quế & xử lý Trichoderma',
+        day: 1,
+        cropDay: 1,
+        date: 'Ngày 1',
+        timestamp: 'Ngày 1 • Ca sáng (07:30 - 09:00)',
+        status: isHarvestPlot || (!cropProcess.isNotStarted && 1 < (cropProcess.currentDay || 0)) ? 'COMPLETED' : 'PENDING',
+        notes: 'Xới xáo đất tơi xốp sâu 20cm, bón lót phân trùn quế và phun nấm đối kháng Trichoderma cân bằng hệ vi sinh đất.',
+        stepOrder: 1,
         isCustom: false
-      });
-      if (st.waterRegime) {
-        tasks.push({
-          id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-2`,
-          activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-2`,
-          title: `Tưới nước: ${st.waterRegime.split('.')[0]}`,
-          day: Math.min(st.dayEnd, st.dayStart + 1),
-          cropDay: Math.min(st.dayEnd, st.dayStart + 1),
-          date: `Ngày ${Math.min(st.dayEnd, st.dayStart + 1)}`,
-          timestamp: `Ngày ${Math.min(st.dayEnd, st.dayStart + 1)} • Ca chiều (16:30)`,
-          status: !cropProcess.isNotStarted && Math.min(st.dayEnd, st.dayStart + 1) <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-          notes: st.waterRegime,
-          stepOrder: st.stepOrder || idx + 1,
-          isCustom: false
-        });
+      },
+      {
+        id: `SELF-${plot.id}-D1-SEED`,
+        activityId: `SELF-${plot.id}-D1-SEED`,
+        title: 'Tưới ẩm luống đất (65-70%) & xuống giống non theo mật độ VietGAP',
+        day: 1,
+        cropDay: 1,
+        date: 'Ngày 1',
+        timestamp: 'Ngày 1 • Ca chiều (16:00 - 17:30)',
+        status: isHarvestPlot || (!cropProcess.isNotStarted && 1 < (cropProcess.currentDay || 0)) ? 'COMPLETED' : 'PENDING',
+        notes: 'Duy trì ẩm độ luống đất ổn định trước khi xuống cây giống theo mật độ khuyến nghị.',
+        stepOrder: 1,
+        isCustom: false
       }
-      if (st.nutrition) {
-        tasks.push({
-          id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-3`,
-          activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}-3`,
-          title: `Dinh dưỡng hữu cơ: ${st.nutrition.split('.')[0]}`,
-          day: Math.min(st.dayEnd, st.dayStart + 2),
-          cropDay: Math.min(st.dayEnd, st.dayStart + 2),
-          date: `Ngày ${Math.min(st.dayEnd, st.dayStart + 2)}`,
-          timestamp: `Ngày ${Math.min(st.dayEnd, st.dayStart + 2)} • Ca sáng (08:00)`,
-          status: !cropProcess.isNotStarted && Math.min(st.dayEnd, st.dayStart + 2) <= (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING',
-          notes: st.nutrition,
-          stepOrder: st.stepOrder || idx + 1,
-          isCustom: false
-        });
+    ];
+
+    // Các giai đoạn tiếp theo (chỉ tạo khi dayStart > 1): Mỗi giai đoạn chỉ tạo đúng 1 nhiệm vụ đại diện vào ngày bắt đầu
+    if (cropProcess?.stages?.length) {
+      cropProcess.stages.forEach((st, idx) => {
+        if (st.dayStart > 1) {
+          const notesText = [
+            st.guide || 'Chăm sóc sinh trưởng theo quy trình chuẩn VietGAP.',
+            st.waterRegime ? `• Tưới nước: ${st.waterRegime}` : '',
+            st.nutrition ? `• Dinh dưỡng: ${st.nutrition}` : ''
+          ].filter(Boolean).join('\n');
+
+          const isHarvestStage = st.name?.toLowerCase().includes('thu hoạch') || (st.dayEnd && st.dayEnd >= cropProcess.totalDays);
+          const taskStatus = isHarvestPlot
+            ? (isHarvestStage ? 'IN_PROGRESS' : 'COMPLETED')
+            : (!cropProcess.isNotStarted && st.dayStart < (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING');
+
+          tasks.push({
+            id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}`,
+            activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}`,
+            title: st.name ? `${st.name}: ${st.guide?.split('.')[0] || 'Kỹ thuật chăm sóc'}` : 'Chăm sóc theo quy trình VietGAP',
+            day: st.dayStart,
+            cropDay: st.dayStart,
+            date: st.label || `Ngày ${st.dayStart}`,
+            timestamp: `Ngày ${st.dayStart} • Ca sáng (07:30 - 09:00)`,
+            status: taskStatus,
+            notes: notesText,
+            stepOrder: st.stepOrder || idx + 1,
+            isCustom: false
+          });
+        }
+      });
+    }
+
+    // Deduplicate hoàn toàn theo ngày + tiêu đề
+    const seen = new Set();
+    const cleanList = [];
+    tasks.forEach((t) => {
+      const key = `${t.day}_${(t.title || '').trim().toLowerCase()}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        cleanList.push(t);
       }
     });
-    return tasks;
-  }, [cropProcess?.stages, plot.id, cropProcess.currentDay, cropProcess.isNotStarted]);
+
+    return cleanList;
+  }, [cropProcess?.stages, plot.id, cropProcess.currentDay, cropProcess.totalDays, cropProcess.isNotStarted]);
 
   const [selfTasks, setSelfTasks] = useState(() => {
     try {
-      const stored = localStorage.getItem(`farmely_self_tasks_${plot.id}`);
+      const stored = localStorage.getItem(taskStorageKey);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const day1Tasks = parsed.filter(t => t.day === 1);
+          if (day1Tasks.length <= 2 && new Set(day1Tasks.map(t => t.title)).size === day1Tasks.length) {
+            // Nếu đang ở Ngày Thu Hoạch (currentDay >= totalDays): reset về defaultSelfTasks để tất cả các task trước thu hoạch đều là COMPLETED
+            if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && parsed.some(t => t.day < cropProcess.totalDays && t.status !== 'COMPLETED')) {
+              return defaultSelfTasks;
+            }
+            return parsed;
+          }
+        }
       }
     } catch { }
-    return [];
+    return defaultSelfTasks;
   });
 
   useEffect(() => {
-    if (isSelf && selfTasks.length === 0 && defaultSelfTasks.length > 0) {
-      setSelfTasks(defaultSelfTasks);
+    if (isSelf) {
       try {
-        localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(defaultSelfTasks));
+        const stored = localStorage.getItem(taskStorageKey);
+        let shouldReset = !stored;
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const day1Tasks = parsed.filter(t => t.day === 1);
+          if (day1Tasks.length > 2 || new Set(day1Tasks.map(t => t.title)).size < day1Tasks.length) {
+            shouldReset = true;
+          }
+          if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && parsed.some(t => t.day < cropProcess.totalDays && t.status !== 'COMPLETED')) {
+            shouldReset = true;
+          }
+        }
+        if (shouldReset) {
+          setSelfTasks(defaultSelfTasks);
+          localStorage.setItem(taskStorageKey, JSON.stringify(defaultSelfTasks));
+          localStorage.removeItem(`farmely_self_tasks_${plot.id}`);
+        }
       } catch { }
     }
-  }, [isSelf, selfTasks.length, defaultSelfTasks, plot.id]);
+  }, [isSelf, taskStorageKey, defaultSelfTasks, plot.id, cropProcess.currentDay, cropProcess.totalDays, cropProcess.isNotStarted]);
 
   const handleToggleSelfTask = useCallback((taskId) => {
     setSelfTasks((prev) => {
-      const next = prev.map((t) => {
-        if (t.id === taskId || t.activityId === taskId) {
-          const newStatus = t.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
-          return { ...t, status: newStatus };
+      let found = false;
+      const targetStr = String(taskId || '').trim().toLowerCase();
+      let next = prev.map((t) => {
+        const matchesId = t.id === taskId || t.activityId === taskId || String(t.id).toLowerCase() === targetStr || String(t.activityId).toLowerCase() === targetStr;
+        const matchesTitle = t.title && (String(t.title).trim().toLowerCase() === targetStr);
+        if (matchesId || matchesTitle) {
+          found = true;
+          const newStatus = (t.status === 'COMPLETED' || t.status === 'DONE') ? 'PENDING' : 'COMPLETED';
+          return { ...t, status: newStatus, isUserChecked: true };
         }
         return t;
       });
+      if (!found) {
+        next = [...prev, { id: taskId, activityId: taskId, status: 'COMPLETED', isUserChecked: true }];
+      }
       try {
-        localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(next));
+        localStorage.setItem(taskStorageKey, JSON.stringify(next));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new CustomEvent('farmely_task_completed', { detail: { taskId } }));
+        }
       } catch { }
       return next;
     });
-  }, [plot.id]);
+  }, [taskStorageKey]);
 
   const handleAddSelfTask = useCallback((newTask) => {
     setSelfTasks((prev) => {
@@ -2648,24 +3268,27 @@ export default function CustomerPlotWorkspace({
       };
       const next = [taskObj, ...prev];
       try {
-        localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(next));
+        localStorage.setItem(taskStorageKey, JSON.stringify(next));
       } catch { }
       return next;
     });
-  }, [plot.id]);
+  }, [plot.id, taskStorageKey]);
 
   const handleDeleteSelfTask = useCallback((taskId) => {
     setSelfTasks((prev) => {
       const next = prev.filter((t) => (t.id || t.activityId) !== taskId);
       try {
-        localStorage.setItem(`farmely_self_tasks_${plot.id}`, JSON.stringify(next));
+        localStorage.setItem(taskStorageKey, JSON.stringify(next));
       } catch { }
       return next;
     });
-  }, [plot.id]);
+  }, [taskStorageKey]);
 
   // Modal xem cẩm nang kỹ thuật của mốc ngày
   const [selectedStageDetail, setSelectedStageDetail] = useState(null);
+
+  // Modal Báo Cáo Thu Hoạch & Biên Bản Nghiệm Thu (BR20 - BR21)
+  const [selectedHarvestReport, setSelectedHarvestReport] = useState(null);
 
   // 2. Lưu trữ và truy xuất các hoạt động của Staff
   const [staffActivities, setStaffActivities] = useState(() => {
@@ -2704,21 +3327,59 @@ export default function CustomerPlotWorkspace({
                   taskDay = Number(m.dayOffset) === 0 ? 1 : Math.max(1, Number(m.dayOffset));
                 } else if (m.day !== undefined && m.day !== null) {
                   taskDay = Math.max(1, Number(m.day));
-                } else if (m.dueDate && plot?.startDate) {
+                } else if ((m.dueDate || m.completedAt || m.date) && plot?.startDate) {
                   try {
-                    const d1 = new Date(m.dueDate);
+                    const rawDate = m.dueDate || m.completedAt || m.date;
                     const d0 = new Date(plot.startDate);
-                    const diff = Math.floor((d1.getTime() - d0.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                    if (diff >= 1) taskDay = diff;
+                    d0.setHours(0, 0, 0, 0);
+                    let d1 = null;
+                    const dmy = String(rawDate).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                    if (dmy) {
+                      d1 = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+                    } else {
+                      const parsed = new Date(rawDate);
+                      if (!isNaN(parsed.getTime())) d1 = parsed;
+                    }
+                    if (d1 && !isNaN(d1.getTime()) && !isNaN(d0.getTime())) {
+                      d1.setHours(0, 0, 0, 0);
+                      const diff = Math.round((d1.getTime() - d0.getTime()) / 86400000) + 1;
+                      if (diff >= 1) taskDay = diff;
+                    }
                   } catch { }
                 }
                 const resolvedDay = taskDay ? Math.max(1, Number(taskDay)) : 1;
+
+                // Định dạng ngày hiển thị chuẩn Việt Nam (DD/MM/YYYY) khớp 1:1 với Ngày tuổi
+                let displayDateStr = '';
+                if (m.dueDate) {
+                  try {
+                    const parts = String(m.dueDate).split('T')[0].split('-');
+                    if (parts.length === 3) {
+                      displayDateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                    }
+                  } catch { }
+                }
+                if (!displayDateStr && plot?.startDate && resolvedDay) {
+                  try {
+                    const d = new Date(plot.startDate);
+                    d.setDate(d.getDate() + (resolvedDay - 1));
+                    displayDateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                  } catch { }
+                }
+
+                const isDone = m.status === 'DONE' || m.status === 'COMPLETED';
+                const sessionTime = m.deadline || (m.stepOrder && m.stepOrder % 2 === 0 ? 'Ca chiều (16:00 - 17:30)' : 'Ca sáng (07:30 - 09:00)');
+                const formattedTimestamp = isDone
+                  ? (m.completedAt || (displayDateStr ? `${displayDateStr} • Đã hoàn thành` : 'Đã hoàn tất'))
+                  : (displayDateStr ? `${displayDateStr} • ${sessionTime}` : `Ngày tuổi ${resolvedDay} • ${sessionTime}`);
 
                 return {
                   activityId: m.id || `TSK-${m.taskId}`,
                   plotId: m.plotCode || plot.id,
                   plotCode: m.plotCode || plot.plotCode || 'P-01',
                   rentalId: m.rentalId,
+                  serviceRequestId: m.serviceRequestId || null,
+                  priority: m.priority || 'NORMAL',
                   day: resolvedDay,
                   cropDay: resolvedDay,
                   dayOffset: m.dayOffset !== undefined && m.dayOffset !== null ? Number(m.dayOffset) : null,
@@ -2728,11 +3389,10 @@ export default function CustomerPlotWorkspace({
                   workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
                   workerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
                   title: m.title,
-                  timestamp: m.completedAt || (m.dueDate ? `${m.dueDate} • ${m.deadline || 'Ca sáng'}` : 'Ca trực'),
-                  status: m.status === 'DONE' || m.status === 'COMPLETED' ? 'COMPLETED' : m.status === 'IN_PROG' ? 'IN_PROGRESS' : m.status || 'PENDING',
+                  timestamp: formattedTimestamp,
+                  status: isDone ? 'COMPLETED' : m.status === 'IN_PROG' ? 'IN_PROGRESS' : m.status || 'PENDING',
                   notes: m.instructions || m.notes || 'Thực hiện chăm sóc chuẩn quy trình VietGAP.',
-                  proofPhoto: m.proofPhoto || m.evidenceImageUrl || null,
-                  sensorSnapshot: { temp: '26.8°C', soilMoisture: '68%', light: '42.000 Lux' }
+                  proofPhoto: m.proofPhoto || m.evidenceImageUrl || null
                 };
               });
               setStaffActivities(mapped);
@@ -2759,25 +3419,47 @@ export default function CustomerPlotWorkspace({
     }
 
     const onStorage = (e) => {
-      if (e.key === 'farmely_persisted_staff_activities_v2') {
+      if (
+        e.key === 'farmely_persisted_staff_activities_v2' ||
+        e.key === 'farmely_customer_service_orders' ||
+        e.key === 'farmely_task_sync'
+      ) {
         reloadStaffActivities();
       }
     };
+    const onServicePaid = () => {
+      reloadStaffActivities();
+    };
+    const onFocusOrVisible = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        reloadStaffActivities();
+      }
+    };
+    const onTaskCompleted = () => {
+      reloadStaffActivities();
+    };
+
     window.addEventListener('storage', onStorage);
+    window.addEventListener('farmely_service_paid', onServicePaid);
+    window.addEventListener('farmely_task_completed', onTaskCompleted);
+    window.addEventListener('focus', onFocusOrVisible);
+    document.addEventListener('visibilitychange', onFocusOrVisible);
 
     return () => {
       isMounted = false;
       window.removeEventListener('storage', onStorage);
+      window.removeEventListener('farmely_service_paid', onServicePaid);
+      window.removeEventListener('farmely_task_completed', onTaskCompleted);
+      window.removeEventListener('focus', onFocusOrVisible);
+      document.removeEventListener('visibilitychange', onFocusOrVisible);
       if (bc) bc.close();
     };
   }, [plot.id, plot.plotCode, plot.rentalId]);
 
   // 3. Tích hợp Open-Meteo Global Agrometeorology Live 3rd-Party API
   const [liveIotResult, setLiveIotResult] = useState(null);
-  const [isRefreshingIot, setIsRefreshingIot] = useState(false);
 
   const loadLiveAgroData = useCallback(async (force = false) => {
-    setIsRefreshingIot(true);
     try {
       const data = await fetchLiveAgroIotData(plot, force);
       if (data) {
@@ -2785,8 +3467,6 @@ export default function CustomerPlotWorkspace({
       }
     } catch (e) {
       console.warn('Lỗi tải Open-Meteo:', e);
-    } finally {
-      setIsRefreshingIot(false);
     }
   }, [plot]);
 
@@ -2796,52 +3476,144 @@ export default function CustomerPlotWorkspace({
 
   // Ghi đè số liệu cảm biến thực tế từ Open-Meteo lên plot
   const activePlot = useMemo(() => {
-    if (!liveIotResult?.metrics) return plot;
-    const m = liveIotResult.metrics;
-    return {
+    const base = liveIotResult?.metrics ? {
       ...plot,
-      temp: m.temp || plot.temp,
-      soilMoisture: m.soilMoisture || plot.soilMoisture,
-      airHumidity: m.airHumidity || plot.airHumidity,
-      light: m.light || plot.light,
-      soilTemp: m.soilTemp,
-      precipitation: m.precipitation,
-      windSpeed: m.windSpeed,
-      pressure: m.pressure,
+      temp: liveIotResult.metrics.temp || plot.temp,
+      soilMoisture: liveIotResult.metrics.soilMoisture || plot.soilMoisture,
+      airHumidity: liveIotResult.metrics.airHumidity || plot.airHumidity,
+      light: liveIotResult.metrics.light || plot.light,
+      soilTemp: liveIotResult.metrics.soilTemp,
+      precipitation: liveIotResult.metrics.precipitation,
+      windSpeed: liveIotResult.metrics.windSpeed,
+      pressure: liveIotResult.metrics.pressure,
       lastUpdated: liveIotResult.lastUpdated || plot.lastUpdated,
       rawMetrics: liveIotResult.rawMetrics
-    };
-  }, [plot, liveIotResult]);
+    } : { ...plot };
 
-  // Biểu đồ thời gian thực: Ưu tiên chuỗi hourly từ Open-Meteo API
-  const activeIotData = useMemo(() => {
-    if (liveIotResult?.hourly?.length) {
-      return {
-        ...(iotData || {}),
-        hourly: liveIotResult.hourly
-      };
+    if (isSeasonStarted) {
+      base.currentDay = Math.max(1, Number(plot.currentDay) || 1);
+      base.isScheduled = false;
+      base.seasonStatus = 'ACTIVE';
     }
-    return iotData;
-  }, [liveIotResult, iotData]);
+    return base;
+  }, [plot, liveIotResult, isSeasonStarted]);
+
+  const handleSimulateDay1 = useCallback(async (targetSeason) => {
+    // 1. Tự động nhận diện Vụ tiếp theo (ví dụ Vụ 2 khi bấm bắt đầu từ Vụ 1 bảo trì)
+    const nextSeasonToStart = (targetSeason && targetSeason.id)
+      ? targetSeason
+      : plotSeasons.find((s) => s.seasonNumber > (activeSeason?.seasonNumber || 1));
+
+    if (nextSeasonToStart) {
+      const updatedSeasons = (customSeasons && customSeasons.length > 0 ? customSeasons : plotSeasons).map((s) => {
+        if (s.seasonNumber < nextSeasonToStart.seasonNumber) {
+          return {
+            ...s,
+            status: 'COMPLETED',
+            isCurrent: false,
+            inFallow: false,
+            currentDay: s.totalDays,
+            yieldKgActual: s.yieldKgActual || (propLatestHarvest?.yieldAmount ?? 49.98)
+          };
+        } else if (s.seasonNumber === nextSeasonToStart.seasonNumber) {
+          return {
+            ...s,
+            status: 'ACTIVE',
+            isCurrent: true,
+            inFallow: false,
+            currentDay: 1,
+            startDate: new Date().toISOString().slice(0, 10)
+          };
+        } else {
+          return {
+            ...s,
+            status: 'SCHEDULED',
+            isCurrent: false,
+            inFallow: false,
+            currentDay: 0
+          };
+        }
+      });
+
+      setCustomSeasons(updatedSeasons);
+      setActiveSeasonId(nextSeasonToStart.id);
+      setIsSeasonStarted(true);
+      setShowMaintenanceView(false);
+
+      const plotKey = plot.plotCode || plot.mapPlotId || plot.key || `P-${plot.rentalId || plot.id}`;
+      try {
+        localStorage.setItem(`farmely_plot_seasons_${plotKey}`, JSON.stringify(updatedSeasons));
+        localStorage.setItem(`farmely_season_started_${plot.id}`, 'true');
+        localStorage.setItem(`farmely_active_season_${plot.id}`, nextSeasonToStart.id);
+      } catch { }
+
+      // Xóa các task cũ để Vụ mới khởi tạo lại task Ngày 1 chuẩn
+      try {
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith('farmely_self_tasks_') || k.includes('farmely_persisted_staff_activities')) {
+            localStorage.removeItem(k);
+          }
+        });
+      } catch { }
+
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        try {
+          const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
+          bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
+          setTimeout(() => { try { bc1.close(); } catch { } }, 1000);
+        } catch { }
+      }
+      return;
+    }
+
+    // 2. Trường hợp chỉ có 1 vụ (chưa có Vụ 2): reset lại Ngày 1 của Vụ 1
+    const rentalId = activePlot?.rentalId || activePlot?.rental_id || plot?.rentalId || plot?.rental_id;
+    if (rentalId) {
+      try {
+        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'START_NOW' })
+        });
+        try {
+          Object.keys(localStorage).forEach((k) => {
+            if (k.startsWith('farmely_self_tasks_') || k.includes('farmely_persisted_staff_activities') || k.includes('farmely_season_started')) {
+              localStorage.removeItem(k);
+            }
+          });
+        } catch { }
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          try {
+            const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
+            bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
+            setTimeout(() => { try { bc1.close(); } catch { } }, 1000);
+          } catch { }
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('storage'));
+        }
+      } catch (err) {
+        console.warn('Could not simulate day 1:', err);
+      }
+    }
+    setIsSeasonStarted(true);
+    setShowMaintenanceView(false);
+  }, [activePlot, plot, activeSeason, plotSeasons, customSeasons, propLatestHarvest]);
+
+  // ponytail: chuỗi hourly chỉ dùng cho biểu đồ của tab Vi khí hậu (đã gộp vào Tổng quan).
+  // upgrade path is lấy lại liveIotResult.hourly khi dựng trang tra cứu lịch sử khí tượng.
 
   // Cảnh báo động sinh ra theo số đo thực tế
   const activeAlerts = useMemo(() => {
     const sNum = parseFloat(String(activePlot.soilMoisture || ''));
-    const dynamicList = [...(alerts || [])];
-    if (sNum >= 80) {
-      dynamicList.unshift({
-        id: 'DYNAMIC-FLOOD-BR18',
-        level: 'HIGH',
-        title: 'Mưa lớn & Đất bão hoà ẩm (BR18)',
-        explanation: `Độ ẩm đất đo đạc thực tế từ trạm là ${activePlot.soilMoisture} (≥ 80%). Hệ thống đã tự động kích hoạt luật BR18: Tạm hoãn mọi tác vụ tưới hôm nay để tránh ngập úng rễ cây.`,
-        action: 'Farmely đã tự động dời lịch tưới hôm nay.',
-        time: activePlot.lastUpdated || 'Vừa xong'
-      });
-    } else if (sNum < 50 && sNum > 0) {
+    const dynamicList = [...(alerts || [])].filter(
+      (a) => !/hoãn.*tưới|mưa.*45 phút|sắp có mưa/i.test(`${a?.title || ''} ${a?.explanation || ''} ${a?.action || ''} ${a?.metric || ''}`)
+    );
+    if (sNum < 50 && sNum > 0) {
       dynamicList.unshift({
         id: 'DYNAMIC-DRY-BR18',
         level: 'HIGH',
-        title: 'Đất khô kiệt dưới ngưỡng an toàn (BR18)',
+        title: 'Đất khô kiệt dưới ngưỡng an toàn',
         explanation: `Độ ẩm đất đo đạc tụt xuống ${activePlot.soilMoisture} (< 50%). Cây trồng có nguy cơ sốc nhiệt nếu không được cấp nước bù.`,
         action: 'Kỹ thuật viên thực địa đã được thông báo để tưới nhỏ giọt bù ẩm.',
         time: activePlot.lastUpdated || 'Vừa xong'
@@ -2867,19 +3639,25 @@ export default function CustomerPlotWorkspace({
   }, [pickerOpen]);
 
   const goTab = (id) => {
+    setInternalTab(id);
     onTabChange?.(id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const current = displayTabs.find((t) => t.id === tab) || displayTabs[0];
-  const health = computeHealthScore(activePlot, activeAlerts);
+
+  const currentSeasonNumber = activeSeason?.seasonNumber || 1;
+  const totalSeasonsCount = plotSeasons?.length || 1;
+  const leaseMonths = plot.termMonths || (totalSeasonsCount > 1 ? totalSeasonsCount * 3 : 12);
 
   const heroStats = [
     {
-      label: 'Ngày tuổi',
+      label: totalSeasonsCount > 1 ? `Vụ ${currentSeasonNumber}/${totalSeasonsCount} · Ngày tuổi` : 'Ngày tuổi',
       value: cropProcess.isNotStarted ? 'Sắp tới' : `D${cropProcess.currentDay}`,
       unit: cropProcess.isNotStarted ? '' : `/${cropProcess.totalDays}`,
-      note: cropProcess.isNotStarted ? (plot.startDate ? `Bắt đầu ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Chưa bắt đầu vụ mới') : (cropProcess.currentStage?.name || 'Đang sinh trưởng tốt'),
+      note: cropProcess.isNotStarted
+        ? (plot.startDate ? `Bắt đầu ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Chưa bắt đầu vụ mới')
+        : (cropProcess.currentStage?.name || 'Đang sinh trưởng tốt'),
       icon: Sprout,
       tab: 'overview'
     },
@@ -2889,9 +3667,10 @@ export default function CustomerPlotWorkspace({
       unit: 'ngày',
       note: cropProcess.isNotStarted
         ? (plot.startDate ? `Bắt đầu: ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Theo lịch vụ mùa')
-        : (plot.expectedHarvestDate ? `Dự kiến ${plot.expectedHarvestDate}` : 'Đúng tiến độ'),
+        : (activeSeason?.endDate ? `Thu hoạch: ${new Date(activeSeason.endDate).toLocaleDateString('vi-VN')}` : (plot.expectedHarvestDate ? `Dự kiến ${plot.expectedHarvestDate}` : 'Đúng tiến độ')),
       icon: Wheat,
-      tab: 'harvest'
+      // ponytail: tab 'harvest' đã bỏ (KH không nghiệm thu) — kết quả thu hoạch nằm trong Công việc & Nhật ký
+      tab: 'tasks'
     },
     {
       label: isSelf ? 'Công việc' : 'Việc Staff',
@@ -2901,35 +3680,35 @@ export default function CustomerPlotWorkspace({
         ? 'Chờ ngày xuống giống'
         : (isSelf
           ? `${selfTasks.filter(t => t.status !== 'COMPLETED').length} việc cần làm`
-          : (openTaskCount > 0 ? `${openTaskCount} việc đang làm` : 'Đã nghiệm thu đủ')),
+          : (openTaskCount > 0 ? `${openTaskCount} việc đang làm` : 'Đã hoàn thành đủ')),
       icon: CalendarCheck,
       tab: 'tasks'
     }
   ];
 
   return (
-    <section className="min-h-[calc(100dvh-5rem)] bg-[radial-gradient(1200px_500px_at_80%_-10%,#e7f3dc_0%,transparent_60%),linear-gradient(#f5f7f2,#f5f7f2)] pb-28 lg:pb-12">
+    <section className="min-h-[calc(100dvh-4rem)] bg-[radial-gradient(1200px_500px_at_80%_-10%,#e7f3dc_0%,transparent_60%),linear-gradient(#f5f7f2,#f5f7f2)] pb-20 lg:pb-10">
       {/* Header thửa đất */}
       <header className="relative overflow-hidden bg-[#0f2a20]">
         <img src={plot.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80 motion-safe:animate-heroZoom" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0b2219] via-[#0f2a20]/75 to-[#0f2a20]/10" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0b2219]/80 via-transparent to-transparent" />
-        <div className="relative mx-auto max-w-[1400px] px-4 pb-12 pt-4 sm:px-6 lg:px-10 lg:pb-14">
+        <div className="relative mx-auto max-w-7xl px-4 pb-8 pt-3 sm:px-6 lg:px-8 lg:pb-9">
           <div className="flex items-center justify-between gap-2">
-            <button type="button" onClick={onBack} className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur hover:bg-white/25">
-              <ArrowLeft className="h-4 w-4" />Vườn của tôi
+            <button type="button" onClick={onBack} className="flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur hover:bg-white/25">
+              <ArrowLeft className="h-3.5 w-3.5" />Vườn của tôi
             </button>
             <div className="flex items-center gap-2">
               <div className="relative" ref={pickerRef}>
-                <button type="button" aria-haspopup="listbox" aria-expanded={pickerOpen} onClick={() => setPickerOpen((v) => !v)} className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur hover:bg-white/25">
+                <button type="button" aria-haspopup="listbox" aria-expanded={pickerOpen} onClick={() => setPickerOpen((v) => !v)} className="flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur hover:bg-white/25">
                   Đổi thửa<ChevronDown className="h-3.5 w-3.5" />
                 </button>
                 {pickerOpen && (
-                  <ul role="listbox" className="absolute right-0 top-10 z-30 w-72 rounded-2xl bg-white p-1.5 shadow-2xl">
+                  <ul role="listbox" className="absolute right-0 top-9 z-30 w-72 rounded-2xl bg-white p-1.5 shadow-2xl">
                     {plots.map((p) => (
                       <li key={p.id}>
                         <button type="button" role="option" aria-selected={p.id === plot.id} onClick={() => { setPickerOpen(false); onSelectPlot?.(p.id); }} className={`flex w-full items-center gap-3 rounded-xl p-2 text-left ${p.id === plot.id ? 'bg-emerald-50' : 'hover:bg-stone-50'}`}>
-                          <img src={p.image} alt="" className="h-10 w-12 shrink-0 rounded-lg object-cover" />
+                          <img src={p.image} alt="" className="h-9 w-11 shrink-0 rounded-lg object-cover" />
                           <span className="min-w-0">
                             <span className="block truncate text-sm font-semibold text-[#18352b]">{p.name}</span>
                             <span className="block truncate text-xs text-stone-500">{p.crop}</span>
@@ -2944,64 +3723,78 @@ export default function CustomerPlotWorkspace({
               <button
                 type="button"
                 onClick={() => setShowRenewalModal(true)}
-                className="flex items-center gap-1.5 rounded-full bg-emerald-500/25 border border-emerald-400/40 px-3 py-1.5 text-xs font-semibold text-lime-300 backdrop-blur hover:bg-emerald-500/40 transition cursor-pointer"
+                className="flex items-center gap-1.5 rounded-full bg-emerald-500/25 border border-emerald-400/40 px-3 py-1 text-xs font-semibold text-lime-300 backdrop-blur hover:bg-emerald-500/40 transition cursor-pointer"
                 title="Gia hạn hợp đồng thuê thửa đất theo vụ mùa"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Gia hạn vụ mới</span>
                 <span className="sm:hidden">Gia hạn</span>
               </button>
-              <button type="button" onClick={onOpenAiChat} className="flex items-center gap-1.5 rounded-full bg-lime-300 px-3 py-1.5 text-xs font-semibold text-[#17372c] hover:bg-lime-200">
-                <Sparkles className="h-3.5 w-3.5" /><span className="hidden sm:inline">Hỏi Farmely AI</span><span className="sm:hidden">AI</span>
-              </button>
             </div>
           </div>
 
-          <div className="mt-7 flex flex-col gap-6 lg:mt-12 lg:flex-row lg:items-end lg:justify-between">
+          <div className="mt-4 flex flex-col gap-4 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0 animate-fadeInUp text-white">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-                <span className="flex items-center gap-1.5 rounded-full bg-lime-300 px-2.5 py-1 text-[#17372c]">
+              <div className="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-[11px] font-semibold">
+                <span className="flex items-center gap-1.5 rounded-full bg-lime-300 px-2.5 py-0.5 text-[#17372c]">
                   <span className="relative flex h-1.5 w-1.5"><span className="absolute inset-0 animate-ping rounded-full bg-emerald-700/60" /><span className="relative h-1.5 w-1.5 rounded-full bg-emerald-700" /></span>
                   {isSelf ? 'Tự canh tác' : 'Farmely chăm sóc'}
                 </span>
-                <span className="rounded-full border border-white/25 bg-white/5 px-2.5 py-1 backdrop-blur">{plot.id}</span>
-                <span className="flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-2.5 py-1 backdrop-blur text-lime-200">
+                <span className="rounded-full border border-white/25 bg-white/5 px-2 py-0.5 backdrop-blur">{plot.id}</span>
+                <span className="flex items-center gap-1 rounded-full border border-white/25 bg-white/10 px-2 py-0.5 backdrop-blur text-lime-200">
                   <Radio className="h-3 w-3 text-lime-400 animate-pulse" />
                   Trạm {liveIotResult?.stationId || plot.stationId || 'AGRO-CUCHI'}
                   {activePlot.lastUpdated ? <span className="text-white/70 font-normal">· {activePlot.lastUpdated}</span> : ''}
                 </span>
               </div>
-              <h1 className="mt-3 font-heading text-3xl font-bold leading-tight tracking-tight !text-white drop-shadow sm:text-4xl lg:text-5xl">{plot.name}</h1>
-              <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/85">
+              <h1 className="mt-2 font-heading text-2xl font-bold leading-tight tracking-tight !text-white drop-shadow sm:text-3xl lg:text-[2.15rem]">{plot.name}</h1>
+              <p className="mt-1 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs sm:text-sm text-white/85">
                 <span className="flex items-center gap-1.5"><Sprout className="h-4 w-4 text-lime-300" />{cropProcess.cropName}</span>
                 <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-lime-300" />{plot.location} · {plot.area}</span>
               </p>
 
-              <div className="mt-5 max-w-md">
+              {/* Thông tin Hợp đồng thuê & Chu kỳ mùa vụ */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/70 border border-emerald-400/40 px-3 py-0.5 text-xs font-bold text-lime-300 backdrop-blur-sm shadow-xs">
+                  <Calendar className="w-3.5 h-3.5 text-lime-400" />
+                  <span>
+                    Gói thuê {leaseMonths} tháng
+                    {plot.startDate && plot.endDate ? ` (${new Date(plot.startDate).toLocaleDateString('vi-VN')} – ${new Date(plot.endDate).toLocaleDateString('vi-VN')})` : ''}
+                  </span>
+                </span>
+                {totalSeasonsCount > 1 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 border border-white/20 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+                    <Wheat className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Lộ trình {totalSeasonsCount} vụ luân canh (Đang xem: {activeSeason?.seasonName || `Vụ ${currentSeasonNumber}`})</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-3.5 max-w-sm">
                 <div className="flex items-center justify-between text-xs font-semibold text-white/90">
-                  <span>{cropProcess.isNotStarted ? (plot.startDate ? `Sắp tới: Bắt đầu từ ngày ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Sắp tới: Chuẩn bị xuống giống') : (cropProcess.currentStage?.name || plot.stage)}</span>
-                  <span>{cropProcess.isNotStarted ? `Sắp tới (Bắt đầu sau ${cropProcess.daysUntilStart || 0} ngày)` : `Ngày ${cropProcess.currentDay}/${cropProcess.totalDays}`}</span>
+                  <span>{activeSeason?.seasonName || `Vụ ${currentSeasonNumber}`} · {cropProcess.isNotStarted ? (plot.startDate ? `Bắt đầu từ ngày ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Sắp tới: Chuẩn bị xuống giống') : (cropProcess.currentStage?.name || plot.stage)}</span>
+                  <span>{cropProcess.isNotStarted ? `Sắp tới` : `Ngày ${cropProcess.currentDay}/${cropProcess.totalDays}`} {totalSeasonsCount > 1 ? `(Vụ ${currentSeasonNumber}/${totalSeasonsCount})` : ''}</span>
                 </div>
-                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-white/15 ring-1 ring-white/10" role="progressbar" aria-valuenow={cropProcess.isNotStarted ? 0 : cropProcess.progressPercent} aria-valuemin={0} aria-valuemax={100} aria-label="Tiến độ mùa vụ">
+                <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/15 ring-1 ring-white/10" role="progressbar" aria-valuenow={cropProcess.isNotStarted ? 0 : cropProcess.progressPercent} aria-valuemin={0} aria-valuemax={100} aria-label="Tiến độ mùa vụ">
                   <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-teal-300 shadow-[0_0_16px_rgba(56,189,248,0.7)] transition-[width] duration-1000" style={{ width: `${cropProcess.isNotStarted ? 0 : cropProcess.progressPercent}%` }} />
                 </div>
               </div>
             </div>
 
             {/* 3 thẻ chỉ số nhanh */}
-            <div className="grid grid-cols-3 gap-2.5 lg:w-[480px]">
+            <div className="grid grid-cols-3 gap-2 lg:w-[420px]">
               {heroStats.map((s, i) => {
                 const Icon = s.icon;
                 return (
-                  <button key={s.label} type="button" onClick={() => goTab(s.tab)} style={{ animationDelay: `${120 + i * 70}ms` }} className={`group animate-fadeInUp rounded-2xl border p-3 text-left text-white backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white/20 ${s.hot ? 'border-rose-300/50 bg-rose-500/25' : 'border-white/15 bg-white/10'}`}>
+                  <button key={s.label} type="button" onClick={() => goTab(s.tab)} style={{ animationDelay: `${120 + i * 70}ms` }} className={`group animate-fadeInUp rounded-xl border p-2.5 text-left text-white backdrop-blur-md transition hover:-translate-y-0.5 hover:bg-white/20 ${s.hot ? 'border-rose-300/50 bg-rose-500/25' : 'border-white/15 bg-white/10'}`}>
                     <span className="flex items-center justify-between text-[11px] font-medium text-white/75">
                       {s.label}<Icon className={`h-3.5 w-3.5 ${s.hot ? 'text-rose-200' : 'text-lime-300'}`} />
                     </span>
-                    <span className="mt-1.5 flex items-baseline gap-1">
-                      <span className="text-2xl font-bold leading-none">{s.value}</span>
-                      <span className="text-xs text-white/70">{s.unit}</span>
+                    <span className="mt-1 flex items-baseline gap-1">
+                      <span className="text-xl sm:text-2xl font-bold leading-none">{s.value}</span>
+                      <span className="text-[11px] text-white/70">{s.unit}</span>
                     </span>
-                    <span className="mt-1 block truncate text-[11px] text-white/65 group-hover:text-white/90">{s.note}</span>
+                    <span className="mt-0.5 block truncate text-[10px] sm:text-[11px] text-white/65 group-hover:text-white/90">{s.note}</span>
                   </button>
                 );
               })}
@@ -3011,9 +3804,9 @@ export default function CustomerPlotWorkspace({
       </header>
 
       {/* Tabs navigation desktop */}
-      <nav aria-label={`Chức năng của ${plot.name}`} className="sticky top-[5.25rem] z-20 -mt-7 hidden lg:block">
-        <div className="mx-auto max-w-[1400px] px-6 lg:px-10">
-          <div className={`flex gap-1 overflow-x-auto rounded-2xl border border-white/80 bg-white/90 p-1.5 backdrop-blur-xl no-scrollbar ${CARD_SHADOW}`} role="tablist">
+      <nav aria-label={`Chức năng của ${plot.name}`} className="sticky top-16 z-20 -mt-5 hidden lg:block">
+        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+          <div className={`flex gap-1 overflow-x-auto rounded-xl border border-white/80 bg-white/90 p-1 backdrop-blur-xl no-scrollbar ${CARD_SHADOW}`} role="tablist">
             {displayTabs.map((t) => {
               const Icon = t.icon;
               const active = t.id === tab;
@@ -3024,13 +3817,13 @@ export default function CustomerPlotWorkspace({
                   role="tab"
                   aria-selected={active}
                   onClick={() => goTab(t.id)}
-                  className={`relative flex flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-300 cursor-pointer ${active ? 'bg-gradient-to-br from-[#1d4a39] to-[#0f2a20] text-white shadow-md shadow-[#18352b]/25' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+                  className={`relative flex flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all duration-300 cursor-pointer ${active ? 'bg-gradient-to-br from-[#1d4a39] to-[#0f2a20] text-white shadow-md shadow-[#18352b]/25' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
                     }`}
                 >
                   <Icon className={`h-4 w-4 ${active ? 'text-lime-300' : ''}`} />
                   {t.label}
                   {badges[t.id] > 0 && (
-                    <span className={`rounded-full px-1.5 text-[11px] font-bold ${active ? 'bg-lime-300 text-[#17372c]' : 'bg-amber-100 text-amber-800'}`}>
+                    <span className={`rounded-full px-1.5 text-[10px] font-bold ${active ? 'bg-lime-300 text-[#17372c]' : 'bg-amber-100 text-amber-800'}`}>
                       {badges[t.id]}
                     </span>
                   )}
@@ -3042,7 +3835,7 @@ export default function CustomerPlotWorkspace({
       </nav>
 
       {/* Nội dung từng tab */}
-      <div key={tab} className="mx-auto max-w-[1400px] animate-fadeIn px-4 pt-5 sm:px-6 lg:px-10 lg:pt-7">
+      <div key={tab} className="mx-auto max-w-7xl animate-fadeIn px-4 pt-4 sm:px-6 lg:px-8 lg:pt-5">
         <h2 className="mb-4 font-heading text-lg font-bold text-[#18352b] lg:hidden">{current.label}</h2>
 
         {tab === 'overview' && (
@@ -3055,15 +3848,21 @@ export default function CustomerPlotWorkspace({
             goTab={goTab}
             onOpenStageDetail={setSelectedStageDetail}
             onOpenActivityPhoto={setSelectedPhotoActivity}
-            onOpenHarvest={onOpenHarvest}
             liveProviderInfo={liveIotResult}
+            alerts={activeAlerts}
             seasons={plotSeasons}
             activeSeasonId={activeSeasonId}
-            onSelectSeason={setActiveSeasonId}
+            onSelectSeason={(seasonId) => setActiveSeasonId(seasonId)}
             onOpenRenewal={() => setShowRenewalModal(true)}
             activeSeason={activeSeason}
             isSelf={isSelf}
             onToggleTask={handleToggleSelfTask}
+            onStartSeason={handleStartSeason}
+            onResetSeason={handleResetSeason}
+            harvestResults={harvestResults}
+            latestHarvest={propLatestHarvest}
+            onOpenHarvestReport={(harvest) => setSelectedHarvestReport(harvest)}
+            onSimulateDay1={handleSimulateDay1}
           />
         )}
 
@@ -3071,50 +3870,186 @@ export default function CustomerPlotWorkspace({
           <div className="space-y-5">
             <Card className="p-5">
               <SectionTitle
-                eyebrow={isSelf ? "Tự canh tác theo quy trình VietGAP" : "Minh bạch hoạt động chăm sóc"}
-                title={isSelf ? "Công việc canh tác hằng ngày" : "Lịch sử hoạt động của Staff (Field Workers)"}
+                eyebrow={isSelf ? "Tự canh tác theo quy trình VietGAP" : "Minh bạch hoạt động chăm sóc & Nghiệm thu"}
+                title="Công việc & Nhật ký thực địa"
               />
               <p className="mt-1 text-sm text-stone-600">
                 {isSelf
-                  ? "Danh sách các công việc canh tác hằng ngày theo quy trình VietGAP. Bạn có thể tự tùy chỉnh, thêm công việc mới và tích đánh dấu hoàn thành theo tiến độ canh tác của mình."
-                  : "Mọi công việc tưới nước, bón phân, tỉa cành, phòng ngừa sâu bệnh của nhân viên tại vườn đều được lưu trữ persistent, có ảnh minh chứng thực tế và số đo cảm biến tại thời điểm thực hiện."}
+                  ? "Danh sách các công việc canh tác hằng ngày theo quy trình VietGAP. Bạn có thể tự tùy chỉnh, thêm công việc mới, tích hoàn thành và viết nhật ký ghi chép theo tiến độ của mình."
+                  : "Mọi nhiệm vụ chăm sóc thực địa, biên bản thu hoạch và ảnh minh chứng của kỹ thuật viên tại vườn đều được cập nhật thời gian thực, lưu trữ minh bạch và liên thông với nhật ký vụ mùa."}
               </p>
               <div className="mt-5">
-                <StaffActivitiesTab
-                  activities={isSelf ? selfTasks : staffActivities}
-                  isSelf={isSelf}
-                  onToggleTask={handleToggleSelfTask}
-                  onAddTask={handleAddSelfTask}
-                  onDeleteTask={handleDeleteSelfTask}
-                  totalDays={cropProcess.totalDays || 60}
-                  onOpenPhoto={setSelectedPhotoActivity}
-                  plot={activePlot}
-                />
+                {(() => {
+                  const mergedCombinedActivities = (() => {
+                    const base = isSelf ? [
+                      ...(staffActivities || []).filter((a) => a.serviceRequestId || (a.notes && a.notes.includes('[DỊCH VỤ KHÁCH YÊU CẦU]'))),
+                      ...selfTasks
+                    ] : (staffActivities || []);
+
+                    // 1. Chuẩn hóa danh sách diary entries của khách và hệ thống
+                    const rawDiaries = (operations?.diary || []).filter((d) => {
+                      if (cropProcess.isNotStarted) return false;
+                      if (isSelf && (d.isStaffTask || d.title === 'Nhiệm vụ chăm sóc hiện trường' || /Trần Văn Lực|Kỹ thuật viên|CVLĐ/i.test(d.author || d.authorName || ''))) {
+                        return false;
+                      }
+                      const entryDay = calculateEntryCropDay(d, activePlot?.startDate || plot?.startDate, cropProcess.currentDay, cropProcess.totalDays) || Number(d.day || d.cropDay) || 1;
+                      return entryDay <= cropProcess.currentDay;
+                    });
+
+                    const diaryByTaskId = new Map();
+                    const diaryByTitle = new Map();
+                    const matchedDiaryKeys = new Set();
+
+                    rawDiaries.forEach((d) => {
+                      const normTitle = String(d.title || '').trim().toLowerCase();
+                      if (d.taskId) diaryByTaskId.set(String(d.taskId), d);
+                      if (normTitle) diaryByTitle.set(normTitle, d);
+                    });
+
+                    // 2. Đồng bộ 100% từng task trong base với diary và trạng thái thực tế
+                    const syncedBase = base.map((act) => {
+                      const actDay = act.day || act.cropDay || 1;
+                      const actId = String(act.activityId || act.id || '');
+                      const normTitle = String(act.title || '').trim().toLowerCase();
+
+                      const matchingDiary = (act.taskId && diaryByTaskId.get(String(act.taskId))) ||
+                        diaryByTaskId.get(actId) ||
+                        diaryByTitle.get(normTitle);
+
+                      let isDone = act.status === 'COMPLETED' || act.status === 'DONE';
+                      let proofPhoto = act.proofPhoto || act.evidenceImageUrl || null;
+                      let completedTimestamp = act.timestamp;
+
+                      if (matchingDiary) {
+                        const diaryKey = matchingDiary.id || matchingDiary.diaryId || `${matchingDiary.day}_${normTitle}`;
+                        matchedDiaryKeys.add(String(diaryKey));
+                        isDone = true;
+                        proofPhoto = proofPhoto || matchingDiary.image || matchingDiary.imageUrl || matchingDiary.photo;
+                        completedTimestamp = matchingDiary.time || matchingDiary.date || act.timestamp || 'Đã hoàn tất';
+                      }
+
+                      // Nếu task ở ngày tương lai (> currentDay) thì không thể ở trạng thái COMPLETED
+                      if (!cropProcess.isNotStarted && cropProcess.currentDay < actDay && isDone) {
+                        isDone = false;
+                        proofPhoto = null;
+                      }
+
+                      // Khi đang ở Ngày 1 mới bắt đầu: task của Staff chưa có ảnh thực tế không tự động hoàn thành (không áp dụng cho Chủ vườn tự làm)
+                      if (!isSelf && (cropProcess.currentDay || 1) <= 1 && actDay === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom && !matchingDiary) {
+                        isDone = false;
+                        proofPhoto = null;
+                      }
+
+                      // QUAN TRỌNG: Khi mùa vụ đã tiến đến Ngày Thu Hoạch (currentDay >= totalDays):
+                      // Tất cả các công việc chuẩn kỹ thuật của các giai đoạn trước (actDay < totalDays)
+                      // ĐÃ ĐƯỢC HOÀN THÀNH trong suốt mùa vụ!
+                      // (Ngoại trừ nhiệm vụ Thu hoạch & Nghiệm thu BR20 — phải chờ thực hiện thật)
+                      const isHarvestAct = /thu hoạch|nghiệm thu/i.test(act.title);
+                      if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && actDay < cropProcess.totalDays && !isHarvestAct) {
+                        isDone = true;
+                        if (!proofPhoto) {
+                          proofPhoto = 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80';
+                        }
+                      }
+
+                      // Nếu task CHƯA hoàn thành (IN_PROGRESS hoặc PENDING): tuyệt đối không hiển thị ảnh minh chứng
+                      if (!isDone) {
+                        proofPhoto = null;
+                      }
+
+                      return {
+                        ...act,
+                        status: isDone ? 'COMPLETED' : (act.status === 'IN_PROGRESS' || act.status === 'IN_PROG' ? 'IN_PROGRESS' : 'PENDING'),
+                        proofPhoto,
+                        timestamp: isDone ? (act.completedAt || completedTimestamp || 'Đã hoàn tất') : act.timestamp
+                      };
+                    });
+
+                    // 3. Hợp nhất biên bản thu hoạch (BR20) — CHỈ hiển thị khi đã tới mốc thu hoạch (currentDay >= totalDays)
+                    const harvestEntries = (cropProcess.currentDay >= cropProcess.totalDays ? (harvestResults || []) : []).map((hr) => ({
+                      activityId: `HRV-${hr.harvestId || hr.id}`,
+                      id: `HRV-${hr.harvestId || hr.id}`,
+                      title: `Thu hoạch ${hr.crop || hr.cropName || 'nông sản'} — ${hr.formattedYield || `${hr.yieldAmount || 0} kg`}`,
+                      notes: `Chuyên viên lao động đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Khách hàng nhận nông sản tại nông trại theo BR21. Mã biên bản: HRV-${hr.harvestId || hr.id}.`,
+                      workerName: hr.enteredByWorker || hr.workerName || 'Trần Văn Lực',
+                      workerRole: 'Chuyên viên lao động (CVLĐ)',
+                      status: 'COMPLETED',
+                      proofPhoto: hr.evidenceImageUrl || hr.photo || hr.image,
+                      timestamp: hr.harvestDateFormatted || hr.harvestDate || 'Hôm nay',
+                      day: cropProcess.totalDays || 45,
+                      cropDay: cropProcess.totalDays || 45,
+                      isHarvest: true
+                    }));
+
+                    // 4. Những bài viết nhật ký tự do của khách (không trùng với task VietGAP nào)
+                    const standaloneDiaries = [];
+                    rawDiaries.forEach((d) => {
+                      const dId = String(d.id || d.diaryId || '');
+                      const normTitle = String(d.title || '').trim().toLowerCase();
+                      const diaryKey = dId || `${d.day}_${normTitle}`;
+                      const isMatched = matchedDiaryKeys.has(diaryKey) ||
+                        syncedBase.some(t => String(t.title || '').trim().toLowerCase() === normTitle || (d.taskId && (t.taskId === d.taskId || t.activityId === d.taskId)));
+
+                      if (!isMatched) {
+                        const finalDay = calculateEntryCropDay(d, activePlot?.startDate || plot?.startDate, cropProcess.currentDay, cropProcess.totalDays) || Number(d.day || d.cropDay) || 1;
+                        standaloneDiaries.push({
+                          activityId: d.id || `DIARY-${d.taskId || Date.now()}`,
+                          id: d.id || `DIARY-${d.taskId || Date.now()}`,
+                          title: d.title || 'Ghi chép nhật ký vụ mùa',
+                          notes: d.note || d.content,
+                          workerName: d.author || 'Chủ vườn',
+                          workerRole: d.authorRole || (isSelf ? 'Chủ vườn (Tự canh tác)' : 'Khách hàng'),
+                          status: 'COMPLETED',
+                          proofPhoto: d.image || d.imageUrl || d.photo,
+                          timestamp: d.time || d.date || 'Hôm nay',
+                          isDiaryEntry: true,
+                          day: finalDay,
+                          cropDay: finalDay
+                        });
+                      }
+                    });
+
+                    const taskIds = new Set(syncedBase.map((item) => String(item.taskId || item.activityId || item.id || '').replace(/^(TSK-|TASK-DIR-|DIARY-FROM-TASK-)/, '')));
+                    const taskEvidence = new Set(syncedBase.map((item) => item.proofPhoto || item.imageUrl || item.image || item.photo).filter(Boolean));
+                    const combined = [...syncedBase, ...harvestEntries, ...standaloneDiaries.filter((item) => {
+                      if (item.taskId && taskIds.has(String(item.taskId).replace(/^(TSK-|TASK-DIR-|DIARY-FROM-TASK-)/, ''))) return false;
+                      const image = item.proofPhoto || item.imageUrl || item.image || item.photo;
+                      return !(image && taskEvidence.has(image) && /nhiệm vụ chăm sóc hiện trường/i.test(item.title || ''));
+                    })];
+                    const seen = new Set();
+                    return combined.filter((item) => {
+                      const cleanTitle = (item.title || '').trim().toLowerCase();
+                      const itemDay = item.day || item.cropDay || 1;
+                      const key = item.isHarvest ? item.id : `${itemDay}_${cleanTitle}`;
+                      if (seen.has(key)) return false;
+                      seen.add(key);
+                      return true;
+                    });
+                  })();
+
+                  return (
+                    <StaffActivitiesTab
+                      activities={mergedCombinedActivities}
+                      isSelf={isSelf}
+                      onToggleTask={handleToggleSelfTask}
+                      onAddTask={handleAddSelfTask}
+                      onDeleteTask={handleDeleteSelfTask}
+                      onAddDiary={onAddDiary}
+                      totalDays={cropProcess.totalDays || 60}
+                      onOpenPhoto={(act) => {
+                        if (act?.isHarvest) {
+                          setSelectedHarvestReport(act.harvestData || act);
+                        } else {
+                          setSelectedPhotoActivity(act);
+                        }
+                      }}
+                      plot={activePlot}
+                    />
+                  );
+                })()}
               </div>
             </Card>
           </div>
-        )}
-
-        {tab === 'iot' && (
-          <IotTab
-            plot={activePlot}
-            iotData={activeIotData}
-            alerts={activeAlerts}
-            isConnected={true}
-            onRefreshLive={() => loadLiveAgroData(true)}
-            isRefreshing={isRefreshingIot}
-            liveProviderInfo={liveIotResult}
-            cropProcess={cropProcess}
-          />
-        )}
-
-        {tab === 'diary' && (
-          <DiaryTab
-            plot={activePlot}
-            operations={operations}
-            staffActivities={staffActivities}
-            onAddDiary={onAddDiary}
-          />
         )}
 
         {tab === 'services' && (
@@ -3123,17 +4058,13 @@ export default function CustomerPlotWorkspace({
             services={services}
             orders={serviceOrders}
             onSelectService={onSelectService}
+            seasons={plotSeasons}
+            activeSeasonId={activeSeasonId}
+            onSelectSeason={setActiveSeasonId}
+            onOpenRenewal={() => setShowRenewalModal(true)}
           />
         )}
 
-        {tab === 'harvest' && (
-          <HarvestTab
-            plot={activePlot}
-            harvestPlan={harvestPlan}
-            onOpenHarvest={onOpenHarvest}
-            cropProcess={cropProcess}
-          />
-        )}
       </div>
 
       {/* Modal phóng to ảnh bằng chứng của Staff */}
@@ -3141,6 +4072,20 @@ export default function CustomerPlotWorkspace({
         <ActivityProofModal
           activity={selectedPhotoActivity}
           onClose={() => setSelectedPhotoActivity(null)}
+        />
+      )}
+
+      {/* Modal Báo Cáo Thu Hoạch & Biên Bản Nghiệm Thu (BR20 - BR21) */}
+      {selectedHarvestReport && (
+        <HarvestReportModal
+          harvest={selectedHarvestReport}
+          plot={activePlot || plot}
+          totalDays={cropProcess.totalDays}
+          onClose={() => setSelectedHarvestReport(null)}
+          onGoToDiary={() => {
+            setSelectedHarvestReport(null);
+            goTab('tasks');
+          }}
         />
       )}
 
@@ -3168,7 +4113,7 @@ export default function CustomerPlotWorkspace({
 
       {/* Bottom navigation bar mobile */}
       <nav aria-label={`Chức năng của ${plot.name}`} className="fixed inset-x-3 bottom-3 z-40 lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="grid grid-cols-7 rounded-[22px] border border-white/10 bg-[#0f2a20]/95 p-1.5 shadow-[0_18px_40px_-12px_rgba(15,42,32,0.6)] backdrop-blur-xl" role="tablist">
+        <div className="grid grid-cols-3 rounded-[22px] border border-white/10 bg-[#0f2a20]/95 p-1.5 shadow-[0_18px_40px_-12px_rgba(15,42,32,0.6)] backdrop-blur-xl" role="tablist">
           {PLOT_TABS.map((t) => {
             const Icon = t.icon;
             const active = t.id === tab;

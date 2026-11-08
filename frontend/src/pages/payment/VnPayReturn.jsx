@@ -63,23 +63,30 @@ export default function VnPayReturn() {
         gatewayRef: transNo || txnRef || `VNPAY-${Date.now()}`
       };
 
-      const checkoutRes = await fetch('/api/bookings/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(checkoutPayload)
-      });
+      let data = null;
+      if (pending.contractId) {
+        try {
+          const actRes = await fetch(`/api/contracts/${pending.contractId}/activate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gatewayRef: checkoutPayload.gatewayRef })
+          });
+          if (actRes.ok) {
+            data = await actRes.json();
+          }
+        } catch (_) {}
+      }
 
-      const data = await checkoutRes.json();
+      if (!data) {
+        const checkoutRes = await fetch('/api/bookings/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(checkoutPayload)
+        });
+        data = await checkoutRes.json();
+      }
 
-      // Đánh dấu thửa đất đã thuê vào LocalStorage & phát sự kiện toàn cục
-      const recent = JSON.parse(localStorage.getItem('farmely_recently_booked_plots') || '[]');
-      (pending.plots || []).forEach((p) => {
-        const c1 = p.code || p.id;
-        const c2 = p.id;
-        if (c1 && !recent.includes(c1)) recent.push(c1);
-        if (c2 && !recent.includes(c2)) recent.push(c2);
-      });
-      localStorage.setItem('farmely_recently_booked_plots', JSON.stringify(recent));
+      // Refresh Marketplace from the server after payment; do not persist a client-side plot status.
       localStorage.removeItem('farmely_master_lease_selected_plots');
       localStorage.removeItem('farmely_pending_vnpay_booking');
 
@@ -381,7 +388,7 @@ export default function VnPayReturn() {
               <div className="py-12 flex flex-col items-center justify-center space-y-4">
                 <div className="w-12 h-12 border-4 border-[#294C3B] border-t-transparent rounded-full animate-spin"></div>
                 <p className="text-sm font-medium text-stone-600">
-                  Đang đối soát chữ ký bảo mật & bàn giao thửa đất vào CSDL...
+                  Đang đối soát giao dịch thanh toán & bàn giao thửa đất vào CSDL...
                 </p>
               </div>
             ) : result?.status === 'SUCCESS' || responseCode === '00' ? (

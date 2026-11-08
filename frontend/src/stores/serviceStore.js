@@ -68,10 +68,22 @@ export const useServiceStore = create((set, get) => ({
       });
       const created = normalizeService(unwrapData(payload));
       set((state) => ({ services: [...state.services, created] }));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('farmely_services_updated'));
+        try {
+          localStorage.setItem('farmely_services_updated_at', String(Date.now()));
+        } catch {}
+      }
       return created;
     } catch {
       const fallback = normalizeService(service);
       set((state) => ({ services: [...state.services, fallback] }));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('farmely_services_updated'));
+        try {
+          localStorage.setItem('farmely_services_updated_at', String(Date.now()));
+        } catch {}
+      }
       return fallback;
     }
   },
@@ -90,12 +102,24 @@ export const useServiceStore = create((set, get) => ({
       set((state) => ({
         services: state.services.map((s) => (s.serviceId === targetId || s.id === targetId) ? updated : s)
       }));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('farmely_services_updated'));
+        try {
+          localStorage.setItem('farmely_services_updated_at', String(Date.now()));
+        } catch {}
+      }
       return updated;
     } catch {
       const updated = { ...current, active: nextActive, status: nextActive ? 'ACTIVE' : 'INACTIVE' };
       set((state) => ({
         services: state.services.map((s) => (s.serviceId === current.serviceId || s.id === current.id) ? updated : s)
       }));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('farmely_services_updated'));
+        try {
+          localStorage.setItem('farmely_services_updated_at', String(Date.now()));
+        } catch {}
+      }
       return updated;
     }
   },

@@ -197,6 +197,7 @@ export default function AdminDashboard() {
   const [selectedUserToEdit, setSelectedUserToEdit] = useState(null);
   const [userEditStatus, setUserEditStatus] = useState('ACTIVE');
   const [isUpdatingUser, setIsUpdatingUser] = useState(false);
+  const [userRoleFilter, setUserRoleFilter] = useState('ALL');
 
   // 11. IoT Microclimate Alerts & Weather (BR18 / UC13 / Task 1.4 & 2.1)
   const [iotAlerts, setIotAlerts] = useState([]);
@@ -399,6 +400,7 @@ export default function AdminDashboard() {
           contractCode: r.contractCode || `CTR-${r.rental_id || r.rentalId}`,
           renterName: r.renterName || 'Khách hàng Farmely',
           renterEmail: r.renterEmail || '',
+          cultivationMode: r.cultivationMode || r.cultivation_mode || r.mode || '',
           startDate: r.startDate || '',
           endDate: r.endDate || '',
           status: r.status || 'ACTIVE',
@@ -436,23 +438,40 @@ export default function AdminDashboard() {
       );
 
       setSystemUsers(
-        users.map((account) => ({
-          id: account.userId || account.id || account.user_id,
-          fullName: account.fullName || account.full_name,
-          email: account.email,
-          role: account.role === 'FIELD_WORKER' ? 'STAFF' : account.role,
-          roleLabel:
-            account.role === 'CUSTOMER'
-              ? 'Khách Hàng'
-              : account.role === 'EXPERT'
-              ? 'Chuyên Gia Nông Nghiệp'
-              : account.role === 'ADMIN'
-              ? 'Quản Trị Viên'
-              : 'Chuyên Viên Lao Động',
-          plotsRented: 'Tài khoản hoạt động',
-          status: account.status || 'ACTIVE',
-          lastActive: account.updatedAt ? new Date(account.updatedAt).toLocaleString('vi-VN') : 'Đang hoạt động'
-        }))
+        users.map((account) => {
+          const rawRole = account.role === 'FIELD_WORKER' ? 'STAFF' : (account.role || 'CUSTOMER');
+          let roleLabel = 'Chuyên Viên Lao Động';
+          let scope = 'Kỹ thuật viên chăm sóc hiện trường';
+
+          if (rawRole === 'CUSTOMER') {
+            roleLabel = 'Khách Hàng';
+            scope = 'Thuê thửa đất & Theo dõi vụ mùa';
+          } else if (rawRole === 'EXPERT') {
+            roleLabel = 'Chuyên Gia Nông Nghiệp';
+            scope = account.email === 'expert@farmely.vn' || String(account.fullName || '').includes('Nam')
+              ? 'Phụ trách chuyên môn nông học & Phác đồ VietGAP'
+              : 'Tư vấn kỹ thuật & Chuẩn hóa quy trình';
+          } else if (rawRole === 'ADMIN') {
+            roleLabel = 'Quản Trị Viên';
+            scope = 'Toàn quyền cấu hình & Quản trị hệ thống';
+          } else if (rawRole === 'STAFF') {
+            roleLabel = 'Chuyên Viên Lao Động';
+            scope = account.email === 'worker@farmely.vn' || String(account.fullName || '').includes('Lực')
+              ? 'Phụ trách thực địa & Giám sát chăm sóc thửa P-01 -> P-20'
+              : 'Kỹ thuật viên chăm sóc hiện trường';
+          }
+
+          return {
+            id: account.userId || account.id || account.user_id,
+            fullName: account.fullName || account.full_name,
+            email: account.email,
+            role: rawRole,
+            roleLabel,
+            plotsRented: scope,
+            status: account.status || 'ACTIVE',
+            lastActive: account.updatedAt ? new Date(account.updatedAt).toLocaleString('vi-VN') : 'Đang hoạt động'
+          };
+        })
       );
 
       setLandStats({
@@ -1393,6 +1412,7 @@ export default function AdminDashboard() {
                                 <th className="py-3 px-4">Thửa & Hợp Đồng</th>
                                 <th className="py-3 px-4">Cây Trồng & Giai Đoạn</th>
                                 <th className="py-3 px-4">Khách Thuê</th>
+                                <th className="py-3 px-4">Hình thức canh tác</th>
                                 <th className="py-3 px-4">Thời Tiết & Khí Tượng</th>
                                 <th className="py-3 px-4">CVLĐ Hiện Trường</th>
                                 <th className="py-3 px-4">CGNN Giám Sát</th>
@@ -1425,6 +1445,9 @@ export default function AdminDashboard() {
                                     <td className="py-3.5 px-4 whitespace-nowrap">
                                       <div className="font-semibold text-stone-800">{rental.renterName}</div>
                                       <div className="text-[11px] text-stone-400 mt-0.5">{rental.renterEmail || 'Khách hàng'}</div>
+                                    </td>
+                                    <td className="py-3.5 px-4 whitespace-nowrap font-semibold text-stone-700">
+                                      {['SELF', 'SELF_GROWING', 'Self-Growing'].includes(rental.cultivationMode) ? 'Tự canh tác' : ['ASSISTED', 'ASSISTED_GROWING', 'Assisted-Growing'].includes(rental.cultivationMode) ? 'Ủy thác' : 'Chưa xác định'}
                                     </td>
                                     <td className="py-3.5 px-4 whitespace-nowrap">
                                       <div className="flex items-center gap-2 text-[11px]">
@@ -1619,7 +1642,7 @@ export default function AdminDashboard() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                          Báo Cáo Điều Hành SCR-AD-01
+                          Báo Cáo Điều Hành Hệ Thống
                         </span>
                         <span className="text-stone-300">•</span>
                         <span className="text-xs text-brand-muted font-medium">
@@ -1629,8 +1652,8 @@ export default function AdminDashboard() {
                       <h2 className="text-xl sm:text-2xl font-heading font-black text-brand-dark mt-1">
                         Tổng Quan Doanh Thu & Chỉ Số Vận Hành
                       </h2>
-                      <p className="text-xs text-brand-muted mt-0.5">
-                        Theo dõi dòng tiền thanh toán 100% Lump-sum (BR09), tỷ lệ lấp đầy quỹ đất và tiến độ nghiệm thu thực địa.
+                      <p className="text-xs text-brand-muted mt-1">
+                        Theo dõi dòng tiền thanh toán 100% trọn gói, tỷ lệ lấp đầy quỹ đất và tiến độ hoàn thành thực địa.
                       </p>
                     </div>
 
@@ -1734,7 +1757,7 @@ export default function AdminDashboard() {
                     <div className="bg-white p-5 rounded-3xl border border-brand-border shadow-sm space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-                          Nghiệm Thu Thực Địa
+                          Tiến Độ Hoàn Thành
                         </span>
                         <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
                           <CheckCircle2 className="w-4 h-4" />
@@ -1751,7 +1774,7 @@ export default function AdminDashboard() {
                       <div className="pt-2 border-t border-brand-border/60 flex items-center justify-between text-[11px]">
                         <span className="text-stone-500">{kpi.inProgressTasks} Đang làm • {kpi.pendingTasks} Chờ</span>
                         <span className="font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md">
-                          ≥1 ảnh BR15
+                          ≥1 ảnh thực địa
                         </span>
                       </div>
                     </div>
@@ -1827,7 +1850,7 @@ export default function AdminDashboard() {
                             <div className="bg-emerald-600 h-full rounded-full" style={{ width: '99%' }}></div>
                           </div>
                           <div className="flex justify-between text-[11px] text-stone-500">
-                            <span>Hợp đồng trọn gói 100% (BR09)</span>
+                            <span>Hợp đồng trọn gói 100%</span>
                             <span className="font-bold text-stone-800">{formatVnd(kpi.leaseRevenue)}</span>
                           </div>
                         </div>
@@ -1845,7 +1868,7 @@ export default function AdminDashboard() {
                             <div className="bg-amber-500 h-full rounded-full" style={{ width: '5%' }}></div>
                           </div>
                           <div className="flex justify-between text-[11px] text-stone-500">
-                            <span>Services Master (BR27)</span>
+                            <span>Danh mục dịch vụ phát sinh</span>
                             <span className="font-bold text-stone-800">{formatVnd(kpi.serviceRevenue)}</span>
                           </div>
                         </div>
@@ -1869,7 +1892,7 @@ export default function AdminDashboard() {
 
                         {/* Note SSoT */}
                         <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-[11px] text-stone-600 leading-relaxed">
-                          💡 <span className="font-bold text-stone-800">Quy tắc BR09:</span> 100% tiền thuê đất được thanh toán trọn gói trước khi kích hoạt canh tác. Giữ chỗ 15 phút + 10 phút Grace Period (BR08).
+                          💡 <span className="font-bold text-stone-800">Quy tắc thanh toán:</span> 100% tiền thuê đất được thanh toán trọn gói trước khi kích hoạt canh tác. Giữ chỗ 15 phút + 10 phút gia hạn thanh toán.
                         </div>
                       </div>
                     </div>
@@ -2258,7 +2281,7 @@ export default function AdminDashboard() {
             {/* ========================================================================= */}
             {activeTab === 'users' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
-                <div className="flex items-center justify-between border-b border-brand-border/60 pb-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-3">
                   <div>
                     <h3 className="font-heading font-black text-xl text-brand-dark">
                       Quản Trị Người Dùng & Phân Quyền (RBAC)
@@ -2270,6 +2293,38 @@ export default function AdminDashboard() {
                   <span className="text-xs font-bold text-stone-500">
                     {systemUsers.length} Tài khoản kích hoạt
                   </span>
+                </div>
+
+                {/* Bộ lọc vai trò người dùng (Role Filter Chips) */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 pb-1">
+                  {[
+                    { id: 'ALL', label: 'Tất cả', count: systemUsers.length },
+                    { id: 'STAFF', label: 'Chuyên Viên Lao Động', count: systemUsers.filter((u) => u.role === 'STAFF').length },
+                    { id: 'EXPERT', label: 'Chuyên Gia Nông Nghiệp', count: systemUsers.filter((u) => u.role === 'EXPERT').length },
+                    { id: 'CUSTOMER', label: 'Khách Hàng', count: systemUsers.filter((u) => u.role === 'CUSTOMER').length },
+                    { id: 'ADMIN', label: 'Quản Trị Viên', count: systemUsers.filter((u) => u.role === 'ADMIN').length }
+                  ].map((chip) => {
+                    const isSelected = userRoleFilter === chip.id;
+                    return (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => setUserRoleFilter(chip.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+                          isSelected
+                            ? 'bg-brand-green text-white shadow-brand-green/20'
+                            : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
+                        }`}
+                      >
+                        <span>{chip.label}</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                          isSelected ? 'bg-white/20 text-white' : 'bg-white text-stone-600'
+                        }`}>
+                          {chip.count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <div className="overflow-x-auto">
@@ -2284,7 +2339,9 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-brand-border/60">
-                      {systemUsers.map((u) => (
+                      {systemUsers
+                        .filter((u) => userRoleFilter === 'ALL' || u.role === userRoleFilter)
+                        .map((u) => (
                         <tr key={u.id} className="hover:bg-stone-50 transition-colors">
                           <td className="p-3">
                             <p className="font-bold text-brand-dark">{u.fullName}</p>
@@ -2295,7 +2352,7 @@ export default function AdminDashboard() {
                               {u.roleLabel || u.role}
                             </span>
                           </td>
-                          <td className="p-3 text-stone-600">{u.plotsRented}</td>
+                          <td className="p-3 text-stone-600 font-medium">{u.plotsRented}</td>
                           <td className="p-3">
                             <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold">
                               <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -2331,23 +2388,14 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-2">
                       <CloudSun className="w-5 h-5 text-sky-600 animate-pulse" />
                       <h3 className="font-heading font-black text-xl text-brand-dark">
-                        Dữ Liệu Thời Tiết Thực Địa &amp; Cảnh Báo Khí Tượng (SCR-AD-08 / BR18)
+                        Dữ Liệu Thời Tiết Thực Địa &amp; Cảnh Báo Khí Tượng
                       </h3>
                     </div>
                     <p className="text-xs text-brand-muted mt-0.5">
-                      Cập nhật dữ liệu vi khí hậu thời gian thực qua Weather API theo tọa độ nông trại 24/7, tự động phát hiện thời tiết cực đoan (nắng nóng, sương giá, mưa lớn) và tự động điều tiết hoãn lịch tưới nước (BR18).
+                      Cập nhật dữ liệu vi khí hậu thời gian thực qua Weather API theo tọa độ nông trại 24/7, tự động phát hiện thời tiết cực đoan (nắng nóng, sương giá, mưa lớn) và tự động điều tiết hoãn lịch tưới nước.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleSimulateAlert(1, 'HIGH_TEMPERATURE')}
-                      className="text-xs font-bold gap-1.5 border-amber-200 text-amber-800 bg-amber-50 hover:bg-amber-100"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                      <span>Giả Lập Sốc Nhiệt Thời Tiết</span>
-                    </Button>
                     <Button
                       variant="secondary"
                       size="sm"
@@ -2385,7 +2433,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-1">
-                    <p className="font-bold text-sky-900">Điều Tiết Tưới BR18</p>
+                    <p className="font-bold text-sky-900">Điều Tiết Tưới Tự Động</p>
                     <p className="text-2xl font-black text-sky-700">
                       {weatherData?.wateringPostponementRecommended ? 'HOÃN TƯỚI' : 'BÌNH THƯỜNG'}
                     </p>
@@ -2432,7 +2480,7 @@ export default function AdminDashboard() {
                     <div className="p-3.5 rounded-xl bg-sky-900 text-white text-xs flex items-start gap-2.5">
                       <ShieldAlert className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
                       <div>
-                        <strong className="text-amber-200 block mb-0.5">Quy tắc sinh học BR18: Tự động hoãn ca tưới khi độ ẩm đất &gt;= 80% hoặc xác suất mưa &gt;= 70%</strong>
+                        <strong className="text-amber-200 block mb-0.5">Quy tắc sinh học: Tự động hoãn ca tưới khi độ ẩm đất &gt;= 80% hoặc xác suất mưa &gt;= 70%</strong>
                         <p className="text-white/90 leading-relaxed text-[11px]">
                           {weatherData.recommendationMessage}
                         </p>
@@ -2620,7 +2668,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-5 h-5 text-brand-green" />
                       <h3 className="font-heading font-black text-xl text-brand-dark">
-                        Nhật Ký Hoạt Động & Báo Cáo Hệ Thống (SCR-AD-14 / UC21)
+                        Nhật Ký Hoạt Động & Báo Cáo Hệ Thống
                       </h3>
                     </div>
                     <p className="text-xs text-brand-muted mt-0.5">
@@ -2836,7 +2884,7 @@ export default function AdminDashboard() {
                 rows={2}
                 value={serviceAssignNotes}
                 onChange={(e) => setServiceAssignNotes(e.target.value)}
-                placeholder="Ví dụ: Bón phân hữu cơ quanh tán, tưới sương nhẹ và chụp ảnh nghiệm thu..."
+                placeholder="Ví dụ: Bón phân hữu cơ quanh tán, tưới sương nhẹ và chụp ảnh hoàn thành..."
                 className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs text-stone-800"
               />
             </div>
@@ -2907,7 +2955,7 @@ export default function AdminDashboard() {
                 rows={2}
                 value={taskAssignNotes}
                 onChange={(e) => setTaskAssignNotes(e.target.value)}
-                placeholder="Ví dụ: Kiểm tra ẩm độ đất trước khi tưới, chụp ảnh tán lá nghiệm thu..."
+                placeholder="Ví dụ: Kiểm tra ẩm độ đất trước khi tưới, chụp ảnh tán lá hoàn thành..."
                 className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs"
               />
             </div>
@@ -3004,7 +3052,7 @@ export default function AdminDashboard() {
               rows={2}
               value={newTaskNotes}
               onChange={(e) => setNewTaskNotes(e.target.value)}
-              placeholder="Chụp 01 ảnh nghiệm thu hiện trường sau khi hoàn thành công việc."
+              placeholder="Chụp 01 ảnh hoàn thành hiện trường sau khi hoàn thành công việc."
               className="w-full p-2.5 rounded-xl border border-stone-300 bg-white text-xs"
             />
           </div>

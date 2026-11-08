@@ -155,7 +155,9 @@ export default function Marketplace() {
           const landWithPlots = landList.find((l) => plotList.some((p) => String(p.landId) === String(l.landId)));
 
           let targetLandId = null;
-          if (urlLandId && landList.some((l) => String(l.landId) === String(urlLandId))) {
+          if (savedLandId === 'ALL' && !urlLandId && !matchedPlotLandId) {
+            targetLandId = 'ALL';
+          } else if (urlLandId && landList.some((l) => String(l.landId) === String(urlLandId))) {
             targetLandId = String(urlLandId);
           } else if (matchedPlotLandId && landList.some((l) => String(l.landId) === matchedPlotLandId)) {
             targetLandId = matchedPlotLandId;
@@ -321,7 +323,7 @@ export default function Marketplace() {
     }, 0);
   }, [contractSelectedPlots]);
 
-  // "Thuê ngay thửa này": thuê thửa này và kết hợp cùng các thửa đã chọn trong hợp đồng
+  // "Thuê ngay thửa này" luôn bắt đầu với đúng thửa đang xem; giỏ nhiều thửa có nút riêng.
   const handleBookPlot = (plot) => {
     if (!plot) return;
     const isVacant = plot.status === 'Đang trống' || plot.status === 'AVAILABLE' || plot.statusCode === 'AVAIL';
@@ -330,17 +332,14 @@ export default function Marketplace() {
     const code = getPlotKey(plot);
     if (!code) return;
 
-    // Nếu người dùng đã có các thửa được chọn trong hợp đồng, kết hợp tất cả các thửa
-    const codes = cartCodes && cartCodes.length > 0
-      ? dedupeCodes([...cartCodes, code])
-      : [code];
+    const codes = [code];
 
     saveLeaseConfigMap(leaseConfigByPlot);
     const primaryCode = codes[0];
     const cfg = leaseConfigByPlot[primaryCode];
 
     if (!isAuthenticated) {
-      setPlotToBook(contractSelectedPlots[0] || plot);
+      setPlotToBook(plot);
       setPendingBookingCodes(codes);
       setShowAuthModal(true);
     } else {
@@ -563,28 +562,28 @@ export default function Marketplace() {
           3. BỘ LỌC TRẠNG THÁI NỔI TRÊN BẢN ĐỒ (FLOATING QUICK FILTER PILLS)
       ───────────────────────────────────────────────────────────────────────────── */}
       <div className="absolute top-20 left-3 sm:left-6 z-20 flex flex-wrap items-center gap-1.5 p-1 bg-white/95 backdrop-blur-xl rounded-2xl shadow-float border border-white/80 pointer-events-auto">
-        {lands.length > 1 && (
+        {/* ponytail: native <select> là bộ chuyển Khu đất; luôn hiện khi có >=1 khu để KH biết đổi được nông trại. Upgrade path: đổi sang dropdown có ảnh/thống kê khi số khu đất > 10 */}
+        {lands.length > 0 && (
           <div className="flex items-center gap-1 pl-1.5 pr-1">
             <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <select
+              aria-label="Chọn khu nông trại"
               value={selectedLandId}
               onChange={(e) => {
                 const val = e.target.value;
                 setSelectedLandId(val);
                 setSelectedPlotId(null);
                 setShowDetailPanel(false);
-                if (val !== 'ALL') {
-                  localStorage.setItem('farmely_selected_land_id', val);
-                }
+                localStorage.setItem('farmely_selected_land_id', val);
               }}
-              className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-hidden cursor-pointer py-1"
+              className="max-w-[210px] text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-hidden cursor-pointer py-1"
             >
+              <option value="ALL">Tất cả nông trại ({lands.length})</option>
               {lands.map((l) => (
                 <option key={l.landId} value={String(l.landId)}>
                   {l.landName}
                 </option>
               ))}
-              <option value="ALL">Tất cả nông trại ({lands.length})</option>
             </select>
             <div className="h-4 w-px bg-slate-200/80 mx-1" />
           </div>
@@ -788,10 +787,12 @@ export default function Marketplace() {
                             onClick={() => {
                               const targetPlot = findPlotByCode(allDbPlotProps, code);
                               if (targetPlot) {
-                                if (targetPlot.landId && targetPlot.landId !== selectedLandId) {
-                                  setSelectedLandId(targetPlot.landId);
+                                // Thửa trong giỏ có thể thuộc khu đất khác -> chuyển khu trước khi mở panel
+                                if (targetPlot.landId && String(targetPlot.landId) !== String(selectedLandId)) {
+                                  setSelectedLandId(String(targetPlot.landId));
+                                  localStorage.setItem('farmely_selected_land_id', String(targetPlot.landId));
                                 }
-                                setSelectedPlot(targetPlot);
+                                setSelectedPlotId(targetPlot.code || targetPlot.id);
                                 setShowDetailPanel(true);
                               }
                             }}

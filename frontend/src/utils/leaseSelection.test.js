@@ -43,26 +43,29 @@ describe('getCropGrowthDays', () => {
 
 describe('BR04 term rules', () => {
   it('getMinTermMonths', () => {
-    expect(getMinTermMonths({ growthDays: days('CRP-02'), cultivationMode: 'SELF' })).toBe(1);
-    expect(getMinTermMonths({ growthDays: days('CRP-01'), cultivationMode: 'SELF' })).toBe(1);
+    expect(getMinTermMonths({ growthDays: 20, cultivationMode: 'SELF' })).toBe(1);
+    expect(getMinTermMonths({ growthDays: days('CRP-01'), cultivationMode: 'SELF' })).toBe(2);
+    expect(getMinTermMonths({ growthDays: days('CRP-02'), cultivationMode: 'SELF' })).toBe(2);
     expect(getMinTermMonths({ growthDays: days('CRP-04'), cultivationMode: 'SELF' })).toBe(3);
-    expect(getMinTermMonths({ growthDays: days('CRP-03'), cultivationMode: 'SELF' })).toBe(3);
-    expect(getMinTermMonths({ growthDays: days('CRP-01'), cultivationMode: 'ASSISTED' })).toBe(3);
+    expect(getMinTermMonths({ growthDays: days('CRP-03'), cultivationMode: 'SELF' })).toBe(2);
+    expect(getMinTermMonths({ growthDays: 20, cultivationMode: 'ASSISTED' })).toBe(1);
+    expect(getMinTermMonths({ growthDays: days('CRP-01'), cultivationMode: 'ASSISTED' })).toBe(2);
   });
 
   it('getTermLockReason', () => {
     expect(getTermLockReason(1, { growthDays: days('CRP-04') })).toBe('BR04');
-    expect(getTermLockReason(1, { growthDays: days('CRP-01'), cultivationMode: 'ASSISTED' })).toBe('ASSISTED');
-    expect(getTermLockReason(1, { growthDays: days('CRP-04'), cultivationMode: 'ASSISTED' })).toBe('BR04');
+    expect(getTermLockReason(1, { growthDays: days('CRP-01') })).toBe('BR04');
+    expect(getTermLockReason(2, { growthDays: days('CRP-01') })).toBe('');
     expect(getTermLockReason(3, { growthDays: days('CRP-04') })).toBe('');
   });
 
   it('getLeaseTermError', () => {
-    expect(getLeaseTermError({ termMonths: 2, cultivationMode: 'SELF', growthDays: 30 })).toMatch('không hợp lệ');
+    expect(getLeaseTermError({ termMonths: 5, cultivationMode: 'SELF', growthDays: 30 })).toMatch('không hợp lệ');
+    expect(getLeaseTermError({ termMonths: 2, cultivationMode: 'SELF', growthDays: 30 })).toBe('');
     expect(getLeaseTermError({ termMonths: 3, cultivationMode: null, growthDays: 30 })).toMatch('hình thức canh tác');
     expect(getLeaseTermError({ termMonths: 1, cultivationMode: 'SELF', growthDays: days('CRP-09'), varietyName: 'Ớt' })).toContain('tối thiểu 3 tháng');
-    expect(getLeaseTermError({ termMonths: 1, cultivationMode: 'SELF', growthDays: days('CRP-02') })).toBe('');
-    expect(getLeaseTermError({ termMonths: 1, cultivationMode: 'ASSISTED', growthDays: 30 })).toMatch('Assisted-Growing');
+    expect(getLeaseTermError({ termMonths: 1, cultivationMode: 'SELF', growthDays: 20 })).toBe('');
+    expect(getLeaseTermError({ termMonths: 1, cultivationMode: 'ASSISTED', growthDays: 30 })).toMatch('tối thiểu 2 tháng');
     expect(getLeaseTermError({ termMonths: 12, cultivationMode: 'ASSISTED', growthDays: 85 })).toBe('');
   });
 
@@ -74,11 +77,11 @@ describe('BR04 term rules', () => {
 
 describe('normalizeLeaseConfig', () => {
   it('defaults and auto-raises but never lowers', () => {
-    expect(normalizeLeaseConfig({})).toEqual({ cropId: '', cultivationMode: null, termMonths: 3 });
+    expect(normalizeLeaseConfig({})).toEqual({ cropId: '', cultivationMode: null, termMonths: 2 });
     expect(normalizeLeaseConfig({ termMonths: 1 }, crop('CRP-04')).termMonths).toBe(3);
-    expect(normalizeLeaseConfig({ termMonths: 1, cultivationMode: 'SELF' }, crop('CRP-01')).termMonths).toBe(1);
-    expect(normalizeLeaseConfig({ termMonths: 1, cultivationMode: 'ASSISTED' }, crop('CRP-01')).termMonths).toBe(3);
-    expect(normalizeLeaseConfig({ termMonths: 7 }).termMonths).toBe(3);
+    expect(normalizeLeaseConfig({ termMonths: 1, cultivationMode: 'SELF' }, crop('CRP-01')).termMonths).toBe(2);
+    expect(normalizeLeaseConfig({ termMonths: 1, cultivationMode: 'ASSISTED' }, crop('CRP-01')).termMonths).toBe(2);
+    expect(normalizeLeaseConfig({ termMonths: 7 }).termMonths).toBe(2);
     expect(normalizeLeaseConfig({ termMonths: 12 }, crop('CRP-04')).termMonths).toBe(12);
     expect(normalizeLeaseConfig({ cultivationMode: 'FOO' }).cultivationMode).toBeNull();
   });

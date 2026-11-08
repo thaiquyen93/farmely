@@ -5,7 +5,6 @@ import {
   Map,
   Grid3X3,
   Radio,
-  CloudSun,
   Sprout,
   Wheat,
   SlidersHorizontal,
@@ -37,11 +36,6 @@ const masterDataNavItems = [
     icon: Grid3X3
   },
   {
-    path: '/admin/master-data/iot-stations',
-    name: 'Trạm Khí Tượng & Thời Tiết',
-    icon: CloudSun
-  },
-  {
     path: '/admin/master-data/crops',
     name: 'Danh Mục Cây Trồng (Crops)',
     icon: Sprout
@@ -70,6 +64,11 @@ const masterDataNavItems = [
     path: '/admin/master-data/process-templates',
     name: 'Quy Trình Chuẩn VietGAP',
     icon: FileSpreadsheet
+  },
+  {
+    path: '/admin/master-data/audit-logs',
+    name: 'Nhật Ký Vận Hành & Audit Log',
+    icon: ShieldCheck
   }
 ];
 
