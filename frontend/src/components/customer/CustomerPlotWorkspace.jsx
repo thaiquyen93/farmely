@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { assessPlot, explainAlert } from '../../utils/iotInsights';
 import { fetchLiveAgroIotData } from '../../services/weatherIotService';
 import { resolveStandardCropProcess, getPersistedStaffActivities, resolvePlotSeasons } from '../../services/cropStandardProcess';
@@ -374,7 +375,7 @@ function StandardProcessTimeline({
           }
         } else if (currentCropDay > d && !isHarvestAct) {
           syncedStatus = 'COMPLETED';
-        } else if (currentCropDay <= 1 && d === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom) {
+        } else if (!isSelf && currentCropDay <= 1 && d === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom) {
           syncedStatus = !cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING';
         }
 
@@ -1408,9 +1409,9 @@ function StandardProcessTimeline({
  * Modal xem chi tiết cẩm nang kỹ thuật của mốc ngày
  */
 function StageDetailModal({ stage, cropProcess, onClose }) {
-  if (!stage) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+  if (!stage || typeof document === 'undefined') return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
       <div className="relative w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-stone-900/10 max-h-[90vh] overflow-y-auto">
         <button
           type="button"
@@ -1439,17 +1440,17 @@ function StageDetailModal({ stage, cropProcess, onClose }) {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-stone-200 p-3.5 bg-stone-50/50">
-              <span className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-                <Droplets className="h-4 w-4 text-sky-500" />Chế độ tưới nước đề xuất
+            <div className="rounded-2xl bg-stone-50 p-3.5 border border-stone-200">
+              <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                <Sun className="h-4 w-4 text-amber-500" />Ánh sáng & Nhiệt độ
               </span>
-              <p className="mt-1.5 text-xs text-stone-600 leading-relaxed">{stage.waterRegime}</p>
+              <p className="mt-1 text-xs text-stone-600 leading-relaxed">{stage.idealTemp}</p>
             </div>
-            <div className="rounded-2xl border border-stone-200 p-3.5 bg-stone-50/50">
-              <span className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-                <Leaf className="h-4 w-4 text-emerald-600" />Dinh dưỡng & Phân bón vi sinh
+            <div className="rounded-2xl bg-stone-50 p-3.5 border border-stone-200">
+              <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                <Droplets className="h-4 w-4 text-sky-500" />Chế độ nước tưới
               </span>
-              <p className="mt-1.5 text-xs text-stone-600 leading-relaxed">{stage.nutrition || stage.materials || 'Bón phân hữu cơ vi sinh'}</p>
+              <p className="mt-1 text-xs text-stone-600 leading-relaxed">{stage.idealMoisture}</p>
             </div>
           </div>
 
@@ -1482,7 +1483,8 @@ function StageDetailModal({ stage, cropProcess, onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1524,16 +1526,19 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
       {(isSelf && isTaskItem && !activity.serviceRequestId && (!activity.workerName || activity.workerName.includes('Chủ vườn'))) ? (
         <button
           type="button"
-          onClick={() => onToggleTask?.(activity.activityId || activity.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleTask?.(activity.activityId || activity.id || activity.title);
+          }}
           className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl border-2 flex items-center justify-center shrink-0 transition-all cursor-pointer ${isDone
               ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
               : isToday
-                ? 'border-amber-400 bg-amber-50 text-amber-500 hover:border-emerald-500 hover:bg-emerald-50'
+                ? 'border-amber-400 bg-amber-50 text-amber-500 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700'
                 : 'border-stone-300 bg-stone-50 hover:border-emerald-500 hover:bg-emerald-50/50 text-stone-300 hover:text-emerald-600'
             }`}
           title={isDone ? 'Bấm để đánh dấu chưa hoàn thành' : 'Bấm để đánh dấu hoàn thành'}
         >
-          <Check className={`h-5 w-5 stroke-[3] transition-transform ${isDone ? 'scale-100' : 'scale-75 opacity-30'}`} />
+          <Check className={`h-5 w-5 stroke-[3] transition-transform ${isDone ? 'scale-100 text-white' : 'scale-75 opacity-40'}`} />
         </button>
       ) : (isDone && activity.proofPhoto) ? (
         <div className="relative h-28 w-full sm:h-24 sm:w-28 shrink-0 overflow-hidden rounded-xl bg-stone-100">
@@ -1594,7 +1599,13 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
           ) : null}
         </div>
 
-        <h4 className={`mt-1.5 text-sm font-bold transition ${isDone && isSelf && isTaskItem ? 'text-stone-400 line-through' : 'text-[#18352b] group-hover:text-emerald-800'
+        <h4
+          onClick={() => {
+            if (isSelf && isTaskItem) {
+              onToggleTask?.(activity.activityId || activity.id || activity.title);
+            }
+          }}
+          className={`mt-1.5 text-sm font-bold transition ${isSelf && isTaskItem ? 'cursor-pointer select-none hover:text-emerald-700' : ''} ${isDone && isSelf && isTaskItem ? 'text-stone-400 line-through' : 'text-[#18352b] group-hover:text-emerald-800'
           }`}>
           {activity.title}
         </h4>
@@ -1623,16 +1634,32 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
                 </>
               )}
             </div>
-            {activity.isCustom && onDeleteTask && (
-              <button
-                type="button"
-                onClick={() => onDeleteTask(activity.activityId || activity.id)}
-                className="text-stone-400 hover:text-rose-600 font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Xóa việc
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {isTaskItem && (
+                <button
+                  type="button"
+                  onClick={() => onToggleTask?.(activity.activityId || activity.id || activity.title)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs cursor-pointer ${
+                    isDone
+                      ? 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700'
+                  }`}
+                >
+                  <Check className="h-3 w-3 stroke-[2.5]" />
+                  <span>{isDone ? 'Đánh dấu chưa xong' : 'Xác nhận hoàn thành'}</span>
+                </button>
+              )}
+              {activity.isCustom && onDeleteTask && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteTask(activity.activityId || activity.id)}
+                  className="text-stone-400 hover:text-rose-600 font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Xóa việc
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 pt-2 text-xs">
@@ -2076,8 +2103,8 @@ function StaffActivitiesTab({
       )}
 
       {/* Modal Thêm công việc mới cho khách tự canh tác */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+      {showAddModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
           <div className="relative max-w-md w-full rounded-3xl bg-white p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div className="flex items-center gap-2">
@@ -2091,7 +2118,7 @@ function StaffActivitiesTab({
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-stone-400 hover:text-stone-600 rounded-lg p-1"
+                className="text-stone-400 hover:text-stone-600 rounded-lg p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2158,14 +2185,16 @@ function StaffActivitiesTab({
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-5 py-2 text-xs font-bold shadow-sm transition cursor-pointer"
+                  disabled={!newTitle.trim()}
+                  className="rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2 text-xs font-bold shadow-sm transition cursor-pointer"
                 >
                   Lưu công việc
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -2201,15 +2230,15 @@ export const resolveVietgapProofPhoto = (title = '', existingPhoto = null) => {
  * Modal xem ảnh bằng chứng hiện trường phóng to
  */
 function ActivityProofModal({ activity, onClose }) {
-  if (!activity) return null;
+  if (!activity || typeof document === 'undefined') return null;
   const photoUrl = resolveVietgapProofPhoto(
     activity.title,
     activity.proofPhoto || activity.evidenceImageUrl || activity.image || activity.imageUrl || activity.photo
   );
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn"
+      className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn"
       onClick={onClose}
     >
       <div
@@ -2255,7 +2284,8 @@ function ActivityProofModal({ activity, onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -2825,13 +2855,13 @@ function ServicesTab({ plot, services, orders, onSelectService, seasons = [], ac
       </section>
 
       {/* Modal chi tiết đơn dịch vụ */}
-      {selectedOrderForDetail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
+      {selectedOrderForDetail && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-fadeIn">
           <div className="relative max-w-lg w-full rounded-3xl bg-white p-6 shadow-2xl overflow-hidden border border-stone-200 space-y-4">
             <button
               type="button"
               onClick={() => setSelectedOrderForDetail(null)}
-              className="absolute right-4 top-4 rounded-full bg-stone-100 p-2 text-stone-600 hover:bg-stone-200 transition"
+              className="absolute right-4 top-4 rounded-full bg-stone-100 p-2 text-stone-600 hover:bg-stone-200 transition cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
@@ -2904,7 +2934,8 @@ function ServicesTab({ plot, services, orders, onSelectService, seasons = [], ac
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -3151,10 +3182,6 @@ export default function CustomerPlotWorkspace({
         if (Array.isArray(parsed) && parsed.length > 0) {
           const day1Tasks = parsed.filter(t => t.day === 1);
           if (day1Tasks.length <= 2 && new Set(day1Tasks.map(t => t.title)).size === day1Tasks.length) {
-            // Nếu đang ở Ngày 1 mà tất cả task Ngày 1 bị dính trạng thái COMPLETED cũ thì khôi phục về PENDING
-            if ((cropProcess.currentDay || 1) <= 1 && day1Tasks.length > 0 && day1Tasks.every(t => t.status === 'COMPLETED' && !t.proofPhoto && !t.isCustom)) {
-              return defaultSelfTasks;
-            }
             // Nếu đang ở Ngày Thu Hoạch (currentDay >= totalDays): reset về defaultSelfTasks để tất cả các task trước thu hoạch đều là COMPLETED
             if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && parsed.some(t => t.day < cropProcess.totalDays && t.status !== 'COMPLETED')) {
               return defaultSelfTasks;
@@ -3178,9 +3205,6 @@ export default function CustomerPlotWorkspace({
           if (day1Tasks.length > 2 || new Set(day1Tasks.map(t => t.title)).size < day1Tasks.length) {
             shouldReset = true;
           }
-          if ((cropProcess.currentDay || 1) <= 1 && day1Tasks.length > 0 && day1Tasks.every(t => t.status === 'COMPLETED' && !t.proofPhoto && !t.isCustom)) {
-            shouldReset = true;
-          }
           if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && parsed.some(t => t.day < cropProcess.totalDays && t.status !== 'COMPLETED')) {
             shouldReset = true;
           }
@@ -3197,19 +3221,26 @@ export default function CustomerPlotWorkspace({
   const handleToggleSelfTask = useCallback((taskId) => {
     setSelfTasks((prev) => {
       let found = false;
+      const targetStr = String(taskId || '').trim().toLowerCase();
       let next = prev.map((t) => {
-        if (t.id === taskId || t.activityId === taskId) {
+        const matchesId = t.id === taskId || t.activityId === taskId || String(t.id).toLowerCase() === targetStr || String(t.activityId).toLowerCase() === targetStr;
+        const matchesTitle = t.title && (String(t.title).trim().toLowerCase() === targetStr);
+        if (matchesId || matchesTitle) {
           found = true;
-          const newStatus = t.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
-          return { ...t, status: newStatus };
+          const newStatus = (t.status === 'COMPLETED' || t.status === 'DONE') ? 'PENDING' : 'COMPLETED';
+          return { ...t, status: newStatus, isUserChecked: true };
         }
         return t;
       });
       if (!found) {
-        next = [...prev, { id: taskId, activityId: taskId, status: 'COMPLETED' }];
+        next = [...prev, { id: taskId, activityId: taskId, status: 'COMPLETED', isUserChecked: true }];
       }
       try {
         localStorage.setItem(taskStorageKey, JSON.stringify(next));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new CustomEvent('farmely_task_completed', { detail: { taskId } }));
+        }
       } catch { }
       return next;
     });
@@ -3896,8 +3927,8 @@ export default function CustomerPlotWorkspace({
                         proofPhoto = null;
                       }
 
-                      // Khi đang ở Ngày 1 mới bắt đầu: task chưa có ảnh thực tế không tự động hoàn thành
-                      if ((cropProcess.currentDay || 1) <= 1 && actDay === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom && !matchingDiary) {
+                      // Khi đang ở Ngày 1 mới bắt đầu: task của Staff chưa có ảnh thực tế không tự động hoàn thành (không áp dụng cho Chủ vườn tự làm)
+                      if (!isSelf && (cropProcess.currentDay || 1) <= 1 && actDay === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom && !matchingDiary) {
                         isDone = false;
                         proofPhoto = null;
                       }
