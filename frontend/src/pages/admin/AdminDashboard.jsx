@@ -772,9 +772,20 @@ export default function AdminDashboard() {
             const parsed = JSON.parse(savedSeasons);
             const updated = parsed.map((s) => {
               if (s.seasonNumber === (targetReq.seasonNumber || 2) || s.status === 'PENDING_APPROVAL') {
-                return { ...s, status: 'SCHEDULED', isApprovedByAdmin: true };
+                return {
+                  ...s,
+                  status: 'ACTIVE',
+                  currentDay: 1,
+                  isCurrent: true,
+                  isApprovedByAdmin: true
+                };
               }
-              return s;
+              return {
+                ...s,
+                status: 'COMPLETED',
+                isCurrent: false,
+                inFallow: false
+              };
             });
             localStorage.setItem(`farmely_plot_seasons_${plotKey}`, JSON.stringify(updated));
           }
