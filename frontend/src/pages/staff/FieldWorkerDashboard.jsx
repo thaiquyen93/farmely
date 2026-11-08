@@ -17,7 +17,6 @@ import {
   Apple,
   Droplets,
   Flame,
-  ShieldCheck,
   Layers,
   Calendar,
   Sparkles,
@@ -2568,17 +2567,6 @@ export default function FieldWorkerDashboard() {
                           <span className="text-[10px] text-stone-500 uppercase font-bold block">Nhiệt độ mặt đất</span>
                           <strong className="text-stone-900 font-bold font-mono mt-0.5 block">{modalWeather.metrics.soilTemp || '—'}</strong>
                         </div>
-                      </div>
-
-                      {/* Irrigation Rule Notice (BR18) */}
-                      <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 text-xs text-sky-950 space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <ShieldCheck className="w-4 h-4 text-sky-700" />
-                          <strong className="font-heading font-black text-sky-900">Quy tắc điều tiết tưới tự động (BR18):</strong>
-                        </div>
-                        <p className="text-sky-800 leading-relaxed">
-                          Hệ thống sẽ <strong>tự động tạm hoãn lệnh tưới</strong> nếu độ ẩm đất đo được từ Open-Meteo vượt ngưỡng <strong>80%</strong> ({modalWeather.metrics.soilMoisture}) để chống ngập úng rễ và ngăn ngừa nấm bệnh. Hệ thống sẽ kích hoạt lại khi độ ẩm đất hạ về dưới 65%.
-                        </p>
                       </div>
                     </>
                   )}
