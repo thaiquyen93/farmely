@@ -21,13 +21,17 @@ export default function SoilPrepView({
   latestHarvest,
   onOpenHarvestReport,
   onSimulateDay1,
-  onBackToTimeline
+  onBackToTimeline,
+  isPendingApproval = false
 }) {
   const plotCode = plot.plotCode || plot.mapPlotId || plot.key || 'P-12';
   const cropName = season.cropName || plot.crop || 'Dưa leo baby F1';
   const yieldKg = latestHarvest?.formattedYield
     ? String(latestHarvest.formattedYield).replace(/\s*kg/gi, '')
     : (latestHarvest?.yieldAmount ?? latestHarvest?.actualWeight ?? latestHarvest?.yieldKg ?? '18.50');
+
+  const pendingSeason = nextSeason?.status === 'PENDING_APPROVAL' ? nextSeason : (isPendingApproval ? nextSeason : null);
+  const isLocked = Boolean(pendingSeason || isPendingApproval || nextSeason?.status === 'PENDING_APPROVAL');
 
   return (
     <div className="py-2 animate-fadeIn space-y-6">
@@ -97,6 +101,44 @@ export default function SoilPrepView({
           </div>
         </div>
 
+        {/* THẺ KHÓA: ĐÃ GỬI GIA HẠN — CHỜ BAN QUẢN TRỊ (ADMIN) PHÊ DUYỆT (BR11b) */}
+        {isLocked && (
+          <div className="mt-6 rounded-2xl border-2 border-amber-400 bg-amber-100/70 p-4 sm:p-5 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-fadeIn">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white font-black text-xl shadow-xs">
+                ⏳
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-amber-700 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-2xs">
+                    Khóa Chờ Admin Duyệt Hợp Đồng (BR11b)
+                  </span>
+                  <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-300">
+                    Đã thanh toán VNPay 100%
+                  </span>
+                  <span className="rounded-full bg-amber-200/90 px-2.5 py-0.5 text-[10px] font-black text-amber-950 border border-amber-300">
+                    Vụ {pendingSeason?.seasonNumber || 2}: {pendingSeason?.cropName || 'Giống mới'}
+                  </span>
+                </div>
+                <h4 className="mt-1 font-heading font-black text-base text-amber-950">
+                  Yêu Cầu Gia Hạn Đang Chờ Ban Quản Trị Phê Duyệt & Phân Bổ Nhân Sự
+                </h4>
+                <p className="mt-0.5 text-xs text-amber-900/90 leading-relaxed max-w-2xl">
+                  Thửa đất đang bị khóa ở trạng thái bảo trì và phơi ải 4 ngày (BR23). Bảng bảo trì này sẽ tự động đóng và chính thức kích hoạt bắt đầu mùa vụ mới ngay khi Admin bấm phê duyệt hợp đồng.
+                </p>
+              </div>
+            </div>
+            <a
+              href="/admin?tab=contracts&subtab=renewals"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-700 hover:bg-amber-800 text-white px-4 py-2.5 text-xs font-black shadow-xs transition cursor-pointer"
+            >
+              <span>Mở Tab Admin Phê Duyệt ›</span>
+            </a>
+          </div>
+        )}
+
         {/* Các nút hành động chính */}
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-amber-100">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -104,8 +146,11 @@ export default function SoilPrepView({
               <button
                 type="button"
                 onClick={onBackToTimeline}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-50 transition shadow-2xs cursor-pointer"
-                title="Quay lại xem dòng thời gian và nhật ký vụ vừa thu hoạch"
+                disabled={isLocked}
+                className={`inline-flex items-center gap-1.5 rounded-xl border border-stone-300 px-3.5 py-2.5 text-xs font-bold transition shadow-2xs ${
+                  isLocked ? 'bg-stone-100 text-stone-400 cursor-not-allowed border-stone-200' : 'bg-white text-stone-700 hover:bg-stone-50 cursor-pointer'
+                }`}
+                title={isLocked ? "Đang khóa chờ Admin duyệt hợp đồng" : "Quay lại xem dòng thời gian và nhật ký vụ vừa thu hoạch"}
               >
                 <span>‹ Xem lại Dòng thời gian vụ mùa</span>
               </button>
@@ -123,31 +168,50 @@ export default function SoilPrepView({
             )}
 
             {onSimulateDay1 && (
-              <button
-                type="button"
-                onClick={() => onSimulateDay1(nextSeason)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-4 py-2.5 text-xs font-bold text-emerald-800 transition shadow-2xs cursor-pointer"
-                title={nextSeason ? `Bắt đầu canh tác Vụ ${nextSeason.seasonNumber} (Ngày 1)` : "Quay về Ngày 1 để chạy lại demo"}
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                <span>
-                  {nextSeason
-                    ? `🌱 Bắt đầu lại Vụ Mới (Vụ ${nextSeason.seasonNumber} · Ngày 1)`
-                    : '🌱 Bắt đầu lại Vụ Mới (Ngày 1)'}
-                </span>
-              </button>
+              isLocked ? (
+                <button
+                  type="button"
+                  disabled={true}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-xs font-bold text-stone-400 cursor-not-allowed shadow-none"
+                  title="Cần Quản trị viên (Admin) phê duyệt hợp đồng gia hạn trước khi bắt đầu mùa vụ mới"
+                >
+                  <Clock className="h-3.5 w-3.5 text-stone-400" />
+                  <span>🔒 Chờ Admin duyệt để bắt đầu Vụ {pendingSeason?.seasonNumber || 2}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onSimulateDay1(nextSeason)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-4 py-2.5 text-xs font-bold text-emerald-800 transition shadow-2xs cursor-pointer"
+                  title={nextSeason ? `Bắt đầu canh tác Vụ ${nextSeason.seasonNumber} (Ngày 1)` : "Quay về Ngày 1 để chạy lại demo"}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>
+                    {nextSeason
+                      ? `🌱 Bắt đầu lại Vụ Mới (Vụ ${nextSeason.seasonNumber} · Ngày 1)`
+                      : '🌱 Bắt đầu lại Vụ Mới (Ngày 1)'}
+                  </span>
+                </button>
+              )
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onOpenRenewal}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-5 py-2.5 text-xs font-black text-white shadow-sm transition cursor-pointer"
-            >
-              <span>Gia hạn / Đăng ký vụ mới</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
+            {isLocked ? (
+              <div className="inline-flex items-center gap-1.5 rounded-xl bg-amber-100 border border-amber-300 px-4 py-2.5 text-xs font-bold text-amber-900 cursor-not-allowed shadow-2xs">
+                <Clock className="h-4 w-4 text-amber-700 animate-pulse" />
+                <span>⏳ Đã gửi gia hạn Vụ {pendingSeason?.seasonNumber || 2}</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenRenewal}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-5 py-2.5 text-xs font-black text-white shadow-sm transition cursor-pointer"
+              >
+                <span>Gia hạn / Đăng ký vụ mới</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -9,7 +9,7 @@ import PlotRenewalModal from './PlotRenewalModal';
 import HarvestReportModal from './HarvestReportModal';
 import {
   AlertTriangle, ArrowLeft, Award, BookOpen, Calendar, CalendarCheck, Check, ChevronDown, ChevronRight, ChevronLeft,
-  Clock, Clock3, Droplets, Eye, Info, LayoutDashboard, Leaf,
+  Clock, Clock3, CloudSun, Droplets, Eye, Info, LayoutDashboard, Leaf,
   MapPin, Maximize2, PenLine, Radio, Scale, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
   Sun, UserRound, Wheat, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame, Wrench
 } from 'lucide-react';
@@ -27,13 +27,6 @@ export const PLOT_TABS = [
   { id: 'tasks', label: 'Công việc & Nhật ký', short: 'Việc & Nhật ký', icon: CalendarCheck },
   { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag }
 ];
-
-const LEVEL_STYLE = {
-  OK: { chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', marker: 'bg-emerald-600', hex: '#059669', dot: 'bg-lime-400' },
-  LOW: { chip: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200', marker: 'bg-sky-600', hex: '#0284c7', dot: 'bg-sky-400' },
-  HIGH: { chip: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200', marker: 'bg-rose-600', hex: '#e11d48', dot: 'bg-rose-400' },
-  UNKNOWN: { chip: 'bg-stone-100 text-stone-600', marker: 'bg-stone-400', hex: '#a8a29e', dot: 'bg-stone-400' }
-};
 
 const CARD_SHADOW = 'shadow-[0_1px_2px_rgba(24,53,43,0.04),0_12px_32px_-16px_rgba(24,53,43,0.22)]';
 
@@ -74,129 +67,6 @@ function EmptyState({ icon: Icon = Leaf, title, note }) {
 /* ──────────────────────────────────────────────────────────────────────────
    1. QUY TRÌNH CHUẨN THEO NGÀY TUỔI & HIỆN TRẠNG CÂY TRỒNG
    ────────────────────────────────────────────────────────────────────────── */
-
-/**
- * Thanh hiện trạng sinh trưởng theo ngày tuổi của cây trồng
- */
-/**
- * Thẻ hiện trạng thửa đất, đọc từ trên xuống theo thứ bậc:
- *   việc đang diễn ra (to nhất) > nhiệt độ thực địa > cảnh báo (gọn nhất).
- * ponytail: ceiling is nhiệt độ + 2 cảnh báo trong cùng một thẻ.
- * upgrade path is tách lại thành trang riêng khi KH cần tra cứu lịch sử khí tượng theo giờ.
- */
-function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo }) {
-  const currentStage = cropProcess.currentStage;
-  // Chỉ nêu nhiệt độ: 3 chỉ số còn lại đã nằm trong chính câu cảnh báo khi vượt ngưỡng.
-  const temp = assessPlot(plot).find((m) => m.key === 'temp');
-  const isNotStarted = cropProcess.isNotStarted;
-
-  return (
-    <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1b4332] via-[#24533f] to-[#0f2a20] text-white ${CARD_SHADOW}`}>
-      <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/15 blur-3xl" />
-      <span aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl" />
-
-      {/* Tầng 1 — Việc đang diễn ra (chính) · Sức khoẻ thửa (phụ, tách bằng vách mờ) */}
-      <div className="relative p-4 sm:p-5">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/90 backdrop-blur">
-              Tiêu chuẩn VietGAP
-            </span>
-            {isNotStarted ? (
-              <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
-                <Calendar className="h-3 w-3 text-amber-300" />
-                Chưa bắt đầu · Ngày 0 / {cropProcess.totalDays}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                </span>
-                Ngày thứ {cropProcess.currentDay} / {cropProcess.totalDays}
-              </span>
-            )}
-          </div>
-
-          <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-lime-300">
-            {isNotStarted ? 'Vụ mùa sắp tới' : 'Đang trong giai đoạn'}
-          </p>
-          <h3 className="mt-0.5 font-heading text-lg font-bold tracking-tight text-white sm:text-xl drop-shadow-xs">
-            {isNotStarted
-              ? `${cropProcess.cropName ? (cropProcess.cropName.charAt(0).toUpperCase() + cropProcess.cropName.slice(1)) : 'Cây trồng'} · Chưa bắt đầu canh tác`
-              : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
-          </h3>
-          <p className="mt-1 text-xs sm:text-sm leading-relaxed text-white/90">
-            {isNotStarted
-              ? 'Vụ mùa kế tiếp đã được lên lịch. Tiến độ sẽ bắt đầu tính khi vào vụ mới (sau chu kỳ nghỉ đất và làm đất tiêu chuẩn 5 ngày).'
-              : (currentStage?.statusDesc || 'Cây trồng đang phát triển thuận lợi theo đúng chỉ dẫn kỹ thuật nông học.')}
-          </p>
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-white/10 text-xs">
-            <span className="font-semibold text-lime-300">
-              {isNotStarted
-                ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày`
-                : `Ngày thứ ${cropProcess.currentDay}/${cropProcess.totalDays} · Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}
-            </span>
-            <span className="text-white/70">
-              {isNotStarted ? 'Dự kiến bắt đầu theo lịch vụ mùa' : `Tiến độ chu kỳ: ${cropProcess.progressPercent}%`}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tầng 2 — Nhiệt độ thực địa & nguồn dữ liệu, cùng một hàng */}
-      {temp && (
-        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/10 px-4 py-2.5 sm:px-5">
-          <span className="flex items-baseline gap-1.5 text-xs">
-            <span className={`h-2 w-2 shrink-0 self-center rounded-full ${LEVEL_STYLE[temp.level].dot}`} />
-            <span className="font-medium text-white/85">{temp.label}</span>
-            {temp.value === null ? (
-              <span className="text-white/70">chưa có số liệu</span>
-            ) : (
-              <>
-                <strong className="font-bold text-white">{temp.value}{temp.unit}</strong>
-                <span className="text-white/70">chuẩn {temp.min}–{temp.max}{temp.unit}</span>
-              </>
-            )}
-          </span>
-          {liveProviderInfo?.isLive3rdParty && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-lime-300">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-lime-300" />
-              Open-Meteo Live Feed
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Tầng 3 — Cảnh báo BR18, mỗi cảnh báo một dòng gọn trong cùng thẻ */}
-      {topAlerts.length > 0 && (
-        <div className="relative border-t border-white/10" aria-label="Cảnh báo thời tiết thực địa">
-          {topAlerts.map((a, idx) => {
-            const info = explainAlert(a, plot.mode);
-            const isHigh = a?.level === 'HIGH';
-            return (
-              <div
-                key={a.id || `${info.title}-${idx}`}
-                className={`flex flex-wrap items-baseline gap-x-2 gap-y-1 px-5 py-3 text-xs sm:px-6 ${idx > 0 ? 'border-t border-white/5' : ''}`}
-              >
-                <AlertTriangle className={`h-4 w-4 shrink-0 self-center ${isHigh ? 'text-rose-300' : 'text-amber-300'}`} />
-                <strong className={`font-bold ${isHigh ? 'text-rose-100' : 'text-amber-100'}`}>{info.title}</strong>
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-extrabold ${isHigh ? 'bg-rose-400/20 text-rose-200' : 'bg-amber-400/20 text-amber-200'}`}>
-                  {info.levelText}
-                </span>
-                <span className="text-white/90">
-                  {info.explanation} <strong className="font-semibold text-white/95">{info.action}</strong>
-                </span>
-                {info.time && <span className="text-white/65">{info.time}</span>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /**
  * Hàm chuẩn hóa ngày tuổi của một mục nhật ký hoặc hoạt động
@@ -1496,9 +1366,10 @@ function StageDetailModal({ stage, cropProcess, onClose }) {
  * Thẻ hiển thị một hoạt động của Staff với đầy đủ bằng chứng, người làm, giờ giấc
  */
 /**
- * Thẻ hiển thị một hoạt động của Staff hoặc công việc Tự canh tác của chủ vườn
+ * Thẻ hiển thị một công việc / hoạt động canh tác (Staff hoặc Chủ vườn tự làm)
  */
 function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask, onDeleteTask }) {
+  const [showDetails, setShowDetails] = useState(false);
   const isDone = activity.status === 'COMPLETED' || activity.status === 'DONE';
   const isInProg = activity.status === 'IN_PROGRESS' || activity.status === 'IN_PROG';
   const isToday = activity.isToday;
@@ -1515,36 +1386,64 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
   const resolvedCropDay = activity.cropDay || activity.day;
   const isTaskItem = !activity.isDiaryEntry && !activity.isHarvest;
 
+  // Làm sạch tiêu đề: chỉ giữ lại tên việc chính ngắn gọn, bỏ các chuỗi nối dài quá tải
+  const displayTitle = useMemo(() => {
+    let t = String(activity.title || '').trim();
+    // Chỉ cắt khi tiêu đề quá dài (> 70 ký tự) và bị nối với một đoạn văn hướng dẫn
+    if (t.length > 70 && t.includes(': ')) {
+      const parts = t.split(': ');
+      if (parts[0].length >= 3 && parts[0].length <= 65) {
+        t = parts[0].trim();
+      }
+    }
+    return t.replace(/^\[.*?\]\s*/, '').trim();
+  }, [activity.title]);
+
+  // Làm sạch ghi chú: bỏ lặp lại tiêu đề, bỏ các tag rác
+  const cleanNotes = useMemo(() => {
+    let n = String(activity.notes || '').trim();
+    if (!n) return '';
+    if (displayTitle && n.toLowerCase().startsWith(displayTitle.toLowerCase())) {
+      n = n.substring(displayTitle.length).replace(/^[\s\-:]+/, '').trim();
+    }
+    n = n.replace(/^\[.*?\]\s*/, '').replace(/ĐÃ XONG VIỆC\s*!/gi, '').trim();
+    return n;
+  }, [activity.notes, displayTitle]);
+
   return (
-    <div className={`group relative flex flex-col sm:flex-row items-start gap-4 rounded-2xl border transition hover:shadow-md ${isDone
-        ? 'border-emerald-200/90 bg-emerald-50/20'
-        : isToday
-          ? 'border-2 border-amber-300 bg-gradient-to-r from-amber-50/40 via-white to-amber-50/20 shadow-xs hover:border-emerald-500'
-          : 'border-stone-200/90 bg-stone-50/40 hover:bg-white hover:border-stone-300'
-      } p-4 shadow-sm`}>
+    <div
+      className={`group relative flex flex-col sm:flex-row items-start gap-3.5 rounded-2xl border transition-all p-3.5 sm:p-4 ${
+        isDone
+          ? 'border-emerald-200/90 bg-emerald-50/20 shadow-2xs'
+          : isToday
+          ? 'border-amber-300 bg-amber-50/25 ring-1 ring-amber-200/60 shadow-xs'
+          : 'border-stone-200 bg-white hover:border-stone-300 shadow-2xs'
+      }`}
+    >
       {/* Cột trái: Nút Checkbox (cho Tự canh tác) HOẶC Ảnh minh chứng (cho Staff / Dịch vụ) */}
-      {(isSelf && isTaskItem && !activity.serviceRequestId && (!activity.workerName || activity.workerName.includes('Chủ vườn'))) ? (
+      {isSelf && isTaskItem && !activity.serviceRequestId && (!activity.workerName || activity.workerName.includes('Chủ vườn')) ? (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onToggleTask?.(activity.activityId || activity.id || activity.title);
           }}
-          className={`h-11 w-11 sm:h-12 sm:w-12 rounded-xl border-2 flex items-center justify-center shrink-0 transition-all cursor-pointer ${isDone
-              ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+          className={`h-9 w-9 rounded-xl border flex items-center justify-center shrink-0 transition-all cursor-pointer mt-0.5 ${
+            isDone
+              ? 'bg-emerald-600 border-emerald-600 text-white shadow-2xs'
               : isToday
-                ? 'border-amber-400 bg-amber-50 text-amber-500 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700'
-                : 'border-stone-300 bg-stone-50 hover:border-emerald-500 hover:bg-emerald-50/50 text-stone-300 hover:text-emerald-600'
-            }`}
-          title={isDone ? 'Bấm để đánh dấu chưa hoàn thành' : 'Bấm để đánh dấu hoàn thành'}
+              ? 'border-amber-400 bg-white text-amber-500 hover:border-emerald-500 hover:bg-emerald-50'
+              : 'border-stone-300 bg-white hover:border-emerald-500 text-stone-300 hover:text-emerald-600'
+          }`}
+          title={isDone ? 'Đánh dấu chưa hoàn thành' : 'Đánh dấu hoàn thành'}
         >
-          <Check className={`h-5 w-5 stroke-[3] transition-transform ${isDone ? 'scale-100 text-white' : 'scale-75 opacity-40'}`} />
+          <Check className={`h-4 w-4 stroke-[3] transition-transform ${isDone ? 'scale-100 text-white' : 'scale-75 opacity-30'}`} />
         </button>
-      ) : (isDone && activity.proofPhoto) ? (
-        <div className="relative h-28 w-full sm:h-24 sm:w-28 shrink-0 overflow-hidden rounded-xl bg-stone-100">
+      ) : isDone && activity.proofPhoto ? (
+        <div className="relative h-18 w-22 sm:h-20 sm:w-24 shrink-0 overflow-hidden rounded-xl bg-stone-100">
           <img
             src={activity.proofPhoto}
-            alt={activity.title}
+            alt={displayTitle}
             className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
           />
           <button
@@ -1553,140 +1452,129 @@ function StaffActivityCard({ activity, onOpenPhoto, isSelf = false, onToggleTask
             className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition group-hover:opacity-100 text-white cursor-pointer"
             title="Xem ảnh phóng to"
           >
-            <Maximize2 className="h-5 w-5 drop-shadow" />
+            <Maximize2 className="h-4 w-4 drop-shadow" />
           </button>
-          <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 text-[9px] font-semibold text-white">
-            Ảnh minh chứng
-          </span>
         </div>
       ) : (
-        <div className={`flex h-20 w-full sm:h-24 sm:w-28 shrink-0 items-center justify-center rounded-xl ${
-          activity.isDiaryEntry ? 'bg-emerald-100/70 text-emerald-800' : isToday ? 'bg-amber-100/70 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-        }`}>
-          {activity.isDiaryEntry ? <span className="text-2xl">📖</span> : isToday ? <Flame className="h-8 w-8 animate-pulse text-amber-600" /> : <CalendarCheck className="h-8 w-8 opacity-60" />}
+        <div
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl mt-0.5 ${
+            activity.isDiaryEntry
+              ? 'bg-emerald-100 text-emerald-800'
+              : isToday
+              ? 'bg-amber-100 text-amber-700'
+              : 'bg-stone-100 text-stone-600'
+          }`}
+        >
+          {activity.isDiaryEntry ? (
+            <span className="text-sm">📖</span>
+          ) : isToday ? (
+            <Flame className="h-4 w-4 text-amber-600 animate-pulse" />
+          ) : (
+            <CalendarCheck className="h-4 w-4 opacity-60" />
+          )}
         </div>
       )}
 
-      {/* Cột thông tin chi tiết */}
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* Cột thông tin công việc */}
+      <div className="min-w-0 flex-1 w-full space-y-1">
+        {/* Hàng 1: Thời gian & Trạng thái & Nút thao tác */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
           <div className="flex items-center gap-2">
-            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${isDone
-                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                : isInProg
-                  ? 'bg-sky-100 text-sky-800 border border-sky-300 font-bold'
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                isDone
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                  : isInProg
+                  ? 'bg-sky-100 text-sky-800 border border-sky-300'
                   : isToday
-                    ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold'
-                    : 'bg-stone-100 text-stone-600 border border-stone-200'
-              }`}>
-              {isDone ? <Check className="h-3.5 w-3.5" /> : isToday ? <Flame className="h-3.5 w-3.5 text-amber-600" /> : <Clock className="h-3.5 w-3.5" />}
-              {isDone ? 'Đã hoàn tất' : isInProg ? 'Đang thực hiện' : isToday ? 'Cần làm hôm nay' : 'Kế hoạch sắp tới'}
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                  : 'bg-stone-100 text-stone-600 border border-stone-200'
+              }`}
+            >
+              {isDone ? <Check className="h-3 w-3 stroke-[2.5]" /> : isToday ? <Flame className="h-3 w-3 text-amber-600" /> : <Clock className="h-3 w-3" />}
+              <span>{isDone ? 'Đã hoàn tất' : isInProg ? 'Đang thực hiện' : isToday ? 'Cần làm hôm nay' : 'Kế hoạch sắp tới'}</span>
             </span>
-            <span className="text-xs text-stone-500 font-medium">{displayTimestamp}</span>
+            {resolvedCropDay && (
+              <span className="text-[11px] font-semibold text-stone-500">
+                Ngày tuổi {resolvedCropDay}
+              </span>
+            )}
+            {activity.session && (
+              <span className="text-[11px] text-stone-400">
+                · {activity.session === 'MORNING' ? 'Ca sáng' : 'Ca chiều'}
+              </span>
+            )}
           </div>
 
-          {activity.actionTypeName ? (
-            <span className="rounded-md bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600">
-              {activity.actionTypeName}
-            </span>
-          ) : resolvedCropDay ? (
-            <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold border ${isToday
-                ? 'bg-amber-100 text-amber-900 border-amber-200'
-                : 'bg-emerald-50 text-emerald-800 border-emerald-100'
-              }`}>
-              Ngày tuổi {resolvedCropDay}
-            </span>
-          ) : null}
+          {/* Action cho Chủ vườn tự canh tác */}
+          {isSelf && isTaskItem && (
+            <button
+              type="button"
+              onClick={() => onToggleTask?.(activity.activityId || activity.id || activity.title)}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs cursor-pointer ${
+                isDone
+                  ? 'bg-stone-100 hover:bg-stone-200 text-stone-600 border border-stone-200'
+                  : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+              }`}
+            >
+              <Check className="h-3 w-3 stroke-[2.5]" />
+              <span>{isDone ? 'Đánh dấu chưa xong' : 'Xác nhận hoàn thành'}</span>
+            </button>
+          )}
         </div>
 
+        {/* Hàng 2: Tên việc chính (Rõ ràng, súc tích) */}
         <h4
           onClick={() => {
             if (isSelf && isTaskItem) {
               onToggleTask?.(activity.activityId || activity.id || activity.title);
             }
           }}
-          className={`mt-1.5 text-sm font-bold transition ${isSelf && isTaskItem ? 'cursor-pointer select-none hover:text-emerald-700' : ''} ${isDone && isSelf && isTaskItem ? 'text-stone-400 line-through' : 'text-[#18352b] group-hover:text-emerald-800'
-          }`}>
-          {activity.title}
+          className={`font-heading text-sm font-bold transition leading-snug ${
+            isSelf && isTaskItem ? 'cursor-pointer select-none hover:text-emerald-700' : ''
+          } ${isDone && isSelf && isTaskItem ? 'text-stone-400 line-through' : 'text-stone-900 group-hover:text-emerald-800'}`}
+        >
+          {displayTitle}
         </h4>
 
-        {activity.notes && (
-          <p className="mt-1 text-xs text-stone-600 leading-relaxed line-clamp-2">
-            {activity.notes}
-          </p>
+        {/* Hàng 3: Hướng dẫn ngắn gọn (Collapsible nếu dài) */}
+        {cleanNotes && (
+          <div className="pt-0.5">
+            <p className={`text-xs text-stone-600 leading-relaxed ${showDetails ? '' : 'line-clamp-1'}`}>
+              {cleanNotes}
+            </p>
+            {cleanNotes.length > 70 && (
+              <button
+                type="button"
+                onClick={() => setShowDetails(!showDetails)}
+                className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 hover:underline mt-1 inline-flex items-center gap-1 cursor-pointer"
+              >
+                <span>{showDetails ? 'Thu gọn' : 'Xem chi tiết hướng dẫn'}</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showDetails ? 'rotate-180' : ''}`} />
+              </button>
+            )}
+          </div>
         )}
 
-        {/* Thông tin người phụ trách */}
-        {isSelf && !activity.serviceRequestId && !activity.isStaffTask ? (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 pt-2 text-xs">
-            <div className="flex items-center gap-1.5 text-stone-500">
-              {activity.isDiaryEntry ? (
-                <>
-                  <span className="text-base leading-none">📖</span>
-                  <span className="font-semibold text-stone-700">{activity.workerName || 'Chủ vườn'}</span>
-                  <span className="text-stone-400">· Nhật ký canh tác</span>
-                </>
-              ) : (
-                <>
-                  <Sprout className="h-3.5 w-3.5 text-emerald-600" />
-                  <span className="font-semibold text-stone-700">Chủ vườn tự thực hiện</span>
-                  <span className="text-stone-400">· Quy trình VietGAP</span>
-                </>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {isTaskItem && (
-                <button
-                  type="button"
-                  onClick={() => onToggleTask?.(activity.activityId || activity.id || activity.title)}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition shadow-2xs cursor-pointer ${
-                    isDone
-                      ? 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-300'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-700'
-                  }`}
-                >
-                  <Check className="h-3 w-3 stroke-[2.5]" />
-                  <span>{isDone ? 'Đánh dấu chưa xong' : 'Xác nhận hoàn thành'}</span>
-                </button>
-              )}
-              {activity.isCustom && onDeleteTask && (
-                <button
-                  type="button"
-                  onClick={() => onDeleteTask(activity.activityId || activity.id)}
-                  className="text-stone-400 hover:text-rose-600 font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Xóa việc
-                </button>
-              )}
-            </div>
+        {/* Hàng 4: Người thực hiện (nếu là nhân viên, nhật ký hoặc dịch vụ theo yêu cầu) */}
+        {(activity.workerName || activity.isDiaryEntry || activity.serviceRequestId) && (
+          <div className="pt-1 flex items-center gap-2 text-[11px] text-stone-500">
+            <span className="font-semibold text-stone-700">{activity.workerName || 'Chủ vườn'}</span>
+            {displayTimestamp && <span className="text-stone-400">· {displayTimestamp}</span>}
           </div>
-        ) : (
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 pt-2 text-xs">
-            <div className="flex items-center gap-2">
-              {activity.isDiaryEntry ? (
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
-                  📖
-                </span>
-              ) : activity.isHarvest ? (
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">
-                  🌾
-                </span>
-              ) : activity.workerAvatar ? (
-                <img src={activity.workerAvatar} alt={activity.workerName} className="h-6 w-6 rounded-full object-cover ring-1 ring-emerald-300" />
-              ) : (
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-[10px] text-white font-bold">
-                  {activity.workerName?.charAt(0) || 'S'}
-                </span>
-              )}
-              <span className="font-semibold text-stone-800">{activity.workerName || 'Nhân viên kỹ thuật'}</span>
-              {activity.workerRole && <span className="text-[11px] text-stone-400">({activity.workerRole})</span>}
-              {activity.serviceRequestId && (
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
-                  Dịch vụ theo yêu cầu
-                </span>
-              )}
-            </div>
+        )}
+
+        {/* Nút xóa việc tùy chỉnh */}
+        {activity.isCustom && onDeleteTask && (
+          <div className="pt-1 flex justify-end">
+            <button
+              type="button"
+              onClick={() => onDeleteTask(activity.activityId || activity.id)}
+              className="text-stone-400 hover:text-rose-600 font-semibold text-[11px] flex items-center gap-1 transition cursor-pointer"
+            >
+              <Trash2 className="h-3 w-3" />
+              <span>Xóa việc</span>
+            </button>
           </div>
         )}
       </div>
@@ -1932,62 +1820,131 @@ function StaffActivitiesTab({
 
       {/* Danh sách các công việc / hoạt động - CHIA RÕ VIỆC HÔM NAY VÀ VIỆC CHƯA TỚI */}
       {filtered.length > 0 ? (
-        <div className="space-y-6">
-          {/* PHẦN 1: 🔥 VIỆC CẦN LÀM HÔM NAY (NỔI BẬT) */}
-          {(statusFilter === 'ALL' || statusFilter === 'TODAY') && (
-            <div className="space-y-3">
-              <div className="p-3.5 rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50/90 via-white to-amber-50/40 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <span className="p-2 rounded-xl bg-amber-500 text-white shadow-xs">
-                    <Flame className="w-4 h-4 animate-bounce" />
-                  </span>
-                  <div>
-                    <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
-                      <span>
-                        {todayList.length > 0
-                          ? `Việc Cần Thực Hiện Hôm Nay (${todayList.length})`
-                          : doneTodayList.length > 0
-                            ? `Công Việc Hôm Nay (${doneTodayList.length} việc đã xong)`
-                            : `Việc Hôm Nay (0)`}
-                        {plot?.plotCode ? ` • Thửa ${plot.plotCode}` : ''}
-                      </span>
+        <div className="space-y-5">
+          {/* ========================================================= */}
+          {/* TAB: TẤT CẢ (ALL) — Chỉ hiện các mục có việc, KHÔNG lặp lại */}
+          {/* ========================================================= */}
+          {statusFilter === 'ALL' && (
+            <>
+              {/* 1. Việc hôm nay */}
+              {todayList.length > 0 && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                    <h4 className="font-heading font-black text-sm text-amber-950 flex items-center gap-2">
+                      <Flame className="w-4 h-4 text-amber-600" />
+                      <span>Việc Cần Thực Hiện Hôm Nay ({todayList.length})</span>
+                      {plot?.plotCode && <span className="text-xs text-amber-800 font-normal">· Thửa {plot.plotCode}</span>}
                     </h4>
-                    <p className="text-[11px] text-amber-800 font-medium">
-                      {isSelf
-                        ? "Nhiệm vụ cần chủ vườn thực hiện chăm sóc trong ngày theo quy trình VietGAP"
-                        : "Nhiệm vụ nhân viên hiện trường phụ trách thực hiện và báo cáo trong ngày"}
-                    </p>
+                    <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
+                      Cần làm hôm nay
+                    </span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {todayList.map((act) => (
+                      <StaffActivityCard
+                        key={act.activityId || act.id}
+                        activity={{ ...act, isToday: true }}
+                        onOpenPhoto={onOpenPhoto}
+                        isSelf={isSelf}
+                        onToggleTask={onToggleTask}
+                        onDeleteTask={onDeleteTask}
+                      />
+                    ))}
                   </div>
                 </div>
+              )}
+
+              {/* 2. Kế hoạch sắp tới */}
+              {upcomingList.length > 0 && (
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                    <h4 className="font-heading font-black text-sm text-stone-800 flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-stone-500" />
+                      <span>Kế Hoạch Việc Chưa Tới ({upcomingList.length})</span>
+                    </h4>
+                    <span className="text-[11px] font-semibold text-stone-600 bg-stone-100 px-2.5 py-0.5 rounded-full border border-stone-200">
+                      Chưa tới hạn
+                    </span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {upcomingList.map((act) => (
+                      <StaffActivityCard
+                        key={act.activityId || act.id}
+                        activity={{ ...act, isUpcoming: true }}
+                        onOpenPhoto={onOpenPhoto}
+                        isSelf={isSelf}
+                        onToggleTask={onToggleTask}
+                        onDeleteTask={onDeleteTask}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Lịch sử đã hoàn tất (Chỉ render 1 lần, không trùng việc hôm nay) */}
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                  <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                    <span>Lịch Sử Đã Hoàn Tất ({doneList.length})</span>
+                  </h4>
+                </div>
+                {doneList.length === 0 ? (
+                  <p className="text-xs text-stone-400 italic p-3 text-center bg-stone-50 rounded-xl">
+                    Chưa có công việc nào hoàn tất.
+                  </p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {doneList.map((act) => (
+                      <StaffActivityCard
+                        key={act.activityId || act.id}
+                        activity={act}
+                        onOpenPhoto={onOpenPhoto}
+                        isSelf={isSelf}
+                        onToggleTask={onToggleTask}
+                        onDeleteTask={onDeleteTask}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ========================================================= */}
+          {/* TAB: HÔM NAY (TODAY)                                      */}
+          {/* ========================================================= */}
+          {statusFilter === 'TODAY' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-amber-600" />
+                  <span>
+                    {todayList.length > 0
+                      ? `Việc Cần Thực Hiện Hôm Nay (${todayList.length})`
+                      : doneTodayList.length > 0
+                      ? `Công Việc Hôm Nay (${doneTodayList.length} việc đã xong)`
+                      : `Việc Hôm Nay (0)`}
+                    {plot?.plotCode ? ` • Thửa ${plot.plotCode}` : ''}
+                  </span>
+                </h4>
                 {todayList.length > 0 ? (
-                  <span className="text-[11px] font-bold text-amber-900 bg-amber-200/80 px-2.5 py-1 rounded-full border border-amber-300 shadow-2xs self-start sm:self-auto">
-                    Ưu tiên thực hiện trong ngày
+                  <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300">
+                    Cần làm hôm nay
                   </span>
                 ) : (
-                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300 self-start sm:self-auto flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5 stroke-[3]" /> {upcomingList.length ? 'Chưa tới lịch' : 'Không có việc đến hạn'}
+                  <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                    ✓ Đã hoàn thành
                   </span>
                 )}
               </div>
 
-              {todayList.length === 0 ? (
-                <div className="p-5 text-center bg-emerald-50/70 rounded-2xl border border-emerald-300 flex flex-col items-center gap-1.5 shadow-2xs">
-                  <CheckCircle2 className="w-7 h-7 text-emerald-600" />
-                  <p className="font-heading font-black text-stone-900 text-sm">
-                    {doneTodayList.some(a => isHarvestTask(a.title))
-                      ? 'Nhiệm vụ thu hoạch và toàn bộ công việc hôm nay đã hoàn thành!'
-                      : doneTodayList.length > 0
-                        ? 'Đã hoàn thành toàn bộ công việc cần làm hôm nay tại thửa đất này!'
-                        : `Hôm nay chưa có việc mới đến hạn tại ${plot?.plotCode ? `Thửa ${plot.plotCode}` : (plot?.name || 'thửa đất này')}.`}
-                  </p>
-                  <p className="text-xs text-stone-600 max-w-md">
-                    {doneTodayList.length > 0
-                      ? `Đã nghiệm thu ${doneTodayList.length} công việc có kèm ảnh minh chứng thực địa và cập nhật vào Nhật ký canh tác.`
-                      : (upcomingList.length ? `Công việc tiếp theo: ${upcomingList[0].title}${upcomingList[0].date ? `, ngày ${upcomingList[0].date}` : ''}.` : 'Chưa có lịch công việc mới cho thửa này.')}
-                  </p>
+              {todayList.length === 0 && doneTodayList.length === 0 ? (
+                <div className="p-4 text-center bg-stone-50 rounded-2xl border border-stone-200 text-xs text-stone-500">
+                  Hôm nay chưa có việc mới đến hạn tại {plot?.plotCode ? `Thửa ${plot.plotCode}` : 'thửa đất này'}.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {todayList.map((act) => (
                     <StaffActivityCard
                       key={act.activityId || act.id}
@@ -1998,63 +1955,38 @@ function StaffActivitiesTab({
                       onDeleteTask={onDeleteTask}
                     />
                   ))}
-                </div>
-              )}
-
-              {/* Hiển thị các việc đã xong hôm nay (nhất là Thu hoạch) để đối chứng và tiện theo dõi */}
-              {doneTodayList.length > 0 && (
-                <div className="space-y-3 pt-3 border-t border-emerald-200/80">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-600" />
-                    <h5 className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
-                      Công việc đã hoàn thành hôm nay ({doneTodayList.length})
-                    </h5>
-                  </div>
-                  <div className="space-y-3">
-                    {doneTodayList.map((act) => (
-                      <StaffActivityCard
-                        key={act.activityId || act.id}
-                        activity={{ ...act, isToday: true, isDone: true }}
-                        onOpenPhoto={onOpenPhoto}
-                        isSelf={isSelf}
-                        onToggleTask={onToggleTask}
-                        onDeleteTask={onDeleteTask}
-                      />
-                    ))}
-                  </div>
+                  {doneTodayList.map((act) => (
+                    <StaffActivityCard
+                      key={act.activityId || act.id}
+                      activity={{ ...act, isToday: true, isDone: true }}
+                      onOpenPhoto={onOpenPhoto}
+                      isSelf={isSelf}
+                      onToggleTask={onToggleTask}
+                      onDeleteTask={onDeleteTask}
+                    />
+                  ))}
                 </div>
               )}
             </div>
           )}
 
-          {/* PHẦN 2: ⏳ KẾ HOẠCH VIỆC CHƯA TỚI (TÁCH BIỆT RÕ RÀNG) */}
-          {(statusFilter === 'ALL' || statusFilter === 'UPCOMING') && (
-            <div className="space-y-3 pt-2">
+          {/* ========================================================= */}
+          {/* TAB: CHƯA TỚI (UPCOMING)                                  */}
+          {/* ========================================================= */}
+          {statusFilter === 'UPCOMING' && (
+            <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-stone-200 pb-2">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-stone-100 text-stone-600">
-                    <Calendar className="w-4 h-4 text-stone-600" />
-                  </span>
-                  <div>
-                    <h4 className="font-heading font-black text-sm text-stone-800 flex items-center gap-2">
-                      <span>Kế Hoạch Việc Chưa Tới ({upcomingList.length})</span>
-                    </h4>
-                    <p className="text-[11px] text-stone-500">
-                      Lịch trình các công việc canh tác chuẩn VietGAP cho các giai đoạn sinh trưởng tiếp theo
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[11px] font-semibold text-stone-600 bg-stone-100 px-2.5 py-0.5 rounded-full border border-stone-200">
-                  Chưa tới hạn
-                </span>
+                <h4 className="font-heading font-black text-sm text-stone-800 flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-stone-500" />
+                  <span>Kế Hoạch Việc Chưa Tới ({upcomingList.length})</span>
+                </h4>
               </div>
-
               {upcomingList.length === 0 ? (
-                <p className="text-xs text-stone-400 italic p-4 text-center bg-stone-50 rounded-2xl">
+                <div className="p-4 text-center bg-stone-50 rounded-2xl border border-stone-200 text-xs text-stone-500">
                   Không có công việc kế hoạch sắp tới nào.
-                </p>
+                </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {upcomingList.map((act) => (
                     <StaffActivityCard
                       key={act.activityId || act.id}
@@ -2070,22 +2002,23 @@ function StaffActivitiesTab({
             </div>
           )}
 
-          {/* PHẦN 3: ✅ DANH SÁCH VIỆC ĐÃ HOÀN TẤT */}
-          {(statusFilter === 'ALL' || statusFilter === 'COMPLETED') && (
-            <div className="space-y-3 pt-2">
+          {/* ========================================================= */}
+          {/* TAB: ĐÃ HOÀN TẤT (COMPLETED)                               */}
+          {/* ========================================================= */}
+          {statusFilter === 'COMPLETED' && (
+            <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-stone-200 pb-2">
                 <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-700" />
                   <span>Lịch Sử Đã Hoàn Tất ({doneList.length})</span>
                 </h4>
               </div>
-
               {doneList.length === 0 ? (
-                <p className="text-xs text-stone-400 italic p-4 text-center bg-stone-50 rounded-2xl">
+                <div className="p-4 text-center bg-stone-50 rounded-2xl border border-stone-200 text-xs text-stone-500">
                   Chưa có công việc nào hoàn tất.
-                </p>
+                </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {doneList.map((act) => (
                     <StaffActivityCard
                       key={act.activityId || act.id}
@@ -2331,16 +2264,25 @@ function OverviewTab({
 }) {
   const [showMaintenanceView, setShowMaintenanceView] = useState(false);
 
-  // Tự động tắt view bảo trì khi chuyển sang mùa vụ khác (đặc biệt khi vừa gia hạn xong vụ mới)
+  // Kiểm tra xem thửa đất có vụ mùa nào đang gửi yêu cầu gia hạn chờ Admin phê duyệt không (BR11b)
+  const hasPendingApprovalSeason = seasons.some((s) => s.status === 'PENDING_APPROVAL');
+
+  // Tự động tắt view bảo trì khi chuyển sang mùa vụ khác (chỉ khi không bị khóa chờ duyệt)
   useEffect(() => {
-    setShowMaintenanceView(false);
-  }, [activeSeasonId]);
+    if (!hasPendingApprovalSeason) {
+      setShowMaintenanceView(false);
+    }
+  }, [activeSeasonId, hasPendingApprovalSeason]);
 
-  // Vụ chỉ ở trạng thái Soil Prep khi chính vụ đó đang ở chu kỳ SOIL_PREP/inFallow, HOẶC user bấm xem bảo trì cho vụ đang kết thúc (không áp dụng cho vụ SCHEDULED sắp tới)
-  const isSoilPrep = activeSeason?.status !== 'SCHEDULED' && (activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow || showMaintenanceView);
+  // Vụ chỉ ở trạng thái Soil Prep khi:
+  // 1. Thửa đất có vụ đang chờ Admin phê duyệt hợp đồng gia hạn (bắt buộc KHÓA Ở BẢO TRÌ ĐẤT BR23)
+  // 2. HOẶC chính vụ đó đang ở chu kỳ SOIL_PREP/inFallow, HOẶC user bấm xem bảo trì cho vụ đang kết thúc
+  const isSoilPrep = hasPendingApprovalSeason
+    || (activeSeason?.status !== 'SCHEDULED' && (activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow || showMaintenanceView));
 
-  // Đất đang trong thời gian đệm (buffer/fallow BR23) khi có vụ mùa đang nghỉ đất/cải tạo hoặc đang bảo trì
-  const isPlotInBuffer = seasons.some((s) => s.status === 'SOIL_PREP' || s.inFallow)
+  // Đất đang trong thời gian đệm (buffer/fallow BR23) khi có vụ mùa đang nghỉ đất/cải tạo hoặc đang bảo trì hoặc chờ duyệt
+  const isPlotInBuffer = hasPendingApprovalSeason
+    || seasons.some((s) => s.status === 'SOIL_PREP' || s.inFallow)
     || showMaintenanceView
     || plot?.status === 'MAINTENANCE'
     || (seasons.length > 0 && seasons.every((s) => s.status === 'COMPLETED'));
@@ -2395,15 +2337,54 @@ function OverviewTab({
         <SoilPrepView
           plot={plot}
           season={activeSeason}
-          nextSeason={seasons?.find((s) => s.seasonNumber > (activeSeason?.seasonNumber || 1))}
+          nextSeason={seasons?.find((s) => s.status === 'PENDING_APPROVAL' || s.seasonNumber > (activeSeason?.seasonNumber || 1))}
           onOpenRenewal={onOpenRenewal}
           latestHarvest={latestHarvest}
           onOpenHarvestReport={onOpenHarvestReport}
           onSimulateDay1={onSimulateDay1}
-          onBackToTimeline={() => setShowMaintenanceView(false)}
+          onBackToTimeline={() => !hasPendingApprovalSeason && setShowMaintenanceView(false)}
+          isPendingApproval={hasPendingApprovalSeason}
         />
       ) : (
         <>
+          {/* Thông báo nếu vụ mùa đang chờ Ban Quản Trị (Admin) phê duyệt */}
+          {activeSeason?.status === 'PENDING_APPROVAL' && (
+            <div className="rounded-3xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-orange-50/40 to-white p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-md text-xl">
+                  ⏳
+                </span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
+                      {`Vụ ${activeSeason.seasonNumber} · Chờ Admin Phê Duyệt`}
+                    </span>
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-900 border border-amber-300">
+                      Giống: {activeSeason.cropName}
+                    </span>
+                    <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-stone-700 border border-stone-200">
+                      Đã thanh toán VNPay 100%
+                    </span>
+                  </div>
+                  <h4 className="mt-1.5 text-base font-heading font-black text-amber-950">
+                    {activeSeason.seasonName || `Vụ ${activeSeason.seasonNumber}`} — Đang Chờ Ban Quản Trị Phê Duyệt Hợp Đồng (BR11b)
+                  </h4>
+                  <p className="mt-0.5 text-xs text-stone-600 max-w-2xl leading-relaxed">
+                    Yêu cầu gia hạn hợp đồng và giữ thửa đất đã được chuyển tới Ban Quản Trị. Quản trị viên đang rà soát phụ lục hợp đồng và phân công kỹ thuật viên phụ trách.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <a
+                  href="/admin?tab=contracts&subtab=renewals"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-700 hover:bg-amber-800 px-4 py-2 text-xs font-bold text-white transition shadow-xs cursor-pointer"
+                >
+                  <span>Mở Tab Admin Phê Duyệt ›</span>
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Thông báo nếu vụ mùa đang chọn chưa tới ngày bắt đầu (Vụ mới gia hạn hoặc vụ sắp tới) */}
           {activeSeason?.status === 'SCHEDULED' && (
             <div className="rounded-3xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -2444,16 +2425,16 @@ function OverviewTab({
             </div>
           )}
 
-          {/* 1. Hiện trạng cây trồng & Quy trình chuẩn theo ngày */}
-          {/* 1. Hiện trạng thửa đất: quy trình + sức khoẻ + cảnh báo trong một thẻ */}
-          <section aria-label="Hiện trạng thửa đất">
-            <PlotStatusHero
-              plot={plot}
-              cropProcess={cropProcess}
-              topAlerts={topAlerts}
-              liveProviderInfo={liveProviderInfo}
-            />
-          </section>
+          {/* Cảnh báo vi khí hậu & điều tiết tưới tự động (BR18) nếu có */}
+          {topAlerts.length > 0 && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-amber-300 bg-amber-50/90 px-4 py-2.5 text-xs text-amber-900 shadow-xs">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+              <span>
+                <strong>{explainAlert(topAlerts[0], plot.mode).title}:</strong> {explainAlert(topAlerts[0], plot.mode).explanation}{' '}
+                <strong className="text-amber-950">{explainAlert(topAlerts[0], plot.mode).action}</strong>
+              </span>
+            </div>
+          )}
 
           {/* 2. Dòng thời gian mốc ngày chuẩn VietGAP */}
           <Card className="p-5">
@@ -3005,6 +2986,51 @@ export default function CustomerPlotWorkspace({
   const [customSeasons, setCustomSeasons] = useState(null);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
 
+  // Lắng nghe sự kiện Admin duyệt gia hạn (qua BroadcastChannel hoặc localStorage)
+  useEffect(() => {
+    const plotKey = String(plot?.code || plot?.name || 'P-05').replace(/^PLOT-|^Thửa\s*/i, '').trim().toUpperCase();
+    const handleCheckApproved = () => {
+      try {
+        const saved = localStorage.getItem(`farmely_plot_seasons_${plotKey}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setCustomSeasons(parsed);
+          const activeS = parsed.find((s) => s.isCurrent || s.status === 'ACTIVE' || s.isApprovedByAdmin);
+          if (activeS) {
+            setActiveSeasonId(activeS.id);
+          }
+          setIsSeasonStarted(true);
+        }
+      } catch {}
+    };
+
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_contract_channel');
+        bc.onmessage = (event) => {
+          if (event?.data?.type === 'CONTRACT_RENEWAL_APPROVED') {
+            handleCheckApproved();
+          }
+        };
+      }
+    } catch {}
+
+    const onStorage = (e) => {
+      if (e.key === `farmely_plot_seasons_${plotKey}`) {
+        handleCheckApproved();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [plot?.code, plot?.name]);
+
   // Trạng thái kích hoạt mùa vụ: Trước khi bấm nút bắt đầu mùa vụ thì giữ trạng thái Sắp tới
   const [isSeasonStarted, setIsSeasonStarted] = useState(() => {
     try {
@@ -3098,7 +3124,7 @@ export default function CustomerPlotWorkspace({
 
   const taskStorageKey = useMemo(() => {
     const cropKey = (cropProcess?.cropKey || cropProcess?.cropName || plot?.crop || 'crop').replace(/\s+/g, '_');
-    return `farmely_self_tasks_${plot.id}_${cropKey}_v4`;
+    return `farmely_self_tasks_${plot.id}_${cropKey}_v5`;
   }, [plot.id, cropProcess?.cropKey, cropProcess?.cropName, plot?.crop]);
 
   // Quản lý công việc hằng ngày cho khách hàng tự canh tác (Requirement #3)
@@ -3153,7 +3179,7 @@ export default function CustomerPlotWorkspace({
           tasks.push({
             id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}`,
             activityId: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}`,
-            title: st.name ? `${st.name}: ${st.guide?.split('.')[0] || 'Kỹ thuật chăm sóc'}` : 'Chăm sóc theo quy trình VietGAP',
+            title: st.name || 'Chăm sóc theo quy trình VietGAP',
             day: st.dayStart,
             cropDay: st.dayStart,
             date: st.label || `Ngày ${st.dayStart}`,
@@ -3683,6 +3709,14 @@ export default function CustomerPlotWorkspace({
           : (openTaskCount > 0 ? `${openTaskCount} việc đang làm` : 'Đã hoàn thành đủ')),
       icon: CalendarCheck,
       tab: 'tasks'
+    },
+    {
+      label: 'Nhiệt độ thực địa',
+      value: activePlot.temp ? String(activePlot.temp).replace(/°C/i, '').trim() : '25.5',
+      unit: '°C',
+      note: activePlot.airHumidity ? `Ẩm ${activePlot.airHumidity} · Open-Meteo` : 'Open-Meteo Live Feed',
+      icon: CloudSun,
+      tab: 'overview'
     }
   ];
 
@@ -3746,6 +3780,15 @@ export default function CustomerPlotWorkspace({
                   Trạm {liveIotResult?.stationId || plot.stationId || 'AGRO-CUCHI'}
                   {activePlot.lastUpdated ? <span className="text-white/70 font-normal">· {activePlot.lastUpdated}</span> : ''}
                 </span>
+                <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-950/60 px-2.5 py-0.5 backdrop-blur text-lime-300">
+                  <CloudSun className="h-3.5 w-3.5 text-lime-300" />
+                  <span>Nhiệt độ {activePlot.temp ? (String(activePlot.temp).includes('°') ? activePlot.temp : `${activePlot.temp}°C`) : '25.5°C'}</span>
+                  {activePlot.airHumidity ? <span className="text-white/75 font-normal">· Ẩm {activePlot.airHumidity}</span> : null}
+                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-lime-300/90 bg-emerald-500/20 px-1.5 py-0.5 rounded-full">
+                    <span className="h-1.5 w-1.5 rounded-full bg-lime-400 animate-pulse" />
+                    Open-Meteo
+                  </span>
+                </span>
               </div>
               <h1 className="mt-2 font-heading text-2xl font-bold leading-tight tracking-tight !text-white drop-shadow sm:text-3xl lg:text-[2.15rem]">{plot.name}</h1>
               <p className="mt-1 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs sm:text-sm text-white/85">
@@ -3781,8 +3824,8 @@ export default function CustomerPlotWorkspace({
               </div>
             </div>
 
-            {/* 3 thẻ chỉ số nhanh */}
-            <div className="grid grid-cols-3 gap-2 lg:w-[420px]">
+            {/* 4 thẻ chỉ số nhanh (bao gồm Thời tiết thực địa) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 lg:w-[540px]">
               {heroStats.map((s, i) => {
                 const Icon = s.icon;
                 return (
@@ -4107,7 +4150,10 @@ export default function CustomerPlotWorkspace({
         onRenewSuccess={(updatedSeasons) => {
           setCustomSeasons(updatedSeasons);
           const newest = updatedSeasons[updatedSeasons.length - 1];
-          if (newest) setActiveSeasonId(newest.id);
+          // Khi vụ mới đang chờ duyệt, KHÔNG chuyển activeSeasonId để giữ nguyên ở view bảo trì đất (BR23)
+          if (newest && newest.status !== 'PENDING_APPROVAL') {
+            setActiveSeasonId(newest.id);
+          }
         }}
       />
 
