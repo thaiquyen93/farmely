@@ -46,7 +46,8 @@ export default function SeasonSelector({
             const isCompleted = season.status === 'COMPLETED';
             const isActive = season.status === 'ACTIVE';
             const isSoilPrep = season.status === 'SOIL_PREP' || season.inFallow;
-            const isScheduled = season.status === 'SCHEDULED' || (!isCompleted && !isActive && !isSoilPrep);
+            const isPendingApproval = season.status === 'PENDING_APPROVAL';
+            const isScheduled = season.status === 'SCHEDULED' || (!isCompleted && !isActive && !isSoilPrep && !isPendingApproval);
 
             return (
               <React.Fragment key={season.id}>
@@ -59,6 +60,8 @@ export default function SeasonSelector({
                       ? 'bg-emerald-800 text-white shadow-md ring-2 ring-emerald-300 scale-[1.02]'
                       : isCompleted
                       ? 'bg-stone-100 text-stone-700 hover:bg-stone-200/80 border border-stone-200'
+                      : isPendingApproval
+                      ? 'bg-amber-50 text-amber-900 border border-dashed border-amber-300 hover:bg-amber-100'
                       : isSoilPrep
                       ? 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
                       : isScheduled
@@ -68,6 +71,8 @@ export default function SeasonSelector({
                 >
                   {isCompleted ? (
                     <CheckCircle2 className={`h-4 w-4 shrink-0 ${isSelected ? 'text-lime-300' : 'text-emerald-700'}`} />
+                  ) : isPendingApproval ? (
+                    <Clock className={`h-4 w-4 shrink-0 animate-pulse ${isSelected ? 'text-amber-200' : 'text-amber-600'}`} />
                   ) : isSoilPrep ? (
                     <Sparkles className={`h-4 w-4 shrink-0 animate-pulse ${isSelected ? 'text-amber-200' : 'text-amber-600'}`} />
                   ) : isScheduled ? (
@@ -83,6 +88,8 @@ export default function SeasonSelector({
                     <span className={`block text-[10px] font-normal ${isSelected ? 'text-white/80' : 'text-stone-500'}`}>
                       {isCompleted
                         ? `Hoàn tất (${season.yieldKgActual ? `${season.yieldKgActual}kg` : `${season.totalDays}N`})`
+                        : isPendingApproval
+                        ? 'Chờ Admin duyệt (BR11b)'
                         : isSoilPrep
                         ? `Cải tạo đất (${season.fallowDays || 5} ngày)`
                         : isScheduled

@@ -85,6 +85,10 @@ public class AuthServiceImpl implements AuthService {
                 ? request.getRoleName().trim().toUpperCase()
                 : "CUSTOMER";
 
+        if ("ADMIN".equals(targetRoleName)) {
+            throw new AppException("Không thể tự đăng ký tài khoản quản trị viên", HttpStatus.FORBIDDEN);
+        }
+
         Role role = roleRepository.findByRoleName(targetRoleName)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy vai trò: " + targetRoleName));
 
