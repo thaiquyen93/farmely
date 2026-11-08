@@ -6,7 +6,7 @@
   gap: 0.5rem;
   background-color: var(--yellow);
   color: var(--green-dark);
-  font-family: 'Nunito', sans-serif;
+  font-family: var(--font-app);
   font-weight: 800;
   padding: 0.875rem 1.75rem;
   border-radius: 0.75rem;
@@ -29,7 +29,7 @@
   background-color: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(8px);
   color: #FFFFFF;
-  font-family: 'Nunito', sans-serif;
+  font-family: var(--font-app);
   font-weight: 700;
   padding: 0.875rem 1.75rem;
   border-radius: 0.75rem;
@@ -49,7 +49,7 @@
   gap: 0.5rem;
   background-color: transparent;
   color: var(--green);
-  font-family: 'Nunito', sans-serif;
+  font-family: var(--font-app);
   font-weight: 700;
   padding: 0.625rem 1.25rem;
   border-radius: 0.625rem;

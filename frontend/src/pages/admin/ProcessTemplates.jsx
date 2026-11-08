@@ -38,6 +38,7 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
   const [isLiveDb, setIsLiveDb] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   // Modal State
   const [uploadFileName, setUploadFileName] = useState('');
@@ -162,6 +163,24 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
     }
   };
 
+  const handleDelete = async (row) => {
+    const templateId = row.id || row.templateId;
+    if (!templateId || !window.confirm(`Xóa quy trình “${row.name || 'này'}”? Thao tác này không thể hoàn tác.`)) return;
+    setDeletingId(String(templateId));
+    try {
+      const response = await fetch(`/api/templates/${templateId}`, { method: 'DELETE' });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.success === false) {
+        throw new Error(payload?.message || 'Không thể xóa quy trình.');
+      }
+      setTemplates((current) => current.filter((template) => String(template.id || template.templateId) !== String(templateId)));
+    } catch (error) {
+      window.alert(error.message || 'Không thể xóa quy trình.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const columns = [
     {
       header: 'Tên Quy Trình Chuẩn',
@@ -227,6 +246,16 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
           >
             <Eye className="w-4 h-4" />
           </Link>
+          <button
+            type="button"
+            disabled={String(deletingId) === String(row.id || row.templateId)}
+            onClick={() => handleDelete(row)}
+            className="rounded-lg p-1.5 text-stone-400 transition-colors hover:bg-rose-50 hover:text-rose-700 disabled:cursor-wait disabled:opacity-50"
+            title="Xóa quy trình canh tác"
+            aria-label={`Xóa quy trình ${row.name || ''}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
         </div>
       )
     }

@@ -1082,6 +1082,7 @@ export function buildGeoJsonFromDbPlots(plots = []) {
         sizeNumber: areaNum,
         areaFormatted: `${areaNum} m²`,
         rentalPrice: priceNum,
+        careServicePrice: p.carePricePerMonth ?? p.care_price_per_month ?? p.careServicePrice ?? null,
         price: `${priceNum.toLocaleString('vi-VN')} đ`,
         rentalPriceFormatted: `${priceNum.toLocaleString('vi-VN')} đ/tháng`,
         status: statusLabel,

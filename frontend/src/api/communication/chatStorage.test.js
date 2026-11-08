@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { getStoredThreads, updateThreadRentalInStorage } from './chatStorage';
 
-describe('plot inbox synchronization', () => {
+describe('customer and expert chat synchronization', () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it('keeps separate plot conversations for one customer renting multiple plots', () => {
+  it('keeps one conversation for a customer across multiple plots', () => {
     const first = updateThreadRentalInStorage({
       threadId: 'CONS-101',
       rentalId: 101,
@@ -23,8 +23,8 @@ describe('plot inbox synchronization', () => {
     });
 
     expect(first.thread.id).toBe('CONS-101');
-    expect(second.thread.id).toBe('CONS-102');
-    expect(getStoredThreads().filter((thread) => thread.customerName === 'Nguyễn An')).toHaveLength(2);
-    expect(getStoredThreads().find((thread) => thread.id === 'CONS-102')).toMatchObject({ rentalId: 102, plotCode: 'P-02' });
+    expect(second.thread.id).toBe('CONS-101');
+    expect(getStoredThreads().filter((thread) => thread.customerName === 'Nguyễn An')).toHaveLength(1);
+    expect(getStoredThreads().find((thread) => thread.id === 'CONS-101')).not.toHaveProperty('plotCode');
   });
 });

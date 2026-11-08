@@ -27,6 +27,9 @@ public class LandEntity {
     @Column(name = "address", nullable = false, columnDefinition = "TEXT")
     private String address;
 
+    @Column(name = "image_url", columnDefinition = "TEXT")
+    private String imageUrl;
+
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 

@@ -158,12 +158,11 @@ try {
 
     $configuredPort = if ($env:DB_PORT) { [int]$env:DB_PORT } else { 5432 }
     $localPostgresPort = $null
-    if (Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue) {
-        $localPostgresPort = 5432
-    } elseif (Get-NetTCPConnection -LocalPort $configuredPort -State Listen -ErrorAction SilentlyContinue) {
-        $localPostgresPort = $configuredPort
-    } elseif (Get-NetTCPConnection -LocalPort 5433 -State Listen -ErrorAction SilentlyContinue) {
-        $localPostgresPort = 5433
+    foreach ($candidatePort in @($configuredPort, 5432, 5433) | Select-Object -Unique) {
+        if (Get-NetTCPConnection -LocalPort $candidatePort -State Listen -ErrorAction SilentlyContinue) {
+            $localPostgresPort = $candidatePort
+            break
+        }
     }
     $localPostgres = ($null -ne $localPostgresPort)
 
@@ -410,7 +409,7 @@ SIMILARITY_THRESHOLD=0.10
         $nodeExecutable = (Get-Command node.exe -ErrorAction Stop).Source
         $viteScript = Join-Path $frontendRoot 'node_modules\vite\bin\vite.js'
         $frontendProcess = Start-Process -FilePath $nodeExecutable `
-            -ArgumentList @($viteScript, '--host', '127.0.0.1') `
+            -ArgumentList @($viteScript, '--host', '127.0.0.1', '--port', "$frontendPort", '--strictPort') `
             -WorkingDirectory $frontendRoot `
             -RedirectStandardOutput (Join-Path $runtimeDir 'frontend.out.log') `
             -RedirectStandardError (Join-Path $runtimeDir 'frontend.err.log') `
@@ -461,7 +460,7 @@ SIMILARITY_THRESHOLD=0.10
 
     Write-Host ''
     Write-Host 'Farmely is ready:' -ForegroundColor Green
-    Write-Host '  Frontend:      http://localhost:3000'
+    Write-Host "  Frontend:      http://localhost:$frontendPort"
     Write-Host '  API gateway:   http://localhost:8080'
     Write-Host '  Payment API:   http://localhost:8085/swagger-ui.html'
     Write-Host '  Communication: http://localhost:8087/swagger-ui.html'

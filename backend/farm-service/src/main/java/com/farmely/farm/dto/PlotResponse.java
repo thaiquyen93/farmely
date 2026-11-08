@@ -24,6 +24,7 @@ public class PlotResponse {
     /** Ranh giới (ring mở [lng, lat]) hoặc null */
     private List<List<Double>> boundary;
     private BigDecimal pricePerPeriod;
+    private BigDecimal carePricePerMonth;
     private PlotStatus status;
     private Boolean isPublished;
     private OffsetDateTime createdAt;

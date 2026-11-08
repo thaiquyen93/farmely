@@ -260,6 +260,7 @@ export default function MarketplacePlotDetailPanel({
   const areaNumber = parseInt(String(plotArea).replace(/\D/g, ''), 10) || 150;
   const rentalPriceNum =
     plot.rentalPrice || parseInt(String(plotPrice).replace(/\D/g, ''), 10) || 1200000;
+  const carePricePerMonth = plot.carePricePerMonth ?? plot.care_price_per_month ?? plot.careServicePrice;
   const unitPricePerSqm = Math.round(rentalPriceNum / areaNumber);
   const formattedUnitPrice = `${unitPricePerSqm.toLocaleString('vi-VN')} đ/m²`;
 
@@ -354,6 +355,7 @@ export default function MarketplacePlotDetailPanel({
 
   const livePrice = computePlotLeasePrice({
     monthlyRent: rentalPriceNum,
+    carePricePerMonth,
     termMonths: leaseConfig.termMonths,
     cultivationMode: leaseConfig.cultivationMode
   });
@@ -697,6 +699,7 @@ export default function MarketplacePlotDetailPanel({
               cultivationMode={leaseConfig.cultivationMode}
               termMonths={leaseConfig.termMonths}
               monthlyRent={rentalPriceNum}
+              carePricePerMonth={carePricePerMonth}
               onChange={onChangeLeaseConfig}
               compact={true}
               showErrors={showConfigErrors}

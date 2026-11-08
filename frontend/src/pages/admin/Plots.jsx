@@ -177,6 +177,7 @@ export default function Plots() {
     {
       header: 'Mã & Tên Thửa Đất',
       key: 'name',
+      width: '190px',
       sortable: true,
       render: (row) => (
         <div className="flex items-center gap-3">
@@ -186,7 +187,7 @@ export default function Plots() {
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand-border bg-brand-cream text-brand-green"><Map className="h-5 w-5" /></span>
           )}
           <div>
-            <span className="text-[11px] font-black font-mono text-brand-yellow bg-brand-dark px-1.5 py-0.5 rounded">
+            <span className="inline-block whitespace-nowrap text-[11px] font-black font-mono text-brand-yellow bg-brand-dark px-1.5 py-0.5 rounded">
               {row.code}
             </span>
             <span className="text-[11px] text-stone-500 block mt-0.5">
@@ -199,9 +200,10 @@ export default function Plots() {
     {
       header: 'Khu Nông Trại (Land)',
       key: 'landName',
+      width: '175px',
       sortable: true,
       render: (row) => (
-        <Link to={`/admin/master-data/lands/${row.landId}`} className="text-xs text-stone-700 font-medium hover:text-brand-green">
+        <Link to={`/admin/master-data/lands/${row.landId}`} title={row.landName} className="block whitespace-normal break-words text-xs text-stone-700 font-medium hover:text-brand-green">
           {row.landName}
         </Link>
       )
@@ -209,6 +211,7 @@ export default function Plots() {
     {
       header: 'Giống & Quy Trình (Expert)',
       key: 'compatibleVarietiesCount',
+      width: '240px',
       sortable: true,
       render: (row) => row.compatibleVarietiesCount > 0 ? (
         <div className="space-y-0.5">
@@ -228,12 +231,14 @@ export default function Plots() {
     {
       header: 'Diện Tích',
       key: 'areaNum',
+      width: '105px',
       sortable: true,
       render: (row) => <span className="font-bold text-brand-dark text-xs">{row.area}</span>
     },
     {
       header: 'Ranh Giới',
       key: 'drawn',
+      width: '120px',
       render: (row) => row.drawn
         ? <span className="text-xs font-semibold text-emerald-700">Đã vẽ · {row.corners} góc</span>
         : <span className="text-xs text-stone-400">Chưa vẽ</span>
@@ -241,6 +246,7 @@ export default function Plots() {
     {
       header: 'Giá Thuê / Tháng',
       key: 'rentalPrice',
+      width: '130px',
       sortable: true,
       render: (row) => (
         <span className="font-heading font-bold text-brand-green text-xs">
@@ -251,6 +257,7 @@ export default function Plots() {
     {
       header: 'Trạng Thái',
       key: 'status',
+      width: '120px',
       sortable: true,
       render: (row) => {
         if (row.isPublished) {
@@ -277,6 +284,7 @@ export default function Plots() {
     {
       header: 'Tiến Trình Canh Tác',
       key: 'cultivation',
+      width: '215px',
       render: (row) => row.activeRental ? (
         <div
           role="button"
@@ -320,8 +328,9 @@ export default function Plots() {
     {
       header: 'Hành Động',
       key: 'actions',
+      width: '210px',
       render: (row) => (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
           {/* Nút bấm chuyển trạng thái Active / Unactive */}
           <button
             type="button"
@@ -488,6 +497,7 @@ export default function Plots() {
       <DataTable
         columns={columns}
         data={filteredPlots}
+        tableClassName="min-w-[1505px] table-fixed"
         searchPlaceholder="Tìm theo mã thửa..."
         searchField="code"
         filterComponent={filterComponent}

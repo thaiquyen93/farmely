@@ -15,13 +15,16 @@ export default function PlotLeaseOptions({
   cultivationMode = null,
   termMonths = 3,
   monthlyRent = 1200000,
+  carePricePerMonth,
   onChange = () => {},
   compact = false,
   showErrors = false
 }) {
   const growthDays = getCropGrowthDays(crop);
-  const careFee = getCareFeePerMonth(monthlyRent);
-  const pricing = computePlotLeasePrice({ monthlyRent, termMonths, cultivationMode });
+  const careFee = carePricePerMonth !== undefined && carePricePerMonth !== null
+    ? Math.max(0, Number(carePricePerMonth) || 0)
+    : getCareFeePerMonth(monthlyRent);
+  const pricing = computePlotLeasePrice({ monthlyRent, carePricePerMonth, termMonths, cultivationMode });
   const isModeMissing = !cultivationMode;
 
   const handleModeChange = (mode) => {

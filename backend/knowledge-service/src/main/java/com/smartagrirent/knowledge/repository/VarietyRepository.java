@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface VarietyRepository extends JpaRepository<Variety, Integer> {
     List<Variety> findByCropId(Integer cropId);
+    List<Variety> findByIsActiveTrueOrderByVarietyIdAsc();
+    List<Variety> findByCropIdAndIsActiveTrueOrderByVarietyIdAsc(Integer cropId);
 }

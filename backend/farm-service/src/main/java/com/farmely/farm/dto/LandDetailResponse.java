@@ -15,6 +15,7 @@ public class LandDetailResponse {
     private Integer landId;
     private String landName;
     private String address;
+    private String imageUrl;
     private String description;
     private List<List<Double>> boundary;
     private Double boundaryAreaM2;
