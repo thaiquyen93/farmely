@@ -744,6 +744,9 @@ export default function BookPlot() {
       }
     }
 
+    const cleanDigits = parseInt(String(plot.code || plot.plotCode || plot.id).replace(/\D/g, ''), 10);
+    if (!isNaN(cleanDigits) && cleanDigits > 0) return cleanDigits;
+
     return null;
   }, [findPlotByAnyCode]);
 
@@ -765,8 +768,12 @@ export default function BookPlot() {
       const termMonths = cfg.termMonths || 3;
       // Đảm bảo thỏa mãn BR04: rentDays >= variety.minDays
       const days = Math.max(termMonths * 30, crop?.minDays || 35);
-      const end = new Date(start);
-      end.setDate(end.getDate() + days);
+      const parts = startStr.split('-').map(Number);
+      const end = new Date(parts[0], parts[1] - 1, parts[2] + days);
+      const endYear = end.getFullYear();
+      const endMonth = String(end.getMonth() + 1).padStart(2, '0');
+      const endDay = String(end.getDate()).padStart(2, '0');
+      const endDateStr = `${endYear}-${endMonth}-${endDay}`;
 
       const parsedVarId = Number(crop?.varietyId)
         || (cfg.cropId ? parseInt(String(cfg.cropId).replace(/\D/g, ''), 10) : null)
@@ -781,7 +788,7 @@ export default function BookPlot() {
         cultivationMode: cfg.cultivationMode || 'SELF',
         termMonths: termMonths,
         startDate: startStr,
-        endDate: end.toISOString().split('T')[0]
+        endDate: endDateStr
       };
     });
 
