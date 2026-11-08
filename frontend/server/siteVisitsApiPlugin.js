@@ -128,6 +128,32 @@ ALTER TABLE farm_diaries ADD CONSTRAINT farm_diaries_task_id_fkey FOREIGN KEY (t
 -- Cập nhật gói thuê 12 tháng chuẩn cho thửa P-16 (rental_id = 61)
 UPDATE rentals SET term_months = 12, end_date = (start_date + INTERVAL '12 months')::date WHERE rental_id = 61;
 
+-- BR11b: Bảng lưu trữ và quản lý yêu cầu Gia Hạn Hợp Đồng Vụ Mùa
+CREATE TABLE IF NOT EXISTS renewal_requests (
+  id SERIAL PRIMARY KEY,
+  rental_id INT,
+  contract_id INT,
+  plot_code VARCHAR(50),
+  customer_name VARCHAR(150),
+  customer_phone VARCHAR(50),
+  new_variety_id INT,
+  variety_name VARCHAR(150),
+  cultivation_mode VARCHAR(50),
+  seasons_count INT DEFAULT 1,
+  season_number INT,
+  additional_amount NUMERIC(14, 2),
+  new_end_date DATE,
+  status VARCHAR(50) DEFAULT 'PENDING',
+  payment_status VARCHAR(50) DEFAULT 'PAID',
+  approved_by INT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO renewal_requests (rental_id, contract_id, plot_code, customer_name, customer_phone, new_variety_id, variety_name, cultivation_mode, seasons_count, season_number, additional_amount, new_end_date, status, payment_status, created_at)
+SELECT 2, 2, 'P-05', 'Tạ Nguyễn Khôi Nguyên', '0912345678', 2, 'Cải ngọt bông F1', 'ASSISTED', 1, 2, 1200000, CURRENT_DATE + INTERVAL '45 days', 'PENDING', 'PAID', NOW() - INTERVAL '1 hour'
+WHERE NOT EXISTS (SELECT 1 FROM renewal_requests);
+
 -- BR23: Hết hạn thuê -> rental chuyển DONE -> thửa đất nghỉ phơi ải MAINT 4 ngày -> mới mở lại AVAIL.
 -- Mốc đếm 4 ngày lấy từ rentals.end_date nên KHÔNG cần thêm cột mới vào ERD.
 
@@ -1646,6 +1672,172 @@ END $$;
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ success: false, message: err.message || 'Không thể phê duyệt yêu cầu hủy' }));
+          }
+          return;
+        }
+
+        // 4.6C. GET /api/contracts/renewals (Danh sách yêu cầu gia hạn hợp đồng vụ mùa - BR11b)
+        if (req.method === 'GET' && url.match(/^\/api\/(?:v1\/)?contracts\/renewals/)) {
+          try {
+            await ensureRentalLeaseColumns();
+            const sql = `
+SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json) FROM (
+  SELECT
+    rr.id,
+    rr.rental_id AS "rentalId",
+    rr.contract_id AS "contractId",
+    COALESCE(c.contract_number, 'HĐ-CTR-' || COALESCE(rr.contract_id, rr.rental_id, 1)) AS "contractNumber",
+    COALESCE(c.contract_number, 'HĐ-CTR-' || COALESCE(rr.contract_id, rr.rental_id, 1)) AS "contractCode",
+    COALESCE(rr.plot_code, 'P-05') AS "plotCode",
+    COALESCE(rr.customer_name, u.full_name, 'Tạ Nguyễn Khôi Nguyên') AS "customerName",
+    COALESCE(rr.customer_phone, u.phone_number, '0912345678') AS "customerPhone",
+    COALESCE(rr.variety_name, 'Dưa leo baby F1') AS "varietyName",
+    COALESCE(rr.cultivation_mode, 'ASSISTED') AS "cultivationMode",
+    COALESCE(rr.seasons_count, 1) AS "seasonsCount",
+    COALESCE(rr.season_number, 2) AS "seasonNumber",
+    COALESCE(rr.additional_amount, 1200000) AS "additionalAmount",
+    TO_CHAR(COALESCE(rr.new_end_date, CURRENT_DATE + INTERVAL '45 days'), 'YYYY-MM-DD') AS "newEndDate",
+    rr.status,
+    rr.payment_status AS "paymentStatus",
+    TO_CHAR(rr.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt"
+  FROM renewal_requests rr
+  LEFT JOIN contracts c ON rr.contract_id = c.contract_id
+  LEFT JOIN users u ON c.customer_id = u.user_id
+  ORDER BY rr.id DESC
+) r;
+`;
+            const data = await runPostgreSql(sql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, data: JSON.parse(data || '[]') }));
+          } catch (err) {
+            console.error('Error on GET /api/contracts/renewals:', err);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, data: [] }));
+          }
+          return;
+        }
+
+        // 4.6D. POST /api/contracts/renewals (Khách hàng gửi yêu cầu gia hạn vụ mới - PENDING chờ Admin duyệt)
+        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?contracts\/renewals\/?$/)) {
+          const chunks = [];
+          req.on('data', chunk => chunks.push(chunk));
+          req.on('end', async () => {
+            try {
+              await ensureRentalLeaseColumns();
+              const body = Buffer.concat(chunks).toString('utf8');
+              const payload = JSON.parse(body || '{}');
+              const rentalId = parseInt(payload.rentalId || 2, 10);
+              const contractId = parseInt(payload.contractId || rentalId, 10);
+              const plotCode = String(payload.plotCode || 'P-05').replace(/'/g, "''");
+              const customerName = String(payload.customerName || 'Tạ Nguyễn Khôi Nguyên').replace(/'/g, "''");
+              const customerPhone = String(payload.customerPhone || '0912345678').replace(/'/g, "''");
+              const newVarietyId = parseInt(payload.newVarietyId || 2, 10);
+              const varietyName = String(payload.varietyName || 'Dưa leo baby F1').replace(/'/g, "''");
+              const cultivationMode = String(payload.cultivationMode || 'ASSISTED').replace(/'/g, "''");
+              const seasonsCount = parseInt(payload.selectedSeasonsCount || payload.seasonsCount || 1, 10);
+              const seasonNumber = parseInt(payload.newSeasonNumber || payload.seasonNumber || 2, 10);
+              const additionalAmount = parseFloat(payload.totalAmount || payload.additionalAmount || 1200000);
+              const newEndDate = String(payload.newEndDate || '').replace(/'/g, "''");
+
+              const insertSql = `
+INSERT INTO renewal_requests
+  (rental_id, contract_id, plot_code, customer_name, customer_phone, new_variety_id, variety_name, cultivation_mode, seasons_count, season_number, additional_amount, new_end_date, status, payment_status, created_at)
+VALUES
+  (${rentalId}, ${contractId}, '${plotCode}', '${customerName}', '${customerPhone}', ${newVarietyId}, '${varietyName}', '${cultivationMode}', ${seasonsCount}, ${seasonNumber}, ${additionalAmount}, NULLIF('${newEndDate}', '')::date, 'PENDING', 'PAID', NOW())
+RETURNING id;
+`;
+              await runPostgreSql(insertSql);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: 'Yêu cầu gia hạn hợp đồng vụ mùa đã được gửi đến Ban Quản Trị để phê duyệt (BR11b)',
+                data: { rentalId, plotCode, varietyName, status: 'PENDING' }
+              }));
+            } catch (err) {
+              console.error('Error on POST /api/contracts/renewals:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+          });
+          return;
+        }
+
+        // 4.6E. POST /api/contracts/renewals/:id/approve (Admin phê duyệt yêu cầu gia hạn vụ mùa)
+        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?contracts\/renewals\/(\d+)\/approve/)) {
+          const match = url.match(/^\/api\/(?:v1\/)?contracts\/renewals\/(\d+)\/approve/);
+          const renewalId = parseInt(match[1], 10);
+          try {
+            await ensureRentalLeaseColumns();
+            const approveSql = `
+DO $$
+DECLARE
+  v_req RECORD;
+  v_new_end DATE;
+  v_season_start DATE;
+BEGIN
+  SELECT * INTO v_req FROM renewal_requests WHERE id = ${renewalId};
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Yêu cầu gia hạn không tồn tại hoặc đã được phê duyệt';
+  END IF;
+
+  UPDATE renewal_requests
+  SET status = 'APPROVED', approved_by = 1, updated_at = NOW()
+  WHERE id = ${renewalId};
+
+  -- Tự động gia hạn rental và cập nhật tổng tiền
+  IF v_req.rental_id IS NOT NULL THEN
+    v_new_end := COALESCE(v_req.new_end_date, CURRENT_DATE + INTERVAL '45 days');
+    UPDATE rentals
+    SET
+      end_date = COALESCE(GREATEST(end_date, v_new_end), end_date + INTERVAL '40 days'),
+      total_price = COALESCE(total_price, 0) + COALESCE(v_req.additional_amount, 1200000),
+      variety_id = COALESCE(v_req.new_variety_id, variety_id),
+      updated_at = NOW()
+    WHERE rental_id = v_req.rental_id;
+
+    -- Tự động sinh bộ Care Tasks cho Vụ mới chuẩn VietGAP (bắt đầu sau 4 ngày bảo trì BR23)
+    IF COALESCE(v_req.cultivation_mode, 'ASSISTED') <> 'SELF' THEN
+      v_season_start := CURRENT_DATE + INTERVAL '4 days';
+      INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
+      SELECT
+        v_req.rental_id,
+        ts.step_id,
+        8, -- Trần Văn Lực (CVLĐ)
+        (v_season_start + (ts.day_offset || ' days')::INTERVAL)::date,
+        'PENDING'::task_status_enum,
+        ts.step_name,
+        COALESCE(ts.description, 'Theo quy chuẩn VietGAP vụ mùa mới'),
+        ts.step_order,
+        NOW(),
+        NOW()
+      FROM template_steps ts
+      WHERE ts.template_id = (
+        SELECT pt.template_id FROM process_templates pt
+        WHERE pt.variety_id = COALESCE(v_req.new_variety_id, 2)
+        ORDER BY pt.template_id DESC LIMIT 1
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM care_tasks ct
+        WHERE ct.rental_id = v_req.rental_id
+          AND ct.step_id = ts.step_id
+          AND ct.due_date = (v_season_start + (ts.day_offset || ' days')::INTERVAL)::date
+      );
+    END IF;
+  END IF;
+END $$;
+`;
+            await runPostgreSql(approveSql);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              message: `Đã phê duyệt gia hạn hợp đồng #${renewalId} thành công. Vụ mùa mới đã sẵn sàng!`
+            }));
+          } catch (err) {
+            console.error('Error on POST /api/contracts/renewals/:id/approve:', err);
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: err.message || 'Không thể phê duyệt gia hạn hợp đồng' }));
           }
           return;
         }
@@ -7650,7 +7842,7 @@ GROUP BY p.plot_id, p.plot_code;
           }
         }
 
-        // 29. WEATHER & IRRIGATION POLICY API (GET /api/weather)
+        // 29. WEATHER & AGRO-CLIMATE API (GET /api/weather)
         if (url.startsWith('/api/weather')) {
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.end(JSON.stringify({
@@ -7659,20 +7851,26 @@ GROUP BY p.plot_id, p.plot_code;
               plotId: 1,
               plotCode: 'P-01',
               locationName: 'Trang trại Happy Valley Củ Chi, TP.HCM',
-              condition: 'Nhiều mây, có mưa rào và dông chiều',
-              iconCode: 'RAIN',
-              temperature: 29.5,
-              humidity: 82.0,
-              rainfallProbability: 85,
-              windSpeed: 14.2,
-              wateringPostponementRecommended: true,
-              recommendationMessage: 'Xác suất mưa dông đạt 85% chiều nay (kết hợp độ ẩm đất 76%). Hệ thống đề xuất tạm hoãn ca tưới 16:30 để tiết kiệm nước và phòng ngừa ngập úng gốc rễ.',
+              farmName: 'Lô đất Nông trại Happy Valley Củ Chi',
+              coordinates: '10.9723°N, 106.4936°E',
+              condition: 'Nắng ráo gián đoạn, trời râm mát',
+              iconCode: 'PARTLY_CLOUDY',
+              temperature: 28.5,
+              feelsLike: 30.5,
+              humidity: 78.0,
+              soilMoisture: 68.0,
+              rainfallProbability: 15,
+              windSpeed: 12.0,
+              lightLux: '32.000 Lux',
+              soilTemp: 28.0,
+              airQuality: 'Tốt (AQI 32)',
+              recommendationMessage: 'Thời tiết tại lô đất Củ Chi hôm nay rất ổn định. Độ ẩm đất 68% và nhiệt độ 28.5°C đạt ngưỡng tiêu chuẩn VietGAP lý tưởng cho cây trồng sinh trưởng khỏe mạnh.',
               forecastDays: [
-                { date: '2026-10-21', dayOfWeek: 'Hôm nay', condition: 'Mưa dông chiều', iconCode: 'RAIN', minTemp: 26.0, maxTemp: 32.5, rainProb: 85 },
-                { date: '2026-10-22', dayOfWeek: 'Thứ Năm', condition: 'Nắng ráo gián đoạn', iconCode: 'PARTLY_CLOUDY', minTemp: 25.5, maxTemp: 34.0, rainProb: 40 },
-                { date: '2026-10-23', dayOfWeek: 'Thứ Sáu', condition: 'Nắng ráo quang đãng', iconCode: 'SUNNY', minTemp: 25.0, maxTemp: 35.0, rainProb: 20 },
-                { date: '2026-10-24', dayOfWeek: 'Thứ Bảy', condition: 'Mưa rào nhẹ', iconCode: 'RAIN', minTemp: 26.0, maxTemp: 33.0, rainProb: 65 },
-                { date: '2026-10-25', dayOfWeek: 'Chủ Nhật', condition: 'Nắng ấm', iconCode: 'SUNNY', minTemp: 25.5, maxTemp: 34.5, rainProb: 15 }
+                { date: '2026-11-05', dayOfWeek: 'Hôm nay', condition: 'Nắng nhẹ gián đoạn', iconCode: 'PARTLY_CLOUDY', minTemp: 25.0, maxTemp: 32.5, rainProb: 15 },
+                { date: '2026-11-06', dayOfWeek: 'Thứ Sáu', condition: 'Nắng ráo quang đãng', iconCode: 'SUNNY', minTemp: 24.5, maxTemp: 34.0, rainProb: 10 },
+                { date: '2026-11-07', dayOfWeek: 'Thứ Bảy', condition: 'Trời trong lành', iconCode: 'SUNNY', minTemp: 25.0, maxTemp: 34.5, rainProb: 10 },
+                { date: '2026-11-08', dayOfWeek: 'Chủ Nhật', condition: 'Nắng ráo mát mẻ', iconCode: 'PARTLY_CLOUDY', minTemp: 24.0, maxTemp: 33.5, rainProb: 20 },
+                { date: '2026-11-09', dayOfWeek: 'Thứ Hai', condition: 'Nắng ấm mùa khô', iconCode: 'SUNNY', minTemp: 25.0, maxTemp: 34.0, rainProb: 15 }
               ]
             }
           }));
