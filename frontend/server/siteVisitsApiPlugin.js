@@ -125,6 +125,9 @@ ALTER TABLE farm_diaries ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
 ALTER TABLE farm_diaries DROP CONSTRAINT IF EXISTS farm_diaries_task_id_fkey;
 ALTER TABLE farm_diaries ADD CONSTRAINT farm_diaries_task_id_fkey FOREIGN KEY (task_id) REFERENCES care_tasks(task_id) ON DELETE SET NULL;
 
+-- Cập nhật gói thuê 12 tháng chuẩn cho thửa P-16 (rental_id = 61)
+UPDATE rentals SET term_months = 12, end_date = (start_date + INTERVAL '12 months')::date WHERE rental_id = 61;
+
 -- BR23: Hết hạn thuê -> rental chuyển DONE -> thửa đất nghỉ phơi ải MAINT 4 ngày -> mới mở lại AVAIL.
 -- Mốc đếm 4 ngày lấy từ rentals.end_date nên KHÔNG cần thêm cột mới vào ERD.
 
@@ -5304,6 +5307,12 @@ END $$;
                   SET start_date = CURRENT_DATE - INTERVAL '${offset} days', status = 'ACTIVE' 
                   WHERE rental_id = ${rentalId};
                 `);
+
+                // Xóa bất kỳ biên bản thu hoạch cũ nào trước đó để đảm bảo khi tua tới Ngày thu hoạch,
+                // task thu hoạch ở trạng thái IN_PROG và nhân viên/khách hàng phải thực hiện thu hoạch thật!
+                await runPostgreSql(`DELETE FROM harvest_results WHERE rental_id = ${rentalId};`);
+                await runPostgreSql(`DELETE FROM farm_diaries WHERE rental_id = ${rentalId} AND title ILIKE '%thu hoạch%';`);
+
                 await runPostgreSql(`
                   UPDATE care_tasks
                   SET 

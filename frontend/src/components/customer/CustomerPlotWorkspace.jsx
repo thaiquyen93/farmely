@@ -281,23 +281,8 @@ function StandardProcessTimeline({
         workerName: latestHarvest.enteredByWorker || latestHarvest.workerName || latestHarvest.staffName || 'Trần Văn Lực'
       };
     }
-    return {
-      id: `HRV-${plot?.id || '88'}`,
-      harvestCode: `HRV-${plot?.id || '88'}`,
-      crop: plot?.cropName || plot?.crop || 'Dưa leo baby F1',
-      yieldAmount: plot?.expectedYield || 20.0,
-      formattedYield: `${plot?.expectedYield || 20.0} kg`,
-      harvestDate: new Date().toISOString().slice(0, 10),
-      harvestDateFormatted: new Date().toLocaleDateString('vi-VN'),
-      workerName: 'Trần Văn Lực',
-      enteredByWorker: 'Trần Văn Lực',
-      evidenceImageUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
-      status: 'COMPLETED',
-      plotCode: plot?.plotCode || (plot?.rentalId ? `P-${String(plot.rentalId).padStart(2, '0')}` : 'P-03'),
-      plotName: plot?.plotName || plot?.name || 'Thửa P-03',
-      totalDays: totalDays
-    };
-  }, [latestHarvest, plot, totalDays]);
+    return null;
+  }, [latestHarvest, plot]);
 
   useEffect(() => {
     setSelectedDay(cropProcess.isNotStarted ? 1 : (cropProcess.currentDay || 1));
@@ -1042,77 +1027,106 @@ function StandardProcessTimeline({
           </div>
         </div>
 
-        {/* BR20/BR21: THÔNG BÁO THU HOẠCH VỤ MÙA KHI ĐẾN NGÀY THU HOẠCH (DUY NHẤT 1 BANNER ĐỒNG BỘ TRẠNG THÁI) */}
+        {/* BR20/BR21: THÔNG BÁO THU HOẠCH VỤ MÙA KHI ĐẾN NGÀY THU HOẠCH (ĐỒNG BỘ CHẶT CHẼ THEO TIẾN ĐỘ THỰC TẾ) */}
         {selectedDay === totalDays && (
-          <div
-            onClick={() => onOpenHarvestReport?.(effectiveHarvest)}
-            className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100/40 to-lime-50/50 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition group cursor-pointer hover:shadow-md hover:border-amber-400"
-            title="Bấm để xem Báo cáo thu hoạch & Biên bản nghiệm thu (BR20)"
-          >
-            <div className="flex items-start gap-3 min-w-0">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md text-xl group-hover:scale-105 transition-transform">
-                🌾
-              </span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
-                    {latestHarvest ? '🌾 Đã Thu Hoạch Vụ Mùa' : '🔔 Thông Báo Thu Hoạch Vụ Mùa'}
-                  </span>
-                  {effectiveHarvest?.formattedYield || effectiveHarvest?.yieldAmount ? (
-                    <span className="rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-black text-amber-950 border border-amber-300">
+          effectiveHarvest ? (
+            /* TRƯỜNG HỢP 1: ĐÃ THU HOẠCH THẬT (Staff đã cân đo & tạo biên bản thực tế) */
+            <div
+              onClick={() => onOpenHarvestReport?.(effectiveHarvest)}
+              className="rounded-2xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100/40 to-lime-50/50 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition group cursor-pointer hover:shadow-md hover:border-emerald-400"
+              title="Bấm để xem Báo cáo thu hoạch & Biên bản nghiệm thu (BR20)"
+            >
+              <div className="flex items-start gap-3 min-w-0">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md text-xl group-hover:scale-105 transition-transform">
+                  🌾
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="rounded-full bg-emerald-700 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
+                      🌾 Đã Thu Hoạch Vụ Mùa
+                    </span>
+                    <span className="rounded-full bg-emerald-200/90 px-2 py-0.5 text-[10px] font-black text-emerald-950 border border-emerald-300">
                       Sản lượng thực tế: {String(effectiveHarvest.formattedYield || `${effectiveHarvest.yieldAmount} kg`).replace(/\bkg(?:\s+kg)+\b/gi, 'kg')}
                     </span>
-                  ) : (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-900 border border-amber-200">
-                      Chưa ghi nhận sản lượng thực tế
+                    {effectiveHarvest?.harvestDateFormatted && (
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-900 border border-emerald-200">
+                        {effectiveHarvest.harvestDateFormatted}
+                      </span>
+                    )}
+                    <span className="rounded-full bg-lime-100 px-2 py-0.5 text-[10px] font-bold text-lime-800 border border-lime-300">
+                      VietGAP chuẩn xuất xưởng
                     </span>
-                  )}
-                  {effectiveHarvest?.harvestDateFormatted && (
-                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-200">
-                      {effectiveHarvest.harvestDateFormatted}
-                    </span>
-                  )}
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
-                    VietGAP chuẩn xuất xưởng
-                  </span>
+                  </div>
+                  <h4 className="mt-1 text-sm font-heading font-black text-emerald-950">
+                    Nông sản đã thu hoạch hoàn tất — Đã chốt biên bản sản lượng!
+                  </h4>
+                  <p className="mt-0.5 text-xs text-emerald-950/80 leading-relaxed max-w-2xl">
+                    {effectiveHarvest.enteredByWorker || effectiveHarvest.workerName || 'Chuyên viên lao động (Trần Văn Lực)'} đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Quý khách vui lòng đến nhận nông sản tại nông trại theo quy định BR21.
+                  </p>
                 </div>
-                <h4 className="mt-1 text-sm font-heading font-black text-amber-950">
-                  {latestHarvest
-                    ? 'Nông sản đã thu hoạch hoàn tất — Đã chốt biên bản sản lượng!'
-                    : 'Đến ngày dự kiến thu hoạch — Bấm để mở Báo cáo & Biên bản nghiệm thu!'}
-                </h4>
-                <p className="mt-0.5 text-xs text-amber-950/80 leading-relaxed max-w-2xl">
-                  {latestHarvest
-                    ? `${effectiveHarvest.enteredByWorker || effectiveHarvest.workerName || 'Chuyên viên lao động'} đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Quý khách vui lòng đến nhận nông sản tại nông trại theo quy định BR21.`
-                    : 'Chuyên viên lao động ghi nhận số cân thực tế và ảnh chụp cân đối chứng hiện trường (BR20).'}
-                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenHarvestReport?.(effectiveHarvest);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
+                >
+                  <Award className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Báo cáo thu hoạch</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenHarvestReport?.(effectiveHarvest);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400 bg-white px-3 py-1.5 text-xs font-bold text-emerald-900 shadow-xs hover:bg-emerald-50 transition cursor-pointer"
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>Xem biên bản trong Nhật ký</span>
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenHarvestReport?.(effectiveHarvest);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
-              >
-                <Award className="w-3.5 h-3.5 text-amber-200" />
-                <span>Báo cáo thu hoạch</span>
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenHarvestReport?.(effectiveHarvest);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-400 bg-white px-3 py-1.5 text-xs font-bold text-amber-900 shadow-xs hover:bg-amber-50 transition cursor-pointer"
-              >
-                <BookOpen className="w-3.5 h-3.5 text-amber-700" />
-                <span>Xem biên bản trong Nhật ký</span>
-              </button>
+          ) : (
+            /* TRƯỜNG HỢP 2: ĐẾN NGÀY THU HOẠCH NHƯNG STAFF CHƯA HOÀN THÀNH -> HIỆN CHỜ THU HOẠCH, CÒN 1 TASK THU HOẠCH CHO STAFF */
+            <div
+              className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100/30 to-orange-50/40 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition"
+            >
+              <div className="flex items-start gap-3 min-w-0">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md text-xl animate-pulse">
+                  ⏳
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
+                      ⏳ Đang Chờ Thu Hoạch (Ngày {totalDays})
+                    </span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-200">
+                      Dự kiến: {plot?.expectedYield || '20 - 25 kg'} (Chưa cân thực tế)
+                    </span>
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+                      VietGAP chuẩn thu hái
+                    </span>
+                  </div>
+                  <h4 className="mt-1 text-sm font-heading font-black text-amber-950">
+                    Đến ngày thu hoạch vụ mùa — Chuyên viên lao động đang chuẩn bị tiến hành thu hoạch & cân thực địa (BR20)
+                  </h4>
+                  <p className="mt-0.5 text-xs text-amber-950/80 leading-relaxed max-w-2xl">
+                    Nhiệm vụ thu hoạch đã được phân công cho Chuyên viên lao động (Trần Văn Lực). Sau khi nhân viên hoàn tất việc cắt, cân điện tử và tải ảnh đối chứng hiện trường, Biên bản nghiệm thu & Sản lượng thực tế sẽ tự động cập nhật tại đây.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-100/70 px-3 py-1.5 text-xs font-bold text-amber-900">
+                  <Clock className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Đang chờ Lực (CVLĐ) thực hiện</span>
+                </span>
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* Danh sách nhiệm vụ canh tác & Nhật ký thực tế hôm đó */}
@@ -2251,6 +2265,8 @@ function OverviewTab({
   liveProviderInfo,
   alerts = [],
   seasons = [],
+  activeSeasonId,
+  onSelectSeason,
   onOpenRenewal,
   activeSeason,
   isSelf = false,
@@ -2296,6 +2312,18 @@ function OverviewTab({
 
   return (
     <div className="space-y-6">
+      {/* 0. Chu kỳ mùa vụ thửa đất (Season Selector) - Luôn hiển thị tại Tab Tổng quan để khách thuê theo dõi toàn bộ các vụ */}
+      {seasons && seasons.length > 0 && (
+        <SeasonSelector
+          seasons={seasons}
+          activeSeasonId={activeSeasonId || activeSeason?.id}
+          onSelectSeason={onSelectSeason}
+          onOpenRenewal={onOpenRenewal}
+          canRenew={true}
+          plot={plot}
+        />
+      )}
+
       {isSoilPrep ? (
         /* Giai đoạn nghỉ đất & cải tạo theo chuẩn VietGAP (Fallow Protocol - BR23) */
         <SoilPrepView
@@ -3470,12 +3498,18 @@ export default function CustomerPlotWorkspace({
 
   const current = displayTabs.find((t) => t.id === tab) || displayTabs[0];
 
+  const currentSeasonNumber = activeSeason?.seasonNumber || 1;
+  const totalSeasonsCount = plotSeasons?.length || 1;
+  const leaseMonths = plot.termMonths || (totalSeasonsCount > 1 ? totalSeasonsCount * 3 : 12);
+
   const heroStats = [
     {
-      label: 'Ngày tuổi',
+      label: totalSeasonsCount > 1 ? `Vụ ${currentSeasonNumber}/${totalSeasonsCount} · Ngày tuổi` : 'Ngày tuổi',
       value: cropProcess.isNotStarted ? 'Sắp tới' : `D${cropProcess.currentDay}`,
       unit: cropProcess.isNotStarted ? '' : `/${cropProcess.totalDays}`,
-      note: cropProcess.isNotStarted ? (plot.startDate ? `Bắt đầu ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Chưa bắt đầu vụ mới') : (cropProcess.currentStage?.name || 'Đang sinh trưởng tốt'),
+      note: cropProcess.isNotStarted
+        ? (plot.startDate ? `Bắt đầu ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Chưa bắt đầu vụ mới')
+        : (cropProcess.currentStage?.name || 'Đang sinh trưởng tốt'),
       icon: Sprout,
       tab: 'overview'
     },
@@ -3485,7 +3519,7 @@ export default function CustomerPlotWorkspace({
       unit: 'ngày',
       note: cropProcess.isNotStarted
         ? (plot.startDate ? `Bắt đầu: ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Theo lịch vụ mùa')
-        : (plot.expectedHarvestDate ? `Dự kiến ${plot.expectedHarvestDate}` : 'Đúng tiến độ'),
+        : (activeSeason?.endDate ? `Thu hoạch: ${new Date(activeSeason.endDate).toLocaleDateString('vi-VN')}` : (plot.expectedHarvestDate ? `Dự kiến ${plot.expectedHarvestDate}` : 'Đúng tiến độ')),
       icon: Wheat,
       // ponytail: tab 'harvest' đã bỏ (KH không nghiệm thu) — kết quả thu hoạch nằm trong Công việc & Nhật ký
       tab: 'tasks'
@@ -3571,10 +3605,27 @@ export default function CustomerPlotWorkspace({
                 <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-lime-300" />{plot.location} · {plot.area}</span>
               </p>
 
+              {/* Thông tin Hợp đồng thuê & Chu kỳ mùa vụ */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-950/70 border border-emerald-400/40 px-3 py-0.5 text-xs font-bold text-lime-300 backdrop-blur-sm shadow-xs">
+                  <Calendar className="w-3.5 h-3.5 text-lime-400" />
+                  <span>
+                    Gói thuê {leaseMonths} tháng
+                    {plot.startDate && plot.endDate ? ` (${new Date(plot.startDate).toLocaleDateString('vi-VN')} – ${new Date(plot.endDate).toLocaleDateString('vi-VN')})` : ''}
+                  </span>
+                </span>
+                {totalSeasonsCount > 1 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 border border-white/20 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur-sm">
+                    <Wheat className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Lộ trình {totalSeasonsCount} vụ luân canh (Đang xem: {activeSeason?.seasonName || `Vụ ${currentSeasonNumber}`})</span>
+                  </span>
+                )}
+              </div>
+
               <div className="mt-3.5 max-w-sm">
                 <div className="flex items-center justify-between text-xs font-semibold text-white/90">
-                  <span>{cropProcess.isNotStarted ? (plot.startDate ? `Sắp tới: Bắt đầu từ ngày ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Sắp tới: Chuẩn bị xuống giống') : (cropProcess.currentStage?.name || plot.stage)}</span>
-                  <span>{cropProcess.isNotStarted ? `Sắp tới (Bắt đầu sau ${cropProcess.daysUntilStart || 0} ngày)` : `Ngày ${cropProcess.currentDay}/${cropProcess.totalDays}`}</span>
+                  <span>{activeSeason?.seasonName || `Vụ ${currentSeasonNumber}`} · {cropProcess.isNotStarted ? (plot.startDate ? `Bắt đầu từ ngày ${new Date(plot.startDate).toLocaleDateString('vi-VN')}` : 'Sắp tới: Chuẩn bị xuống giống') : (cropProcess.currentStage?.name || plot.stage)}</span>
+                  <span>{cropProcess.isNotStarted ? `Sắp tới` : `Ngày ${cropProcess.currentDay}/${cropProcess.totalDays}`} {totalSeasonsCount > 1 ? `(Vụ ${currentSeasonNumber}/${totalSeasonsCount})` : ''}</span>
                 </div>
                 <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/15 ring-1 ring-white/10" role="progressbar" aria-valuenow={cropProcess.isNotStarted ? 0 : cropProcess.progressPercent} aria-valuemin={0} aria-valuemax={100} aria-label="Tiến độ mùa vụ">
                   <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-teal-300 shadow-[0_0_16px_rgba(56,189,248,0.7)] transition-[width] duration-1000" style={{ width: `${cropProcess.isNotStarted ? 0 : cropProcess.progressPercent}%` }} />
@@ -3652,6 +3703,8 @@ export default function CustomerPlotWorkspace({
             liveProviderInfo={liveIotResult}
             alerts={activeAlerts}
             seasons={plotSeasons}
+            activeSeasonId={activeSeasonId}
+            onSelectSeason={(seasonId) => setActiveSeasonId(seasonId)}
             onOpenRenewal={() => setShowRenewalModal(true)}
             activeSeason={activeSeason}
             isSelf={isSelf}

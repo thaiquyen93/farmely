@@ -1398,7 +1398,15 @@ export function resolvePlotSeasons(plot, allRentals = []) {
   const cropDisplayName = plot.crop || primaryStandard.cropName;
   const cycleDays = Number(plot.cycleDays || (plot.termDays ? plot.totalDays : null)) || Number(plot.totalDays) || primaryStandard.totalDays || 55;
   const termDays = Number(plot.termDays) || 0;
-  const termMonths = Number(plot.termMonths) || 0;
+  let termMonths = Number(plot.termMonths) || 0;
+  if (!termMonths && plot.startDate && plot.endDate) {
+    try {
+      const d1 = new Date(plot.startDate);
+      const d2 = new Date(plot.endDate);
+      const diffMonths = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+      if (diffMonths > 0) termMonths = diffMonths;
+    } catch {}
+  }
 
   let targetSeasons = 1;
   if (plot.seasonsCount && Number(plot.seasonsCount) > 0) {
