@@ -1702,7 +1702,7 @@ SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json) FROM (
     TO_CHAR(rr.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt"
   FROM renewal_requests rr
   LEFT JOIN contracts c ON rr.contract_id = c.contract_id
-  LEFT JOIN users u ON c.customer_id = u.user_id
+  LEFT JOIN users u ON c.renter_id = u.user_id
   ORDER BY rr.id DESC
 ) r;
 `;
