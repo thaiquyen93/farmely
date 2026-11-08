@@ -1819,129 +1819,140 @@ export default function FieldWorkerDashboard() {
                       );
                     }
 
-                    return filtered.map((req) => {
-                      const isDone = req.status === 'DONE' || req.status === 'COMPLETED';
-                      const isInProg = req.status === 'IN_PROG' || req.status === 'IN_PROGRESS';
-                      return (
-                        <div
-                          key={req.id || req.requestId}
-                          className="p-5 rounded-2xl border border-stone-200 bg-white hover:border-emerald-400 transition-all shadow-2xs space-y-3.5"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2.5">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono font-bold text-xs px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-900">
-                                {req.id || `REQ-${req.requestId}`}
-                              </span>
-                              <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-stone-100 text-stone-700">
-                                {req.plotCode}
-                              </span>
-                              <h4 className="font-heading font-black text-stone-900 text-sm">
-                                {req.serviceName}
-                              </h4>
-                            </div>
+                    return (
+                      <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white shadow-2xs">
+                        <table className="w-full text-left text-xs border-collapse min-w-[780px]">
+                          <thead>
+                            <tr className="bg-stone-50/90 text-stone-600 font-bold uppercase tracking-wider text-[11px] border-b border-stone-200">
+                              <th className="py-3.5 px-4 whitespace-nowrap">Mã YC</th>
+                              <th className="py-3.5 px-4 whitespace-nowrap">Thửa Đất</th>
+                              <th className="py-3.5 px-4 min-w-[160px]">Tên Dịch Vụ</th>
+                              <th className="py-3.5 px-4 min-w-[150px]">Khách Hàng</th>
+                              <th className="py-3.5 px-4 whitespace-nowrap">Lịch Hẹn</th>
+                              <th className="py-3.5 px-4 whitespace-nowrap">Giá Tiền</th>
+                              <th className="py-3.5 px-4 whitespace-nowrap text-center">Trạng Thái</th>
+                              <th className="py-3.5 px-4 whitespace-nowrap text-right">Thao Tác</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-stone-100 text-stone-700">
+                            {filtered.map((req) => {
+                              const isDone = req.status === 'DONE' || req.status === 'COMPLETED';
+                              const isInProg = req.status === 'IN_PROG' || req.status === 'IN_PROGRESS';
+                              return (
+                                <tr
+                                  key={req.id || req.requestId}
+                                  className="hover:bg-emerald-50/30 transition-colors"
+                                >
+                                  <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <span className="font-mono font-bold text-xs px-2.5 py-1 rounded bg-emerald-100 text-emerald-900 border border-emerald-200/60">
+                                      {req.id || `REQ-${req.requestId}`}
+                                    </span>
+                                  </td>
+                                  <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-mono font-bold text-xs px-2 py-0.5 rounded bg-stone-100 text-stone-700">
+                                        {req.plotCode}
+                                      </span>
+                                      <span className="font-semibold text-stone-800">{req.plotName}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3.5 px-4 font-bold text-stone-900">
+                                    {req.serviceName}
+                                  </td>
+                                  <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <span className="font-semibold text-stone-800 block">{req.customerName}</span>
+                                    {req.customerPhone && (
+                                      <span className="text-[11px] text-stone-500 font-mono block mt-0.5">{req.customerPhone}</span>
+                                    )}
+                                  </td>
+                                  <td className="py-3.5 px-4 whitespace-nowrap text-stone-600">
+                                    {req.scheduledDate || 'Thực hiện ngay'}
+                                  </td>
+                                  <td className="py-3.5 px-4 whitespace-nowrap">
+                                    <strong className="text-brand-dark block">
+                                      {Number(req.price || 0).toLocaleString('vi-VN')} đ
+                                    </strong>
+                                    <span className="text-emerald-700 text-[10px] font-medium block">✓ Đã thanh toán</span>
+                                  </td>
+                                  <td className="py-3.5 px-4 whitespace-nowrap text-center">
+                                    <span
+                                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                        isDone
+                                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                          : isInProg
+                                            ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                                            : 'bg-amber-100 text-amber-800 border border-amber-200'
+                                      }`}
+                                    >
+                                      {isDone ? '● Đã hoàn thành' : isInProg ? '● Đang thực hiện' : '● Chờ thực hiện'}
+                                    </span>
+                                  </td>
+                                  <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      {!isDone && !isInProg && (
+                                        <Button
+                                          variant="secondary"
+                                          size="sm"
+                                          onClick={() => handleAcceptServiceRequest(req.requestId)}
+                                          disabled={isUpdatingService}
+                                          className="font-bold text-xs gap-1 px-2.5 py-1"
+                                          title="Tiếp nhận thực hiện"
+                                        >
+                                          <Check className="w-3.5 h-3.5" />
+                                          <span>Tiếp nhận</span>
+                                        </Button>
+                                      )}
 
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                                isDone
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                  : isInProg
-                                    ? 'bg-sky-100 text-sky-800 border border-sky-200'
-                                    : 'bg-amber-100 text-amber-800 border border-amber-200'
-                              }`}
-                            >
-                              {isDone ? '● Đã hoàn thành' : isInProg ? '● Đang thực hiện' : '● Chờ thực hiện'}
-                            </span>
-                          </div>
+                                      {!isDone && (
+                                        <Button
+                                          variant="primary"
+                                          size="sm"
+                                          onClick={() => handleStartCompleteService(req)}
+                                          className="font-bold text-xs gap-1 bg-[#07533d] hover:bg-[#053d2d] text-white px-2.5 py-1"
+                                          title="Báo cáo xong việc (chụp ảnh)"
+                                        >
+                                          <Camera className="w-3.5 h-3.5" />
+                                          <span>Báo cáo</span>
+                                        </Button>
+                                      )}
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs bg-stone-50/70 p-3.5 rounded-xl border border-stone-200/60">
-                            <div>
-                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Khách hàng yêu cầu:</span>
-                              <strong className="text-stone-800 block">{req.customerName}</strong>
-                              {req.customerPhone && <span className="text-stone-500 font-mono">{req.customerPhone}</span>}
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Thửa đất & Lịch hẹn:</span>
-                              <strong className="text-emerald-800 block">{req.plotName} ({req.plotCode})</strong>
-                              <span className="text-stone-500">📅 {req.scheduledDate || 'Thực hiện ngay'}</span>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Giá trị dịch vụ:</span>
-                              <strong className="text-brand-dark block">{Number(req.price || 0).toLocaleString('vi-VN')} đ</strong>
-                              <span className="text-emerald-700 text-[11px]">✓ Đã thanh toán</span>
-                            </div>
-                            <div>
-                              <span className="text-[10px] text-stone-400 uppercase font-bold block">Thời gian tạo:</span>
-                              <span className="text-stone-600">{req.createdAt ? new Date(req.createdAt).toLocaleString('vi-VN') : 'Gần đây'}</span>
-                            </div>
-                          </div>
+                                      {isDone && req.proofPhoto && (
+                                        <button
+                                          type="button"
+                                          onClick={() => window.open(req.proofPhoto, '_blank')}
+                                          className="p-1 rounded-lg border border-emerald-200 hover:border-emerald-400 bg-emerald-50 transition cursor-pointer"
+                                          title="Xem ảnh minh chứng"
+                                        >
+                                          <img
+                                            src={req.proofPhoto}
+                                            alt="Minh chứng"
+                                            className="w-6 h-6 rounded object-cover"
+                                          />
+                                        </button>
+                                      )}
 
-                          {req.notes && (
-                            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70 text-xs text-amber-900 leading-relaxed flex items-start gap-2">
-                              <BookOpen className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                              <div>
-                                <span className="font-bold">Ghi chú của khách hàng: </span>
-                                <span>{req.notes}</span>
-                              </div>
-                            </div>
-                          )}
-
-                          {isDone && req.proofPhoto && (
-                            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs">
-                              <img
-                                src={req.proofPhoto}
-                                alt="Ảnh minh chứng"
-                                className="w-12 h-12 rounded-lg object-cover border border-emerald-300 cursor-pointer hover:scale-105 transition"
-                                onClick={() => window.open(req.proofPhoto, '_blank')}
-                              />
-                              <div>
-                                <span className="font-bold text-emerald-900 block">Đã hoàn thành có ảnh minh chứng</span>
-                                <span className="text-stone-500 text-[11px]">{req.completedAt ? `Hoàn tất lúc: ${req.completedAt}` : 'Đã hoàn thành'}</span>
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex flex-wrap justify-end gap-2 pt-1">
-                            {!isDone && !isInProg && (
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleAcceptServiceRequest(req.requestId)}
-                                disabled={isUpdatingService}
-                                className="font-bold text-xs gap-1.5"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Tiếp Nhận Thực Hiện</span>
-                              </Button>
-                            )}
-
-                            {!isDone && (
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => handleStartCompleteService(req)}
-                                className="font-bold text-xs gap-1.5 bg-[#07533d] hover:bg-[#053d2d] text-white"
-                              >
-                                <Camera className="w-3.5 h-3.5" />
-                                <span>Báo Cáo Xong Việc (Chụp Ảnh)</span>
-                              </Button>
-                            )}
-
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedPlotModalCode(req.rentalId ? String(req.rentalId) : req.plotCode);
-                                setPlotModalTab('services');
-                              }}
-                              className="font-bold text-xs gap-1.5 text-stone-700"
-                            >
-                              <Layers className="w-3.5 h-3.5" />
-                              <span>Xem Thửa Đất Này</span>
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    });
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedPlotModalCode(req.rentalId ? String(req.rentalId) : req.plotCode);
+                                          setPlotModalTab('services');
+                                        }}
+                                        className="font-bold text-xs gap-1 text-stone-700 px-2.5 py-1"
+                                        title="Xem chi tiết thửa đất này"
+                                      >
+                                        <Layers className="w-3.5 h-3.5" />
+                                        <span>Xem thửa</span>
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
                   })()}
                 </div>
               </div>
@@ -2658,11 +2669,6 @@ export default function FieldWorkerDashboard() {
                               </div>
                             </div>
 
-                            {req.notes && (
-                              <p className="text-xs text-amber-900 bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/60">
-                                💬 <strong>Ghi chú khách hàng:</strong> {req.notes}
-                              </p>
-                            )}
 
                             {isDone && req.proofPhoto && (
                               <div className="flex items-center gap-3 p-2 rounded-xl bg-emerald-50 border border-emerald-200">
