@@ -280,6 +280,7 @@ export default function AdminDashboard() {
       const [
         requestPayload,
         cancellationPayload,
+        renewalPayload,
         userPayload,
         plotPayload,
         rentalPayload,
@@ -292,6 +293,7 @@ export default function AdminDashboard() {
       ] = await Promise.all([
         apiFetch('/api/services/requests').catch(() => ({ data: [] })),
         apiFetch('/api/contracts/cancellations').catch(() => ({ data: [] })),
+        apiFetch('/api/contracts/renewals').catch(() => ({ data: [] })),
         apiFetch('/api/users').catch(() => ({ data: [] })),
         apiFetch('/api/plots').catch(() => ({ data: [] })),
         apiFetch('/api/rentals').catch(() => ({ data: [] })),
@@ -442,6 +444,29 @@ export default function AdminDashboard() {
           requestDate: request.createdAt ? new Date(request.createdAt).toLocaleDateString('vi-VN') : '',
           reason: cleanText(request.reason || ''),
           status: request.status
+        }))
+      );
+
+      // 5b. Contract Renewals (BR11b)
+      const renewals = unwrapData(renewalPayload) || [];
+      setRenewalRequests(
+        renewals.map((r) => ({
+          id: r.id,
+          rentalId: r.rentalId || r.rental_id,
+          contractId: r.contractId || r.contract_id,
+          contractCode: r.contractCode || r.contractNumber || `HĐ-CTR-${r.contractId || r.rentalId || 1}`,
+          plotCode: r.plotCode || r.plot_code || 'P-05',
+          customerName: r.customerName || r.customer_name || 'Tạ Nguyễn Khôi Nguyên',
+          customerPhone: r.customerPhone || r.customer_phone || '0912345678',
+          varietyName: r.varietyName || r.variety_name || 'Dưa leo baby F1',
+          cultivationMode: r.cultivationMode || r.cultivation_mode || 'ASSISTED',
+          seasonsCount: r.seasonsCount || r.seasons_count || 1,
+          seasonNumber: r.seasonNumber || r.season_number || 2,
+          additionalAmount: r.additionalAmount || r.additional_amount || 1200000,
+          newEndDate: r.newEndDate || r.new_end_date || '2027-06-11',
+          status: r.status || 'PENDING',
+          paymentStatus: r.paymentStatus || r.payment_status || 'PAID',
+          createdAt: r.createdAt || r.created_at || new Date().toISOString()
         }))
       );
 
@@ -731,6 +756,45 @@ export default function AdminDashboard() {
     }
   };
 
+  // 6b. Phê duyệt Gia hạn hợp đồng vụ mùa (BR11b)
+  const handleApproveRenewal = async (renewalId) => {
+    try {
+      await apiFetch(`/api/contracts/renewals/${renewalId}/approve`, { method: 'POST' });
+      triggerSuccessToast(`Đã phê duyệt gia hạn hợp đồng vụ mùa mới #${renewalId}!`);
+
+      // Cập nhật local storage cho thửa tương ứng nếu có
+      const targetReq = renewalRequests.find((r) => r.id === renewalId);
+      if (targetReq) {
+        const plotKey = String(targetReq.plotCode || 'P-05').replace(/^PLOT-/i, '').trim().toUpperCase();
+        try {
+          const savedSeasons = localStorage.getItem(`farmely_plot_seasons_${plotKey}`);
+          if (savedSeasons) {
+            const parsed = JSON.parse(savedSeasons);
+            const updated = parsed.map((s) => {
+              if (s.seasonNumber === (targetReq.seasonNumber || 2) || s.status === 'PENDING_APPROVAL') {
+                return { ...s, status: 'SCHEDULED', isApprovedByAdmin: true };
+              }
+              return s;
+            });
+            localStorage.setItem(`farmely_plot_seasons_${plotKey}`, JSON.stringify(updated));
+          }
+        } catch {}
+      }
+
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        try {
+          const bc = new BroadcastChannel('farmely_contract_channel');
+          bc.postMessage({ type: 'CONTRACT_RENEWAL_APPROVED', renewalId, timestamp: Date.now() });
+          setTimeout(() => { try { bc.close(); } catch {} }, 1000);
+        } catch {}
+      }
+
+      await loadAdminData();
+    } catch (error) {
+      setDataError(error.message || 'Không thể phê duyệt gia hạn hợp đồng.');
+    }
+  };
+
   // 7. Xác nhận lịch tham quan (SCR-PUB-05)
   const handleConfirmVisit = async (visitId) => {
     try {
@@ -943,7 +1007,7 @@ export default function AdminDashboard() {
             {[
               { id: 'overview', label: 'Tổng Quan & Doanh Thu', icon: Activity, count: null },
               { id: 'dispatch', label: 'Điều Phối Nhân Sự', icon: UserCheck, count: totalDispatchPendingCount },
-              { id: 'contracts', label: 'Hợp Đồng & Hoàn Cọc', icon: FileText, count: refundRequests.filter(r => r.status === 'PENDING').length },
+              { id: 'contracts', label: 'Hợp Đồng & Gia Hạn', icon: FileText, count: (renewalRequests.filter(r => r.status === 'PENDING').length + refundRequests.filter(r => r.status === 'PENDING').length) || null },
               { id: 'visits', label: 'Lịch Hẹn Tham Quan', icon: Calendar, count: siteVisits.filter(v => v.status === 'PENDING').length },
               { id: 'users', label: 'Người Dùng & Phân Quyền', icon: Users, count: systemUsers.length },
               { id: 'weather-alerts', label: 'Thời Tiết Nông Trại', icon: CloudSun, count: null },
@@ -2122,60 +2186,163 @@ export default function AdminDashboard() {
             })()}
 
             {/* ========================================================================= */}
-            {/* TAB 3: CONTRACTS & REFUND REQUESTS (UC08 / BR10)                          */}
+            {/* TAB 3: CONTRACTS & RENEWALS / CANCELLATIONS (BR10 / BR11b)                */}
             {/* ========================================================================= */}
             {activeTab === 'contracts' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">
                 <div>
                   <h3 className="font-heading font-black text-xl text-brand-dark">
-                    Phê Duyệt Hủy Hợp Đồng & Hoàn Tiền
+                    Quản Lý Hợp Đồng & Phê Duyệt Vụ Mùa
                   </h3>
                   <p className="text-xs text-brand-muted mt-0.5">
-                    Chính sách hoàn tiền tự động: Hoàn 80% trước 7 ngày, hoàn 50% trước 1-7 ngày.
+                    Giám sát hợp đồng Master Lease, phê duyệt yêu cầu gia hạn vụ mùa mới (BR11b) và xử lý yêu cầu hủy & hoàn cọc (BR10).
                   </p>
                 </div>
 
-                <div className="space-y-4">
-                  {refundRequests.map((req) => (
-                    <div
-                      key={req.id}
-                      className="p-5 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3 text-xs"
-                    >
-                      <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-brand-green text-sm">{req.id}</span>
-                          <span className="text-stone-400">| Hợp đồng: {req.contractCode}</span>
-                        </div>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          req.status === 'PENDING' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                        }`}>
-                          {req.status === 'PENDING' ? 'Chờ quản trị viên phê duyệt' : 'Đã duyệt hoàn tiền'}
-                        </span>
-                      </div>
+                {/* Subtabs Navigation */}
+                <div className="flex border-b border-brand-border gap-2 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setContractsSubTab('renewals')}
+                    className={`pb-2.5 px-3 border-b-2 transition flex items-center gap-2 cursor-pointer ${
+                      contractsSubTab === 'renewals'
+                        ? 'border-brand-green text-brand-green'
+                        : 'border-transparent text-stone-500 hover:text-stone-800'
+                    }`}
+                  >
+                    <span>Yêu Cầu Gia Hạn Hợp Đồng (BR11b)</span>
+                    <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px]">
+                      {renewalRequests.filter((r) => r.status === 'PENDING').length}
+                    </span>
+                  </button>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-600">
-                        <p>Khách hàng: <strong className="text-brand-dark">{req.customerName}</strong> ({req.customerPhone || 'Khách hàng'})</p>
-                        <p>Thửa đất hủy: <strong className="text-brand-dark">{req.plotCode || '—'}</strong></p>
-                        <p>Đã thanh toán: <strong className="text-brand-dark">{req.totalPaid}</strong></p>
-                        <p>Được hoàn: <strong className="text-emerald-700 font-bold">{req.refundAmount} ({req.refundPercent}%)</strong></p>
-                        <p className="sm:col-span-2 text-stone-500">Khấu trừ: {req.deductionFee} • Lý do: "{req.reason}"</p>
-                      </div>
-
-                      {req.status === 'PENDING' && (
-                        <div className="pt-2 flex justify-end gap-2">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleApproveRefund(req.id)}
-                            className="bg-emerald-700 hover:bg-emerald-800 font-bold"
-                          >
-                            ✓ Phê duyệt hoàn {req.refundAmount}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setContractsSubTab('cancellations')}
+                    className={`pb-2.5 px-3 border-b-2 transition flex items-center gap-2 cursor-pointer ${
+                      contractsSubTab === 'cancellations'
+                        ? 'border-brand-green text-brand-green'
+                        : 'border-transparent text-stone-500 hover:text-stone-800'
+                    }`}
+                  >
+                    <span>Phê Duyệt Hủy Hợp Đồng & Hoàn Cọc (BR10)</span>
+                    <span className="rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-[10px]">
+                      {refundRequests.filter((r) => r.status === 'PENDING').length}
+                    </span>
+                  </button>
                 </div>
+
+                {/* Subtab Content */}
+                {contractsSubTab === 'renewals' ? (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200 p-4 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <strong className="block font-heading font-black text-sm text-emerald-900">
+                          Quy trình Gia Hạn Vụ Mùa (Business Rule BR11b)
+                        </strong>
+                        <p className="mt-0.5 text-emerald-800/90">
+                          Khách hàng thanh toán phí gia hạn trước ít nhất 3 ngày trước khi kết thúc hợp đồng. Khi Admin phê duyệt, hệ thống tự động thiết lập quy trình VietGAP cho Vụ mới sau 4 ngày bảo trì phơi đất (BR23).
+                        </p>
+                      </div>
+                      <span className="rounded-xl bg-emerald-700 text-white font-bold px-3 py-1.5 shrink-0 text-center">
+                        {renewalRequests.filter((r) => r.status === 'PENDING').length} Chờ duyệt
+                      </span>
+                    </div>
+
+                    {renewalRequests.length === 0 ? (
+                      <div className="p-8 text-center bg-stone-50 rounded-2xl border border-stone-200 text-stone-500 text-xs">
+                        Hiện chưa có yêu cầu gia hạn vụ mùa nào cần xử lý.
+                      </div>
+                    ) : (
+                      renewalRequests.map((req) => (
+                        <div
+                          key={req.id}
+                          className="p-5 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3 text-xs"
+                        >
+                          <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-brand-green text-sm">RNW-{req.id}</span>
+                              <span className="text-stone-400">| Hợp đồng: {req.contractCode || req.contractNumber || 'HĐ-CTR'}</span>
+                              <span className="rounded-md bg-stone-100 px-2 py-0.5 font-bold text-stone-700">
+                                Thửa {req.plotCode || 'P-05'}
+                              </span>
+                            </div>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              req.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {req.status === 'PENDING' ? '⏳ Chờ Ban Quản Trị phê duyệt' : '✓ Đã phê duyệt & Sẵn sàng vụ mới'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-600">
+                            <p>Khách hàng: <strong className="text-brand-dark">{req.customerName}</strong> ({req.customerPhone || '0912345678'})</p>
+                            <p>Vụ đăng ký: <strong className="text-brand-dark">Vụ {req.seasonNumber || 2}: {req.varietyName || 'Dưa leo baby F1'}</strong> (+{req.seasonsCount || 1} Vụ)</p>
+                            <p>Hình thức canh tác: <strong className="text-stone-800">{req.cultivationMode === 'SELF' ? 'Tự canh tác (Self-Growing)' : 'Ủy thác trọn gói (Assisted-Growing)'}</strong></p>
+                            <p>Thanh toán: <strong className="text-emerald-700 font-bold">{Number(req.additionalAmount || 1200000).toLocaleString('vi-VN')} đ</strong> (VNPay - Đã thanh toán 100%)</p>
+                            <p className="sm:col-span-2 text-stone-500">
+                              Thời hạn vụ mới đến: <strong className="text-stone-800">{req.newEndDate || '2027-06-11'}</strong> • Tự động kích hoạt quy trình chuẩn VietGAP sau 4 ngày bảo trì (BR23).
+                            </p>
+                          </div>
+
+                          {req.status === 'PENDING' && (
+                            <div className="pt-2 flex justify-end gap-2 border-t border-brand-border/40">
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleApproveRenewal(req.id)}
+                                className="bg-emerald-700 hover:bg-emerald-800 font-bold cursor-pointer"
+                              >
+                                ✓ Phê duyệt gia hạn & Phân bổ kỹ thuật
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {refundRequests.map((req) => (
+                      <div
+                        key={req.id}
+                        className="p-5 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3 text-xs"
+                      >
+                        <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-brand-green text-sm">{req.id}</span>
+                            <span className="text-stone-400">| Hợp đồng: {req.contractCode}</span>
+                          </div>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            req.status === 'PENDING' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {req.status === 'PENDING' ? 'Chờ quản trị viên phê duyệt' : 'Đã duyệt hoàn tiền'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-600">
+                          <p>Khách hàng: <strong className="text-brand-dark">{req.customerName}</strong> ({req.customerPhone || 'Khách hàng'})</p>
+                          <p>Thửa đất hủy: <strong className="text-brand-dark">{req.plotCode || '—'}</strong></p>
+                          <p>Đã thanh toán: <strong className="text-brand-dark">{req.totalPaid}</strong></p>
+                          <p>Được hoàn: <strong className="text-emerald-700 font-bold">{req.refundAmount} ({req.refundPercent}%)</strong></p>
+                          <p className="sm:col-span-2 text-stone-500">Khấu trừ: {req.deductionFee} • Lý do: "{req.reason}"</p>
+                        </div>
+
+                        {req.status === 'PENDING' && (
+                          <div className="pt-2 flex justify-end gap-2 border-t border-brand-border/40">
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => handleApproveRefund(req.id)}
+                              className="bg-emerald-700 hover:bg-emerald-800 font-bold cursor-pointer"
+                            >
+                              ✓ Phê duyệt hoàn {req.refundAmount}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

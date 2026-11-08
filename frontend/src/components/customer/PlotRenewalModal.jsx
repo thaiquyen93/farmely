@@ -351,7 +351,7 @@ export default function PlotRenewalModal({
         cropKey: selectedVariety.cropKey,
         cropName: selectedVariety.name,
         varietyId: selectedVariety.varietyId,
-        status: 'SCHEDULED',
+        status: 'PENDING_APPROVAL',
         totalDays: selectedVariety.expectedDuration,
         currentDay: 0,
         startDate: sStartStr,
@@ -425,6 +425,28 @@ export default function PlotRenewalModal({
         console.warn('API call fallback to local state:', apiErr.message);
       }
 
+      try {
+        await fetch('/api/contracts/renewals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rentalId: renewalData.rentalId,
+            plotCode: plot?.code || plot?.plotCode || renewalData.plotKey || 'P-05',
+            customerName: plot?.customerName || 'Tạ Nguyễn Khôi Nguyên',
+            customerPhone: plot?.customerPhone || '0912345678',
+            newVarietyId: renewalData.newVarietyId,
+            varietyName: renewalData.varietyName,
+            cultivationMode: renewalData.cultivationMode,
+            seasonsCount: renewalData.selectedSeasonsCount,
+            seasonNumber: renewalData.newSeasonNumber,
+            additionalAmount: renewalData.totalAmount,
+            newEndDate: renewalData.newEndDate
+          })
+        });
+      } catch (postErr) {
+        console.warn('API call renewal request error:', postErr.message);
+      }
+
       localStorage.setItem(renewalData.storageKey, JSON.stringify(renewalData.updatedSeasons));
       localStorage.setItem(`farmely_plot_seasons_${renewalData.plotKey}`, JSON.stringify(renewalData.updatedSeasons));
       localStorage.removeItem('farmely_pending_vnpay_renewal');
@@ -482,15 +504,15 @@ export default function PlotRenewalModal({
             </div>
             <div>
               <h4 className="font-heading text-2xl font-black text-stone-900">
-                Gia Hạn Vụ Mùa Thành Công!
+                Đã Gửi Yêu Cầu Gia Hạn Đến Ban Quản Trị!
               </h4>
               <p className="mt-2 text-sm text-stone-600 max-w-md mx-auto">
-                Hợp đồng thửa đất đã được gia hạn thêm <strong>Vụ {successData.seasonNumber}: {successData.varietyName}</strong>. Thời hạn hiệu lực mới đến <strong>{successData.newEndDate}</strong>.
+                Hợp đồng thửa đất đã thanh toán thành công. Yêu cầu gia hạn thêm <strong>Vụ {successData.seasonNumber}: {successData.varietyName}</strong> đang được Quản trị viên (Admin) thẩm định & phân bổ nhân sự thực địa (BR11b).
               </p>
             </div>
-            <div className="rounded-2xl bg-stone-50 border border-stone-200 p-4 max-w-sm mx-auto text-xs text-stone-600 space-y-1 text-left">
-              <p>• <strong>Kế thừa:</strong> Toàn bộ hình ảnh thực địa, dữ liệu dinh dưỡng đất được kế thừa.</p>
-              <p>• <strong>Fallow Protocol (BR23):</strong> 4 ngày bảo trì nghỉ đất khử trùng được kích hoạt tự động giữa 2 vụ.</p>
+            <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 max-w-sm mx-auto text-xs text-amber-900 space-y-1 text-left">
+              <p>• <strong>Kế thừa:</strong> Toàn bộ dữ liệu thổ nhưỡng và lịch sử thửa đất được bảo lưu.</p>
+              <p>• <strong>Phê duyệt hợp đồng:</strong> Khi Admin duyệt, vụ mùa mới sẽ sẵn sàng canh tác sau 4 ngày nghỉ đất (BR23).</p>
             </div>
             <button
               type="button"

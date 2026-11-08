@@ -9,7 +9,7 @@ import PlotRenewalModal from './PlotRenewalModal';
 import HarvestReportModal from './HarvestReportModal';
 import {
   AlertTriangle, ArrowLeft, Award, BookOpen, Calendar, CalendarCheck, Check, ChevronDown, ChevronRight, ChevronLeft,
-  Clock, Clock3, Droplets, Eye, Info, LayoutDashboard, Leaf,
+  Clock, Clock3, CloudSun, Droplets, Eye, Info, LayoutDashboard, Leaf,
   MapPin, Maximize2, PenLine, Radio, Scale, Search, ShieldCheck, ShoppingBag, Sparkles, Sprout,
   Sun, UserRound, Wheat, X, Camera, CheckCircle2, FileText, Plus, Trash2, Flame, Wrench
 } from 'lucide-react';
@@ -27,13 +27,6 @@ export const PLOT_TABS = [
   { id: 'tasks', label: 'Công việc & Nhật ký', short: 'Việc & Nhật ký', icon: CalendarCheck },
   { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag }
 ];
-
-const LEVEL_STYLE = {
-  OK: { chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', marker: 'bg-emerald-600', hex: '#059669', dot: 'bg-lime-400' },
-  LOW: { chip: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200', marker: 'bg-sky-600', hex: '#0284c7', dot: 'bg-sky-400' },
-  HIGH: { chip: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200', marker: 'bg-rose-600', hex: '#e11d48', dot: 'bg-rose-400' },
-  UNKNOWN: { chip: 'bg-stone-100 text-stone-600', marker: 'bg-stone-400', hex: '#a8a29e', dot: 'bg-stone-400' }
-};
 
 const CARD_SHADOW = 'shadow-[0_1px_2px_rgba(24,53,43,0.04),0_12px_32px_-16px_rgba(24,53,43,0.22)]';
 
@@ -74,129 +67,6 @@ function EmptyState({ icon: Icon = Leaf, title, note }) {
 /* ──────────────────────────────────────────────────────────────────────────
    1. QUY TRÌNH CHUẨN THEO NGÀY TUỔI & HIỆN TRẠNG CÂY TRỒNG
    ────────────────────────────────────────────────────────────────────────── */
-
-/**
- * Thanh hiện trạng sinh trưởng theo ngày tuổi của cây trồng
- */
-/**
- * Thẻ hiện trạng thửa đất, đọc từ trên xuống theo thứ bậc:
- *   việc đang diễn ra (to nhất) > nhiệt độ thực địa > cảnh báo (gọn nhất).
- * ponytail: ceiling is nhiệt độ + 2 cảnh báo trong cùng một thẻ.
- * upgrade path is tách lại thành trang riêng khi KH cần tra cứu lịch sử khí tượng theo giờ.
- */
-function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo }) {
-  const currentStage = cropProcess.currentStage;
-  // Chỉ nêu nhiệt độ: 3 chỉ số còn lại đã nằm trong chính câu cảnh báo khi vượt ngưỡng.
-  const temp = assessPlot(plot).find((m) => m.key === 'temp');
-  const isNotStarted = cropProcess.isNotStarted;
-
-  return (
-    <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1b4332] via-[#24533f] to-[#0f2a20] text-white ${CARD_SHADOW}`}>
-      <span aria-hidden="true" className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/15 blur-3xl" />
-      <span aria-hidden="true" className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl" />
-
-      {/* Tầng 1 — Việc đang diễn ra (chính) · Sức khoẻ thửa (phụ, tách bằng vách mờ) */}
-      <div className="relative p-4 sm:p-5">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-white/90 backdrop-blur">
-              Tiêu chuẩn VietGAP
-            </span>
-            {isNotStarted ? (
-              <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
-                <Calendar className="h-3 w-3 text-amber-300" />
-                Chưa bắt đầu · Ngày 0 / {cropProcess.totalDays}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-200">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                </span>
-                Ngày thứ {cropProcess.currentDay} / {cropProcess.totalDays}
-              </span>
-            )}
-          </div>
-
-          <p className="mt-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-lime-300">
-            {isNotStarted ? 'Vụ mùa sắp tới' : 'Đang trong giai đoạn'}
-          </p>
-          <h3 className="mt-0.5 font-heading text-lg font-bold tracking-tight text-white sm:text-xl drop-shadow-xs">
-            {isNotStarted
-              ? `${cropProcess.cropName ? (cropProcess.cropName.charAt(0).toUpperCase() + cropProcess.cropName.slice(1)) : 'Cây trồng'} · Chưa bắt đầu canh tác`
-              : (currentStage?.name || 'Đang trong quy trình canh tác tiêu chuẩn')}
-          </h3>
-          <p className="mt-1 text-xs sm:text-sm leading-relaxed text-white/90">
-            {isNotStarted
-              ? 'Vụ mùa kế tiếp đã được lên lịch. Tiến độ sẽ bắt đầu tính khi vào vụ mới (sau chu kỳ nghỉ đất và làm đất tiêu chuẩn 5 ngày).'
-              : (currentStage?.statusDesc || 'Cây trồng đang phát triển thuận lợi theo đúng chỉ dẫn kỹ thuật nông học.')}
-          </p>
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-white/10 text-xs">
-            <span className="font-semibold text-lime-300">
-              {isNotStarted
-                ? `Chu kỳ toàn vụ: ${cropProcess.totalDays} ngày`
-                : `Ngày thứ ${cropProcess.currentDay}/${cropProcess.totalDays} · Còn ${cropProcess.daysLeft} ngày tới thu hoạch`}
-            </span>
-            <span className="text-white/70">
-              {isNotStarted ? 'Dự kiến bắt đầu theo lịch vụ mùa' : `Tiến độ chu kỳ: ${cropProcess.progressPercent}%`}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tầng 2 — Nhiệt độ thực địa & nguồn dữ liệu, cùng một hàng */}
-      {temp && (
-        <div className="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-white/10 px-4 py-2.5 sm:px-5">
-          <span className="flex items-baseline gap-1.5 text-xs">
-            <span className={`h-2 w-2 shrink-0 self-center rounded-full ${LEVEL_STYLE[temp.level].dot}`} />
-            <span className="font-medium text-white/85">{temp.label}</span>
-            {temp.value === null ? (
-              <span className="text-white/70">chưa có số liệu</span>
-            ) : (
-              <>
-                <strong className="font-bold text-white">{temp.value}{temp.unit}</strong>
-                <span className="text-white/70">chuẩn {temp.min}–{temp.max}{temp.unit}</span>
-              </>
-            )}
-          </span>
-          {liveProviderInfo?.isLive3rdParty && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-lime-300">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-lime-300" />
-              Open-Meteo Live Feed
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Tầng 3 — Cảnh báo BR18, mỗi cảnh báo một dòng gọn trong cùng thẻ */}
-      {topAlerts.length > 0 && (
-        <div className="relative border-t border-white/10" aria-label="Cảnh báo thời tiết thực địa">
-          {topAlerts.map((a, idx) => {
-            const info = explainAlert(a, plot.mode);
-            const isHigh = a?.level === 'HIGH';
-            return (
-              <div
-                key={a.id || `${info.title}-${idx}`}
-                className={`flex flex-wrap items-baseline gap-x-2 gap-y-1 px-5 py-3 text-xs sm:px-6 ${idx > 0 ? 'border-t border-white/5' : ''}`}
-              >
-                <AlertTriangle className={`h-4 w-4 shrink-0 self-center ${isHigh ? 'text-rose-300' : 'text-amber-300'}`} />
-                <strong className={`font-bold ${isHigh ? 'text-rose-100' : 'text-amber-100'}`}>{info.title}</strong>
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-extrabold ${isHigh ? 'bg-rose-400/20 text-rose-200' : 'bg-amber-400/20 text-amber-200'}`}>
-                  {info.levelText}
-                </span>
-                <span className="text-white/90">
-                  {info.explanation} <strong className="font-semibold text-white/95">{info.action}</strong>
-                </span>
-                {info.time && <span className="text-white/65">{info.time}</span>}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /**
  * Hàm chuẩn hóa ngày tuổi của một mục nhật ký hoặc hoạt động
@@ -2404,6 +2274,44 @@ function OverviewTab({
         />
       ) : (
         <>
+          {/* Thông báo nếu vụ mùa đang chờ Ban Quản Trị (Admin) phê duyệt */}
+          {activeSeason?.status === 'PENDING_APPROVAL' && (
+            <div className="rounded-3xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-orange-50/40 to-white p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-md text-xl">
+                  ⏳
+                </span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
+                      {`Vụ ${activeSeason.seasonNumber} · Chờ Admin Phê Duyệt`}
+                    </span>
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-black text-amber-900 border border-amber-300">
+                      Giống: {activeSeason.cropName}
+                    </span>
+                    <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-stone-700 border border-stone-200">
+                      Đã thanh toán VNPay 100%
+                    </span>
+                  </div>
+                  <h4 className="mt-1.5 text-base font-heading font-black text-amber-950">
+                    {activeSeason.seasonName || `Vụ ${activeSeason.seasonNumber}`} — Đang Chờ Ban Quản Trị Phê Duyệt Hợp Đồng (BR11b)
+                  </h4>
+                  <p className="mt-0.5 text-xs text-stone-600 max-w-2xl leading-relaxed">
+                    Yêu cầu gia hạn hợp đồng và giữ thửa đất đã được chuyển tới Ban Quản Trị. Quản trị viên đang rà soát phụ lục hợp đồng và phân công kỹ thuật viên phụ trách.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <a
+                  href="/admin?tab=contracts&subtab=renewals"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-700 hover:bg-amber-800 px-4 py-2 text-xs font-bold text-white transition shadow-xs cursor-pointer"
+                >
+                  <span>Mở Tab Admin Phê Duyệt ›</span>
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Thông báo nếu vụ mùa đang chọn chưa tới ngày bắt đầu (Vụ mới gia hạn hoặc vụ sắp tới) */}
           {activeSeason?.status === 'SCHEDULED' && (
             <div className="rounded-3xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -2444,16 +2352,16 @@ function OverviewTab({
             </div>
           )}
 
-          {/* 1. Hiện trạng cây trồng & Quy trình chuẩn theo ngày */}
-          {/* 1. Hiện trạng thửa đất: quy trình + sức khoẻ + cảnh báo trong một thẻ */}
-          <section aria-label="Hiện trạng thửa đất">
-            <PlotStatusHero
-              plot={plot}
-              cropProcess={cropProcess}
-              topAlerts={topAlerts}
-              liveProviderInfo={liveProviderInfo}
-            />
-          </section>
+          {/* Cảnh báo vi khí hậu & điều tiết tưới tự động (BR18) nếu có */}
+          {topAlerts.length > 0 && (
+            <div className="flex items-center gap-2.5 rounded-xl border border-amber-300 bg-amber-50/90 px-4 py-2.5 text-xs text-amber-900 shadow-xs">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+              <span>
+                <strong>{explainAlert(topAlerts[0], plot.mode).title}:</strong> {explainAlert(topAlerts[0], plot.mode).explanation}{' '}
+                <strong className="text-amber-950">{explainAlert(topAlerts[0], plot.mode).action}</strong>
+              </span>
+            </div>
+          )}
 
           {/* 2. Dòng thời gian mốc ngày chuẩn VietGAP */}
           <Card className="p-5">
@@ -3004,6 +2912,46 @@ export default function CustomerPlotWorkspace({
   // 0. Quản lý Mùa vụ (Seasons) & Gia hạn hợp đồng thửa đất (BR12)
   const [customSeasons, setCustomSeasons] = useState(null);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
+
+  // Lắng nghe sự kiện Admin duyệt gia hạn (qua BroadcastChannel hoặc localStorage)
+  useEffect(() => {
+    const plotKey = String(plot?.code || plot?.name || 'P-05').replace(/^PLOT-|^Thửa\s*/i, '').trim().toUpperCase();
+    const handleCheckApproved = () => {
+      try {
+        const saved = localStorage.getItem(`farmely_plot_seasons_${plotKey}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setCustomSeasons(parsed);
+        }
+      } catch {}
+    };
+
+    let bc = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bc = new BroadcastChannel('farmely_contract_channel');
+        bc.onmessage = (event) => {
+          if (event?.data?.type === 'CONTRACT_RENEWAL_APPROVED') {
+            handleCheckApproved();
+          }
+        };
+      }
+    } catch {}
+
+    const onStorage = (e) => {
+      if (e.key === `farmely_plot_seasons_${plotKey}`) {
+        handleCheckApproved();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      if (bc) {
+        try { bc.close(); } catch {}
+      }
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [plot?.code, plot?.name]);
 
   // Trạng thái kích hoạt mùa vụ: Trước khi bấm nút bắt đầu mùa vụ thì giữ trạng thái Sắp tới
   const [isSeasonStarted, setIsSeasonStarted] = useState(() => {
@@ -3683,6 +3631,14 @@ export default function CustomerPlotWorkspace({
           : (openTaskCount > 0 ? `${openTaskCount} việc đang làm` : 'Đã hoàn thành đủ')),
       icon: CalendarCheck,
       tab: 'tasks'
+    },
+    {
+      label: 'Nhiệt độ thực địa',
+      value: activePlot.temp ? String(activePlot.temp).replace(/°C/i, '').trim() : '25.5',
+      unit: '°C',
+      note: activePlot.airHumidity ? `Ẩm ${activePlot.airHumidity} · Open-Meteo` : 'Open-Meteo Live Feed',
+      icon: CloudSun,
+      tab: 'overview'
     }
   ];
 
@@ -3746,6 +3702,15 @@ export default function CustomerPlotWorkspace({
                   Trạm {liveIotResult?.stationId || plot.stationId || 'AGRO-CUCHI'}
                   {activePlot.lastUpdated ? <span className="text-white/70 font-normal">· {activePlot.lastUpdated}</span> : ''}
                 </span>
+                <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-950/60 px-2.5 py-0.5 backdrop-blur text-lime-300">
+                  <CloudSun className="h-3.5 w-3.5 text-lime-300" />
+                  <span>Nhiệt độ {activePlot.temp ? (String(activePlot.temp).includes('°') ? activePlot.temp : `${activePlot.temp}°C`) : '25.5°C'}</span>
+                  {activePlot.airHumidity ? <span className="text-white/75 font-normal">· Ẩm {activePlot.airHumidity}</span> : null}
+                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-lime-300/90 bg-emerald-500/20 px-1.5 py-0.5 rounded-full">
+                    <span className="h-1.5 w-1.5 rounded-full bg-lime-400 animate-pulse" />
+                    Open-Meteo
+                  </span>
+                </span>
               </div>
               <h1 className="mt-2 font-heading text-2xl font-bold leading-tight tracking-tight !text-white drop-shadow sm:text-3xl lg:text-[2.15rem]">{plot.name}</h1>
               <p className="mt-1 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs sm:text-sm text-white/85">
@@ -3781,8 +3746,8 @@ export default function CustomerPlotWorkspace({
               </div>
             </div>
 
-            {/* 3 thẻ chỉ số nhanh */}
-            <div className="grid grid-cols-3 gap-2 lg:w-[420px]">
+            {/* 4 thẻ chỉ số nhanh (bao gồm Thời tiết thực địa) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 lg:w-[540px]">
               {heroStats.map((s, i) => {
                 const Icon = s.icon;
                 return (
