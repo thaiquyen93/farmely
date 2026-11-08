@@ -125,12 +125,16 @@ export default function SoilPrepView({
             {onSimulateDay1 && (
               <button
                 type="button"
-                onClick={onSimulateDay1}
+                onClick={() => onSimulateDay1(nextSeason)}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 px-4 py-2.5 text-xs font-bold text-emerald-800 transition shadow-2xs cursor-pointer"
-                title="Quay về Ngày 1 để chạy lại demo"
+                title={nextSeason ? `Bắt đầu canh tác Vụ ${nextSeason.seasonNumber} (Ngày 1)` : "Quay về Ngày 1 để chạy lại demo"}
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span>🌱 Bắt đầu lại Vụ Mới (Ngày 1)</span>
+                <span>
+                  {nextSeason
+                    ? `🌱 Bắt đầu lại Vụ Mới (Vụ ${nextSeason.seasonNumber} · Ngày 1)`
+                    : '🌱 Bắt đầu lại Vụ Mới (Ngày 1)'}
+                </span>
               </button>
             )}
           </div>

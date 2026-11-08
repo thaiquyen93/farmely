@@ -1298,11 +1298,22 @@ function enforceSequentialSeasons(rawSeasons = [], plot = {}) {
     let isCurrent = false;
     let inFallow = false;
 
-    if (earlierSeasonIncomplete) {
+    if (s.status === 'COMPLETED') {
+      status = 'COMPLETED';
+      currentDayInSeason = seasonDuration;
+      isCurrent = false;
+      inFallow = false;
+    } else if (earlierSeasonIncomplete) {
       status = 'SCHEDULED';
       currentDayInSeason = 0;
       isCurrent = false;
       inFallow = false;
+    } else if (s.status === 'ACTIVE' && Number(s.currentDay) > 0) {
+      status = 'ACTIVE';
+      currentDayInSeason = Number(s.currentDay) || 1;
+      isCurrent = true;
+      inFallow = false;
+      earlierSeasonIncomplete = true;
     } else if (rawCurrentDay <= 0) {
       status = 'SCHEDULED';
       currentDayInSeason = 0;

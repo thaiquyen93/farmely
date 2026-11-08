@@ -633,7 +633,6 @@ function StandardProcessTimeline({
         setTimeout(() => { try { bc2.close(); } catch {} }, 1000);
       } catch {}
     }
-    window.location.reload();
   };
 
   const handleSimulateHarvest = async () => {
@@ -3028,7 +3027,9 @@ export default function CustomerPlotWorkspace({
 
     const effectiveCurrentDay = !isCurrentSeason
       ? (activeSeason.status === 'COMPLETED' ? activeSeason.totalDays : 0)
-      : (isSeasonStarted ? Math.max(1, Number(plot.currentDay) || 1) : (isSeasonScheduled ? 0 : plot.currentDay));
+      : (isSeasonStarted
+          ? Math.max(1, Number(activeSeason.currentDay !== undefined && activeSeason.currentDay !== null ? activeSeason.currentDay : plot.currentDay) || 1)
+          : (isSeasonScheduled ? 0 : (activeSeason.currentDay || plot.currentDay || 0)));
 
     const effectiveSeasonStatus = !isCurrentSeason
       ? activeSeason.status
@@ -3447,7 +3448,75 @@ export default function CustomerPlotWorkspace({
     return base;
   }, [plot, liveIotResult, isSeasonStarted]);
 
-  const handleSimulateDay1 = useCallback(async () => {
+  const handleSimulateDay1 = useCallback(async (targetSeason) => {
+    // 1. Tự động nhận diện Vụ tiếp theo (ví dụ Vụ 2 khi bấm bắt đầu từ Vụ 1 bảo trì)
+    const nextSeasonToStart = (targetSeason && targetSeason.id)
+      ? targetSeason
+      : plotSeasons.find((s) => s.seasonNumber > (activeSeason?.seasonNumber || 1));
+
+    if (nextSeasonToStart) {
+      const updatedSeasons = (customSeasons && customSeasons.length > 0 ? customSeasons : plotSeasons).map((s) => {
+        if (s.seasonNumber < nextSeasonToStart.seasonNumber) {
+          return {
+            ...s,
+            status: 'COMPLETED',
+            isCurrent: false,
+            inFallow: false,
+            currentDay: s.totalDays,
+            yieldKgActual: s.yieldKgActual || (propLatestHarvest?.yieldAmount ?? 49.98)
+          };
+        } else if (s.seasonNumber === nextSeasonToStart.seasonNumber) {
+          return {
+            ...s,
+            status: 'ACTIVE',
+            isCurrent: true,
+            inFallow: false,
+            currentDay: 1,
+            startDate: new Date().toISOString().slice(0, 10)
+          };
+        } else {
+          return {
+            ...s,
+            status: 'SCHEDULED',
+            isCurrent: false,
+            inFallow: false,
+            currentDay: 0
+          };
+        }
+      });
+
+      setCustomSeasons(updatedSeasons);
+      setActiveSeasonId(nextSeasonToStart.id);
+      setIsSeasonStarted(true);
+      setShowMaintenanceView(false);
+
+      const plotKey = plot.plotCode || plot.mapPlotId || plot.key || `P-${plot.rentalId || plot.id}`;
+      try {
+        localStorage.setItem(`farmely_plot_seasons_${plotKey}`, JSON.stringify(updatedSeasons));
+        localStorage.setItem(`farmely_season_started_${plot.id}`, 'true');
+        localStorage.setItem(`farmely_active_season_${plot.id}`, nextSeasonToStart.id);
+      } catch { }
+
+      // Xóa các task cũ để Vụ mới khởi tạo lại task Ngày 1 chuẩn
+      try {
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith('farmely_self_tasks_') || k.includes('farmely_persisted_staff_activities')) {
+            localStorage.removeItem(k);
+          }
+        });
+      } catch { }
+
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        try {
+          const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
+          bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
+          setTimeout(() => { try { bc1.close(); } catch { } }, 1000);
+        } catch { }
+      }
+      return;
+    }
+
+    // 2. Trường hợp chỉ có 1 vụ (chưa có Vụ 2): reset lại Ngày 1 của Vụ 1
     const rentalId = activePlot?.rentalId || activePlot?.rental_id || plot?.rentalId || plot?.rental_id;
     if (rentalId) {
       try {
@@ -3477,7 +3546,9 @@ export default function CustomerPlotWorkspace({
         console.warn('Could not simulate day 1:', err);
       }
     }
-  }, [activePlot, plot]);
+    setIsSeasonStarted(true);
+    setShowMaintenanceView(false);
+  }, [activePlot, plot, activeSeason, plotSeasons, customSeasons, propLatestHarvest]);
 
   // ponytail: chuỗi hourly chỉ dùng cho biểu đồ của tab Vi khí hậu (đã gộp vào Tổng quan).
   // upgrade path is lấy lại liveIotResult.hourly khi dựng trang tra cứu lịch sử khí tượng.
