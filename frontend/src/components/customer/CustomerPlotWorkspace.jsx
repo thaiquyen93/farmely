@@ -2302,6 +2302,12 @@ function OverviewTab({
   // Vụ chỉ ở trạng thái Soil Prep khi chính vụ đó đang ở chu kỳ SOIL_PREP/inFallow, HOẶC user bấm xem bảo trì cho vụ đang kết thúc (không áp dụng cho vụ SCHEDULED sắp tới)
   const isSoilPrep = activeSeason?.status !== 'SCHEDULED' && (activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow || showMaintenanceView);
 
+  // Đất đang trong thời gian đệm (buffer/fallow BR23) khi có vụ mùa đang nghỉ đất/cải tạo hoặc đang bảo trì
+  const isPlotInBuffer = seasons.some((s) => s.status === 'SOIL_PREP' || s.inFallow)
+    || showMaintenanceView
+    || plot?.status === 'MAINTENANCE'
+    || (seasons.length > 0 && seasons.every((s) => s.status === 'COMPLETED'));
+
   // BR20 + BR21: CVLĐ cân, chụp ảnh rồi chốt biên bản -> Tổng quan chỉ THÔNG BÁO đã thu hoạch.
   // KH không nghiệm thu trên hệ thống, việc xác nhận nhận nông sản diễn ra tại nông trại.
   // ponytail: ceiling is hiển thị biên bản mới nhất; upgrade path is danh sách nhiều vụ khi KH thuê dài hạn.
@@ -2332,8 +2338,8 @@ function OverviewTab({
 
   return (
     <div className="space-y-6">
-      {/* 0. Chu kỳ mùa vụ thửa đất (Season Selector) - Luôn hiển thị tại Tổng quan khi thửa có nhiều vụ mùa */}
-      {seasons && seasons.length > 0 && (
+      {/* 0. Chu kỳ mùa vụ thửa đất (Season Selector) - Chỉ hiển thị khi đất đã xong vụ và đang trong thời gian đệm (buffer / fallow BR23) */}
+      {isPlotInBuffer && seasons && seasons.length > 0 && (
         <SeasonSelector
           seasons={seasons}
           activeSeasonId={activeSeasonId || activeSeason?.id}
@@ -2650,17 +2656,23 @@ function ServicesTab({ plot, services, orders, onSelectService, seasons = [], ac
   const inProgressCount = orders.filter((o) => o.status === 'IN_PROGRESS' || o.status === 'ASSIGNED' || o.status === 'PENDING').length;
   const completedCount = orders.filter((o) => o.status === 'COMPLETED' || o.status === 'DONE').length;
 
+  const isPlotInBuffer = seasons.some((s) => s.status === 'SOIL_PREP' || s.inFallow)
+    || plot?.status === 'MAINTENANCE'
+    || (seasons.length > 0 && seasons.every((s) => s.status === 'COMPLETED'));
+
   return (
     <div className="space-y-6">
-      {/* 0. Chu kỳ mùa vụ thửa đất — gia hạn/đổi giống là việc đặt dịch vụ, không phải theo dõi hằng ngày */}
-      <SeasonSelector
-        seasons={seasons}
-        activeSeasonId={activeSeasonId}
-        onSelectSeason={onSelectSeason}
-        onOpenRenewal={onOpenRenewal}
-        canRenew={true}
-        plot={plot}
-      />
+      {/* 0. Chu kỳ mùa vụ thửa đất — chỉ hiển thị khi đất đã xong vụ và đang trong thời gian đệm (buffer / fallow BR23) */}
+      {isPlotInBuffer && seasons && seasons.length > 0 && (
+        <SeasonSelector
+          seasons={seasons}
+          activeSeasonId={activeSeasonId}
+          onSelectSeason={onSelectSeason}
+          onOpenRenewal={onOpenRenewal}
+          canRenew={true}
+          plot={plot}
+        />
+      )}
 
       {/* 1. Đặt dịch vụ chăm sóc & vật tư */}
       <section>
