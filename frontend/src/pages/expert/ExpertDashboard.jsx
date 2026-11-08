@@ -8,8 +8,9 @@ import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
 import IssueAssignmentPanel from '../../components/expert/IssueAssignmentPanel';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
-import { getSafeAvatar, DEMO_CUSTOMERS, updateThreadRentalInStorage } from '../../api/communication/chatStorage';
+import { getSafeAvatar } from '../../api/communication/chatStorage';
 import { chatService } from '../../api/communication/chatService';
+import { buildExpertInboxEntries } from './expertInboxGroups';
 import { resolveStandardCropProcess, getPersistedStaffActivities } from '../../services/cropStandardProcess';
 import PlotWorkProgressTimeline from '../../components/expert/PlotProgressTimeline';
 import { apiFetch, unwrapData } from '../../api/apiClient';
@@ -191,14 +192,20 @@ export default function ExpertDashboard() {
   const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
   const visibleChatThreads = useMemo(() => chatThreads.filter((thread) => {
     if (thread.role !== 'customer') return true;
+    if (!thread.conversationId) return false;
     if (isPreRentalThread(thread)) return Boolean(thread.messages?.length);
     const assigned = (assignedPlots || []).some((plot) => {
-      if (thread.customerEmail && plot.renterEmail && thread.customerEmail.toLowerCase() !== plot.renterEmail.toLowerCase()) return false;
-      const codes = [thread.plotCode, ...(thread.plots || []).map((item) => item.plotCode)].join(',').toUpperCase().split(',').map((code) => code.trim());
-      return codes.includes(String(plot.plotCode || '').toUpperCase());
+      return Number(thread.rentalId) === Number(plot.rentalId) &&
+        String(thread.plotCode || '').toUpperCase() === String(plot.plotCode || '').toUpperCase();
     });
     return assigned;
   }), [chatThreads, assignedPlots]);
+  const inboxEntries = useMemo(() => buildExpertInboxEntries(visibleChatThreads), [visibleChatThreads]);
+  useEffect(() => {
+    if (visibleChatThreads.length && !visibleChatThreads.some((thread) => thread.id === selectedThreadId)) {
+      setSelectedThreadId(visibleChatThreads[0].id);
+    }
+  }, [visibleChatThreads, selectedThreadId, setSelectedThreadId]);
   const preRentalCount = visibleChatThreads.filter(isPreRentalThread).length;
 
   const formatPlotCode = (raw) => {
@@ -261,11 +268,13 @@ export default function ExpertDashboard() {
 
   // Handle select conversation
   const handleSelectThread = (threadId) => {
-    setSelectedThreadId(threadId);
+    const entry = inboxEntries.find((item) => item.id === threadId);
+    const targetId = entry?.threads.find((thread) => thread.id === selectedThreadId)?.id || entry?.threads[0]?.id || threadId;
+    setSelectedThreadId(targetId);
     setChatPlotFilter('ALL');
     setSelectedMessagePlot('');
     setMobileShowChat(true);
-    markExpertThreadAsRead(threadId);
+    markExpertThreadAsRead(targetId);
   };
 
   // Handle send message in Messenger chat (hỗ trợ đính kèm mã Thửa Đất)
@@ -278,6 +287,21 @@ export default function ExpertDashboard() {
       : (activeRealtimeThread?.expertName || expertSenderName);
 
     const targetPlot = explicitPlotCode || selectedMessagePlot || (chatPlotFilter !== 'ALL' ? chatPlotFilter : '');
+    const entry = inboxEntries.find((item) => item.threads.some((thread) => thread.id === selectedThreadId));
+    if (entry?.role === 'customer' && !isPreRentalThread(entry)) {
+      const plotThread = targetPlot
+        ? entry.threads.find((thread) => thread.plotCode?.toUpperCase() === targetPlot.toUpperCase())
+        : entry.threads.length === 1 ? entry.threads[0] : null;
+      if (!plotThread) return;
+      chatService.sendMessage({ threadId: plotThread.id, sender: 'expert', senderName: currentExpert,
+        text: chatInputText.trim(), meta: { plotCode: plotThread.plotCode, prescriptionTag: `CHỈ ĐẠO THỬA ${plotThread.plotCode}` } });
+      refreshThreads();
+      setSelectedThreadId(plotThread.id);
+      setChatPlotFilter(plotThread.plotCode);
+      setSelectedMessagePlot(plotThread.plotCode);
+      setChatInputText('');
+      return;
+    }
     const meta = {};
     if (targetPlot) {
       meta.plotCode = targetPlot;
@@ -443,13 +467,6 @@ export default function ExpertDashboard() {
         }
 
         setAssignedPlots([...plotsById.values()]);
-        for (const rental of plotsById.values()) {
-          const customerEmail = rental.renterEmail || '';
-          const demo = DEMO_CUSTOMERS.find((customer) => customer.email?.toLowerCase() === customerEmail.toLowerCase());
-          const threadId = demo?.threadId || `CONS-${customerEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
-          chatService.upsertPlotThread({ threadId, rentalId: rental.rentalId, customerName: rental.renterName, customerEmail, plotCode: rental.plotCode, plotName: rental.name, crop: rental.crop, rentalStatus: 'RENTED' });
-          updateThreadRentalInStorage({ threadId, rentalId: rental.rentalId, customerName: rental.renterName, plotCode: rental.plotCode, plotName: rental.name, crop: rental.crop });
-        }
         refreshThreads();
       })
       .catch((err) => console.warn('Could not fetch live rentals:', err));
@@ -457,77 +474,18 @@ export default function ExpertDashboard() {
 
   const findCustomerThreadForPlot = useCallback((plot) => {
     if (!plot) return null;
-    const renterEmail = (plot.renterEmail || '').trim().toLowerCase();
-    const renterName = (plot.renterName || '').trim().toLowerCase();
-    const plotCode = (plot.plotCode || '').trim().toUpperCase();
-
-    // 1. Check existing customer threads in chatThreads
-    const customerThreads = chatThreads.filter(
-      (t) => t.role === 'customer' || (!t.role && !String(t.id).startsWith('WORK-') && !/Ban Quản Trị|Admin/i.test(t.customerName || ''))
-    );
-
-    // 1a. Match by email
-    if (renterEmail) {
-      const match = customerThreads.find(
-        (t) => (t.customerEmail || t.email || '').trim().toLowerCase() === renterEmail
-      );
-      if (match) return match.id;
-    }
-
-    // 1b. Match by customer name
-    if (renterName) {
-      const match = customerThreads.find((t) => {
-        const tName = (t.customerName || '').trim().toLowerCase();
-        return tName && (tName === renterName || tName.includes(renterName) || renterName.includes(tName));
-      });
-      if (match) return match.id;
-    }
-
-    // 1c. Match by plot code
-    if (plotCode) {
-      const match = customerThreads.find((t) => {
-        const tCode = (t.plotCode || '').trim().toUpperCase();
-        return tCode && (tCode === plotCode || tCode === `PLOT-${plotCode}` || plotCode === `PLOT-${tCode}`);
-      });
-      if (match) return match.id;
-    }
-
-    // 2. Check DEMO_CUSTOMERS mapping
-    const demoMatch = DEMO_CUSTOMERS.find((c) => {
-      const cEmail = (c.email || '').trim().toLowerCase();
-      const cName = (c.name || '').trim().toLowerCase();
-      const cCode = (c.plotCode || '').trim().toUpperCase();
-      if (renterEmail && cEmail && cEmail === renterEmail) return true;
-      if (renterName && cName && (cName === renterName || cName.includes(renterName) || renterName.includes(cName))) return true;
-      if (plotCode && cCode && cCode === plotCode) return true;
-      return false;
-    });
-
-    if (demoMatch) {
-      const existingThread = chatThreads.find((t) => t.id === demoMatch.threadId);
-      if (existingThread) return existingThread.id;
-      return demoMatch.threadId;
-    }
-
-    // 3. Fallback: Create thread in storage for this customer so they have a persistent thread
-    const newThreadId = `CONS-${plot.rentalId || plot.id || String(plot.plotCode || Date.now()).replace(/\D/g, '') || Date.now()}`;
-    updateThreadRentalInStorage({
-      threadId: newThreadId,
-      customerName: plot.renterName || 'Khách Thuê Đất',
-      customerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      plotCode: plot.plotCode,
-      plotName: plot.name || `Thửa ${plot.plotCode}`,
-      crop: plot.crop || 'Cây trồng VietGAP'
-    });
-    refreshThreads();
-    return newThreadId;
-  }, [chatThreads, refreshThreads]);
+    return chatThreads.find((thread) => thread.role === 'customer' &&
+      Number(thread.rentalId) === Number(plot.rentalId) &&
+      String(thread.plotCode || '').toUpperCase() === String(plot.plotCode || '').toUpperCase())?.id || null;
+  }, [chatThreads]);
 
   const handleOpenChatWithCustomer = useCallback((plot) => {
     const threadId = findCustomerThreadForPlot(plot);
     if (threadId) {
       setSelectedThreadId(threadId);
       markExpertThreadAsRead(threadId);
+      setChatPlotFilter(plot.plotCode || 'ALL');
+      setSelectedMessagePlot(plot.plotCode || '');
     }
     setChatFilter('all');
     setChatSearchQuery('');
@@ -1788,7 +1746,7 @@ export default function ExpertDashboard() {
             <div className={`px-2 pb-2 text-xs font-bold text-emerald-100/70 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Bàn Làm Việc Kỹ Thuật</div>
 
             {[
-              { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
+              { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: inboxEntries.filter(c => c.status === 'PENDING').length },
               { id: 'plots', label: 'Thửa Đất Giám Sát', icon: Layers, count: assignedPlots.length },
               { id: 'issues', label: 'Xử Lý Sự Cố Hiện Trường', icon: AlertTriangle, count: fieldIssues.filter(i => i.status === 'PENDING' || i.status === 'OPEN').length },
               { id: 'crops', label: 'Danh Mục Cây Trồng (Crops)', icon: Sprout, count: null },
@@ -1862,7 +1820,7 @@ export default function ExpertDashboard() {
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         </div>
                         <span className="text-xs font-bold text-amber-900 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 whitespace-nowrap">
-                          {chatThreads.filter(c => c.status === 'PENDING').length} Chờ trả lời
+                          {inboxEntries.filter(c => c.status === 'PENDING').length} Chờ trả lời
                         </span>
                       </div>
 
@@ -1896,7 +1854,7 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          Tất cả ({visibleChatThreads.length})
+                          Tất cả ({inboxEntries.length})
                         </button>
                         <button
                           onClick={() => setChatFilter('customer')}
@@ -1906,7 +1864,7 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          Đã thuê ({visibleChatThreads.filter(c => c.role === 'customer' && !isPreRentalThread(c)).length})
+                          Đã thuê ({inboxEntries.filter(c => c.role === 'customer' && !isPreRentalThread(c)).length})
                         </button>
                         <button
                           onClick={() => setChatFilter('pre_rental')}
@@ -1926,7 +1884,7 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          CVLĐ ({visibleChatThreads.filter(c => c.role === 'worker').length})
+                          CVLĐ ({inboxEntries.filter(c => c.role === 'worker').length})
                         </button>
                         <button
                           onClick={() => setChatFilter('pending')}
@@ -1936,18 +1894,19 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          Chờ xử lý ({visibleChatThreads.filter(c => c.status === 'PENDING').length})
+                          Chờ xử lý ({inboxEntries.filter(c => c.status === 'PENDING').length})
                         </button>
                       </div>
                     </div>
 
                     {/* Thread List (Scrollable) */}
                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                      {visibleChatThreads
+                      {inboxEntries
                         .filter((thread) => {
                           const q = chatSearchQuery.toLowerCase();
                           const matchesQuery =
                             (thread.customerName || '').toLowerCase().includes(q) ||
+                            (thread.plotCode || '').toLowerCase().includes(q) ||
                             (thread.plotName || '').toLowerCase().includes(q) ||
                             (thread.crop || '').toLowerCase().includes(q) ||
                             (thread.roleLabel || '').toLowerCase().includes(q);
@@ -1958,7 +1917,7 @@ export default function ExpertDashboard() {
                           return matchesQuery;
                         })
                         .map((thread) => {
-                          const isSelected = thread.id === selectedThreadId;
+                          const isSelected = thread.threads.some((item) => item.id === selectedThreadId);
                           const lastMsg = thread.messages[thread.messages.length - 1];
                           const hasPhoto = thread.messages.some(m => m.photoUrl);
                           const isAdmin = thread.role === 'admin' || /Ban Quản Trị|Admin/i.test(thread.customerName || '');
@@ -2060,8 +2019,8 @@ export default function ExpertDashboard() {
                   {/* Right Column: Active Messenger Conversation View */}
                   {(() => {
                     const activeThread =
-                      visibleChatThreads.find((t) => t.id === selectedThreadId) ||
-                      visibleChatThreads[0];
+                      inboxEntries.find((entry) => entry.threads.some((thread) => thread.id === selectedThreadId)) ||
+                      inboxEntries[0];
 
                     if (!activeThread) return null;
 
@@ -2071,6 +2030,10 @@ export default function ExpertDashboard() {
 
                     // Trích xuất toàn bộ các thửa đất mà đối tượng chat (Khách thuê hoặc CVLĐ) đang phụ trách
                     const participantPlots = (() => {
+                      if (activeThread.role === 'customer' && !isPreRental && activeThread.plots.length) {
+                        return activeThread.plots.filter((plot, index, plots) =>
+                          plot.plotCode && plots.findIndex((item) => item.plotCode === plot.plotCode) === index);
+                      }
                       const map = new Map();
                       if (Array.isArray(activeThread.plots)) {
                         activeThread.plots.forEach((p) => {
@@ -2170,6 +2133,8 @@ export default function ExpertDashboard() {
                     });
 
                     const filteredPlotInfo = participantPlots.find((p) => p.plotCode === chatPlotFilter);
+                    const requiresPlotSelection = activeThread.role === 'customer' && !isPreRental &&
+                      activeThread.threads.length > 1 && !selectedMessagePlot && chatPlotFilter === 'ALL';
 
                     return (
                       <div className={`flex-1 flex flex-col bg-white min-w-0 ${
@@ -2293,6 +2258,8 @@ export default function ExpertDashboard() {
                                     onClick={() => {
                                       setChatPlotFilter(p.plotCode);
                                       setSelectedMessagePlot(p.plotCode);
+                                      const plotThread = activeThread.threads.find((thread) => thread.plotCode === p.plotCode);
+                                      if (plotThread) { setSelectedThreadId(plotThread.id); markExpertThreadAsRead(plotThread.id); }
                                     }}
                                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
                                       isSelected
@@ -2572,6 +2539,8 @@ export default function ExpertDashboard() {
                                   ? `Soạn trao đổi công việc với Ban Quản Trị Farmely... (Enter để gửi)`
                                   : isWorkerThread
                                     ? `Soạn chỉ đạo kỹ thuật cho ${activeThread.customerName}${chatPlotFilter !== 'ALL' ? ` (Thửa ${chatPlotFilter})` : ''}... (Enter để gửi)`
+                                    : requiresPlotSelection
+                                      ? 'Chọn một thửa ở phía trên trước khi gửi...'
                                     : `Soạn tư vấn kỹ thuật hoặc chỉ đạo cho ${activeThread.customerName}${chatPlotFilter !== 'ALL' ? ` (Thửa ${chatPlotFilter})` : ''}... (Enter để gửi)`
                               }
                               className="w-full bg-transparent border-0 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none resize-none px-1"
@@ -2610,7 +2579,7 @@ export default function ExpertDashboard() {
                             type="submit"
                             variant="primary"
                             size="md"
-                            disabled={!chatInputText.trim()}
+                            disabled={!chatInputText.trim() || requiresPlotSelection}
                             className="font-semibold h-[64px] px-4 rounded-xl shadow-xs shrink-0 bg-emerald-700 hover:bg-emerald-800"
                           >
                             <Send className="w-4 h-4 mr-1" />

@@ -95,6 +95,7 @@ export default function CustomerDashboard() {
   const [taskPhotoPreview, setTaskPhotoPreview] = useState('');
   const [chatOpenMode, setChatOpenMode] = useState('expert');
   const [showExpertChatModal, setShowExpertChatModal] = useState(false);
+  useEffect(() => { setShowExpertChatModal(false); }, [selectedPlotId]);
 
   // Chat Communication & Identity Resolution:
   // Detect if current logged-in user is a custom registered user (not the default demo USR-001)
@@ -127,12 +128,8 @@ export default function CustomerDashboard() {
   // Default thread for the active user account
   const defaultUserThreadId = useMemo(() => {
     if (customAccount) return customAccount.threadId;
-    if (user?.email) {
-      const match = DEMO_CUSTOMERS.find((c) => c.email && c.email.toLowerCase() === user.email.toLowerCase());
-      if (match) return match.threadId;
-    }
-    return DEMO_CUSTOMERS[0].threadId; // 'CONS-401' for Lô Thái Quyền (demo)
-  }, [customAccount, user?.email]);
+    return `CONS-CUSTOMER-${user?.userId || user?.id || user?.email || 'CUSTOMER'}`;
+  }, [customAccount, user?.id, user?.userId, user?.email]);
 
   const availableCustomerOptions = useMemo(() => {
     if (customAccount) {
@@ -157,11 +154,12 @@ export default function CustomerDashboard() {
   }, [availableCustomerOptions, selectedCustomerThreadId]);
 
   // Sender name is strictly tied to the selected profile
-  const activeCustomerSenderName = currentCustomerProfile?.name || user?.fullName || 'Khách Hàng';
+  const activeCustomerSenderName = user?.fullName || currentCustomerProfile?.name || 'Khách Hàng';
 
   const {
     currentThread: customerChatThread,
-    sendMessage: sendCustomerMessage
+    sendMessage: sendLocalCustomerMessage,
+    refreshThreads: refreshCustomerChatThreads
   } = useRealtimeChat({
     role: 'customer',
     initialThreadId: selectedCustomerThreadId,
@@ -177,11 +175,22 @@ export default function CustomerDashboard() {
     }
   }, [showExpertChatModal, customerChatThread?.messages]);
 
+  const sendCustomerMessage = async (text, senderName = activeCustomerSenderName) => {
+    if (currentSelectedPlot?.rentalId) {
+      await chatService.sendPlotMessage({ rentalId: currentSelectedPlot.rentalId,
+        plotCode: currentSelectedPlot.plotCode || currentSelectedPlot.mapPlotId,
+        text, senderName });
+      refreshCustomerChatThreads();
+    } else {
+      sendLocalCustomerMessage(text, senderName);
+    }
+  };
+
   const handleSendCustomerChat = (e) => {
     if (e) e.preventDefault();
     if (!customerChatInput.trim()) return;
 
-    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName, { plotCode: currentSelectedPlot?.plotCode || currentSelectedPlot?.mapPlotId || '' });
+    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName).catch(console.error);
     setCustomerChatInput('');
   };
 
@@ -2025,9 +2034,7 @@ export default function CustomerDashboard() {
                 onSelectPlot={(plotId) => navigate(`/customer/dashboard?plot=${plotId}${plotTabFromUrl !== 'overview' ? `&tab=${plotTabFromUrl}` : ''}`)}
                 onOpenAiChat={() => {
                   const plotCode = currentSelectedPlot.plotCode || currentSelectedPlot.mapPlotId || String(currentSelectedPlot.id || '').replace(/^PLOT-/, '');
-                  const threadId = defaultUserThreadId;
-                  chatService.upsertPlotThread({ threadId, rentalId: currentSelectedPlot.rentalId, customerName: user?.fullName || 'Khách hàng', customerEmail: user?.email, plotCode, plotName: currentSelectedPlot.name, crop: currentSelectedPlot.crop, rentalStatus: 'RENTED' });
-                  updateThreadRentalInStorage({ threadId, rentalId: currentSelectedPlot.rentalId, customerName: user?.fullName || 'Khách hàng', plotCode, plotName: currentSelectedPlot.name, crop: currentSelectedPlot.crop });
+                  const threadId = `CONS-RENTAL-${currentSelectedPlot.rentalId}`;
                   setSelectedCustomerThreadId(threadId);
                   setChatOpenMode('expert');
                   setShowExpertChatModal(true);
@@ -3463,7 +3470,7 @@ export default function CustomerDashboard() {
             
 
             <FloatingExpertChat
-              isOpen={showExpertChatModal}
+              isOpen={Boolean(showExpertChatModal && selectedPlotId && currentSelectedPlot?.rentalId)}
               onOpen={() => { setChatOpenMode('expert'); setShowExpertChatModal(true); }}
               onClose={() => setShowExpertChatModal(false)}
               thread={customerChatThread}

@@ -1,6 +1,6 @@
 # Đặc tả kiểm thử 4 luồng Farmely — bản để duyệt
 
-**Ngày lập:** 30/10/2026 · **Trạng thái:** DRAFT. Đã triển khai và chạy 6 ID trong Playwright; kết quả chi tiết ở [báo cáo 30/10/2026](playwright-run-2026-10-30.md). Đây là test case bằng ngôn ngữ nghiệp vụ; những ID còn lại chưa có Playwright spec. Bộ 21 test chỉ đọc đã có từ trước là một công việc khác.
+**Ngày lập:** 30/10/2026 · **Trạng thái:** DRAFT. Đây là các test case bằng ngôn ngữ nghiệp vụ để đối chiếu thủ công với app và API.
 
 ## 1. Phạm vi và cách đọc
 
@@ -8,7 +8,7 @@ Tài liệu bám đúng bốn luồng trong ảnh: (1) Chuẩn bị để cho th
 
 Phạm vi role thực có trong code: `ADMIN`, `EXPERT`, `CUSTOMER`, `FIELD_WORKER` (UI gọi `STAFF`). Không có role LANDOWNER. Đăng nhập demo/localStorage chỉ đủ thử điều hướng UI; các test quyền backend phải dùng JWT của user test thật.
 
-**Nguồn đối chiếu chính:** `frontend/src/App.jsx`, `frontend/src/pages/admin/*`, `frontend/src/pages/public/{Marketplace,PlotDetail,BookPlot}.jsx`, dashboard Customer/Expert/Staff, `frontend/server/siteVisitsApiPlugin.js`, `frontend/vite.config.js`, các service Spring `farm`, `knowledge`, `rental`, `cultivation`, `payment`, `monitoring`, và `Database/farmely_full_database.sql`. Đường chạy `localhost:3000` dùng Vite plugin cho nhiều `/api/*` rồi proxy các route còn lại sang Spring. Cùng một tính năng có thể có hai đường thực thi; khi viết Playwright cần khóa rõ **runtime mục tiêu** trước khi so sánh kết quả.
+**Nguồn đối chiếu chính:** `frontend/src/App.jsx`, `frontend/src/pages/admin/*`, `frontend/src/pages/public/{Marketplace,PlotDetail,BookPlot}.jsx`, dashboard Customer/Expert/Staff, `frontend/server/siteVisitsApiPlugin.js`, `frontend/vite.config.js`, các service Spring `farm`, `knowledge`, `rental`, `cultivation`, `payment`, `monitoring`, và `Database/farmely_full_database.sql`. Đường chạy `localhost:3000` dùng Vite plugin cho nhiều `/api/*` rồi proxy các route còn lại sang Spring. Cùng một tính năng có thể có hai đường thực thi; khi kiểm tra cần xác định rõ **runtime mục tiêu** trước khi so sánh kết quả.
 
 ### Dữ liệu test phải chuẩn bị sau khi duyệt
 
@@ -129,7 +129,7 @@ Mỗi case ghi dữ liệu bằng mã fixture riêng, tạo mới hoặc reset v
 | F4-12 | API analytics lỗi hoặc trả dữ liệu không đủ trường | UI báo không tải được/placeholder rõ; **không trình bày số mẫu như số thực** | R·U |
 | F4-13 | Xem quyết định mùa vụ tiếp theo | Nếu hệ thống chỉ có KPI mà chưa có thao tác ghi quyết định/kế hoạch, dừng ở kiểm tra thông tin; không tự giả định đã lưu quyết định | R·U |
 
-## 6. Điểm cần chốt trước khi chuyển thành Playwright
+## 6. Điểm cần chốt trước khi kiểm thử
 
 1. **DB và runtime:** `docker-compose.yml` hiện mặc định DB `farmely`. Cần DB test khác tên, cấu hình riêng cho Spring **và** Vite plugin. Chọn kiểm thử `localhost:3000` với Vite plugin, hoặc bản deploy qua Gateway; nếu cần cả hai, lập hai bộ kỳ vọng tương ứng.
 2. **Quy tắc có chênh lệch tài liệu/code:** tài liệu yêu cầu hoàn tiền theo mốc thời gian, nhưng `ContractCancellationServiceImpl` chủ yếu ghi yêu cầu và đổi trạng thái; tỷ lệ hoàn tiền cần đối chiếu Vite plugin. Các BR cũ còn mô tả mô hình reservation/plan khác schema hiện tại. Case chỉ PASS khi hành vi đã chốt được chứng minh, không sửa kỳ vọng để chiều theo UI.

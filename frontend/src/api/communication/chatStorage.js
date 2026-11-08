@@ -256,6 +256,8 @@ export function getStoredThreads() {
     // Lọc bỏ triệt để các mock user rác cũ (Mai Anh Thư, Hùng, Hương, Quân, Đạt, Hoa, Nam, qw, duplicate Ban Quản Trị)
     const validSeedIds = new Set(INITIAL_THREADS.map((t) => t.id));
     const cleaned = parsed.filter((t) => {
+      // Legacy combined demo chat mixed P-01/P-14 and older test messages for Quyền.
+      if (t.id === 'CONS-401') return false;
       if (validSeedIds.has(t.id)) return true;
       if (/Mai Anh Thư|Nguyễn Văn Hùng|Phạm Thu Hương|Trần Minh Quân|Nguyễn Văn Đạt|Lê Thị Hoa|Hoàng Văn Nam|^qw$/i.test(t.customerName || '')) {
         return false;
@@ -420,11 +422,11 @@ export function updateThreadRentalInStorage({ threadId, rentalId, customerName, 
   }
 
   // Tìm thread hiện có theo threadId hoặc theo tên
-  const requestedThreadIndex = threads.findIndex((thread) => thread.id === threadId);
+  const requestedThreadIndex = threads.findIndex((thread) => thread.id === threadId && thread.rentalStatus !== 'NOT_RENTED');
   const normalizedPlotCode = String(plotCode || '').trim().toUpperCase().replace(/^PLOT-/, '');
   const existingIndex = requestedThreadIndex >= 0 ? requestedThreadIndex : threads.findIndex((thread) => {
     const existingPlotCode = String(thread.plotCode || '').trim().toUpperCase().replace(/^PLOT-/, '');
-    return customerName && thread.customerName
+    return thread.rentalStatus !== 'NOT_RENTED' && customerName && thread.customerName
       && thread.customerName.toLowerCase() === customerName.toLowerCase()
       && existingPlotCode === normalizedPlotCode;
   });

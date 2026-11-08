@@ -219,6 +219,10 @@ export const useAuthStore = create((set, get) => ({
           return user;
         }
       }
+      if (response.status === 401) {
+        get().logout();
+        return null;
+      }
       return auth.user;
     } catch (error) {
       if (error.status === 401 && !auth.token.startsWith('farmely-jwt-token-') && !auth.token.startsWith('demo-token-')) {

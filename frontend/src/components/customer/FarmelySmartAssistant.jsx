@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
+import { chatService } from '../../api/communication/chatService';
 import { useLocation } from 'react-router-dom';
 
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
@@ -73,6 +74,31 @@ export default function FarmelySmartAssistant() {
 
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [isMarketplace, setIsMarketplace] = useState(false);
+  const [activeRentals, setActiveRentals] = useState([]);
+  const [rentalsLoaded, setRentalsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (user?.role !== 'CUSTOMER') return;
+    let cancelled = false;
+    setRentalsLoaded(false);
+    chatService.getMyActiveRentals().then((rentals) => {
+      if (!cancelled) { setActiveRentals(rentals); setRentalsLoaded(true); }
+    }).catch(() => { if (!cancelled) setRentalsLoaded(true); });
+    return () => { cancelled = true; };
+  }, [user?.id, user?.role, location.pathname, location.search]);
+
+  const requestedPlot = new URLSearchParams(location.search).get('plot');
+  const plotRental = activeRentals.find((rental) =>
+    requestedPlot === `RENTAL-${rental.rentalId}` ||
+    requestedPlot === `PLOT-${rental.plotCode}` ||
+    requestedPlot === rental.plotCode ||
+    requestedPlot === String(rental.plotId)
+  );
+  const showCustomerChat = user?.role !== 'CUSTOMER' || (rentalsLoaded && (
+    activeRentals.length === 0 || (location.pathname === '/customer/dashboard' && Boolean(plotRental))
+  ));
+
+  useEffect(() => { if (!showCustomerChat) setIsOpen(false); }, [showCustomerChat]);
 
   // AI Chat State
   const [aiInput, setAiInput] = useState('');
@@ -91,19 +117,45 @@ export default function FarmelySmartAssistant() {
 
   // Expert Chat State
   const [expertInput, setExpertInput] = useState('');
+  const [expertSendError, setExpertSendError] = useState('');
+  const [isSendingExpert, setIsSendingExpert] = useState(false);
   const isStaff = user?.role === 'STAFF';
   const chatRole = isStaff ? 'worker' : 'customer';
   const fallbackName = isStaff ? 'Nhân viên hiện trường' : 'Khách hàng';
   const threadId = useMemo(
-    () => `${isStaff ? 'WORK' : 'CONS'}-${user?.id || user?.email || (isStaff ? 'STAFF' : 'CUSTOMER')}`,
-    [isStaff, user?.id, user?.email]
+    () => plotRental ? `CONS-RENTAL-${plotRental.rentalId}` : isStaff
+      ? `WORK-${user?.id || user?.email || 'STAFF'}`
+      : `CONS-CUSTOMER-${user?.userId || user?.id || user?.email || 'CUSTOMER'}`,
+    [isStaff, user?.id, user?.userId, user?.email, plotRental?.rentalId]
   );
+  useEffect(() => { setIsOpen(false); setExpertInput(''); }, [threadId]);
 
   const { currentThread, sendMessage: sendExpertMessage } = useRealtimeChat({
     role: chatRole,
     initialThreadId: threadId,
     senderName: user?.fullName || user?.name || fallbackName
   });
+  const handleSendExpert = async () => {
+    const text = expertInput.trim();
+    if (!text || isSendingExpert) return;
+    setIsSendingExpert(true);
+    setExpertSendError('');
+    try {
+      if (isStaff) {
+        sendExpertMessage(text);
+      } else if (plotRental) {
+        await chatService.sendPlotMessage({ rentalId: plotRental.rentalId, plotCode: plotRental.plotCode,
+          text, senderName: user?.fullName || user?.name || fallbackName });
+      } else {
+        await chatService.sendPreRentalMessage({ text, senderName: user?.fullName || user?.name || fallbackName });
+      }
+      setExpertInput('');
+    } catch (error) {
+      setExpertSendError(error.message || 'Không gửi được tin nhắn.');
+    } finally {
+      setIsSendingExpert(false);
+    }
+  };
 
   const dragRef = useRef(null);
   const panelRef = useRef(null);
@@ -345,7 +397,7 @@ export default function FarmelySmartAssistant() {
       {/* ─────────────────────────────────────────────────────────────────────────────
           1. SMART FLOATING ACTION BUTTON (LAUNCHER DUY NHẤT — SIÊU ĐẸP & KHÔNG DÍNH)
       ───────────────────────────────────────────────────────────────────────────── */}
-      {!isOpen && (
+      {showCustomerChat && !isOpen && (
         <div
           data-draggable
           style={computedStyle}
@@ -389,7 +441,7 @@ export default function FarmelySmartAssistant() {
       {/* ─────────────────────────────────────────────────────────────────────────────
           2. UNIFIED ASSISTANT MODAL (CỬA SỔ CHAT ĐỒNG NHẤT 2-IN-1: AI & CHUYÊN GIA)
       ───────────────────────────────────────────────────────────────────────────── */}
-      {isOpen && (
+      {showCustomerChat && isOpen && (
         <section
           ref={panelRef}
           style={panelStyle}
@@ -409,7 +461,7 @@ export default function FarmelySmartAssistant() {
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-400/30" />
                   </h3>
                   <p className="text-[10px] text-white/70">
-                    {activeTab === 'ai' ? 'RAG Engine • Tư vấn chuyên sâu 24/7' : 'Kênh chuyên môn • Tư vấn trực tiếp'}
+                    {activeTab === 'ai' ? 'RAG Engine • Tư vấn chuyên sâu 24/7' : plotRental ? `Kênh chuyên môn • Thửa ${plotRental.plotCode}` : 'Kênh chuyên môn • Tư vấn trước thuê'}
                   </p>
                 </div>
               </div>
@@ -587,10 +639,7 @@ export default function FarmelySmartAssistant() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (expertInput.trim()) {
-                    sendExpertMessage(expertInput.trim());
-                    setExpertInput('');
-                  }
+                  handleSendExpert();
                 }}
                 className="p-2.5 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0"
               >
@@ -598,18 +647,19 @@ export default function FarmelySmartAssistant() {
                   type="text"
                   value={expertInput}
                   onChange={(e) => setExpertInput(e.target.value)}
-                  placeholder="Gửi tin nhắn hoặc câu hỏi tới ThS. Nam..."
+                  placeholder={plotRental ? `Hỏi chuyên gia về thửa ${plotRental.plotCode}...` : 'Gửi câu hỏi tới ThS. Nam...'}
                   className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-100 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                 />
                 <button
                   type="submit"
-                  disabled={!expertInput.trim()}
+                  disabled={!expertInput.trim() || isSendingExpert}
                   className="w-9 h-9 rounded-xl bg-[#064b37] text-white flex items-center justify-center hover:opacity-95 active:scale-95 disabled:opacity-40 transition-all cursor-pointer shadow-sm"
                   aria-label="Gửi tin nhắn cho chuyên gia"
                 >
                   <Send className="w-4 h-4" />
                 </button>
               </form>
+              {expertSendError && <p role="alert" className="px-3 pb-2 text-xs text-red-600">{expertSendError}</p>}
             </div>
           )}
         </section>

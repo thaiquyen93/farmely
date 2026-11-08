@@ -6,6 +6,7 @@ import SeasonSelector from './SeasonSelector';
 import SoilPrepView from './SoilPrepView';
 import PlotRenewalModal from './PlotRenewalModal';
 import HarvestReportModal from './HarvestReportModal';
+import { apiFetch } from '../../api/apiClient';
 import {
   AlertTriangle, ArrowLeft, Award, BookOpen, Calendar, CalendarCheck, Check, ChevronDown, ChevronRight, ChevronLeft,
   Clock, Clock3, Droplets, Eye, Info, LayoutDashboard, Leaf,
@@ -268,6 +269,8 @@ function StandardProcessTimeline({
   const currentCropDay = cropProcess.isNotStarted ? 0 : (cropProcess.currentDay || 1);
   const totalDays = cropProcess.totalDays || 45;
   const [selectedDay, setSelectedDay] = useState(cropProcess.isNotStarted ? 1 : currentCropDay);
+  const [simulationError, setSimulationError] = useState('');
+  const [simulationBusy, setSimulationBusy] = useState(false);
 
   const effectiveHarvest = useMemo(() => {
     if (latestHarvest) {
@@ -277,22 +280,22 @@ function StandardProcessTimeline({
         crop: latestHarvest.crop || latestHarvest.cropName || plot?.cropName || plot?.crop || 'Nông sản VietGAP',
         yieldAmount: latestHarvest.yieldAmount ?? latestHarvest.actualWeight ?? null,
         formattedYield: latestHarvest.formattedYield || (latestHarvest.yieldAmount != null ? `${latestHarvest.yieldAmount} kg` : (latestHarvest.actualWeight != null ? `${latestHarvest.actualWeight} kg` : null)),
-        harvestDateFormatted: latestHarvest.harvestDateFormatted || latestHarvest.harvestDate || '05/11/2026',
-        workerName: latestHarvest.enteredByWorker || latestHarvest.workerName || latestHarvest.staffName || 'Trần Văn Lực'
+        harvestDateFormatted: latestHarvest.harvestDateFormatted || latestHarvest.harvestDate || null,
+        workerName: latestHarvest.enteredByWorker || latestHarvest.workerName || latestHarvest.staffName || null
       };
     }
     return {
       id: `HRV-${plot?.id || '88'}`,
       harvestCode: `HRV-${plot?.id || '88'}`,
-      crop: plot?.cropName || plot?.crop || 'Dưa leo baby F1',
-      yieldAmount: plot?.expectedYield || 20.0,
-      formattedYield: `${plot?.expectedYield || 20.0} kg`,
-      harvestDate: new Date().toISOString().slice(0, 10),
-      harvestDateFormatted: new Date().toLocaleDateString('vi-VN'),
-      workerName: 'Trần Văn Lực',
-      enteredByWorker: 'Trần Văn Lực',
-      evidenceImageUrl: 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80',
-      status: 'COMPLETED',
+      crop: plot?.cropName || plot?.crop || 'Chưa xác định',
+      yieldAmount: null,
+      formattedYield: null,
+      harvestDate: null,
+      harvestDateFormatted: null,
+      workerName: null,
+      enteredByWorker: null,
+      evidenceImageUrl: null,
+      status: 'PENDING',
       plotCode: plot?.plotCode || (plot?.rentalId ? `P-${String(plot.rentalId).padStart(2, '0')}` : 'P-03'),
       plotName: plot?.plotName || plot?.name || 'Thửa P-03',
       totalDays: totalDays
@@ -395,7 +398,7 @@ function StandardProcessTimeline({
         map[d].push({
           ...act,
           status: syncedStatus,
-          proofPhoto: syncedStatus === 'COMPLETED' ? (act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80') : act.proofPhoto
+          proofPhoto: act.proofPhoto || act.evidenceImageUrl || null
         });
       }
     });
@@ -426,7 +429,7 @@ function StandardProcessTimeline({
         workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
         workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
         notes: 'Xử lý giá thể bầu ươm đạt chuẩn VietGAP, duy trì ẩm độ đất từ 65 - 70%.',
-        proofPhoto: currentCropDay > 1 ? 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80' : null
+        proofPhoto: null
       },
       {
         activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-2`,
@@ -470,7 +473,7 @@ function StandardProcessTimeline({
           workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
           workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
           notes: 'Ngừng cấp dinh dưỡng trước 24h, test nhanh nitrat và hoạt chất bảo vệ sinh học đạt ngưỡng an toàn.',
-          proofPhoto: currentCropDay >= totalDays ? 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80' : null
+          proofPhoto: null
         },
         {
           activityId: `STD-TASK-DAY-${totalDays}-2`,
@@ -482,7 +485,7 @@ function StandardProcessTimeline({
           workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
           workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
           notes: 'Thu hoạch nhẹ tay tránh dập nát, xếp khay đục lỗ thoáng khí, cân trọng lượng nghiệm thu thực tế.',
-          proofPhoto: latestHarvest ? (latestHarvest.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80') : null
+          proofPhoto: latestHarvest?.evidenceImageUrl || null
         }
       ];
     }
@@ -492,6 +495,8 @@ function StandardProcessTimeline({
 
   const trackRef = useRef(null);
   const isDraggingRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const suppressStageClickRef = useRef(false);
 
   // Danh sách các mốc giai đoạn chính của quy trình canh tác (đã chuẩn hóa & gom theo mốc ngày)
   const majorEvents = useMemo(() => {
@@ -616,78 +621,65 @@ function StandardProcessTimeline({
     }
   };
 
-  const handleSimulateDay1 = async () => {
-    setSelectedDay(1);
+  const runSimulation = async (action, day) => {
     const rentalId = plot?.rentalId || plot?.rental_id;
-    if (rentalId) {
-      try {
-        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'START_NOW' })
-        });
-      } catch (e) {
-        console.warn('Lỗi gọi API simulate START_NOW:', e);
-      }
-    }
+    if (!rentalId) { setSimulationError('Thửa này chưa có lượt thuê để đổi ngày canh tác.'); return; }
+    if (simulationBusy) return;
+    setSimulationBusy(true);
+    setSimulationError('');
     try {
-      Object.keys(localStorage).forEach((k) => {
-        if (k.startsWith('farmely_self_tasks_') || k.includes('farmely_persisted_staff_activities') || k.includes('farmely_season_started')) {
-          localStorage.removeItem(k);
-        }
+      await apiFetch(`/api/rentals/${rentalId}/simulate-time`, {
+        method: 'POST', body: JSON.stringify({ action })
       });
-    } catch {}
-    if (typeof window !== 'undefined' && window.BroadcastChannel) {
-      try {
-        const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
-        bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
-        setTimeout(() => { try { bc1.close(); } catch {} }, 1000);
-        const bc2 = new BroadcastChannel('farmely_iot_telemetry');
-        bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
-        setTimeout(() => { try { bc2.close(); } catch {} }, 1000);
-      } catch {}
+      setSelectedDay(day);
+      window.location.reload();
+    } catch (error) {
+      setSimulationError(error.message || 'Không cập nhật được ngày canh tác.');
+      setSimulationBusy(false);
     }
-    window.location.reload();
   };
 
-  const handleSimulateHarvest = async () => {
-    setSelectedDay(totalDays);
-    const rentalId = plot?.rentalId || plot?.rental_id;
-    if (rentalId) {
-      try {
-        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'HARVEST' })
-        });
-      } catch (e) {
-        console.warn('Lỗi gọi API simulate HARVEST:', e);
-      }
-    }
-    try {
-      Object.keys(localStorage).forEach((k) => {
-        if (k.startsWith('farmely_self_tasks_') || k.includes('farmely_persisted_staff_activities')) {
-          localStorage.removeItem(k);
-        }
-      });
-    } catch {}
-    if (typeof window !== 'undefined' && window.BroadcastChannel) {
-      try {
-        const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
-        bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
-        setTimeout(() => { try { bc1.close(); } catch {} }, 1000);
-        const bc2 = new BroadcastChannel('farmely_iot_telemetry');
-        bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
-        setTimeout(() => { try { bc2.close(); } catch {} }, 1000);
-      } catch {}
-    }
-    window.location.reload();
+  const handleSimulateDay1 = () => runSimulation('START_NOW', 1);
+  const handleSimulateHarvest = () => runSimulation('HARVEST', totalDays);
+
+  const selectDayAtPointer = (clientX) => {
+    const bounds = trackRef.current?.getBoundingClientRect();
+    if (!bounds || majorEvents.length < 2) return;
+    const fraction = Math.max(0, Math.min(1, (clientX - bounds.left) / bounds.width));
+    const position = fraction * (majorEvents.length - 1);
+    const index = Math.min(majorEvents.length - 2, Math.floor(position));
+    const first = majorEvents[index].displayDay || majorEvents[index].dayStart;
+    const next = majorEvents[index + 1].displayDay || majorEvents[index + 1].dayStart;
+    setSelectedDay(Math.max(1, Math.min(totalDays, Math.round(first + (next - first) * (position - index)))));
+  };
+
+  const handleTimelinePointerDown = (event) => {
+    if (event.button !== 0) return;
+    isDraggingRef.current = true;
+    dragStartXRef.current = event.clientX;
+    suppressStageClickRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    selectDayAtPointer(event.clientX);
+  };
+
+  const handleTimelinePointerMove = (event) => {
+    if (!isDraggingRef.current) return;
+    if (Math.abs(event.clientX - dragStartXRef.current) > 3) suppressStageClickRef.current = true;
+    selectDayAtPointer(event.clientX);
+  };
+
+  const handleTimelinePointerEnd = (event) => {
+    if (!isDraggingRef.current) return;
+    selectDayAtPointer(event.clientX);
+    isDraggingRef.current = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
   return (
     <div className="space-y-5">
       {/* 1. THANH CHẠY DÒNG THỜI GIAN THEO NGÀY: 1 DÒNG THỜI GIAN DUY NHẤT TRẢI RỘNG */}
       <div className="rounded-3xl border border-stone-200/90 bg-white p-5 shadow-sm space-y-6">
+        {simulationError && <p role="alert" className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{simulationError}</p>}
         {/* Header thanh thời gian */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3.5">
           <div>
@@ -703,7 +695,7 @@ function StandardProcessTimeline({
               </span>
             </div>
             <p className="text-xs text-stone-500 mt-1">
-              Bấm trực tiếp vào các mốc giai đoạn trên dòng thời gian để xem quy trình VietGAP và nhật ký của từng ngày tuổi.
+              Kéo chấm trên thanh hoặc bấm vào vị trí bất kỳ để xem quy trình VietGAP và nhật ký theo ngày tuổi.
             </p>
           </div>
 
@@ -771,7 +763,23 @@ function StandardProcessTimeline({
             {/* Đường ray chính nối liền các mốc sự kiện */}
             <div
               ref={trackRef}
-              className="absolute left-14 right-14 top-6 -translate-y-1/2 h-8 flex items-center z-0"
+              className="absolute left-14 right-14 top-6 -translate-y-1/2 h-8 flex items-center z-0 cursor-grab active:cursor-grabbing touch-none"
+              role="slider"
+              tabIndex={0}
+              aria-label="Chọn ngày canh tác để xem"
+              aria-valuemin={1}
+              aria-valuemax={totalDays}
+              aria-valuenow={selectedDay}
+              onPointerDown={handleTimelinePointerDown}
+              onPointerMove={handleTimelinePointerMove}
+              onPointerUp={handleTimelinePointerEnd}
+              onPointerCancel={handleTimelinePointerEnd}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowLeft') { event.preventDefault(); setSelectedDay((day) => Math.max(1, day - 1)); }
+                if (event.key === 'ArrowRight') { event.preventDefault(); setSelectedDay((day) => Math.min(totalDays, day + 1)); }
+                if (event.key === 'Home') { event.preventDefault(); setSelectedDay(1); }
+                if (event.key === 'End') { event.preventDefault(); setSelectedDay(totalDays); }
+              }}
             >
               {/* Thân ray nền xám bo góc */}
               <div className="relative h-2.5 w-full rounded-full bg-stone-200 overflow-hidden shadow-inner">
@@ -856,21 +864,16 @@ function StandardProcessTimeline({
                     {/* Nút mốc sự kiện lớn */}
                     <button
                       type="button"
+                      onPointerDown={handleTimelinePointerDown}
+                      onPointerMove={handleTimelinePointerMove}
+                      onPointerUp={handleTimelinePointerEnd}
+                      onPointerCancel={handleTimelinePointerEnd}
                       onClick={() => {
+                        if (suppressStageClickRef.current) { suppressStageClickRef.current = false; return; }
                         const targetDay = evt.displayDay || evt.dayStart;
                         setSelectedDay(targetDay);
-                        if (isHarvestNode) {
-                          const rentalId = plot?.rentalId || plot?.rental_id;
-                          if (rentalId) {
-                            fetch(`/api/rentals/${rentalId}/simulate-time`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'HARVEST' })
-                            }).catch(() => {});
-                          }
-                        }
                       }}
-                      className={`group flex items-center justify-center rounded-2xl transition-all duration-300 cursor-pointer ${
+                      className={`group flex items-center justify-center rounded-2xl transition-all duration-300 cursor-grab active:cursor-grabbing touch-none ${
                         isSelected
                           ? isHarvestNode
                             ? 'h-12 w-12 bg-amber-600 text-white ring-4 ring-amber-300 shadow-xl scale-110 z-20'
@@ -2833,19 +2836,15 @@ export default function CustomerPlotWorkspace({
   });
 
   const handleStartSeason = useCallback(async () => {
-    setIsSeasonStarted(true);
-    try {
-      localStorage.setItem(`farmely_season_started_${plot.id}`, 'true');
-    } catch { }
-
     const rentalId = plot.rentalId || plot.rental_id;
     if (rentalId) {
       try {
-        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'START_NOW' })
+        await apiFetch(`/api/rentals/${rentalId}/simulate-time`, {
+          method: 'POST', body: JSON.stringify({ action: 'START_NOW' })
         });
+        setIsSeasonStarted(true);
+        try { localStorage.setItem(`farmely_season_started_${plot.id}`, 'true'); } catch { }
+        window.location.reload();
       } catch (e) {
         console.warn('Lỗi gọi API start season:', e);
       }

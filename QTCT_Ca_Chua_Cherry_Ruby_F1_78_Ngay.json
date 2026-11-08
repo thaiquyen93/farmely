@@ -1,0 +1,118 @@
+{
+  "name": "Quy trình VietGAP cà chua Cherry Ruby F1",
+  "varietyName": "Cà chua Cherry Ruby F1",
+  "version": "v1.0",
+  "status": "ACTIVE",
+  "totalDays": 78,
+  "description": "Quy trình demo từ gieo hạt đến thu hoạch lứa đầu trong 78 ngày cho cà chua Cherry Ruby F1. Chu kỳ thực tế có thể thay đổi theo lô hạt và điều kiện canh tác.",
+  "steps": [
+    {
+      "stepName": "Gieo hạt cà chua Cherry Ruby F1",
+      "dayOffset": 0,
+      "taskType": "PLANTING",
+      "durationMinutes": 60,
+      "description": "Dùng khay ươm và giá thể sạch, thoát nước tốt. Gieo mỗi hốc 1–2 hạt, phủ lớp giá thể mỏng, tưới phun sương và ghi ngày gieo, mã lô hạt. Giữ giá thể ẩm, không để đọng nước.",
+      "materialsNeeded": "Hạt giống Cà chua Cherry Ruby F1, khay ươm sạch, giá thể hữu cơ đã xử lý, nước sạch",
+      "minTemp": 24,
+      "maxTemp": 30,
+      "minHumidity": 65,
+      "maxHumidity": 85
+    },
+    {
+      "stepName": "Kiểm tra nảy mầm và chăm sóc cây con",
+      "dayOffset": 7,
+      "taskType": "CARE",
+      "durationMinutes": 45,
+      "description": "Kiểm tra tỷ lệ nảy mầm, loại bỏ cây bất thường và đặt khay ở nơi đủ sáng, thông thoáng. Tưới vừa đủ để giá thể ẩm, tránh úng và đổ ngã cây.",
+      "materialsNeeded": "Khay ươm, bình phun sương, nước sạch",
+      "minTemp": 22,
+      "maxTemp": 30,
+      "minHumidity": 60,
+      "maxHumidity": 85
+    },
+    {
+      "stepName": "Theo dõi lá thật và sinh trưởng cây con",
+      "dayOffset": 14,
+      "taskType": "CARE",
+      "durationMinutes": 45,
+      "description": "Theo dõi lá thật, màu lá và độ cứng thân. Tưới khi giá thể bắt đầu se mặt, loại bỏ cây yếu và ghi nhận tình trạng cây theo lô. Chỉ chuyển cây khi cây khỏe và rễ phát triển tốt.",
+      "materialsNeeded": "Nước sạch, khay ươm, phân hữu cơ vi sinh dùng theo hướng dẫn trên nhãn",
+      "minTemp": 20,
+      "maxTemp": 30,
+      "minHumidity": 60,
+      "maxHumidity": 80
+    },
+    {
+      "stepName": "Trồng cây con ra luống hoặc giá thể",
+      "dayOffset": 21,
+      "taskType": "PLANTING",
+      "durationMinutes": 90,
+      "description": "Chọn cây con khỏe, không có dấu hiệu sâu bệnh. Trồng vào luống hoặc giá thể đã chuẩn bị, đặt cây thẳng và lấp vừa kín bầu. Tưới nhẹ sau trồng, ghi ngày trồng và mã luống; vệ sinh dụng cụ trước và sau khi thao tác.",
+      "materialsNeeded": "Cây con cà chua Cherry Ruby F1, luống hoặc giá thể sạch, nước tưới, dụng cụ trồng đã vệ sinh",
+      "minTemp": 20,
+      "maxTemp": 30,
+      "minHumidity": 60,
+      "maxHumidity": 85
+    },
+    {
+      "stepName": "Làm giàn và hướng dẫn thân cà chua",
+      "dayOffset": 35,
+      "taskType": "PRUNING",
+      "durationMinutes": 60,
+      "description": "Kiểm tra cây hồi xanh, buộc thân vào giàn bằng dây mềm, không siết thân. Tỉa lá già hoặc lá chạm đất bằng dụng cụ sạch; thu gom tàn dư cây trồng khỏi luống.",
+      "materialsNeeded": "Cọc hoặc dây giàn, dây buộc mềm, kéo đã vệ sinh",
+      "minTemp": 20,
+      "maxTemp": 30,
+      "minHumidity": 60,
+      "maxHumidity": 80
+    },
+    {
+      "stepName": "Theo dõi ra hoa và hỗ trợ đậu quả",
+      "dayOffset": 49,
+      "taskType": "CARE",
+      "durationMinutes": 60,
+      "description": "Kiểm tra chùm hoa, độ ẩm giá thể và độ thông thoáng nhà màng. Duy trì tưới ổn định, tránh khô hạn hoặc úng. Ghi nhận số chùm hoa và dấu hiệu rụng hoa; thông gió khi nhiệt độ trong nhà màng tăng cao.",
+      "materialsNeeded": "Dây giàn, dụng cụ đo nhiệt độ và độ ẩm, nước tưới",
+      "minTemp": 18,
+      "maxTemp": 30,
+      "minHumidity": 60,
+      "maxHumidity": 75
+    },
+    {
+      "stepName": "Kiểm tra đậu quả và bổ sung dinh dưỡng",
+      "dayOffset": 63,
+      "taskType": "FERTILIZATION",
+      "durationMinutes": 60,
+      "description": "Kiểm tra tỷ lệ đậu quả, tình trạng lá và độ chắc của thân. Tưới đều, tránh thay đổi độ ẩm đột ngột. Bổ sung dinh dưỡng theo kế hoạch và hướng dẫn trên nhãn; ghi ngày, lượng sử dụng và người thực hiện.",
+      "materialsNeeded": "Phân hữu cơ hoặc phân bón phù hợp giai đoạn, sử dụng đúng hướng dẫn trên nhãn",
+      "minTemp": 18,
+      "maxTemp": 30,
+      "minHumidity": 60,
+      "maxHumidity": 75
+    },
+    {
+      "stepName": "Theo dõi quả lớn và độ chín",
+      "dayOffset": 70,
+      "taskType": "CARE",
+      "durationMinutes": 45,
+      "description": "Kiểm tra kích thước, màu quả và tình trạng sâu bệnh. Loại bỏ quả hư, giữ luống thông thoáng và duy trì tưới ổn định. Ghi nhận tình trạng quả trước thu hoạch; nếu cần phòng trừ, chỉ dùng biện pháp được phép và tuân thủ thời gian cách ly trên nhãn.",
+      "materialsNeeded": "Bẫy dính theo dõi côn trùng, dụng cụ cắt tỉa đã vệ sinh, chế phẩm sinh học phù hợp nếu cần",
+      "minTemp": 18,
+      "maxTemp": 30,
+      "minHumidity": 60,
+      "maxHumidity": 75
+    },
+    {
+      "stepName": "Thu hoạch cà chua Cherry lứa đầu",
+      "dayOffset": 78,
+      "taskType": "HARVEST",
+      "durationMinutes": 90,
+      "description": "Thu hoạch quả đạt màu sắc và độ chín phù hợp, thao tác nhẹ để tránh dập quả. Dùng dụng cụ sạch, phân loại sau thu hoạch và ghi ngày thu hoạch, mã luống, sản lượng. Tiếp tục chăm sóc cây cho các lứa tiếp theo.",
+      "materialsNeeded": "Kéo thu hoạch đã vệ sinh, khay hoặc thùng sạch, biểu mẫu ghi nhận sản lượng",
+      "minTemp": 18,
+      "maxTemp": 30,
+      "minHumidity": 60,
+      "maxHumidity": 75
+    }
+  ]
+}

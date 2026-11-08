@@ -26,12 +26,13 @@ export default function HarvestReportModal({
 }) {
   if (!harvest) return null;
 
+  const hasMeasuredHarvest = Number(harvest.yieldAmount ?? harvest.actualWeight) > 0;
   const photoUrl = harvest.evidenceImageUrl || harvest.photoUrl || harvest.photo || harvest.proofPhoto || harvest.image || null;
 
   const yieldText = harvest.formattedYield || (harvest.yieldAmount != null ? `${harvest.yieldAmount} kg` : (harvest.actualWeight != null ? `${harvest.actualWeight} kg` : 'Chưa cân'));
-  const harvestCode = harvest.id || harvest.harvestCode || `HRV-${plot?.id || '88'}`;
-  const workerName = harvest.enteredByWorker || harvest.workerName || harvest.staffName || 'Trần Văn Lực';
-  const harvestDate = harvest.harvestDateFormatted || harvest.harvestDate || harvest.verifiedAt || '05/11/2026';
+  const harvestCode = harvest.id || harvest.harvestCode || 'Chưa có biên bản';
+  const workerName = harvest.enteredByWorker || harvest.workerName || harvest.staffName || 'Chưa cập nhật';
+  const harvestDate = harvest.harvestDateFormatted || harvest.harvestDate || harvest.verifiedAt || 'Chưa cập nhật';
   const cropName = harvest.crop || harvest.cropName || plot?.cropName || plot?.crop || 'Nông sản chuẩn VietGAP';
   const plotCode = harvest.plotCode || plot?.plotCode || (plot?.rentalId ? `P-${String(plot.rentalId).padStart(2, '0')}` : 'P-01');
   const plotName = harvest.plotName || plot?.plotName || plot?.name || `Thửa ${plotCode}`;
@@ -61,11 +62,11 @@ export default function HarvestReportModal({
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300 border border-emerald-400/30">
               <Award className="w-3.5 h-3.5 text-amber-300" />
-              BIÊN BẢN NGHIỆM THU & BÁO CÁO THU HOẠCH (BR20 - BR21)
+              {hasMeasuredHarvest ? 'BIÊN BẢN NGHIỆM THU & BÁO CÁO THU HOẠCH (BR20 - BR21)' : 'THÔNG TIN THU HOẠCH DỰ KIẾN'}
             </span>
           </div>
           <h3 id="harvest-report-title" className="mt-1 font-heading text-lg sm:text-xl font-black text-white">
-            Báo Cáo Nghiệm Thu Sản Lượng Vụ Mùa
+            {hasMeasuredHarvest ? 'Báo Cáo Nghiệm Thu Sản Lượng Vụ Mùa' : 'Chưa có kết quả cân thu hoạch'}
           </h3>
           <p className="mt-0.5 text-xs text-white/80">
             {plotCode} • {plotName} • Vụ canh tác: <strong>{cropName}</strong>
@@ -78,7 +79,7 @@ export default function HarvestReportModal({
           <div className="rounded-2xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-lime-50/40 to-emerald-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
-                Sản lượng chốt cân thực tế (BR20)
+                {hasMeasuredHarvest ? 'Sản lượng chốt cân thực tế (BR20)' : 'Sản lượng thực tế'}
               </span>
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="font-heading font-black text-3xl sm:text-4xl text-emerald-950">
@@ -87,13 +88,13 @@ export default function HarvestReportModal({
                 <span className="text-xs font-bold text-emerald-700">cân điện tử tại chỗ</span>
               </div>
               <p className="mt-1 text-[11px] text-emerald-900/80">
-                Đã được chuyên viên lao động cắt tỉa, cân đối chứng và hoàn tất thủ tục chốt biên bản.
+                {hasMeasuredHarvest ? 'Đã được chuyên viên lao động cân đối chứng và ghi nhận.' : 'Nhân viên chưa ghi nhận số cân và ảnh đối chứng.'}
               </p>
             </div>
             <div className="flex flex-col items-start sm:items-end gap-1.5 shrink-0">
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow-xs">
                 <ShieldCheck className="w-3.5 h-3.5 text-lime-300" />
-                VietGAP chuẩn xuất xưởng
+                {hasMeasuredHarvest ? 'VietGAP chuẩn xuất xưởng' : 'Chờ kết quả cân'}
               </span>
               <span className="font-mono text-[11px] text-stone-600 font-semibold">
                 Mã biên bản: <strong className="text-stone-900">{harvestCode}</strong>
@@ -140,7 +141,7 @@ export default function HarvestReportModal({
                   Chuyên viên thu hoạch (CVLĐ):
                 </span>
                 <strong className="text-stone-900 font-semibold">{workerName}</strong>
-                <span className="text-[10px] text-stone-500 block">Mã nhân sự: NV-08 • Tổ hiện trường</span>
+                {hasMeasuredHarvest && <span className="text-[10px] text-stone-500 block">Nhân sự ghi nhận kết quả thu hoạch</span>}
               </div>
             </div>
 
@@ -151,7 +152,7 @@ export default function HarvestReportModal({
                   Ngày giờ ghi nhận:
                 </span>
                 <strong className="text-stone-900 font-semibold">{harvestDate}</strong>
-                <span className="text-[10px] text-stone-500 block">Đúng chu kỳ {totalDays} ngày tuổi</span>
+                <span className="text-[10px] text-stone-500 block">{hasMeasuredHarvest ? 'Đã ghi nhận kết quả' : `Dự kiến theo chu kỳ ${totalDays} ngày tuổi`}</span>
               </div>
             </div>
 
@@ -166,7 +167,7 @@ export default function HarvestReportModal({
               </div>
             </div>
 
-            <div className="flex items-start gap-2.5">
+            {hasMeasuredHarvest && <div className="flex items-start gap-2.5">
               <Sprout className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
                 <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
@@ -175,7 +176,7 @@ export default function HarvestReportModal({
                 <strong className="text-stone-900 font-semibold">Bảo trì & Cải tạo đất (Fallow)</strong>
                 <span className="text-[10px] text-stone-500 block">Nghỉ đất 4 ngày trước vụ mới</span>
               </div>
-            </div>
+            </div>}
           </div>
 
           {/* Ghi chú hiện trường */}
@@ -184,14 +185,14 @@ export default function HarvestReportModal({
               📝 Nhận xét kiểm nghiệm chất lượng nông sản:
             </span>
             <p className="text-xs text-amber-950/85 leading-relaxed">
-              {harvest.notes || harvest.note || 'Nông sản đã hoàn tất quy trình thu hái sáng sớm, cắt sạch cuống lá già chân gốc, khử khuẩn nước RO sơ bộ và cân điện tử đối chứng. Đạt chuẩn VietGAP 100%, không phát hiện tồn dư thuốc bảo vệ thực vật.'}
+              {harvest.notes || harvest.note || 'Chưa có nhận xét kiểm nghiệm.'}
             </p>
           </div>
         </div>
 
         {/* Footer */}
         <div className="border-t border-stone-200/80 bg-stone-50 px-5 py-3 flex flex-wrap items-center justify-between gap-2.5">
-          {onGoToDiary ? (
+          {hasMeasuredHarvest && onGoToDiary ? (
             <button
               type="button"
               onClick={onGoToDiary}

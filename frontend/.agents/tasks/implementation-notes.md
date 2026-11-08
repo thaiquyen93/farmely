@@ -74,7 +74,7 @@ expression so they render correctly if the data grows.
 ## 3. Visual verification status
 
 Honest breakdown, as required. **No effect in the "observed" column was watched frame-by-frame in a
-browser**: this environment has no headless browser driver, and adding Playwright/Puppeteer is
+browser**: this environment has no headless browser driver, and adding browser automation is
 forbidden by the hard constraints (only vitest + jsdom permitted). jsdom cannot run maplibre-gl at
 all — it needs a WebGL context. So motion was compensated with concrete state assertions against a
 recording fake map, exactly as the brief allows.

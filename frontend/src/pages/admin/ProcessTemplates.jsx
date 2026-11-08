@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { parseProcessDocument } from '../../utils/processDocumentParser';
+import { apiFetch } from '../../api/apiClient';
 
 export default function ProcessTemplates({ detailBasePath = '/admin/master-data/process-templates' }) {
   const navigate = useNavigate();
@@ -38,6 +39,7 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
   const [isLiveDb, setIsLiveDb] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   // Modal State
   const [uploadFileName, setUploadFileName] = useState('');
@@ -162,6 +164,19 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
     }
   };
 
+  const handleDelete = async (row) => {
+    if (!window.confirm(`Xóa quy trình "${row.name}"? Các bước của quy trình cũng sẽ bị xóa.`)) return;
+    setDeletingId(row.id);
+    try {
+      await apiFetch(`/api/process-templates/${row.id}`, { method: 'DELETE' });
+      setTemplates((current) => current.filter((template) => template.id !== row.id));
+    } catch (error) {
+      alert(error.payload?.message || error.message || 'Không thể xóa quy trình.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const columns = [
     {
       header: 'Tên Quy Trình Chuẩn',
@@ -227,6 +242,16 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
           >
             <Eye className="w-4 h-4" />
           </Link>
+          <button
+            type="button"
+            onClick={() => handleDelete(row)}
+            disabled={deletingId === row.id}
+            className="p-1.5 text-stone-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-40"
+            title="Xóa quy trình"
+            aria-label={`Xóa quy trình ${row.name}`}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         </div>
       )
     }

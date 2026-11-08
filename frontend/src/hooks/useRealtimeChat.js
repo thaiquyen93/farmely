@@ -9,7 +9,8 @@ import { chatService } from '../api/communication/chatService';
  * @param {string} [options.senderName]
  */
 export function useRealtimeChat({ role = 'customer', initialThreadId = null, senderName = '' } = {}) {
-  const [threads, setThreads] = useState(() => chatService.getThreads());
+  // Wait for the authenticated backend sync before showing cached threads from another session.
+  const [threads, setThreads] = useState([]);
   const [selectedThreadId, setSelectedThreadId] = useState(initialThreadId);
   const [activeFilter, setActiveFilter] = useState('all');
 
@@ -22,9 +23,12 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
   // Sync backend messages on mount if available
   useEffect(() => {
     if (typeof chatService.syncBackendMessages === 'function') {
-      chatService.syncBackendMessages().then(() => {
+      const sync = () => chatService.syncBackendMessages().then(() => {
         refreshThreads();
       }).catch(() => {});
+      sync();
+      const timer = window.setInterval(sync, 10000);
+      return () => window.clearInterval(timer);
     }
   }, [refreshThreads]);
 
@@ -39,8 +43,10 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
   useEffect(() => {
     if (!selectedThreadId && threads.length > 0) {
       setSelectedThreadId(threads[0]?.id || null);
+    } else if (!initialThreadId && selectedThreadId && !threads.some((thread) => thread.id === selectedThreadId)) {
+      setSelectedThreadId(threads[0]?.id || null);
     }
-  }, [selectedThreadId, threads]);
+  }, [initialThreadId, selectedThreadId, threads]);
 
   // Listen to real-time events across windows / tabs
   useEffect(() => {
@@ -52,7 +58,7 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
   }, [refreshThreads]);
 
   const currentThread = useMemo(() => {
-    return threads.find((t) => t.id === selectedThreadId) || threads[0] || null;
+    return threads.find((t) => t.id === selectedThreadId) || (!selectedThreadId ? threads[0] : null);
   }, [threads, selectedThreadId]);
 
   // Filtered threads for lists
