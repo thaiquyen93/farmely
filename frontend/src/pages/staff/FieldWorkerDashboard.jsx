@@ -2918,7 +2918,11 @@ export default function FieldWorkerDashboard() {
       {/* Modal 1: Execute Task & Upload Proof Photo */}
       <Modal
         isOpen={Boolean(selectedTaskToExecute)}
-        onClose={() => setSelectedTaskToExecute(null)}
+        onClose={() => {
+          setSelectedTaskToExecute(null);
+          setTaskProofPhoto('');
+          setTaskProofNote('');
+        }}
         title="Xác Nhận Hoàn Thành Ca Trực Hiện Trường"
         subtitle={selectedTaskToExecute?.title}
         zIndex="z-[110]"
@@ -2931,18 +2935,56 @@ export default function FieldWorkerDashboard() {
               <p><strong>Khách hàng:</strong> {selectedTaskToExecute.customerName}</p>
             </div>
 
-            <div className="p-4 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-1.5 bg-stone-50">
-              <Camera className="w-7 h-7 text-brand-green mx-auto" />
-              <p className="font-bold text-stone-700">Đính kèm ảnh minh chứng thực tế</p>
-              <p className="text-[10px] text-stone-400">Ảnh này sẽ tự động xuất hiện trên Farm Diary của khách hàng</p>
-              <input
-                type="file"
-                accept="image/*"
-                required
-                onChange={(event) => readPhoto(event.target.files?.[0], setTaskProofPhoto)}
-                className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-3 file:py-1.5 file:font-bold file:text-emerald-800"
-              />
-              {taskProofPhoto && <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold text-emerald-800">✓ Đã chọn ảnh minh chứng</span>}
+            <div className="p-4 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-2 bg-stone-50">
+              {taskProofPhoto ? (
+                <div className="space-y-2.5">
+                  <div className="relative inline-block max-w-full">
+                    <img
+                      src={taskProofPhoto}
+                      alt="Ảnh minh chứng thực tế"
+                      className="max-h-56 w-auto mx-auto rounded-xl object-contain shadow-xs border border-stone-200 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setTaskProofPhoto('')}
+                      className="absolute -top-2 -right-2 p-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-md cursor-pointer transition-colors"
+                      title="Gỡ ảnh để chọn lại"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div>
+                    <span className="inline-block rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold text-emerald-800">
+                      ✓ Đã chọn ảnh minh chứng
+                    </span>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) readPhoto(file, setTaskProofPhoto);
+                    }}
+                    className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-3 file:py-1.5 file:font-bold file:text-emerald-800 cursor-pointer"
+                  />
+                </div>
+              ) : (
+                <>
+                  <Camera className="w-7 h-7 text-brand-green mx-auto" />
+                  <p className="font-bold text-stone-700">Đính kèm ảnh minh chứng thực tế</p>
+                  <p className="text-[10px] text-stone-400">Ảnh này sẽ tự động xuất hiện trên Farm Diary của khách hàng</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    required
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) readPhoto(file, setTaskProofPhoto);
+                    }}
+                    className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-100 file:px-3 file:py-1.5 file:font-bold file:text-emerald-800 cursor-pointer"
+                  />
+                </>
+              )}
             </div>
 
             <div>
@@ -2959,7 +3001,16 @@ export default function FieldWorkerDashboard() {
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setSelectedTaskToExecute(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedTaskToExecute(null);
+                  setTaskProofPhoto('');
+                  setTaskProofNote('');
+                }}
+              >
                 Hủy
               </Button>
               <Button type="submit" variant="primary" size="sm" className="font-bold">
@@ -3059,16 +3110,55 @@ export default function FieldWorkerDashboard() {
             />
           </div>
 
-          <div className="p-3 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-1 bg-stone-50">
-            <Camera className="w-5 h-5 text-stone-400 mx-auto" />
-            <p className="font-bold text-stone-600">Đính kèm ảnh chụp lá / hiện trường</p>
-            <input
-              type="file"
-              accept="image/*"
-              required
-              onChange={(event) => readPhoto(event.target.files?.[0], setNewIssuePhoto)}
-              className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:font-bold"
-            />
+          <div className="p-3 rounded-xl border-2 border-dashed border-stone-300 text-center space-y-2 bg-stone-50">
+            {newIssuePhoto ? (
+              <div className="space-y-1.5">
+                <div className="relative inline-block max-w-full">
+                  <img
+                    src={newIssuePhoto}
+                    alt="Ảnh sự cố hiện trường"
+                    className="max-h-44 w-auto mx-auto rounded-lg object-contain shadow-xs border border-stone-200 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setNewIssuePhoto('')}
+                    className="absolute -top-2 -right-2 p-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-md cursor-pointer transition-colors"
+                    title="Gỡ ảnh để chọn lại"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                <div>
+                  <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-800">
+                    ✓ Đã chọn ảnh sự cố
+                  </span>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) readPhoto(file, setNewIssuePhoto);
+                  }}
+                  className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:font-bold cursor-pointer"
+                />
+              </div>
+            ) : (
+              <>
+                <Camera className="w-5 h-5 text-stone-400 mx-auto" />
+                <p className="font-bold text-stone-600">Đính kèm ảnh chụp lá / hiện trường</p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  required
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) readPhoto(file, setNewIssuePhoto);
+                  }}
+                  className="mx-auto block max-w-full text-[10px] text-stone-600 file:mr-2 file:rounded-lg file:border-0 file:bg-stone-200 file:px-3 file:py-1.5 file:font-bold cursor-pointer"
+                />
+              </>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
