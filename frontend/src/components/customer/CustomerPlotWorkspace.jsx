@@ -473,43 +473,8 @@ function StandardProcessTimeline({
     }
   };
 
-  const handleSimulateDay1 = async (targetSeason) => {
+  const handleSimulateDay1 = async () => {
     setSelectedDay(1);
-
-    // Xác định vụ mùa cần kích hoạt
-    const candidateNext = targetSeason
-      || plotSeasons.find((s) => s.status === 'ACTIVE' || s.isApprovedByAdmin)
-      || plotSeasons.find((s) => s.seasonNumber > (activeSeason?.seasonNumber || 1));
-
-    const nextId = candidateNext?.id || (activeSeason?.seasonNumber ? `SEASON-${activeSeason.seasonNumber + 1}` : 'SEASON-2');
-
-    if (nextId) {
-      setActiveSeasonId(nextId);
-    }
-    setShowMaintenanceView(false);
-    setIsSeasonStarted(true);
-
-    const m = String(plot?.plotCode || plot?.mapPlotId || plot?.code || plot?.name || 'P-05').match(/P-\d+/i) || String(plot?.code || 'P-05').match(/\b\d+\b/);
-    const plotKey = m ? (m[0].toUpperCase().startsWith('P-') ? m[0].toUpperCase() : `P-${m[0]}`) : 'P-05';
-
-    setCustomSeasons((prev) => {
-      const base = prev && prev.length > 0 ? prev : plotSeasons;
-      const updated = base.map((s) => {
-        if (s.id === nextId || s.seasonNumber === candidateNext?.seasonNumber) {
-          return { ...s, status: 'ACTIVE', currentDay: 1, isCurrent: true, inFallow: false };
-        }
-        if (s.seasonNumber < (candidateNext?.seasonNumber || 2)) {
-          return { ...s, status: 'COMPLETED', isCurrent: false, inFallow: false };
-        }
-        return s;
-      });
-      try {
-        localStorage.setItem(`farmely_plot_seasons_${plotKey}`, JSON.stringify(updated));
-        localStorage.setItem(`farmely_active_season_${plotKey}`, nextId);
-      } catch {}
-      return updated;
-    });
-
     const rentalId = plot?.rentalId || plot?.rental_id;
     if (rentalId) {
       try {
@@ -2295,10 +2260,10 @@ function OverviewTab({
   harvestResults = [],
   latestHarvest: propLatestHarvest,
   onOpenHarvestReport,
-  onSimulateDay1
+  onSimulateDay1,
+  showMaintenanceView = false,
+  setShowMaintenanceView = () => {}
 }) {
-  const [showMaintenanceView, setShowMaintenanceView] = useState(false);
-
   // Kiểm tra xem thửa đất có vụ mùa nào đang gửi yêu cầu gia hạn chờ Admin phê duyệt không (BR11b)
   const hasPendingApprovalSeason = seasons.some((s) => s.status === 'PENDING_APPROVAL');
 
@@ -3020,6 +2985,7 @@ export default function CustomerPlotWorkspace({
   // 0. Quản lý Mùa vụ (Seasons) & Gia hạn hợp đồng thửa đất (BR12)
   const [customSeasons, setCustomSeasons] = useState(null);
   const [showRenewalModal, setShowRenewalModal] = useState(false);
+  const [showMaintenanceView, setShowMaintenanceView] = useState(false);
 
   // Lắng nghe sự kiện Admin duyệt gia hạn (qua BroadcastChannel, localStorage, hoặc API)
   useEffect(() => {
@@ -4022,6 +3988,8 @@ export default function CustomerPlotWorkspace({
             latestHarvest={propLatestHarvest}
             onOpenHarvestReport={(harvest) => setSelectedHarvestReport(harvest)}
             onSimulateDay1={handleSimulateDay1}
+            showMaintenanceView={showMaintenanceView}
+            setShowMaintenanceView={setShowMaintenanceView}
           />
         )}
 
