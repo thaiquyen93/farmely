@@ -2294,7 +2294,14 @@ function OverviewTab({
   onSimulateDay1
 }) {
   const [showMaintenanceView, setShowMaintenanceView] = useState(false);
-  const isSoilPrep = activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow || showMaintenanceView;
+
+  // Tự động tắt view bảo trì khi chuyển sang mùa vụ khác (đặc biệt khi vừa gia hạn xong vụ mới)
+  useEffect(() => {
+    setShowMaintenanceView(false);
+  }, [activeSeasonId]);
+
+  // Vụ chỉ ở trạng thái Soil Prep khi chính vụ đó đang ở chu kỳ SOIL_PREP/inFallow, HOẶC user bấm xem bảo trì cho vụ đang kết thúc (không áp dụng cho vụ SCHEDULED sắp tới)
+  const isSoilPrep = activeSeason?.status !== 'SCHEDULED' && (activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow || showMaintenanceView);
 
   // BR20 + BR21: CVLĐ cân, chụp ảnh rồi chốt biên bản -> Tổng quan chỉ THÔNG BÁO đã thu hoạch.
   // KH không nghiệm thu trên hệ thống, việc xác nhận nhận nông sản diễn ra tại nông trại.
@@ -2328,12 +2335,15 @@ function OverviewTab({
 
   return (
     <div className="space-y-6">
-      {/* 0. Chu kỳ mùa vụ thửa đất (Season Selector) - Chỉ hiển thị tại Tổng quan khi đất đã xong vụ và đang trong thời gian đệm (buffer / fallow BR23) */}
-      {isSoilPrep && seasons && seasons.length > 0 && (
+      {/* 0. Chu kỳ mùa vụ thửa đất (Season Selector) - Luôn hiển thị tại Tổng quan khi thửa có nhiều vụ mùa */}
+      {seasons && seasons.length > 0 && (
         <SeasonSelector
           seasons={seasons}
           activeSeasonId={activeSeasonId || activeSeason?.id}
-          onSelectSeason={onSelectSeason}
+          onSelectSeason={(seasonId) => {
+            setShowMaintenanceView(false);
+            onSelectSeason?.(seasonId);
+          }}
           onOpenRenewal={onOpenRenewal}
           canRenew={true}
           plot={plot}
@@ -2354,35 +2364,43 @@ function OverviewTab({
         />
       ) : (
         <>
-          {/* Thông báo nếu vụ mùa đang chọn chưa tới ngày bắt đầu */}
+          {/* Thông báo nếu vụ mùa đang chọn chưa tới ngày bắt đầu (Vụ mới gia hạn hoặc vụ sắp tới) */}
           {activeSeason?.status === 'SCHEDULED' && (
-            <div className="rounded-2xl border border-sky-200/90 bg-gradient-to-r from-sky-50 via-white to-blue-50/50 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800 shadow-2xs">
-                  <Clock className="h-5 w-5" />
+            <div className="rounded-3xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md text-xl">
+                  🌱
                 </span>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="text-sm font-bold text-sky-950">
-                      {activeSeason.seasonName || `Vụ ${activeSeason.seasonNumber}`} · Chưa bắt đầu canh tác
-                    </h4>
-                    <span className="rounded-md bg-sky-200/70 px-2 py-0.5 text-[10px] font-extrabold text-sky-900">
+                    <span className="rounded-full bg-emerald-700 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
+                      {activeSeason.seasonNumber > 1 ? `🎉 Vụ ${activeSeason.seasonNumber} · Đã Gia Hạn Thành Công` : 'Kế Hoạch Vụ Mùa'}
+                    </span>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black text-emerald-900 border border-emerald-300">
+                      Giống: {activeSeason.cropName}
+                    </span>
+                    <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-stone-700 border border-stone-200">
                       Dự kiến gieo trồng: {activeSeason.startDate ? new Date(activeSeason.startDate).toLocaleDateString('vi-VN') : 'Kỳ tới'}
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-sky-800/80">
-                    Vụ 2 sẽ tự động kích hoạt sau khi Vụ trước thu hoạch xong và hoàn thành 5 ngày nghỉ đất cải tạo theo VietGAP. Dưới đây là lộ trình canh tác tiêu chuẩn chuẩn bị cho vụ này.
+                  <h4 className="mt-1.5 text-base font-heading font-black text-emerald-950">
+                    {activeSeason.seasonName || `Vụ ${activeSeason.seasonNumber}`} — Đã Lên Lịch Sẵn Sàng Canh Tác
+                  </h4>
+                  <p className="mt-0.5 text-xs text-stone-600 max-w-2xl leading-relaxed">
+                    Hợp đồng gia hạn vụ mùa đã được ghi nhận vào Master Lease Agreement. Vụ mùa sẽ tự động bắt đầu xuống giống ngay sau khi hoàn tất 4 ngày cải tạo và nghỉ đất theo quy chuẩn VietGAP (Fallow Protocol - BR23). Dưới đây là lộ trình chăm sóc toàn trình của vụ này.
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={onOpenRenewal}
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-white px-3.5 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50 transition shadow-2xs cursor-pointer"
-              >
-                <Sprout className="h-3.5 w-3.5 text-sky-700" />
-                Đổi giống vụ này
-              </button>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={onOpenRenewal}
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-white px-4 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 transition shadow-xs cursor-pointer"
+                >
+                  <Sprout className="h-3.5 w-3.5 text-emerald-700" />
+                  <span>Đổi giống vụ này</span>
+                </button>
+              </div>
             </div>
           )}
 
