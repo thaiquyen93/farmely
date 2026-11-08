@@ -490,7 +490,7 @@ export default function PlotRenewalModal({
             </div>
             <div className="rounded-2xl bg-stone-50 border border-stone-200 p-4 max-w-sm mx-auto text-xs text-stone-600 space-y-1 text-left">
               <p>• <strong>Kế thừa:</strong> Toàn bộ hình ảnh thực địa, dữ liệu dinh dưỡng đất được kế thừa.</p>
-              <p>• <strong>Fallow Protocol:</strong> 5 ngày nghỉ đất khử trùng được kích hoạt tự động giữa 2 vụ.</p>
+              <p>• <strong>Fallow Protocol (BR23):</strong> 4 ngày bảo trì nghỉ đất khử trùng được kích hoạt tự động giữa 2 vụ.</p>
             </div>
             <button
               type="button"

@@ -1213,7 +1213,8 @@ export function recordStaffActivity(activity) {
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   QUY TRÌNH NGHỈ ĐẤT & CẢI TẠO ĐẤT VIETGAP (FALLOW & SOIL REMEDIATION PROTOCOL)
+   QUY TRÌNH NGHỈ ĐẤT & CẢI TẠO ĐẤT VIETGAP (FALLOW & SOIL REMEDIATION PROTOCOL - BR23)
+   Bảo trì thửa đất 4 ngày trước khi cho thuê lại hoặc gieo trồng vụ mới.
    ────────────────────────────────────────────────────────────────────────── */
 
 export const FALLOW_PROTOCOL_STEPS = [
@@ -1233,32 +1234,25 @@ export const FALLOW_PROTOCOL_STEPS = [
     duration: 'Ngày 2',
     status: 'COMPLETED',
     worker: 'Trần Văn Lực (CVLĐ)',
-    image: '/images/Mucangchai1.jpg'
+    image: '/images/moc-chau-2811.jpg'
   },
   {
     step: 3,
     title: 'Cày xới sâu & Phơi ải diệt nấm bệnh tự nhiên',
     desc: 'Xới sâu 20 - 25cm, phơi ải dưới ánh nắng mặt trời giúp diệt nấm hại, tuyến trùng và ấu trùng sâu bọ.',
-    duration: 'Ngày 3 - 4',
+    duration: 'Ngày 3',
     status: 'IN_PROGRESS',
-    worker: 'Nguyễn Văn Hùng (KTV)',
-    image: '/images/Mucangchai2.jpg'
+    worker: 'Trần Văn Lực (CVLĐ)',
+    image: '/images/Mucangchai3.jpg'
   },
   {
     step: 4,
-    title: 'Bón lót phân trùn quế & Bổ sung vi sinh Trichoderma',
-    desc: 'Bổ sung nguồn hữu cơ hoai mục và hệ vi sinh đối kháng để tái tạo độ phì nhiêu màu mỡ cho vụ mùa mới.',
-    duration: 'Ngày 5 (Sáng)',
+    title: 'Bổ sung vi sinh hữu cơ Trichoderma & Hoàn tất phục hồi',
+    desc: 'Bổ sung nguồn phân trùn quế hoai mục và hệ vi sinh đối kháng Trichoderma để tái tạo độ phì nhiêu sẵn sàng cho vụ mùa mới.',
+    duration: 'Ngày 4',
     status: 'PENDING',
-    worker: 'Đội ngũ Kỹ thuật Farmely'
-  },
-  {
-    step: 5,
-    title: 'Lên luống mới & Cân chỉnh hệ thống tưới nhỏ giọt',
-    desc: 'Tạo luống cao ráo thoát nước, phủ màng giữ ẩm và chạy thử hệ thống tưới tự động sẵn sàng đón cây giống.',
-    duration: 'Ngày 5 (Chiều)',
-    status: 'PENDING',
-    worker: 'Đội ngũ Kỹ thuật Farmely'
+    worker: 'Trần Văn Lực (CVLĐ)',
+    image: '/images/moc-chau-2811.jpg'
   }
 ];
 
@@ -1289,7 +1283,7 @@ function enforceSequentialSeasons(rawSeasons = [], plot = {}) {
     const standard = CROP_STANDARDS[cropKey] || primaryStandard;
     const cropName = s.cropName || plot.crop || standard.cropName;
     const seasonDuration = Number(s.totalDays) || standard.totalDays || defaultDuration;
-    const fallowDays = Number(s.fallowDays) || 5;
+    const fallowDays = Number(s.fallowDays) || 4;
 
     const seasonStart = new Date(currentStart);
     const seasonEnd = new Date(seasonStart);

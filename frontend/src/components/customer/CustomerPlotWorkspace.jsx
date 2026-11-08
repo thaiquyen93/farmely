@@ -2192,7 +2192,9 @@ function OverviewTab({
   onStartSeason,
   onResetSeason,
   harvestResults = [],
-  onOpenHarvestReport
+  latestHarvest: propLatestHarvest,
+  onOpenHarvestReport,
+  onSimulateDay1
 }) {
   const isSoilPrep = activeSeason?.status === 'SOIL_PREP' || activeSeason?.inFallow;
 
@@ -2200,12 +2202,13 @@ function OverviewTab({
   // KH không nghiệm thu trên hệ thống, việc xác nhận nhận nông sản diễn ra tại nông trại.
   // ponytail: ceiling is hiển thị biên bản mới nhất; upgrade path is danh sách nhiều vụ khi KH thuê dài hạn.
   const latestHarvest = useMemo(() => {
+    if (propLatestHarvest) return propLatestHarvest;
     const list = (harvestResults || []).filter(Boolean);
     if (list.length === 0) return null;
     return [...list].sort((a, b) =>
       String(b.harvestDate || '').localeCompare(String(a.harvestDate || ''))
     )[0];
-  }, [harvestResults]);
+  }, [harvestResults, propLatestHarvest]);
 
   // BR18: chỉ nêu 2 cảnh báo đáng xử lý nhất, nặng trước.
   // ponytail: ceiling is 2 cảnh báo hiển thị, upgrade path is dựng lại trang khí tượng khi KH cần tra cứu lịch sử theo giờ/ngày.
@@ -2228,12 +2231,15 @@ function OverviewTab({
   return (
     <div className="space-y-6">
       {isSoilPrep ? (
-        /* Giai đoạn nghỉ đất & cải tạo theo chuẩn VietGAP (Fallow Protocol) */
+        /* Giai đoạn nghỉ đất & cải tạo theo chuẩn VietGAP (Fallow Protocol - BR23) */
         <SoilPrepView
           plot={plot}
           season={activeSeason}
           nextSeason={seasons?.find((s) => s.seasonNumber > (activeSeason?.seasonNumber || 1))}
           onOpenRenewal={onOpenRenewal}
+          latestHarvest={latestHarvest}
+          onOpenHarvestReport={onOpenHarvestReport}
+          onSimulateDay1={onSimulateDay1}
         />
       ) : (
         <>
@@ -3298,6 +3304,38 @@ export default function CustomerPlotWorkspace({
     return base;
   }, [plot, liveIotResult, isSeasonStarted]);
 
+  const handleSimulateDay1 = useCallback(async () => {
+    const rentalId = activePlot?.rentalId || activePlot?.rental_id || plot?.rentalId || plot?.rental_id;
+    if (rentalId) {
+      try {
+        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'START_NOW' })
+        });
+        try {
+          Object.keys(localStorage).forEach((k) => {
+            if (k.startsWith('farmely_self_tasks_') || k.includes('farmely_persisted_staff_activities') || k.includes('farmely_season_started')) {
+              localStorage.removeItem(k);
+            }
+          });
+        } catch { }
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          try {
+            const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
+            bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
+            setTimeout(() => { try { bc1.close(); } catch { } }, 1000);
+          } catch { }
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('storage'));
+        }
+      } catch (err) {
+        console.warn('Could not simulate day 1:', err);
+      }
+    }
+  }, [activePlot, plot]);
+
   // ponytail: chuỗi hourly chỉ dùng cho biểu đồ của tab Vi khí hậu (đã gộp vào Tổng quan).
   // upgrade path is lấy lại liveIotResult.hourly khi dựng trang tra cứu lịch sử khí tượng.
 
@@ -3542,6 +3580,7 @@ export default function CustomerPlotWorkspace({
             harvestResults={harvestResults}
             latestHarvest={propLatestHarvest}
             onOpenHarvestReport={(harvest) => setSelectedHarvestReport(harvest)}
+            onSimulateDay1={handleSimulateDay1}
           />
         )}
 
