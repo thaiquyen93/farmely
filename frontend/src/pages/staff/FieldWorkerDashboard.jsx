@@ -1468,15 +1468,15 @@ export default function FieldWorkerDashboard() {
     <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
       <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
 
-      <main className={`box-border flex-1 pt-24 sm:pt-28 pb-28 lg:pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
+      <main className={`box-border flex-1 pt-24 sm:pt-28 pb-28 lg:pb-16 max-w-[1720px] mx-auto lg:mr-0 px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
         
-        <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+        <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />Ca trực hiện trường</div>
-            <h1 className="mt-1 font-heading text-3xl font-black text-brand-dark sm:text-4xl">
+            <h1 className="mt-0.5 font-heading text-2xl font-black text-brand-dark sm:text-3xl">
               {activeTab === 'tasks' ? 'Thửa đất phụ trách' : activeTab === 'services' ? 'Yêu cầu dịch vụ' : activeTab === 'harvest' ? 'Thu hoạch' : 'Lịch sử báo cáo'}
             </h1>
-            <p className="mt-1 text-xs text-brand-muted">
+            <p className="mt-0.5 text-xs text-brand-muted">
               {activeTab === 'tasks'
                 ? `${tasks.length} nhiệm vụ tại ${plotSummaryList.length} thửa đất phụ trách ca trực`
                 : activeTab === 'services'
@@ -1486,13 +1486,52 @@ export default function FieldWorkerDashboard() {
                     : 'Theo dõi các sự cố đã gửi và tiến độ xử lý từ chuyên gia.'}
             </p>
           </div>
-          {activeTab === 'tasks' && <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs shadow-sm"><span className="font-bold text-stone-500">{currentSession === 'MORNING' ? 'Ca sáng' : 'Ca chiều'} · </span><strong className="text-emerald-800">{completedCount}/{tasks.length} nhiệm vụ hoàn thành</strong></div>}
+
+          {activeTab === 'tasks' && (
+            <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+              <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-2 shadow-2xs min-w-[110px]">
+                <span className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider whitespace-nowrap">Tổng nhiệm vụ</span>
+                <strong className="font-heading text-xl font-black text-stone-900 mt-0.5 block leading-tight">{tasks.length}</strong>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-3.5 py-2 shadow-2xs min-w-[125px]">
+                <span className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider whitespace-nowrap">Cần làm hôm nay</span>
+                <strong className="font-heading text-xl font-black text-amber-900 mt-0.5 block leading-tight">{todayActionableCount}</strong>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2 shadow-2xs min-w-[115px]">
+                <span className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider whitespace-nowrap">Đã hoàn thành</span>
+                <strong className="font-heading text-xl font-black text-emerald-900 mt-0.5 block leading-tight">{completedCount}</strong>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-2.5 text-xs shadow-sm whitespace-nowrap">
+                <span className="font-bold text-stone-500">{currentSession === 'MORNING' ? 'Ca sáng' : 'Ca chiều'} · </span>
+                <strong className="text-emerald-800">{completedCount}/{tasks.length} nhiệm vụ hoàn thành</strong>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'services' && (
-            <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-3 text-xs shadow-sm flex items-center gap-2">
-              <span className="font-bold text-stone-500">Tiến độ dịch vụ: </span>
-              <strong className="text-emerald-800">
-                {serviceRequests.filter(s => s.status === 'DONE' || s.status === 'COMPLETED').length}/{serviceRequests.length} đã hoàn tất
-              </strong>
+            <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+              <div className="rounded-2xl border border-stone-200 bg-white px-3.5 py-2 shadow-2xs min-w-[110px]">
+                <span className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider whitespace-nowrap">Tổng yêu cầu</span>
+                <strong className="font-heading text-xl font-black text-stone-900 mt-0.5 block leading-tight">{serviceRequests.length}</strong>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-3.5 py-2 shadow-2xs min-w-[115px]">
+                <span className="block text-[10px] font-bold text-amber-800 uppercase tracking-wider whitespace-nowrap">Cần thực hiện</span>
+                <strong className="font-heading text-xl font-black text-amber-900 mt-0.5 block leading-tight">
+                  {serviceRequests.filter(s => s.status !== 'DONE' && s.status !== 'COMPLETED').length}
+                </strong>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3.5 py-2 shadow-2xs min-w-[110px]">
+                <span className="block text-[10px] font-bold text-emerald-800 uppercase tracking-wider whitespace-nowrap">Đã hoàn tất</span>
+                <strong className="font-heading text-xl font-black text-emerald-900 mt-0.5 block leading-tight">
+                  {serviceRequests.filter(s => s.status === 'DONE' || s.status === 'COMPLETED').length}
+                </strong>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-white px-4 py-2.5 text-xs shadow-sm flex items-center gap-2 whitespace-nowrap">
+                <span className="font-bold text-stone-500">Tiến độ dịch vụ: </span>
+                <strong className="text-emerald-800">
+                  {serviceRequests.filter(s => s.status === 'DONE' || s.status === 'COMPLETED').length}/{serviceRequests.length} đã hoàn tất
+                </strong>
+              </div>
             </div>
           )}
         </section>
@@ -1509,44 +1548,6 @@ export default function FieldWorkerDashboard() {
             <button type="button" onClick={() => setDataSuccess('')} className="shrink-0 text-xs underline">Đóng</button>
           </div>
         ) : null}
-
-        {activeTab === 'tasks' && (
-          <div className="grid grid-cols-2 gap-3 sm:max-w-xl sm:grid-cols-3">
-            <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-2xs">
-              <span className="block text-xs font-bold text-stone-500 uppercase tracking-wider">Tổng nhiệm vụ</span>
-              <strong className="font-heading text-2xl font-black text-stone-900 mt-1 block">{tasks.length}</strong>
-            </div>
-            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-2xs">
-              <span className="block text-xs font-bold text-amber-800 uppercase tracking-wider">Cần làm hôm nay</span>
-              <strong className="font-heading text-2xl font-black text-amber-900 mt-1 block">{todayActionableCount}</strong>
-            </div>
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-2xs">
-              <span className="block text-xs font-bold text-emerald-800 uppercase tracking-wider">Đã hoàn thành</span>
-              <strong className="font-heading text-2xl font-black text-emerald-900 mt-1 block">{completedCount}</strong>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'services' && (
-          <div className="grid grid-cols-2 gap-3 sm:max-w-xl sm:grid-cols-3">
-            <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-2xs">
-              <span className="block text-xs font-bold text-stone-500 uppercase tracking-wider">Tổng yêu cầu</span>
-              <strong className="font-heading text-2xl font-black text-stone-900 mt-1 block">{serviceRequests.length}</strong>
-            </div>
-            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-2xs">
-              <span className="block text-xs font-bold text-amber-800 uppercase tracking-wider">Cần thực hiện</span>
-              <strong className="font-heading text-2xl font-black text-amber-900 mt-1 block">
-                {serviceRequests.filter(s => s.status !== 'DONE' && s.status !== 'COMPLETED').length}
-              </strong>
-            </div>
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-2xs">
-              <span className="block text-xs font-bold text-emerald-800 uppercase tracking-wider">Đã hoàn tất</span>
-              <strong className="font-heading text-2xl font-black text-emerald-900 mt-1 block">
-                {serviceRequests.filter(s => s.status === 'DONE' || s.status === 'COMPLETED').length}
-              </strong>
-            </div>
-          </div>
-        )}
 
         {activeTab === 'tasks' && overdueCount > 0 ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-800">
