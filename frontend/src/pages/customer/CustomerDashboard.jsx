@@ -1759,8 +1759,7 @@ export default function CustomerDashboard() {
   const cultivationProcesses = dbCultivationProcesses;
   const fallbackIotAlerts = {
     'PLOT-CC-01': [
-      { level: 'HIGH', title: 'Mưa có thể đến sau 45 phút', metric: 'Dự báo mưa 8.2 mm', time: '5 phút trước' },
-      { level: 'MEDIUM', title: 'Độ ẩm đất tăng nhanh', metric: '68% → 72% trong 30 phút', time: '12 phút trước' }
+      { level: 'MEDIUM', title: 'Độ ẩm đất ổn định', metric: '68% → 70% trong 30 phút', time: '12 phút trước' }
     ],
     'PLOT-MC-02': [
       { level: 'MEDIUM', title: 'Cường độ nắng cao lúc 12:00', metric: '38.000 Lux', time: '18 phút trước' },
@@ -1988,7 +1987,7 @@ export default function CustomerDashboard() {
                 plot={currentSelectedPlot}
                 plots={customerPlots}
                 operations={currentPlotOperations}
-                alerts={iotAlerts[currentSelectedPlot.id] || iotAlerts['PLOT-CC-01'] || []}
+                alerts={iotAlerts[currentSelectedPlot.id] || []}
                 stages={
                   (currentSelectedPlot.rentalId && cultivationProcesses[`RENTAL-${currentSelectedPlot.rentalId}`]) ||
                   (currentSelectedPlot.rentalId && cultivationProcesses[String(currentSelectedPlot.rentalId)]) ||
@@ -2113,7 +2112,6 @@ export default function CustomerDashboard() {
                     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
                       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                         <div className="flex items-center justify-between"><div><h2 className="text-2xl font-black text-slate-900">📡 Cập nhật thời tiết & vi khí hậu</h2><p className="text-sm text-slate-500">Thửa Mộc Châu B2 · Cập nhật theo thời gian thực</p></div><Link to="#iot" className="text-sm font-bold text-emerald-700">Xem tất cả →</Link></div>
-                        <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4"><p className="font-bold text-orange-700">🌧️ Sắp có mưa trong 45 phút</p><p className="text-sm text-slate-600">Đã tự động hoãn lịch tưới để tránh ngập úng.</p></div>
                         <div className="mt-3 divide-y divide-slate-100">{[['💧','Độ ẩm đất đang ở mức tốt','68% · Trong ngưỡng tối ưu 60–75%','5 phút trước'],['🌿','Cây sinh trưởng ổn định','Không phát hiện dấu hiệu bất thường','20 phút trước'],['☀️','Cường độ sáng đang tăng','28.500 lux · Phù hợp giai đoạn phát triển','1 giờ trước']].map(([icon,title,note,time]) => <div key={title} className="flex items-center gap-3 py-3"><span className="text-2xl">{icon}</span><div className="min-w-0 flex-1"><p className="font-bold text-slate-800">{title}</p><p className="truncate text-sm text-slate-500">{note}</p></div><span className="whitespace-nowrap text-xs text-slate-400">{time}</span></div>)}</div>
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><h2 className="text-2xl font-black text-slate-900">✅ Việc cần làm</h2><div className="mt-2 divide-y divide-slate-100">{(plotOperations['PLOT-MC-02']?.tasks || []).map((task) => <button key={task.id} type="button" onClick={() => setSelectedPlotId('PLOT-MC-02')} className="flex w-full items-center gap-3 py-3 text-left"><span className="text-xl">{task.status === 'COMPLETED' ? '✅' : '🌱'}</span><span className="min-w-0 flex-1"><span className="block truncate font-bold text-slate-800">{task.title}</span><span className="block text-xs text-slate-500">Thửa Mộc Châu B2</span></span><span className="whitespace-nowrap rounded-lg bg-slate-50 px-2 py-1 text-xs text-slate-500">{task.time}</span></button>)}</div></div>

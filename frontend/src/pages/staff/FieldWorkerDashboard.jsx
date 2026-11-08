@@ -2245,54 +2245,29 @@ export default function FieldWorkerDashboard() {
                         </div>
                       </div>
 
-                      {/* Thẻ 2: Cảnh báo Thời tiết / Mưa (BR18) như bên Customer */}
-                      {isRainAlert ? (
-                        <div className="flex-1 p-3 rounded-2xl bg-amber-50 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-amber-950">
-                          <div className="flex items-start gap-2.5 min-w-0">
-                            <span className="text-2xl leading-none shrink-0 mt-0.5">🌧️</span>
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <strong className="font-heading font-bold text-amber-950 text-xs">
-                                  Cảnh báo thời tiết: Mưa lớn &amp; Đất bão hoà ẩm
-                                </strong>
-                                <span className="rounded-md bg-amber-200/90 px-1.5 py-0.5 text-[9px] font-black text-amber-900 uppercase tracking-wide">
-                                  Tự động hoãn tưới (BR18)
-                                </span>
-                              </div>
-                              <p className="mt-1 text-[11px] text-amber-800 leading-relaxed">
-                                {liveSoilMoisture ? (
-                                  <>Độ ẩm đất thực tế đo từ trạm Open-Meteo là <strong className="font-mono font-bold text-amber-950">{liveSoilMoisture}</strong> (≥ 80%). Hệ thống đã tự động tạm hoãn các ca tưới hôm nay để tránh úng rễ cây.</>
-                                ) : (
-                                  <>Hệ thống đã tự động tạm hoãn các ca tưới hôm nay để tránh úng rễ cây theo quy chuẩn BR18.</>
-                                )}
-                              </p>
+                      {/* Thẻ 2: Khí tượng thực địa từ Open-Meteo */}
+                      <div className="flex-1 p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-emerald-950">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <span className="text-2xl leading-none shrink-0 mt-0.5">🌤️</span>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <strong className="font-heading font-bold text-emerald-950 text-xs">
+                                Khí tượng thực địa: Thời tiết ổn định
+                              </strong>
+                              <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black text-emerald-800 uppercase tracking-wide">
+                                Đủ điều kiện chăm sóc
+                              </span>
                             </div>
+                            <p className="mt-1 text-[11px] text-emerald-800 leading-relaxed">
+                              {liveSoilMoisture ? (
+                                <>Không có mưa bão · Độ ẩm đất ổn định <strong className="font-mono font-bold text-emerald-950">{liveSoilMoisture}</strong> (chuẩn 65–75%). Điều kiện lý tưởng cho các ca chăm sóc theo quy trình VietGAP.</>
+                              ) : (
+                                <>Điều kiện thời tiết ổn định, phù hợp tiến hành chăm sóc theo quy trình VietGAP.</>
+                              )}
+                            </p>
                           </div>
                         </div>
-                      ) : (
-                        <div className="flex-1 p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-emerald-950">
-                          <div className="flex items-start gap-2.5 min-w-0">
-                            <span className="text-2xl leading-none shrink-0 mt-0.5">🌤️</span>
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <strong className="font-heading font-bold text-emerald-950 text-xs">
-                                  Khí tượng thực địa: Trời râm mát, không mưa
-                                </strong>
-                                <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[9px] font-black text-emerald-800 uppercase tracking-wide">
-                                  Đủ điều kiện chăm sóc
-                                </span>
-                              </div>
-                              <p className="mt-1 text-[11px] text-emerald-800 leading-relaxed">
-                                {liveSoilMoisture ? (
-                                  <>Không có mưa rào · Độ ẩm đất ổn định <strong className="font-mono font-bold text-emerald-950">{liveSoilMoisture}</strong> (chuẩn 65–75%). Điều kiện lý tưởng cho các ca tưới và chăm sóc theo quy trình VietGAP.</>
-                                ) : (
-                                  <>Điều kiện thời tiết ổn định, không có mưa lớn, phù hợp tiến hành chăm sóc theo quy trình VietGAP.</>
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })()}

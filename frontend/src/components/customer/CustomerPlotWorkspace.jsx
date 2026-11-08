@@ -2315,15 +2315,13 @@ function OverviewTab({
     )[0];
   }, [harvestResults, propLatestHarvest]);
 
-  // BR18: chỉ nêu 2 cảnh báo đáng xử lý nhất, nặng trước.
-  // ponytail: ceiling is 2 cảnh báo hiển thị, upgrade path is dựng lại trang khí tượng khi KH cần tra cứu lịch sử theo giờ/ngày.
+  // Cảnh báo đáng xử lý nhất (đã loại bỏ cảnh báo hoãn lịch tưới)
   const topAlerts = useMemo(() => {
     const rank = { HIGH: 0, MEDIUM: 1, LOW: 2 };
     const seenGroup = new Set();
     return [...(alerts || [])]
+      .filter((a) => !/hoãn.*tưới|mưa.*45 phút|sắp có mưa/i.test(`${a?.title || ''} ${a?.explanation || ''} ${a?.action || ''} ${a?.metric || ''}`))
       .sort((a, b) => (rank[a?.level] ?? 3) - (rank[b?.level] ?? 3))
-      // "Mưa sắp đến" và "độ ẩm đất tăng nhanh" là cùng một sự việc, cùng một quyết định
-      // hoãn tưới: chỉ giữ cảnh báo nặng nhất của mỗi nhóm để khỏi nói hai lần.
       .filter((a) => {
         const g = explainAlert(a, plot.mode).group;
         if (seenGroup.has(g)) return false;
@@ -3487,17 +3485,10 @@ export default function CustomerPlotWorkspace({
   // Cảnh báo động sinh ra theo số đo thực tế
   const activeAlerts = useMemo(() => {
     const sNum = parseFloat(String(activePlot.soilMoisture || ''));
-    const dynamicList = [...(alerts || [])];
-    if (sNum >= 80) {
-      dynamicList.unshift({
-        id: 'DYNAMIC-FLOOD-BR18',
-        level: 'HIGH',
-        title: 'Mưa lớn & Đất bão hoà ẩm',
-        explanation: `Độ ẩm đất đo đạc thực tế từ trạm là ${activePlot.soilMoisture} (≥ 80%). Hệ thống đã tự động tạm hoãn mọi tác vụ tưới hôm nay để tránh ngập úng rễ cây.`,
-        action: 'Farmely đã tự động dời lịch tưới hôm nay.',
-        time: activePlot.lastUpdated || 'Vừa xong'
-      });
-    } else if (sNum < 50 && sNum > 0) {
+    const dynamicList = [...(alerts || [])].filter(
+      (a) => !/hoãn.*tưới|mưa.*45 phút|sắp có mưa/i.test(`${a?.title || ''} ${a?.explanation || ''} ${a?.action || ''} ${a?.metric || ''}`)
+    );
+    if (sNum < 50 && sNum > 0) {
       dynamicList.unshift({
         id: 'DYNAMIC-DRY-BR18',
         level: 'HIGH',

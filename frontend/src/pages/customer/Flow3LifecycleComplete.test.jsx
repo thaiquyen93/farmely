@@ -297,14 +297,8 @@ describe('LUỒNG 3 TEST SUITE: VÒNG ĐỜI VỤ MÙA THÔNG MINH (FLOW 3 LIFEC
     expect(imgElement).toBeTruthy();
   });
 
-  it('BƯỚC 6: Chuyển sang thửa ủy thác (P-12) — Xem chu kỳ VietGAP & Quy tắc hoãn tưới (BR18)', async () => {
-    const weatherAlerts = [
-      {
-        level: 'INFO',
-        title: 'Quy tắc Nông học BR18: Đất đủ ẩm 82%, chiều có mưa',
-        metric: 'Ẩm độ đất: 82% · Tự động hoãn lịch tưới nước để chống úng rễ'
-      }
-    ];
+  it('BƯỚC 6: Chuyển sang thửa ủy thác (P-12) — Xem chu kỳ VietGAP & Thông tin vi khí hậu thực địa', async () => {
+    const weatherAlerts = [];
 
     await act(async () => {
       root.render(
@@ -328,9 +322,8 @@ describe('LUỒNG 3 TEST SUITE: VÒNG ĐỜI VỤ MÙA THÔNG MINH (FLOW 3 LIFEC
     // 2. Kiểm tra chu kỳ VietGAP
     expect(host.textContent).toContain('Phát triển thân lá');
 
-    // 3. Kiểm tra quy tắc hoãn tưới (BR18)
-    expect(host.textContent).toContain('BR18');
-    expect(host.textContent).toContain('hoãn');
+    // 3. Kiểm tra thông tin vi khí hậu thực địa Open-Meteo
+    expect(host.textContent).toContain('Nhiệt độ');
   });
 
   it('BƯỚC 7: Staff hoàn thành task chăm sóc thường nhật có ảnh thực địa (BR15)', async () => {
