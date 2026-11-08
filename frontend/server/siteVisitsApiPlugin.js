@@ -5380,6 +5380,12 @@ END $$;
                   SET start_date = CURRENT_DATE - INTERVAL '${offset} days', status = 'ACTIVE' 
                   WHERE rental_id = ${rentalId};
                 `);
+
+                if (day >= totalDays) {
+                  await runPostgreSql(`DELETE FROM harvest_results WHERE rental_id = ${rentalId};`);
+                  await runPostgreSql(`DELETE FROM farm_diaries WHERE rental_id = ${rentalId} AND title ILIKE '%thu hoạch%';`);
+                }
+
                 await runPostgreSql(`
                   UPDATE care_tasks
                   SET 

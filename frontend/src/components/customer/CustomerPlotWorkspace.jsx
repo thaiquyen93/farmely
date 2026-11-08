@@ -1943,7 +1943,14 @@ function StaffActivitiesTab({
                   </span>
                   <div>
                     <h4 className="font-heading font-black text-sm text-stone-900 flex items-center gap-2">
-                      <span>Việc Cần Thực Hiện Hôm Nay ({todayList.length}) {plot?.plotCode ? `• Thửa ${plot.plotCode}` : ''}</span>
+                      <span>
+                        {todayList.length > 0
+                          ? `Việc Cần Thực Hiện Hôm Nay (${todayList.length})`
+                          : doneTodayList.length > 0
+                            ? `Công Việc Hôm Nay (${doneTodayList.length} việc đã xong)`
+                            : `Việc Hôm Nay (0)`}
+                        {plot?.plotCode ? ` • Thửa ${plot.plotCode}` : ''}
+                      </span>
                     </h4>
                     <p className="text-[11px] text-amber-800 font-medium">
                       {isSelf
@@ -1994,8 +2001,8 @@ function StaffActivitiesTab({
                 </div>
               )}
 
-              {/* Nếu xem tab HÔM NAY và có việc đã xong hôm nay (nhất là Thu hoạch) -> Hiển thị để đối chứng */}
-              {statusFilter === 'TODAY' && doneTodayList.length > 0 && (
+              {/* Hiển thị các việc đã xong hôm nay (nhất là Thu hoạch) để đối chứng và tiện theo dõi */}
+              {doneTodayList.length > 0 && (
                 <div className="space-y-3 pt-3 border-t border-emerald-200/80">
                   <div className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-emerald-600" />
@@ -3936,7 +3943,9 @@ export default function CustomerPlotWorkspace({
                       // QUAN TRỌNG: Khi mùa vụ đã tiến đến Ngày Thu Hoạch (currentDay >= totalDays):
                       // Tất cả các công việc chuẩn kỹ thuật của các giai đoạn trước (actDay < totalDays)
                       // ĐÃ ĐƯỢC HOÀN THÀNH trong suốt mùa vụ!
-                      if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && actDay < cropProcess.totalDays) {
+                      // (Ngoại trừ nhiệm vụ Thu hoạch & Nghiệm thu BR20 — phải chờ thực hiện thật)
+                      const isHarvestAct = /thu hoạch|nghiệm thu/i.test(act.title);
+                      if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && actDay < cropProcess.totalDays && !isHarvestAct) {
                         isDone = true;
                         if (!proofPhoto) {
                           proofPhoto = 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80';
