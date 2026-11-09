@@ -368,10 +368,15 @@ SIMILARITY_THRESHOLD=0.10
         $stderr = Join-Path $runtimeDir "$($service.Name).err.log"
         $jarPath = Join-Path $backendRoot $service.Jar
         $javaArgs = @(
+            "-Xms64m",
+            "-Xmx256m",
+            "-XX:MaxMetaspaceSize=128m",
+            "-XX:+UseSerialGC",
+            "-Xss512k",
             "-Dspring.datasource.url=$env:DB_URL",
             "-Dspring.datasource.username=$env:DB_USER",
             "-Dspring.datasource.password=$env:DB_PASSWORD",
-            "-Dspring.datasource.hikari.maximum-pool-size=5",
+            "-Dspring.datasource.hikari.maximum-pool-size=3",
             "-Dspring.datasource.hikari.minimum-idle=1",
             "-DDB_URL=$env:DB_URL",
             "-DDB_HOST=$env:DB_HOST",

@@ -43,6 +43,7 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-api-gateway
     environment:
+      - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - SPRING_PROFILES_ACTIVE=docker
       - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
@@ -74,6 +75,7 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-identity-service
     environment:
+      - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
       - DB_PORT=5434
@@ -95,6 +97,7 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-farm-service
     environment:
+      - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
       - DB_PORT=5434
@@ -116,6 +119,7 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-knowledge-service
     environment:
+      - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
       - DB_PORT=5434
@@ -137,6 +141,7 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-rental-service
     environment:
+      - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
       - DB_PORT=5434
@@ -158,6 +163,7 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-payment-service
     environment:
+      - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
       - DB_PORT=5434
@@ -179,6 +185,7 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-cultivation-service
     environment:
+      - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
       - DB_PORT=5434
@@ -200,6 +207,7 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-communication-service
     environment:
+      - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
       - DB_PORT=5434
@@ -221,6 +229,7 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-monitoring-service
     environment:
+      - JAVA_TOOL_OPTIONS=-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -Xss512k
       - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
       - DB_PORT=5434

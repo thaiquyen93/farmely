@@ -4282,7 +4282,26 @@ export default function CustomerDashboard() {
         </div>
       )}
 
-      <CustomerMobileNav activeView={activeTab} />
+      <CustomerMobileNav
+        activeView={selectedPlotId ? plotTabFromUrl : activeTab}
+        onSelectTab={(view) => {
+          const targetPlot = currentSelectedPlot || customerPlots[0];
+          if (selectedPlotId && currentSelectedPlot) {
+            const plotKey = selectedPlotId || (currentSelectedPlot.rentalId ? `RENTAL-${currentSelectedPlot.rentalId}` : currentSelectedPlot.id);
+            navigate(`/customer/dashboard?plot=${plotKey}${view === 'overview' ? '' : `&tab=${view}`}`, { replace: true });
+          } else if (view === 'overview') {
+            setSelectedPlotId(null);
+            setActiveTab('yards');
+            navigate('/customer/dashboard');
+          } else if (targetPlot) {
+            const plotKey = targetPlot.rentalId ? `RENTAL-${targetPlot.rentalId}` : targetPlot.id;
+            setSelectedPlotId(plotKey);
+            navigate(`/customer/dashboard?plot=${plotKey}&tab=${view}`);
+          } else {
+            setActiveTab(view === 'tasks' ? 'diary' : view);
+          }
+        }}
+      />
     </div>
   );
 }

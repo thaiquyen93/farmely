@@ -66,10 +66,46 @@ export default function FarmelySmartAssistant() {
   const [position, setPosition] = useState(() => {
     try {
       const saved = sessionStorage.getItem('farmely_fab_pos');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof window !== 'undefined' && parsed && typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          const isMobile = window.innerWidth < 1024;
+          return {
+            x: clamp(parsed.x, 16, Math.max(16, window.innerWidth - 72)),
+            y: clamp(parsed.y, 76, Math.max(76, window.innerHeight - (isMobile ? 140 : 76)))
+          };
+        }
+      }
     } catch {}
     return null;
   });
+
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800
+  }));
+
+  useEffect(() => {
+    const handleResize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      setViewport({ width: w, height: h });
+      setPosition((prev) => {
+        if (!prev) return null;
+        const isMobile = w < 1024;
+        const clamped = {
+          x: clamp(prev.x, 16, Math.max(16, w - 72)),
+          y: clamp(prev.y, 76, Math.max(76, h - (isMobile ? 140 : 76)))
+        };
+        try {
+          sessionStorage.setItem('farmely_fab_pos', JSON.stringify(clamped));
+        } catch {}
+        return clamped;
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [isDetailPanelOpen, setIsDetailPanelOpen] = useState(false);
   const [isMarketplace, setIsMarketplace] = useState(false);
@@ -263,6 +299,8 @@ export default function FarmelySmartAssistant() {
   const beginDrag = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
     dragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
       dx: event.clientX - rect.left,
       dy: event.clientY - rect.top,
       moved: false
@@ -272,11 +310,14 @@ export default function FarmelySmartAssistant() {
 
   const moveDrag = (event) => {
     if (!dragRef.current) return;
+    const dist = Math.hypot(event.clientX - dragRef.current.startX, event.clientY - dragRef.current.startY);
+    if (!dragRef.current.moved && dist < 6) return;
     const width = 56;
     const height = 56;
+    const isMobile = window.innerWidth < 1024;
     const next = {
-      x: clamp(event.clientX - dragRef.current.dx, 16, window.innerWidth - width - 16),
-      y: clamp(event.clientY - dragRef.current.dy, 80, window.innerHeight - height - 16)
+      x: clamp(event.clientX - dragRef.current.dx, 16, Math.max(16, window.innerWidth - width - 16)),
+      y: clamp(event.clientY - dragRef.current.dy, 76, Math.max(76, window.innerHeight - height - (isMobile ? 84 : 16)))
     };
     dragRef.current.moved = true;
     setPosition(next);
@@ -294,51 +335,66 @@ export default function FarmelySmartAssistant() {
     dragRef.current = null;
   };
 
-  // Tính toán vị trí thông minh để KHÔNG BAO GIỜ bị đè lên Plot Detail Action Bar
-  // Khi ở Marketplace và panel chi tiết thửa đất mở (bên phải):
-  // Nút tự động né sang GÓC TRÁI MÀN HÌNH hoặc nâng cao lên an toàn.
+  const isMobileViewport = viewport.width < 1024;
+
+  // Tính toán vị trí thông minh để KHÔNG BAO GIỜ bị đè lên Plot Detail Action Bar hoặc thanh điều hướng dưới
   const computedStyle = useMemo(() => {
+    const bottomSafe = isMobileViewport ? 80 : 24;
+    const sideSafe = isMobileViewport ? 16 : 24;
+
     if (position) {
-      return { left: position.x, top: position.y };
+      return {
+        left: clamp(position.x, 16, Math.max(16, viewport.width - 72)),
+        top: clamp(position.y, 76, Math.max(76, viewport.height - (isMobileViewport ? 140 : 76)))
+      };
     }
 
     // Nếu ở Marketplace và có panel thửa đất mở
     if (isDetailPanelOpen || isMarketplace) {
-      // Dịch sang mép TRÁI an toàn để giải phóng hoàn toàn cụm nút hành động bên phải
       return {
-        left: 24,
-        bottom: 24
+        left: sideSafe,
+        bottom: bottomSafe
       };
     }
 
     // Mặc định ở góc phải dưới
     return {
-      right: 24,
-      bottom: 24
+      right: sideSafe,
+      bottom: bottomSafe
     };
-  }, [position, isDetailPanelOpen, isMarketplace]);
+  }, [position, isDetailPanelOpen, isMarketplace, isMobileViewport, viewport.width, viewport.height]);
 
   const panelStyle = useMemo(() => {
-    if (position) {
-      const isRightHalf = position.x > window.innerWidth / 2;
+    const panelW = Math.min(380, Math.max(280, viewport.width - 32));
+    const bottomSafe = isMobileViewport ? 80 : 90;
+    const sideSafe = isMobileViewport ? 16 : 24;
+
+    if (position && !isMobileViewport) {
+      const clampedX = clamp(position.x, 16, Math.max(16, viewport.width - 72));
+      const clampedY = clamp(position.y, 76, Math.max(76, viewport.height - 76));
+      const isRightHalf = clampedX > viewport.width / 2;
       return {
-        left: isRightHalf ? Math.max(16, position.x - 390) : position.x,
-        top: clamp(position.y - 580, 80, Math.max(80, window.innerHeight - 600))
+        left: clamp(
+          isRightHalf ? clampedX - panelW + 56 : clampedX,
+          16,
+          Math.max(16, viewport.width - panelW - 16)
+        ),
+        top: clamp(clampedY - 580, 76, Math.max(76, viewport.height - 600))
       };
     }
 
     if (isDetailPanelOpen || isMarketplace) {
       return {
-        left: 24,
-        bottom: 90
+        left: sideSafe,
+        bottom: bottomSafe
       };
     }
 
     return {
-      right: 24,
-      bottom: 90
+      right: sideSafe,
+      bottom: bottomSafe
     };
-  }, [position, isDetailPanelOpen, isMarketplace]);
+  }, [position, isDetailPanelOpen, isMarketplace, isMobileViewport, viewport.width, viewport.height]);
 
   return (
     <>
@@ -349,7 +405,7 @@ export default function FarmelySmartAssistant() {
         <div
           data-draggable
           style={computedStyle}
-          className="fixed z-[60] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] select-none"
+          className="fixed z-[80] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none"
         >
           <div className="relative group">
             {/* Tooltip Hover sang trọng */}
@@ -393,7 +449,7 @@ export default function FarmelySmartAssistant() {
         <section
           ref={panelRef}
           style={panelStyle}
-          className="fixed z-[65] flex h-[580px] max-h-[calc(100vh-100px)] w-[380px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-3xl border border-emerald-500/20 bg-white shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition-all duration-300 animate-fadeIn"
+          className="fixed z-[85] flex h-[560px] max-h-[calc(100vh-150px)] lg:max-h-[calc(100vh-110px)] w-[380px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-3xl border border-emerald-500/20 bg-white shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur-2xl transition-all duration-300 animate-fadeIn"
           aria-label="Trung tâm Hỗ trợ Farmely"
         >
           {/* HEADER HIỆN ĐẠI & SEGMENTED TABS */}

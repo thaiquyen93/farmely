@@ -4103,9 +4103,9 @@ export default function CustomerPlotWorkspace({
         </div>
       </header>
 
-      {/* Tabs navigation desktop */}
-      <nav aria-label={`Chức năng của ${plot.name}`} className="sticky top-16 z-20 -mt-5 hidden lg:block">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
+      {/* Tabs navigation */}
+      <nav aria-label={`Chức năng của ${plot.name}`} className="sticky top-16 z-20 -mt-5 block">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className={`flex gap-1 overflow-x-auto rounded-xl border border-white/80 bg-white/90 p-1 backdrop-blur-xl no-scrollbar ${CARD_SHADOW}`} role="tablist">
             {displayTabs.map((t) => {
               const Icon = t.icon;
@@ -4117,11 +4117,11 @@ export default function CustomerPlotWorkspace({
                   role="tab"
                   aria-selected={active}
                   onClick={() => goTab(t.id)}
-                  className={`relative flex flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all duration-300 cursor-pointer ${active ? 'bg-gradient-to-br from-[#1d4a39] to-[#0f2a20] text-white shadow-md shadow-[#18352b]/25' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+                  className={`relative flex flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 sm:px-3.5 py-2 text-[11px] sm:text-sm font-semibold transition-all duration-300 cursor-pointer ${active ? 'bg-gradient-to-br from-[#1d4a39] to-[#0f2a20] text-white shadow-md shadow-[#18352b]/25' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
                     }`}
                 >
-                  <Icon className={`h-4 w-4 ${active ? 'text-lime-300' : ''}`} />
-                  {t.label}
+                  <Icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 ${active ? 'text-lime-300' : ''}`} />
+                  <span>{t.short || t.label}</span>
                   {badges[t.id] > 0 && (
                     <span className={`rounded-full px-1.5 text-[10px] font-bold ${active ? 'bg-lime-300 text-[#17372c]' : 'bg-amber-100 text-amber-800'}`}>
                       {badges[t.id]}
@@ -4415,38 +4415,6 @@ export default function CustomerPlotWorkspace({
           }
         }}
       />
-
-      {/* Bottom navigation bar mobile */}
-      <nav aria-label={`Chức năng của ${plot.name}`} className="fixed inset-x-3 bottom-3 z-40 lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="grid grid-cols-3 rounded-[22px] border border-white/10 bg-[#0f2a20]/95 p-1.5 shadow-[0_18px_40px_-12px_rgba(15,42,32,0.6)] backdrop-blur-xl" role="tablist">
-          {PLOT_TABS.map((t) => {
-            const Icon = t.icon;
-            const active = t.id === tab;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                aria-label={t.label}
-                onClick={() => goTab(t.id)}
-                className={`relative flex min-h-[50px] flex-col items-center justify-center gap-0.5 rounded-2xl px-0.5 text-[9px] font-semibold transition-all duration-300 ${active ? 'bg-lime-300 text-[#17372c] shadow-sm' : 'text-white/65'
-                  }`}
-              >
-                <span className="relative">
-                  <Icon className="h-4 w-4" />
-                  {badges[t.id] > 0 && (
-                    <span className={`absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[8px] font-bold ${active ? 'bg-[#17372c] text-lime-300' : 'bg-amber-400 text-[#17372c]'}`}>
-                      {badges[t.id]}
-                    </span>
-                  )}
-                </span>
-                <span className="truncate max-w-[42px]">{t.short}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
     </section>
   );
 }
