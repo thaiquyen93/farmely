@@ -21,8 +21,10 @@ export default {
         },
       },
       fontFamily: {
-        heading: ['Plus Jakarta Sans', 'Inter', 'Nunito', 'sans-serif'],
-        sans: ['Plus Jakarta Sans', 'Inter', 'Nunito', 'sans-serif'],
+        heading: ['var(--font-app)'],
+        sans: ['var(--font-app)'],
+        mono: ['var(--font-app)'],
+        serif: ['var(--font-app)'],
       },
       borderColor: {
         DEFAULT: 'rgba(41, 76, 59, 0.14)',

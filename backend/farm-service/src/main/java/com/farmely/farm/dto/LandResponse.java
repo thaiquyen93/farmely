@@ -14,6 +14,7 @@ public class LandResponse {
     private Integer landId;
     private String landName;
     private String address;
+    private String imageUrl;
     private String description;
     /** Ranh giới (ring mở [lng, lat]) hoặc null nếu chưa khoanh vùng */
     private java.util.List<java.util.List<Double>> boundary;

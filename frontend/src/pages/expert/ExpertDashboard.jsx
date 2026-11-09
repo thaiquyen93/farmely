@@ -8,7 +8,7 @@ import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
 import IssueAssignmentPanel from '../../components/expert/IssueAssignmentPanel';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
-import { getSafeAvatar, DEMO_CUSTOMERS, updateThreadRentalInStorage } from '../../api/communication/chatStorage';
+import { getSafeAvatar, DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import { chatService } from '../../api/communication/chatService';
 import { resolveStandardCropProcess, getPersistedStaffActivities } from '../../services/cropStandardProcess';
 import PlotWorkProgressTimeline from '../../components/expert/PlotProgressTimeline';
@@ -43,8 +43,6 @@ import {
   Clock,
   Search,
   Image as ImageIcon,
-  Paperclip,
-  Sparkles,
   X,
   ChevronRight,
   ChevronDown,
@@ -179,27 +177,14 @@ export default function ExpertDashboard() {
     senderName: expertSenderName
   });
   const [chatSearchQuery, setChatSearchQuery] = useState('');
-  const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'pre_rental' | 'worker' | 'pending'
-  const [chatPlotFilter, setChatPlotFilter] = useState('ALL'); // 'ALL' | 'P-01' | 'P-14' ... (Kênh phân loại theo Thửa Đất)
-  const [selectedMessagePlot, setSelectedMessagePlot] = useState(''); // Thửa đất gắn thẻ khi gửi tin
+  const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'worker' | 'pending'
   const [chatInputText, setChatInputText] = useState('');
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
   const [assignedPlots, setAssignedPlots] = useState([]);
-  const isPreRentalThread = (thread) => thread?.rentalStatus === 'NOT_RENTED';
-  const visibleChatThreads = useMemo(() => chatThreads.filter((thread) => {
-    if (thread.role !== 'customer') return true;
-    if (isPreRentalThread(thread)) return Boolean(thread.messages?.length);
-    const assigned = (assignedPlots || []).some((plot) => {
-      if (thread.customerEmail && plot.renterEmail && thread.customerEmail.toLowerCase() !== plot.renterEmail.toLowerCase()) return false;
-      const codes = [thread.plotCode, ...(thread.plots || []).map((item) => item.plotCode)].join(',').toUpperCase().split(',').map((code) => code.trim());
-      return codes.includes(String(plot.plotCode || '').toUpperCase());
-    });
-    return assigned;
-  }), [chatThreads, assignedPlots]);
-  const preRentalCount = visibleChatThreads.filter(isPreRentalThread).length;
+  const visibleChatThreads = useMemo(() => chatThreads, [chatThreads]);
 
   const formatPlotCode = (raw) => {
     if (!raw) return '';
@@ -211,40 +196,6 @@ export default function ExpertDashboard() {
       .filter(Boolean)
       .join(', ');
   };
-
-  // Quick advice recommendations pills with actionable task mappings
-  const quickPrescriptions = [
-    {
-      label: '💧 Giảm 30% tưới ẩm',
-      taskTitle: 'Điều chỉnh giảm 30% thời lượng tưới béc phun sương',
-      text: 'Độ ẩm đất 72% đang hơi cao. Nên giảm 30% thời lượng tưới béc phun sương mỗi sáng để bộ rễ thông thoáng, tránh ngập úng gây vàng lá sinh lý.',
-      priority: 'HIGH'
-    },
-    {
-      label: '🍅 Tỉa lá già sát gốc',
-      taskTitle: 'Bấm tỉa lá già, lá vàng cách gốc 15-20cm tạo thông thoáng',
-      text: 'Hiện tượng vàng lá ở tầng chân là sinh lý tự nhiên khi cây tập trung dinh dưỡng nuôi chùm hoa. Bấm tỉa các lá già cách gốc 15-20cm để tạo độ thông thoáng.',
-      priority: 'NORMAL'
-    },
-    {
-      label: '🌾 Cách ly VietGAP 5 ngày',
-      taskTitle: 'Thiết lập cách ly VietGAP 5 ngày trước thu hoạch (ngưng bón phân)',
-      text: 'Đúng chuẩn quy trình VietGAP, ngưng bón phân dinh dưỡng từ hôm nay (cách ngày hái 5 ngày). Chỉ duy trì tưới nước sạch buổi sáng để rau giòn ngọt tự nhiên.',
-      priority: 'HIGH'
-    },
-    {
-      label: '🌶️ Phun gừng ớt tỉ lệ 1:200',
-      taskTitle: 'Phun chế phẩm thảo mộc gừng ớt 1:200 phòng bọ trĩ rầy mềm sau 16:30',
-      text: 'Pha chế phẩm sinh học thảo mộc gừng ớt tỉ lệ 1:200, phun sương đều 2 mặt lá sau 16:30 lúc trời dịu nắng để phòng ngừa bọ trĩ và rầy mềm.',
-      priority: 'EMERGENCY'
-    },
-    {
-      label: '🪱 Bổ sung phân trùn quế',
-      taskTitle: 'Rải 400g phân trùn quế vi sinh quanh gốc cách 10cm và tưới ẩm nhẹ',
-      text: 'Bón rải 400g phân trùn quế vi sinh quanh gốc (cách gốc 10cm), tưới ẩm nhẹ để kích thích vi sinh vật cố định đạm tự nhiên.',
-      priority: 'NORMAL'
-    }
-  ];
 
   // Automatically scroll to bottom to view latest messages
   useEffect(() => {
@@ -262,14 +213,12 @@ export default function ExpertDashboard() {
   // Handle select conversation
   const handleSelectThread = (threadId) => {
     setSelectedThreadId(threadId);
-    setChatPlotFilter('ALL');
-    setSelectedMessagePlot('');
     setMobileShowChat(true);
     markExpertThreadAsRead(threadId);
   };
 
-  // Handle send message in Messenger chat (hỗ trợ đính kèm mã Thửa Đất)
-  const handleSendCustomerMessage = (e, explicitPlotCode = null) => {
+  // Handle send message in the shared, non plot based conversation.
+  const handleSendCustomerMessage = (e) => {
     if (e) e.preventDefault();
     if (!chatInputText.trim()) return;
 
@@ -277,14 +226,7 @@ export default function ExpertDashboard() {
       ? user.fullName
       : (activeRealtimeThread?.expertName || expertSenderName);
 
-    const targetPlot = explicitPlotCode || selectedMessagePlot || (chatPlotFilter !== 'ALL' ? chatPlotFilter : '');
-    const meta = {};
-    if (targetPlot) {
-      meta.plotCode = targetPlot;
-      meta.prescriptionTag = `CHỈ ĐẠO THỬA ${targetPlot}`;
-    }
-
-    sendExpertMessage(chatInputText.trim(), currentExpert, meta);
+    sendExpertMessage(chatInputText.trim(), currentExpert);
     setChatInputText('');
     setTimeout(() => {
       if (chatContainerRef.current) {
@@ -443,13 +385,14 @@ export default function ExpertDashboard() {
         }
 
         setAssignedPlots([...plotsById.values()]);
+        const customers = new Map();
         for (const rental of plotsById.values()) {
           const customerEmail = rental.renterEmail || '';
           const demo = DEMO_CUSTOMERS.find((customer) => customer.email?.toLowerCase() === customerEmail.toLowerCase());
           const threadId = demo?.threadId || `CONS-${customerEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
-          chatService.upsertPlotThread({ threadId, rentalId: rental.rentalId, customerName: rental.renterName, customerEmail, plotCode: rental.plotCode, plotName: rental.name, crop: rental.crop, rentalStatus: 'RENTED' });
-          updateThreadRentalInStorage({ threadId, rentalId: rental.rentalId, customerName: rental.renterName, plotCode: rental.plotCode, plotName: rental.name, crop: rental.crop });
+          customers.set(threadId, { threadId, participantUserId: demo?.userId, customerName: rental.renterName, customerEmail });
         }
+        customers.forEach((customer) => chatService.upsertCustomerThread(customer));
         refreshThreads();
       })
       .catch((err) => console.warn('Could not fetch live rentals:', err));
@@ -459,14 +402,10 @@ export default function ExpertDashboard() {
     if (!plot) return null;
     const renterEmail = (plot.renterEmail || '').trim().toLowerCase();
     const renterName = (plot.renterName || '').trim().toLowerCase();
-    const plotCode = (plot.plotCode || '').trim().toUpperCase();
-
-    // 1. Check existing customer threads in chatThreads
     const customerThreads = chatThreads.filter(
       (t) => t.role === 'customer' || (!t.role && !String(t.id).startsWith('WORK-') && !/Ban Quản Trị|Admin/i.test(t.customerName || ''))
     );
 
-    // 1a. Match by email
     if (renterEmail) {
       const match = customerThreads.find(
         (t) => (t.customerEmail || t.email || '').trim().toLowerCase() === renterEmail
@@ -474,7 +413,6 @@ export default function ExpertDashboard() {
       if (match) return match.id;
     }
 
-    // 1b. Match by customer name
     if (renterName) {
       const match = customerThreads.find((t) => {
         const tName = (t.customerName || '').trim().toLowerCase();
@@ -483,23 +421,11 @@ export default function ExpertDashboard() {
       if (match) return match.id;
     }
 
-    // 1c. Match by plot code
-    if (plotCode) {
-      const match = customerThreads.find((t) => {
-        const tCode = (t.plotCode || '').trim().toUpperCase();
-        return tCode && (tCode === plotCode || tCode === `PLOT-${plotCode}` || plotCode === `PLOT-${tCode}`);
-      });
-      if (match) return match.id;
-    }
-
-    // 2. Check DEMO_CUSTOMERS mapping
     const demoMatch = DEMO_CUSTOMERS.find((c) => {
       const cEmail = (c.email || '').trim().toLowerCase();
       const cName = (c.name || '').trim().toLowerCase();
-      const cCode = (c.plotCode || '').trim().toUpperCase();
       if (renterEmail && cEmail && cEmail === renterEmail) return true;
       if (renterName && cName && (cName === renterName || cName.includes(renterName) || renterName.includes(cName))) return true;
-      if (plotCode && cCode && cCode === plotCode) return true;
       return false;
     });
 
@@ -509,15 +435,14 @@ export default function ExpertDashboard() {
       return demoMatch.threadId;
     }
 
-    // 3. Fallback: Create thread in storage for this customer so they have a persistent thread
-    const newThreadId = `CONS-${plot.rentalId || plot.id || String(plot.plotCode || Date.now()).replace(/\D/g, '') || Date.now()}`;
-    updateThreadRentalInStorage({
+    const identity = renterEmail || renterName || `customer-${plot.renterId || Date.now()}`;
+    const newThreadId = `CONS-${String(identity).replace(/[^a-zA-Z0-9]/g, '_')}`;
+    chatService.upsertCustomerThread({
       threadId: newThreadId,
+      participantUserId: plot.renterId,
       customerName: plot.renterName || 'Khách Thuê Đất',
-      customerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      plotCode: plot.plotCode,
-      plotName: plot.name || `Thửa ${plot.plotCode}`,
-      crop: plot.crop || 'Cây trồng VietGAP'
+      customerEmail: renterEmail,
+      customerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
     });
     refreshThreads();
     return newThreadId;
@@ -815,7 +740,7 @@ export default function ExpertDashboard() {
       if (e.key === 'farmely_iot_sync_ping') {
         loadAssignedPlots();
       }
-      if (e.key === 'farmely_staff_activities_v4' || e.key === 'farmely_chat_threads_v6') {
+      if (e.key === 'farmely_staff_activities_v4' || e.key === 'farmely_chat_threads_v9') {
         loadTasksAndDiaries();
       }
     };
@@ -1230,7 +1155,7 @@ export default function ExpertDashboard() {
   };
 
   // Mở modal sinh task chỉ đạo trực tiếp từ hội thoại chat
-  const handleOpenDirectTaskModal = (thread, prefilled = null, overridePlotCode = null) => {
+  const handleOpenDirectTaskModal = (thread, prefilled = null) => {
     if (!thread) return;
 
     // Phân định rõ vai trò
@@ -1249,7 +1174,7 @@ export default function ExpertDashboard() {
         || availableFieldWorkers[0];
     }
 
-    const effectivePlotCode = overridePlotCode || (chatPlotFilter !== 'ALL' ? chatPlotFilter : selectedMessagePlot) || thread?.plotCode;
+    const effectivePlotCode = thread?.plotCode;
 
     const matchedPlot = assignedPlots.find((p) =>
       (effectivePlotCode && (p.plotCode === effectivePlotCode || String(effectivePlotCode).includes(p.plotCode))) ||
@@ -1778,7 +1703,7 @@ export default function ExpertDashboard() {
     <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
       <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
 
-      <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 max-w-[1720px] mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
+      <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 ${activeTab === 'chat' ? 'max-w-none' : 'max-w-[1720px]'} mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
         
         {/* Layout Left Sidebar + Content */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -1829,7 +1754,10 @@ export default function ExpertDashboard() {
           </DashboardRail>
 
           {/* Expert Main Display Content */}
-          <section className="flex-1 min-w-0 w-full space-y-6">
+          <section className={`min-w-0 w-full space-y-6 ${activeTab === 'chat'
+            ? (sidebarCollapsed ? 'lg:flex-none lg:w-[calc(100vw_-_9rem)] lg:max-w-none' : 'lg:flex-none lg:w-[calc(100vw_-_23rem)] lg:max-w-none')
+            : 'flex-1'
+          }`}>
 
             {successToast && (
               <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold text-xs flex items-center justify-between shadow-sm animate-fade-in">
@@ -1906,17 +1834,7 @@ export default function ExpertDashboard() {
                               : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                           }`}
                         >
-                          Đã thuê ({visibleChatThreads.filter(c => c.role === 'customer' && !isPreRentalThread(c)).length})
-                        </button>
-                        <button
-                          onClick={() => setChatFilter('pre_rental')}
-                          className={`min-h-9 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
-                            chatFilter === 'pre_rental'
-                              ? 'bg-sky-700 text-white shadow-xs'
-                              : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
-                          }`}
-                        >
-                          Chưa thuê ({preRentalCount})
+                          Khách hàng ({visibleChatThreads.filter(c => c.role === 'customer' && !/Ban Quản Trị|Admin/i.test(c.customerName || '')).length})
                         </button>
                         <button
                           onClick={() => setChatFilter('worker')}
@@ -1948,11 +1866,8 @@ export default function ExpertDashboard() {
                           const q = chatSearchQuery.toLowerCase();
                           const matchesQuery =
                             (thread.customerName || '').toLowerCase().includes(q) ||
-                            (thread.plotName || '').toLowerCase().includes(q) ||
-                            (thread.crop || '').toLowerCase().includes(q) ||
                             (thread.roleLabel || '').toLowerCase().includes(q);
-                          if (chatFilter === 'customer') return matchesQuery && thread.role === 'customer' && !isPreRentalThread(thread) && !/Ban Quản Trị|Admin/i.test(thread.customerName || '');
-                          if (chatFilter === 'pre_rental') return matchesQuery && isPreRentalThread(thread);
+                          if (chatFilter === 'customer') return matchesQuery && thread.role === 'customer' && !/Ban Quản Trị|Admin/i.test(thread.customerName || '');
                           if (chatFilter === 'worker') return matchesQuery && thread.role === 'worker';
                           if (chatFilter === 'pending') return matchesQuery && thread.status === 'PENDING';
                           return matchesQuery;
@@ -2007,7 +1922,7 @@ export default function ExpertDashboard() {
                                   </span>
                                 </div>
 
-                                {/* Clean metadata line (Role & Plot) */}
+                                {/* Conversation type */}
                                 <div className="flex items-center gap-1.5 text-[11px] text-stone-500 truncate mt-0.5">
                                   <span className={`font-medium shrink-0 ${
                                     isAdmin
@@ -2020,13 +1935,8 @@ export default function ExpertDashboard() {
                                       ? 'Ban Quản Trị'
                                       : isWorker
                                         ? 'CVLĐ Hiện Trường'
-                                        : (thread.plotCode ? `Thửa ${formatPlotCode(thread.plotCode)}` : 'Chưa thuê')}
+                                        : 'Khách hàng'}
                                   </span>
-                                  {thread.crop && !isAdmin && (
-                                    <span className="truncate text-stone-400">
-                                      • {thread.crop}
-                                    </span>
-                                  )}
                                 </div>
 
                                 {/* Last message snippet */}
@@ -2067,10 +1977,9 @@ export default function ExpertDashboard() {
 
                     const isAdminThread = activeThread.role === 'admin' || activeThread.category === 'admin' || /Ban Quản Trị|Admin/i.test(activeThread.customerName || '');
                     const isWorkerThread = activeThread.role === 'worker' || activeThread.category === 'worker';
-                    const isPreRental = isPreRentalThread(activeThread);
 
                     // Trích xuất toàn bộ các thửa đất mà đối tượng chat (Khách thuê hoặc CVLĐ) đang phụ trách
-                    const participantPlots = (() => {
+                    const participantPlots = isWorkerThread ? (() => {
                       const map = new Map();
                       if (Array.isArray(activeThread.plots)) {
                         activeThread.plots.forEach((p) => {
@@ -2144,32 +2053,9 @@ export default function ExpertDashboard() {
                       });
 
                       return Array.from(map.values());
-                    })();
+                    })() : [];
 
-                    const detectMsgPlot = (m) => {
-                      if (m.plotCode) return m.plotCode.toUpperCase().replace(/^PLOT-/, '').trim();
-                      if (m.text) {
-                        const match = m.text.match(/\b(P-\d+)\b/i);
-                        if (match) return match[1].toUpperCase().replace(/^PLOT-/, '').trim();
-                        for (const p of participantPlots) {
-                          if (p.crop && p.crop.length >= 3) {
-                            const keyword = p.crop.toLowerCase().split(' ')[0];
-                            if (keyword.length >= 3 && m.text.toLowerCase().includes(keyword)) {
-                              return p.plotCode;
-                            }
-                          }
-                        }
-                      }
-                      return null;
-                    };
-
-                    const displayedMessages = (activeThread.messages || []).filter((m) => {
-                      if (chatPlotFilter === 'ALL') return true;
-                      const pCode = detectMsgPlot(m);
-                      return pCode === chatPlotFilter;
-                    });
-
-                    const filteredPlotInfo = participantPlots.find((p) => p.plotCode === chatPlotFilter);
+                    const displayedMessages = activeThread.messages || [];
 
                     return (
                       <div className={`flex-1 flex flex-col bg-white min-w-0 ${
@@ -2229,18 +2115,10 @@ export default function ExpertDashboard() {
                                 {isAdminThread
                                   ? 'Ban Quản Trị Hệ Thống • Trao đổi nghiệp vụ & Điều phối nội bộ'
                                   : isWorkerThread
-                                    ? (chatPlotFilter !== 'ALL'
-                                        ? `Kênh chỉ đạo: Thửa ${chatPlotFilter} • Giống: ${filteredPlotInfo?.crop || 'Chuẩn VietGAP'}`
-                                        : (participantPlots.length > 1
-                                            ? `CVLĐ phụ trách ${participantPlots.length} thửa (${participantPlots.map(p => p.plotCode).join(', ')}) • Chọn kênh bên dưới`
-                                            : `Nhân viên hiện trường • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`))
-                                    : isPreRental
-                                      ? `Khách quan tâm • ${activeThread.crop || 'Tư vấn nông học'}`
-                                      : (chatPlotFilter !== 'ALL'
-                                          ? `Kênh tư vấn riêng: Thửa ${chatPlotFilter} • Giống: ${filteredPlotInfo?.crop || 'Chuẩn VietGAP'}`
-                                          : (participantPlots.length > 1
-                                              ? `Khách thuê ${participantPlots.length} thửa: ${participantPlots.map(p => p.plotCode).join(', ')} • Bấm kênh bên dưới để lọc tin`
-                                              : `Khách thuê • Giống: ${activeThread.crop || 'Chuẩn VietGAP'} • Thửa ${formatPlotCode(activeThread.plotCode || 'P-01')}`))}
+                                    ? (participantPlots.length > 0
+                                        ? `Nhân viên hiện trường • Phụ trách ${participantPlots.map((plot) => plot.plotCode).join(', ')}`
+                                        : 'Nhân viên hiện trường • Trao đổi công việc chung')
+                                    : 'Trao đổi trực tiếp với khách hàng'}
                               </p>
                             </div>
                           </div>
@@ -2250,7 +2128,7 @@ export default function ExpertDashboard() {
                             <div className="flex items-center gap-2 shrink-0">
                               <button
                                 type="button"
-                                onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText, chatPlotFilter !== 'ALL' ? chatPlotFilter : selectedMessagePlot)}
+                                onClick={() => handleOpenDirectTaskModal(activeThread, chatInputText)}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-[0.98] text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
                                 title={isWorkerThread ? `Giao nhiệm vụ trực tiếp cho ${activeThread.customerName}` : "Tạo lệnh giao nhiệm vụ hiện trường cho CVLĐ phụ trách thửa đất này"}
                               >
@@ -2261,83 +2139,13 @@ export default function ExpertDashboard() {
                           )}
                         </div>
 
-                        {/* Plot Channels Bar (Kênh Thửa Đất - Lọc tin nhắn riêng từng thửa) */}
-                        {participantPlots.length > 1 && !isAdminThread && (
-                          <div className="px-4 sm:px-5 py-2 bg-stone-50/95 border-b border-stone-200/80 flex items-center justify-between gap-2 overflow-x-auto text-xs no-scrollbar">
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider flex items-center gap-1">
-                                <Layers className="w-3.5 h-3.5 text-emerald-700" />
-                                Kênh Thửa:
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setChatPlotFilter('ALL');
-                                  setSelectedMessagePlot('');
-                                }}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                                  chatPlotFilter === 'ALL'
-                                    ? 'bg-emerald-800 text-white shadow-2xs'
-                                    : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
-                                }`}
-                              >
-                                Tất cả ({activeThread?.messages?.length || 0})
-                              </button>
-                              {participantPlots.map((p) => {
-                                const count = (activeThread?.messages || []).filter((m) => detectMsgPlot(m) === p.plotCode).length;
-                                const isSelected = chatPlotFilter === p.plotCode;
-                                return (
-                                  <button
-                                    key={p.plotCode}
-                                    type="button"
-                                    onClick={() => {
-                                      setChatPlotFilter(p.plotCode);
-                                      setSelectedMessagePlot(p.plotCode);
-                                    }}
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                                      isSelected
-                                        ? 'bg-emerald-800 text-white shadow-2xs ring-1 ring-emerald-900/20'
-                                        : 'bg-white text-stone-700 hover:bg-emerald-50 border border-stone-200'
-                                    }`}
-                                  >
-                                    <span>📍 Thửa {p.plotCode}</span>
-                                    <span className={`text-[10px] font-normal ${isSelected ? 'text-emerald-200' : 'text-stone-400'}`}>
-                                      ({p.crop.split(' ')[0]})
-                                    </span>
-                                    {count > 0 && (
-                                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
-                                        isSelected ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
-                                      }`}>
-                                        {count}
-                                      </span>
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-
-                            {chatPlotFilter !== 'ALL' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setChatPlotFilter('ALL');
-                                  setSelectedMessagePlot('');
-                                }}
-                                className="text-[11px] font-semibold text-emerald-700 hover:underline shrink-0 cursor-pointer"
-                              >
-                                ✕ Xem tất cả
-                              </button>
-                            )}
-                          </div>
-                        )}
-
                         {/* Messenger Chat History Viewport */}
                         <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-[#FAF9F6]">
                           
                           {/* Date separator */}
                           <div className="flex items-center justify-center my-1">
                             <span className="text-[10px] font-medium text-stone-400 bg-white/90 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-stone-200/60 shadow-2xs">
-                              Hôm nay • Trao đổi với {activeThread.customerName} {chatPlotFilter !== 'ALL' ? `(Kênh Thửa ${chatPlotFilter})` : ''}
+                              Hôm nay • Trao đổi với {activeThread.customerName}
                             </span>
                           </div>
 
@@ -2346,14 +2154,10 @@ export default function ExpertDashboard() {
                             <div className="flex flex-col items-center justify-center py-16 text-center text-stone-400 space-y-2">
                               <MessageSquare className="w-8 h-8 text-stone-300 stroke-[1.5]" />
                               <p className="text-xs font-medium text-stone-600">
-                                {chatPlotFilter !== 'ALL'
-                                  ? `Chưa có trao đổi nào riêng cho Thửa ${chatPlotFilter}.`
-                                  : 'Chưa có tin nhắn trong cuộc hội thoại này.'}
+                                Chưa có tin nhắn trong cuộc hội thoại này.
                               </p>
                               <p className="text-[11px] text-stone-400 max-w-xs">
-                                {chatPlotFilter !== 'ALL'
-                                  ? `Nhập nội dung ở khung bên dưới để chỉ đạo hoặc tư vấn riêng cho Thửa ${chatPlotFilter}.`
-                                  : `Nhập nội dung ở khung bên dưới để bắt đầu trao đổi với ${activeThread?.customerName || 'đối tác'}.`}
+                                {`Nhập nội dung ở khung bên dưới để bắt đầu trao đổi với ${activeThread?.customerName || 'đối tác'}.`}
                               </p>
                             </div>
                           )}
@@ -2367,32 +2171,11 @@ export default function ExpertDashboard() {
                               String(msg.senderName || '').includes('Nguyễn Hoàng Nam') ||
                               String(msg.senderName || '').includes('Chuyên gia');
 
-                            const msgPlot = detectMsgPlot(msg);
-                            const pObj = msgPlot ? participantPlots.find((p) => p.plotCode === msgPlot) : null;
-
                             if (isExpert) {
                               return (
                                 <div key={msg.id} className="flex flex-col items-end space-y-1 max-w-[85%] sm:max-w-[72%] ml-auto">
                                   <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                                    {msgPlot && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setChatPlotFilter(msgPlot);
-                                          setSelectedMessagePlot(msgPlot);
-                                        }}
-                                        className={`inline-flex items-center gap-1 font-mono text-[10px] font-bold px-2 py-0.5 rounded-md border transition cursor-pointer mb-0.5 ${
-                                          chatPlotFilter === msgPlot
-                                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                            : 'bg-stone-100 hover:bg-emerald-50 text-stone-600 hover:text-emerald-800 border-stone-200'
-                                        }`}
-                                        title={`Bấm để chỉ xem lịch sử trao đổi của Thửa ${msgPlot}`}
-                                      >
-                                        <span>📍 Thửa {msgPlot}</span>
-                                        {pObj?.crop && <span className="font-sans font-normal text-stone-500">({pObj.crop.split(' ')[0]})</span>}
-                                      </button>
-                                    )}
-                                    {msg.prescriptionTag && (
+                                    {msg.prescriptionTag && !String(msg.prescriptionTag).startsWith('CHỈ ĐẠO THỬA') && (
                                       <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md">
                                         <ShieldCheck className="w-3 h-3 text-emerald-700" />
                                         {msg.prescriptionTag}
@@ -2413,7 +2196,7 @@ export default function ExpertDashboard() {
 
                             // Customer or Worker message
                             return (
-                              <div key={msg.id} className="flex items-start gap-2.5 max-w-[88%] sm:max-w-[75%]">
+                              <div key={msg.id} className="flex w-fit max-w-[88%] sm:max-w-[75%] items-start gap-2.5">
                                 <img
                                   src={getSafeAvatar(msg.senderAvatar || activeThread.customerAvatar, activeThread.role)}
                                   alt={msg.senderName || activeThread.customerName}
@@ -2424,30 +2207,12 @@ export default function ExpertDashboard() {
                                   className="mt-0.5 h-7 w-7 shrink-0 rounded-full ring-1 ring-stone-900/10 object-cover"
                                 />
 
-                                <div className="space-y-1 flex-1">
+                                <div className="min-w-0 flex flex-col items-start space-y-1">
                                   <div className="text-[11px] text-stone-500 font-medium px-0.5 flex items-center gap-1.5 flex-wrap">
                                     <span className="text-stone-800 font-semibold">
                                       {msg.senderName && msg.senderName !== 'Người dùng Farmely' ? msg.senderName : activeThread.customerName}
                                     </span>
                                     <span className="text-stone-400 font-mono text-[10px]">({msg.time})</span>
-                                    {msgPlot && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setChatPlotFilter(msgPlot);
-                                          setSelectedMessagePlot(msgPlot);
-                                        }}
-                                        className={`inline-flex items-center gap-1 font-mono text-[10px] font-bold px-2 py-0.5 rounded-md border transition cursor-pointer ${
-                                          chatPlotFilter === msgPlot
-                                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                            : 'bg-stone-100 hover:bg-emerald-50 text-stone-600 hover:text-emerald-800 border-stone-200'
-                                        }`}
-                                        title={`Bấm để chỉ xem lịch sử trao đổi của Thửa ${msgPlot}`}
-                                      >
-                                        <span>📍 Thửa {msgPlot}</span>
-                                        {pObj?.crop && <span className="font-sans font-normal text-stone-500">({pObj.crop.split(' ')[0]})</span>}
-                                      </button>
-                                    )}
                                   </div>
 
                                   {/* Attached Plant Photo (Clickable Lightbox) */}
@@ -2481,7 +2246,7 @@ export default function ExpertDashboard() {
 
                                   {/* Text Bubble */}
                                   {msg.text && (
-                                    <div className="px-4 py-2.5 rounded-2xl rounded-tl-xs bg-white text-stone-800 text-xs sm:text-sm leading-relaxed border border-stone-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+                                    <div className="w-fit max-w-full break-words [overflow-wrap:anywhere] px-4 py-2.5 rounded-2xl rounded-tl-xs bg-white text-stone-800 text-xs sm:text-sm leading-relaxed border border-stone-200/80 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
                                       {msg.text}
                                     </div>
                                   )}
@@ -2490,72 +2255,12 @@ export default function ExpertDashboard() {
                             );
                           })}
                         </div>
-
-                        {/* Quick Prescriptions Suggestion Bar (Chỉ hiển thị cho Khách thuê hoặc CVLĐ, ẩn khi chat với Admin) */}
-                        {!isAdminThread && !isPreRental && (
-                          <div className="px-4 py-2 bg-stone-50/70 border-t border-stone-200/70 flex items-center gap-1.5 overflow-x-auto text-xs no-scrollbar">
-                            <span className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
-                              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                              {isWorkerThread ? 'Chỉ đạo:' : 'Gợi ý:'}
-                            </span>
-                            {quickPrescriptions.map((item, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onClick={() => setChatInputText(item.text)}
-                                className="px-2.5 py-1 rounded-md bg-white hover:bg-emerald-50/80 hover:text-emerald-900 border border-stone-200 text-[11px] font-medium text-stone-700 transition-colors shrink-0 shadow-2xs cursor-pointer"
-                                title="Chèn nội dung hướng dẫn vào khung chat"
-                              >
-                                {item.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
                         {/* Messenger Chat Input Footer */}
                         <form
                           onSubmit={handleSendCustomerMessage}
                           className="p-3 sm:p-4 bg-white border-t border-stone-200/70 flex items-end gap-2 shrink-0"
                         >
                           <div className="flex-1 bg-stone-50/80 rounded-xl border border-stone-200 focus-within:border-emerald-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-600/10 transition-all p-2 flex flex-col gap-1">
-                            {/* Plot Tagging Selector above Input */}
-                            {participantPlots.length > 1 && !isAdminThread && (
-                              <div className="flex items-center gap-1.5 text-xs px-1 pb-1 flex-wrap border-b border-stone-200/60 mb-1">
-                                <span className="text-[11px] font-bold text-stone-500 flex items-center gap-1">
-                                  <MapPin className="w-3 h-3 text-emerald-700" />
-                                  Thửa trao đổi:
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedMessagePlot('')}
-                                  className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition cursor-pointer ${
-                                    (!selectedMessagePlot && chatPlotFilter === 'ALL')
-                                      ? 'bg-stone-300 text-stone-900 font-bold'
-                                      : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
-                                  }`}
-                                >
-                                  Chung
-                                </button>
-                                {participantPlots.map((p) => {
-                                  const isAct = (selectedMessagePlot || (chatPlotFilter !== 'ALL' ? chatPlotFilter : '')) === p.plotCode;
-                                  return (
-                                    <button
-                                      key={p.plotCode}
-                                      type="button"
-                                      onClick={() => setSelectedMessagePlot(p.plotCode)}
-                                      className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition cursor-pointer ${
-                                        isAct
-                                          ? 'bg-emerald-700 text-white shadow-2xs'
-                                          : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/60'
-                                      }`}
-                                    >
-                                      📍 {p.plotCode} ({p.crop.split(' ')[0]})
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-
                             <textarea
                               ref={chatInputRef}
                               rows={2}
@@ -2571,35 +2276,13 @@ export default function ExpertDashboard() {
                                 isAdminThread
                                   ? `Soạn trao đổi công việc với Ban Quản Trị Farmely... (Enter để gửi)`
                                   : isWorkerThread
-                                    ? `Soạn chỉ đạo kỹ thuật cho ${activeThread.customerName}${chatPlotFilter !== 'ALL' ? ` (Thửa ${chatPlotFilter})` : ''}... (Enter để gửi)`
-                                    : `Soạn tư vấn kỹ thuật hoặc chỉ đạo cho ${activeThread.customerName}${chatPlotFilter !== 'ALL' ? ` (Thửa ${chatPlotFilter})` : ''}... (Enter để gửi)`
+                                    ? `Soạn trao đổi công việc chung với ${activeThread.customerName}... (Enter để gửi)`
+                                    : `Nhắn tin cho ${activeThread.customerName}... (Enter để gửi)`
                               }
                               className="w-full bg-transparent border-0 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none resize-none px-1"
                             />
                             
-                            <div className="flex items-center justify-between pt-1 border-t border-stone-200/40 px-1 text-stone-400">
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setChatInputText(prev => prev + ' 🌿 [Kèm tài liệu hướng dẫn kỹ thuật chuẩn VietGAP]');
-                                  }}
-                                  className="text-stone-400 hover:text-emerald-700 transition-colors cursor-pointer p-1 rounded hover:bg-stone-100"
-                                  title="Đính kèm tài liệu quy trình"
-                                >
-                                  <Paperclip className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setChatInputText(prev => prev + ' 🌱 [Chứng nhận VietGAP số 2026-VGAP-01]');
-                                  }}
-                                  className="text-stone-400 hover:text-emerald-700 transition-colors cursor-pointer p-1 rounded hover:bg-stone-100"
-                                  title="Chứng nhận VietGAP"
-                                >
-                                  <ShieldCheck className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                            <div className="flex items-center justify-end pt-1 border-t border-stone-200/40 px-1 text-stone-400">
                               <span className="text-[10px] text-stone-400 hidden sm:inline">
                                 Nhấn <strong>Enter</strong> để gửi
                               </span>

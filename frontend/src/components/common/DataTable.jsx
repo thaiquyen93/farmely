@@ -9,7 +9,8 @@ export default function DataTable({
   searchField,
   itemsPerPage = 10,
   actionButton,
-  filterComponent
+  filterComponent,
+  tableClassName = ''
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -86,13 +87,14 @@ export default function DataTable({
             description="Không có dữ liệu nào khớp với từ khóa tìm kiếm hoặc điều kiện lọc hiện tại."
           />
         ) : (
-          <table className="admin-table">
+          <table className={`admin-table ${tableClassName}`.trim()}>
             <thead>
               <tr>
                 {columns.map((col) => (
                   <th
                     key={col.key || col.header}
                     className={col.sortable ? 'cursor-pointer select-none hover:bg-stone-200/50' : ''}
+                    style={col.width ? { width: col.width, minWidth: col.minWidth || col.width } : undefined}
                     onClick={() => col.sortable && handleSort(col.key)}
                   >
                     <div className="flex items-center gap-1.5">
@@ -107,7 +109,7 @@ export default function DataTable({
               {paginatedData.map((row, idx) => (
                 <tr key={row.id || idx}>
                   {columns.map((col) => (
-                    <td key={col.key || col.header}>
+                    <td key={col.key || col.header} style={col.width ? { width: col.width, minWidth: col.minWidth || col.width } : undefined}>
                       {col.render ? col.render(row) : row[col.key]}
                     </td>
                   ))}

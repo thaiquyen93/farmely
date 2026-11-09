@@ -17,6 +17,7 @@ public class PlotSummaryResponse {
     private String plotCode;
     private BigDecimal area;
     private BigDecimal pricePerPeriod;
+    private BigDecimal carePricePerMonth;
     private PlotStatus status;
     private Boolean isPublished;
     private String imageUrl;

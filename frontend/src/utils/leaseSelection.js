@@ -155,10 +155,11 @@ export const normalizeLeaseConfig = (raw, crop) => {
 
 export const getCareFeePerMonth = (monthlyRent) => Math.round((Number(monthlyRent) || 0) * CARE_FEE_RATE);
 
-export const computePlotLeasePrice = ({ monthlyRent, termMonths, cultivationMode } = {}) => {
+export const computePlotLeasePrice = ({ monthlyRent, termMonths, cultivationMode, carePricePerMonth } = {}) => {
   const rent = Number(monthlyRent) || 0;
   const months = Number(termMonths) || 0;
-  const careFeePerMonth = getCareFeePerMonth(rent);
+  const hasConfiguredCarePrice = carePricePerMonth !== undefined && carePricePerMonth !== null && carePricePerMonth !== '';
+  const careFeePerMonth = hasConfiguredCarePrice ? Math.max(0, Number(carePricePerMonth) || 0) : getCareFeePerMonth(rent);
   const rentTotal = rent * months;
   const careTotal = cultivationMode === CULTIVATION_MODES.ASSISTED ? careFeePerMonth * months : 0;
   return { rentTotal, careFeePerMonth, careTotal, total: rentTotal + careTotal };
@@ -233,7 +234,7 @@ export const buildCartSummary = (plots, configMap, getCrop) => {
     const crop = raw?.cropId && typeof getCrop === 'function' ? getCrop(raw.cropId) || null : null;
     const config = normalizeLeaseConfig(raw, crop);
     const error = getLeaseConfigError(config, crop);
-    const price = computePlotLeasePrice({ monthlyRent: plot?.rentalPrice, ...config });
+    const price = computePlotLeasePrice({ monthlyRent: plot?.rentalPrice, carePricePerMonth: plot?.careServicePrice, ...config });
     return { code, plot, config, crop, error, price };
   });
   return {

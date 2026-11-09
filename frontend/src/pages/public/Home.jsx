@@ -33,7 +33,7 @@ export default function Home() {
 
   useEffect(() => {
     farmApi.listLands()
-      .then((rows) => setLands(rows || []))
+      .then((rows) => setLands((rows || []).filter((land) => land.isPublished !== false && land.is_published !== false)))
       .catch((err) => console.warn('Không thể nạp danh sách nông trại:', err));
 
     farmApi.listPlots()
@@ -174,7 +174,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-8">
           {lands.map((land) => (
             <FarmCard
               key={land.landId}

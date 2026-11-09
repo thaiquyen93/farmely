@@ -103,6 +103,7 @@ CREATE TABLE lands (
     land_id    SERIAL       PRIMARY KEY,
     land_name  VARCHAR(150) NOT NULL,
     address    TEXT         NOT NULL,
+    image_url  TEXT,
     description TEXT,
     boundary_geojson TEXT,
     created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -118,6 +119,7 @@ CREATE TABLE plots (
     area             DECIMAL(10,2)    NOT NULL,
     image_url        TEXT,
     price_per_period DECIMAL(15,2)    NOT NULL,
+    care_price_per_month DECIMAL(15,2) NOT NULL DEFAULT 0,
     status           plot_status_enum NOT NULL DEFAULT 'AVAIL',
     is_published     BOOLEAN          NOT NULL DEFAULT FALSE,
     description      TEXT,
@@ -169,6 +171,8 @@ CREATE TABLE varieties (
     variety_name      VARCHAR(150) NOT NULL,
     expected_duration INT          NOT NULL,
     buffer_time       INT          NOT NULL DEFAULT 0,
+    image_url         TEXT,
+    is_active         BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 COMMENT ON TABLE  varieties                   IS 'Specific cultivar with growth-cycle metadata';
@@ -654,6 +658,35 @@ INSERT INTO plots (plot_id, land_id, plot_code, area, image_url, price_per_perio
 (22, 1, 'P-16', 150.00, 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80', 1200000.00, 'RENT', TRUE, '{"type":"Polygon","coordinates":[[[106.353773,10.686725],[106.355124,10.687839],[106.356834,10.685931],[106.355468,10.684811],[106.353773,10.686725]]]}')
 ON CONFLICT (plot_id) DO NOTHING;
 
+UPDATE lands
+SET image_url = CASE land_id
+    WHEN 1 THEN '/images/plots/p-01-cover.jpg'
+    ELSE image_url
+END;
+UPDATE plots AS p
+SET image_url = cover.image_url
+FROM (VALUES
+    ('P-01', '/images/plots/p-01-cover.jpg'),
+    ('P-02', '/images/plots/p-02-cover.jpg'),
+    ('P-03', '/images/plots/p-03-cover.jpg'),
+    ('P-04', '/images/plots/p-04-cover.jpg'),
+    ('P-05', '/images/plots/p-05-cover.jpg'),
+    ('P-06', '/images/plots/p-06-cover.jpg'),
+    ('P-07', '/images/plots/p-07-cover.jpg'),
+    ('P-08', '/images/plots/p-08-cover.jpg'),
+    ('P-09', '/images/plots/p-09-cover.jpg'),
+    ('P-10', '/images/plots/p-10-cover.jpg'),
+    ('P-11', '/images/plots/p-11-cover.jpg'),
+    ('P-12', '/images/plots/p-12-cover.jpg'),
+    ('P-13', '/images/plots/p-13-cover.jpg'),
+    ('P-14', '/images/plots/p-14-cover.jpg'),
+    ('P-15', '/images/plots/p-15-cover.jpg'),
+    ('P-16', '/images/plots/p-16-cover.jpg'),
+    ('P-17', '/images/plots/p-17-cover.jpg'),
+    ('P-20', '/images/plots/p-20-cover.jpg')
+) AS cover(plot_code, image_url)
+WHERE p.plot_code = cover.plot_code;
+
 -- 5. BẢNG CROPS & VARIETIES (10 LOẠI RAU AN TOÀN VIETGAP CHUẨN)
 -- Nguồn: Quy_Trinh_Canh_Tac_10_Loai_Rau_An_Toan.docx
 INSERT INTO crops (crop_id, crop_name) VALUES
@@ -681,6 +714,17 @@ INSERT INTO varieties (variety_id, crop_id, variety_name, expected_duration, buf
 (9, 9, 'Ớt chỉ thiên F1', 85, 7),         -- 75-90 ngày, nghỉ đất 7 ngày
 (10, 10, 'Rau dền đỏ F1', 30, 4)          -- 25-30 ngày, nghỉ đất 4 ngày
 ON CONFLICT (variety_id) DO NOTHING;
+
+UPDATE varieties
+SET is_active = variety_id <= 5,
+    image_url = CASE variety_id
+        WHEN 1 THEN '/images/varieties/rau-muong-la-tre.png'
+        WHEN 2 THEN '/images/varieties/cai-ngot-bong.png'
+        WHEN 3 THEN '/images/varieties/xa-lach-romaine.png'
+        WHEN 4 THEN '/images/varieties/ca-chua-bi-do.png'
+        WHEN 5 THEN '/images/varieties/dua-leo-baby.png'
+        ELSE image_url
+    END;
 
 -- 6. BẢNG PLOT_VARIETY_COMPATIBILITY (MA TRẬN TƯƠNG THÍCH ĐẤT & CÂY)
 INSERT INTO plot_variety_compatibility (plot_id, variety_id) VALUES
@@ -717,6 +761,9 @@ INSERT INTO plot_variety_compatibility (plot_id, variety_id) VALUES
 -- Thửa P-16 (Khu ươm và luân canh)
 (22, 2), (22, 3), (22, 8), (22, 10)
 ON CONFLICT (plot_id, variety_id) DO NOTHING;
+
+DELETE FROM plot_variety_compatibility
+WHERE variety_id NOT IN (1, 2, 3, 4, 5);
 
 -- 7. BẢNG SERVICES (S01 ĐẾN S15)
 INSERT INTO services (service_id, service_code, service_name, service_type, price, unit, description, status) VALUES

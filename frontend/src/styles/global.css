@@ -1,13 +1,25 @@
 /* Typography and Global Defaults */
 html {
   scroll-behavior: smooth;
-  font-family: 'Plus Jakarta Sans', 'Inter', 'Nunito', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-app);
   color: var(--text-dark);
   font-size: 15px; /* ponytail: balance site scale at 100% zoom so dashboards feel compact, not oversized */
 }
 
 body {
-  font-family: 'Plus Jakarta Sans', 'Inter', 'Nunito', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-app);
+}
+
+button,
+input,
+select,
+textarea,
+optgroup,
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-app);
 }
 
 .crop-day-slider {
@@ -59,7 +71,7 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Plus Jakarta Sans', 'Inter', 'Nunito', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-app);
   color: inherit;
   letter-spacing: -0.015em;
 }
