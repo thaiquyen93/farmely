@@ -32,7 +32,6 @@ import LandDetail from './pages/admin/LandDetail';
 import Plots from './pages/admin/Plots';
 import PlotForm from './pages/admin/PlotForm';
 import PlotDetailAdmin from './pages/admin/PlotDetail';
-import IoTStations from './pages/admin/IoTStations';
 import Crops from './pages/admin/Crops';
 import Varieties from './pages/admin/Varieties';
 import VarietyDetail from './pages/admin/VarietyDetail';
@@ -210,9 +209,6 @@ export default function App() {
           <Route path="plots/create" element={<PlotForm />} />
           <Route path="plots/:id" element={<PlotDetailAdmin />} />
 
-          {/* IoT Stations */}
-          <Route path="iot-stations" element={<IoTStations />} />
-          <Route path="iot-stations/:id" element={<IoTStations />} />
 
           {/* Biology Master Data */}
           <Route path="crops" element={<Crops />} />

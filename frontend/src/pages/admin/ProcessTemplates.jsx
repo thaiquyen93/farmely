@@ -35,7 +35,6 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
   const [templates, setTemplates] = useState([]);
   const [varieties, setVarieties] = useState(initialVarieties);
   const [loading, setLoading] = useState(true);
-  const [isLiveDb, setIsLiveDb] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -58,7 +57,6 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
       .then((res) => {
         if (res && res.success && Array.isArray(res.data)) {
           setTemplates(res.data);
-          setIsLiveDb(true);
         }
       })
       .catch((err) => {
@@ -266,23 +264,9 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
       {/* Top Banner / Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-bold bg-brand-green/10 text-brand-green uppercase tracking-wider">
-              Tiêu Chuẩn Kỹ Thuật (VietGAP)
-            </span>
-            {isLiveDb && (
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live DB: {templates.length} Quy trình</span>
-              </span>
-            )}
-          </div>
-          <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
+          <h2 className="text-2xl font-heading font-black text-brand-dark">
             Quy Trình Canh Tác Chuẩn VietGAP
           </h2>
-          <p className="text-xs text-brand-muted mt-0.5">
-            Các mẫu quy trình kỹ thuật theo từng mốc ngày tuổi (Day Offset), hướng dẫn chăm sóc và tự động sinh Care Task cho gói Assisted-growing.
-          </p>
         </div>
 
         <Button variant="primary" size="md" icon={Plus} onClick={() => {
@@ -405,7 +389,7 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     <span className="font-heading font-black text-xs text-emerald-900 uppercase tracking-wider">
-                      Đã Phân Tích Thành Công: {parsedSteps.length} Bước Kỹ Thuật (Day Offset)
+                      Đã đọc được {parsedSteps.length} bước canh tác
                     </span>
                   </div>
                   <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-0.5 rounded-full border border-emerald-200">
@@ -494,9 +478,9 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
               </Button>
               <Button variant="primary" size="sm" type="submit" disabled={isSubmitting}>
                 {isSubmitting
-                  ? 'Đang Lưu Vào PostgreSQL...'
+                  ? 'Đang lưu...'
                   : parsedSteps.length > 0
-                  ? `Khởi Tạo & Lưu Vào PostgreSQL (${parsedSteps.length} Bước)`
+                  ? `Tạo quy trình (${parsedSteps.length} bước)`
                   : 'Khởi Tạo Template & Nhập Lộ Trình'}
               </Button>
             </div>

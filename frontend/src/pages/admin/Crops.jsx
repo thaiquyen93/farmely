@@ -11,7 +11,6 @@ import { Sprout, Plus, Edit, Eye, Power, Trash2, Loader2, CheckCircle2, AlertCir
 export default function Crops() {
   const [crops, setCrops] = useState(initialCrops);
   const [loading, setLoading] = useState(true);
-  const [isLiveDb, setIsLiveDb] = useState(false);
   const [selectedCrop, setSelectedCrop] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -32,7 +31,6 @@ export default function Crops() {
       .then((res) => {
         if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
           setCrops(res.data);
-          setIsLiveDb(true);
         }
       })
       .catch((err) => {
@@ -87,7 +85,7 @@ export default function Crops() {
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Lỗi khi lưu danh mục cây');
       }
-      setToast({ type: 'success', message: data.message || `Đã lưu nhóm cây "${cropName}" thành công vào PostgreSQL!` });
+      setToast({ type: 'success', message: data.message || `Đã lưu nhóm cây "${cropName}".` });
       loadCrops();
       try {
         if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -115,7 +113,7 @@ export default function Crops() {
         setTimeout(() => setToast(null), 5000);
         return;
       }
-      setToast({ type: 'success', message: `Đã xóa nhóm cây #${id} thành công khỏi PostgreSQL!` });
+      setToast({ type: 'success', message: 'Đã xóa nhóm cây.' });
       loadCrops();
       try {
         if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -242,23 +240,9 @@ export default function Crops() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-              Thực thể: Crop (Phân loại thực vật học)
-            </span>
-            {isLiveDb && (
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live DB: {crops.length} Loại cây</span>
-              </span>
-            )}
-          </div>
-          <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
+          <h2 className="text-2xl font-heading font-black text-brand-dark">
             Danh Mục Cây Trồng
           </h2>
-          <p className="text-xs text-brand-muted mt-0.5">
-            Nhóm cây trồng cấp độ tổng quát (rau ăn lá, cây ăn quả, dưa leo...) quản lý tập hợp các giống F1.
-          </p>
         </div>
 
         <Button variant="primary" size="md" icon={Plus} onClick={openCreateModal}>

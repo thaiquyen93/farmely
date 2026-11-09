@@ -7,7 +7,6 @@ import {
   MapPin,
   CheckCircle2,
   Phone,
-  Mail,
   User,
   Sparkles,
   Info,
@@ -39,7 +38,6 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
   // Form State (Khớp chuẩn 1:1 SCR-PUB-05 & Bảng site_visits)
   const [visitorName, setVisitorName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [emailAddress, setEmailAddress] = useState('');
   const [visitDate, setVisitDate] = useState('');
   const [visitSlot, setVisitSlot] = useState('MORNING'); // MORNING (08:30 - 10:30) | AFTERNOON (14:30 - 16:30)
   const [groupSize, setGroupSize] = useState(2);
@@ -105,7 +103,6 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
     if (isAuthenticated && user) {
       if (user.fullName && !visitorName) setVisitorName(user.fullName);
       if ((user.phone || user.phoneNumber) && !phoneNumber) setPhoneNumber(user.phone || user.phoneNumber);
-      if (user.email && !emailAddress) setEmailAddress(user.email);
     }
   }, [isAuthenticated, user]);
 
@@ -194,11 +191,6 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
       errs.phone = 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng số 0.';
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (emailAddress.trim() && !emailRegex.test(emailAddress.trim())) {
-      errs.email = 'Email không hợp lệ (ví dụ: hoten@gmail.com).';
-    }
-
     if (!visitDate) {
       errs.date = 'Vui lòng chọn ngày dự kiến tham quan.';
     } else if (visitDate < minDateStr) {
@@ -233,7 +225,6 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
         plot_id: numericPlotId,
         visitor_name: visitorName.trim(),
         visitor_phone: phoneNumber.trim().replace(/[\s.-]/g, ''),
-        visitor_email: emailAddress.trim() || null,
         visit_date: visitDate,
         visit_slot: visitSlot,
         group_size: Number(groupSize) || 2,
@@ -283,7 +274,6 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
         createdBooking={createdBooking}
         visitorName={visitorName}
         phoneNumber={phoneNumber}
-        emailAddress={emailAddress}
         selectedPlotObj={selectedPlotObj}
         selectedFarm={selectedFarm}
         formattedVisitDateVn={formattedVisitDateVn}
@@ -423,7 +413,7 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
                     const area = p.area || 150;
                     return (
                       <option key={p.plotId || p.id || code} value={code}>
-                        Thửa {code} ({area} m²) - {p.name || 'Đất phù sa'}
+                        Thửa {code} ({area} m²)
                       </option>
                     );
                   })}
@@ -641,28 +631,6 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Email nhận vé */}
-            <div>
-              <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-emerald-800" />
-                <span>Email nhận vé hẹn điện tử</span>
-                <span className="text-stone-500 font-normal">(Tùy chọn)</span>
-              </label>
-              <input
-                id="site-visit-email-input"
-                type="email"
-                placeholder="thuha.nguyen@gmail.com"
-                value={emailAddress}
-                onChange={(e) => setEmailAddress(e.target.value)}
-                className={`w-full rounded-xl border bg-white px-3 py-2 text-xs sm:text-sm text-stone-900 shadow-2xs transition focus:outline-none focus:ring-2 ${
-                  errors.email
-                    ? 'border-rose-400 focus:ring-rose-200'
-                    : 'border-stone-300 focus:ring-emerald-600 focus:border-emerald-600'
-                }`}
-              />
-              {errors.email && <p className="mt-1 text-xs text-rose-600 font-semibold">{errors.email}</p>}
-            </div>
-
             {/* Số lượng khách (5 Chips 1-5 theo chuẩn SSoT SCR-PUB-05) */}
             <div>
               <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center justify-between">
@@ -793,7 +761,6 @@ export default function SiteVisitForm({ preselectedPlotId, onSuccess, inModal = 
           createdBooking={createdBooking}
           visitorName={visitorName}
           phoneNumber={phoneNumber}
-          emailAddress={emailAddress}
           selectedPlotObj={selectedPlotObj}
           selectedFarm={selectedFarm}
           formattedVisitDateVn={formattedVisitDateVn}
@@ -813,7 +780,6 @@ function SiteVisitSuccessContent({
   createdBooking,
   visitorName,
   phoneNumber,
-  emailAddress,
   selectedPlotObj,
   selectedFarm,
   formattedVisitDateVn,
@@ -901,7 +867,7 @@ function SiteVisitSuccessContent({
             <button
               type="button"
               onClick={() => {
-                const regUrl = `/register?fromVisit=true&name=${encodeURIComponent(visitorName)}&phone=${encodeURIComponent(phoneNumber)}&email=${encodeURIComponent(emailAddress || '')}&redirect=${encodeURIComponent('/customer/dashboard?tab=welcome')}`;
+                const regUrl = `/register?fromVisit=true&name=${encodeURIComponent(visitorName)}&phone=${encodeURIComponent(phoneNumber)}&redirect=${encodeURIComponent('/customer/dashboard?tab=welcome')}`;
                 navigate(regUrl);
               }}
               className="flex-1 py-2.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 font-black text-xs transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
@@ -913,7 +879,7 @@ function SiteVisitSuccessContent({
             <button
               type="button"
               onClick={() => {
-                const loginUrl = `/login?phone=${encodeURIComponent(phoneNumber)}&email=${encodeURIComponent(emailAddress || '')}&redirect=${encodeURIComponent('/customer/dashboard?tab=welcome')}`;
+                const loginUrl = `/login?phone=${encodeURIComponent(phoneNumber)}&redirect=${encodeURIComponent('/customer/dashboard?tab=welcome')}`;
                 navigate(loginUrl);
               }}
               className="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs transition flex items-center justify-center gap-1 cursor-pointer whitespace-nowrap"

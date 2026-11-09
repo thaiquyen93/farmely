@@ -16,7 +16,6 @@ import {
 import { farmApi } from '../../api/farm/farmApi';
 import { cropsData } from '../../data/crops';
 import { varietiesData } from '../../data/varieties';
-import { iotStationsData } from '../../data/iotStations';
 import { processTemplatesData } from '../../data/processTemplates';
 import { knowledgeDocumentsData } from '../../data/knowledgeDocuments';
 
@@ -36,7 +35,6 @@ export default function MasterDataDashboard() {
   const [dbLandsCount, setDbLandsCount] = useState(0);
   const [dbPlotsCount, setDbPlotsCount] = useState(0);
   const [dbAvailPlotsCount, setDbAvailPlotsCount] = useState(0);
-  const [isLiveDb, setIsLiveDb] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -49,7 +47,6 @@ export default function MasterDataDashboard() {
       setDbLandsCount((lands || []).length);
       setDbPlotsCount((plots || []).length);
       setDbAvailPlotsCount((plots || []).filter((p) => p.status === 'AVAIL' || p.status === 'AVAILABLE').length);
-      setIsLiveDb(true);
     });
 
     fetch('/api/v1/master-data/summary')
@@ -58,7 +55,6 @@ export default function MasterDataDashboard() {
         if (!active) return;
         if (res && res.success && res.data) {
           setSummary(res.data);
-          setIsLiveDb(true);
         }
       })
       .catch((err) => {
@@ -72,7 +68,6 @@ export default function MasterDataDashboard() {
   const availablePlots = summary?.availablePlots ?? dbAvailPlotsCount;
   const totalCrops = summary?.totalCrops ?? cropsData.length;
   const totalVarieties = summary?.totalVarieties ?? varietiesData.length;
-  const totalIoT = summary?.totalIoT ?? iotStationsData.length;
   const activeTemplates = summary?.activeTemplates ?? processTemplatesData.filter((t) => t.status === 'ACTIVE').length;
   const totalDocs = summary?.totalDocs ?? knowledgeDocumentsData.length;
 
@@ -157,25 +152,9 @@ export default function MasterDataDashboard() {
       {/* Page Header */}
       <div className="flex flex-col gap-3 rounded-2xl border border-brand-border bg-white p-4 shadow-sm sm:p-5 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-brand-border bg-brand-cream px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-green">
-              Hệ Thống Quản Trị Trung Tâm
-            </span>
-            <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-bold shadow-2xs ${
-              isLiveDb
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                : 'border-stone-200 bg-stone-100 text-stone-600'
-            }`}>
-              <span className={`h-2 w-2 rounded-full ${isLiveDb ? 'animate-pulse bg-emerald-500' : 'bg-stone-400'}`} />
-              <span>{isLiveDb ? 'Live DB: PostgreSQL' : 'Đang kết nối CSDL'}</span>
-            </span>
-          </div>
-          <h1 className="mt-1.5 font-heading text-xl font-black text-brand-dark sm:text-2xl">
-            Farmely Master Data
+          <h1 className="font-heading text-xl font-black text-brand-dark sm:text-2xl">
+            Tổng quan dữ liệu quản trị
           </h1>
-          <p className="mt-0.5 text-xs text-brand-muted">
-            Quản lý và chuẩn hóa nền tảng dữ liệu quỹ đất, giống cây, quy trình chuẩn VietGAP và trạm khí tượng thực địa.
-          </p>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2.5">

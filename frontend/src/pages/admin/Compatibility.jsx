@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { compatibilityData as initialRules } from '../../data/compatibility';
 import { farmApi } from '../../api/farm/farmApi';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
@@ -10,9 +9,8 @@ import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import { SlidersHorizontal, Plus, CheckCircle2, XCircle, AlertTriangle, Layers, Trash2, Sprout, Filter } from 'lucide-react';
 
 export default function Compatibility() {
-  const [rules, setRules] = useState(initialRules);
+  const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isLiveDb, setIsLiveDb] = useState(false);
   const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
   const [showModal, setShowModal] = useState(false);
   const [dbPlots, setDbPlots] = useState([]);
@@ -34,7 +32,6 @@ export default function Compatibility() {
             plotId: String(r.plotId),
             plotCode: r.plotCode,
             plotName: `Thửa ${r.plotCode} (${r.landName || 'Trang trại Happy Valley'})`,
-            soilType: 'Đất phù sa / đất thịt nhẹ chuẩn VietGAP',
             varietyId: Number(r.varietyId),
             varietyName: r.varietyName,
             cropName: r.cropName,
@@ -44,7 +41,6 @@ export default function Compatibility() {
             updatedDate: '2026-10-12'
           }));
           setRules(normalized);
-          setIsLiveDb(true);
         }
       })
       .catch((err) => {
@@ -172,7 +168,6 @@ export default function Compatibility() {
             {row.plotCode}
           </span>
           <p className="font-bold text-brand-dark text-xs mt-1">{row.plotName}</p>
-          <p className="text-[11px] text-brand-muted truncate max-w-xs">{row.soilType}</p>
         </div>
       )
     },
@@ -244,7 +239,6 @@ export default function Compatibility() {
         id: String(plot.plotId),
         code: plot.plotCode,
         name: `Thửa đất ${plot.plotCode}`,
-        soilType: 'Đất phù sa bồi lắng giàu mùn chuẩn VietGAP',
         landName: plot.landName || 'Happy Valley Củ Chi',
         status: plot.status
       },
@@ -257,23 +251,9 @@ export default function Compatibility() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-              Thực thể: PlotVarietyCompatibility (Tương Thích Thổ Nhưỡng)
-            </span>
-            {isLiveDb && (
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live DB: {rules.length} Quy tắc ({allVarieties.length} Giống cây)</span>
-              </span>
-            )}
-          </div>
-          <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
+          <h2 className="text-2xl font-heading font-black text-brand-dark">
             Tương Thích Thổ Nhưỡng – Giống Cây
           </h2>
-          <p className="text-xs text-brand-muted mt-0.5">
-            Xác lập quy tắc bắt buộc: Khách hàng chỉ được gieo trồng giống cây đã được kiểm định tương thích với đất của thửa.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5">
@@ -328,10 +308,6 @@ export default function Compatibility() {
                   <Badge variant={plot.status} size="sm">{plot.status}</Badge>
                 </div>
 
-                <div className="py-2.5 text-xs text-stone-600">
-                  <span className="text-[10px] font-bold text-brand-muted uppercase block">Đặc điểm thổ nhưỡng:</span>
-                  <p className="font-semibold text-brand-dark truncate">{plot.soilType}</p>
-                </div>
 
                 {/* Compatibility Checklist */}
                 <div className="space-y-2 pt-2 border-t border-brand-border/60">
