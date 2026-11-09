@@ -6,18 +6,19 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
 export default function Register() {
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [searchParams] = useSearchParams();
+  const redirectParam = searchParams.get('redirect');
+  const fromVisit = searchParams.get('fromVisit') === 'true';
+
+  const [fullName, setFullName] = useState(() => searchParams.get('name') || '');
+  const [email, setEmail] = useState(() => searchParams.get('email') || '');
+  const [phone, setPhone] = useState(() => searchParams.get('phone') || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const [errors, setErrors] = useState({});
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const [searchParams] = useSearchParams();
-  const redirectParam = searchParams.get('redirect');
 
   const { register } = useAuthStore();
   const navigate = useNavigate();
@@ -158,6 +159,23 @@ export default function Register() {
             </div>
           )}
 
+          {/* Welcome Banner if coming from Site Visit Booking */}
+          {fromVisit && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 text-left shadow-xs flex items-start gap-3 animate-fadeIn">
+              <div className="w-9 h-9 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                <CheckCircle2 className="w-5 h-5 text-lime-300" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-emerald-950 uppercase tracking-wide">
+                  🎫 Lịch Khảo Sát Đã Được Ghi Nhận
+                </p>
+                <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                  Thông tin của bạn đã được điền sẵn. Hãy thiết lập mật khẩu để nhận ngay <strong>Mã QR lên xe đón (Boarding Pass)</strong> tại Welcome Lounge.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Form */}
           <form onSubmit={handleRegister} className="space-y-4">
             <Input
@@ -229,7 +247,11 @@ export default function Register() {
             <div className="text-center pt-2 text-xs text-stone-600">
               Đã có tài khoản?{' '}
               <Link
-                to={redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login'}
+                to={`/login?${new URLSearchParams({
+                  ...(redirectParam ? { redirect: redirectParam } : {}),
+                  ...(phone ? { phone } : {}),
+                  ...(email ? { email } : {})
+                }).toString()}`}
                 className="font-bold text-brand-green hover:underline"
               >
                 Đăng nhập ngay

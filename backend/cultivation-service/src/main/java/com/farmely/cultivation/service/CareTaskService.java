@@ -27,5 +27,7 @@ public interface CareTaskService {
 
     List<CareTaskResponse> generateTasksFromTemplate(GenerateTasksFromTemplateRequest request);
 
+    void deleteTask(Integer taskId);
+
     long checkAndMarkOverdueTasks();
 }

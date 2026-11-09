@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { AlertCircle, AlertTriangle, ArrowRight, Ban, CheckCircle2, DollarSign, FileText, Landmark, ShieldAlert, Sparkles, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { AlertCircle, AlertTriangle, ArrowRight, Ban, CheckCircle2, DollarSign, FileText, HelpCircle, Landmark, ShieldAlert, Sparkles, X } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import { rentalApi } from '../../api/rental/rentalApi';
@@ -44,6 +45,7 @@ export default function ContractCancellationModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successData, setSuccessData] = useState(null);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
 
   // Tính toán thời gian và mốc khấu trừ hoàn tiền theo BR10
   const calculation = useMemo(() => {
@@ -110,7 +112,13 @@ export default function ContractCancellationModal({
   if (!isOpen || !contract) return null;
 
   if (!calculation) {
-    return <Modal isOpen={isOpen} onClose={onClose} size="lg"><div className="p-6 text-sm text-rose-700">Chưa có đủ ngày bắt đầu hoặc số tiền hợp đồng để tính hoàn tiền. Vui lòng tải lại trang và thử lại.</div></Modal>;
+    return (
+      <Modal isOpen={isOpen} onClose={onClose} title="Thông Báo Hợp Đồng" maxWidth="max-w-md">
+        <div className="p-4 text-sm text-rose-700">
+          Chưa có đủ ngày bắt đầu hoặc số tiền hợp đồng để tính hoàn tiền. Vui lòng tải lại trang và thử lại.
+        </div>
+      </Modal>
+    );
   }
 
   const handleSubmit = async (e) => {
@@ -151,6 +159,22 @@ export default function ContractCancellationModal({
         refundAmount: Number(data.refundAmount ?? calculation.refundAmount),
         deductionRate: 1 - Number(data.refundPercentage ?? calculation.refundRate * 100) / 100
       });
+
+      // Phát tín hiệu đồng bộ real-time sang trang Admin Dashboard ngay lập tức (không cần F5)
+      try {
+        const syncPayload = {
+          type: 'CANCELLATION_REQUEST_CREATED',
+          cancellationId: data.cancellationId,
+          contractId: payload.contractId,
+          plotCode: contract.plotCode || 'P-01',
+          timestamp: Date.now()
+        };
+        const bc = new BroadcastChannel('farmely_contracts_sync');
+        bc.postMessage(syncPayload);
+        localStorage.setItem('farmely_cancellation_event', JSON.stringify(syncPayload));
+        window.dispatchEvent(new CustomEvent('farmely_cancellation_created', { detail: syncPayload }));
+      } catch (_) {}
+
       if (onSuccess) onSuccess(data);
     } catch (err) {
       setErrorMsg(err.message || 'Không thể gửi yêu cầu hủy hợp đồng.');
@@ -165,20 +189,17 @@ export default function ContractCancellationModal({
     setBankAccountName('');
     setErrorMsg('');
     setSuccessData(null);
+    setShowPolicyModal(false);
     onClose();
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleResetAndClose} size="lg">
+    <>
+      <Modal isOpen={isOpen} onClose={handleResetAndClose} hideHeader maxWidth="max-w-2xl">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-brand-border/70 pb-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 border border-rose-200">
-                Chính sách hoàn tiền
-              </span>
-            </div>
             <h2 className="font-heading text-xl font-black text-brand-dark flex items-center gap-2">
               <Ban className="h-5 w-5 text-rose-600" />
               Yêu Cầu Hủy Hợp Đồng & Quy Trình Hoàn Tiền
@@ -188,8 +209,10 @@ export default function ContractCancellationModal({
             </p>
           </div>
           <button
+            type="button"
             onClick={handleResetAndClose}
-            className="rounded-full p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition-colors"
+            aria-label="Đóng hộp thoại"
+            className="rounded-full p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition-colors cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -318,6 +341,30 @@ export default function ContractCancellationModal({
               </div>
             </div>
 
+            {/* Placeholder Chính sách hoàn tiền nằm ở trên lý do hủy hợp đồng */}
+            <div
+              onClick={() => setShowPolicyModal(true)}
+              className="flex items-center justify-between p-3 rounded-2xl bg-rose-50/80 hover:bg-rose-100/90 border border-rose-200/90 transition-all cursor-pointer group shadow-2xs hover:shadow-xs"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowPolicyModal(true); } }}
+              title="Bấm để xem Bảng Chính Sách Hủy Đặt Chỗ & Hoàn Tiền Canh Tác"
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="rounded-full bg-rose-200/90 group-hover:bg-rose-300 px-2.5 py-1 text-[11px] font-bold text-rose-900 border border-rose-300 flex items-center gap-1.5 shrink-0 transition-colors">
+                  <HelpCircle className="w-3.5 h-3.5 text-rose-700" />
+                  Chính sách hoàn tiền
+                </span>
+                <span className="text-xs text-rose-800 font-medium">
+                  Xem bảng quy định khấu trừ & hoàn cọc hợp đồng
+                </span>
+              </div>
+              <span className="text-xs font-bold text-rose-700 group-hover:text-rose-900 underline flex items-center gap-1 shrink-0 ml-2">
+                Xem chi tiết
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </div>
+
             {/* 3. Lý do hủy hợp đồng (Bắt buộc >= 10 ký tự SRS V8.1) */}
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between items-center">
@@ -435,5 +482,99 @@ export default function ContractCancellationModal({
         )}
       </div>
     </Modal>
+
+    {/* MODAL BẢNG CHÍNH SÁCH HỦY ĐẶT CHỖ & HOÀN TIỀN CANH TÁC (BR10) - NẰM TRÊN CÙNG QUA PORTAL */}
+    {showPolicyModal && typeof document !== 'undefined' && createPortal(
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
+        <div
+          className="fixed inset-0"
+          onClick={() => setShowPolicyModal(false)}
+          aria-hidden="true"
+        />
+        <div
+          className="relative z-10 bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-7 shadow-2xl border border-stone-200 space-y-5 text-left max-h-[90vh] overflow-y-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-start justify-between border-b border-stone-200 pb-3">
+            <div className="space-y-1">
+              <h3 className="text-lg font-heading font-black text-stone-900 flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-brand-green" />
+                Chính Sách Hủy Đặt Chỗ & Hoàn Tiền Canh Tác
+              </h3>
+              <p className="text-xs text-stone-500">
+                Quy tắc khấu trừ và hoàn tiền tự động theo tiêu chuẩn hợp đồng BR10 của Farmely
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPolicyModal(false)}
+              className="rounded-full p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-2xl border border-stone-200">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-stone-50/80 border-b border-stone-200 text-stone-700 font-bold">
+                  <th className="py-3.5 px-4 w-1/4">Mốc thời gian gửi yêu cầu</th>
+                  <th className="py-3.5 px-3 text-center w-1/8">Tỷ lệ khấu trừ</th>
+                  <th className="py-3.5 px-3 text-center w-1/8">Tỷ lệ hoàn tiền</th>
+                  <th className="py-3.5 px-4 w-1/2">Giải trình chi phí</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100 text-stone-600">
+                <tr className="hover:bg-emerald-50/40 transition-colors">
+                  <td className="py-3.5 px-4">
+                    <strong className="text-stone-900 font-black text-sm">≥ 3 ngày</strong>
+                    <div className="text-[11px] text-stone-500 font-normal">(≥ 72 giờ trước ngày bắt đầu)</div>
+                  </td>
+                  <td className="py-3.5 px-3 text-center font-bold text-stone-700 text-sm">20%</td>
+                  <td className="py-3.5 px-3 text-center font-black text-emerald-600 text-sm bg-emerald-50/50">80%</td>
+                  <td className="py-3.5 px-4 text-stone-600 text-xs leading-relaxed">
+                    Khấu trừ phí giữ chỗ đất và chi phí quản trị vận hành hệ thống.
+                  </td>
+                </tr>
+                <tr className="hover:bg-amber-50/40 transition-colors">
+                  <td className="py-3.5 px-4">
+                    <strong className="text-stone-900 font-black text-sm">1 – 2 ngày</strong>
+                    <div className="text-[11px] text-stone-500 font-normal">(Trước ngày bắt đầu sát ngày, &lt; 3 ngày)</div>
+                  </td>
+                  <td className="py-3.5 px-3 text-center font-bold text-amber-700 text-sm">50%</td>
+                  <td className="py-3.5 px-3 text-center font-black text-amber-700 text-sm bg-amber-50/50">50%</td>
+                  <td className="py-3.5 px-4 text-stone-600 text-xs leading-relaxed">
+                    Khấu trừ chi phí nông trại đã nhập hạt giống, phân bón lót và công làm đất ban đầu.
+                  </td>
+                </tr>
+                <tr className="hover:bg-rose-50/40 transition-colors">
+                  <td className="py-3.5 px-4">
+                    <strong className="text-stone-900 font-black text-sm">≤ 0 ngày</strong>
+                    <div className="text-[11px] text-stone-500 font-normal">(Vào hoặc sau ngày bắt đầu canh tác)</div>
+                  </td>
+                  <td className="py-3.5 px-3 text-center font-bold text-rose-700 text-sm">100%</td>
+                  <td className="py-3.5 px-3 text-center font-black text-rose-600 text-sm bg-rose-50/50">0%</td>
+                  <td className="py-3.5 px-4 text-stone-600 text-xs leading-relaxed">
+                    Cây giống đã xuống bầu/đất, công nhân đã vào việc thực tế nên không áp dụng hoàn tiền.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="button"
+              onClick={() => setShowPolicyModal(false)}
+              className="px-5 py-2.5 rounded-xl bg-brand-green text-white text-xs font-bold hover:bg-[#203c2c] transition cursor-pointer shadow-sm"
+            >
+              Đã hiểu & Đóng
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+  </>
   );
 }

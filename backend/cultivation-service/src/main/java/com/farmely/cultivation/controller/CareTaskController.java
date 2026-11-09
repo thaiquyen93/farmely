@@ -105,4 +105,11 @@ public class CareTaskController {
         long count = careTaskService.checkAndMarkOverdueTasks();
         return ResponseEntity.ok(ApiResponse.ok(count));
     }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Xóa tác vụ chăm sóc")
+    public ResponseEntity<ApiResponse<Void>> deleteTask(@PathVariable("id") Integer id) {
+        careTaskService.deleteTask(id);
+        return ResponseEntity.ok(ApiResponse.ok("Xóa tác vụ thành công", null));
+    }
 }

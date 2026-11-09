@@ -568,6 +568,78 @@ export default function AdminDashboard() {
     loadAdminData();
   }, []);
 
+  // Lắng nghe sự kiện yêu cầu hủy & gia hạn hợp đồng từ khách hàng theo thời gian thực (Real-time không cần F5)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLatestCancellations = async (showToast = false, toastPlot = '') => {
+      try {
+        const rawRes = await apiFetch('/api/contracts/cancellations');
+        const cancellations = unwrapData(rawRes) || [];
+        if (!isMounted) return;
+        setRefundRequests(
+          cancellations.map((request) => ({
+            id: request.cancellationId,
+            rentalId: request.rentalId,
+            contractId: request.contractId,
+            contractCode: request.contractCode || `HD-2026-FARM-${String(request.contractId).padStart(4, '0')}`,
+            plotCode: request.plotCode || 'P-01',
+            customerName: request.customerName || 'Khách hàng',
+            customerPhone: request.customerPhone || '',
+            totalPaid: `${Number(request.totalAmount || 0).toLocaleString('vi-VN')} đ`,
+            refundAmount: `${Number(request.refundAmount || 0).toLocaleString('vi-VN')} đ`,
+            refundPercent: Number(request.refundPercentage || 80),
+            deductionFee: `Trước ngày bắt đầu ≥ 3 ngày: Khấu trừ ${100 - Number(request.refundPercentage || 80)}%, hoàn trả ${request.refundPercentage || 80}%`,
+            status: request.status || 'PENDING',
+            reason: request.reason || '',
+            bankInfo: `${request.bankName || ''} - ${request.bankAccountNumber || ''} (${request.bankAccountName || ''})`,
+            requestedAt: request.createdAt ? new Date(request.createdAt).toLocaleString('vi-VN') : 'Vừa xong'
+          }))
+        );
+        if (showToast) {
+          triggerSuccessToast(`Có yêu cầu hủy hợp đồng mới cần phê duyệt${toastPlot ? ` (${toastPlot})` : ''}!`);
+        }
+      } catch (_) {}
+    };
+
+    let bc = null;
+    try {
+      bc = new BroadcastChannel('farmely_contracts_sync');
+      bc.onmessage = (e) => {
+        if (e.data?.type === 'CANCELLATION_REQUEST_CREATED') {
+          fetchLatestCancellations(true, e.data.plotCode);
+        }
+      };
+    } catch (_) {}
+
+    const onStorage = (e) => {
+      if (e.key === 'farmely_cancellation_event' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          fetchLatestCancellations(true, parsed.plotCode);
+        } catch (_) {}
+      }
+    };
+    const onCustomEvent = (e) => {
+      fetchLatestCancellations(true, e.detail?.plotCode);
+    };
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('farmely_cancellation_created', onCustomEvent);
+
+    // Polling định kỳ mỗi 3.5s để luôn nhận lệnh phê duyệt mới tức thì
+    const intervalId = setInterval(() => {
+      fetchLatestCancellations(false);
+    }, 3500);
+
+    return () => {
+      isMounted = false;
+      if (bc) bc.close();
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('farmely_cancellation_created', onCustomEvent);
+      clearInterval(intervalId);
+    };
+  }, []);
+
   // Auto set initial worker and expert selectors
   useEffect(() => {
     if (staffUsers.length > 0 && !assignedWorkerId) {
@@ -858,10 +930,30 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!selectedUserToEdit) return;
     setIsUpdatingUser(true);
+    setDataError(null);
     try {
       await apiFetch(`/api/users/${selectedUserToEdit.id}/status?status=${encodeURIComponent(userEditStatus)}`, {
         method: 'PATCH'
       });
+      // Cập nhật state hiển thị trong bảng ngay lập tức
+      setSystemUsers((prev) =>
+        prev.map((u) => (u.id === selectedUserToEdit.id ? { ...u, status: userEditStatus } : u))
+      );
+      // Phát tín hiệu đồng bộ hệ thống theo thời gian thực sang tất cả các tab / phân quyền khác
+      try {
+        const syncData = {
+          type: 'USER_STATUS_CHANGED',
+          userId: selectedUserToEdit.id,
+          email: selectedUserToEdit.email,
+          status: userEditStatus,
+          timestamp: Date.now()
+        };
+        const bc = new BroadcastChannel('farmely_system_sync');
+        bc.postMessage(syncData);
+        localStorage.setItem('farmely_user_status_sync', JSON.stringify(syncData));
+        window.dispatchEvent(new CustomEvent('farmely_user_status_changed', { detail: syncData }));
+      } catch (_) {}
+
       triggerSuccessToast(`Đã cập nhật trạng thái người dùng ${selectedUserToEdit.fullName} thành ${userEditStatus}!`);
       setSelectedUserToEdit(null);
       await loadAdminData();
@@ -2377,7 +2469,7 @@ export default function AdminDashboard() {
                               variant="primary"
                               size="sm"
                               onClick={() => handleApproveRefund(req.id)}
-                              className="bg-emerald-700 hover:bg-emerald-800 font-bold cursor-pointer"
+                              className="bg-emerald-700 hover:bg-emerald-800 !text-white hover:!text-white font-bold cursor-pointer shadow-sm"
                             >
                               ✓ Phê duyệt hoàn {req.refundAmount}
                             </Button>
@@ -2510,7 +2602,7 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                   <span className="text-xs font-bold text-stone-500">
-                    {systemUsers.length} Tài khoản kích hoạt
+                    {systemUsers.filter((u) => u.status === 'ACTIVE').length} / {systemUsers.length} Tài khoản kích hoạt
                   </span>
                 </div>
 
@@ -2573,8 +2665,20 @@ export default function AdminDashboard() {
                           </td>
                           <td className="p-3 text-stone-600 font-medium">{u.plotsRented}</td>
                           <td className="p-3">
-                            <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                              u.status === 'ACTIVE'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : u.status === 'INACTIVE'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                            }`}>
+                              <span className={`w-2 h-2 rounded-full ${
+                                u.status === 'ACTIVE'
+                                  ? 'bg-emerald-500 animate-pulse'
+                                  : u.status === 'INACTIVE'
+                                  ? 'bg-amber-500'
+                                  : 'bg-rose-500'
+                              }`} />
                               {u.status}
                             </span>
                           </td>

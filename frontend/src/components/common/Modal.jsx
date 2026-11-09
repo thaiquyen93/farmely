@@ -12,6 +12,7 @@ export default function Modal({
   headerVariant = 'default', // 'default' | 'green' | 'clean'
   variant,
   headerColor,
+  zIndex = 'z-[100]',
   headerIcon,
   hideHeader = false,
   bodyClassName,
@@ -71,7 +72,7 @@ export default function Modal({
   if (!isOpen || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4">
+    <div className={`fixed inset-0 ${zIndex} flex items-start justify-center overflow-y-auto p-3 sm:items-center sm:p-4`}>
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-brand-dark/70 backdrop-blur-sm transition-opacity animate-fadeIn"
@@ -87,7 +88,7 @@ export default function Modal({
         aria-labelledby={titleId}
       >
         {/* Header */}
-        {!hideHeader && (() => {
+        {!hideHeader && (Boolean(title) || Boolean(subtitle)) && (() => {
           const isGreenHeader = headerVariant === 'green' || variant === 'green' || headerColor === 'green';
           const isCleanHeader = headerVariant === 'clean';
           return (

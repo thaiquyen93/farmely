@@ -7,7 +7,7 @@ services:
     container_name: farmely-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-@Bin054206}
       POSTGRES_DB: ${DB_NAME:-farmely}
     ports:
       - "5432:5432"
@@ -50,8 +50,8 @@ services:
       - DB_PORT=5434
       - DB_NAME=newfarmely2
       - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-password}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
       - IDENTITY_SERVICE_HOST=identity-service
       - FARM_SERVICE_HOST=farm-service
       - KNOWLEDGE_SERVICE_HOST=knowledge-service
@@ -81,8 +81,8 @@ services:
       - DB_PORT=5434
       - DB_NAME=newfarmely2
       - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-password}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8081:8081"
     depends_on:
@@ -103,8 +103,8 @@ services:
       - DB_PORT=5434
       - DB_NAME=newfarmely2
       - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-password}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8082:8082"
     depends_on:
@@ -125,8 +125,8 @@ services:
       - DB_PORT=5434
       - DB_NAME=newfarmely2
       - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-password}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8083:8083"
     depends_on:
@@ -147,8 +147,8 @@ services:
       - DB_PORT=5434
       - DB_NAME=newfarmely2
       - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-password}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8084:8084"
     depends_on:
@@ -169,8 +169,8 @@ services:
       - DB_PORT=5434
       - DB_NAME=newfarmely2
       - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-password}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8085:8085"
     depends_on:
@@ -191,8 +191,8 @@ services:
       - DB_PORT=5434
       - DB_NAME=newfarmely2
       - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-password}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8086:8086"
     depends_on:
@@ -213,8 +213,8 @@ services:
       - DB_PORT=5434
       - DB_NAME=newfarmely2
       - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-password}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8087:8087"
     depends_on:
@@ -235,8 +235,8 @@ services:
       - DB_PORT=5434
       - DB_NAME=newfarmely2
       - DB_USER=postgres
-      - DB_PASS=${DB_PASSWORD:-password}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_PASS=${DB_PASSWORD:-@Bin054206}
+      - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
     ports:
       - "8088:8088"
     depends_on:

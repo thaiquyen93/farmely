@@ -18,7 +18,7 @@ export default function LandDetail() {
   const [actionError, setActionError] = useState('');
   const [flash, setFlash] = useState(location.state?.flash || '');
   const [selected, setSelected] = useState(location.state?.highlightPlotId ?? null);
-  const [togglingLand, setTogglingLand] = useState(false);
+const [togglingLand, setTogglingLand] = useState(false);
   const [togglingPlotId, setTogglingPlotId] = useState(null);
 
   const load = useCallback(() => {
@@ -74,6 +74,37 @@ export default function LandDetail() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleStatusChange = async (plotId, newStatus) => {
+    setUpdatingPlotId(plotId);
+    try {
+      await farmApi.updatePlotStatus(plotId, newStatus);
+      setLand((prev) => {
+        if (!prev) return prev;
+        const nextPlots = (prev.plots || []).map((p) =>
+          p.plotId === plotId ? { ...p, status: newStatus } : p
+        );
+        const availCount = nextPlots.filter((p) => p.status === 'AVAIL').length;
+        const rentCount = nextPlots.filter((p) => p.status === 'RENT').length;
+        const maintCount = nextPlots.filter((p) => p.status === 'MAINT').length;
+        return {
+          ...prev,
+          plots: nextPlots,
+          availablePlots: availCount,
+          rentedPlots: rentCount,
+          maintenancePlots: maintCount
+        };
+      });
+      const plotObj = land?.plots?.find((p) => p.plotId === plotId);
+      const plotName = plotObj?.plotCode || `#${plotId}`;
+      const statusLabel = newStatus === 'RENT' ? 'Đã thuê (RENTED)' : newStatus === 'AVAIL' ? 'Đang trống (AVAILABLE)' : 'Bảo trì (MAINTENANCE)';
+      setFlash(`Đã chuyển trạng thái thửa ${plotName} thành ${statusLabel}.`);
+    } catch (err) {
+      setError(err.message || 'Không thể cập nhật trạng thái thửa đất');
+    } finally {
+      setUpdatingPlotId(null);
+    }
+  };
 
   if (error) {
     return (
@@ -215,7 +246,7 @@ export default function LandDetail() {
               <thead><tr><th>Mã thửa</th><th>Diện tích</th><th>Giá thuê / tháng</th><th>Giống & Quy trình</th><th>Trạng thái</th><th>Hành động</th></tr></thead>
               <tbody>
                 {plots.map((p) => {
-                  const compatCount = Number(p.compatibleVarietiesCount) || (Array.isArray(p.crops) ? p.crops.length : 0);
+const compatCount = Number(p.compatibleVarietiesCount) || (Array.isArray(p.crops) ? p.crops.length : 0);
                   return (
                     <tr key={p.plotId} onClick={() => setSelected(p.plotId)} className={`cursor-pointer ${String(selected) === String(p.plotId) ? 'bg-emerald-50' : ''}`}>
                       <td className="font-mono font-bold text-brand-dark">{p.plotCode}</td>

@@ -63,6 +63,7 @@ export const farmApi = {
   getPlot: (id) => request('GET', `/api/plots/${id}`),
   createPlot: (body) => request('POST', '/api/plots', body),
   updatePlot: (id, body) => request('PUT', `/api/plots/${id}`, body),
+  updatePlotStatus: (id, status) => request('PATCH', `/api/plots/${id}/status`, { status }),
   deletePlot: (id) => request('DELETE', `/api/plots/${id}`),
   publishPlot: (id, isPublished) => request('PATCH', `/api/plots/${id}/publish`, { isPublished }),
   updatePlotCompatibility: (id, varietyIds) => request('PUT', `/api/plots/${id}/compatibility`, { varietyIds, replace: true })

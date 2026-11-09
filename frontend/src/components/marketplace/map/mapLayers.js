@@ -107,10 +107,14 @@ export function registerFarmLayers(map, plotsData, options = {}) {
   });
 
   // 2. Nguồn dữ liệu GeoJSON các thửa đất (bản sao có riseHeight)
-  ensureSource(map, LAYER_IDS.plotsSource, {
-    type: 'geojson',
-    data: workingData,
-  });
+  if (map.getSource(LAYER_IDS.plotsSource)) {
+    map.getSource(LAYER_IDS.plotsSource).setData(workingData);
+  } else {
+    ensureSource(map, LAYER_IDS.plotsSource, {
+      type: 'geojson',
+      data: workingData,
+    });
+  }
 
   // 3. Khối 3D nhô lên khỏi mặt đất — đặt DƯỚI các layer line
   ensureLayer(map, {

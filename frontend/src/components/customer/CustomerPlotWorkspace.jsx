@@ -75,6 +75,38 @@ function EmptyState({ icon: Icon = Leaf, title, note }) {
    1. QUY TRÌNH CHUẨN THEO NGÀY TUỔI & HIỆN TRẠNG CÂY TRỒNG
    ────────────────────────────────────────────────────────────────────────── */
 
+export const formatDisplayDate = (dateStr) => {
+  if (!dateStr) return '';
+  let s = String(dateStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    const dt = new Date(s);
+    if (!isNaN(dt.getTime())) {
+      const d = String(dt.getDate()).padStart(2, '0');
+      const mon = String(dt.getMonth() + 1).padStart(2, '0');
+      const y = dt.getFullYear();
+      return `${d}/${mon}/${y}`;
+    }
+  }
+  return s.replace(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g, (match, y, m, d) => {
+    return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+  });
+};
+
+export const convertViDateToIso = (dateStr) => {
+  if (!dateStr) return '';
+  const str = String(dateStr).trim();
+  if (!str) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const matchVi = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (matchVi) {
+    const d = matchVi[1].padStart(2, '0');
+    const m = matchVi[2].padStart(2, '0');
+    const y = matchVi[3];
+    return `${y}-${m}-${d}`;
+  }
+  return str;
+};
+
 /**
  * Thẻ hiện trạng thửa đất, đọc từ trên xuống theo thứ bậc:
  *   việc đang diễn ra (to nhất) > nhiệt độ thực địa > cảnh báo (gọn nhất).
