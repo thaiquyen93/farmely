@@ -13,7 +13,8 @@ import {
   markThreadAsReadInStorage,
   updateThreadRentalInStorage,
   upsertCustomerChatThread,
-  DEMO_CUSTOMERS
+  DEMO_CUSTOMERS,
+  getSafeAvatar
 } from './chatStorage';
 
 export const CHAT_EVENTS = {
@@ -55,15 +56,46 @@ export const chatService = {
   /**
    * Send a new message to a thread
    */
-  sendMessage({ threadId, sender, text, senderName = '', meta = {} }) {
+  async sendMessage({ threadId, sender, text, senderName = '', meta = {} }) {
     if (!threadId || !text?.trim()) return null;
+
+    const currentThread = getStoredThreadById(threadId);
+    const authUserId = Number(getStoredAuth()?.user?.userId);
+    const customerId = Number(currentThread?.participantUserId) || (sender === 'customer' ? authUserId : 0);
+    const senderId = sender === 'expert' ? authUserId : customerId;
+    if (!Number.isInteger(senderId) || senderId <= 0) throw new Error('Không xác định được người gửi tin nhắn');
+
+    let conversationId = Number(currentThread?.conversationId);
+    if (!conversationId && customerId > 0) {
+      const conversationResponse = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getChatAuthHeaders() },
+        body: JSON.stringify({ participantOne: customerId, participantTwo: sender === 'expert' ? senderId : 5, type: sender === 'worker' ? 'STAFF_EXP' : 'CUST_EXP' })
+      });
+      const conversationPayload = await conversationResponse.json();
+      if (!conversationResponse.ok || !conversationPayload.success) throw new Error(conversationPayload.message || 'Không thể mở hội thoại');
+      conversationId = Number(conversationPayload.data?.conversationId);
+      if (!conversationId) throw new Error('Hội thoại thiếu mã định danh');
+      this.setThreadConversationId(threadId, conversationId);
+    }
+    if (!conversationId) throw new Error('Không tìm thấy hội thoại để gửi tin nhắn');
+
+    const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getChatAuthHeaders() },
+      body: JSON.stringify({ senderId, content: text.trim(), attachmentUrl: meta?.photoUrl || null })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.success) throw new Error(payload.message || 'Gửi tin nhắn thất bại');
 
     const messageMeta = sender === 'customer'
       ? Object.fromEntries(Object.entries(meta).filter(([key]) => !['plotCode', 'plotContext', 'crop'].includes(key)))
       : meta;
 
     const result = appendMessage(threadId, {
-      id: Date.now(),
+      id: payload.data?.messageId || Date.now(),
+      backendMessageId: payload.data?.messageId || null,
+      conversationId,
       sender,
       text: text.trim(),
       senderName,
@@ -80,41 +112,6 @@ export const chatService = {
         timestamp: Date.now()
       });
 
-      // Asynchronously sync with Backend PostgreSQL / Spring Boot service
-      try {
-        const currentThread = getStoredThreadById(threadId);
-        const numericConvId = currentThread?.conversationId || (/^(CONS|WORK)-\d+$/.test(threadId) ? parseInt(threadId.replace(/\D/g, ''), 10) : null);
-        const persistMessage = (conversationId) => fetch(`/api/conversations/${conversationId}/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...getChatAuthHeaders() },
-          body: JSON.stringify({
-            senderId: sender === 'expert' ? 5 : (sender === 'worker' ? 8 : Number(currentThread?.participantUserId) || 1),
-            senderName,
-            content: text.trim(),
-            attachmentUrl: messageMeta?.photoUrl || null
-          })
-        });
-
-        if (numericConvId) {
-          persistMessage(numericConvId).catch(() => {});
-        } else if (sender === 'customer' && currentThread?.participantUserId) {
-          fetch('/api/conversations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...getChatAuthHeaders() },
-            body: JSON.stringify({ participantOne: Number(currentThread.participantUserId), participantTwo: 5, type: 'CUST_EXP' })
-          })
-            .then((response) => response.ok ? response.json() : null)
-            .then((payload) => {
-              const conversationId = payload?.data?.conversationId;
-              if (!conversationId) return;
-              this.setThreadConversationId(threadId, conversationId);
-              return persistMessage(conversationId);
-            })
-            .catch(() => {});
-        }
-      } catch (e) {
-        // ignore
-      }
     }
 
     return result;
@@ -179,9 +176,11 @@ export const chatService = {
     return DEMO_CUSTOMERS;
   },
 
-  async syncBackendMessages() {
+  async syncBackendMessages({ role, userId } = {}) {
     try {
-      const res = await fetch('/api/conversations', { headers: getChatAuthHeaders() });
+      if (!userId) return;
+      const query = role === 'expert' ? `expertId=${userId}` : `userId=${userId}`;
+      const res = await fetch(`/api/conversations?${query}`, { headers: getChatAuthHeaders() });
       if (!res.ok) return;
       const json = await res.json();
       const backendConvs = json?.data;
@@ -339,8 +338,8 @@ export const chatService = {
         saveThreads(threads);
         communicationBus.postMessage({ type: CHAT_EVENTS.RENTAL_UPDATED, timestamp: Date.now() });
       }
-    } catch (_) {
-      // offline fallback
+    } catch (error) {
+      console.error('[Chat] Đồng bộ hội thoại thất bại:', error);
     }
   }
 };

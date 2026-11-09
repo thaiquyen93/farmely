@@ -3661,6 +3661,8 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
     p.image_url AS image_url, 
     p.price_per_period AS "pricePerPeriod", 
     p.price_per_period AS price_per_period, 
+    p.care_price_per_month AS "carePricePerMonth",
+    p.care_price_per_month AS care_price_per_month,
     TO_CHAR(p.price_per_period, 'FM999,999,999') || ' đ' AS price_text,
     CASE 
       WHEN EXISTS (
@@ -3887,6 +3889,7 @@ SELECT row_to_json(p) FROM (
     p.area || ' m²' AS "areaText",
     p.image_url AS "imageUrl", 
     p.price_per_period AS "pricePerPeriod", 
+    p.care_price_per_month AS "carePricePerMonth",
     TO_CHAR(p.price_per_period, 'FM999,999,999') || ' đ/tháng' AS "formattedPrice",
     p.status::text AS "status", 
     p.is_published AS "isPublished",
@@ -3984,6 +3987,8 @@ SELECT row_to_json(p) FROM (
               const landId = parseInt(payload.landId, 10);
               const plotCode = (payload.plotCode || '').trim().toUpperCase();
               const pricePerPeriod = parseFloat(payload.pricePerPeriod) || 1200000;
+              const carePricePerMonth = Number(payload.carePricePerMonth ?? 0);
+              if (!Number.isFinite(carePricePerMonth) || carePricePerMonth < 0) throw new Error('Giá chăm sóc không hợp lệ');
               const status = (payload.status || 'MAINT').toUpperCase();
               const isPublished = payload.isPublished === true;
               const imageUrl = (payload.imageUrl || '').trim();
@@ -4012,8 +4017,8 @@ SELECT row_to_json(p) FROM (
               const imgSqlVal = imageUrl ? `'${imageUrl.replace(/'/g, "''")}'` : 'NULL';
 
               const insertPg = `
-INSERT INTO plots (land_id, plot_code, area, image_url, price_per_period, status, is_published, boundary_geojson, created_at, updated_at)
-VALUES (${landId}, '${plotCode.replace(/'/g, "''")}', ${area}, ${imgSqlVal}, ${pricePerPeriod}, '${status}', ${isPublished}, ${boundarySqlVal}, NOW(), NOW())
+INSERT INTO plots (land_id, plot_code, area, image_url, price_per_period, care_price_per_month, status, is_published, boundary_geojson, created_at, updated_at)
+VALUES (${landId}, '${plotCode.replace(/'/g, "''")}', ${area}, ${imgSqlVal}, ${pricePerPeriod}, ${carePricePerMonth}, '${status}', ${isPublished}, ${boundarySqlVal}, NOW(), NOW())
 RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_published, created_at, updated_at;
 `;
               const pgOut = await runPostgreSql(insertPg);
@@ -4042,6 +4047,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                   plotCode,
                   area,
                   pricePerPeriod,
+                  carePricePerMonth,
                   status,
                   isPublished,
                   boundary,
@@ -4070,6 +4076,8 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
               const landId = parseInt(payload.landId, 10);
               const plotCode = (payload.plotCode || '').trim().toUpperCase();
               const pricePerPeriod = parseFloat(payload.pricePerPeriod) || 1200000;
+              const carePricePerMonth = Number(payload.carePricePerMonth ?? 0);
+              if (!Number.isFinite(carePricePerMonth) || carePricePerMonth < 0) throw new Error('Giá chăm sóc không hợp lệ');
               const status = (payload.status || 'MAINT').toUpperCase();
               const isPublished = payload.isPublished === true;
               const imageUrl = (payload.imageUrl || '').trim();
@@ -4087,6 +4095,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                 `land_id = ${landId}`,
                 `plot_code = '${plotCode.replace(/'/g, "''")}'`,
                 `price_per_period = ${pricePerPeriod}`,
+                `care_price_per_month = ${carePricePerMonth}`,
                 `status = '${status}'`,
                 `is_published = ${isPublished}`,
                 `updated_at = NOW()`
@@ -4122,6 +4131,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                   plotCode,
                   area,
                   pricePerPeriod,
+                  carePricePerMonth,
                   status,
                   isPublished,
                   boundary,
@@ -4428,9 +4438,9 @@ SELECT json_build_object(
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const name = (payload.name || payload.variety_name || '').trim();
+              const name = (payload.varietyName || payload.name || payload.variety_name || '').trim();
               const cropId = parseInt(payload.cropId || payload.crop_id || 1, 10);
-              const duration = parseInt(payload.growthDuration || payload.duration || 30, 10);
+              const duration = parseInt(payload.expectedDuration || payload.growthDuration || payload.duration || 30, 10);
               const buffer = parseInt(payload.bufferTime || 4, 10);
               if (!name) {
                 res.statusCode = 400;
@@ -4457,9 +4467,9 @@ SELECT json_build_object(
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const name = (payload.name || payload.variety_name || '').trim();
+              const name = (payload.varietyName || payload.name || payload.variety_name || '').trim();
               const cropId = parseInt(payload.cropId || payload.crop_id || 1, 10);
-              const duration = parseInt(payload.growthDuration || payload.duration || 30, 10);
+              const duration = parseInt(payload.expectedDuration || payload.growthDuration || payload.duration || 30, 10);
               const buffer = parseInt(payload.bufferTime || 4, 10);
               await runPostgreSql(`UPDATE varieties SET variety_name = '${name.replace(/'/g, "''")}', crop_id = ${cropId}, expected_duration = ${duration}, buffer_time = ${buffer} WHERE variety_id = ${varId};`);
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -6515,10 +6525,12 @@ SELECT json_build_object(
         'Thửa ' || COALESCE(p.plot_code, 'P-01') AS "plotName",
         COALESCE(v.variety_name, 'Rau củ chuẩn VietGAP') AS crop,
         c.participant_one AS "participantOneId",
+        c.participant_one AS "participantOne",
         u1.full_name AS "customerName",
         COALESCE(u1.email, '') AS "customerEmail",
         r1.role_name AS "partnerRole",
         c.participant_two AS "participantTwoId",
+        c.participant_two AS "participantTwo",
         u2.full_name AS "expertName",
         u2.email AS "expertEmail",
         CASE 
@@ -6566,6 +6578,41 @@ SELECT json_build_object(
             res.statusCode = 500;
             res.end(JSON.stringify({ success: false, error: String(err) }));
           }
+          return;
+        }
+
+        if (req.method === 'POST' && (url === '/api/conversations' || url === '/api/v1/conversations')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const participantOne = Number(payload.participantOne);
+              const participantTwo = Number(payload.participantTwo);
+              const type = payload.type === 'STAFF_EXP' ? 'STAFF_EXP' : 'CUST_EXP';
+              if (!Number.isInteger(participantOne) || participantOne <= 0 || !Number.isInteger(participantTwo) || participantTwo <= 0) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, message: 'Người tham gia không hợp lệ' }));
+                return;
+              }
+              const sql = `SELECT row_to_json(c) FROM (
+                SELECT conversation_id AS "conversationId" FROM conversations
+                WHERE participant_one = ${participantOne} AND participant_two = ${participantTwo} AND type = '${type}'
+                ORDER BY conversation_id DESC LIMIT 1
+              ) c;`;
+              let data = await runPostgreSql(sql);
+              if (!data || data === 'null') {
+                data = await runPostgreSql(`INSERT INTO conversations (participant_one, participant_two, type, status)
+                  VALUES (${participantOne}, ${participantTwo}, '${type}', 'OPEN')
+                  RETURNING json_build_object('conversationId', conversation_id);`);
+              }
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, data: JSON.parse(data) }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, message: String(err) }));
+            }
+          });
           return;
         }
 
@@ -6624,11 +6671,11 @@ SELECT json_build_object(
                 const sql = `
 INSERT INTO messages (conversation_id, sender_id, content, attachment_url, created_at)
 VALUES (${convId}, ${senderId}, '${content}', ${attachmentUrl ? `'${attachmentUrl}'` : 'NULL'}, NOW())
-RETURNING message_id, conversation_id, sender_id, content, created_at;
+RETURNING json_build_object('messageId', message_id, 'conversationId', conversation_id, 'senderId', sender_id, 'content', content);
 `;
-                const result = await runPostgreSql(sql);
+                const result = JSON.parse(await runPostgreSql(sql));
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.end(JSON.stringify({ success: true, message: 'Gửi tin nhắn thành công', data: result[0] }));
+                res.end(JSON.stringify({ success: true, message: 'Gửi tin nhắn thành công', data: result }));
               } catch (err) {
                 console.error('Error inserting message:', err);
                 res.statusCode = 500;

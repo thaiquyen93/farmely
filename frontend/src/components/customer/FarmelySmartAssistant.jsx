@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
+import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import { useLocation } from 'react-router-dom';
 
 const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
@@ -127,18 +128,25 @@ export default function FarmelySmartAssistant() {
 
   // Expert Chat State
   const [expertInput, setExpertInput] = useState('');
+  const [expertChatError, setExpertChatError] = useState('');
+  const [isSendingExpert, setIsSendingExpert] = useState(false);
   const isStaff = user?.role === 'STAFF';
   const chatRole = isStaff ? 'worker' : 'customer';
   const fallbackName = isStaff ? 'Nhân viên hiện trường' : 'Khách hàng';
   const threadId = useMemo(
-    () => `${isStaff ? 'WORK' : 'CONS'}-${user?.id || user?.email || (isStaff ? 'STAFF' : 'CUSTOMER')}`,
-    [isStaff, user?.id, user?.email]
+    () => isStaff
+      ? `WORK-${user?.userId || user?.id || 'STAFF'}`
+      : DEMO_CUSTOMERS.find((customer) => Number(customer.userId) === Number(user?.userId))?.threadId
+        || `CONS-USER-${user?.userId || user?.id || 'CUSTOMER'}`,
+    [isStaff, user?.userId, user?.id]
   );
 
   const { currentThread, sendMessage: sendExpertMessage } = useRealtimeChat({
     role: chatRole,
     initialThreadId: threadId,
-    senderName: user?.fullName || user?.name || fallbackName
+    senderName: user?.fullName || user?.name || fallbackName,
+    userId: user?.userId,
+    customerEmail: user?.email || ''
   });
 
   const dragRef = useRef(null);
@@ -641,11 +649,19 @@ export default function FarmelySmartAssistant() {
 
               {/* Form nhập tin nhắn gửi chuyên gia */}
               <form
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
-                  if (expertInput.trim()) {
-                    sendExpertMessage(expertInput.trim());
-                    setExpertInput('');
+                  if (expertInput.trim() && !isSendingExpert) {
+                    setIsSendingExpert(true);
+                    setExpertChatError('');
+                    try {
+                      await sendExpertMessage(expertInput.trim());
+                      setExpertInput('');
+                    } catch (error) {
+                      setExpertChatError(error.message || 'Không thể gửi tin nhắn');
+                    } finally {
+                      setIsSendingExpert(false);
+                    }
                   }
                 }}
                 className="p-2.5 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0"
@@ -659,13 +675,14 @@ export default function FarmelySmartAssistant() {
                 />
                 <button
                   type="submit"
-                  disabled={!expertInput.trim()}
+                  disabled={!expertInput.trim() || isSendingExpert}
                   className="w-9 h-9 rounded-xl bg-[#064b37] text-white flex items-center justify-center hover:opacity-95 active:scale-95 disabled:opacity-40 transition-all cursor-pointer shadow-sm"
                   aria-label="Gửi tin nhắn cho chuyên gia"
                 >
                   <Send className="w-4 h-4" />
                 </button>
               </form>
+              {expertChatError && <p role="alert" className="px-3 pb-2 text-xs text-red-600">{expertChatError}</p>}
             </div>
           )}
         </section>
