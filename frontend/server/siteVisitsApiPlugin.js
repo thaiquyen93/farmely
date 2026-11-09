@@ -4,7 +4,7 @@ import path from 'path';
 import https from 'https';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
-const { Pool } = pg;
+const { Pool, Client } = pg;
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -304,12 +304,14 @@ const PSQL_PATH = PSQL_CANDIDATES.find(p => {
 }) || 'psql';
 
 function getPgConfig() {
+  const rawPort = process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5432';
+  const port = (rawPort === '5433') ? '5432' : (rawPort || '5432');
   return {
-    host: process.env.PGHOST || process.env.DB_HOST || rootEnv.DB_HOST || 'localhost',
-    port: process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5433',
+    host: '127.0.0.1',
+    port: port,
     database: process.env.PGDATABASE || process.env.DB_NAME || rootEnv.DB_NAME || 'farmely',
     user: process.env.PGUSER || process.env.DB_USER || rootEnv.DB_USER || 'postgres',
-    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '12345'
+    password: process.env.PGPASSWORD || process.env.DB_PASSWORD || process.env.DB_PASS || rootEnv.DB_PASSWORD || '@Bin054206'
   };
 }
 
@@ -325,11 +327,16 @@ function invalidatePlotsCache() {
 let pgPool = null;
 
 function getPgPool() {
-  if (pgPool) return pgPool;
   const cfg = getPgConfig();
+  const targetPort = parseInt(String(cfg.port), 10) || 5432;
+  if (pgPool && pgPool.options && pgPool.options.port === targetPort) return pgPool;
+  if (pgPool) {
+    try { pgPool.end(); } catch {}
+    pgPool = null;
+  }
   pgPool = new Pool({
     host: cfg.host,
-    port: parseInt(String(cfg.port), 10) || 5433,
+    port: targetPort,
     user: cfg.user,
     password: String(cfg.password),
     database: cfg.database,
@@ -340,6 +347,34 @@ function getPgPool() {
     console.warn('[PostgreSQL Pool] Warning:', err.message);
   });
   return pgPool;
+}
+
+async function runPostgreSqlAttempt(cfg, sqlQuery, params = []) {
+  const client = new Client({
+    host: cfg.host,
+    port: parseInt(String(cfg.port), 10) || 5432,
+    user: cfg.user,
+    password: String(cfg.password),
+    database: cfg.database,
+    connectionTimeoutMillis: 2000
+  });
+  await client.connect();
+  try {
+    const result = (params && params.length > 0) ? await client.query(sqlQuery, params) : await client.query(sqlQuery);
+    if (!result || !result.rows || result.rows.length === 0) return '';
+    const firstRow = result.rows[0];
+    const keys = Object.keys(firstRow);
+    if (keys.length === 1) {
+      const val = firstRow[keys[0]];
+      if (typeof val === 'object' && val !== null) {
+        return JSON.stringify(val);
+      }
+      return String(val ?? '');
+    }
+    return result.rows.map(r => Object.values(r).map(v => v === null ? '' : v).join('|')).join('\r\n');
+  } finally {
+    await client.end().catch(() => {});
+  }
 }
 
 async function runPostgreSql(sqlQuery, params = []) {
@@ -363,7 +398,7 @@ async function runPostgreSql(sqlQuery, params = []) {
       pgPool = null;
     }
     const base = getPgConfig();
-    const candidatePorts = Array.from(new Set(['5432', base.port].filter(Boolean)));
+    const candidatePorts = Array.from(new Set(['5432', '5433', base.port].filter(Boolean)));
     const candidatePasses = Array.from(new Set(['@Bin054206', base.password, '12345', 'postgres', ''].filter(p => p !== undefined)));
 
     let lastErr = null;
@@ -371,9 +406,10 @@ async function runPostgreSql(sqlQuery, params = []) {
       for (const pass of candidatePasses) {
         const trialCfg = { ...base, port, password: pass };
         try {
-          const out = await runPostgreSqlAttempt(trialCfg, sqlQuery);
+          const out = await runPostgreSqlAttempt(trialCfg, sqlQuery, params);
           return out;
         } catch (e) {
+          console.warn('[runPostgreSqlAttempt FAIL]', port, pass, e.message);
           lastErr = e;
         }
       }
@@ -2578,6 +2614,19 @@ LIMIT 1;
                 return;
               }
 
+              if (dbUser.status === 'BLOCKED') {
+                res.statusCode = 403;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Tài khoản của bạn đã bị khóa (BLOCKED) bởi Quản Trị Viên.' }));
+                return;
+              }
+              if (dbUser.status === 'INACTIVE') {
+                res.statusCode = 403;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Tài khoản của bạn đang bị vô hiệu hóa (INACTIVE) bởi Quản Trị Viên.' }));
+                return;
+              }
+
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
@@ -2692,6 +2741,94 @@ SELECT COALESCE(json_agg(row_to_json(u)), '[]'::json) FROM (
           } catch (err) {
             res.statusCode = 500;
             res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
+        // 7b. PATCH /api/users/:id/status (Cập nhật trạng thái người dùng trong PostgreSQL & Audit Log)
+        const userStatusMatch = url.match(/^\/api\/(?:v1\/)?users\/(\d+)\/status(?:\?.*)?$/);
+        if ((req.method === 'PATCH' || req.method === 'PUT') && userStatusMatch) {
+          try {
+            const targetUserId = parseInt(userStatusMatch[1], 10);
+            const urlObj = new URL(req.url, 'http://localhost:3000');
+            let newStatus = (urlObj.searchParams.get('status') || '').toUpperCase();
+
+            if (!newStatus) {
+              let body = '';
+              await new Promise((resolve) => {
+                req.on('data', chunk => { body += chunk; });
+                req.on('end', resolve);
+                setTimeout(resolve, 500);
+              });
+              if (body) {
+                try {
+                  const payload = JSON.parse(body);
+                  newStatus = String(payload.status || '').toUpperCase();
+                } catch (_) {}
+              }
+            }
+
+            if (!['ACTIVE', 'INACTIVE', 'BLOCKED'].includes(newStatus)) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: 'Trạng thái không hợp lệ. Chỉ chấp nhận ACTIVE, INACTIVE, BLOCKED.' }));
+              return;
+            }
+
+            // Cập nhật bảng users trong PostgreSQL
+            const updateSql = `
+WITH updated_row AS (
+  UPDATE users 
+  SET status = '${newStatus}', updated_at = NOW() 
+  WHERE user_id = ${targetUserId}
+  RETURNING user_id, email, full_name, role_id, status
+)
+SELECT row_to_json(updated_row) FROM updated_row;
+`;
+            const pgResult = await runPostgreSql(updateSql);
+
+            let updatedUser = null;
+            if (pgResult && pgResult.trim()) {
+              try {
+                updatedUser = JSON.parse(pgResult.trim().split('\r\n')[0]);
+              } catch (_) {}
+            }
+
+            // Ghi nhật ký vào bảng audit_logs
+            try {
+              const auditSql = `
+INSERT INTO audit_logs (user_id, action, entity_name, entity_id, details, created_at)
+VALUES (
+  11, 
+  'CHANGE_USER_STATUS', 
+  'USER', 
+  '${targetUserId}', 
+  '{"status":"${newStatus}","note":"Quản trị viên cập nhật trạng thái tài khoản #${targetUserId} thành ${newStatus}"}'::jsonb, 
+  NOW()
+);
+`;
+              await runPostgreSql(auditSql);
+            } catch (auditErr) {
+              console.warn('Audit log user status change error:', auditErr.message);
+            }
+
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({
+              success: true,
+              message: `Đã cập nhật trạng thái tài khoản thành ${newStatus}`,
+              data: updatedUser ? {
+                userId: updatedUser.user_id,
+                email: updatedUser.email,
+                fullName: updatedUser.full_name,
+                status: updatedUser.status
+              } : { userId: targetUserId, status: newStatus }
+            }));
+          } catch (err) {
+            const errMsg = err?.message || err?.errors?.map(e => e.message).join('; ') || String(err);
+            console.error('Error in PATCH /api/users/:id/status:', errMsg, err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: 'Lỗi cập nhật trạng thái người dùng: ' + errMsg }));
           }
           return;
         }

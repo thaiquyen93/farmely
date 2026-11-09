@@ -12,7 +12,8 @@ export default function Modal({
   headerVariant = 'default', // 'default' | 'green'
   variant,
   headerColor,
-  zIndex = 'z-[100]'
+  zIndex = 'z-[100]',
+  hideHeader = false
 }) {
   const dialogRef = useRef(null);
   const closeButtonRef = useRef(null);
@@ -84,7 +85,7 @@ export default function Modal({
         aria-labelledby={titleId}
       >
         {/* Header */}
-        {(() => {
+        {!hideHeader && (Boolean(title) || Boolean(subtitle)) && (() => {
           const isGreenHeader = headerVariant === 'green' || variant === 'green' || headerColor === 'green';
           return (
             <div

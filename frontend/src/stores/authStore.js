@@ -155,15 +155,50 @@ export const useAuthStore = create((set, get) => ({
         const data = resData.data;
         const rawUser = data.user || data.dbUser;
         const user = normalizeUser(rawUser, data.token);
+        // Kiểm tra xem trạng thái tài khoản có bị khóa/vô hiệu hóa không
+        if (user.status === 'BLOCKED' || user.status === 'INACTIVE') {
+          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+          return {
+            success: false,
+            message: `Tài khoản của bạn đã bị ${user.status === 'BLOCKED' ? 'khóa (BLOCKED)' : 'vô hiệu hóa (INACTIVE)'} bởi Ban Quản Trị Farmely.`
+          };
+        }
         persistAuth({ token: data.token, expiresIn: data.expiresIn, user });
         set({ user, token: data.token, isAuthenticated: true, isLoading: false });
         return { success: true, user };
       }
+
+      // Nếu server từ chối vì tài khoản bị khóa hoặc vô hiệu hóa, tuyệt đối không dùng demo fallback
+      if (resData && (response.status === 403 || String(resData.message || '').includes('khóa') || String(resData.message || '').includes('vô hiệu hóa') || String(resData.message || '').includes('BLOCKED') || String(resData.message || '').includes('INACTIVE'))) {
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+        return { success: false, message: resData.message || 'Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động.' };
+      }
+
       // Fallback cho tài khoản demo kiểm thử nếu mật khẩu DB không khớp
       const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
       if (demoAcc) {
+        // Kiểm tra trạng thái đồng bộ nếu tài khoản demo này vừa bị Admin khóa
+        let syncStatus = null;
+        try {
+          const syncRaw = localStorage.getItem('farmely_user_status_sync');
+          if (syncRaw) {
+            const parsed = JSON.parse(syncRaw);
+            if (parsed.email === email.trim() || Number(parsed.userId) === Number(demoAcc.userId || demoAcc.id)) {
+              syncStatus = parsed.status;
+            }
+          }
+        } catch (_) {}
+
+        if (syncStatus === 'BLOCKED' || syncStatus === 'INACTIVE') {
+          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+          return {
+            success: false,
+            message: `Tài khoản của bạn đã bị ${syncStatus === 'BLOCKED' ? 'khóa (BLOCKED)' : 'vô hiệu hóa (INACTIVE)'} bởi Ban Quản Trị Farmely.`
+          };
+        }
+
         const fallbackToken = 'demo-token-' + demoAcc.id;
-        const normalized = normalizeUser(demoAcc, fallbackToken);
+        const normalized = normalizeUser({ ...demoAcc, status: syncStatus || demoAcc.status || 'ACTIVE' }, fallbackToken);
         persistAuth({ token: fallbackToken, user: normalized });
         set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
         return { success: true, user: normalized };
@@ -174,8 +209,27 @@ export const useAuthStore = create((set, get) => ({
       // Fallback cho tài khoản demo khi Identity Service offline
       const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
       if (demoAcc) {
+        let syncStatus = null;
+        try {
+          const syncRaw = localStorage.getItem('farmely_user_status_sync');
+          if (syncRaw) {
+            const parsed = JSON.parse(syncRaw);
+            if (parsed.email === email.trim() || Number(parsed.userId) === Number(demoAcc.userId || demoAcc.id)) {
+              syncStatus = parsed.status;
+            }
+          }
+        } catch (_) {}
+
+        if (syncStatus === 'BLOCKED' || syncStatus === 'INACTIVE') {
+          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+          return {
+            success: false,
+            message: `Tài khoản của bạn đã bị ${syncStatus === 'BLOCKED' ? 'khóa (BLOCKED)' : 'vô hiệu hóa (INACTIVE)'} bởi Ban Quản Trị Farmely.`
+          };
+        }
+
         const fallbackToken = 'demo-token-' + demoAcc.id;
-        const normalized = normalizeUser(demoAcc, fallbackToken);
+        const normalized = normalizeUser({ ...demoAcc, status: syncStatus || demoAcc.status || 'ACTIVE' }, fallbackToken);
         persistAuth({ token: fallbackToken, user: normalized });
         set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
         return { success: true, user: normalized };

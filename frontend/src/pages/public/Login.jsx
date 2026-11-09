@@ -81,8 +81,15 @@ export default function Login() {
         else if (userRole === 'STAFF') navigate('/staff/dashboard');
         else navigate('/');
         return;
+      } else {
+        setErrorMessage(res.message || 'Đăng nhập không thành công.');
+        return;
       }
-    } catch (_) {}
+    } catch (err) {
+      setErrorMessage(err.message || 'Đăng nhập không thành công.');
+      setIsLoading(false);
+      return;
+    }
 
     // Fallback tức thì nếu có bất kỳ lỗi mạng hoặc backend
     const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === account.email.toLowerCase());

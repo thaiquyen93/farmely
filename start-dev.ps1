@@ -1,4 +1,4 @@
-﻿param(
+param(
     [switch]$Rebuild,
     [switch]$Wait
 )
@@ -230,11 +230,21 @@ try {
             } else {
                 Write-Host 'PostgreSQL dang chay, dang doi mo cong 5432...' -ForegroundColor Yellow
             }
+            $pgIsReadyBin = Join-Path (Split-Path -Parent $pgCtlBin) 'pg_isready.exe'
             for ($attempt = 1; $attempt -le 40; $attempt++) {
                 Start-Sleep -Seconds 1
                 if (Test-PortListening -port 5432) {
-                    Write-Host "PostgreSQL da san sang tren cong 5432!" -ForegroundColor Green
-                    break
+                    if (Test-Path -LiteralPath $pgIsReadyBin) {
+                        & $pgIsReadyBin -h 127.0.0.1 -p 5432 -q 2>$null
+                        if ($LASTEXITCODE -eq 0) {
+                            Write-Host "PostgreSQL da san sang chap nhan ket noi tren cong 5432!" -ForegroundColor Green
+                            break
+                        }
+                    } else {
+                        Start-Sleep -Seconds 2
+                        Write-Host "PostgreSQL da san sang tren cong 5432!" -ForegroundColor Green
+                        break
+                    }
                 }
             }
 
