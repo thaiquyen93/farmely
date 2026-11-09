@@ -733,11 +733,13 @@ export default function ExpertDashboard() {
         taskBc = new BroadcastChannel('farmely_staff_tasks');
         taskBc.onmessage = () => {
           loadTasksAndDiaries();
+          loadFieldIssues();
         };
 
         actBc = new BroadcastChannel('farmely_staff_activity_channel');
         actBc.onmessage = () => {
           loadTasksAndDiaries();
+          loadFieldIssues();
         };
       }
     } catch {}
@@ -746,8 +748,9 @@ export default function ExpertDashboard() {
       if (e.key === 'farmely_iot_sync_ping') {
         loadAssignedPlots();
       }
-      if (e.key === 'farmely_staff_activities_v4' || e.key === 'farmely_chat_threads_v9') {
+      if (e.key === 'farmely_staff_activities_v4' || e.key === 'farmely_chat_threads_v9' || e.key === 'farmely_task_sync' || e.key === 'farmely_issue_sync' || e.key === 'farmely_staff_sync_ping') {
         loadTasksAndDiaries();
+        loadFieldIssues();
       }
     };
     window.addEventListener('storage', handleStorage);
@@ -755,6 +758,7 @@ export default function ExpertDashboard() {
     const pollInterval = setInterval(() => {
       loadAssignedPlots();
       loadTasksAndDiaries();
+      loadFieldIssues();
     }, 5000);
 
     return () => {
@@ -2534,16 +2538,16 @@ export default function ExpertDashboard() {
                           )}
                         </div>
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          issue.status === 'RESOLVED'
+                          issue.status === 'RESOLVED' || issue.status === 'DONE'
                             ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            : issue.assignedTaskCode
+                            : issue.status === 'IN_PROGRESS' || issue.assignedTaskCode
                             ? 'bg-sky-100 text-sky-800 border border-sky-300'
                             : 'bg-amber-100 text-amber-800 border border-amber-300'
                         }`}>
-                          {issue.status === 'RESOLVED'
-                            ? '✓ Đã ban hành phác đồ'
-                            : issue.assignedTaskCode
-                            ? '⚡ Đã giao nhiệm vụ'
+                          {issue.status === 'RESOLVED' || issue.status === 'DONE'
+                            ? '✓ Đã xong'
+                            : issue.status === 'IN_PROGRESS' || issue.assignedTaskCode
+                            ? '⚡ Đang xử lý'
                             : '⏳ Chờ chẩn đoán'}
                         </span>
                       </div>
@@ -3381,15 +3385,15 @@ export default function ExpertDashboard() {
                   {selectedIssueDetail.issueCode || selectedIssueDetail.id}
                 </span>
                 <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-                  selectedIssueDetail.status === 'RESOLVED'
+                  selectedIssueDetail.status === 'RESOLVED' || selectedIssueDetail.status === 'DONE'
                     ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                    : selectedIssueDetail.assignedTaskCode
+                    : selectedIssueDetail.status === 'IN_PROGRESS' || selectedIssueDetail.assignedTaskCode
                     ? 'bg-sky-100 text-sky-800 border border-sky-300'
                     : 'bg-amber-100 text-amber-900 border border-amber-300'
                 }`}>
-                  {selectedIssueDetail.status === 'RESOLVED'
-                    ? '✓ Đã ban hành phác đồ'
-                    : selectedIssueDetail.assignedTaskCode
+                  {selectedIssueDetail.status === 'RESOLVED' || selectedIssueDetail.status === 'DONE'
+                    ? '✓ Đã xong'
+                    : selectedIssueDetail.status === 'IN_PROGRESS' || selectedIssueDetail.assignedTaskCode
                     ? '⚡ Đã phát lệnh giao việc'
                     : '⏳ Chờ chuyên gia chẩn đoán'}
                 </span>
@@ -3565,7 +3569,13 @@ export default function ExpertDashboard() {
 
             {/* Bước 3: Giao việc khắc phục cho CVLĐ */}
             <section className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
-              {renderSectionHeader(3, 'Giao việc cho CVLĐ', Boolean(selectedIssueDetail.assignedTaskCode))}
+              {renderSectionHeader(3, 'Giao việc cho CVLĐ', Boolean(selectedIssueDetail.assignedTaskCode || selectedIssueDetail.status === 'RESOLVED'))}
+              {(selectedIssueDetail.status === 'RESOLVED' || selectedIssueDetail.status === 'DONE') && (
+                <div className="p-3 bg-emerald-100/90 border border-emerald-300 rounded-xl text-emerald-900 font-bold text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>✓ Nhân viên hiện trường đã hoàn thành ca khắc phục sự cố này và đồng bộ ảnh minh chứng vào nhật ký nông trại.</span>
+                </div>
+              )}
               <IssueAssignmentPanel
                 workers={availableFieldWorkers}
                 workerId={detailAssignWorkerId}

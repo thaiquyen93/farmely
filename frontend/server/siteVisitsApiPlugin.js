@@ -6200,6 +6200,15 @@ BEGIN
   UPDATE service_requests
   SET status = 'DONE'
   WHERE request_id = (SELECT service_request_id FROM care_tasks WHERE task_id = ${taskId});
+
+  -- Tự động chuyển sự cố sang RESOLVED nếu task giải quyết sự cố này đã hoàn thành
+  UPDATE issue_reports
+  SET status = 'RESOLVED', resolved_at = NOW()
+  WHERE issue_id = (
+    SELECT CAST(SUBSTRING(notes FROM '\[ISS-(\d+)\]') AS INTEGER)
+    FROM care_tasks
+    WHERE task_id = ${taskId} AND notes ~ '\[ISS-\d+\]'
+  );
 END $$;
 `;
                   await runPostgreSql(syncDiarySql);
@@ -6813,7 +6822,11 @@ SELECT json_build_object(
         ir.issue_type AS "issueType",
         ir.description,
         ir.image_url AS "photoUrl",
-        ir.status,
+        CASE 
+          WHEN ir.status = 'RESOLVED' THEN 'RESOLVED'
+          WHEN (SELECT ct.status FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) = 'DONE' THEN 'RESOLVED'
+          ELSE ir.status
+        END AS status,
         COALESCE(ir.resolution_notes, '') AS diagnosis,
         COALESCE(ir.resolution_notes, '') AS "resolutionNotes",
         TO_CHAR(ir.created_at, 'HH24:MI - DD/MM/YYYY') AS "reportedTime",
@@ -6902,18 +6915,23 @@ RETURNING issue_id, rental_id, issue_type, status;
               }
               let isDiagnosed = false;
               let diagnosisText = '';
+              const isResolved = payload.markResolved || payload.status === 'RESOLVED' || payload.status === 'DONE';
               if (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes) {
                 const diag = (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes).replace(/'/g, "''");
                 diagnosisText = diag;
                 isDiagnosed = true;
-                const nextStatus = payload.markResolved ? 'RESOLVED' : 'OPEN';
+                const nextStatus = isResolved ? 'RESOLVED' : (payload.status || 'OPEN');
                 setClauses.push(`status = '${nextStatus}'`);
                 setClauses.push(`resolution_notes = '${diag}'`);
-                setClauses.push('resolved_at = NOW()');
+                if (isResolved) setClauses.push('resolved_at = NOW()');
               } else if (payload.notes) {
                 const n = payload.notes.replace(/'/g, "''");
                 setClauses.push(`resolution_notes = 'Giao chuyên gia: ${n}'`);
-                setClauses.push(`status = 'OPEN'`);
+                setClauses.push(`status = '${isResolved ? 'RESOLVED' : 'OPEN'}'`);
+                if (isResolved) setClauses.push('resolved_at = NOW()');
+              } else if (payload.status) {
+                setClauses.push(`status = '${payload.status}'`);
+                if (isResolved) setClauses.push('resolved_at = NOW()');
               }
 
               if (setClauses.length === 0) setClauses.push(`status = 'IN_PROGRESS'`);

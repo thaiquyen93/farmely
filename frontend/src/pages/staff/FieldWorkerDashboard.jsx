@@ -903,18 +903,30 @@ export default function FieldWorkerDashboard() {
       }
 
       // 5B. Tự động đóng sự cố nếu nhiệm vụ này là xử lý sự cố (ISS-xxx)
-      const issMatch = (selectedTaskToExecute.notes || selectedTaskToExecute.title || '').match(/\[(?:ISS|ISSUE)-(\d+)\]/i);
+      const taskSearchText = [selectedTaskToExecute.notes, selectedTaskToExecute.title, selectedTaskToExecute.instructions, selectedTaskToExecute.description, selectedTaskToExecute.taskTitle].filter(Boolean).join(' ');
+      const issMatch = taskSearchText.match(/\[(?:ISS|ISSUE)-(\d+)\]/i);
       if (issMatch && issMatch[1]) {
         try {
           const issId = issMatch[1];
           await apiFetch(`/api/issue-reports/${issId}`, {
             method: 'PUT',
             body: JSON.stringify({
+              status: 'RESOLVED',
               markResolved: true,
               resolutionNotes: taskProofNote || 'CVLĐ đã thực địa xử lý theo chỉ đạo và chụp ảnh minh chứng thành công.'
             })
           });
           setMyIssues(prev => prev.map(iss => (iss.apiId === parseInt(issId, 10) || iss.id === `ISS-${issId}`) ? { ...iss, status: 'RESOLVED' } : iss));
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('farmely_issue_sync', String(Date.now()));
+              if (window.BroadcastChannel) {
+                const bc = new BroadcastChannel('farmely_staff_activity_channel');
+                bc.postMessage({ type: 'ISSUE_RESOLVED', issueId: issId, timestamp: Date.now() });
+                setTimeout(() => { try { bc.close(); } catch {} }, 1000);
+              }
+            }
+          } catch {}
         } catch (e) {
           console.warn('Could not auto-resolve issue:', e);
         }
