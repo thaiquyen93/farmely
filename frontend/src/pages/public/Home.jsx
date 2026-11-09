@@ -8,21 +8,14 @@ import PlotCard from '../../components/public/PlotCard';
 import { farmApi } from '../../api/farm/farmApi';
 import {
   Sprout,
-  Radio,
   ClipboardCheck,
   Calendar,
-  CloudSun,
   ShieldCheck,
   CheckCircle2,
   ArrowRight,
   TrendingUp,
   Sparkles,
-  Users,
-  Sun,
-  CloudRain,
-  Droplets,
-  Zap,
-  Smartphone
+  Users
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 
@@ -44,73 +37,18 @@ export default function Home() {
           code: p.plotCode,
           name: `Thửa đất ${p.plotCode}`,
           landName: p.landName || 'Trang trại Happy Valley Củ Chi',
-          soilType: p.soilType || 'Đất phù sa bồi lắng giàu mùn',
           area: `${Number(p.area)} m²`,
           status: p.status === 'AVAIL' ? 'AVAILABLE' : p.status === 'RENT' ? 'RENTED' : 'MAINTENANCE',
           rentalPriceFormatted: `${Number(p.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
           imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=1000&q=80',
-          compatibleCrops: ['Rau muống lá tre', 'Cải ngọt bông', 'Xà lách Romaine']
+          compatibleCrops: Array.isArray(p.compatibleVarieties)
+            ? p.compatibleVarieties.map((variety) => variety.varietyName)
+            : []
         }));
         setFeaturedPlots(mapped);
       })
       .catch((err) => console.warn('Không thể nạp danh sách thửa đất nổi bật:', err));
   }, []);
-
-  // Interactive IoT Simulator State
-  const [simWeather, setSimWeather] = useState('ideal');
-
-  const simScenarios = {
-    ideal: {
-      title: 'Thời Tiết Lý Tưởng',
-      temp: '28.5°C',
-      soil: 68,
-      air: '74%',
-      statusLabel: 'Sinh trưởng tối ưu',
-      badge: 'CHUẨN VIETGAP',
-      badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40',
-      soilColor: 'text-brand-yellow',
-      actionText: 'Tưới nhỏ giọt dinh dưỡng hữu cơ tự động lúc 07:00 sáng. Đất ẩm tơi xốp, rau lớn khỏe mỗi ngày.',
-      systemAction: 'Chế độ: Tưới nhỏ giọt tiêu chuẩn (Đã hoàn tất lúc 07:00)'
-    },
-    hot: {
-      title: 'Trưa Nắng Gắt 35°C',
-      temp: '34.8°C',
-      soil: 46,
-      air: '55%',
-      statusLabel: 'Kích hoạt phun sương',
-      badge: 'TỰ ĐỘNG HẠ NHIỆT',
-      badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-400/40',
-      soilColor: 'text-amber-400',
-      actionText: 'Nhiệt độ vượt 33°C: Béc phun sương thông minh tự động bật 5 phút để làm mát lá, chống cháy ngọn.',
-      systemAction: 'Chế độ: Đang phun sương làm mát tự động (Bật 5 phút)'
-    },
-    rain: {
-      title: 'Trời Đổ Mưa Lớn',
-      temp: '23.6°C',
-      soil: 86,
-      air: '92%',
-      statusLabel: 'Tự động ngắt tưới',
-      badge: 'CHỐNG ÚNG THÔNG MINH',
-      badgeBg: 'bg-cyan-500/20 text-cyan-300 border-cyan-400/40',
-      soilColor: 'text-cyan-400',
-      actionText: 'Cảm biến báo độ ẩm đất ≥ 80% kết hợp dữ liệu mưa: Hệ thống ngắt 100% vòi tưới để rễ không bị úng nước.',
-      systemAction: 'Chế độ: Hoãn tưới tự động (Tránh ngập rễ & tiết kiệm nước)'
-    }
-  };
-
-  const currentSim = simScenarios[simWeather];
-
-  useEffect(() => {
-    if (location.hash) {
-      const id = location.hash.replace('#', '');
-      const el = document.getElementById(id);
-      if (el) {
-        setTimeout(() => {
-          el.scrollIntoView({ behavior: 'smooth' });
-        }, 150);
-      }
-    }
-  }, [location]);
 
   return (
     <div className="bg-brand-cream min-h-screen">
@@ -182,7 +120,7 @@ export default function Home() {
                 id: String(land.landId),
                 name: land.landName,
                 location: land.address,
-                description: land.description || 'Khu nông trại sinh thái chuẩn VietGAP với hệ thống quan trắc vi khí hậu 24/7.',
+                description: land.description || 'Khu nông trại sinh thái canh tác theo quy trình VietGAP.',
                 totalArea: land.boundaryAreaM2 ? `${Math.round(land.boundaryAreaM2).toLocaleString('vi-VN')} m²` : '25.000 m²',
                 totalPlots: land.totalPlots || 16,
                 activePlots: land.availablePlots || 10,
@@ -274,7 +212,7 @@ export default function Home() {
             </div>
             <h2 className="text-section-title font-heading font-black text-brand-dark">Các thửa đất nổi bật</h2>
             <p className="text-sm sm:text-base text-brand-muted mt-2 max-w-xl">
-              Các thửa đã được đo đạc thổ nhưỡng, lắp nguồn nước sạch và kết nối trạm quan trắc vi khí hậu theo chuẩn VietGAP.
+              Các thửa được quy hoạch để canh tác theo quy trình VietGAP.
             </p>
           </div>
           <Link to="/marketplace">
@@ -289,183 +227,6 @@ export default function Home() {
               Đang kết nối cơ sở dữ liệu và tải danh sách thửa đất nổi bật...
             </div>
           )}
-        </div>
-      </section>
-
-      {/* 6. Smart Farming & Interactive IoT Simulator */}
-      <section className="py-20 bg-brand-dark text-white relative overflow-hidden">
-        {/* Ambient glow effects */}
-        <div className="absolute top-10 left-10 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-10 right-10 w-96 h-96 bg-brand-yellow/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 text-brand-yellow text-xs font-bold uppercase tracking-wider border border-white/15">
-                <Radio className="w-3.5 h-3.5 animate-pulse" />
-                <span>CÔNG NGHỆ QUAN TRẮC VI KHÍ HẬU & THỜI TIẾT</span>
-              </div>
-
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-heading font-black text-white text-balance tracking-tight leading-tight">
-                Giám Sát Vi Khí Hậu &<br />
-                <span className="text-brand-yellow">Quá Trình Canh Tác Từng Thửa Đất</span>
-              </h2>
-
-              <p className="text-sm sm:text-base text-stone-300 leading-relaxed">
-                Mỗi thửa đất được kết nối hệ thống trạm quan trắc thu thập dữ liệu nhiệt độ, độ ẩm không khí và độ ẩm đất theo thời gian thực. Hệ thống kết hợp dữ liệu vi khí hậu thực tế cùng dự báo thời tiết để tự động điều phối chu trình tưới và kích hoạt cảnh báo kỹ thuật theo đúng quy chuẩn vận hành trang trại.
-              </p>
-
-              {/* Interactive Weather Simulator Controls */}
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/15 space-y-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-brand-yellow flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4" />
-                  MÔ PHỎNG PHẢN ỨNG DỮ LIỆU VI KHÍ HẬU & ĐIỀU PHỐI TƯỚI:
-                </span>
-                
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => setSimWeather('ideal')}
-                    className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 border ${
-                      simWeather === 'ideal'
-                        ? 'bg-emerald-600 text-white border-emerald-400 shadow-md scale-102'
-                        : 'bg-white/5 text-stone-300 border-white/10 hover:bg-white/10'
-                    }`}
-                  >
-                    <Sparkles className="w-4 h-4 text-emerald-300" />
-                    <span>Thời Tiết Tiêu Chuẩn</span>
-                  </button>
-
-                  <button
-                    onClick={() => setSimWeather('hot')}
-                    className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 border ${
-                      simWeather === 'hot'
-                        ? 'bg-amber-600 text-white border-amber-400 shadow-md scale-102'
-                        : 'bg-white/5 text-stone-300 border-white/10 hover:bg-white/10'
-                    }`}
-                  >
-                    <Sun className="w-4 h-4 text-amber-300" />
-                    <span>Nhiệt Độ Cao (35°C)</span>
-                  </button>
-
-                  <button
-                    onClick={() => setSimWeather('rain')}
-                    className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 border ${
-                      simWeather === 'rain'
-                        ? 'bg-cyan-600 text-white border-cyan-400 shadow-md scale-102'
-                        : 'bg-white/5 text-stone-300 border-white/10 hover:bg-white/10'
-                    }`}
-                  >
-                    <CloudRain className="w-4 h-4 text-cyan-300" />
-                    <span>Mưa Lớn Độ Ẩm Cao</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* 2 SSoT Core Pillars */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-start gap-3">
-                  <Smartphone className="w-5 h-5 text-brand-yellow shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-bold text-white mb-0.5">Minh Bạch Quá Trình Canh Tác</h4>
-                    <p className="text-[11px] text-stone-300 leading-snug">Theo dõi dữ liệu cảm biến, hình ảnh thực địa và nhật ký Farm Diary được cập nhật liên tục.</p>
-                  </div>
-                </div>
-
-                <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 flex items-start gap-3">
-                  <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-bold text-white mb-0.5">Quy Trình Chuẩn Hóa VietGAP</h4>
-                    <p className="text-[11px] text-stone-300 leading-snug">Phác đồ chăm sóc gắn liền từng giống cây, do Chuyên gia nông nghiệp (CGNN) thiết lập và giám sát.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <Link to="/marketplace">
-                  <Button variant="primary" size="lg" className="uppercase font-black text-xs tracking-wider shadow-yellow-glow">
-                    XEM CÁC THỬA ĐẤT QUAN TRẮC THÔNG MINH
-                  </Button>
-                </Link>
-              </div>
-            </div>
-
-            {/* Visual Interactive Telemetry Card */}
-            <div className="bg-white/10 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-white/20 space-y-6 shadow-2xl transition-all">
-              <div className="flex items-center justify-between border-b border-white/15 pb-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] uppercase font-bold text-brand-yellow tracking-wider">Trạm quan trắc thực địa</span>
-                    <span className="text-[10px] text-stone-400">• Vừa cập nhật 2 phút trước</span>
-                  </div>
-                  <h4 className="font-heading text-lg font-bold text-white">KT-CC-01 – Thửa Sen Vàng A1</h4>
-                </div>
-                
-                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${currentSim.badgeBg}`}>
-                  <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
-                  {currentSim.badge}
-                </span>
-              </div>
-
-              {/* Real-time Telemetry Readout */}
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="p-4 rounded-2xl bg-black/25 border border-white/10 transition-all">
-                  <span className="text-[11px] text-stone-400 block mb-1">Nhiệt độ khí</span>
-                  <span className="font-heading text-2xl font-black text-white">{currentSim.temp}</span>
-                  <span className="text-[10px] text-stone-300 block mt-1">Cảm biến ngoài trời</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-black/25 border border-white/10 transition-all">
-                  <span className="text-[11px] text-stone-400 block mb-1">Độ ẩm đất</span>
-                  <span className={`font-heading text-2xl font-black ${currentSim.soilColor}`}>{currentSim.soil}%</span>
-                  <span className="text-[10px] text-emerald-400 block mt-1">{currentSim.statusLabel}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-black/25 border border-white/10 transition-all">
-                  <span className="text-[11px] text-stone-400 block mb-1">Độ ẩm khí</span>
-                  <span className="font-heading text-2xl font-black text-white">{currentSim.air}</span>
-                  <span className="text-[10px] text-stone-300 block mt-1">Vi khí hậu vườn</span>
-                </div>
-              </div>
-
-              {/* Soil Moisture Visual Bar */}
-              <div className="p-4 rounded-2xl bg-black/20 border border-white/10 space-y-2">
-                <div className="flex justify-between text-xs">
-                  <span className="text-stone-300 font-medium">Độ ẩm rễ cây hiện tại:</span>
-                  <span className="font-bold text-brand-yellow">{currentSim.soil}% (Mục tiêu 60-75%)</span>
-                </div>
-                <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden p-0.5">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      currentSim.soil > 80
-                        ? 'bg-cyan-400'
-                        : currentSim.soil < 50
-                        ? 'bg-amber-400'
-                        : 'bg-emerald-400'
-                    }`}
-                    style={{ width: `${Math.min(currentSim.soil, 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Dynamic Action Trigger Box */}
-              <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-xs text-stone-300 space-y-2">
-                <div className="flex items-center gap-2 font-bold text-white">
-                  <Zap className="w-4 h-4 text-brand-yellow shrink-0 animate-bounce" />
-                  <span>Hệ thống tự động xử lý ngay lập tức:</span>
-                </div>
-                <p className="text-[12px] text-stone-200 leading-relaxed pl-6 border-l-2 border-brand-yellow/60">
-                  {currentSim.actionText}
-                </p>
-                <div className="pt-1 flex items-center justify-between text-[11px] text-stone-400">
-                  <span>{currentSim.systemAction}</span>
-                  <span className="text-emerald-400 font-bold">100% Tự Động</span>
-                </div>
-              </div>
-
-            </div>
-
-          </div>
         </div>
       </section>
 

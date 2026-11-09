@@ -97,7 +97,6 @@ export const FARMS_GEOJSON_DATA = {
           "🍆 Cà tím",
           "🍅 Cà chua bi"
         ],
-        "direction": "Đông Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80",
@@ -151,7 +150,6 @@ export const FARMS_GEOJSON_DATA = {
           "🌱 Hương thảo",
           "🍃 Húng quế"
         ],
-        "direction": "Chính Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=800&q=80",
@@ -204,7 +202,6 @@ export const FARMS_GEOJSON_DATA = {
           "🍓 Dâu tây",
           "🥬 Xà lách"
         ],
-        "direction": "Đông Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80",
@@ -257,7 +254,6 @@ export const FARMS_GEOJSON_DATA = {
           "🌼 Cúc la mã",
           "🌱 Xạ hương"
         ],
-        "direction": "Chính Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80",
@@ -310,7 +306,6 @@ export const FARMS_GEOJSON_DATA = {
           "🍅 Cà chua bi",
           "🥒 Dưa chuột"
         ],
-        "direction": "Chính Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80",
@@ -363,7 +358,6 @@ export const FARMS_GEOJSON_DATA = {
           "🌽 Bắp ngọt",
           "🫘 Đậu cove"
         ],
-        "direction": "Đông Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80",
@@ -416,7 +410,6 @@ export const FARMS_GEOJSON_DATA = {
           "🥕 Cà rốt",
           "🥔 Khoai tây"
         ],
-        "direction": "Chính Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
@@ -469,7 +462,6 @@ export const FARMS_GEOJSON_DATA = {
           "🌻 Hướng dương",
           "🫑 Ớt chuông"
         ],
-        "direction": "Đông Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80",
@@ -522,7 +514,6 @@ export const FARMS_GEOJSON_DATA = {
           "🥦 Bông cải",
           "🥬 Cải thìa"
         ],
-        "direction": "Đông Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80",
@@ -575,7 +566,6 @@ export const FARMS_GEOJSON_DATA = {
           "🥗 Xà lách xoăn",
           "🌿 Hẹ"
         ],
-        "direction": "Chính Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1586771107445-d3ca888129ff?auto=format&fit=crop&w=800&q=80",
@@ -628,7 +618,6 @@ export const FARMS_GEOJSON_DATA = {
           "🍅 Cà chua",
           "🫑 Ớt hiểm"
         ],
-        "direction": "Đông Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80",
@@ -681,7 +670,6 @@ export const FARMS_GEOJSON_DATA = {
           "🍉 Dưa hấu",
           "🍈 Dưa lưới"
         ],
-        "direction": "Chính Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80",
@@ -734,7 +722,6 @@ export const FARMS_GEOJSON_DATA = {
           "🍠 Khoai lang",
           "🥔 Khoai mỡ"
         ],
-        "direction": "Chính Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80",
@@ -787,7 +774,6 @@ export const FARMS_GEOJSON_DATA = {
           "🥒 Bí xanh",
           "🎃 Bí đỏ"
         ],
-        "direction": "Đông Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80",
@@ -840,7 +826,6 @@ export const FARMS_GEOJSON_DATA = {
           "🍓 Dâu tây",
           "🍇 Nho đen"
         ],
-        "direction": "Chính Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
@@ -893,7 +878,6 @@ export const FARMS_GEOJSON_DATA = {
           "🫒 Trà ô long",
           "🌱 Đậu đỏ"
         ],
-        "direction": "Đông Nam",
         "ph": "6.2 - 6.6",
         "temp": "20 - 28°C",
         "img": "https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=800&q=80",
@@ -1089,7 +1073,7 @@ export function buildGeoJsonFromDbPlots(plots = []) {
         statusCode: rawStatus,
         crops: cropList,
         compatibleCrops: cropList,
-        img: p.imageUrl || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=800&q=80',
+        img: p.imageUrl || null,
         imageUrl: p.imageUrl,
         facilities: {
           irrigation: true,

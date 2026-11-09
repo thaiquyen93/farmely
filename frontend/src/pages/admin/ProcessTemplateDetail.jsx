@@ -38,7 +38,6 @@ export default function ProcessTemplateDetail() {
   // Template State
   const [template, setTemplate] = useState({ id, steps: [] });
   const [loading, setLoading] = useState(true);
-  const [isLiveDb, setIsLiveDb] = useState(false);
 
   // Modal Step State
   const [showStepModal, setShowStepModal] = useState(false);
@@ -70,7 +69,6 @@ export default function ProcessTemplateDetail() {
       .then((res) => {
         if (res && res.success && res.data) {
           setTemplate(res.data);
-          setIsLiveDb(true);
         }
       })
       .catch((err) => {
@@ -308,12 +306,6 @@ export default function ProcessTemplateDetail() {
                 {template.version || 'v1.0'}
               </span>
               <Badge variant={template.status || 'ACTIVE'} size="sm">{template.status || 'ACTIVE'}</Badge>
-              {isLiveDb && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  PostgreSQL SSoT
-                </span>
-              )}
             </div>
             <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
               {template.name}
@@ -337,7 +329,7 @@ export default function ProcessTemplateDetail() {
             icon={Plus}
             onClick={handleOpenAddModal}
           >
-            Thêm Bước Kỹ Thuật (Day Offset)
+            Thêm bước canh tác
           </Button>
         </div>
       </div>
@@ -367,13 +359,6 @@ export default function ProcessTemplateDetail() {
           {template.description || 'Quy trình kỹ thuật nông nghiệp chuẩn VietGAP được ban hành chính thức cho giống cây trồng.'}
         </p>
 
-        {/* BR Notice Banner */}
-        <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-3">
-          <Sparkles className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-900 leading-relaxed">
-            <strong>Cơ chế tự động sinh việc:</strong> Khi khách hàng kích hoạt hợp đồng thuê thửa với giống này theo hình thức <em>Assisted-growing</em>, hệ thống sẽ tự động quét toàn bộ danh sách các bước dưới đây và sinh <strong>Care Task</strong> giao cho Chuyên viên lao động (CVLĐ) đúng vào ngày thứ <em>Day Offset</em> kể từ ngày bắt đầu vụ.
-          </p>
-        </div>
       </div>
 
       {/* Vertical Agricultural Timeline Section */}
@@ -381,7 +366,7 @@ export default function ProcessTemplateDetail() {
         <div className="flex items-center justify-between">
           <div>
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-brand-green/10 text-brand-green uppercase tracking-wider">
-              Lộ Trình Sinh Trưởng Theo Mốc Thời Gian (Day Offset)
+              Các bước canh tác
             </span>
             <h3 className="text-2xl font-heading font-black text-brand-dark mt-1">
               Dòng Thời Gian Canh Tác Chuẩn Hóa
@@ -417,7 +402,7 @@ export default function ProcessTemplateDetail() {
             <Sprout className="w-12 h-12 text-stone-300 mx-auto" />
             <h4 className="font-bold text-stone-700 text-sm">Chưa có bước kỹ thuật nào trong quy trình</h4>
             <p className="text-xs text-stone-500 max-w-md mx-auto">
-              Hãy bấm nút "Thêm Bước Kỹ Thuật" hoặc "Nạp Từ File" bên trên để đưa toàn bộ lộ trình VietGAP vào CSDL PostgreSQL.
+              Chọn “Thêm bước canh tác” hoặc “Nạp từ file” để bắt đầu.
             </p>
             <div className="flex items-center justify-center gap-3 pt-2">
               <Button variant="primary" size="sm" icon={UploadCloud} onClick={() => setShowBulkModal(true)}>
@@ -556,7 +541,7 @@ export default function ProcessTemplateDetail() {
       <Modal
         isOpen={showStepModal}
         onClose={() => setShowStepModal(false)}
-        title={editingStep ? `Chỉnh Sửa Bước Kỹ Thuật (Ngày ${editingStep.dayOffset})` : 'Thêm Bước Kỹ Thuật Mới (Day Offset)'}
+        title={editingStep ? `Chỉnh sửa bước ngày ${editingStep.dayOffset}` : 'Thêm bước canh tác'}
         subtitle="Thiết lập công việc và kỹ thuật chăm sóc tự động giao cho CVLĐ"
       >
         <form onSubmit={handleSaveStep} className="space-y-4">
@@ -571,7 +556,7 @@ export default function ProcessTemplateDetail() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <Input
-                label="Mốc Ngày Tuổi (Day Offset)"
+                label="Ngày thực hiện tính từ lúc trồng"
                 type="number"
                 min="0"
                 required
@@ -694,7 +679,7 @@ export default function ProcessTemplateDetail() {
         isOpen={showBulkModal}
         onClose={() => setShowBulkModal(false)}
         title="Nạp Lộ Trình Kỹ Thuật Từ File Tài Liệu Chuẩn"
-        subtitle="Hỗ trợ đọc tự động danh sách các bước Day Offset từ file .txt hoặc .json"
+        subtitle="Hỗ trợ file .txt hoặc .json"
         maxWidth="max-w-2xl"
       >
         <div className="space-y-4">
@@ -785,7 +770,7 @@ export default function ProcessTemplateDetail() {
               onClick={handleSaveBulkSteps}
               disabled={isBulkSubmitting || bulkSteps.length === 0}
             >
-              {isBulkSubmitting ? 'Đang Lưu...' : `Lưu ${bulkSteps.length} Bước Vào CSDL PostgreSQL`}
+              {isBulkSubmitting ? 'Đang lưu...' : `Lưu ${bulkSteps.length} bước`}
             </Button>
           </div>
         </div>

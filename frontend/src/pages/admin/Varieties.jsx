@@ -14,7 +14,6 @@ export default function Varieties() {
   const [varieties, setVarieties] = useState(initialVarieties);
   const [crops, setCrops] = useState(initialCrops);
   const [loading, setLoading] = useState(true);
-  const [isLiveDb, setIsLiveDb] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
@@ -48,7 +47,6 @@ export default function Varieties() {
             imageUrl: item.imageUrl,
             status: item.isActive ? 'ACTIVE' : 'ARCHIVED'
           })));
-          setIsLiveDb(true);
         }
         if (cropRes && cropRes.success && Array.isArray(cropRes.data) && cropRes.data.length > 0) {
           setCrops(cropRes.data);
@@ -115,7 +113,7 @@ export default function Varieties() {
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Lỗi khi lưu giống cây');
       }
-      setToast({ type: 'success', message: data.message || `Đã lưu giống cây "${name}" thành công vào PostgreSQL!` });
+      setToast({ type: 'success', message: data.message || `Đã lưu giống cây "${name}".` });
       loadData();
       try {
         if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -143,7 +141,7 @@ export default function Varieties() {
         setTimeout(() => setToast(null), 5000);
         return;
       }
-      setToast({ type: 'success', message: `Đã xóa giống cây #${id} thành công khỏi PostgreSQL!` });
+      setToast({ type: 'success', message: 'Đã xóa giống cây.' });
       loadData();
       try {
         if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -288,23 +286,9 @@ export default function Varieties() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-              Thực thể: Giống Cây Trồng (Variety)
-            </span>
-            {isLiveDb && (
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live DB: {varieties.length} Giống cây</span>
-              </span>
-            )}
-          </div>
-          <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
+          <h2 className="text-2xl font-heading font-black text-brand-dark">
             Danh Mục Giống Cây Trồng
           </h2>
-          <p className="text-xs text-brand-muted mt-0.5">
-            Quản lý các giống rau sạch, thời gian sinh trưởng, năng suất dự kiến và quy trình VietGAP liên kết.
-          </p>
         </div>
 
         <Button variant="primary" size="md" icon={Plus} onClick={openCreate}>

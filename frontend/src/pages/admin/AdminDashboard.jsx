@@ -2305,7 +2305,7 @@ export default function AdminDashboard() {
                           {kpi.rentedPlots || landStats.rented} / {kpi.totalPlots || landStats.total || 17} Thửa Đang Thuê
                         </p>
                         <p className="text-stone-600">
-                          Đất phù sa bồi lắng giàu mùn, cập nhật dữ liệu khí tượng & vi khí hậu tự động qua Weather API.
+                          Xem tình trạng từng thửa trong danh sách thửa đất.
                         </p>
                       </div>
                       <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 space-y-1">

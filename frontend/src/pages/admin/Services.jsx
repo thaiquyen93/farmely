@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BriefcaseBusiness, CheckCircle2, Database, Plus, RefreshCw } from 'lucide-react';
+import { BriefcaseBusiness, CheckCircle2, Plus, RefreshCw } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import { useServiceStore } from '../../stores/serviceStore';
@@ -74,11 +74,7 @@ export default function Services() {
       <section className="rounded-2xl border border-brand-border bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-green">
-              <Database className="h-4 w-4" /> Đồng bộ PostgreSQL
-            </div>
             <h2 className="font-heading text-2xl font-black text-brand-dark">Danh mục dịch vụ canh tác</h2>
-            <p className="mt-1 text-sm text-brand-muted">Dữ liệu hiển thị trực tiếp từ bảng services và được dùng chung với trang khách hàng.</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" icon={RefreshCw} disabled={loading} onClick={() => loadServices(true).catch(() => {})}>Tải lại</Button>
@@ -94,7 +90,7 @@ export default function Services() {
       )}
 
       {loading && services.length === 0 ? (
-        <div className="rounded-2xl border border-brand-border bg-white p-12 text-center text-sm font-bold text-brand-muted">Đang tải dịch vụ từ database…</div>
+        <div className="rounded-2xl border border-brand-border bg-white p-12 text-center text-sm font-bold text-brand-muted">Đang tải dịch vụ…</div>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
           <section className="overflow-hidden rounded-2xl border border-brand-border bg-white shadow-sm">
@@ -135,19 +131,19 @@ export default function Services() {
                   <Info label="Giá" value={`${selectedService.price.toLocaleString('vi-VN')} đ`} />
                   <Info label="Đơn vị" value={selectedService.unit || '—'} />
                   <Info label="Trạng thái" value={selectedService.active ? 'ACTIVE' : 'INACTIVE'} />
-                  <Info label="ID database" value={String(selectedService.serviceId)} />
+                  <Info label="Mã dịch vụ" value={String(selectedService.serviceId)} />
                 </dl>
                 <div className="rounded-xl bg-brand-cream/60 p-4 text-sm leading-relaxed text-brand-muted">{selectedService.description || 'Chưa có mô tả.'}</div>
                 <Button variant={selectedService.active ? 'outline' : 'primary'} icon={CheckCircle2} loading={saving} onClick={handleToggle}>
                   {selectedService.active ? 'Tạm ẩn dịch vụ' : 'Kích hoạt dịch vụ'}
                 </Button>
               </div>
-            ) : <p className="text-sm text-brand-muted">Chưa có dịch vụ trong database.</p>}
+            ) : <p className="text-sm text-brand-muted">Chưa có dịch vụ.</p>}
           </section>
         </div>
       )}
 
-      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Thêm dịch vụ canh tác" subtitle="Dịch vụ mới sẽ được lưu trực tiếp vào PostgreSQL" maxWidth="max-w-2xl">
+      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Thêm dịch vụ canh tác" maxWidth="max-w-2xl">
         <form onSubmit={handleCreate} className="space-y-5">
           <Field label="Tên dịch vụ"><input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="field-control" /></Field>
           <div className="grid gap-4 sm:grid-cols-2">

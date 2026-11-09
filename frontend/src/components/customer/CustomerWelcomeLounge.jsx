@@ -538,13 +538,13 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
                   ) : (
                     availablePlots.map((p) => {
                       const code = p.plotCode || p.code;
-                      const areaStr = p.area ? `${p.area} m²` : '160 m²';
+                      const areaStr = p.area ? `${p.area} m²` : 'Chưa có diện tích';
                       const desc = (Array.isArray(p.crops) && p.crops.length > 0)
                         ? p.crops.slice(0, 2).join(', ')
-                        : (p.landName || 'Đất phù sa VietGAP');
+                        : (p.landName || '');
                       return (
                         <option key={p.plotId || code} value={code}>
-                          Thửa {code} ({areaStr} - {desc})
+                          Thửa {code} ({areaStr}{desc ? ` - ${desc}` : ''})
                         </option>
                       );
                     })
@@ -636,20 +636,16 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
               Hiện tại tất cả các thửa đất đều đã có khách thuê hoặc đang trong kỳ bảo dưỡng đất. Quý khách vui lòng xem Bản đồ Marketplace để cập nhật thông tin mới nhất!
             </div>
           ) : (
-            availablePlots.slice(0, 3).map((plot, idx) => {
+            availablePlots.slice(0, 3).map((plot) => {
               const code = plot.plotCode || plot.code;
-              const name = `Thửa Đất ${code} (${plot.landName || 'Happy Valley'})`;
-              const area = `${plot.area || 160} m²`;
-              const soil = idx === 0 
-                ? 'Đất phù sa bồi lắng ven sông, vi sinh tự nhiên'
-                : idx === 1 
-                ? 'Độ mùn cao, vi khí hậu mát mẻ đón nắng 8h/ngày' 
-                : 'Thoát nước tốt, giàu khoáng chất hữu cơ';
-              const crop = (Array.isArray(plot.crops) && plot.crops.length > 0)
-                ? plot.crops.slice(0, 3).join(', ')
-                : 'Cà chua bi, Dưa leo baby, Xà lách';
-              const price = `${Number(plot.pricePerPeriod || 1300000).toLocaleString('vi-VN')} đ/tháng`;
-              const tag = idx === 0 ? 'Vị trí đắc địa' : idx === 1 ? 'Năng suất cao' : 'Đất màu mỡ';
+              const name = `Thửa Đất ${code}${plot.landName ? ` (${plot.landName})` : ''}`;
+              const area = plot.area ? `${plot.area} m²` : 'Chưa có diện tích';
+              const crop = Array.isArray(plot.compatibleVarieties)
+                ? plot.compatibleVarieties.slice(0, 3).map((variety) => variety.varietyName).join(', ')
+                : '';
+              const price = plot.pricePerPeriod != null
+                ? `${Number(plot.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`
+                : 'Chưa có giá';
 
               return (
                 <div
@@ -661,14 +657,10 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
                       <span className="font-mono text-xs font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                         {code}
                       </span>
-                      <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                        {tag}
-                      </span>
                     </div>
 
                     <div>
                       <h4 className="font-bold text-sm text-[#18352b]">{name}</h4>
-                      <p className="text-xs text-stone-500 mt-0.5">{soil}</p>
                     </div>
 
                     <div className="p-3 rounded-2xl bg-stone-50 border border-stone-100 text-xs space-y-1.5">
@@ -676,10 +668,10 @@ export default function CustomerWelcomeLounge({ user, onRefreshPlots }) {
                         <span>Diện tích:</span>
                         <strong className="text-stone-900">{area}</strong>
                       </div>
-                      <div className="flex justify-between text-stone-600">
-                        <span>Cây trồng đề xuất:</span>
+                      {crop && <div className="flex justify-between text-stone-600">
+                        <span>Giống tương thích:</span>
                         <strong className="text-emerald-700 truncate max-w-[170px]" title={crop}>{crop}</strong>
-                      </div>
+                      </div>}
                       <div className="flex justify-between text-stone-600 pt-1 border-t border-stone-200/60">
                         <span>Giá thuê niêm yết:</span>
                         <strong className="text-emerald-800 font-extrabold">{price}</strong>

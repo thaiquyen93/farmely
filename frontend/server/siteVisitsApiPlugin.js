@@ -105,6 +105,16 @@ function callGeminiLlm({ message, contextDocs = [] }) {
   });
 }
 
+let siteVisitColumnsEnsured = false;
+async function ensureSiteVisitColumns() {
+  if (siteVisitColumnsEnsured) return;
+  await runPostgreSql(`
+ALTER TABLE site_visits ADD COLUMN IF NOT EXISTS group_size INT NOT NULL DEFAULT 2;
+ALTER TABLE site_visits ADD COLUMN IF NOT EXISTS notes TEXT;
+`);
+  siteVisitColumnsEnsured = true;
+}
+
 let rentalLeaseColumnsEnsured = false;
 async function ensureRentalLeaseColumns() {
   if (rentalLeaseColumnsEnsured) return;
@@ -900,6 +910,7 @@ SELECT json_build_object(
         // 1. GET /api/site-visits
         if (req.method === 'GET' && (url === '/api/site-visits' || url.startsWith('/api/site-visits?'))) {
           try {
+            await ensureSiteVisitColumns();
             const sql = `
 SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json) FROM (
   SELECT 
@@ -909,11 +920,10 @@ SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json) FROM (
     COALESCE(p.area, 100.00) AS area, 
     v.visitor_name, 
     v.visitor_phone, 
-    COALESCE(v.visitor_email, v.visitor_name || '@farmely.vn') AS visitor_email,
+    v.group_size,
+    COALESCE(v.notes, '') AS notes,
     TO_CHAR(v.visit_date, 'YYYY-MM-DD') AS visit_date, 
     v.visit_slot::text AS visit_slot, 
-    COALESCE(v.group_size, 2) AS group_size, 
-    COALESCE(v.notes, '') AS notes, 
     v.status::text AS status, 
     TO_CHAR(v.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at 
   FROM site_visits v 
@@ -925,27 +935,8 @@ SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json) FROM (
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(data || '[]');
           } catch (err) {
-            try {
-              const script = `
-$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True")
-$conn.Open()
-$cmd = $conn.CreateCommand()
-$cmd.CommandText = "SELECT v.visit_id, v.plot_id, p.plot_code, p.area, v.visitor_name, v.visitor_phone, v.visitor_email, CONVERT(varchar(10), v.visit_date, 120) as visit_date, v.visit_slot, v.group_size, v.notes, v.status, CONVERT(varchar(19), v.created_at, 120) as created_at FROM site_visits v LEFT JOIN plots p ON v.plot_id = p.plot_id ORDER BY v.visit_id DESC FOR JSON PATH"
-$reader = $cmd.ExecuteReader()
-$sb = New-Object System.Text.StringBuilder
-while ($reader.Read()) { [void]$sb.Append($reader.GetString(0)) }
-$conn.Close()
-$json = $sb.ToString()
-if (-not $json) { $json = "[]" }
-Write-Output $json
-`;
-              const data = await runPowershell(script);
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(data || '[]');
-            } catch (err2) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: String(err2) }));
-            }
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
           }
           return;
         }
@@ -957,29 +948,26 @@ Write-Output $json
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const plotId = payload.plot_id ? parseInt(payload.plot_id, 10) : 1;
-              const name = (payload.visitor_name || 'Khách hàng').replace(/'/g, "''");
-              const phone = (payload.visitor_phone || '0900000000').replace(/'/g, "''");
-              const date = payload.visit_date || new Date().toISOString().slice(0, 10);
-              const slot = (payload.visit_slot || 'MORNING').toUpperCase();
-              const validSlot = (slot === 'AFTERNOON') ? 'AFTERNOON' : 'MORNING';
-              const email = (payload.visitor_email || '').replace(/'/g, "''");
-              const notes = (payload.notes || '').replace(/'/g, "''");
-              const groupSize = parseInt(payload.group_size, 10) || 2;
+              const plotId = Number.parseInt(payload.plot_id, 10);
+              const name = String(payload.visitor_name || '').trim();
+              const phone = String(payload.visitor_phone || '').trim();
+              const date = String(payload.visit_date || '');
+              const slot = payload.visit_slot === 'AFTERNOON' ? 'AFTERNOON' : 'MORNING';
+              if (!Number.isInteger(plotId) || !name || !phone || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, message: 'Thông tin lịch thăm không hợp lệ.' }));
+                return;
+              }
 
-              let createdObj = { visit_id: Date.now(), visitor_name: name, visitor_phone: phone, visitor_email: email, visit_date: date, visit_slot: validSlot, group_size: groupSize, notes: notes, status: 'PENDING' };
-
-              // Thử ghi vào PostgreSQL (farmely)
-              try {
-                const pgSql = `
-INSERT INTO site_visits (plot_id, visitor_name, visitor_phone, visitor_email, visit_date, visit_slot, group_size, notes, status)
-VALUES (${plotId}, '${name}', '${phone}', ${email ? `'${email}'` : 'NULL'}, '${date}', '${validSlot}', ${groupSize}, ${notes ? `'${notes}'` : 'NULL'}, 'PENDING')
+              await ensureSiteVisitColumns();
+              const output = await runPostgreSql(`
+INSERT INTO site_visits (plot_id, visitor_name, visitor_phone, visit_date, visit_slot, group_size, notes, status)
+VALUES ($1, $2, $3, $4, $5::visit_slot_enum, $6, $7, 'PENDING')
 RETURNING json_build_object(
   'visit_id', visit_id,
   'plot_id', plot_id,
   'visitor_name', visitor_name,
   'visitor_phone', visitor_phone,
-  'visitor_email', visitor_email,
   'visit_date', TO_CHAR(visit_date, 'YYYY-MM-DD'),
   'visit_slot', visit_slot,
   'group_size', group_size,
@@ -987,54 +975,8 @@ RETURNING json_build_object(
   'status', status,
   'created_at', TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS')
 );
-`;
-                const pgOutput = await runPostgreSql(pgSql);
-                const jsonMatch = pgOutput.match(/\{[\s\S]*\}/);
-                if (jsonMatch) createdObj = JSON.parse(jsonMatch[0]);
-              } catch (pgErr) { }
-
-              // Đồng bộ song song sang SQL Server (isp392_agritech)
-              try {
-                const b64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
-                const msScript = `
-$bytes = [System.Convert]::FromBase64String("${b64}")
-$obj = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
-$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True")
-$conn.Open()
-$cmd = $conn.CreateCommand()
-$cmd.CommandText = "INSERT INTO site_visits (plot_id, visitor_name, visitor_phone, visitor_email, visit_date, visit_slot, group_size, notes, status, created_at) OUTPUT INSERTED.visit_id, INSERTED.visitor_name, INSERTED.visitor_phone, INSERTED.visitor_email, CONVERT(varchar(10), INSERTED.visit_date, 120) as visit_date, INSERTED.visit_slot, INSERTED.group_size, INSERTED.notes, INSERTED.status, CONVERT(varchar(19), INSERTED.created_at, 120) as created_at VALUES (@plot_id, @name, @phone, @email, @date, @slot, @group, @notes, 'PENDING', GETDATE())"
-[void]$cmd.Parameters.AddWithValue("@plot_id", $(if ($obj.plot_id) { [int]$obj.plot_id } else { [System.DBNull]::Value }))
-[void]$cmd.Parameters.AddWithValue("@name", [string]$obj.visitor_name)
-[void]$cmd.Parameters.AddWithValue("@phone", [string]$obj.visitor_phone)
-[void]$cmd.Parameters.AddWithValue("@email", $(if ($obj.visitor_email) { [string]$obj.visitor_email } else { "$phone@farmely.vn" }))
-[void]$cmd.Parameters.AddWithValue("@date", [string]$obj.visit_date)
-[void]$cmd.Parameters.AddWithValue("@slot", $(if ($obj.visit_slot) { [string]$obj.visit_slot } else { "MORNING" }))
-[void]$cmd.Parameters.AddWithValue("@group", $(if ($obj.group_size) { [int]$obj.group_size } else { 1 }))
-[void]$cmd.Parameters.AddWithValue("@notes", $(if ($obj.notes) { [string]$obj.notes } else { "" }))
-$adapter = New-Object System.Data.SqlClient.SqlDataAdapter($cmd)
-$dt = New-Object System.Data.DataTable
-[void]$adapter.Fill($dt)
-$conn.Close()
-Write-Output ($dt | ConvertTo-Json -Compress)
-`;
-                const msResultStr = await runPowershell(msScript);
-                const jsonMatch = msResultStr.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                  const msRow = JSON.parse(jsonMatch[0]);
-                  createdObj = {
-                    visit_id: msRow.visit_id,
-                    visitor_name: msRow.visitor_name,
-                    visitor_phone: msRow.visitor_phone,
-                    visitor_email: msRow.visitor_email,
-                    visit_date: msRow.visit_date,
-                    visit_slot: msRow.visit_slot,
-                    group_size: msRow.group_size,
-                    notes: msRow.notes,
-                    status: msRow.status,
-                    created_at: msRow.created_at
-                  };
-                }
-              } catch (msErr) { }
+`, [plotId, name, phone, date, slot, Number.parseInt(payload.group_size, 10) || 2, String(payload.notes || '')]);
+              const createdObj = JSON.parse(output);
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
@@ -7750,71 +7692,6 @@ SELECT json_build_object(
           return;
         }
 
-        // 22. IOT STATIONS API (GET /api/iot-stations)
-        if (req.method === 'GET' && (url === '/api/iot-stations' || url === '/api/v1/iot-stations' || url.startsWith('/api/iot-stations?') || url.startsWith('/api/v1/iot-stations?'))) {
-          try {
-            const sql = `
-SELECT json_build_object(
-  'success', true,
-  'message', 'Lấy trạm cảm biến IoT và đo đạc thực tế thành công từ PostgreSQL',
-  'data', (
-    SELECT COALESCE(json_agg(row_to_json(s)), '[]'::json) FROM (
-      SELECT 
-        'IOT-' || p.plot_code AS id,
-        'Trạm Quan Trắc #' || p.plot_code AS name,
-        p.plot_id AS "plotId",
-        p.plot_code AS "plotCode",
-        'Thửa ' || p.plot_code AS "plotName",
-        COALESCE(l.land_name, 'Happy Valley Củ Chi') AS "landName",
-        'ONLINE' AS status,
-        '96%' AS "batteryLevel",
-        'Tốt (-62 dBm)' AS "signalStrength",
-        'v2.4.1-pro' AS "firmwareVersion",
-        CASE 
-          WHEN sr.recorded_at IS NULL THEN 'Chưa có dữ liệu'
-          WHEN NOW() - sr.recorded_at < INTERVAL '1 minute' THEN 'Vừa xong'
-          WHEN NOW() - sr.recorded_at < INTERVAL '60 minutes' THEN EXTRACT(MINUTE FROM NOW() - sr.recorded_at)::int || ' phút trước'
-          ELSE TO_CHAR(sr.recorded_at, 'HH24:MI DD/MM')
-        END AS "lastSeen",
-        json_build_object(
-          'soilMoisture', COALESCE(sr.soil_humidity, 68.0) || '%',
-          'temperature', COALESCE(sr.temperature, 28.5) || '°C',
-          'humidity', COALESCE(sr.air_humidity, 74.0) || '%',
-          'airHumidity', COALESCE(sr.air_humidity, 74.0) || '%',
-          'soilPh', '6.5',
-          'light', '45.000 Lux',
-          'lastUpdate', TO_CHAR(COALESCE(sr.recorded_at, NOW()), 'HH24:MI:SS - DD/MM/YYYY')
-        ) AS readings,
-        ARRAY[
-          'Độ ẩm đất điện dung (Capacitive Soil Sensor)',
-          'Nhiệt độ & Độ ẩm không khí SHT35',
-          'Cảm biến đo độ pH đất chuyên dụng',
-          'Cảm biến bức xạ mặt trời Solar Lux'
-        ] AS "sensorTypes"
-      FROM plots p
-      LEFT JOIN lands l ON p.land_id = l.land_id
-      LEFT JOIN LATERAL (
-        SELECT temperature, air_humidity, soil_humidity, recorded_at 
-        FROM sensor_readings 
-        WHERE plot_id = p.plot_id 
-        ORDER BY recorded_at DESC 
-        LIMIT 1
-      ) sr ON true
-      ORDER BY p.plot_id ASC
-    ) s
-  )
-);
-`;
-            const data = await runPostgreSql(sql);
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(data || '{"success":true,"data":[]}');
-          } catch (err) {
-            res.statusCode = 500;
-            res.end(JSON.stringify({ success: false, error: String(err) }));
-          }
-          return;
-        }
-
         // 23. SENSOR READINGS HISTORY API (GET /api/sensor-readings)
         if (req.method === 'GET' && (url === '/api/sensor-readings' || url === '/api/v1/sensor-readings' || url.startsWith('/api/sensor-readings?') || url.startsWith('/api/v1/sensor-readings?'))) {
           try {
@@ -7940,38 +7817,6 @@ LIMIT 1;
               global.__farmelySseClients = global.__farmelySseClients.filter((c) => c !== client);
             }
           });
-          return;
-        }
-
-        // 24. SIMULATE / TRIGGER SENSOR TELEMETRY INTO POSTGRESQL (POST /api/iot-stations/simulate)
-        if (req.method === 'POST' && (url === '/api/iot-stations/simulate' || url.startsWith('/api/iot-stations/simulate?') || url === '/api/sensors/mock/generate' || url.startsWith('/api/sensors/mock/generate?'))) {
-          try {
-            const parsedUrl = new URL(req.url, 'http://localhost');
-            const plotIdParam = parsedUrl.searchParams.get('plotId');
-            const modeParam = parsedUrl.searchParams.get('mode') || 'normal';
-
-            global.__farmelySimulatedScenario = {
-              mode: modeParam,
-              plotId: plotIdParam,
-              expiresAt: Date.now() + 30000 // Giữ kịch bản 30s rồi trở về bình thường
-            };
-
-            let list = [];
-            if (global.__triggerBulkTelemetryInsert) {
-              list = await global.__triggerBulkTelemetryInsert(global.__farmelySimulatedScenario);
-            }
-
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(JSON.stringify({
-              success: true,
-              message: 'Đã kích hoạt đo đạc đồng loạt 17 trạm cảm biến IoT vào PostgreSQL',
-              count: list.length,
-              sample: list[0] || null
-            }));
-          } catch (err) {
-            res.statusCode = 500;
-            res.end(JSON.stringify({ success: false, error: String(err) }));
-          }
           return;
         }
 
