@@ -213,10 +213,10 @@ const isTaskToday = (t, plotCurrentDay = null) => {
 
   const rawDate = t.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(t.deadline || '') ? t.deadline : null);
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-  if (rawDate && rawDate > todayStr && !isHarvest) return false;
+  if (rawDate && rawDate > todayStr) return false;
 
   const taskAge = t.cropDay !== undefined && t.cropDay !== null ? Number(t.cropDay) : (t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null);
-  if (plotAge !== null && taskAge !== null && taskAge > plotAge && !isHarvest) return false;
+  if (plotAge !== null && taskAge !== null && taskAge > plotAge) return false;
 
   const meta = getTaskTimingMeta(t, plotCurrentDay);
   return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
@@ -1325,7 +1325,15 @@ export default function FieldWorkerDashboard() {
       } else if (isHarvestTask) {
         // Nhiệm vụ thu hoạch chỉ thực sự COMPLETED khi đã có bản ghi thu hoạch trong CSDL
         const hasRealHarvest = harvestTasks.some(h => (h.rentalId && task.rentalId && Number(h.rentalId) === Number(task.rentalId)) || (h.plotCode && h.plotCode === targetPlot.plotCode));
-        effectiveStatus = hasRealHarvest ? 'COMPLETED' : 'IN_PROGRESS';
+        if (hasRealHarvest) {
+          effectiveStatus = 'COMPLETED';
+        } else if (plotAge >= taskAge || plotAge >= totalPlotDays || plotAge >= 25) {
+          // Chỉ chuyển sang IN_PROGRESS khi thửa đất đã thực sự tới giai đoạn thu hoạch
+          effectiveStatus = 'IN_PROGRESS';
+        } else {
+          // Chưa tới kỳ thu hoạch -> Bắt buộc là PENDING
+          effectiveStatus = 'PENDING';
+        }
       }
 
       targetPlot.tasks.push({
@@ -2461,22 +2469,26 @@ export default function FieldWorkerDashboard() {
                                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                                               : overdueSince || accent.label === 'Quá hạn'
                                                 ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                                : task.status === 'IN_PROGRESS'
-                                                  ? 'bg-sky-100 text-sky-800 border border-sky-200'
-                                                  : variant === 'today'
-                                                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                                    : 'bg-stone-100 text-stone-600 border border-stone-200'
+                                                : variant === 'upcoming'
+                                                  ? 'bg-stone-100 text-stone-600 border border-stone-200'
+                                                  : task.status === 'IN_PROGRESS'
+                                                    ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                                                    : variant === 'today'
+                                                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                                      : 'bg-stone-100 text-stone-600 border border-stone-200'
                                           }`}
                                         >
                                           {isDone
                                             ? '● Đã hoàn thành'
                                             : overdueSince || accent.label === 'Quá hạn'
                                               ? '● Quá hạn'
-                                              : task.status === 'IN_PROGRESS'
-                                                ? '● Đang làm trong ca'
-                                                : variant === 'today'
-                                                  ? '● Cần làm hôm nay'
-                                                  : '● Sắp tới'}
+                                              : variant === 'upcoming'
+                                                ? '● Sắp tới'
+                                                : task.status === 'IN_PROGRESS'
+                                                  ? '● Đang làm trong ca'
+                                                  : variant === 'today'
+                                                    ? '● Cần làm hôm nay'
+                                                    : '● Sắp tới'}
                                         </span>
                                       </td>
                                       <td className="py-3.5 px-4 whitespace-nowrap text-right">
