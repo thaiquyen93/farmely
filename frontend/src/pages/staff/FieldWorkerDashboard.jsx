@@ -7,6 +7,7 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
 import { apiFetch, unwrapData } from '../../api/apiClient';
+import { sendNotification } from '../../services/notificationService';
 import {
   UserCheck,
   CheckCircle2,
@@ -1481,6 +1482,28 @@ export default function FieldWorkerDashboard() {
     }
     setSelectedHarvestTask((current) => harvestWorkItems.find((item) => item.id === current?.id) || harvestWorkItems.find((item) => item.status !== 'COMPLETED') || harvestWorkItems[0]);
   }, [tasks, harvestTasks]);
+
+  // Thông báo nhiệm vụ ca trực hôm nay cho Nhân viên (Daily Care Tasks notification)
+  useEffect(() => {
+    if (tasks.length > 0) {
+      const todayCount = tasks.filter(isTaskToday).length;
+      if (todayCount > 0) {
+        const todayDateKey = new Date().toISOString().slice(0, 10);
+        const notifyKey = `farmely_staff_daily_tasks_notified_${user?.userId || 8}_${todayDateKey}`;
+        if (!sessionStorage.getItem(notifyKey)) {
+          sessionStorage.setItem(notifyKey, 'true');
+          sendNotification({
+            targetRole: 'STAFF',
+            userId: user?.userId || 8,
+            title: '📋 Nhiệm vụ ca trực hôm nay',
+            content: `Hôm nay bạn có ${todayCount} công việc chăm sóc cần thực hiện trên các thửa đất phụ trách. Vui lòng kiểm tra và hoàn thành đúng tiến độ.`,
+            type: 'DAILY_TASK',
+            link: '/staff/dashboard?tab=tasks'
+          });
+        }
+      }
+    }
+  }, [tasks, user]);
 
   return (
     <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">

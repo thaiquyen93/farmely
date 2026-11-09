@@ -8,7 +8,7 @@ import { chatService } from '../api/communication/chatService';
  * @param {string} [options.initialThreadId]
  * @param {string} [options.senderName]
  */
-export function useRealtimeChat({ role = 'customer', initialThreadId = null, senderName = '' } = {}) {
+export function useRealtimeChat({ role = 'customer', initialThreadId = null, senderName = '', userId = null, customerEmail = '' } = {}) {
   const [threads, setThreads] = useState(() => chatService.getThreads());
   const [selectedThreadId, setSelectedThreadId] = useState(initialThreadId);
   const [activeFilter, setActiveFilter] = useState('all');
@@ -19,14 +19,35 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
     setThreads(latest);
   }, []);
 
-  // Sync backend messages on mount if available
   useEffect(() => {
-    if (typeof chatService.syncBackendMessages === 'function') {
-      chatService.syncBackendMessages().then(() => {
+    if (role !== 'customer' || !userId || !initialThreadId) return;
+    chatService.upsertCustomerThread({
+      threadId: initialThreadId,
+      participantUserId: userId,
+      customerName: senderName,
+      customerEmail
+    });
+    refreshThreads();
+  }, [role, userId, initialThreadId, senderName, customerEmail, refreshThreads]);
+
+  // Poll the shared backend so separate customer and expert sessions see replies.
+  useEffect(() => {
+    if (!userId) return;
+    let inFlight = false;
+    const sync = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        await chatService.syncBackendMessages({ role, userId });
         refreshThreads();
-      }).catch(() => {});
-    }
-  }, [refreshThreads]);
+      } finally {
+        inFlight = false;
+      }
+    };
+    sync();
+    const timer = window.setInterval(sync, 15000);
+    return () => window.clearInterval(timer);
+  }, [role, userId, refreshThreads]);
 
   // Update selectedThreadId if initialThreadId changes
   useEffect(() => {

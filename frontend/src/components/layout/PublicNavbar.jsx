@@ -5,6 +5,11 @@ import { useAuthStore } from '../../stores/authStore';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
+import {
+  getNotificationsForUser,
+  markAsRead,
+  markAllAsReadForUser
+} from '../../services/notificationService';
 
 export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false }) {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -80,19 +85,46 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
     }
   }, [isAuthenticated, refreshUser]);
 
+  const loadUserNotifications = async () => {
+    if (!user) return;
+    const localNotifs = getNotificationsForUser(user);
+    try {
+      if (user?.userId) {
+        const remote = unwrapData(await apiFetch(`/api/v1/notifications?userId=${user.userId}`)) || [];
+        const merged = [...localNotifs];
+        for (const r of remote) {
+          if (!merged.some((m) => String(m.id || m.notificationId) === String(r.notificationId || r.id))) {
+            merged.push(r);
+          }
+        }
+        setNotifications(merged);
+        return;
+      }
+    } catch (_) {}
+    setNotifications(localNotifs);
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      loadUserNotifications();
+    }
+  }, [isAuthenticated, user]);
+
+  useEffect(() => {
+    const handleNotifEvent = () => {
+      if (isAuthenticated && user) {
+        loadUserNotifications();
+      }
+    };
+    window.addEventListener('farmely_notification_received', handleNotifEvent);
+    return () => window.removeEventListener('farmely_notification_received', handleNotifEvent);
+  }, [isAuthenticated, user]);
+
   const toggleNotifications = async () => {
     const nextOpen = !notificationOpen;
     setNotificationOpen(nextOpen);
-    if (!nextOpen || !user?.userId) return;
-    setNotificationLoading(true);
-    setNotificationError('');
-    try {
-      setNotifications(unwrapData(await apiFetch(`/api/v1/notifications?userId=${user.userId}`)) || []);
-    } catch (error) {
-      setNotifications([]);
-      setNotificationError(error.message);
-    } finally {
-      setNotificationLoading(false);
+    if (nextOpen && user) {
+      loadUserNotifications();
     }
   };
 
@@ -459,20 +491,84 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
               </div>
             )}
 
-            {isAuthenticated && user?.role === 'CUSTOMER' && (
+            {isAuthenticated && (
               <div className="relative">
-                <button type="button" onClick={toggleNotifications} className="relative flex h-8 w-8 lg:h-9 lg:w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10 hover:text-brand-yellow" aria-label="Thông báo">
+                <button
+                  type="button"
+                  onClick={toggleNotifications}
+                  className="relative flex h-8 w-8 lg:h-9 lg:w-9 items-center justify-center rounded-full text-white/90 transition hover:bg-white/10 hover:text-brand-yellow"
+                  aria-label="Thông báo hệ thống"
+                  title="Thông báo hệ thống"
+                >
                   <Bell className="h-4 w-4" />
-                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-[#294C3B] bg-orange-400" />
+                  {notifications.filter((n) => !n.isRead).length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center border-2 border-[#1E3A2F] shadow-sm animate-pulse">
+                      {notifications.filter((n) => !n.isRead).length > 9 ? '9+' : notifications.filter((n) => !n.isRead).length}
+                    </span>
+                  )}
                 </button>
                 {notificationOpen && (
-                  <div className="absolute right-0 z-[70] mt-3 w-80 rounded-2xl border border-brand-border bg-white p-3 text-brand-dark shadow-elevated">
-                    <div className="flex items-center justify-between border-b border-brand-border pb-2"><p className="text-xs font-black">Thông báo gần đây</p><span className="text-[10px] font-bold text-emerald-600">{notifications.length} thông báo</span></div>
-                    <div className="mt-2 space-y-1">
-                      {notificationLoading && <p className="p-3 text-xs text-brand-muted">Đang tải thông báo...</p>}
+                  <div className="absolute right-0 z-[70] mt-3 w-80 sm:w-96 rounded-2xl border border-brand-border bg-white p-3.5 text-brand-dark shadow-elevated animate-in fade-in zoom-in-95 duration-150">
+                    <div className="flex items-center justify-between border-b border-brand-border pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-brand-green" />
+                        <p className="text-xs font-black text-brand-dark uppercase tracking-wider">Thông Báo Hệ Thống</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {notifications.filter((n) => !n.isRead).length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              markAllAsReadForUser(user);
+                              loadUserNotifications();
+                            }}
+                            className="text-[10px] font-bold text-brand-green hover:underline cursor-pointer"
+                          >
+                            Đọc tất cả
+                          </button>
+                        )}
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          {notifications.length} tin
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-2.5 space-y-1.5 max-h-80 overflow-y-auto pr-1">
+                      {notificationLoading && <p className="p-3 text-xs text-brand-muted text-center">Đang tải thông báo...</p>}
                       {notificationError && <p className="rounded-xl bg-rose-50 p-3 text-xs text-rose-700">{notificationError}</p>}
-                      {!notificationLoading && !notificationError && notifications.length === 0 && <p className="p-3 text-xs text-brand-muted">Chưa có thông báo.</p>}
-                      {notifications.map((notice) => <div key={notice.notificationId || notice.id} className="rounded-xl bg-stone-50 p-3 text-left"><p className="text-xs font-bold text-stone-800">{notice.title}</p><p className="mt-1 text-[10px] text-stone-600">{notice.content}</p></div>)}
+                      {!notificationLoading && !notificationError && notifications.length === 0 && (
+                        <div className="p-6 text-center text-stone-400 space-y-1">
+                          <Bell className="w-6 h-6 mx-auto opacity-30" />
+                          <p className="text-xs">Hiện tại không có thông báo mới.</p>
+                        </div>
+                      )}
+                      {notifications.map((notice) => (
+                        <div
+                          key={notice.notificationId || notice.id}
+                          onClick={() => {
+                            markAsRead(notice.id || notice.notificationId);
+                            setNotificationOpen(false);
+                            if (notice.link) {
+                              navigate(notice.link);
+                            }
+                          }}
+                          className={`rounded-xl p-3 text-left transition-colors cursor-pointer border ${
+                            notice.isRead
+                              ? 'bg-stone-50/60 border-stone-100 hover:bg-stone-100/80 text-stone-600'
+                              : 'bg-emerald-50/40 border-emerald-200 hover:bg-emerald-50 text-brand-dark font-medium shadow-2xs'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs font-bold text-stone-900 leading-tight">{notice.title}</p>
+                            {!notice.isRead && (
+                              <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 mt-1" />
+                            )}
+                          </div>
+                          <p className="mt-1 text-[11px] text-stone-600 leading-snug">{notice.content}</p>
+                          <span className="mt-1.5 block text-[9px] text-stone-400">
+                            {notice.createdAt ? new Date(notice.createdAt).toLocaleString('vi-VN') : 'Vừa xong'}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

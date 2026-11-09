@@ -174,7 +174,8 @@ export default function ExpertDashboard() {
   } = useRealtimeChat({
     role: 'expert',
     initialThreadId: null,
-    senderName: expertSenderName
+    senderName: expertSenderName,
+    userId: user?.userId
   });
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'worker' | 'pending'
@@ -218,7 +219,7 @@ export default function ExpertDashboard() {
   };
 
   // Handle send message in the shared, non plot based conversation.
-  const handleSendCustomerMessage = (e) => {
+  const handleSendCustomerMessage = async (e) => {
     if (e) e.preventDefault();
     if (!chatInputText.trim()) return;
 
@@ -226,8 +227,13 @@ export default function ExpertDashboard() {
       ? user.fullName
       : (activeRealtimeThread?.expertName || expertSenderName);
 
-    sendExpertMessage(chatInputText.trim(), currentExpert);
-    setChatInputText('');
+    try {
+      await sendExpertMessage(chatInputText.trim(), currentExpert);
+      setChatInputText('');
+    } catch (error) {
+      window.alert(error.message || 'Không thể gửi tin nhắn');
+      return;
+    }
     setTimeout(() => {
       if (chatContainerRef.current) {
         chatContainerRef.current.scrollTo({
