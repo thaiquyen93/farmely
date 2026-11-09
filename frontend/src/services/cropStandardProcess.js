@@ -1277,6 +1277,10 @@ function enforceSequentialSeasons(rawSeasons = [], plot = {}) {
   let accumulatedDays = 0;
   let earlierSeasonIncomplete = false;
 
+  const plotKey = String(plot.plotCode || plot.mapPlotId || plot.id || '').replace(/^PLOT-|^Thửa\s*/i, '').trim().toUpperCase();
+  const savedActiveSeason = typeof window !== 'undefined' ? localStorage.getItem(`farmely_active_season_${plotKey}`) : null;
+  const targetActiveIdx = rawSeasons.findIndex((s, i) => s.isApprovedByAdmin || s.id === savedActiveSeason || (savedActiveSeason === `SEASON-${i + 1}`));
+
   rawSeasons.forEach((s, idx) => {
     const seasonNumber = idx + 1;
     const cropKey = s.cropKey || detectCropKey(s.cropName || plot.crop || 'lettuce');
@@ -1298,11 +1302,35 @@ function enforceSequentialSeasons(rawSeasons = [], plot = {}) {
     let isCurrent = false;
     let inFallow = false;
 
-    if (s.status === 'COMPLETED') {
+    if (targetActiveIdx !== -1) {
+      if (idx < targetActiveIdx) {
+        status = 'COMPLETED';
+        currentDayInSeason = seasonDuration;
+        isCurrent = false;
+        inFallow = false;
+      } else if (idx === targetActiveIdx) {
+        status = 'ACTIVE';
+        currentDayInSeason = Number(s.currentDay) || 1;
+        isCurrent = true;
+        inFallow = false;
+        earlierSeasonIncomplete = true;
+      } else {
+        status = 'SCHEDULED';
+        currentDayInSeason = 0;
+        isCurrent = false;
+        inFallow = false;
+      }
+    } else if (s.status === 'COMPLETED') {
       status = 'COMPLETED';
       currentDayInSeason = seasonDuration;
       isCurrent = false;
       inFallow = false;
+    } else if (s.isApprovedByAdmin) {
+      status = 'ACTIVE';
+      currentDayInSeason = 1;
+      isCurrent = true;
+      inFallow = false;
+      earlierSeasonIncomplete = true;
     } else if (earlierSeasonIncomplete) {
       status = 'SCHEDULED';
       currentDayInSeason = 0;
@@ -1338,7 +1366,7 @@ function enforceSequentialSeasons(rawSeasons = [], plot = {}) {
       status = 'SCHEDULED';
       currentDayInSeason = 0;
       isCurrent = false;
-      earlierSeasonIncomplete = true;
+      inFallow = false;
     }
 
     normalized.push({

@@ -6,8 +6,8 @@ import Select from '../../components/common/Select';
 import BoundaryDrawMap from '../../components/admin/BoundaryDrawMap';
 import { farmApi, PLOT_STATUS_OPTIONS } from '../../api/farm/farmApi';
 import { clearCompatibilityCache } from '../../utils/leaseSelection';
-import { areaM2, cleanRing, formatArea, validateRing } from '../../utils/polygonGeometry';
-import { AlertTriangle, ArrowLeft, Calculator, CheckCircle2, Globe, Loader2, Lock, Save, Search, Sparkles, Sprout } from 'lucide-react';
+import { cleanRing, formatArea, validateRing } from '../../utils/polygonGeometry';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Globe, Loader2, Lock, Save } from 'lucide-react';
 
 export default function PlotForm() {
   const [searchParams] = useSearchParams();
@@ -20,9 +20,8 @@ export default function PlotForm() {
   const [land, setLand] = useState(null); // chi tiết nông trại đang chọn (ranh giới + thửa khác)
   const [code, setCode] = useState('');
   const [manualArea, setManualArea] = useState('');
-  const [unitRate, setUnitRate] = useState('15000'); // Đơn giá định mức tham khảo (đ/m²/tháng)
-  const [autoCalc, setAutoCalc] = useState(!editId); // Mặc định tự tính khi tạo mới
   const [price, setPrice] = useState('1200000');
+  const [carePrice, setCarePrice] = useState('0');
   const [status, setStatus] = useState('MAINT');
   const [isPublished, setIsPublished] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
@@ -54,11 +53,7 @@ export default function PlotForm() {
           setOriginalCode(plot.plotCode || '');
           setManualArea(plot.area != null ? String(plot.area) : '');
           setPrice(plot.pricePerPeriod != null ? String(plot.pricePerPeriod) : '');
-          if (plot.area && Number(plot.area) > 0 && plot.pricePerPeriod) {
-            const calculatedRate = Math.round(Number(plot.pricePerPeriod) / Number(plot.area));
-            setUnitRate(String(calculatedRate));
-          }
-          setAutoCalc(false);
+          setCarePrice(plot.carePricePerMonth != null ? String(plot.carePricePerMonth) : '0');
           setStatus(plot.status || 'MAINT');
           setOriginalStatus(plot.status);
           setIsPublished(Boolean(plot.isPublished));
@@ -104,31 +99,14 @@ setBoundary(plot.boundary || []);
   const ringCheck = hasRing ? validateRing(ring, { outer: outer?.ring, outerName: outer?.label, others }) : null;
   const lockedBoundary = editId && originalStatus === 'RENT';
 
-  const currentArea = useMemo(() => {
-    if (hasRing) return areaM2(ring);
-    return Number(manualArea) || 0;
-  }, [hasRing, ring, manualArea]);
-
-  const suggestedPrice = useMemo(() => {
-    const rate = Number(unitRate) || 0;
-    if (currentArea <= 0 || rate <= 0) return 0;
-    return Math.round((currentArea * rate) / 10000) * 10000;
-  }, [currentArea, unitRate]);
-
-  // Tự động nhảy giá khi vẽ bản đồ hoặc đổi đơn giá (nếu đang bật tự động tính)
-  useEffect(() => {
-    if (autoCalc && suggestedPrice > 0) {
-      setPrice(String(suggestedPrice));
-    }
-  }, [autoCalc, suggestedPrice]);
-
   const validate = () => {
     const errs = {};
     if (!landId) errs.landId = 'Chọn nông trại chứa thửa đất.';
     if (!code.trim()) errs.code = 'Nhập mã thửa đất (vd P-17).';
     if (!hasRing && !(Number(manualArea) > 0) && !lockedBoundary) errs.area = 'Vẽ ranh giới trên bản đồ hoặc nhập diện tích.';
     if (!(Number(price) >= 0) || price === '') errs.price = 'Nhập giá thuê hợp lệ.';
-if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
+    if (!(Number(carePrice) >= 0) || carePrice === '') errs.carePrice = 'Nhập giá dịch vụ chăm sóc hợp lệ.';
+    if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -145,6 +123,7 @@ if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
         plotCode: code.trim(),
         area: hasRing ? null : Number(manualArea),
         pricePerPeriod: Number(price),
+        carePricePerMonth: Number(carePrice),
         status: effectiveStatus,
         isPublished,
         imageUrl: imageUrl.trim() || null,
@@ -210,19 +189,7 @@ if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-          <Input
-            label="Đơn giá định mức (đ/m²/tháng)"
-            type="number"
-            min={1000}
-            step={1000}
-            value={unitRate}
-            onChange={(e) => {
-              setUnitRate(e.target.value);
-              setAutoCalc(true);
-            }}
-            helperText="Nhân với m² để tự gợi ý giá thuê"
-          />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Input
             label="Giá thuê / tháng (VND)"
             type="number"
@@ -230,34 +197,17 @@ if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
             step={1000}
             required
             value={price}
-            onChange={(e) => {
-              setPrice(e.target.value);
-              setAutoCalc(false);
-            }}
+            onChange={(e) => setPrice(e.target.value)}
             error={errors.price}
-            helperText={
-              suggestedPrice > 0 ? (
-                <span className="flex items-center gap-1 text-[11px] text-emerald-700 font-medium">
-                  {autoCalc ? (
-                    '⚡ Tự động nhân theo diện tích'
-                  ) : (
-                    <>
-                      Gợi ý: <strong>{Number(suggestedPrice).toLocaleString('vi-VN')} đ</strong>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPrice(String(suggestedPrice));
-                          setAutoCalc(true);
-                        }}
-                        className="ml-1 font-bold text-emerald-700 underline hover:text-emerald-900 cursor-pointer"
-                      >
-                        [Áp dụng]
-                      </button>
-                    </>
-                  )}
-                </span>
-              ) : 'Nhập tay hoặc vẽ bản đồ để tự tính'
-            }
+          />
+          <Input
+            label="Dịch vụ trọn gói / Farmely chăm sóc (VND/tháng)"
+            type="number"
+            min={0}
+            step={1000}
+            value={carePrice}
+            onChange={(e) => setCarePrice(e.target.value)}
+            error={errors.carePrice}
           />
           <Select label="Trạng thái" required value={status} onChange={(e) => setStatus(e.target.value)} options={PLOT_STATUS_OPTIONS} />
           <Input label="Ảnh đại diện (URL)" placeholder="https://…" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
@@ -322,18 +272,6 @@ if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>
               <h3 className="text-xs font-bold uppercase tracking-wider text-brand-dark">Ranh giới thửa đất trên bản đồ</h3>
-              <p className="mt-0.5 text-xs text-stone-500">
-                {outer ? `Vẽ bên trong ranh giới vàng của ${outer.label}. Đặt góc gần góc thửa bên cạnh để tự hút khít bờ.` : 'Nông trại này chưa khoanh vùng — bạn vẫn vẽ được thửa, nhưng nên khoanh vùng nông trại trước.'}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-stone-600">Diện tích: <strong className="text-brand-dark">{currentArea > 0 ? formatArea(currentArea) : 'chưa vẽ'}</strong></p>
-              {currentArea > 2000 && <p className="max-w-xs text-xs font-semibold text-amber-700">Ranh giới đang rộng hơn 2.000 m²; hãy kiểm tra lại tỷ lệ bản đồ trước khi lưu.</p>}
-              {suggestedPrice > 0 && (
-                <p className="text-xs font-semibold text-emerald-700">
-                  Tạm tính: {suggestedPrice.toLocaleString('vi-VN')} đ/tháng ({Number(unitRate).toLocaleString('vi-VN')} đ/m²)
-                </p>
-              )}
             </div>
           </div>
 

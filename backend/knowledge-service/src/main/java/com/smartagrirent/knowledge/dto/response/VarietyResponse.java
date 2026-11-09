@@ -18,5 +18,7 @@ public class VarietyResponse {
     private String varietyName;
     private Integer expectedDuration;
     private Integer bufferTime;
+    private String imageUrl;
+    private Boolean isActive;
     private OffsetDateTime createdAt;
 }

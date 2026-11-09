@@ -1,0 +1,168 @@
+<mxfile host="app.diagrams.net" agent="Antigravity" version="21.0.0">
+  <diagram id="farmely-architecture-layers" name="Farmely Architecture Layers">
+    <mxGraphModel dx="1200" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="1150" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ==================== TITLE ==================== -->
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;font style=&quot;font-size: 24px; font-weight: 800; font-family: Helvetica; color: #0F172A;&quot;&gt;Web Application Architecture Layers&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size: 12px; color: #64748B; font-weight: 500;&quot;&gt;Farmely Smart Agri-Leasing Platform Blueprint&lt;/font&gt;" vertex="1">
+          <mxGeometry x="100" y="30" width="800" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== 1. PRESENTATION LAYER ==================== -->
+        <!-- Container Box -->
+        <mxCell id="layer-presentation" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#334155;strokeWidth=1.8;verticalAlign=top;align=left;" value="" vertex="1">
+          <mxGeometry x="80" y="110" width="840" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Blue Pill Badge -->
+        <mxCell id="badge-presentation" parent="1" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#2563EB;strokeColor=none;fontColor=#FFFFFF;fontStyle=1;fontSize=12;align=center;" value="Presentation Layer" vertex="1">
+          <mxGeometry x="710" y="95" width="170" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Card: User -->
+        <mxCell id="card-user" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E293B;strokeWidth=1.5;align=center;spacingTop=6;" value="&lt;b style=&quot;font-size: 14.5px; color: #0F172A;&quot;&gt;User&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #64748B;&quot;&gt;Customer · Expert · Admin&lt;/font&gt;" vertex="1">
+          <mxGeometry x="110" y="135" width="190" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Card: Fire Wall / Proxy Wall -->
+        <mxCell id="card-firewall" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E293B;strokeWidth=1.5;align=center;spacingTop=6;" value="&lt;b style=&quot;font-size: 14.5px; color: #0F172A;&quot;&gt;Fire Wall / Proxy Wall&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #64748B;&quot;&gt;Gateway :8080 · JWT Guard&lt;/font&gt;" vertex="1">
+          <mxGeometry x="385" y="135" width="220" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Card: Web Server -->
+        <mxCell id="card-webserver" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E293B;strokeWidth=1.5;align=center;spacingTop=6;" value="&lt;b style=&quot;font-size: 14.5px; color: #0F172A;&quot;&gt;Web Server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #64748B;&quot;&gt;React 19 SPA · Leaflet · Vite&lt;/font&gt;" vertex="1">
+          <mxGeometry x="690" y="135" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Flow: User -> Firewall -->
+        <mxCell id="edge-user-firewall" parent="1" source="card-user" target="card-firewall" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#1E293B;strokeWidth=1.5;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Flow: Firewall -> Web Server -->
+        <mxCell id="edge-firewall-webserver" parent="1" source="card-firewall" target="card-webserver" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#1E293B;strokeWidth=1.5;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+
+        <!-- ==================== 2. BUSINESS LAYER ==================== -->
+        <!-- Container Box -->
+        <mxCell id="layer-business" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#334155;strokeWidth=1.8;verticalAlign=top;align=left;" value="" vertex="1">
+          <mxGeometry x="80" y="300" width="840" height="350" as="geometry" />
+        </mxCell>
+
+        <!-- Blue Pill Badge -->
+        <mxCell id="badge-business" parent="1" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#2563EB;strokeColor=none;fontColor=#FFFFFF;fontStyle=1;fontSize=12;align=center;" value="Business Layer" vertex="1">
+          <mxGeometry x="425" y="285" width="150" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Sub-headers -->
+        <mxCell id="lbl-api" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b style=&quot;font-size: 13px; color: #1E293B;&quot;&gt;API Layer&lt;/b&gt;" vertex="1">
+          <mxGeometry x="150" y="320" width="100" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl-app" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b style=&quot;font-size: 13px; color: #1E293B;&quot;&gt;App&lt;/b&gt;" vertex="1">
+          <mxGeometry x="385" y="320" width="100" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lbl-backend" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b style=&quot;font-size: 13px; color: #1E293B;&quot;&gt;Back End&lt;/b&gt;" vertex="1">
+          <mxGeometry x="690" y="320" width="100" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Card: Web Services API -->
+        <mxCell id="card-api" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E293B;strokeWidth=1.5;align=center;spacingTop=6;" value="&lt;b style=&quot;font-size: 14.5px; color: #0F172A;&quot;&gt;Web&lt;br&gt;Services&lt;br&gt;API&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #64748B;&quot;&gt;Identity :8081&lt;br&gt;REST Dispatcher&lt;br&gt;Scheduled Jobs&lt;/font&gt;" vertex="1">
+          <mxGeometry x="110" y="350" width="180" height="220" as="geometry" />
+        </mxCell>
+
+        <!-- Card: Business Logic -->
+        <mxCell id="card-bizlogic" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E293B;strokeWidth=1.5;align=center;spacingTop=6;" value="&lt;b style=&quot;font-size: 14.5px; color: #0F172A;&quot;&gt;Business&lt;br&gt;Logic&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10px; color: #64748B;&quot;&gt;Farm &amp;amp; GIS (:8082)&lt;br&gt;Rental Booking (:8084)&lt;br&gt;Cultivation Tasks (:8086)&lt;br&gt;VietGAP Catalog (:8083)&lt;/font&gt;" vertex="1">
+          <mxGeometry x="340" y="350" width="200" height="220" as="geometry" />
+        </mxCell>
+
+        <!-- Card: Back End Split Container -->
+        <mxCell id="card-backend-box" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E293B;strokeWidth=1.5;verticalAlign=top;align=center;" value="" vertex="1">
+          <mxGeometry x="585" y="350" width="305" height="220" as="geometry" />
+        </mxCell>
+        <!-- Upper Compartment: Payment & Communication -->
+        <mxCell id="card-be-upper" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b style=&quot;font-size: 13.5px; color: #0F172A;&quot;&gt;Payment &amp;amp; Communication&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #64748B;&quot;&gt;VNPay Service (:8085) · Chat (:8087)&lt;/font&gt;" vertex="1">
+          <mxGeometry x="590" y="360" width="295" height="90" as="geometry" />
+        </mxCell>
+        <!-- Horizontal Divider line -->
+        <mxCell id="divider-backend" parent="1" style="edgeStyle=none;rounded=0;strokeColor=#1E293B;strokeWidth=1.5;endArrow=none;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="460" as="sourcePoint" />
+            <mxPoint x="890" y="460" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <!-- Lower Compartment: Agro Telemetry & AI Engine -->
+        <mxCell id="card-be-lower" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" value="&lt;b style=&quot;font-size: 13.5px; color: #0F172A;&quot;&gt;Agro Telemetry &amp;amp; AI Engine&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #64748B;&quot;&gt;Monitoring (:8088) · AI FastAPI (:8089)&lt;/font&gt;" vertex="1">
+          <mxGeometry x="590" y="470" width="295" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Upward Flow: Business Layer -> Web Server -->
+        <mxCell id="edge-biz-webserver" parent="1" source="card-backend-box" target="card-webserver" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#1E293B;strokeWidth=1.5;endArrow=classic;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Flow: Business Logic -> Back End (Upper) -->
+        <mxCell id="edge-biz-be-upper" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#1E293B;strokeWidth=1.5;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="540" y="420" as="sourcePoint" />
+            <mxPoint x="585" y="420" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Flow: Back End (Lower) -> Business Logic -->
+        <mxCell id="edge-be-biz-lower" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#1E293B;strokeWidth=1.5;endArrow=classic;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="585" y="500" as="sourcePoint" />
+            <mxPoint x="540" y="500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+
+        <!-- ==================== 3. DATA LAYER ==================== -->
+        <!-- Container Box -->
+        <mxCell id="layer-data" parent="1" style="rounded=1;arcSize=10;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#334155;strokeWidth=1.8;verticalAlign=top;align=left;" value="" vertex="1">
+          <mxGeometry x="80" y="710" width="840" height="230" as="geometry" />
+        </mxCell>
+
+        <!-- Blue Pill Badge -->
+        <mxCell id="badge-data" parent="1" style="rounded=1;arcSize=50;whiteSpace=wrap;html=1;fillColor=#2563EB;strokeColor=none;fontColor=#FFFFFF;fontStyle=1;fontSize=12;align=center;" value="Data Layer" vertex="1">
+          <mxGeometry x="435" y="695" width="130" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Card: Database Services -->
+        <mxCell id="card-db" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E293B;strokeWidth=1.5;align=center;spacingTop=6;" value="&lt;b style=&quot;font-size: 15px; color: #0F172A;&quot;&gt;Database Services&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: #64748B;&quot;&gt;PostgreSQL 16 · Schema 24 Tables&lt;/font&gt;&lt;br&gt;&lt;b style=&quot;font-size: 11px; color: #2563EB;&quot;&gt;pgvector Extension (AI RAG)&lt;/b&gt;" vertex="1">
+          <mxGeometry x="180" y="750" width="270" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Card: Third Party Services -->
+        <mxCell id="card-thirdparty" parent="1" style="rounded=1;arcSize=14;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1E293B;strokeWidth=1.5;align=center;spacingTop=6;" value="&lt;b style=&quot;font-size: 15px; color: #0F172A;&quot;&gt;Third Party Services&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size: 10.5px; color: #64748B;&quot;&gt;VNPay Sandbox · Open-Meteo Agro API&lt;br&gt;Google Gemini 1.5 Flash · OpenStreetMap&lt;/font&gt;" vertex="1">
+          <mxGeometry x="500" y="750" width="370" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Flow: Business Logic -> Database Services -->
+        <mxCell id="edge-biz-db" parent="1" source="card-bizlogic" target="card-db" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#1E293B;strokeWidth=1.5;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="650" />
+              <mxPoint x="315" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Flow: Back End -> Third Party Services -->
+        <mxCell id="edge-be-thirdparty" parent="1" source="card-backend-box" target="card-thirdparty" style="edgeStyle=orthogonalEdgeStyle;rounded=0;strokeColor=#1E293B;strokeWidth=1.5;endArrow=classic;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="738" y="650" />
+              <mxPoint x="685" y="650" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

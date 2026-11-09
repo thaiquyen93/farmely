@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Farmely — Web Application Architecture Layers</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .arch-card {
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .arch-card:hover {
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-600 via-blue-500 to-sky-400 min-h-screen p-4 md:p-8 flex flex-col items-center justify-center">
+
+  <!-- Top Action Toolbar -->
+  <div class="w-full max-w-[1020px] mb-4 flex items-center justify-between bg-white/90 backdrop-blur-md px-6 py-3.5 rounded-2xl shadow-lg border border-white/40">
+    <div class="flex items-center gap-3">
+      <span class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+      <span class="text-xs font-black tracking-wider text-slate-800 uppercase">Minimalist Architecture Blueprint</span>
+      <span class="text-xs text-slate-500 hidden sm:inline">| Ký hiệu tinh giản, đúng chuẩn 3 lớp, không rườm rà</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="06_Farmely_System_Architecture_3Layers.drawio" download class="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition flex items-center gap-1.5 border border-slate-300">
+        <svg class="w-3.5 h-3.5 text-amber-600" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+        Tải file .drawio
+      </a>
+      <button onclick="downloadPNG()" class="px-4 py-1.5 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-700 text-white shadow-md transition flex items-center gap-1.5 cursor-pointer">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Tải ảnh Slide PNG (Siêu nét)
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Container Card (Exact visual style of reference image) -->
+  <div class="w-full max-w-[1020px] bg-white rounded-[32px] shadow-2xl p-6 sm:p-10 border border-white/60 relative overflow-hidden">
+    
+    <!-- Title at top matching reference image -->
+    <div class="text-center mb-8">
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+        Web Application Architecture Layers
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-500 font-medium mt-1">Farmely Smart Agri-Leasing Platform</p>
+    </div>
+
+    <!-- SVG Canvas -->
+    <svg id="farmely-layers-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 1020" class="w-full h-auto" style="background-color: #ffffff; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;">
+      <defs>
+        <!-- Standard Crisp Flow Arrow Marker -->
+        <marker id="arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#1e293b" />
+        </marker>
+        <marker id="arrow-blue" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#2563eb" />
+        </marker>
+        <marker id="arrow-bidir" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#1e293b" />
+        </marker>
+        <marker id="arrow-bidir-start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M 8 1.5 L 0 5 L 8 8.5 z" fill="#1e293b" />
+        </marker>
+
+        <!-- Drop shadow for clean cards -->
+        <filter id="soft-shadow" x="-5%" y="-5%" width="110%" height="115%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.04"/>
+        </filter>
+      </defs>
+
+      <!-- ========================================================================= -->
+      <!-- 1. PRESENTATION LAYER                                                     -->
+      <!-- ========================================================================= -->
+      <g id="layer-presentation">
+        <!-- Container Box -->
+        <rect x="50" y="45" width="840" height="160" rx="20" fill="#ffffff" stroke="#334155" stroke-width="1.6" />
+        
+        <!-- Blue Pill Badge sitting on top border -->
+        <g transform="translate(640, 29)">
+          <rect width="180" height="32" rx="16" fill="#2563eb" />
+          <text x="90" y="20.5" font-size="12" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.3">Presentation Layer</text>
+        </g>
+
+        <!-- Card 1: User -->
+        <g transform="translate(85, 75)" class="arch-card" filter="url(#soft-shadow)">
+          <rect width="195" height="105" rx="14" fill="#ffffff" stroke="#1e293b" stroke-width="1.5" />
+          <!-- User Circle Icon -->
+          <g transform="translate(97.5, 36)">
+            <circle cx="0" cy="0" r="22" fill="none" stroke="#1e293b" stroke-width="1.8" />
+            <circle cx="0" cy="-6" r="7.5" fill="none" stroke="#1e293b" stroke-width="1.8" />
+            <path d="M -13 14 C -13 5, 13 5, 13 14" fill="none" stroke="#1e293b" stroke-width="1.8" stroke-linecap="round" />
+          </g>
+          <text x="97.5" y="75" font-size="14.5" font-weight="800" fill="#0f172a" text-anchor="middle">User</text>
+          <text x="97.5" y="93" font-size="10.5" font-weight="600" fill="#64748b" text-anchor="middle">Customer · Expert · Admin</text>
+        </g>
+
+        <!-- Flow Arrow: User -> Proxy -->
+        <path d="M 280 128 L 360 128" fill="none" stroke="#1e293b" stroke-width="1.6" marker-end="url(#arrow)" />
+
+        <!-- Card 2: Firewall / Proxy Wall -->
+        <g transform="translate(365, 75)" class="arch-card" filter="url(#soft-shadow)">
+          <rect width="210" height="105" rx="14" fill="#ffffff" stroke="#1e293b" stroke-width="1.5" />
+          <!-- Server Shield Icon -->
+          <g transform="translate(105, 36)">
+            <rect x="-18" y="-18" width="36" height="14" rx="3" fill="none" stroke="#1e293b" stroke-width="1.8" />
+            <circle cx="-10" cy="-11" r="1.5" fill="#1e293b" />
+            <circle cx="-5" cy="-11" r="1.5" fill="#1e293b" />
+            <rect x="-18" y="-1" width="36" height="14" rx="3" fill="none" stroke="#1e293b" stroke-width="1.8" />
+            <circle cx="-10" cy="6" r="1.5" fill="#1e293b" />
+            <circle cx="-5" cy="6" r="1.5" fill="#1e293b" />
+            <!-- Security Shield Overlay -->
+            <path d="M 2 4 L 16 7 L 16 15 C 16 19, 9 22, 9 22 C 9 22, 2 19, 2 15 Z" fill="#ffffff" stroke="#2563eb" stroke-width="1.8" />
+            <path d="M 6 12 L 8.5 14.5 L 12.5 9" fill="none" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </g>
+          <text x="105" y="75" font-size="14.5" font-weight="800" fill="#0f172a" text-anchor="middle">Fire Wall / Proxy Wall</text>
+          <text x="105" y="93" font-size="10.5" font-weight="600" fill="#64748b" text-anchor="middle">Gateway :8080 · JWT Guard</text>
+        </g>
+
+        <!-- Flow Arrow: Proxy -> Web Client -->
+        <path d="M 575 128 L 655 128" fill="none" stroke="#1e293b" stroke-width="1.6" marker-end="url(#arrow)" />
+
+        <!-- Card 3: Web Client / Web Server -->
+        <g transform="translate(660, 75)" class="arch-card" filter="url(#soft-shadow)">
+          <rect width="205" height="105" rx="14" fill="#ffffff" stroke="#1e293b" stroke-width="1.5" />
+          <!-- Globe / Web Browser Icon -->
+          <g transform="translate(102.5, 36)">
+            <circle cx="0" cy="0" r="18" fill="none" stroke="#1e293b" stroke-width="1.8" />
+            <line x1="-18" y1="0" x2="18" y2="0" stroke="#1e293b" stroke-width="1.6" />
+            <ellipse cx="0" cy="0" rx="8" ry="18" fill="none" stroke="#1e293b" stroke-width="1.6" />
+          </g>
+          <text x="102.5" y="75" font-size="14.5" font-weight="800" fill="#0f172a" text-anchor="middle">Web Server</text>
+          <text x="102.5" y="93" font-size="10.5" font-weight="600" fill="#64748b" text-anchor="middle">React 19 SPA · Leaflet · Vite</text>
+        </g>
+      </g>
+
+      <!-- Flow Arrow: Business Layer -> Web Server (Response / Request upward/downward) -->
+      <path d="M 762 300 L 762 205" fill="none" stroke="#1e293b" stroke-width="1.6" marker-end="url(#arrow)" />
+
+      <!-- ========================================================================= -->
+      <!-- 2. BUSINESS LAYER                                                         -->
+      <!-- ========================================================================= -->
+      <g id="layer-business">
+        <!-- Container Box -->
+        <rect x="50" y="300" width="840" height="340" rx="20" fill="#ffffff" stroke="#334155" stroke-width="1.6" />
+        
+        <!-- Blue Pill Badge sitting on top border -->
+        <g transform="translate(390, 284)">
+          <rect width="160" height="32" rx="16" fill="#2563eb" />
+          <text x="80" y="20.5" font-size="12" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.3">Business Layer</text>
+        </g>
+
+        <!-- Column Sub-Headers matching reference image -->
+        <text x="180" y="340" font-size="13" font-weight="800" fill="#1e293b" text-anchor="middle">API Layer</text>
+        <text x="430" y="340" font-size="13" font-weight="800" fill="#1e293b" text-anchor="middle">App</text>
+        <text x="700" y="340" font-size="13" font-weight="800" fill="#1e293b" text-anchor="middle">Back End</text>
+
+        <!-- Card 1 (API Layer): Web Services API -->
+        <g transform="translate(85, 360)" class="arch-card" filter="url(#soft-shadow)">
+          <rect width="190" height="195" rx="14" fill="#ffffff" stroke="#1e293b" stroke-width="1.5" />
+          <g transform="translate(95, 65)">
+            <rect x="-24" y="-24" width="48" height="48" rx="10" fill="#f8fafc" stroke="#3b82f6" stroke-width="1.6"/>
+            <!-- Plug / API Icon -->
+            <path d="M -12 -6 L -4 2 M -6 -12 L 2 -4 M -10 -4 L 4 10 L 8 6 L -6 -8 Z" fill="#2563eb" />
+            <line x1="6" y1="8" x2="14" y2="16" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+          <text x="95" y="125" font-size="14.5" font-weight="800" fill="#0f172a" text-anchor="middle">Web</text>
+          <text x="95" y="145" font-size="14.5" font-weight="800" fill="#0f172a" text-anchor="middle">Services API</text>
+          <text x="95" y="172" font-size="10" font-weight="600" fill="#64748b" text-anchor="middle">Identity :8081 · REST Routes</text>
+        </g>
+
+        <!-- Card 2 (App): Business Logic -->
+        <g transform="translate(325, 360)" class="arch-card" filter="url(#soft-shadow)">
+          <rect width="210" height="195" rx="14" fill="#ffffff" stroke="#1e293b" stroke-width="1.5" />
+          <g transform="translate(105, 60)">
+            <circle cx="0" cy="0" r="24" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.6"/>
+            <!-- Sprout / Agriculture Gear Icon -->
+            <path d="M -8 10 C -8 -4, 8 -8, 8 -8 C 8 -8, 8 6, -8 10 Z" fill="#22c55e" />
+            <line x1="-8" y1="10" x2="2" y2="0" stroke="#15803d" stroke-width="2" stroke-linecap="round" />
+            <path d="M 0 0 C 0 -6, -8 -8, -8 -8 C -8 -8, -8 2, 0 0 Z" fill="#4ade80" />
+          </g>
+          <text x="105" y="125" font-size="14.5" font-weight="800" fill="#0f172a" text-anchor="middle">Business</text>
+          <text x="105" y="145" font-size="14.5" font-weight="800" fill="#0f172a" text-anchor="middle">Logic</text>
+          <text x="105" y="172" font-size="10" font-weight="600" fill="#64748b" text-anchor="middle">Farm GIS · Rental · Tasks</text>
+        </g>
+
+        <!-- Card 3 (Back End): Split Compartment (Legacy / Enterprise) matching reference image -->
+        <g transform="translate(585, 360)" class="arch-card" filter="url(#soft-shadow)">
+          <!-- Outer border -->
+          <rect width="280" height="195" rx="14" fill="#ffffff" stroke="#1e293b" stroke-width="1.5" />
+          <!-- Horizontal Split Divider -->
+          <line x1="0" y1="97.5" x2="280" y2="97.5" stroke="#1e293b" stroke-width="1.5" />
+          
+          <!-- Top Compartment: Legacy Application / Microservices Support -->
+          <g transform="translate(140, 52)">
+            <text x="0" y="-3" font-size="14" font-weight="800" fill="#0f172a" text-anchor="middle">Payment &amp; Communication</text>
+            <text x="0" y="16" font-size="10.5" font-weight="600" fill="#64748b" text-anchor="middle">VNPay Service (:8085) · Chat (:8087)</text>
+          </g>
+
+          <!-- Bottom Compartment: Enterprise Information System / Monitoring & AI -->
+          <g transform="translate(140, 150)">
+            <text x="0" y="-3" font-size="14" font-weight="800" fill="#0f172a" text-anchor="middle">Agro Telemetry &amp; AI Engine</text>
+            <text x="0" y="16" font-size="10.5" font-weight="600" fill="#64748b" text-anchor="middle">Monitoring (:8088) · AI FastAPI (:8089)</text>
+          </g>
+        </g>
+
+        <!-- Connecting Arrows between Business Components -->
+        <!-- Business Logic -> Back End (Upper) -->
+        <path d="M 535 425 L 585 425" fill="none" stroke="#1e293b" stroke-width="1.6" marker-end="url(#arrow)" />
+        <!-- Back End -> Business Logic (Lower) -->
+        <path d="M 585 490 L 535 490" fill="none" stroke="#1e293b" stroke-width="1.6" marker-end="url(#arrow)" />
+      </g>
+
+      <!-- Flow Arrows between Business Layer and Data Layer (Matching reference image) -->
+      <!-- Flow from Business Logic down to Database Services -->
+      <path d="M 430 555 L 430 670 L 320 670 L 320 780" fill="none" stroke="#1e293b" stroke-width="1.6" marker-end="url(#arrow)" />
+
+      <!-- Flow from Back End down to Third Party Services -->
+      <path d="M 725 555 L 725 670 L 685 670 L 685 780" fill="none" stroke="#1e293b" stroke-width="1.6" marker-end="url(#arrow)" />
+
+      <!-- ========================================================================= -->
+      <!-- 3. DATA LAYER                                                             -->
+      <!-- ========================================================================= -->
+      <g id="layer-data">
+        <!-- Container Box -->
+        <rect x="50" y="720" width="840" height="230" rx="20" fill="#ffffff" stroke="#334155" stroke-width="1.6" />
+        
+        <!-- Blue Pill Badge sitting on top border -->
+        <g transform="translate(405, 704)">
+          <rect width="130" height="32" rx="16" fill="#2563eb" />
+          <text x="65" y="20.5" font-size="12" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="0.3">Data Layer</text>
+        </g>
+
+        <!-- Card 1: Database Services -->
+        <g transform="translate(180, 760)" class="arch-card" filter="url(#soft-shadow)">
+          <rect width="260" height="150" rx="14" fill="#ffffff" stroke="#1e293b" stroke-width="1.5" />
+          <g transform="translate(130, 48)">
+            <!-- Database Cylinder Icon -->
+            <ellipse cx="0" cy="-14" rx="22" ry="7" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.8"/>
+            <path d="M -22 -14 L -22 14 C -22 18, 22 18, 22 14 L 22 -14" fill="none" stroke="#0284c7" stroke-width="1.8"/>
+            <path d="M -22 0 C -22 4, 22 4, 22 0" fill="none" stroke="#0284c7" stroke-width="1.8"/>
+          </g>
+          <text x="130" y="95" font-size="15" font-weight="800" fill="#0f172a" text-anchor="middle">Database Services</text>
+          <text x="130" y="117" font-size="11" font-weight="600" fill="#64748b" text-anchor="middle">PostgreSQL 16 · 24 Tables</text>
+          <text x="130" y="133" font-size="10.5" font-weight="700" fill="#2563eb" text-anchor="middle">pgvector Extension (AI RAG)</text>
+        </g>
+
+        <!-- Card 2: Third Party Services -->
+        <g transform="translate(490, 760)" class="arch-card" filter="url(#soft-shadow)">
+          <rect width="360" height="150" rx="14" fill="#ffffff" stroke="#1e293b" stroke-width="1.5" />
+          <g transform="translate(180, 45)">
+            <!-- Cloud Connected Nodes Icon -->
+            <path d="M -16 6 C -22 6, -24 -2, -18 -6 C -18 -14, -6 -16, 0 -10 C 4 -16, 16 -14, 18 -6 C 24 -4, 24 6, 16 6 Z" fill="#fef3c7" stroke="#d97706" stroke-width="1.8"/>
+          </g>
+          <text x="180" y="92" font-size="15" font-weight="800" fill="#0f172a" text-anchor="middle">Third Party Services</text>
+          <text x="180" y="114" font-size="11" font-weight="600" fill="#64748b" text-anchor="middle">VNPay Sandbox · Open-Meteo Agro API</text>
+          <text x="180" y="132" font-size="10.5" font-weight="600" fill="#64748b" text-anchor="middle">Google Gemini 1.5 Flash · OpenStreetMap</text>
+        </g>
+      </g>
+
+    </svg>
+
+    <!-- Bottom Caption / Legend -->
+    <div class="mt-8 pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+      <div class="flex items-center gap-4">
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span> <strong>Presentation</strong> (Client &amp; Entry)</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-slate-800"></span> <strong>Business</strong> (Modular Services)</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-600"></span> <strong>Data</strong> (Shared DB &amp; APIs)</span>
+      </div>
+      <span class="font-semibold text-slate-600">Kiến trúc 3 lớp Farmely chuẩn hóa cho Slide</span>
+    </div>
+
+  </div>
+
+  <script>
+    function downloadPNG() {
+      const svg = document.getElementById('farmely-layers-svg');
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+
+      // Ultra-crisp 2.5x resolution for slides
+      const scale = 2.5;
+      canvas.width = 940 * scale;
+      canvas.height = 1020 * scale;
+
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const URLObj = window.URL || window.webkitURL || window;
+      const blobURL = URLObj.createObjectURL(svgBlob);
+
+      img.onload = function() {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URLObj.revokeObjectURL(blobURL);
+
+        const a = document.createElement('a');
+        a.download = 'Farmely_Web_Application_Architecture_Layers.png';
+        a.href = canvas.toDataURL('image/png');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      };
+
+      img.src = blobURL;
+    }
+  </script>
+</body>
+</html>

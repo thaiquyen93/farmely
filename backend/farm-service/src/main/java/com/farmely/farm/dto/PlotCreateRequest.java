@@ -34,6 +34,9 @@ public class PlotCreateRequest {
     @DecimalMin(value = "0.00", message = "Giá thuê không được âm")
     private BigDecimal pricePerPeriod;
 
+    @DecimalMin(value = "0.00", message = "Giá dịch vụ chăm sóc không được âm")
+    private BigDecimal carePricePerMonth;
+
     @Builder.Default
     private PlotStatus status = PlotStatus.AVAIL;
 

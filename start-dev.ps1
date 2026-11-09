@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Rebuild,
     [switch]$Wait
 )
@@ -178,12 +178,11 @@ try {
 
     $configuredPort = if ($env:DB_PORT) { [int]$env:DB_PORT } else { 5432 }
     $localPostgresPort = $null
-    if (Test-PortListening -port 5432) {
-        $localPostgresPort = 5432
-    } elseif (Test-PortListening -port $configuredPort) {
-        $localPostgresPort = $configuredPort
-    } elseif (Test-PortListening -port 5433) {
-        $localPostgresPort = 5433
+    foreach ($candidatePort in @(5432, $configuredPort, 5433) | Select-Object -Unique) {
+        if (Test-PortListening -port $candidatePort) {
+            $localPostgresPort = $candidatePort
+            break
+        }
     }
 
     # Tu dong khoi dong PostgreSQL neu chua chay tren may
@@ -534,7 +533,7 @@ SIMILARITY_THRESHOLD=0.10
         $nodeExecutable = (Get-Command node.exe -ErrorAction Stop).Source
         $viteScript = Join-Path $frontendRoot 'node_modules\vite\bin\vite.js'
         $frontendProcess = Start-Process -FilePath $nodeExecutable `
-            -ArgumentList @($viteScript, '--host', '0.0.0.0', '--port', "$frontendPort") `
+            -ArgumentList @($viteScript, '--host', '0.0.0.0', '--port', "$frontendPort", '--strictPort') `
             -WorkingDirectory $frontendRoot `
             -RedirectStandardOutput (Join-Path $runtimeDir 'frontend.out.log') `
             -RedirectStandardError (Join-Path $runtimeDir 'frontend.err.log') `
@@ -585,7 +584,7 @@ SIMILARITY_THRESHOLD=0.10
 
     Write-Host ''
     Write-Host 'Farmely is ready:' -ForegroundColor Green
-    Write-Host '  Frontend:      http://localhost:3000'
+    Write-Host "  Frontend:      http://localhost:$frontendPort"
     Write-Host '  API gateway:   http://localhost:8080'
     Write-Host '  Payment API:   http://localhost:8085/swagger-ui.html'
     Write-Host '  Communication: http://localhost:8087/swagger-ui.html'

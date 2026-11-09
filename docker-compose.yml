@@ -44,10 +44,10 @@ services:
     container_name: farmely-api-gateway
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
-      - DB_NAME=farmely
+      - DB_PORT=5434
+      - DB_NAME=newfarmely2
       - DB_USER=postgres
       - DB_PASS=${DB_PASSWORD:-@Bin054206}
       - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
@@ -74,10 +74,10 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-identity-service
     environment:
-      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
-      - DB_NAME=farmely
+      - DB_PORT=5434
+      - DB_NAME=newfarmely2
       - DB_USER=postgres
       - DB_PASS=${DB_PASSWORD:-@Bin054206}
       - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
@@ -95,10 +95,10 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-farm-service
     environment:
-      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
-      - DB_NAME=farmely
+      - DB_PORT=5434
+      - DB_NAME=newfarmely2
       - DB_USER=postgres
       - DB_PASS=${DB_PASSWORD:-@Bin054206}
       - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
@@ -116,10 +116,10 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-knowledge-service
     environment:
-      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
-      - DB_NAME=farmely
+      - DB_PORT=5434
+      - DB_NAME=newfarmely2
       - DB_USER=postgres
       - DB_PASS=${DB_PASSWORD:-@Bin054206}
       - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
@@ -137,10 +137,10 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-rental-service
     environment:
-      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
-      - DB_NAME=farmely
+      - DB_PORT=5434
+      - DB_NAME=newfarmely2
       - DB_USER=postgres
       - DB_PASS=${DB_PASSWORD:-@Bin054206}
       - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
@@ -158,10 +158,10 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-payment-service
     environment:
-      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
-      - DB_NAME=farmely
+      - DB_PORT=5434
+      - DB_NAME=newfarmely2
       - DB_USER=postgres
       - DB_PASS=${DB_PASSWORD:-@Bin054206}
       - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
@@ -179,10 +179,10 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-cultivation-service
     environment:
-      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
-      - DB_NAME=farmely
+      - DB_PORT=5434
+      - DB_NAME=newfarmely2
       - DB_USER=postgres
       - DB_PASS=${DB_PASSWORD:-@Bin054206}
       - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
@@ -200,10 +200,10 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-communication-service
     environment:
-      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
-      - DB_NAME=farmely
+      - DB_PORT=5434
+      - DB_NAME=newfarmely2
       - DB_USER=postgres
       - DB_PASS=${DB_PASSWORD:-@Bin054206}
       - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
@@ -221,10 +221,10 @@ services:
       dockerfile: Dockerfile
     container_name: farmely-monitoring-service
     environment:
-      - DB_URL=jdbc:postgresql://host.docker.internal:5432/farmely
+      - DB_URL=jdbc:postgresql://host.docker.internal:5434/newfarmely2
       - DB_HOST=host.docker.internal
-      - DB_PORT=5432
-      - DB_NAME=farmely
+      - DB_PORT=5434
+      - DB_NAME=newfarmely2
       - DB_USER=postgres
       - DB_PASS=${DB_PASSWORD:-@Bin054206}
       - DB_PASSWORD=${DB_PASSWORD:-@Bin054206}
@@ -243,7 +243,7 @@ services:
     container_name: farmely-ai-service
     environment:
       - PORT=8089
-      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-@Bin054206}@host.docker.internal:5432/farmely
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-password}@host.docker.internal:5434/newfarmely2
       - FALLBACK_SQLITE=True
       - GEMINI_API_KEY=AQ.Ab8RN6K0wb1XH3ta2C6tAxmani1IxlCHdiySo0bwZPhd63KIWw
       - LLM_MODEL=gemini-3-flash-preview

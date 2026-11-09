@@ -95,6 +95,7 @@ public class PlotServiceImpl implements PlotService {
                 .boundaryGeojson(ring != null ? BoundaryCodec.toGeoJson(ring) : null)
                 .imageUrl(request.getImageUrl())
                 .pricePerPeriod(request.getPricePerPeriod())
+                .carePricePerMonth(request.getCarePricePerMonth() != null ? request.getCarePricePerMonth() : BigDecimal.ZERO)
                 .status(request.getStatus() != null ? request.getStatus() : PlotStatus.AVAIL)
                 .isPublished(request.getIsPublished() != null ? request.getIsPublished() : false)
                 .build();
@@ -146,6 +147,9 @@ public class PlotServiceImpl implements PlotService {
         plot.setArea(resolveArea(request.getArea() != null ? request.getArea() : plot.getArea(), ring));
         plot.setImageUrl(request.getImageUrl());
         plot.setPricePerPeriod(request.getPricePerPeriod());
+        if (request.getCarePricePerMonth() != null) {
+            plot.setCarePricePerMonth(request.getCarePricePerMonth());
+        }
         if (request.getStatus() != null) {
             plot.setStatus(request.getStatus());
         }
@@ -313,6 +317,7 @@ public class PlotServiceImpl implements PlotService {
                 .imageUrl(plot.getImageUrl())
                 .boundary(BoundaryCodec.toApi(plot.getBoundaryGeojson()))
                 .pricePerPeriod(plot.getPricePerPeriod())
+                .carePricePerMonth(plot.getCarePricePerMonth())
                 .status(plot.getStatus())
                 .isPublished(plot.getIsPublished())
                 .createdAt(plot.getCreatedAt())

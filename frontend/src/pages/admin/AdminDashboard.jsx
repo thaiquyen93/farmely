@@ -59,8 +59,7 @@ import {
   ArrowUpRight,
   Wallet,
   Landmark,
-  PieChart,
-  CloudSun
+  PieChart
 } from 'lucide-react';
 
 function cleanText(str) {
@@ -114,8 +113,8 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('tab');
-      if (['overview', 'dispatch', 'contracts', 'visits', 'users', 'weather-alerts', 'iot-alerts', 'audit-logs'].includes(p)) {
-        return p === 'iot-alerts' ? 'weather-alerts' : p;
+      if (['overview', 'dispatch', 'contracts', 'visits', 'users', 'audit-logs'].includes(p)) {
+        return p;
       }
     }
     return 'overview'; // SCR-AD-01: Default to Tổng Quan & Doanh Thu
@@ -836,41 +835,76 @@ export default function AdminDashboard() {
 
       // Cập nhật local storage cho thửa tương ứng nếu có
       const targetReq = renewalRequests.find((r) => r.id === renewalId);
-      if (targetReq) {
-        const plotKey = String(targetReq.plotCode || 'P-05').replace(/^PLOT-/i, '').trim().toUpperCase();
+      const rawCode = targetReq?.plotCode || targetReq?.plot_code || 'P-05';
+      const m = String(rawCode).match(/P-\d+/i) || String(rawCode).match(/\b\d+\b/);
+      const plotKey = m ? (m[0].toUpperCase().startsWith('P-') ? m[0].toUpperCase() : `P-${m[0]}`) : 'P-05';
+      const targetSeasonNum = Number(targetReq?.seasonNumber || targetReq?.season_number || 2);
+      const targetSeasonId = `SEASON-${targetSeasonNum}`;
+
+      const keysToUpdate = [
+        `farmely_plot_seasons_${plotKey}`,
+        `farmely_plot_seasons_PLOT-${plotKey}`,
+        `farmely_plot_seasons_Thửa ${plotKey}`,
+        targetReq?.rentalId ? `farmely_plot_seasons_${plotKey}_${targetReq.rentalId}` : null
+      ].filter(Boolean);
+
+      keysToUpdate.forEach((k) => {
         try {
-          const savedSeasons = localStorage.getItem(`farmely_plot_seasons_${plotKey}`);
+          const savedSeasons = localStorage.getItem(k);
           if (savedSeasons) {
             const parsed = JSON.parse(savedSeasons);
             const updated = parsed.map((s) => {
-              if (s.seasonNumber === (targetReq.seasonNumber || 2) || s.status === 'PENDING_APPROVAL') {
+              if (s.seasonNumber === targetSeasonNum || (s.seasonNumber >= targetSeasonNum && s.status === 'PENDING_APPROVAL')) {
                 return {
                   ...s,
                   status: 'ACTIVE',
                   currentDay: 1,
                   isCurrent: true,
+                  inFallow: false,
                   isApprovedByAdmin: true
                 };
               }
-              return {
-                ...s,
-                status: 'COMPLETED',
-                isCurrent: false,
-                inFallow: false
-              };
+              if (s.seasonNumber < targetSeasonNum) {
+                return {
+                  ...s,
+                  status: 'COMPLETED',
+                  isCurrent: false,
+                  inFallow: false
+                };
+              }
+              return s;
             });
-            localStorage.setItem(`farmely_plot_seasons_${plotKey}`, JSON.stringify(updated));
+            localStorage.setItem(k, JSON.stringify(updated));
           }
         } catch {}
-      }
+      });
 
-      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+      // Lưu cờ mùa vụ đang kích hoạt để Customer tab tự động chuyển
+      try {
+        localStorage.setItem(`farmely_active_season_${plotKey}`, targetSeasonId);
+        localStorage.setItem(`farmely_season_approved_event_${plotKey}`, JSON.stringify({
+          plotKey,
+          seasonNumber: targetSeasonNum,
+          seasonId: targetSeasonId,
+          timestamp: Date.now()
+        }));
+      } catch {}
+
+      // Phát tín hiệu đồng bộ tức thì qua BroadcastChannel
+      ['farmely_contract_channel', 'farmely_iot_telemetry', 'farmely_admin_channel'].forEach((ch) => {
         try {
-          const bc = new BroadcastChannel('farmely_contract_channel');
-          bc.postMessage({ type: 'CONTRACT_RENEWAL_APPROVED', renewalId, timestamp: Date.now() });
+          const bc = new BroadcastChannel(ch);
+          bc.postMessage({
+            type: 'CONTRACT_RENEWAL_APPROVED',
+            renewalId,
+            plotKey,
+            seasonNumber: targetSeasonNum,
+            seasonId: targetSeasonId,
+            timestamp: Date.now()
+          });
           setTimeout(() => { try { bc.close(); } catch {} }, 1000);
         } catch {}
-      }
+      });
 
       await loadAdminData();
     } catch (error) {
@@ -1113,7 +1147,6 @@ export default function AdminDashboard() {
               { id: 'contracts', label: 'Hợp Đồng & Gia Hạn', icon: FileText, count: (renewalRequests.filter(r => r.status === 'PENDING').length + refundRequests.filter(r => r.status === 'PENDING').length) || null },
               { id: 'visits', label: 'Lịch Hẹn Tham Quan', icon: Calendar, count: siteVisits.filter(v => v.status === 'PENDING').length },
               { id: 'users', label: 'Người Dùng & Phân Quyền', icon: Users, count: systemUsers.length },
-              { id: 'weather-alerts', label: 'Thời Tiết Nông Trại', icon: CloudSun, count: null },
               { id: 'audit-logs', label: 'Nhật Ký & Báo Cáo', icon: ShieldCheck, count: null }
             ].map((tab) => {
               const Icon = tab.icon;
@@ -2669,196 +2702,7 @@ export default function AdminDashboard() {
             )}
 
             {/* ========================================================================= */}
-            {/* TAB 6: THỜI TIẾT THỰC ĐỊA — LÔ ĐẤT NÔNG TRẠI CỦ CHI                       */}
-            {/* ========================================================================= */}
-            {(activeTab === 'weather-alerts' || activeTab === 'iot-alerts') && (
-              <div className="space-y-6 text-left">
-                {/* 1. Header tinh gọn */}
-                <div className="bg-white rounded-3xl p-6 border border-stone-200/90 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="p-2 rounded-xl bg-sky-100 text-sky-800">
-                        <CloudSun className="w-5 h-5 text-sky-700" />
-                      </span>
-                      <div>
-                        <h3 className="font-heading font-black text-xl text-stone-900 tracking-tight">
-                          Thời Tiết Lô Đất Củ Chi
-                        </h3>
-                        <p className="text-xs text-stone-500 flex items-center gap-1.5 mt-0.5">
-                          <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                          <span>Trang trại Happy Valley Củ Chi, TP.HCM · Tọa độ: 10.9723°N, 106.4936°E</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      Open-Meteo Live API
-                    </span>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={loadAdminData}
-                      className="text-xs font-bold gap-1.5 border-stone-200 text-stone-700 bg-stone-50 hover:bg-stone-100 cursor-pointer"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Làm mới</span>
-                    </Button>
-                  </div>
-                </div>
-
-                {/* 2. Thẻ Thời Tiết Lô Đất Củ Chi Hiện Tại (Hero Showcase) */}
-                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1b4332] via-[#21523e] to-[#0f2a20] text-white p-6 sm:p-8 shadow-sm">
-                  {/* Background ambient blurs */}
-                  <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-lime-300/10 blur-3xl" />
-                  <div className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-emerald-400/15 blur-3xl" />
-
-                  <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                    {/* Cột trái: Nhiệt độ & Trạng thái chính */}
-                    <div className="lg:col-span-5 space-y-3">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-xs border border-white/15 text-xs text-lime-300 font-semibold">
-                        <Sprout className="w-3.5 h-3.5 text-lime-300" />
-                        <span>Khu Đất Canh Tác 19 Thửa</span>
-                      </div>
-
-                      <div className="flex items-center gap-4">
-                        <span className="text-6xl sm:text-7xl leading-none select-none drop-shadow-md">
-                          {weatherData?.iconCode === 'SUNNY' ? '☀️' : (weatherData?.rainfallProbability > 50 ? '🌧️' : '🌤️')}
-                        </span>
-                        <div>
-                          <div className="flex items-baseline gap-1">
-                            <span className="font-heading text-5xl sm:text-6xl font-black tracking-tight text-white drop-shadow">
-                              {weatherData?.temperature ?? 28.5}°
-                            </span>
-                            <span className="text-2xl text-lime-200 font-medium font-sans">C</span>
-                          </div>
-                          <p className="text-xs text-white/80 font-medium mt-0.5">
-                            Cảm giác như {weatherData?.feelsLike ?? 30.5}°C
-                          </p>
-                        </div>
-                      </div>
-
-                      <p className="font-heading font-bold text-base sm:text-lg text-white">
-                        {weatherData?.condition || 'Nắng ráo gián đoạn, trời râm mát'}
-                      </p>
-                      <p className="text-xs text-white/75 leading-relaxed max-w-sm">
-                        Thời tiết hiện tại tại Củ Chi rất mát mẻ và thuận lợi cho chu kỳ sinh trưởng của các giống rau củ VietGAP.
-                      </p>
-                    </div>
-
-                    {/* Cột phải: 4 ô chỉ số vi khí hậu thực tế của lô đất */}
-                    <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 space-y-1">
-                        <span className="text-2xl">💧</span>
-                        <p className="text-[11px] text-white/70 font-semibold uppercase tracking-wider">Độ ẩm không khí</p>
-                        <strong className="text-lg font-black text-white block">
-                          {weatherData?.humidity ?? 78}%
-                        </strong>
-                        <span className="text-[10px] text-lime-300 block">Ổn định</span>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 space-y-1">
-                        <span className="text-2xl">🌱</span>
-                        <p className="text-[11px] text-white/70 font-semibold uppercase tracking-wider">Độ ẩm đất lô</p>
-                        <strong className="text-lg font-black text-white block">
-                          {weatherData?.soilMoisture ?? 68}%
-                        </strong>
-                        <span className="text-[10px] text-lime-300 block">Chuẩn 60–75%</span>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 space-y-1">
-                        <span className="text-2xl">💨</span>
-                        <p className="text-[11px] text-white/70 font-semibold uppercase tracking-wider">Tốc độ gió</p>
-                        <strong className="text-lg font-black text-white block">
-                          {weatherData?.windSpeed ?? 12} km/h
-                        </strong>
-                        <span className="text-[10px] text-lime-300 block">Gió nhẹ mát</span>
-                      </div>
-
-                      <div className="p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 space-y-1">
-                        <span className="text-2xl">☀️</span>
-                        <p className="text-[11px] text-white/70 font-semibold uppercase tracking-wider">Bức xạ quang hợp</p>
-                        <strong className="text-lg font-black text-white block">
-                          {weatherData?.lightLux ?? '32.000 Lux'}
-                        </strong>
-                        <span className="text-[10px] text-lime-300 block">Quang hợp tốt</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. Dự Báo 5 Ngày Tới Tại Lô Đất Củ Chi */}
-                <div className="bg-white rounded-3xl p-6 border border-stone-200/90 shadow-2xs space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-heading font-black text-base text-stone-900 flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-emerald-700" />
-                      <span>Dự Báo Thời Tiết 5 Ngày Tới Tại Củ Chi</span>
-                    </h4>
-                    <span className="text-xs text-stone-500 font-medium">Theo chu kỳ thời tiết địa phương</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                    {(weatherData?.forecastDays && weatherData.forecastDays.length > 0
-                      ? weatherData.forecastDays
-                      : [
-                          { dayOfWeek: 'Hôm nay', condition: 'Nắng ấm', iconCode: 'PARTLY_CLOUDY', minTemp: 25, maxTemp: 33, rainProb: 15 },
-                          { dayOfWeek: 'Thứ Sáu', condition: 'Nắng ráo', iconCode: 'SUNNY', minTemp: 24.5, maxTemp: 34, rainProb: 10 },
-                          { dayOfWeek: 'Thứ Bảy', condition: 'Trời quang', iconCode: 'SUNNY', minTemp: 25, maxTemp: 34.5, rainProb: 10 },
-                          { dayOfWeek: 'Chủ Nhật', condition: 'Nắng mát', iconCode: 'PARTLY_CLOUDY', minTemp: 24, maxTemp: 33.5, rainProb: 20 },
-                          { dayOfWeek: 'Thứ Hai', condition: 'Nắng ấm', iconCode: 'SUNNY', minTemp: 25, maxTemp: 34, rainProb: 15 }
-                        ]
-                    ).map((f, idx) => (
-                      <div
-                        key={idx}
-                        className={`p-4 rounded-2xl border text-center space-y-2 transition-all ${
-                          idx === 0
-                            ? 'bg-emerald-50/60 border-emerald-300 ring-1 ring-emerald-200/60 shadow-2xs'
-                            : 'bg-stone-50/70 border-stone-200 hover:bg-stone-100/60'
-                        }`}
-                      >
-                        <span className={`text-xs font-bold block ${idx === 0 ? 'text-emerald-900 font-black' : 'text-stone-700'}`}>
-                          {f.dayOfWeek}
-                        </span>
-                        <span className="text-3xl block select-none">
-                          {f.iconCode === 'SUNNY' ? '☀️' : (f.rainProb > 40 ? '🌧️' : '🌤️')}
-                        </span>
-                        <div>
-                          <span className="text-xs font-bold text-stone-800 block truncate">
-                            {f.condition}
-                          </span>
-                          <span className="text-[11px] text-stone-500 block font-mono mt-0.5">
-                            {f.minTemp}°C – {f.maxTemp}°C
-                          </span>
-                        </div>
-                        <span className="inline-block px-2 py-0.5 rounded-full bg-white text-[10px] font-bold text-emerald-800 border border-stone-200/80">
-                          Mưa: {f.rainProb}%
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* 4. Ghi Chú Đánh Giá Canh Tác Nông Học (Agronomic Status Note) */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 flex items-start gap-3.5 text-xs text-emerald-950">
-                  <span className="p-2 rounded-xl bg-emerald-200/60 text-emerald-800 shrink-0 mt-0.5">
-                    <Sprout className="w-5 h-5 text-emerald-800" />
-                  </span>
-                  <div className="space-y-1">
-                    <strong className="font-heading font-bold text-sm text-emerald-950 block">
-                      Đánh Giá Canh Tác Thực Địa Tại Lô Đất Củ Chi
-                    </strong>
-                    <p className="text-emerald-800 leading-relaxed text-xs">
-                      {weatherData?.recommendationMessage ||
-                        'Thời tiết tuần này tại Củ Chi duy trì nắng ráo và độ ẩm đất ổn định (68%). Điều kiện khí tượng và vi khí hậu lý tưởng cho các hoạt động chăm sóc cây trồng, bón phân vi sinh và kiểm tra sâu bệnh định kỳ theo quy trình VietGAP.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ========================================================================= */}
-            {/* TAB 7: AUDIT LOGS & SYSTEM REPORTS (UC21 / SCR-AD-14)                     */}
+            {/* TAB: AUDIT LOGS & SYSTEM REPORTS (UC21 / SCR-AD-14)                       */}
             {/* ========================================================================= */}
             {activeTab === 'audit-logs' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm space-y-6">

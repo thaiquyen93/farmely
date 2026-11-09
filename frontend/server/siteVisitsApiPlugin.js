@@ -1931,6 +1931,11 @@ BEGIN
     -- Tự động sinh bộ Care Tasks cho Vụ mới chuẩn VietGAP (bắt đầu sau 4 ngày bảo trì BR23)
     IF COALESCE(v_req.cultivation_mode, 'ASSISTED') <> 'SELF' THEN
       v_season_start := CURRENT_DATE + INTERVAL '4 days';
+      -- Dọn sạch care_tasks và farm_diaries cũ của vụ trước để vụ mùa mới bắt đầu hoàn toàn mới (100% PENDING)
+      DELETE FROM care_tasks WHERE rental_id = v_req.rental_id;
+      DELETE FROM farm_diaries WHERE rental_id = v_req.rental_id;
+      DELETE FROM harvest_results WHERE rental_id = v_req.rental_id;
+
       INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
       SELECT
         v_req.rental_id,

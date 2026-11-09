@@ -1,0 +1,211 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" width="1200" height="560" style="background:#fdfcf9; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;">
+  <defs>
+    <!-- Mũi tên xanh lá (Backend - Database) -->
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#059669"/>
+    </marker>
+    <!-- Mũi tên tím (Backend - Frontend) -->
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#6366f1"/>
+    </marker>
+    <!-- Mũi tên xanh ngọc (Frontend - AI Service) -->
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#0d9488"/>
+    </marker>
+    <!-- Mũi tên đỏ hồng (Frontend -> AI Service) -->
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#e11d48"/>
+    </marker>
+
+    <!-- Drop Shadows cho Cards -->
+    <filter id="card-shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <!-- ==================== BANNER TIÊU ĐỀ (GIỐNG ẢNH MẪU) ==================== -->
+  <g transform="translate(30, 25)">
+    <rect width="210" height="42" rx="21" fill="#78350f" />
+    <text x="105" y="27" font-size="17" font-weight="bold" fill="#ffffff" text-anchor="middle">Kiến trúc hệ thống</text>
+  </g>
+
+  <!-- ==================== 1. KHỐI BACKEND (BÊN TRÁI - VIỀN XANH LÁ) ==================== -->
+  <g transform="translate(50, 100)" filter="url(#card-shadow)">
+    <!-- Container Card -->
+    <rect width="270" height="400" rx="20" fill="#ffffff" stroke="#10b981" stroke-width="2.5"/>
+    
+    <!-- Header Pill -->
+    <rect x="35" y="-18" width="200" height="38" rx="19" fill="#059669"/>
+    <text x="135" y="7" font-size="18" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">Backend</text>
+
+    <!-- Item 1: Java 21 -->
+    <g transform="translate(25, 45)">
+      <circle cx="28" cy="28" r="24" fill="#f0fdf4"/>
+      <!-- Java Cup Icon -->
+      <path d="M 22 20 L 22 34 C 22 38 34 38 34 34 L 34 20 Z" fill="none" stroke="#e11d48" stroke-width="2.2"/>
+      <path d="M 34 24 C 38 24 38 30 34 30" fill="none" stroke="#e11d48" stroke-width="2"/>
+      <path d="M 18 38 L 38 38" stroke="#e11d48" stroke-width="2" stroke-linecap="round"/>
+      <text x="65" y="27" font-size="18" font-weight="bold" fill="#0f172a">Java 21</text>
+      <text x="65" y="44" font-size="12" fill="#64748b">Modern LTS Core</text>
+    </g>
+
+    <!-- Item 2: Spring Boot 3 -->
+    <g transform="translate(25, 130)">
+      <circle cx="28" cy="28" r="24" fill="#f0fdf4"/>
+      <!-- Spring Leaf Icon -->
+      <path d="M 36 18 C 22 16 16 26 21 37 C 27 34 34 30 36 24 C 32 30 25 33 21 34 C 24 38 27 39 30 38 C 38 36 41 27 36 18 Z" fill="#16a34a"/>
+      <text x="65" y="27" font-size="18" font-weight="bold" fill="#0f172a">Spring Boot 3.3</text>
+      <text x="65" y="44" font-size="12" fill="#64748b">RESTful Microservices</text>
+    </g>
+
+    <!-- Item 3: Spring Security -->
+    <g transform="translate(25, 215)">
+      <circle cx="28" cy="28" r="24" fill="#f0fdf4"/>
+      <!-- Shield Icon -->
+      <path d="M 28 16 L 38 20 L 38 29 C 38 36 28 41 28 41 C 28 41 18 36 18 29 L 18 20 Z" fill="#059669"/>
+      <path d="M 25 28 L 27 30 L 32 25" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>
+      <text x="65" y="27" font-size="17" font-weight="bold" fill="#0f172a">Spring Security</text>
+      <text x="65" y="44" font-size="12" fill="#64748b">JWT &amp; RBAC 4 Roles</text>
+    </g>
+
+    <!-- Item 4: Spring Cloud Gateway -->
+    <g transform="translate(25, 300)">
+      <circle cx="28" cy="28" r="24" fill="#f0fdf4"/>
+      <!-- Gateway Icon -->
+      <rect x="18" y="20" width="20" height="16" rx="4" fill="none" stroke="#0284c7" stroke-width="2.2"/>
+      <path d="M 28 16 L 28 20 M 28 36 L 28 40" stroke="#0284c7" stroke-width="2"/>
+      <text x="65" y="27" font-size="17" font-weight="bold" fill="#0f172a">Spring Gateway</text>
+      <text x="65" y="44" font-size="12" fill="#64748b">Port 8080 Reverse Proxy</text>
+    </g>
+  </g>
+
+  <!-- ==================== 2. DATABASE POSTGRESQL (Ở GIỮA PHÍA TRÊN) ==================== -->
+  <g transform="translate(415, 60)" filter="url(#card-shadow)">
+    <!-- PostgreSQL Cylinder Icon -->
+    <g transform="translate(45, 0)">
+      <path d="M 0 15 C 0 7, 50 7, 50 15 L 50 45 C 50 53, 0 53, 0 45 Z" fill="#1d4ed8"/>
+      <ellipse cx="25" cy="15" rx="25" ry="9" fill="#3b82f6"/>
+      <ellipse cx="25" cy="27" rx="25" ry="7" fill="none" stroke="#93c5fd" stroke-width="1.5"/>
+      <ellipse cx="25" cy="37" rx="25" ry="7" fill="none" stroke="#93c5fd" stroke-width="1.5"/>
+    </g>
+    <text x="70" y="70" font-size="16" font-weight="900" fill="#1e3a8a" text-anchor="middle">PostgreSQL 16</text>
+    <text x="70" y="86" font-size="12" font-weight="bold" fill="#475569" text-anchor="middle">(Schema 24 Tables)</text>
+  </g>
+
+  <!-- ==================== 3. KHỐI FRONTEND (Ở GIỮA - NỀN VÀNG NHẠT, HEADER TÍM) ==================== -->
+  <g transform="translate(530, 100)" filter="url(#card-shadow)">
+    <!-- Container Card (màu vàng nhạt giống ảnh mẫu) -->
+    <rect width="260" height="400" rx="20" fill="#fef9c3" stroke="#eab308" stroke-width="2"/>
+    
+    <!-- Header Pill (Màu tím giống ảnh mẫu) -->
+    <rect x="30" y="-18" width="200" height="38" rx="19" fill="#6366f1"/>
+    <text x="130" y="7" font-size="18" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">Frontend</text>
+
+    <!-- Item 1: React 18 / 19 -->
+    <g transform="translate(25, 45)">
+      <circle cx="28" cy="28" r="24" fill="#ffffff"/>
+      <!-- React Atom Icon -->
+      <ellipse cx="28" cy="28" rx="14" ry="5.5" fill="none" stroke="#0284c7" stroke-width="1.8"/>
+      <ellipse cx="28" cy="28" rx="14" ry="5.5" fill="none" stroke="#0284c7" stroke-width="1.8" transform="rotate(60 28 28)"/>
+      <ellipse cx="28" cy="28" rx="14" ry="5.5" fill="none" stroke="#0284c7" stroke-width="1.8" transform="rotate(120 28 28)"/>
+      <circle cx="28" cy="28" r="2.5" fill="#0284c7"/>
+      <text x="65" y="27" font-size="18" font-weight="bold" fill="#0f172a">React 18 / 19</text>
+      <text x="65" y="44" font-size="12" fill="#64748b">Single Page Application</text>
+    </g>
+
+    <!-- Item 2: Vite 5 -->
+    <g transform="translate(25, 130)">
+      <circle cx="28" cy="28" r="24" fill="#ffffff"/>
+      <!-- Vite Lightning Icon -->
+      <path d="M 29 16 L 20 29 L 27 29 L 26 40 L 36 26 L 29 26 Z" fill="#8b5cf6"/>
+      <text x="65" y="27" font-size="18" font-weight="bold" fill="#0f172a">Vite 5</text>
+      <text x="65" y="44" font-size="12" fill="#64748b">Fast HMR Bundler</text>
+    </g>
+
+    <!-- Item 3: GIS Digital Map (Leaflet / MapLibre) -->
+    <g transform="translate(25, 215)">
+      <circle cx="28" cy="28" r="24" fill="#ffffff"/>
+      <!-- Map Pin Icon -->
+      <path d="M 28 17 C 23 17 19 21 19 26 C 19 33 28 41 28 41 C 28 41 37 33 37 26 C 37 21 33 17 28 17 Z" fill="#16a34a"/>
+      <circle cx="28" cy="26" r="3" fill="#ffffff"/>
+      <text x="65" y="27" font-size="17" font-weight="bold" fill="#0f172a">Leaflet &amp; MapLibre</text>
+      <text x="65" y="44" font-size="12" fill="#64748b">Bản đồ số 2D/3D (GIS)</text>
+    </g>
+
+    <!-- Item 4: Recharts IoT Dashboard -->
+    <g transform="translate(25, 300)">
+      <circle cx="28" cy="28" r="24" fill="#ffffff"/>
+      <!-- Bar Chart Icon -->
+      <rect x="18" y="28" width="4" height="12" rx="1" fill="#f59e0b"/>
+      <rect x="26" y="22" width="4" height="18" rx="1" fill="#0284c7"/>
+      <rect x="34" y="18" width="4" height="22" rx="1" fill="#10b981"/>
+      <text x="65" y="27" font-size="17" font-weight="bold" fill="#0f172a">Recharts</text>
+      <text x="65" y="44" font-size="12" fill="#64748b">Biểu đồ cảm biến IoT</text>
+    </g>
+  </g>
+
+  <!-- ==================== 4. KHỐI AI SERVICES (BÊN PHẢI - NỀN HỒNG, HEADER ĐỎ ĐẬM) ==================== -->
+  <g transform="translate(890, 150)" filter="url(#card-shadow)">
+    <!-- Container Card (màu cam nhạt/đỏ nhạt) -->
+    <rect width="270" height="300" rx="20" fill="#fef2f2" stroke="#f87171" stroke-width="2"/>
+    
+    <!-- Header Pill (Màu đỏ mận giống ảnh mẫu) -->
+    <rect x="35" y="-18" width="200" height="38" rx="19" fill="#991b1b"/>
+    <text x="135" y="7" font-size="18" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="0.5">AI Services</text>
+
+    <!-- Sub-card 1: Farmely AI Chatbot Service -->
+    <g transform="translate(18, 45)">
+      <rect width="234" height="100" rx="14" fill="#fef3c7" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="117" y="32" font-size="15" font-weight="900" fill="#78350f" text-anchor="middle">Farmely AI Chatbot</text>
+      <text x="117" y="52" font-size="12" font-weight="bold" fill="#92400e" text-anchor="middle">Python FastAPI (Port 8089)</text>
+      <text x="117" y="72" font-size="11.5" fill="#b45309" text-anchor="middle">Google Gemini 1.5 Flash LLM</text>
+    </g>
+
+    <!-- Sub-card 2: Vector RAG Engine -->
+    <g transform="translate(18, 165)">
+      <rect width="234" height="100" rx="14" fill="#fef3c7" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="117" y="32" font-size="15" font-weight="900" fill="#78350f" text-anchor="middle">Vector RAG Engine</text>
+      <text x="117" y="52" font-size="12" font-weight="bold" fill="#92400e" text-anchor="middle">Cosine Similarity (NumPy)</text>
+      <text x="117" y="72" font-size="11.5" fill="#b45309" text-anchor="middle">Kho tri thức VietGAP 10 loại rau</text>
+    </g>
+  </g>
+
+  <!-- ==================== CÁC DÂY KẾT NỐI (CONNECTING WIRES) ==================== -->
+
+  <!-- DÂY 1: PostgreSQL <-> Backend (SQL Queries / Results) -->
+  <g>
+    <path d="M 430 115 L 340 115 L 340 145 L 320 145" fill="none" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+    <rect x="330" y="85" width="130" height="24" rx="6" fill="#ffffff" stroke="#059669" stroke-width="1"/>
+    <text x="395" y="102" font-size="11.5" font-weight="bold" fill="#047857" text-anchor="middle">SQL Queries / Results</text>
+  </g>
+
+  <!-- DÂY 2: Backend <-> Frontend (Đường trên: REST API Spring GET/POST) -->
+  <g>
+    <path d="M 320 260 L 530 260" fill="none" stroke="#6366f1" stroke-width="3" marker-end="url(#arrow-purple)" marker-start="url(#arrow-purple)"/>
+    <rect x="360" y="240" width="130" height="24" rx="6" fill="#ffffff" stroke="#6366f1" stroke-width="1.2"/>
+    <text x="425" y="257" font-size="12" font-weight="900" fill="#4338ca" text-anchor="middle">REST API (Spring Boot)</text>
+  </g>
+
+  <!-- DÂY 3: Backend <-> Frontend (Đường dưới: Auth & State Sync) -->
+  <g>
+    <path d="M 320 380 L 530 380" fill="none" stroke="#6366f1" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow-purple)" marker-start="url(#arrow-purple)"/>
+    <rect x="355" y="368" width="140" height="22" rx="6" fill="#ffffff" stroke="#6366f1" stroke-width="1"/>
+    <text x="425" y="384" font-size="11" font-weight="bold" fill="#6366f1" text-anchor="middle">State Sync / JWT Auth</text>
+  </g>
+
+  <!-- DÂY 4: AI Services -> Frontend (Đường trên: AI Response) -->
+  <g>
+    <path d="M 890 230 L 790 230" fill="none" stroke="#0d9488" stroke-width="2.5" marker-end="url(#arrow-teal)"/>
+    <rect x="795" y="210" width="180" height="24" rx="6" fill="#ffffff" stroke="#0d9488" stroke-width="1"/>
+    <text x="885" y="227" font-size="11.5" font-weight="bold" fill="#0f766e" text-anchor="middle">AI Chat Response / Citations</text>
+  </g>
+
+  <!-- DÂY 5: Frontend -> AI Services (Đường dưới: Prompt Context / Query) -->
+  <g>
+    <path d="M 790 350 L 890 350" fill="none" stroke="#e11d48" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+    <rect x="795" y="360" width="180" height="24" rx="6" fill="#ffffff" stroke="#e11d48" stroke-width="1"/>
+    <text x="885" y="377" font-size="11.5" font-weight="bold" fill="#be123c" text-anchor="middle">Prompt Context / Query</text>
+  </g>
+
+</svg>
+

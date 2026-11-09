@@ -10,7 +10,6 @@ import VnPayModal from '../../components/payment/VnPayModal';
 import SelfGrowingDashboard from '../../components/customer/SelfGrowingDashboard';
 import AssistedGrowingDashboard from '../../components/customer/AssistedGrowingDashboard';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
-import FloatingExpertChat from '../../components/customer/FloatingExpertChat';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
 import PlotRenewalModal from '../../components/customer/PlotRenewalModal';
 import ContractCancellationModal from '../../components/customer/ContractCancellationModal';
@@ -18,7 +17,7 @@ import CustomerContractCenter from '../../components/customer/CustomerContractCe
 import CustomerMobileNav from '../../components/customer/CustomerMobileNav';
 import CustomerWelcomeLounge from '../../components/customer/CustomerWelcomeLounge';
 import { useRealtimeChat } from '../../hooks/useRealtimeChat';
-import { DEMO_CUSTOMERS, updateThreadRentalInStorage } from '../../api/communication/chatStorage';
+import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import { chatService } from '../../api/communication/chatService';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import { resolveStandardCropProcess } from '../../services/cropStandardProcess';
@@ -93,7 +92,6 @@ export default function CustomerDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
   const [taskPhotoPreview, setTaskPhotoPreview] = useState('');
-  const [chatOpenMode, setChatOpenMode] = useState('expert');
   const [showExpertChatModal, setShowExpertChatModal] = useState(false);
 
   // Chat Communication & Identity Resolution:
@@ -117,9 +115,6 @@ export default function CustomerDashboard() {
       email: user.email,
       phone: user.phone || '0901 888 999',
       avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-      plotCode: 'P-01',
-      plotName: 'Thửa Canh Tác Của ' + (user.fullName || user.email?.split('@')[0] || 'Khách Hàng'),
-      crop: 'Rau củ VietGAP',
       expertName: 'ThS. Nguyễn Hoàng Nam'
     };
   }, [user, isCustomUser]);
@@ -181,9 +176,39 @@ export default function CustomerDashboard() {
     if (e) e.preventDefault();
     if (!customerChatInput.trim()) return;
 
-    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName, { plotCode: currentSelectedPlot?.plotCode || currentSelectedPlot?.mapPlotId || '' });
+    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName);
     setCustomerChatInput('');
   };
+
+  useEffect(() => {
+    if (!showExpertChatModal) return undefined;
+    const participantOne = Number(user?.userId || String(user?.id || '').replace(/\D/g, ''));
+    if (!participantOne) return undefined;
+
+    let cancelled = false;
+    fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ participantOne, participantTwo: 5, type: 'CUST_EXP' })
+    })
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload) => {
+        const conversation = payload?.data;
+        if (cancelled || !conversation?.conversationId) return;
+        const thread = chatService.upsertCustomerThread({
+          threadId: selectedCustomerThreadId,
+          conversationId: conversation.conversationId,
+          participantUserId: participantOne,
+          customerName: activeCustomerSenderName,
+          customerEmail: user?.email,
+          customerAvatar: user?.avatar
+        });
+        chatService.setThreadConversationId(thread?.thread?.id || selectedCustomerThreadId, conversation.conversationId);
+      })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [showExpertChatModal, selectedCustomerThreadId, user?.userId, user?.id, activeCustomerSenderName, user?.email, user?.avatar]);
 
   // Service Shop States
   const [serviceCategoryFilter, setServiceCategoryFilter] = useState('ALL'); // 'ALL' | 'FULL' | 'CYCLE' | 'SINGLE' | 'ORDERS'
@@ -1478,6 +1503,10 @@ export default function CustomerDashboard() {
               } catch { }
             }
 
+            const isPlotDay1 = matchingPlot && Number(matchingPlot.currentDay || 1) <= 1;
+            const isDay1Task = resolvedTaskDay === 1 && isPlotDay1;
+            const normalizedStatus = isDay1Task ? (t.status === 'DONE' || t.status === 'COMPLETED' ? 'IN_PROG' : t.status) : t.status;
+
             const formattedTask = {
               id: t.id || `TSK-${t.taskId}`,
               taskId: t.taskId,
@@ -1488,12 +1517,12 @@ export default function CustomerDashboard() {
               cropDay: resolvedTaskDay,
               dayOffset: t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null,
               stepOrder: t.stepOrder || 1,
-              status: t.status,
+              status: normalizedStatus,
               owner: t.workerName || t.assignedTo || 'Kỹ thuật viên hiện trường',
               crop: t.crop,
               instructions: t.instructions,
-              proofPhoto: t.proofPhoto || t.evidenceImageUrl || null,
-              completedAt: t.completedAt
+              proofPhoto: isDay1Task ? null : (t.proofPhoto || t.evidenceImageUrl || null),
+              completedAt: isDay1Task ? null : t.completedAt
             };
 
             targetKeys.forEach((key) => {
@@ -1509,7 +1538,8 @@ export default function CustomerDashboard() {
             });
 
             // SSoT: Mọi nhiệm vụ chăm sóc thực địa đã hoàn thành (DONE / COMPLETED) tự động trở thành một mục nhật ký canh tác
-            if (t.status === 'DONE' || t.status === 'COMPLETED') {
+            // TUY NHIÊN: Khi thửa đất đang ở Ngày 1 (mới bắt đầu vụ), chưa có task nào hoàn thành nên không tạo nhật ký hoàn thành
+            if ((t.status === 'DONE' || t.status === 'COMPLETED') && !isDay1Task) {
               const formattedDiaryFromTask = {
                 id: `TASK-DIR-${t.id || t.taskId}`,
                 taskId: t.taskId || t.id,
@@ -2023,12 +2053,9 @@ export default function CustomerDashboard() {
                 onBack={() => navigate('/customer/dashboard')}
                 onSelectPlot={(plotId) => navigate(`/customer/dashboard?plot=${plotId}${plotTabFromUrl !== 'overview' ? `&tab=${plotTabFromUrl}` : ''}`)}
                 onOpenAiChat={() => {
-                  const plotCode = currentSelectedPlot.plotCode || currentSelectedPlot.mapPlotId || String(currentSelectedPlot.id || '').replace(/^PLOT-/, '');
                   const threadId = defaultUserThreadId;
-                  chatService.upsertPlotThread({ threadId, rentalId: currentSelectedPlot.rentalId, customerName: user?.fullName || 'Khách hàng', customerEmail: user?.email, plotCode, plotName: currentSelectedPlot.name, crop: currentSelectedPlot.crop, rentalStatus: 'RENTED' });
-                  updateThreadRentalInStorage({ threadId, rentalId: currentSelectedPlot.rentalId, customerName: user?.fullName || 'Khách hàng', plotCode, plotName: currentSelectedPlot.name, crop: currentSelectedPlot.crop });
+                  chatService.upsertCustomerThread({ threadId, participantUserId: user?.userId, customerName: user?.fullName || 'Khách hàng', customerEmail: user?.email, customerAvatar: user?.avatar });
                   setSelectedCustomerThreadId(threadId);
-                  setChatOpenMode('expert');
                   setShowExpertChatModal(true);
                 }}
                 onOpenTask={(task) => { setTaskPhotoPreview(''); setSelectedTaskDetail({ ...task, plot: currentSelectedPlot }); }}
@@ -3318,7 +3345,7 @@ export default function CustomerDashboard() {
                         Bắt đầu cuộc trò chuyện với {customerChatThread?.expertName || 'ThS. Nguyễn Hoàng Nam'}
                       </h4>
                       <p className="text-xs text-stone-500 max-w-md mx-auto">
-                        Gửi câu hỏi về tình trạng thửa đất, quy trình dinh dưỡng hoặc đặt ca trực kiểm tra sâu bệnh.
+                        Gửi câu hỏi về canh tác, dinh dưỡng hoặc sâu bệnh để chuyên gia tư vấn trực tiếp.
                       </p>
                     </div>
                   ) : (
@@ -3400,40 +3427,6 @@ export default function CustomerDashboard() {
                   )}
                 </div>
 
-                {/* Quick prompt suggestions */}
-                <div className="p-3 bg-stone-50 border-t border-brand-border/60 flex flex-wrap gap-2 text-xs">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider self-center mr-1">
-                    Hỏi nhanh:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      sendCustomerMessage('Chào ThS. Nam! Độ ẩm đất hiện tại ở thửa của tôi đang 68% thì có cần tưới thêm không?', activeCustomerSenderName);
-                    }}
-                    className="px-3 py-1 rounded-full bg-white border border-brand-border text-stone-600 hover:bg-brand-green hover:text-white transition-all text-xs"
-                  >
-                    💧 Độ ẩm đất hiện tại có cần tưới thêm?
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      sendCustomerMessage('Chuyên gia ơi, lá cây ở tầng dưới hơi ngả vàng thì có phải bị thiếu đạm không?', activeCustomerSenderName);
-                    }}
-                    className="px-3 py-1 rounded-full bg-white border border-brand-border text-stone-600 hover:bg-brand-green hover:text-white transition-all text-xs"
-                  >
-                    🍅 Tầng lá chân bị vàng có cần xử lý?
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      sendCustomerMessage('Tôi muốn nhờ chuyên gia lên phác đồ bón phân trùn quế đợt mới cho rau.', activeCustomerSenderName);
-                    }}
-                    className="px-3 py-1 rounded-full bg-white border border-brand-border text-stone-600 hover:bg-brand-green hover:text-white transition-all text-xs"
-                  >
-                    🪱 Nhờ phác đồ bón phân trùn quế
-                  </button>
-                </div>
-
                 {/* Input Bar */}
                 <form
                   onSubmit={handleSendCustomerChat}
@@ -3459,21 +3452,6 @@ export default function CustomerDashboard() {
             </Modal>
 
             
-
-            <FloatingExpertChat
-              isOpen={showExpertChatModal}
-              onOpen={() => { setChatOpenMode('expert'); setShowExpertChatModal(true); }}
-              onClose={() => setShowExpertChatModal(false)}
-              thread={customerChatThread}
-              senderName={activeCustomerSenderName}
-              input={customerChatInput}
-              setInput={setCustomerChatInput}
-              onSubmit={handleSendCustomerChat}
-              onAiSubmit={(text) => { setCustomerChatInput(''); handleSendMessage(text); }}
-              aiMessages={chatMessages}
-              openMode={chatOpenMode}
-              scrollRef={customerChatScrollRef}
-            />
 
           </main>
 

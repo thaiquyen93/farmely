@@ -1,0 +1,415 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1380 870" width="1380" height="870" style="background:#ffffff; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Arrow Markers -->
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#1e293b"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#16a34a"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#9333ea"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#0284c7"/>
+    </marker>
+
+    <!-- Drop Shadows -->
+    <filter id="box-shadow" x="-3%" y="-4%" width="106%" height="110%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.06"/>
+    </filter>
+    <filter id="card-shadow" x="-4%" y="-5%" width="108%" height="114%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.07"/>
+    </filter>
+  </defs>
+
+  <!-- ========================================== -->
+  <!-- 1. PRESENTATION TIER (USER INTERFACE)       -->
+  <!-- ========================================== -->
+  <g transform="translate(40, 25)">
+    <!-- Container Box -->
+    <rect width="1020" height="175" rx="10" fill="#f0f9ff" stroke="#0284c7" stroke-width="1.6" filter="url(#box-shadow)"/>
+    
+    <!-- Tier Header Badge -->
+    <g transform="translate(18, 16)">
+      <rect width="150" height="48" rx="8" fill="#0369a1"/>
+      <text x="75" y="22" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">Presentation Tier</text>
+      <text x="75" y="38" font-size="10.5" fill="#bae6fd" text-anchor="middle">User Interface</text>
+    </g>
+
+    <!-- 4 Human Actors -->
+    <!-- Actor 1: Customer (KH) -->
+    <g transform="translate(255, 14)">
+      <circle cx="20" cy="14" r="10" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.8"/>
+      <path d="M 6 36 C 6 26 34 26 34 36 Z" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.8"/>
+      <text x="20" y="52" font-size="11" font-weight="bold" fill="#0f172a" text-anchor="middle">Customer</text>
+      <text x="20" y="65" font-size="9.5" fill="#64748b" text-anchor="middle">(KH)</text>
+      <!-- Line to SPA -->
+      <line x1="20" y1="70" x2="20" y2="105" stroke="#0284c7" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+    </g>
+
+    <!-- Actor 2: Agri Expert (CGNN) -->
+    <g transform="translate(425, 14)">
+      <circle cx="20" cy="14" r="10" fill="#fef3c7" stroke="#d97706" stroke-width="1.8"/>
+      <path d="M 6 36 C 6 26 34 26 34 36 Z" fill="#fef3c7" stroke="#d97706" stroke-width="1.8"/>
+      <text x="20" y="52" font-size="11" font-weight="bold" fill="#0f172a" text-anchor="middle">Agri Expert</text>
+      <text x="20" y="65" font-size="9.5" fill="#64748b" text-anchor="middle">(CGNN)</text>
+      <!-- Line to SPA -->
+      <line x1="20" y1="70" x2="20" y2="105" stroke="#d97706" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+    </g>
+
+    <!-- Actor 3: Field Staff (CVLD) -->
+    <g transform="translate(595, 14)">
+      <circle cx="20" cy="14" r="10" fill="#dcfce7" stroke="#16a34a" stroke-width="1.8"/>
+      <path d="M 6 36 C 6 26 34 26 34 36 Z" fill="#dcfce7" stroke="#16a34a" stroke-width="1.8"/>
+      <text x="20" y="52" font-size="11" font-weight="bold" fill="#0f172a" text-anchor="middle">Field Staff</text>
+      <text x="20" y="65" font-size="9.5" fill="#64748b" text-anchor="middle">(CVLĐ)</text>
+      <!-- Line to SPA -->
+      <line x1="20" y1="70" x2="20" y2="105" stroke="#16a34a" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+    </g>
+
+    <!-- Actor 4: Administrator (AD) -->
+    <g transform="translate(765, 14)">
+      <circle cx="20" cy="14" r="10" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.8"/>
+      <path d="M 6 36 C 6 26 34 26 34 36 Z" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.8"/>
+      <text x="20" y="52" font-size="11" font-weight="bold" fill="#0f172a" text-anchor="middle">Administrator</text>
+      <text x="20" y="65" font-size="9.5" fill="#64748b" text-anchor="middle">(AD)</text>
+      <!-- Line to SPA -->
+      <line x1="20" y1="70" x2="20" y2="105" stroke="#9333ea" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+    </g>
+
+    <!-- React SPA Card -->
+    <g transform="translate(200, 118)">
+      <rect width="650" height="46" rx="8" fill="#ffffff" stroke="#0284c7" stroke-width="1.8" filter="url(#card-shadow)"/>
+      <text x="325" y="20" font-size="13" font-weight="bold" fill="#0369a1" text-anchor="middle">«Single Page Application» React SPA (Web Application)</text>
+      <text x="325" y="36" font-size="10.5" fill="#64748b" text-anchor="middle">React 18 · Vite · Tailwind CSS · React Router 6 · Zustand State · TanStack Query</text>
+    </g>
+  </g>
+
+  <!-- Protocol Badge between Tier 1 & Tier 2 -->
+  <g transform="translate(460, 212)">
+    <line x1="65" y1="-12" x2="65" y2="38" stroke="#1e293b" stroke-width="2" marker-end="url(#arrow-slate)"/>
+    <rect width="170" height="26" rx="13" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1"/>
+    <text x="85" y="17" font-size="11" font-weight="bold" fill="#334155" text-anchor="middle">HTTPS / REST + Bearer JWT</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- 2. APPLICATION TIER (BUSINESS LOGIC)       -->
+  <!-- ========================================== -->
+  <g transform="translate(40, 250)">
+    <!-- Container Box -->
+    <rect width="1020" height="325" rx="10" fill="#f8fafc" stroke="#16a34a" stroke-width="1.6" stroke-dasharray="6 4" filter="url(#box-shadow)"/>
+
+    <!-- Tier Header Badge -->
+    <g transform="translate(18, 16)">
+      <rect width="150" height="48" rx="8" fill="#15803d"/>
+      <text x="75" y="22" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">Application Tier</text>
+      <text x="75" y="38" font-size="10.5" fill="#bbf7d0" text-anchor="middle">Business Logic</text>
+    </g>
+
+    <!-- API Gateway Card -->
+    <g transform="translate(290, 16)">
+      <rect width="420" height="52" rx="8" fill="#dcfce7" stroke="#16a34a" stroke-width="1.8" filter="url(#card-shadow)"/>
+      <text x="210" y="22" font-size="13" font-weight="bold" fill="#15803d" text-anchor="middle">«API Gateway» API Gateway (:8080)</text>
+      <text x="210" y="39" font-size="10.5" fill="#166534" text-anchor="middle">Spring Cloud Gateway · Path Routing · JwtAuthenticationFilter · CORS</text>
+    </g>
+
+    <!-- AI Service Card (Python FastAPI / RAG) -->
+    <g transform="translate(760, 16)">
+      <rect width="240" height="52" rx="8" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.8" filter="url(#card-shadow)"/>
+      <text x="120" y="21" font-size="12.5" font-weight="bold" fill="#6b21a8" text-anchor="middle">«Microservice» AI Service (:8089)</text>
+      <text x="120" y="38" font-size="9.5" fill="#7e22ce" text-anchor="middle">Python FastAPI · RAG Engine · Gemini</text>
+    </g>
+
+    <!-- Gateway to AI Service (Solid Sync Arrow) -->
+    <path d="M 710 42 L 760 42" stroke="#9333ea" stroke-width="1.6" marker-end="url(#arrow-purple)"/>
+    <text x="735" y="35" font-size="9" font-weight="bold" fill="#6b21a8" text-anchor="middle">REST</text>
+
+    <!-- Bus Connector Line from Gateway to 8 Services -->
+    <path d="M 500 68 L 500 115 M 76 115 L 944 115" stroke="#16a34a" stroke-width="1.6"/>
+    <!-- 8 Drop Down Arrows -->
+    <line x1="76" y1="115" x2="76" y2="148" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arrow-green)"/>
+    <line x1="200" y1="115" x2="200" y2="148" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arrow-green)"/>
+    <line x1="324" y1="115" x2="324" y2="148" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arrow-green)"/>
+    <line x1="448" y1="115" x2="448" y2="148" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arrow-green)"/>
+    <line x1="572" y1="115" x2="572" y2="148" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arrow-green)"/>
+    <line x1="696" y1="115" x2="696" y2="148" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arrow-green)"/>
+    <line x1="820" y1="115" x2="820" y2="148" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arrow-green)"/>
+    <line x1="944" y1="115" x2="944" y2="148" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arrow-green)"/>
+
+    <!-- 8 Microservices Cards -->
+    <!-- S1: Identity -->
+    <g transform="translate(20, 150)">
+      <rect width="112" height="150" rx="8" fill="#ffffff" stroke="#3b82f6" stroke-width="1.5" filter="url(#card-shadow)"/>
+      <rect width="112" height="24" rx="8" fill="#eff6ff"/>
+      <text x="56" y="16" font-size="10.5" font-weight="bold" fill="#1e40af" text-anchor="middle">«Service»</text>
+      <text x="56" y="42" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Identity</text>
+      <text x="56" y="58" font-size="11" font-weight="bold" fill="#2563eb" text-anchor="middle">:8081</text>
+      <line x1="16" y1="68" x2="96" y2="68" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="56" y="85" font-size="9.5" fill="#475569" text-anchor="middle">Auth · JWT</text>
+      <text x="56" y="101" font-size="9.5" fill="#475569" text-anchor="middle">RBAC · Users</text>
+      <text x="56" y="117" font-size="9.5" fill="#475569" text-anchor="middle">Audit Logs</text>
+      <text x="56" y="136" font-size="8.5" fill="#94a3b8" text-anchor="middle">Spring Security</text>
+    </g>
+
+    <!-- S2: Farm -->
+    <g transform="translate(144, 150)">
+      <rect width="112" height="150" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.5" filter="url(#card-shadow)"/>
+      <rect width="112" height="24" rx="8" fill="#f0fdf4"/>
+      <text x="56" y="16" font-size="10.5" font-weight="bold" fill="#15803d" text-anchor="middle">«Service»</text>
+      <text x="56" y="42" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Farm</text>
+      <text x="56" y="58" font-size="11" font-weight="bold" fill="#16a34a" text-anchor="middle">:8082</text>
+      <line x1="16" y1="68" x2="96" y2="68" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="56" y="85" font-size="9.5" fill="#475569" text-anchor="middle">Land &amp; Plots</text>
+      <text x="56" y="101" font-size="9.5" fill="#475569" text-anchor="middle">GeoJSON Poly</text>
+      <text x="56" y="117" font-size="9.5" fill="#475569" text-anchor="middle">Site Visits</text>
+      <text x="56" y="136" font-size="8.5" fill="#94a3b8" text-anchor="middle">Soil Fallow (BR23)</text>
+    </g>
+
+    <!-- S3: Rental -->
+    <g transform="translate(268, 150)">
+      <rect width="112" height="150" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="1.5" filter="url(#card-shadow)"/>
+      <rect width="112" height="24" rx="8" fill="#eff6ff"/>
+      <text x="56" y="16" font-size="10.5" font-weight="bold" fill="#1d4ed8" text-anchor="middle">«Service»</text>
+      <text x="56" y="42" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Rental</text>
+      <text x="56" y="58" font-size="11" font-weight="bold" fill="#2563eb" text-anchor="middle">:8084</text>
+      <line x1="16" y1="68" x2="96" y2="68" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="56" y="85" font-size="9.5" fill="#475569" text-anchor="middle">Master Lease</text>
+      <text x="56" y="101" font-size="9.5" fill="#475569" text-anchor="middle">Lock 15m (BR08)</text>
+      <text x="56" y="117" font-size="9.5" fill="#475569" text-anchor="middle">Cancellation</text>
+      <text x="56" y="136" font-size="8.5" fill="#94a3b8" text-anchor="middle">Rental Schedulers</text>
+    </g>
+
+    <!-- S4: Payment -->
+    <g transform="translate(392, 150)">
+      <rect width="112" height="150" rx="8" fill="#ffffff" stroke="#d97706" stroke-width="1.5" filter="url(#card-shadow)"/>
+      <rect width="112" height="24" rx="8" fill="#fffbeb"/>
+      <text x="56" y="16" font-size="10.5" font-weight="bold" fill="#b45309" text-anchor="middle">«Service»</text>
+      <text x="56" y="42" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Payment</text>
+      <text x="56" y="58" font-size="11" font-weight="bold" fill="#d97706" text-anchor="middle">:8085</text>
+      <line x1="16" y1="68" x2="96" y2="68" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="56" y="85" font-size="9.5" fill="#475569" text-anchor="middle">VNPay Sandbox</text>
+      <text x="56" y="101" font-size="9.5" fill="#475569" text-anchor="middle">VietQR Generator</text>
+      <text x="56" y="117" font-size="9.5" fill="#475569" text-anchor="middle">Lump-sum BR09</text>
+      <text x="56" y="136" font-size="8.5" fill="#94a3b8" text-anchor="middle">Sync Care Tasks</text>
+    </g>
+
+    <!-- S5: Cultivation -->
+    <g transform="translate(516, 150)">
+      <rect width="112" height="150" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.5" filter="url(#card-shadow)"/>
+      <rect width="112" height="24" rx="8" fill="#f0fdf4"/>
+      <text x="56" y="16" font-size="10.5" font-weight="bold" fill="#15803d" text-anchor="middle">«Service»</text>
+      <text x="56" y="42" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Cultivation</text>
+      <text x="56" y="58" font-size="11" font-weight="bold" fill="#16a34a" text-anchor="middle">:8086</text>
+      <line x1="16" y1="68" x2="96" y2="68" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="56" y="85" font-size="9.5" fill="#475569" text-anchor="middle">Care Tasks BR15</text>
+      <text x="56" y="101" font-size="9.5" fill="#475569" text-anchor="middle">Farm Diary BR17</text>
+      <text x="56" y="117" font-size="9.5" fill="#475569" text-anchor="middle">Harvest BR20</text>
+      <text x="56" y="136" font-size="8.5" fill="#94a3b8" text-anchor="middle">Issue Reports</text>
+    </g>
+
+    <!-- S6: Monitoring -->
+    <g transform="translate(640, 150)">
+      <rect width="112" height="150" rx="8" fill="#ffffff" stroke="#0891b2" stroke-width="1.5" filter="url(#card-shadow)"/>
+      <rect width="112" height="24" rx="8" fill="#ecfeff"/>
+      <text x="56" y="16" font-size="10.5" font-weight="bold" fill="#0e7490" text-anchor="middle">«Service»</text>
+      <text x="56" y="42" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Monitoring</text>
+      <text x="56" y="58" font-size="11" font-weight="bold" fill="#0891b2" text-anchor="middle">:8088</text>
+      <line x1="16" y1="68" x2="96" y2="68" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="56" y="85" font-size="9.5" fill="#475569" text-anchor="middle">Sensor Stream</text>
+      <text x="56" y="101" font-size="9.5" fill="#475569" text-anchor="middle">Weather BR18</text>
+      <text x="56" y="117" font-size="9.5" fill="#475569" text-anchor="middle">SSE Realtime</text>
+      <text x="56" y="136" font-size="8.5" fill="#94a3b8" text-anchor="middle">File Upload API</text>
+    </g>
+
+    <!-- S7: Knowledge -->
+    <g transform="translate(764, 150)">
+      <rect width="112" height="150" rx="8" fill="#ffffff" stroke="#4f46e5" stroke-width="1.5" filter="url(#card-shadow)"/>
+      <rect width="112" height="24" rx="8" fill="#eef2ff"/>
+      <text x="56" y="16" font-size="10.5" font-weight="bold" fill="#4338ca" text-anchor="middle">«Service»</text>
+      <text x="56" y="42" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Knowledge</text>
+      <text x="56" y="58" font-size="11" font-weight="bold" fill="#4f46e5" text-anchor="middle">:8083</text>
+      <line x1="16" y1="68" x2="96" y2="68" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="56" y="85" font-size="9.5" fill="#475569" text-anchor="middle">VietGAP Matrix</text>
+      <text x="56" y="101" font-size="9.5" fill="#475569" text-anchor="middle">Crops &amp; Varieties</text>
+      <text x="56" y="117" font-size="9.5" fill="#475569" text-anchor="middle">Process Step</text>
+      <text x="56" y="136" font-size="8.5" fill="#94a3b8" text-anchor="middle">Doc Repository</text>
+    </g>
+
+    <!-- S8: Communication -->
+    <g transform="translate(888, 150)">
+      <rect width="112" height="150" rx="8" fill="#ffffff" stroke="#0284c7" stroke-width="1.5" filter="url(#card-shadow)"/>
+      <rect width="112" height="24" rx="8" fill="#f0f9ff"/>
+      <text x="56" y="16" font-size="10.5" font-weight="bold" fill="#0369a1" text-anchor="middle">«Service»</text>
+      <text x="56" y="42" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Comm</text>
+      <text x="56" y="58" font-size="11" font-weight="bold" fill="#0284c7" text-anchor="middle">:8087</text>
+      <line x1="16" y1="68" x2="96" y2="68" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="56" y="85" font-size="9.5" fill="#475569" text-anchor="middle">Consultation 1-1</text>
+      <text x="56" y="101" font-size="9.5" fill="#475569" text-anchor="middle">Issue Chat BR25</text>
+      <text x="56" y="117" font-size="9.5" fill="#475569" text-anchor="middle">In-App Alerts</text>
+      <text x="56" y="136" font-size="8.5" fill="#94a3b8" text-anchor="middle">WebSocket /ws</text>
+    </g>
+  </g>
+
+  <!-- Trunk Connector from App Tier to Data Tier -->
+  <g transform="translate(550, 575)">
+    <line x1="0" y1="0" x2="0" y2="28" stroke="#1e293b" stroke-width="1.8" marker-end="url(#arrow-slate)"/>
+    <text x="12" y="18" font-size="10.5" font-weight="bold" fill="#475569">Spring Data JPA · Hibernate ORM · Direct File I/O · RAM Vector</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- 3. DATA TIER (DATA STORAGE)                -->
+  <!-- ========================================== -->
+  <g transform="translate(40, 605)">
+    <!-- Container Box -->
+    <rect width="1020" height="150" rx="10" fill="#fffbeb" stroke="#d97706" stroke-width="1.6" filter="url(#box-shadow)"/>
+
+    <!-- Tier Header Badge -->
+    <g transform="translate(18, 16)">
+      <rect width="150" height="48" rx="8" fill="#b45309"/>
+      <text x="75" y="22" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">Data Tier</text>
+      <text x="75" y="38" font-size="10.5" fill="#fde68a" text-anchor="middle">Data Storage</text>
+    </g>
+
+    <!-- D1: PostgreSQL Database (Cylinder) -->
+    <g transform="translate(195, 14)">
+      <!-- Top Ellipse -->
+      <path d="M 0 16 C 0 8 185 8 185 16 C 185 24 0 24 0 16 Z" fill="#e0f2fe" stroke="#0284c7" stroke-width="1.6"/>
+      <!-- Body -->
+      <path d="M 0 16 L 0 102 C 0 112 185 112 185 102 L 185 16" fill="#ffffff" stroke="#0284c7" stroke-width="1.6"/>
+      <!-- Bottom Lip -->
+      <path d="M 0 102 C 0 112 185 112 185 102" fill="none" stroke="#0284c7" stroke-width="1.6"/>
+      <!-- Texts -->
+      <text x="92" y="44" font-size="13" font-weight="bold" fill="#0f172a" text-anchor="middle">PostgreSQL 16</text>
+      <text x="92" y="60" font-size="11" font-weight="bold" fill="#0284c7" text-anchor="middle">Main Relational DB</text>
+      <text x="92" y="77" font-size="9.5" fill="#475569" text-anchor="middle">Shared Schema: farmely</text>
+      <text x="92" y="91" font-size="9.5" fill="#475569" text-anchor="middle">3NF Tables · ACID Trans</text>
+    </g>
+
+    <!-- D2: File Storage (Folder) -->
+    <g transform="translate(405, 14)">
+      <path d="M 0 10 L 0 112 L 185 112 L 185 10 L 80 10 L 68 0 L 0 0 Z" fill="#ffffff" stroke="#d97706" stroke-width="1.6"/>
+      <path d="M 0 26 L 185 26" stroke="#fed7aa" stroke-width="1.2"/>
+      <text x="92" y="44" font-size="13" font-weight="bold" fill="#0f172a" text-anchor="middle">File Storage</text>
+      <text x="92" y="60" font-size="11" font-weight="bold" fill="#d97706" text-anchor="middle">Local File System</text>
+      <text x="92" y="77" font-size="9.5" fill="#475569" text-anchor="middle">Path: /uploads</text>
+      <text x="92" y="91" font-size="9.5" fill="#475569" text-anchor="middle">Proof Photos · Docs</text>
+    </g>
+
+    <!-- D3: SQLite Fallback (Cylinder) -->
+    <g transform="translate(615, 14)">
+      <path d="M 0 16 C 0 8 185 8 185 16 C 185 24 0 24 0 16 Z" fill="#f1f5f9" stroke="#475569" stroke-width="1.6"/>
+      <path d="M 0 16 L 0 102 C 0 112 185 112 185 102 L 185 16" fill="#ffffff" stroke="#475569" stroke-width="1.6"/>
+      <path d="M 0 102 C 0 112 185 112 185 102" fill="none" stroke="#475569" stroke-width="1.6"/>
+      <text x="92" y="44" font-size="13" font-weight="bold" fill="#0f172a" text-anchor="middle">SQLite 3</text>
+      <text x="92" y="60" font-size="11" font-weight="bold" fill="#475569" text-anchor="middle">Fallback DB</text>
+      <text x="92" y="77" font-size="9.5" fill="#475569" text-anchor="middle">ai-service: chat.db</text>
+      <text x="92" y="91" font-size="9.5" fill="#475569" text-anchor="middle">Local Fault Tolerance</text>
+    </g>
+
+    <!-- D4: Vector Store (Cube / Memory) -->
+    <g transform="translate(825, 14)">
+      <!-- Isometric Cube -->
+      <rect width="175" height="106" rx="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.6"/>
+      <rect width="175" height="24" rx="8" fill="#f5f3ff"/>
+      <text x="87" y="16" font-size="10.5" font-weight="bold" fill="#6d28d9" text-anchor="middle">«In-Memory Store»</text>
+      <text x="87" y="44" font-size="13" font-weight="bold" fill="#0f172a" text-anchor="middle">Vector Store</text>
+      <text x="87" y="60" font-size="11" font-weight="bold" fill="#7c3aed" text-anchor="middle">NumPy In-RAM</text>
+      <text x="87" y="77" font-size="9.5" fill="#475569" text-anchor="middle">vectors.npy + chunks.json</text>
+      <text x="87" y="91" font-size="9.5" fill="#475569" text-anchor="middle">Cosine Similarity Search</text>
+    </g>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- 4. EXTERNAL SERVICES (RIGHT PANEL)         -->
+  <!-- ========================================== -->
+  <g transform="translate(1090, 250)">
+    <!-- Container Box -->
+    <rect width="250" height="505" rx="10" fill="#faf5ff" stroke="#9333ea" stroke-width="1.6" filter="url(#box-shadow)"/>
+
+    <!-- Header Badge -->
+    <g transform="translate(15, 16)">
+      <rect width="220" height="48" rx="8" fill="#7e22ce"/>
+      <text x="110" y="22" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">External Services</text>
+      <text x="110" y="38" font-size="10.5" fill="#e9d5ff" text-anchor="middle">Third-Party Integrations</text>
+    </g>
+
+    <!-- Ext 1: VNPay & VietQR -->
+    <g transform="translate(15, 82)">
+      <rect width="220" height="68" rx="8" fill="#ffffff" stroke="#9333ea" stroke-width="1.4" filter="url(#card-shadow)"/>
+      <text x="110" y="22" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">VNPay &amp; VietQR</text>
+      <text x="110" y="40" font-size="10" fill="#6b21a8" text-anchor="middle">Payment Gateway Sandbox</text>
+      <text x="110" y="55" font-size="9.5" fill="#64748b" text-anchor="middle">Dynamic Banking QR Code</text>
+    </g>
+
+    <!-- Ext 2: Gemini API -->
+    <g transform="translate(15, 162)">
+      <rect width="220" height="68" rx="8" fill="#ffffff" stroke="#9333ea" stroke-width="1.4" filter="url(#card-shadow)"/>
+      <text x="110" y="22" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Google Gemini API</text>
+      <text x="110" y="40" font-size="10" fill="#6b21a8" text-anchor="middle">gemini-3-flash-preview</text>
+      <text x="110" y="55" font-size="9.5" fill="#64748b" text-anchor="middle">gemini-embedding-001</text>
+    </g>
+
+    <!-- Ext 3: Weather API -->
+    <g transform="translate(15, 242)">
+      <rect width="220" height="68" rx="8" fill="#ffffff" stroke="#9333ea" stroke-width="1.4" filter="url(#card-shadow)"/>
+      <text x="110" y="22" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Weather &amp; Agro API</text>
+      <text x="110" y="40" font-size="10" fill="#6b21a8" text-anchor="middle">Open-Meteo Global Service</text>
+      <text x="110" y="55" font-size="9.5" fill="#64748b" text-anchor="middle">GPS Temp, Rain, Soil (BR18)</text>
+    </g>
+
+    <!-- Ext 4: Esri ArcGIS -->
+    <g transform="translate(15, 322)">
+      <rect width="220" height="68" rx="8" fill="#ffffff" stroke="#9333ea" stroke-width="1.4" filter="url(#card-shadow)"/>
+      <text x="110" y="22" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Esri ArcGIS Online</text>
+      <text x="110" y="40" font-size="10" fill="#6b21a8" text-anchor="middle">World Imagery Satellite Tiles</text>
+      <text x="110" y="55" font-size="9.5" fill="#64748b" text-anchor="middle">Boundary GeoJSON Rendering</text>
+    </g>
+
+    <!-- Ext 5: Google Maps -->
+    <g transform="translate(15, 402)">
+      <rect width="220" height="68" rx="8" fill="#ffffff" stroke="#9333ea" stroke-width="1.4" filter="url(#card-shadow)"/>
+      <text x="110" y="22" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">Google Maps</text>
+      <text x="110" y="40" font-size="10" fill="#6b21a8" text-anchor="middle">Location &amp; Geocoding</text>
+      <text x="110" y="55" font-size="9.5" fill="#64748b" text-anchor="middle">Site Visit Navigation Links</text>
+    </g>
+  </g>
+
+  <!-- Bidirectional Line between App Tier & External Services -->
+  <g transform="translate(1060, 500)">
+    <line x1="0" y1="0" x2="30" y2="0" stroke="#9333ea" stroke-width="2" marker-start="url(#arrow-purple)" marker-end="url(#arrow-purple)"/>
+    <text x="15" y="-10" font-size="9.5" font-weight="bold" fill="#6b21a8" text-anchor="middle">HTTPS</text>
+  </g>
+
+  <!-- ========================================== -->
+  <!-- 5. FOOTER: LEGEND & BRANDING               -->
+  <!-- ========================================== -->
+  <g transform="translate(40, 775)">
+    <!-- Legend Box -->
+    <rect width="730" height="70" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.4"/>
+    <text x="16" y="28" font-size="12" font-weight="bold" fill="#0f172a">Legend:</text>
+    
+    <!-- Item 1: Sync HTTP -->
+    <line x1="85" y1="24" x2="135" y2="24" stroke="#1e293b" stroke-width="2" marker-end="url(#arrow-slate)"/>
+    <text x="145" y="28" font-size="11" fill="#334155">Synchronous Request (HTTP / REST / Feign)</text>
+
+    <!-- Item 2: Bus / Gateway Routing -->
+    <line x1="410" y1="24" x2="460" y2="24" stroke="#16a34a" stroke-width="2" marker-end="url(#arrow-green)"/>
+    <text x="470" y="28" font-size="11" fill="#334155">Gateway Routing / Bus</text>
+
+    <!-- Item 3: External Integration -->
+    <line x1="85" y1="52" x2="135" y2="52" stroke="#9333ea" stroke-width="2" marker-start="url(#arrow-purple)" marker-end="url(#arrow-purple)"/>
+    <text x="145" y="56" font-size="11" fill="#334155">External 3rd-Party Integration (HTTPS)</text>
+
+    <!-- Item 4: Standard UML Symbols note -->
+    <text x="410" y="56" font-size="11" fill="#64748b">Standard UML 2.5 Components · Cylinder DB · UML Actors</text>
+
+    <!-- Branding Box -->
+    <g transform="translate(750, 0)">
+      <rect width="550" height="70" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.4"/>
+      <text x="25" y="28" font-size="14" font-weight="bold" fill="#15803d">🌾 Farmely — Smart Farm Plot Rental Platform</text>
+      <text x="25" y="46" font-size="10.5" fill="#475569">FPT University · Course ISP392 · Official 3-Tier System Architecture Blueprint</text>
+      <text x="25" y="60" font-size="9.5" fill="#94a3b8">Traceable to SSoT RP39 v2.2 &amp; Business Rules BR01–BR27</text>
+    </g>
+  </g>
+</svg>
