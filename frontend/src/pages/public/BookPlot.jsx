@@ -34,6 +34,7 @@ import {
 import VnPayModal from '../../components/payment/VnPayModal';
 import { chatService } from '../../api/communication/chatService';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
+import { sendNotification } from '../../services/notificationService';
 import {
   loadLeaseConfigMap,
   saveLeaseConfigMap,
@@ -923,6 +924,20 @@ export default function BookPlot() {
       syncRentalToChat();
       localStorage.removeItem('farmely_master_lease_selected_plots');
       window.dispatchEvent(new CustomEvent('farmely_plot_booked', { detail: selectedPlots }));
+
+      // Gửi thông báo phân công phụ trách thửa đất cho Staff
+      try {
+        const plotCodes = selectedPlots.map((p) => p.code || p.name).join(', ');
+        sendNotification({
+          targetRole: 'STAFF',
+          title: '🌱 Phân công phụ trách thửa đất mới',
+          content: `Bạn được phân công phụ trách thửa đất ${plotCodes} của khách hàng ${user?.fullName || customerInfo.name || 'Khách hàng'}. Vui lòng kiểm tra lịch canh tác và nhận bàn giao thửa.`,
+          type: 'PLOT_ASSIGNMENT',
+          link: '/staff/dashboard'
+        });
+      } catch (notiErr) {
+        console.warn('Lỗi gửi thông báo phân công thửa đất:', notiErr);
+      }
 
       // Thông báo cho toàn bộ các tab và component làm mới dữ liệu
       window.dispatchEvent(new Event('farmely_plot_booked'));

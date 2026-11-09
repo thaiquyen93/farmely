@@ -5,6 +5,7 @@ import Button from '../../components/common/Button';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import { chatService } from '../../api/communication/chatService';
+import { sendNotification } from '../../services/notificationService';
 
 export default function VnPayReturn() {
   const location = useLocation();
@@ -97,6 +98,20 @@ export default function VnPayReturn() {
         bc.postMessage({ type: 'PLOT_BOOKED', plots: pending.plots });
         bc.close();
       } catch (e) {}
+
+      // Gửi thông báo phân công phụ trách thửa đất cho Staff
+      try {
+        const plotCodes = (pending.plots || []).map((p) => p.code || p.name).join(', ') || 'thửa đất mới';
+        sendNotification({
+          targetRole: 'STAFF',
+          title: '🌱 Phân công phụ trách thửa đất mới',
+          content: `Bạn được phân công phụ trách thửa đất ${plotCodes} của khách hàng ${pending.customerName || 'Khách hàng'}. Vui lòng kiểm tra lịch canh tác và nhận bàn giao thửa.`,
+          type: 'PLOT_ASSIGNMENT',
+          link: '/staff/dashboard'
+        });
+      } catch (notiErr) {
+        console.warn('Lỗi gửi thông báo phân công thửa đất:', notiErr);
+      }
 
       // Đồng bộ thông tin hợp đồng vào Chat hỗ trợ (bỏ qua tài khoản Admin / Nội bộ)
       if (pending.customerName && !/Admin|Ban Quản Trị/i.test(pending.customerName) && !pending.customerEmail?.includes('admin')) {
