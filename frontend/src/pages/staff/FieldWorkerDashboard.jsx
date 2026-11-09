@@ -532,18 +532,19 @@ export default function FieldWorkerDashboard() {
       .then((res) => {
         const list = unwrapData(res) || [];
         if (Array.isArray(list)) {
-          // Lọc các hợp đồng ACTIVE và thuộc diện Farmely hỗ trợ chăm sóc
-          const activeOnly = list.filter((p) => p.status === 'ACTIVE' && p.cultivationMode !== 'SELF' && p.mode !== 'Self-Growing');
-          const finalList = activeOnly.length > 0 ? activeOnly : list.filter((p) => p.status === 'ACTIVE');
-          setAssignedPlots(finalList.map((p) => ({
+          // Lấy tất cả hợp đồng ACTIVE thuộc phạm vi quản lý của nhân viên tại trang trại
+          const activeList = list.filter((p) => p.status === 'ACTIVE');
+          setAssignedPlots(activeList.map((p) => ({
             ...p,
             key: String(p.rentalId || p.id),
             plotCode: p.plotCode || p.code || p.name,
             plotName: p.plotName || p.name || `Thửa ${p.plotCode || p.code || ''}`,
             crop: p.crop || p.varietyName || 'Đang canh tác',
             customerName: p.customerName || p.renterName || 'Khách thuê',
+            cultivationMode: p.cultivationMode,
+            mode: p.mode,
             contractCode: p.contractCode || p.contract_number || `#CTR-${p.rentalId || p.id}`,
-            area: p.area ? `${p.area} m²` : (p.area_sqm ? `${p.area_sqm} m²` : '—'),
+            area: formatCleanArea(p.area || p.area_sqm),
             location: p.location || p.landName || 'Trang trại Farmely',
             rentalId: p.rentalId || p.id,
             startDate: p.startDate,
@@ -1223,6 +1224,7 @@ export default function FieldWorkerDashboard() {
       assignedPlots.forEach((p) => {
         const itemKey = String(p?.rentalId || p?.id || p?.plotCode || p?.name);
         if (!itemKey) return;
+        const isSelf = p.cultivationMode === 'SELF' || p.mode === 'Self-Growing' || p.mode === 'SELF';
         map.set(itemKey, {
           key: itemKey,
           plotCode: p.plotCode || p.code || p.name,
@@ -1230,7 +1232,10 @@ export default function FieldWorkerDashboard() {
           customerName: p.renterName || p.customerName || 'Khách thuê',
           contractCode: p.contractCode || (p.plotCode ? `#CTR-${p.plotCode}` : 'Hợp đồng điện tử'),
           crop: p.crop || 'Rau củ chuẩn VietGAP',
-          area: p.area ? `${p.area} m²` : (p.area_sqm ? `${p.area_sqm} m²` : '—'),
+          cultivationMode: p.cultivationMode,
+          mode: p.mode,
+          isSelf,
+          area: formatCleanArea(p.area || p.area_sqm),
           location: p.location || 'Trang trại Farmely',
           rentalId: p.rentalId || p.id || 1,
           startDate: p.startDate,
@@ -1712,6 +1717,11 @@ export default function FieldWorkerDashboard() {
                                 <span className="font-heading font-black text-base text-brand-dark truncate">
                                   {plot.plotName}
                                 </span>
+                                {plot.isSelf && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 shrink-0">
+                                    Tự canh tác
+                                  </span>
+                                )}
                               </div>
                               {todayPending > 0 ? (
                                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
@@ -1721,6 +1731,10 @@ export default function FieldWorkerDashboard() {
                               ) : pending > 0 ? (
                                 <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] font-semibold text-stone-600 border border-stone-200">
                                   ⏳ {pending} sắp tới
+                                </span>
+                              ) : plot.isSelf ? (
+                                <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 border border-sky-200 flex items-center gap-1">
+                                  🌱 Khách tự làm
                                 </span>
                               ) : (
                                 <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200/60 flex items-center gap-1">
@@ -1733,7 +1747,7 @@ export default function FieldWorkerDashboard() {
                             <div className="mt-2.5 text-xs space-y-1 bg-stone-50/70 p-2.5 rounded-xl border border-stone-100">
                               <p className="font-bold text-emerald-900 truncate">🌱 Giống: {plot.crop}</p>
                               <p className="text-stone-600 truncate">👤 Khách hàng: <strong className="text-stone-800">{plot.customerName}</strong></p>
-                              <p className="text-stone-400 text-[11px]">📍 {plot.location || 'Trang trại Farmely'} {plot.area ? `• ${plot.area}` : ''}</p>
+                              <p className="text-stone-400 text-[11px]">📍 {plot.location || 'Trang trại Farmely'} {plot.area ? `• ${formatCleanArea(plot.area)}` : ''}</p>
                             </div>
 
                           </div>
@@ -1745,7 +1759,7 @@ export default function FieldWorkerDashboard() {
                                 🌿 {plot.stage || 'Sinh trưởng & phát triển'}
                               </span>
                               <span className="font-bold text-stone-700 shrink-0">
-                                {done}/{total} việc
+                                {plot.isSelf && total === 0 ? 'Chủ vườn tự chăm sóc' : `${done}/${total} việc`}
                               </span>
                             </div>
 
