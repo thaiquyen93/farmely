@@ -89,6 +89,15 @@ describe('FieldWorkerDashboard plot modal', () => {
     expect(plotCard).toBeTruthy();
     await click(plotCard);
 
+    // Renders as an inline page (not a dialog modal) with back navigation and a tasks table
+    expect(findButton('Quay lại danh sách thửa đất')).toBeTruthy();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    const taskTable = host.querySelector('table');
+    expect(taskTable).not.toBeNull();
+    expect(taskTable.textContent).toContain('Mã CV');
+    expect(taskTable.textContent).toContain('Tên Công Việc');
+    expect(taskTable.textContent).toContain('Hạn / Thời Gian');
+
     const text = () => document.body.textContent;
     expect(text()).toContain('Tưới nước hôm nay');
     expect(text()).toContain('Làm cỏ quá hạn');
