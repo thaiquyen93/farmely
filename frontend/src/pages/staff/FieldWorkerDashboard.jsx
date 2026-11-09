@@ -862,7 +862,11 @@ export default function FieldWorkerDashboard() {
       // 4. Cập nhật state nội bộ của FieldWorkerDashboard
       setTasks((prev) =>
         prev.map((t) =>
-          t.id === selectedTaskToExecute.id || t.apiId === targetTaskId
+          t.id === selectedTaskToExecute.id ||
+          t.apiId === targetTaskId ||
+          t.taskId === targetTaskId ||
+          Number(t.taskId) === Number(targetTaskId) ||
+          String(t.id).replace(/\D/g, '') === String(targetTaskId)
             ? {
                 ...t,
                 status: 'COMPLETED',

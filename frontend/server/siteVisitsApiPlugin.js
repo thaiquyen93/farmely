@@ -6113,7 +6113,10 @@ SELECT json_build_object(
               }
               if (payload.notes !== undefined || payload.taskProofNote !== undefined) {
                 const n = String(payload.notes !== undefined ? payload.notes : payload.taskProofNote).replace(/'/g, "''");
-                setClauses.push(`notes = '${n}'`);
+                setClauses.push(`notes = CASE 
+                  WHEN notes LIKE '%[ISS-%' OR notes LIKE '%[CHỈ ĐẠO CGNN]%' THEN SPLIT_PART(notes, E'\n', 1) || E'\n' || '${n}'
+                  ELSE '${n}'
+                END`);
               } else if (payload.instructions || payload.description) {
                 const notes = (payload.instructions || payload.description).replace(/'/g, "''");
                 setClauses.push(`notes = '${notes}'`);
@@ -6876,8 +6879,21 @@ RETURNING issue_id, handled_by, status;
 `;
               await runPostgreSql(sql);
 
-              // Tự động sinh Care Task xử lý sự cố cho CVLĐ nếu chuyên gia vừa chỉ đạo kỹ thuật
-              if (isDiagnosed && diagnosisText) {
+              // Nếu sự cố đã RESOLVED, tự động đánh dấu các task xử lý sự cố này thành DONE
+              if (payload.status === 'RESOLVED' || payload.status === 'DONE') {
+                try {
+                  await runPostgreSql(`
+                    UPDATE care_tasks
+                    SET status = 'DONE', updated_at = NOW()
+                    WHERE notes LIKE '%[ISS-' || ${issueId} || ']%' OR notes LIKE '%[ISSUE-' || ${issueId} || ']%';
+                  `);
+                } catch (e) {
+                  console.error('Error auto-completing care task for resolved issue:', e);
+                }
+              }
+
+              // Tự động sinh Care Task xử lý sự cố cho CVLĐ nếu chuyên gia vừa chỉ đạo kỹ thuật và sự cố chưa RESOLVED
+              if (isDiagnosed && diagnosisText && payload.status !== 'RESOLVED' && payload.status !== 'DONE') {
                 try {
                   await runPostgreSql(`
 DO $$
@@ -6892,7 +6908,7 @@ BEGIN
   FROM issue_reports ir
   JOIN rentals r ON ir.rental_id = r.rental_id
   JOIN plots p ON r.plot_id = p.plot_id
-  WHERE ir.issue_id = ${issueId};
+  WHERE ir.issue_id = ${issueId} AND ir.status <> 'RESOLVED';
 
   IF v_rental_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM care_tasks WHERE rental_id = v_rental_id AND (notes LIKE '%[ISS-' || ${issueId} || ']%' OR notes LIKE '%[ISSUE-' || ${issueId} || ']%')
