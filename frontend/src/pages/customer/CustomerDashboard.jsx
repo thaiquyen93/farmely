@@ -1478,6 +1478,10 @@ export default function CustomerDashboard() {
               } catch { }
             }
 
+            const isPlotDay1 = matchingPlot && Number(matchingPlot.currentDay || 1) <= 1;
+            const isDay1Task = resolvedTaskDay === 1 && isPlotDay1;
+            const normalizedStatus = isDay1Task ? (t.status === 'DONE' || t.status === 'COMPLETED' ? 'IN_PROG' : t.status) : t.status;
+
             const formattedTask = {
               id: t.id || `TSK-${t.taskId}`,
               taskId: t.taskId,
@@ -1488,12 +1492,12 @@ export default function CustomerDashboard() {
               cropDay: resolvedTaskDay,
               dayOffset: t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null,
               stepOrder: t.stepOrder || 1,
-              status: t.status,
+              status: normalizedStatus,
               owner: t.workerName || t.assignedTo || 'Kỹ thuật viên hiện trường',
               crop: t.crop,
               instructions: t.instructions,
-              proofPhoto: t.proofPhoto || t.evidenceImageUrl || null,
-              completedAt: t.completedAt
+              proofPhoto: isDay1Task ? null : (t.proofPhoto || t.evidenceImageUrl || null),
+              completedAt: isDay1Task ? null : t.completedAt
             };
 
             targetKeys.forEach((key) => {
@@ -1509,7 +1513,8 @@ export default function CustomerDashboard() {
             });
 
             // SSoT: Mọi nhiệm vụ chăm sóc thực địa đã hoàn thành (DONE / COMPLETED) tự động trở thành một mục nhật ký canh tác
-            if (t.status === 'DONE' || t.status === 'COMPLETED') {
+            // TUY NHIÊN: Khi thửa đất đang ở Ngày 1 (mới bắt đầu vụ), chưa có task nào hoàn thành nên không tạo nhật ký hoàn thành
+            if ((t.status === 'DONE' || t.status === 'COMPLETED') && !isDay1Task) {
               const formattedDiaryFromTask = {
                 id: `TASK-DIR-${t.id || t.taskId}`,
                 taskId: t.taskId || t.id,

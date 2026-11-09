@@ -320,7 +320,17 @@ function StandardProcessTimeline({
         if (!map[d]) map[d] = [];
 
         // Tránh trùng lặp task nhân viên đã hiển thị ở phần công việc
-        const isFromTask = String(e.id || '').startsWith('DIARY-FROM-TASK-') || Boolean(e.taskId);
+        const isFromTask = String(e.id || '').startsWith('DIARY-FROM-TASK-') ||
+          String(e.id || '').startsWith('TASK-DIR-') ||
+          Boolean(e.taskId) ||
+          Boolean(e.isStaffTask);
+
+        // Khi ở Ngày 1 (mới chuyển qua Ngày 1 hoặc vừa bắt đầu vụ):
+        // Chưa có task nào hoàn thành nên không hiển thị nhật ký tự sinh từ task đã xong
+        if (currentCropDay <= 1 && d === 1 && isFromTask) {
+          return;
+        }
+
         const titleLower = String(e.title || '').trim().toLowerCase();
         const isDuplicateTaskMirror = isFromTask && (staffActivities || []).some(
           (act) => {
@@ -338,7 +348,7 @@ function StandardProcessTimeline({
       }
     });
     return map;
-  }, [operations?.diary, getEntryCropDay, isSelf, staffActivities]);
+  }, [operations?.diary, getEntryCropDay, isSelf, staffActivities, currentCropDay]);
 
   // Gom nhóm hoạt động nhân viên theo ngày
   const activitiesByDay = useMemo(() => {
@@ -359,6 +369,7 @@ function StandardProcessTimeline({
         // Nếu đã ở ngày thu hoạch (currentCropDay >= totalDays), các task trước đó (không phải thu hoạch/nghiệm thu) hoàn thành 100%
         // NHƯNG NHIỆM VỤ THU HOẠCH PHẢI GIỮ LẠI LÀ CHƯA XONG (PENDING) để người dùng test chức năng thu hoạch!
         let syncedStatus = act.status;
+        const isServiceTask = Boolean(act.serviceRequestId || act.isCustom || (act.title && act.title.includes('[DỊCH VỤ')));
         if (currentCropDay >= totalDays) {
           if (!isHarvestAct) {
             syncedStatus = 'COMPLETED';
@@ -367,14 +378,16 @@ function StandardProcessTimeline({
           }
         } else if (currentCropDay > d && !isHarvestAct) {
           syncedStatus = 'COMPLETED';
-        } else if (!isSelf && currentCropDay <= 1 && d === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom) {
+        } else if (currentCropDay <= 1 && d === 1 && !isServiceTask) {
+          // Khi mới chuyển qua Ngày 1 hoặc chu kỳ vụ mùa đang ở Ngày 1:
+          // Các task canh tác chuẩn VietGAP chưa thể hoàn thành! Bắt buộc là IN_PROGRESS hoặc PENDING
           syncedStatus = !cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING';
         }
 
         map[d].push({
           ...act,
           status: syncedStatus,
-          proofPhoto: syncedStatus === 'COMPLETED' ? (act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80') : act.proofPhoto
+          proofPhoto: syncedStatus === 'COMPLETED' ? (act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80') : null
         });
       }
     });
@@ -435,6 +448,21 @@ function StandardProcessTimeline({
         }
       });
       map[1] = cleanDay1.slice(0, 2);
+    }
+
+    // Khi ở Ngày 1 (vừa chuyển qua Ngày 1 hoặc bắt đầu vụ):
+    // Tuyệt đối không có task canh tác chuẩn VietGAP nào của Ngày 1 hiển thị hoàn thành (COMPLETED / ✓ ĐÃ XONG)
+    if (map[1] && currentCropDay <= 1) {
+      map[1] = map[1].map((t) => {
+        const isSvc = Boolean(t.serviceRequestId || t.isCustom || (t.title && t.title.includes('[DỊCH VỤ')));
+        if (isSvc && t.status === 'COMPLETED') return t;
+        return {
+          ...t,
+          status: !cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING',
+          proofPhoto: null,
+          completedAt: null
+        };
+      });
     }
 
     if (!map[totalDays] || map[totalDays].length === 0) {
@@ -3609,7 +3637,9 @@ export default function CustomerPlotWorkspace({
                   } catch { }
                 }
 
-                const isDone = m.status === 'DONE' || m.status === 'COMPLETED';
+                const isServiceTask = Boolean(m.serviceRequestId || m.isCustom || (m.title && m.title.includes('[DỊCH VỤ')));
+                const isCurrentPlotDay1 = Number(plot?.currentDay || cropProcess?.currentDay || 1) <= 1 || cropProcess?.isNotStarted;
+                const isDone = (m.status === 'DONE' || m.status === 'COMPLETED') && !(resolvedDay === 1 && isCurrentPlotDay1 && !isServiceTask);
                 const sessionTime = m.deadline || (m.stepOrder && m.stepOrder % 2 === 0 ? 'Ca chiều (16:00 - 17:30)' : 'Ca sáng (07:30 - 09:00)');
                 const formattedTimestamp = isDone
                   ? (m.completedAt || (displayDateStr ? `${displayDateStr} • Đã hoàn thành` : 'Đã hoàn tất'))
@@ -3634,7 +3664,7 @@ export default function CustomerPlotWorkspace({
                   timestamp: formattedTimestamp,
                   status: isDone ? 'COMPLETED' : m.status === 'IN_PROG' ? 'IN_PROGRESS' : m.status || 'PENDING',
                   notes: m.instructions || m.notes || 'Thực hiện chăm sóc chuẩn quy trình VietGAP.',
-                  proofPhoto: m.proofPhoto || m.evidenceImageUrl || null
+                  proofPhoto: isDone ? (m.proofPhoto || m.evidenceImageUrl || null) : null
                 };
               });
               setStaffActivities(mapped);
@@ -3797,6 +3827,17 @@ export default function CustomerPlotWorkspace({
           }
         });
       } catch { }
+
+      const rentalId = activePlot?.rentalId || activePlot?.rental_id || plot?.rentalId || plot?.rental_id;
+      if (rentalId) {
+        try {
+          await fetch(`/api/rentals/${rentalId}/simulate-time`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'START_NOW' })
+          });
+        } catch { }
+      }
 
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         try {
