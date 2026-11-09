@@ -66,7 +66,7 @@ export default function PlotDetail() {
             status: found.status === 'AVAIL' ? 'AVAILABLE' : found.status === 'RENT' ? 'RENTED' : 'MAINTENANCE',
             rentalPrice: Number(found.pricePerPeriod),
             formattedPrice: `${Number(found.pricePerPeriod).toLocaleString('vi-VN')} đ/tháng`,
-            careServicePrice: Math.round(Number(found.pricePerPeriod) * 0.5),
+            careServicePrice: found.carePricePerMonth ?? found.care_price_per_month ?? Math.round(Number(found.pricePerPeriod) * 0.5),
             iotStationId: `IOT-${found.plotCode}`,
             iotStationName: `Trạm Vi Khí Hậu ${found.plotCode}`,
             compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby'],

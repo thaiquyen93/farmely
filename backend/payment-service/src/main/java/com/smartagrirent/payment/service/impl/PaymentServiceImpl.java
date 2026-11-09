@@ -562,8 +562,8 @@ public class PaymentServiceImpl implements PaymentService {
         transaction.setStatus(PaymentStatus.PENDING);
         PaymentTransaction saved = paymentTransactionRepository.save(transaction);
 
-        // 1.1 Link đơn dịch vụ canh tác nếu có
-        if (request.getServiceName() != null || request.getPlotCode() != null) {
+        // 1.1 Link đơn dịch vụ canh tác nếu có (Chỉ áp dụng khi thanh toán dịch vụ lẻ, KHÔNG PHẢI hợp đồng thuê đất)
+        if (request.getContractId() == null && (request.getServiceId() != null || request.getServiceName() != null)) {
             ServiceRequest sRequest = ServiceRequest.builder()
                     .serviceId(request.getServiceId() != null ? request.getServiceId() : 1)
                     .rentalId(request.getRentalId() != null ? request.getRentalId() : 1)

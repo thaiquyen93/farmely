@@ -25,7 +25,7 @@ public class VarietyServiceImpl implements VarietyService {
     @Override
     @Transactional(readOnly = true)
     public List<VarietyResponse> getAllVarieties() {
-        return varietyRepository.findAll().stream()
+        return varietyRepository.findByIsActiveTrueOrderByVarietyIdAsc().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -33,7 +33,7 @@ public class VarietyServiceImpl implements VarietyService {
     @Override
     @Transactional(readOnly = true)
     public List<VarietyResponse> getVarietiesByCropId(Integer cropId) {
-        return varietyRepository.findByCropId(cropId).stream()
+        return varietyRepository.findByCropIdAndIsActiveTrueOrderByVarietyIdAsc(cropId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -57,6 +57,7 @@ public class VarietyServiceImpl implements VarietyService {
                 .varietyName(request.getVarietyName())
                 .expectedDuration(request.getExpectedDuration())
                 .bufferTime(request.getBufferTime() != null ? request.getBufferTime() : 0)
+                .isActive(true)
                 .build();
 
         Variety saved = varietyRepository.save(variety);
@@ -69,7 +70,10 @@ public class VarietyServiceImpl implements VarietyService {
         if (!varietyRepository.existsById(id)) {
             throw new ResourceNotFoundException("Không tìm thấy giống cây với ID: " + id);
         }
-        varietyRepository.deleteById(id);
+        Variety variety = varietyRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy giống cây với ID: " + id));
+        variety.setIsActive(false);
+        varietyRepository.save(variety);
     }
 
     private VarietyResponse mapToResponse(Variety v) {
@@ -87,6 +91,8 @@ public class VarietyServiceImpl implements VarietyService {
                 .varietyName(v.getVarietyName())
                 .expectedDuration(v.getExpectedDuration())
                 .bufferTime(v.getBufferTime())
+                .imageUrl(v.getImageUrl())
+                .isActive(v.getIsActive())
                 .createdAt(v.getCreatedAt())
                 .build();
     }

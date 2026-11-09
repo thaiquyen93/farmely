@@ -272,7 +272,10 @@ export default function PlotRenewalModal({
 
     // Tính giá
     const plotPricePerPeriod = Number(plot?.rentalPrice || plot?.pricePerPeriod || 1200000);
-    const careServicePrice = selectedCareMode === 'ASSISTED' ? 450000 : 0;
+    const configuredCarePrice = plot?.carePricePerMonth ?? plot?.care_price_per_month ?? plot?.careServicePrice;
+    const careServicePrice = selectedCareMode === 'ASSISTED'
+      ? (configuredCarePrice != null ? Math.max(0, Number(configuredCarePrice) || 0) : 450000)
+      : 0;
     const subtotal = (plotPricePerPeriod + careServicePrice) * selectedSeasonsCount;
     const totalAmount = subtotal;
 

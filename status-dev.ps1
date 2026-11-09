@@ -1,7 +1,27 @@
-﻿$ErrorActionPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
+
+function Test-PortListening {
+    param([int]$port)
+    try {
+        $conn = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop
+        if ($conn) { return $true }
+    } catch {}
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $async = $client.BeginConnect('127.0.0.1', $port, $null, $null)
+        $wait = $async.AsyncWaitHandle.WaitOne(300, $false)
+        if ($wait) {
+            $client.EndConnect($async)
+            $client.Close()
+            return $true
+        }
+        $client.Close()
+    } catch {}
+    return $false
+}
 
 $services = @(
-    [pscustomobject]@{ Port = 3000; Name = 'frontend'; Type = 'React Vite Dev Server'; Url = 'http://localhost:3000' },
+    [pscustomobject]@{ Port = 3001; Name = 'frontend'; Type = 'React Vite Dev Server'; Url = 'http://localhost:3001' },
     [pscustomobject]@{ Port = 8080; Name = 'api-gateway'; Type = 'Spring Cloud Gateway'; Url = 'http://localhost:8080' },
     [pscustomobject]@{ Port = 8081; Name = 'identity-service'; Type = 'Auth & Users Service'; Url = 'http://localhost:8081/swagger-ui.html' },
     [pscustomobject]@{ Port = 8082; Name = 'farm-service'; Type = 'Lands & Plots Service'; Url = 'http://localhost:8082/swagger-ui.html' },
@@ -21,7 +41,7 @@ Write-Host '====================================================================
 
 $onlineCount = 0
 foreach ($s in $services) {
-    $conn = Get-NetTCPConnection -LocalPort $s.Port -State Listen -ErrorAction SilentlyContinue
+    $conn = Test-PortListening -port $s.Port
     if ($conn) {
         $onlineCount++
         Write-Host ('  [ONLINE]  Cong {0,-4} : {1,-22} ({2})' -f $s.Port, $s.Name, $s.Type) -ForegroundColor Green
@@ -37,7 +57,7 @@ if ($onlineCount -eq $services.Count) {
     Write-Host "  Hien co $onlineCount/$($services.Count) dich vu dang hoat dong." -ForegroundColor Yellow
 }
 Write-Host '========================================================================' -ForegroundColor Cyan
-Write-Host '  Truy cap Frontend    : http://localhost:3000' -ForegroundColor White
+Write-Host '  Truy cap Frontend    : http://localhost:3001' -ForegroundColor White
 Write-Host '  Truy cap API Gateway : http://localhost:8080' -ForegroundColor White
 Write-Host '========================================================================' -ForegroundColor Cyan
 Write-Host ''

@@ -78,7 +78,7 @@ export default function Hero() {
           <span className="w-8 h-px bg-brand-yellow/60" />
         </div>
 
-        {/* Cinematic Heading with soft rounded typography (Nunito) */}
+        {/* Heading uses the shared Farmely typeface. */}
         <h1 className="text-hero font-heading font-black text-white text-balance drop-shadow-md tracking-tight mb-5">
           <span className="block">{slide.headingLine1}</span>
           <span className="text-brand-yellow inline-block relative mt-1">

@@ -38,7 +38,16 @@ export default function Varieties() {
     ])
       .then(([varRes, cropRes]) => {
         if (varRes && varRes.success && Array.isArray(varRes.data) && varRes.data.length > 0) {
-          setVarieties(varRes.data);
+          setVarieties(varRes.data.map((item) => ({
+            id: item.varietyId,
+            name: item.varietyName,
+            cropId: item.cropId,
+            cropName: item.cropName,
+            growthDuration: item.expectedDuration,
+            bufferTime: item.bufferTime,
+            imageUrl: item.imageUrl,
+            status: item.isActive ? 'ACTIVE' : 'ARCHIVED'
+          })));
           setIsLiveDb(true);
         }
         if (cropRes && cropRes.success && Array.isArray(cropRes.data) && cropRes.data.length > 0) {
@@ -96,9 +105,9 @@ export default function Varieties() {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: name.trim(),
+          varietyName: name.trim(),
           cropId: parseInt(cropId, 10),
-          growthDuration: parseInt(duration, 10),
+          expectedDuration: parseInt(duration, 10),
           bufferTime: 4
         })
       });

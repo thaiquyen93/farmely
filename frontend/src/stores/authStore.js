@@ -53,12 +53,13 @@ const ROLE_TITLES = {
 
 const normalizeUser = (user, token) => {
   if (!user) return null;
-  const role = user?.role === 'FIELD_WORKER' ? 'STAFF' : user?.role;
+  const role = (user?.role === 'FIELD_WORKER' || user?.role === 'worker') ? 'STAFF' : user?.role;
   return {
     ...user,
     id: user?.id || (user?.userId ? `USR-${user.userId}` : undefined),
     userId: user?.userId || (typeof user?.id === 'number' ? user.id : undefined),
-    phone: user?.phone || user?.phoneNumber,
+    phone: user?.phone || user?.phoneNumber || '',
+    address: user?.address || '',
     role,
     roleTitle: ROLE_TITLES[role] || role,
     avatar: user?.avatar || (
@@ -73,32 +74,38 @@ const normalizeUser = (user, token) => {
 
 const readAuth = () => {
   try {
-    // 1. Ưu tiên đọc từ sessionStorage: Cách ly phiên đăng nhập độc lập cho từng tab trình duyệt
-    const sessionAuth = JSON.parse(sessionStorage.getItem('farmely_auth') || 'null');
-    if (sessionAuth?.token && sessionAuth?.user) return sessionAuth;
-    const sessionUser = JSON.parse(sessionStorage.getItem('farmely_user') || 'null');
-    const sessionToken = sessionStorage.getItem('farmely_token') || null;
-    if (sessionUser) return { token: sessionToken, user: normalizeUser(sessionUser, sessionToken) };
-
-    // 2. Dự phòng: Khi mở tab mới chưa có sessionStorage, lấy từ localStorage và clone sang tab này
-    const auth = JSON.parse(localStorage.getItem('farmely_auth') || 'null');
-    if (auth?.token && auth?.user) {
-      try {
-        sessionStorage.setItem('farmely_auth', JSON.stringify(auth));
-        sessionStorage.setItem('farmely_user', JSON.stringify(auth.user));
-        if (auth.token) sessionStorage.setItem('farmely_token', auth.token);
-      } catch {}
-      return auth;
+// 1. Ưu tiên cao nhất: sessionStorage (đảm bảo mỗi tab duy trì phiên đăng nhập & vai trò độc lập, không bị ghi đè chéo khi F5)
+    if (typeof sessionStorage !== 'undefined') {
+      const sessAuth = JSON.parse(sessionStorage.getItem('farmely_auth') || 'null');
+      if (sessAuth?.token && sessAuth?.user) return sessAuth;
+      const sessUser = JSON.parse(sessionStorage.getItem('farmely_user') || 'null');
+      const sessToken = sessionStorage.getItem('farmely_token') || null;
+      if (sessUser) return { token: sessToken, user: normalizeUser(sessUser, sessToken) };
     }
-    const user = JSON.parse(localStorage.getItem('farmely_user') || 'null');
-    const token = localStorage.getItem('farmely_token') || null;
-    if (user) {
-      const normalized = normalizeUser(user, token);
-      try {
-        sessionStorage.setItem('farmely_user', JSON.stringify(normalized));
-        if (token) sessionStorage.setItem('farmely_token', token);
-      } catch {}
-      return { token, user: normalized };
+
+    // 2. Fallback: localStorage (khi mở tab mới lần đầu tiên chưa có sessionStorage)
+    if (typeof localStorage !== 'undefined') {
+      const auth = JSON.parse(localStorage.getItem('farmely_auth') || 'null');
+      if (auth?.token && auth?.user) {
+        // Sao chép sang sessionStorage của tab hiện tại để từ nay F5 tab này sẽ giữ nguyên vai trò riêng
+        try {
+          sessionStorage.setItem('farmely_auth', JSON.stringify(auth));
+          sessionStorage.setItem('farmely_user', JSON.stringify(auth.user));
+          if (auth.token) sessionStorage.setItem('farmely_token', auth.token);
+        } catch {}
+        return auth;
+      }
+      const user = JSON.parse(localStorage.getItem('farmely_user') || 'null');
+      const token = localStorage.getItem('farmely_token') || null;
+      if (user) {
+        const normalized = { token, user: normalizeUser(user, token) };
+        try {
+          sessionStorage.setItem('farmely_auth', JSON.stringify(normalized));
+          sessionStorage.setItem('farmely_user', JSON.stringify(normalized.user));
+          if (token) sessionStorage.setItem('farmely_token', token);
+        } catch {}
+        return normalized;
+      }
     }
     return null;
   } catch {
@@ -107,16 +114,23 @@ const readAuth = () => {
 };
 
 const persistAuth = (auth) => {
+if (!auth) return;
+  // 1. Ghi vào sessionStorage của riêng TAB hiện tại (cách ly độc lập từng tab trình duyệt)
   try {
-    // Luôn lưu vào sessionStorage của Tab hiện tại (cách ly độc lập từng tab)
-    sessionStorage.setItem('farmely_auth', JSON.stringify(auth));
-    sessionStorage.setItem('farmely_user', JSON.stringify(auth.user));
-    if (auth.token) sessionStorage.setItem('farmely_token', auth.token);
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('farmely_auth', JSON.stringify(auth));
+      sessionStorage.setItem('farmely_user', JSON.stringify(auth.user));
+      if (auth.token) sessionStorage.setItem('farmely_token', auth.token);
+    }
+  } catch {}
 
-    // Đồng thời lưu vào localStorage làm tài khoản mặc định cho tab mới mở
-    localStorage.setItem('farmely_auth', JSON.stringify(auth));
-    localStorage.setItem('farmely_user', JSON.stringify(auth.user));
-    if (auth.token) localStorage.setItem('farmely_token', auth.token);
+  // 2. Ghi vào localStorage để hỗ trợ mở tab mới
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('farmely_auth', JSON.stringify(auth));
+      localStorage.setItem('farmely_user', JSON.stringify(auth.user));
+      if (auth.token) localStorage.setItem('farmely_token', auth.token);
+    }
   } catch {}
 };
 
@@ -139,16 +153,52 @@ export const useAuthStore = create((set, get) => ({
       const resData = await response.json();
       if (response.ok && resData && resData.success && resData.data) {
         const data = resData.data;
-        const user = normalizeUser(data.user, data.token);
+        const rawUser = data.user || data.dbUser;
+        const user = normalizeUser(rawUser, data.token);
+        // Kiểm tra xem trạng thái tài khoản có bị khóa/vô hiệu hóa không
+        if (user.status === 'BLOCKED' || user.status === 'INACTIVE') {
+          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+          return {
+            success: false,
+            message: `Tài khoản của bạn đã bị ${user.status === 'BLOCKED' ? 'khóa (BLOCKED)' : 'vô hiệu hóa (INACTIVE)'} bởi Ban Quản Trị Farmely.`
+          };
+        }
         persistAuth({ token: data.token, expiresIn: data.expiresIn, user });
         set({ user, token: data.token, isAuthenticated: true, isLoading: false });
         return { success: true, user };
       }
+
+      // Nếu server từ chối vì tài khoản bị khóa hoặc vô hiệu hóa, tuyệt đối không dùng demo fallback
+      if (resData && (response.status === 403 || String(resData.message || '').includes('khóa') || String(resData.message || '').includes('vô hiệu hóa') || String(resData.message || '').includes('BLOCKED') || String(resData.message || '').includes('INACTIVE'))) {
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+        return { success: false, message: resData.message || 'Tài khoản của bạn đã bị khóa hoặc tạm ngưng hoạt động.' };
+      }
+
       // Fallback cho tài khoản demo kiểm thử nếu mật khẩu DB không khớp
       const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
       if (demoAcc) {
+        // Kiểm tra trạng thái đồng bộ nếu tài khoản demo này vừa bị Admin khóa
+        let syncStatus = null;
+        try {
+          const syncRaw = localStorage.getItem('farmely_user_status_sync');
+          if (syncRaw) {
+            const parsed = JSON.parse(syncRaw);
+            if (parsed.email === email.trim() || Number(parsed.userId) === Number(demoAcc.userId || demoAcc.id)) {
+              syncStatus = parsed.status;
+            }
+          }
+        } catch (_) {}
+
+        if (syncStatus === 'BLOCKED' || syncStatus === 'INACTIVE') {
+          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+          return {
+            success: false,
+            message: `Tài khoản của bạn đã bị ${syncStatus === 'BLOCKED' ? 'khóa (BLOCKED)' : 'vô hiệu hóa (INACTIVE)'} bởi Ban Quản Trị Farmely.`
+          };
+        }
+
         const fallbackToken = 'demo-token-' + demoAcc.id;
-        const normalized = normalizeUser(demoAcc, fallbackToken);
+        const normalized = normalizeUser({ ...demoAcc, status: syncStatus || demoAcc.status || 'ACTIVE' }, fallbackToken);
         persistAuth({ token: fallbackToken, user: normalized });
         set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
         return { success: true, user: normalized };
@@ -159,8 +209,27 @@ export const useAuthStore = create((set, get) => ({
       // Fallback cho tài khoản demo khi Identity Service offline
       const demoAcc = DEMO_ACCOUNTS.find(a => a.email.toLowerCase() === email.trim().toLowerCase());
       if (demoAcc) {
+        let syncStatus = null;
+        try {
+          const syncRaw = localStorage.getItem('farmely_user_status_sync');
+          if (syncRaw) {
+            const parsed = JSON.parse(syncRaw);
+            if (parsed.email === email.trim() || Number(parsed.userId) === Number(demoAcc.userId || demoAcc.id)) {
+              syncStatus = parsed.status;
+            }
+          }
+        } catch (_) {}
+
+        if (syncStatus === 'BLOCKED' || syncStatus === 'INACTIVE') {
+          set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+          return {
+            success: false,
+            message: `Tài khoản của bạn đã bị ${syncStatus === 'BLOCKED' ? 'khóa (BLOCKED)' : 'vô hiệu hóa (INACTIVE)'} bởi Ban Quản Trị Farmely.`
+          };
+        }
+
         const fallbackToken = 'demo-token-' + demoAcc.id;
-        const normalized = normalizeUser(demoAcc, fallbackToken);
+        const normalized = normalizeUser({ ...demoAcc, status: syncStatus || demoAcc.status || 'ACTIVE' }, fallbackToken);
         persistAuth({ token: fallbackToken, user: normalized });
         set({ user: normalized, token: fallbackToken, isAuthenticated: true, isLoading: false });
         return { success: true, user: normalized };
@@ -230,12 +299,16 @@ export const useAuthStore = create((set, get) => ({
 
   logout: () => {
     try {
-      sessionStorage.removeItem('farmely_token');
-      sessionStorage.removeItem('farmely_user');
-      sessionStorage.removeItem('farmely_auth');
-      localStorage.removeItem('farmely_token');
-      localStorage.removeItem('farmely_user');
-      localStorage.removeItem('farmely_auth');
+if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('farmely_token');
+        sessionStorage.removeItem('farmely_user');
+        sessionStorage.removeItem('farmely_auth');
+      }
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('farmely_token');
+        localStorage.removeItem('farmely_user');
+        localStorage.removeItem('farmely_auth');
+      }
     } catch {}
     set({ user: null, token: null, isAuthenticated: false, isLoading: false });
   },
@@ -245,8 +318,12 @@ export const useAuthStore = create((set, get) => ({
     if (!current) return;
     const updated = { ...current, ...changes };
     try {
-      sessionStorage.setItem('farmely_user', JSON.stringify(updated));
-      localStorage.setItem('farmely_user', JSON.stringify(updated));
+if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('farmely_user', JSON.stringify(updated));
+      }
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('farmely_user', JSON.stringify(updated));
+      }
     } catch {}
     const auth = readAuth();
     if (auth) persistAuth({ ...auth, user: updated });

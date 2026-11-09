@@ -31,6 +31,9 @@ public class PlotUpdateRequest {
     @DecimalMin(value = "0.00", message = "Giá thuê không được âm")
     private BigDecimal pricePerPeriod;
 
+    @DecimalMin(value = "0.00", message = "Giá dịch vụ chăm sóc không được âm")
+    private BigDecimal carePricePerMonth;
+
     private PlotStatus status;
 
     private Boolean isPublished;

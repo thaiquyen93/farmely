@@ -10,13 +10,15 @@ export const EARTH_RADIUS_M = 6378137;
 const EPS = 1e-7;
 const rad = (d) => (d * Math.PI) / 180;
 
-/** Bỏ điểm trùng liên tiếp và điểm đóng; không ném lỗi; tự unwrap GeoJSON object hoặc chuỗi JSON */
-export function cleanRing(rawRing) {
+export function samePoint(a, b) {
+  if (!a || !b) return false;
+  return Math.abs(a[0] - b[0]) < EPS && Math.abs(a[1] - b[1]) < EPS;
+}
+
+/** Trích xuất danh sách điểm [lng, lat] từ nhiều định dạng khác nhau (Array, GeoJSON, chuỗi JSON, v.v.) */
+export function extractRing(rawRing) {
   if (!rawRing) return [];
-
   let ring = rawRing;
-
-  // 1. Nếu là chuỗi JSON
   if (typeof ring === 'string') {
     try {
       ring = JSON.parse(ring);
@@ -24,24 +26,23 @@ export function cleanRing(rawRing) {
       return [];
     }
   }
-
-  // 2. Nếu là GeoJSON Feature hoặc Geometry (Polygon / MultiPolygon)
   if (ring && typeof ring === 'object' && !Array.isArray(ring)) {
-    if (ring.geometry) ring = ring.geometry;
+    if (ring.geometry) return extractRing(ring.geometry);
     if (ring.coordinates) ring = ring.coordinates;
-    else if (ring.boundary) ring = ring.boundary;
-    else if (ring.ring) ring = ring.ring;
+    else if (ring.boundary) return extractRing(ring.boundary);
+    else if (ring.ring) return extractRing(ring.ring);
   }
-
-  // 3. Nếu là mảng 3 chiều [[[lng, lat], ...]] (Polygon coordinates outer ring)
   while (Array.isArray(ring) && ring.length > 0 && Array.isArray(ring[0]) && Array.isArray(ring[0][0])) {
     ring = ring[0];
   }
+  return Array.isArray(ring) ? ring : [];
+}
 
-  if (!Array.isArray(ring)) return [];
-
+/** Bỏ điểm trùng liên tiếp và điểm đóng; an toàn tuyệt đối với mọi kiểu dữ liệu (null, undefined, GeoJSON Object, chuỗi) */
+export function cleanRing(rawRing = []) {
+  const points = extractRing(rawRing);
   const out = [];
-  for (const p of ring) {
+  for (const p of points) {
     if (!Array.isArray(p) || !Number.isFinite(Number(p[0])) || !Number.isFinite(Number(p[1]))) continue;
     const pt = [Number(p[0]), Number(p[1])];
     const last = out[out.length - 1];
@@ -49,10 +50,6 @@ export function cleanRing(rawRing) {
   }
   if (out.length > 1 && samePoint(out[0], out[out.length - 1])) out.pop();
   return out;
-}
-
-export function samePoint(a, b) {
-  return Math.abs(a[0] - b[0]) < EPS && Math.abs(a[1] - b[1]) < EPS;
 }
 
 /** Diện tích m² (công thức cầu, giống turf.js / backend) */

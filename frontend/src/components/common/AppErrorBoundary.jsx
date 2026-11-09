@@ -23,7 +23,6 @@ export default class AppErrorBoundary extends React.Component {
           <p className="text-xs font-black uppercase tracking-[0.2em] text-rose-600">Farmely</p>
           <h1 className="mt-3 font-heading text-2xl font-black text-brand-dark">Trang vừa gặp lỗi hiển thị</h1>
           <p className="mt-2 text-sm text-stone-600">Dữ liệu của bạn vẫn an toàn. Hãy tải lại trang để khôi phục phiên làm việc.</p>
-
           {this.state.error && (
             <div className="mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-left text-xs text-rose-800 font-mono overflow-auto max-h-48 text-left">
               <p className="font-bold">{this.state.error?.name || 'Error'}: {this.state.error?.message || String(this.state.error)}</p>

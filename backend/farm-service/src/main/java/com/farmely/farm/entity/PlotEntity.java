@@ -44,6 +44,10 @@ public class PlotEntity {
     @Column(name = "price_per_period", nullable = false, precision = 15, scale = 2)
     private BigDecimal pricePerPeriod;
 
+    @Column(name = "care_price_per_month", nullable = false, precision = 15, scale = 2)
+    @Builder.Default
+    private BigDecimal carePricePerMonth = BigDecimal.ZERO;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "plot_status_enum")
     @JdbcType(PostgreSQLEnumJdbcType.class)

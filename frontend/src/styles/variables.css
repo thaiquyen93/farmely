@@ -1,4 +1,5 @@
 :root {
+  --font-app: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --green-dark: #294C3B;
   --green: #426B4F;
   --green-light: #718D63;

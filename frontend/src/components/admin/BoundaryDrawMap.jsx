@@ -26,7 +26,7 @@ import {
  * @param {'land'|'plot'} props.kind
  */
 
-const SNAP_PX = 14;
+const SNAP_PX = 20;
 const DEFAULT_CENTER = [106.6602, 10.7626]; // TP.HCM
 const COLORS = {
   ok: '#22c55e',
@@ -543,11 +543,15 @@ export default function BoundaryDrawMap({
       </div>
 
       {/* Số đo + kiểm tra */}
-      <div className="grid gap-3 bg-white p-4 sm:grid-cols-[auto_auto_auto_1fr] sm:items-center">
-        <div><p className="text-[11px] text-stone-500">Diện tích</p><p className="text-lg font-bold text-[#18352b]">{metrics.area}</p></div>
-        <div><p className="text-[11px] text-stone-500">Chu vi</p><p className="text-lg font-bold text-[#18352b]">{metrics.perimeter}</p></div>
-        <div><p className="text-[11px] text-stone-500">Số góc</p><p className="text-lg font-bold text-[#18352b]">{activeRing.length || '—'}</p></div>
-        <div className="sm:pl-2" aria-live="polite">
+      <div className={`grid gap-3 bg-white p-4 ${kind === 'land' ? 'sm:grid-cols-[auto_auto_auto_1fr] sm:items-center' : ''}`}>
+        {kind === 'land' && (
+          <>
+            <div><p className="text-[11px] text-stone-500">Diện tích</p><p className="text-lg font-bold text-[#18352b]">{metrics.area}</p></div>
+            <div><p className="text-[11px] text-stone-500">Chu vi</p><p className="text-lg font-bold text-[#18352b]">{metrics.perimeter}</p></div>
+            <div><p className="text-[11px] text-stone-500">Số góc</p><p className="text-lg font-bold text-[#18352b]">{activeRing.length || '—'}</p></div>
+          </>
+        )}
+        <div className={kind === 'land' ? 'sm:pl-2' : ''} aria-live="polite">
           {coordError && <p className="text-xs font-medium text-rose-600">{coordError}</p>}
           {validation && !validation.ok && validation.errors.map((err) => (
             <p key={err} className="flex items-start gap-1.5 rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700"><X className="mt-0.5 h-3.5 w-3.5 shrink-0" />{err}</p>

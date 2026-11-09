@@ -153,9 +153,9 @@ export default function MasterDataDashboard() {
       ];
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-4 animate-fadeIn">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-brand-border bg-white p-5 shadow-sm sm:p-6 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 rounded-2xl border border-brand-border bg-white p-4 shadow-sm sm:p-5 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-brand-border bg-brand-cream px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-green">
@@ -170,10 +170,10 @@ export default function MasterDataDashboard() {
               <span>{isLiveDb ? 'Live DB: PostgreSQL' : 'Đang kết nối CSDL'}</span>
             </span>
           </div>
-          <h1 className="mt-2 font-heading text-2xl font-black text-brand-dark sm:text-3xl">
+          <h1 className="mt-1.5 font-heading text-xl font-black text-brand-dark sm:text-2xl">
             Farmely Master Data
           </h1>
-          <p className="mt-1 text-xs text-brand-muted sm:text-sm">
+          <p className="mt-0.5 text-xs text-brand-muted">
             Quản lý và chuẩn hóa nền tảng dữ liệu quỹ đất, giống cây, quy trình chuẩn VietGAP và trạm khí tượng thực địa.
           </p>
         </div>
@@ -195,15 +195,14 @@ export default function MasterDataDashboard() {
       </div>
 
       {/* KPI theo nhóm nghiệp vụ */}
-      <div className="space-y-6">
+      <div className="space-y-4">
         {statGroups.map((g) => (
           <section key={g.group} aria-label={g.group}>
-            <div className="mb-3 flex items-baseline gap-3">
+            <div className="mb-2 flex items-baseline gap-3">
               <div className="min-w-0">
                 <h2 className="font-heading text-sm font-black uppercase tracking-widest text-brand-dark">
                   {g.group}
                 </h2>
-                <p className="mt-0.5 text-[11px] text-brand-muted">{g.caption}</p>
               </div>
               <span className="mb-1 h-px flex-1 bg-brand-border/70" />
               <span className="mb-1 shrink-0 whitespace-nowrap text-[11px] font-bold text-brand-muted">
@@ -211,14 +210,14 @@ export default function MasterDataDashboard() {
               </span>
             </div>
 
-            <div className={`grid grid-cols-1 gap-4 ${GRID_BY_COUNT[g.items.length] || 'sm:grid-cols-3'}`}>
+            <div className={`grid grid-cols-1 gap-3 ${GRID_BY_COUNT[g.items.length] || 'sm:grid-cols-3'}`}>
               {g.items.map((s) => {
                 const Icon = s.icon;
                 return (
                   <Link
                     key={s.label}
                     to={s.link}
-                    className={`group relative flex flex-col overflow-hidden rounded-2xl border bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${
+                    className={`group relative flex min-h-[112px] flex-row items-center gap-3 overflow-hidden rounded-2xl border bg-white p-4 pl-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg ${
                       s.accent ? 'border-brand-yellow/70' : 'border-brand-border hover:border-brand-green'
                     }`}
                   >
@@ -228,25 +227,24 @@ export default function MasterDataDashboard() {
                       className={`absolute inset-y-0 left-0 w-1 ${s.accent ? 'bg-brand-yellow' : 'bg-brand-green/25 group-hover:bg-brand-green'} transition-colors`}
                     />
 
-                    <div className="flex items-start justify-between gap-3">
-                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-transform group-hover:scale-105 ${
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${
                         s.accent ? 'bg-brand-yellow/25 text-amber-700' : 'bg-brand-cream text-brand-green'
                       }`}>
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <ArrowUpRight className="h-4 w-4 shrink-0 text-stone-300 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand-green" />
-                    </div>
+                      <Icon className="h-5 w-5" />
+                    </span>
 
-                    <p className="mt-4 text-[11px] font-bold uppercase leading-tight tracking-wider text-brand-muted">
-                      {s.label}
-                    </p>
-
-                    <div className="mt-1.5 flex items-baseline gap-1.5">
-                      <span className="font-heading text-[2rem] font-black leading-none text-brand-dark">
-                        {s.value}
-                      </span>
-                      <span className="text-[11px] font-semibold text-brand-muted">{s.unit}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-bold uppercase leading-tight tracking-wide text-brand-muted">
+                        {s.label}
+                      </p>
+                      <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="font-heading text-2xl font-black leading-none text-brand-dark">
+                          {s.value}
+                        </span>
+                        <span className="text-[11px] font-semibold text-brand-muted">{s.unit}</span>
+                      </div>
                     </div>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-stone-300 transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand-green" />
                   </Link>
                 );
               })}
@@ -256,7 +254,7 @@ export default function MasterDataDashboard() {
       </div>
 
       {/* Audit Log toàn chiều ngang */}
-      <section className="rounded-2xl border border-brand-border bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-2xl border border-brand-border bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-brand-border/60 pb-3">
           <h3 className="flex items-center gap-2 font-heading text-base font-bold text-brand-dark">
             <Clock className="h-5 w-5 text-brand-green" />
@@ -268,11 +266,11 @@ export default function MasterDataDashboard() {
           </span>
         </div>
 
-        <ul className="mt-4 divide-y divide-brand-border/60">
-          {recentUpdates.map((item, idx) => (
+        <ul className="mt-2 divide-y divide-brand-border/60">
+          {recentUpdates.slice(0, 5).map((item, idx) => (
             <li
               key={idx}
-              className="flex items-center justify-between gap-3 rounded-lg px-1 py-3 transition-colors hover:bg-brand-cream/40"
+              className="flex items-center justify-between gap-3 rounded-lg px-1 py-2 transition-colors hover:bg-brand-cream/40"
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-brand-dark">{item.title}</p>
@@ -289,7 +287,7 @@ export default function MasterDataDashboard() {
           ))}
         </ul>
 
-        <div className="pt-3 text-right">
+        <div className="pt-2 text-right">
           <Link
             to="/admin/master-data/audit-logs"
             className="inline-flex items-center gap-1 text-xs font-bold text-brand-green hover:underline"

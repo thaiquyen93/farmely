@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import VnPayModal from '../../components/payment/VnPayModal';
 import { chatService } from '../../api/communication/chatService';
-import { DEMO_CUSTOMERS, getPlotChatThreadId } from '../../api/communication/chatStorage';
+import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import {
   loadLeaseConfigMap,
   saveLeaseConfigMap,
@@ -485,7 +485,9 @@ export default function BookPlot() {
   const getPlotPriceDetails = useCallback((p) => {
     const cfg = getPlotConfig(p);
     const rentPerMonth = Number(p.rentalPrice) || 1200000;
-    const carePerMonth = Number(p.careServicePrice) || Math.round(rentPerMonth * 0.5);
+    const carePerMonth = p.careServicePrice != null
+      ? Math.max(0, Number(p.careServicePrice) || 0)
+      : Math.round(rentPerMonth * 0.5);
     const months = Number(cfg.termMonths) || 3;
     const rentTotal = rentPerMonth * months;
     const careTotal = cfg.cultivationMode === 'ASSISTED' ? carePerMonth * months : 0;
@@ -551,7 +553,7 @@ export default function BookPlot() {
           rentalPrice: Number(p.pricePerPeriod || p.price_per_period),
           formattedPrice: `${Number(p.pricePerPeriod || p.price_per_period).toLocaleString('vi-VN')} đ/tháng`,
           rentalPriceFormatted: `${Number(p.pricePerPeriod || p.price_per_period).toLocaleString('vi-VN')} đ/tháng`,
-          careServicePrice: Math.round(Number(p.pricePerPeriod || p.price_per_period) * 0.5),
+          careServicePrice: p.carePricePerMonth ?? p.care_price_per_month ?? Math.round(Number(p.pricePerPeriod || p.price_per_period) * 0.5),
           status: (p.status === 'AVAIL' || p.status === 'AVAILABLE') ? 'AVAILABLE' : (p.status === 'RENT' || p.status === 'RENTED') ? 'RENTED' : 'MAINTENANCE',
           iotStationId: `IOT-${p.plotCode || p.plot_code}`,
           compatibleCrops: (p.compatibleVarieties || []).map((crop) => crop.varietyName),
@@ -675,27 +677,12 @@ export default function BookPlot() {
       (customer) => customer.email?.toLowerCase() === user.email?.toLowerCase()
     );
     const safeKey = user.email?.replace(/[^a-zA-Z0-9]/g, '_') || user.id || 'customer';
-    chatService.updateRentalContext({
+    chatService.upsertCustomerThread({
       threadId: demoProfile?.threadId || `CONS-${safeKey}`,
+      participantUserId: user.userId,
       customerName: user.fullName,
       customerAvatar: user.avatar,
-      plotCode: plotCodesList,
-      plotName: `Hợp đồng thuê ${selectedPlots.length} thửa đất (${plotCodesList})`,
-      crop: primaryCrop?.variety || primaryPlot.compatibleCrops?.[0] || 'Cây trồng tiêu chuẩn'
-    });
-    selectedPlots.forEach((plot) => {
-      const plotCode = normalizePlotCode(plot.code || plot.plotCode || plot.id);
-      const plotCrop = getPlotSelectedCrop(plot);
-      chatService.upsertPlotThread({
-        threadId: getPlotChatThreadId({ userId: user.id, email: user.email, plotCode }),
-        customerName: user.fullName || demoProfile?.name,
-        customerEmail: user.email,
-        customerAvatar: user.avatar || demoProfile?.avatar,
-        plotCode,
-        plotName: plot.name || `Thửa ${plotCode}`,
-        crop: plotCrop?.variety || plotCrop?.name || 'Cây trồng tiêu chuẩn',
-        rentalStatus: 'RENTED'
-      });
+      customerEmail: user.email
     });
   };
 
@@ -744,6 +731,9 @@ export default function BookPlot() {
       }
     }
 
+    const cleanDigits = parseInt(String(plot.code || plot.plotCode || plot.id).replace(/\D/g, ''), 10);
+    if (!isNaN(cleanDigits) && cleanDigits > 0) return cleanDigits;
+
     return null;
   }, [findPlotByAnyCode]);
 
@@ -753,8 +743,9 @@ export default function BookPlot() {
       ? Number(user.userId)
       : (user?.id ? Number(String(user.id).replace(/\D/g, '')) : 1);
 
-    const start = startDate ? new Date(startDate) : new Date();
-    const startStr = start.toISOString().split('T')[0];
+    const startStr = typeof startDate === 'string' && startDate.includes('-')
+      ? startDate.trim().slice(0, 10)
+      : (startDate ? new Date(startDate).toLocaleDateString('en-CA') : new Date().toLocaleDateString('en-CA'));
 
     const items = selectedPlots.map((p) => {
       const crop = getPlotSelectedCrop(p);
@@ -764,8 +755,12 @@ export default function BookPlot() {
       const termMonths = cfg.termMonths || 3;
       // Đảm bảo thỏa mãn BR04: rentDays >= variety.minDays
       const days = Math.max(termMonths * 30, crop?.minDays || 35);
-      const end = new Date(start);
-      end.setDate(end.getDate() + days);
+      const parts = startStr.split('-').map(Number);
+      const end = new Date(parts[0], parts[1] - 1, parts[2] + days);
+      const endYear = end.getFullYear();
+      const endMonth = String(end.getMonth() + 1).padStart(2, '0');
+      const endDay = String(end.getDate()).padStart(2, '0');
+      const endDateStr = `${endYear}-${endMonth}-${endDay}`;
 
       const parsedVarId = Number(crop?.varietyId)
         || (cfg.cropId ? parseInt(String(cfg.cropId).replace(/\D/g, ''), 10) : null)
@@ -780,7 +775,7 @@ export default function BookPlot() {
         cultivationMode: cfg.cultivationMode || 'SELF',
         termMonths: termMonths,
         startDate: startStr,
-        endDate: end.toISOString().split('T')[0]
+        endDate: endDateStr
       };
     });
 
@@ -931,6 +926,11 @@ export default function BookPlot() {
 
       // Thông báo cho toàn bộ các tab và component làm mới dữ liệu
       window.dispatchEvent(new Event('farmely_plot_booked'));
+      try {
+        const bc = new BroadcastChannel('farmely_plot_updates');
+        bc.postMessage({ type: 'PLOT_BOOKED', plots: selectedPlots });
+        bc.close();
+      } catch (e) {}
 
       try {
         localStorage.removeItem('farmely_master_lease_selected_plots');
@@ -1322,7 +1322,7 @@ export default function BookPlot() {
                                 {(p.rentalPrice || 1200000).toLocaleString('vi-VN')} đ/tháng
                               </span>
                               <span className="text-[10px] text-stone-400">
-                                Chăm sóc: +{(p.careServicePrice || 600000).toLocaleString('vi-VN')} đ/tháng
+                                Chăm sóc: +{Number(p.careServicePrice ?? 0).toLocaleString('vi-VN')} đ/tháng
                               </span>
                             </div>
 
@@ -1438,7 +1438,7 @@ export default function BookPlot() {
                                 {pCfg.cultivationMode === 'ASSISTED' && <CheckCircle2 className="w-4 h-4 text-amber-700" />}
                               </div>
                               <p className="text-[11px] text-stone-500 mt-0.5">
-                                Farmely chăm sóc toàn vụ • +{(p.careServicePrice || 600000).toLocaleString('vi-VN')} đ/tháng
+                                Farmely chăm sóc toàn vụ • +{Number(p.careServicePrice ?? 0).toLocaleString('vi-VN')} đ/tháng
                               </p>
                             </button>
                           </div>

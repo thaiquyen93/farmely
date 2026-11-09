@@ -1,111 +1,111 @@
 export const varietiesData = [
   {
     id: "VAR-001",
-    name: "Cà chua bi Cherry Ruby F1",
-    cropId: "CRP-02",
-    cropName: "Cà chua & Quả mọng",
-    growthDuration: 75, // ngày
-    bufferTime: 10, // ngày
+    name: "Rau muống lá tre F1",
+    cropId: "CRP-01",
+    cropName: "Rau muống cạn",
+    growthDuration: 30, // ngày
+    bufferTime: 4, // ngày
     expectedYield: "4.5 - 6.0 kg/m²",
-    description: "Giống lai F1 kháng bệnh héo xanh vi khuẩn, quả chùm đỏ mọng ngọt đậm đà, độ Brix đạt 9.5. Rất được khách hàng thành phố ưa chuộng.",
+    description: "Rau muống lá tre F1 sinh trưởng nhanh, thích hợp trồng luống và thu hoạch non nhiều đợt.",
     compatiblePlotsCount: 4,
     processTemplateId: "TMPL-001",
-    processTemplateName: "Quy trình VietGAP Cà chua bi hữu cơ",
+    processTemplateName: "Quy trình rau muống an toàn",
     knowledgeDocsCount: 2,
     status: "ACTIVE",
-    imageUrl: "https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80",
+    imageUrl: "/images/varieties/rau-muong-la-tre.png",
     growingCharacteristics: {
-      lightRequirement: "Nắng trực tiếp 6-8 giờ/ngày",
-      soilMoistureTarget: "65% - 75%",
-      temperatureRange: "20°C - 30°C",
-      fertilizerNeeds: "Giàu Kali hữu cơ và Canxi vi lượng lúc tạo quả"
+      lightRequirement: "Nắng trực tiếp 5-7 giờ/ngày",
+      soilMoistureTarget: "70% - 80%",
+      temperatureRange: "22°C - 32°C",
+      fertilizerNeeds: "Bổ sung phân hữu cơ hoai mục theo từng đợt"
     }
   },
   {
     id: "VAR-002",
-    name: "Xà lách Lollo Bionda Ý",
+    name: "Cải ngọt bông F1",
     cropId: "CRP-01",
-    cropName: "Rau ăn lá",
+    cropName: "Cải ngọt / Cải bẹ",
     growthDuration: 35,
-    bufferTime: 5,
+    bufferTime: 4,
     expectedYield: "2.8 - 3.5 kg/m²",
-    description: "Xà lách xoăn xanh mướt nguồn gốc Italia, giòn ngọt thanh mát, không bị đắng dưới nắng nhiệt đới nhờ che chắn lưới vi sinh.",
+    description: "Cải ngọt bông F1 cho lá xanh, thân mềm và thu hoạch nhanh; phù hợp làm rau ăn lá theo vụ ngắn.",
     compatiblePlotsCount: 6,
     processTemplateId: "TMPL-002",
-    processTemplateName: "Quy trình chuẩn Xà lách hữu cơ mùa hè",
+    processTemplateName: "Quy trình cải ngọt an toàn",
     knowledgeDocsCount: 3,
     status: "ACTIVE",
-    imageUrl: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80",
+    imageUrl: "/images/varieties/cai-ngot-bong.png",
     growingCharacteristics: {
-      lightRequirement: "Nắng tán xạ 4-6 giờ/ngày",
-      soilMoistureTarget: "70% - 80%",
-      temperatureRange: "18°C - 28°C",
-      fertilizerNeeds: "Đạm sinh học từ phân đậu tương ủ hoai"
+      lightRequirement: "Nắng trực tiếp hoặc tán xạ 4-6 giờ/ngày",
+      soilMoistureTarget: "65% - 75%",
+      temperatureRange: "18°C - 30°C",
+      fertilizerNeeds: "Phân hữu cơ hoai mục, chia lượng bón theo đợt"
     }
   },
   {
     id: "VAR-003",
-    name: "Dưa leo Baby Hà Lan F1",
-    cropId: "CRP-03",
-    cropName: "Dưa leo & Bầu bí",
+    name: "Xà lách Romaine VietGAP",
+    cropId: "CRP-01",
+    cropName: "Xà lách xoăn",
     growthDuration: 45,
-    bufferTime: 7,
+    bufferTime: 4,
     expectedYield: "5.0 - 7.5 kg/m²",
-    description: "Quả thẳng, vỏ bóng mỏng không gai, ăn cả vỏ giòn ngọt. Cây sinh trưởng khỏe, đậu quả chùm tự nhiên không cần thụ phấn nhân tạo.",
+    description: "Xà lách Romaine VietGAP tạo bẹ lá giòn, vị dịu; phù hợp trồng luống hoặc nhà lưới.",
     compatiblePlotsCount: 4,
     processTemplateId: "TMPL-003",
-    processTemplateName: "Quy trình chăm sóc Dưa leo giàn chuẩn VietGAP",
+    processTemplateName: "Quy trình xà lách Romaine VietGAP",
     knowledgeDocsCount: 1,
     status: "ACTIVE",
-    imageUrl: "https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=600&q=80",
+    imageUrl: "/images/varieties/xa-lach-romaine.png",
     growingCharacteristics: {
-      lightRequirement: "Nắng toàn phần",
+      lightRequirement: "Nắng nhẹ 4-6 giờ/ngày",
       soilMoistureTarget: "70% - 80%",
-      temperatureRange: "22°C - 32°C",
-      fertilizerNeeds: "Phân trùn quế và dịch chuối lên men"
+      temperatureRange: "18°C - 28°C",
+      fertilizerNeeds: "Bổ sung phân hữu cơ cân đối, tránh bón đạm sát ngày thu hoạch"
     }
   },
   {
     id: "VAR-004",
-    name: "Dâu tây Nhật Hana Chịu Nhiệt",
+    name: "Cà chua bi đỏ F1",
     cropId: "CRP-02",
-    cropName: "Cà chua & Quả mọng",
-    growthDuration: 90,
-    bufferTime: 12,
+    cropName: "Cà chua bi (Cherry)",
+    growthDuration: 80,
+    bufferTime: 7,
     expectedYield: "2.0 - 3.0 kg/m²",
-    description: "Giống dâu tây trứ danh hương thơm ngào ngạt, vị ngọt thanh, thích hợp điều kiện khí hậu mát mẻ tại Đơn Dương và nhà màng làm mát.",
+    description: "Cà chua bi đỏ F1 cho quả nhỏ mọc thành chùm, cần giàn đỡ và chăm sóc đều trong chu kỳ dài.",
     compatiblePlotsCount: 2,
     processTemplateId: "TMPL-004",
-    processTemplateName: "Quy trình Dâu tây luống cao công nghệ cao",
+    processTemplateName: "Quy trình cà chua bi VietGAP",
     knowledgeDocsCount: 2,
     status: "ACTIVE",
-    imageUrl: "https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=600&q=80",
+    imageUrl: "/images/varieties/ca-chua-bi-do.png",
     growingCharacteristics: {
-      lightRequirement: "Nắng sớm dịu nhẹ",
-      soilMoistureTarget: "60% - 70%",
-      temperatureRange: "15°C - 25°C",
-      fertilizerNeeds: "Bổ sung Bo và Magie định kỳ chống rụng hoa"
+      lightRequirement: "Nắng trực tiếp 6-8 giờ/ngày",
+      soilMoistureTarget: "65% - 75%",
+      temperatureRange: "20°C - 30°C",
+      fertilizerNeeds: "Bổ sung kali và canxi khi cây ra hoa, tạo quả"
     }
   },
   {
     id: "VAR-005",
-    name: "Cải bó xôi Nhật (Spinach)",
-    cropId: "CRP-01",
-    cropName: "Rau ăn lá",
-    growthDuration: 40,
+    name: "Dưa leo baby F1",
+    cropId: "CRP-03",
+    cropName: "Dưa leo baby",
+    growthDuration: 55,
     bufferTime: 5,
     expectedYield: "3.0 - 4.0 kg/m²",
-    description: "Lá xanh đậm, hàm lượng sắt và vitamin nhóm B vượt trội. Sinh trưởng đều trong điều kiện đất xốp giàu hữu cơ.",
+    description: "Dưa leo baby F1 cho quả nhỏ, cần giàn chắc và tưới đủ ẩm để cây đậu quả liên tục.",
     compatiblePlotsCount: 5,
-    processTemplateId: null, // intentionally null to show health check alert!
+    processTemplateId: "TMPL-005",
     knowledgeDocsCount: 1,
     status: "ACTIVE",
-    imageUrl: "https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=600&q=80",
+    imageUrl: "/images/varieties/dua-leo-baby.png",
     growingCharacteristics: {
-      lightRequirement: "Nắng 5 giờ/ngày",
-      soilMoistureTarget: "70% - 75%",
-      temperatureRange: "18°C - 26°C",
-      fertilizerNeeds: "Phân chuồng ủ hoai mục kết hợp nấm Trichoderma"
+      lightRequirement: "Nắng trực tiếp 6-8 giờ/ngày",
+      soilMoistureTarget: "70% - 80%",
+      temperatureRange: "22°C - 32°C",
+      fertilizerNeeds: "Phân hữu cơ hoai mục, bổ sung dinh dưỡng giai đoạn ra hoa"
     }
   }
 ];
