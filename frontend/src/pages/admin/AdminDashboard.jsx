@@ -2117,11 +2117,6 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                         </div>
-
-                        {/* Note SSoT */}
-                        <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-[11px] text-stone-600 leading-relaxed">
-                          💡 <span className="font-bold text-stone-800">Quy tắc thanh toán:</span> 100% tiền thuê đất được thanh toán trọn gói trước khi kích hoạt canh tác. Giữ chỗ 15 phút + 10 phút gia hạn thanh toán.
-                        </div>
                       </div>
                     </div>
                   </div>
