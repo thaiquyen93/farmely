@@ -1739,7 +1739,7 @@ export default function ExpertDashboard() {
               { id: 'crops', label: 'Danh Mục Cây Trồng (Crops)', icon: Sprout, count: null },
               { id: 'varieties', label: 'Giống Cây Trồng (Varieties)', icon: Wheat, count: null },
               { id: 'templates', label: 'Quy Trình Canh Tác VietGAP', icon: FileSpreadsheet, count: null },
-              { id: 'compatibility', label: 'Ma Trận Thổ Nhưỡng – Giống', icon: SlidersHorizontal, count: null },
+              { id: 'compatibility', label: 'Giống phù hợp theo thửa đất', icon: SlidersHorizontal, count: null },
               { id: 'knowledge', label: 'Kho Tri Thức Nông Nghiệp & AI', icon: BookOpen, count: null }
             ].map((tab) => {
               const Icon = tab.icon;
@@ -2488,9 +2488,6 @@ export default function ExpertDashboard() {
                     <h3 className="font-heading font-black text-xl text-brand-dark">
                       Xử Lý Báo Cáo Sự Cố Hiện Trường
                     </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Tiếp nhận ảnh chụp và phản ánh từ Chuyên viên lao động hiện trường để chẩn đoán sâu và ban hành chỉ đạo can thiệp kỹ thuật.
-                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -2521,11 +2518,8 @@ export default function ExpertDashboard() {
                         <CheckCircle2 className="w-6 h-6" />
                       </div>
                       <h4 className="font-heading font-bold text-stone-800 text-sm">
-                        Hiện tại không có sự cố nào cần xử lý
+                        Chưa có báo cáo sự cố cần xử lý.
                       </h4>
-                      <p className="text-xs text-stone-500 mt-1 max-w-md mx-auto">
-                        Toàn bộ các thửa đất đang phát triển an toàn theo quy trình chuẩn VietGAP. Khi nhân viên hiện trường gửi báo cáo sự cố mới, cảnh báo sẽ hiển thị ngay tại đây.
-                      </p>
                     </div>
                   ) : (
                     fieldIssues.map((issue) => (
@@ -2674,10 +2668,10 @@ export default function ExpertDashboard() {
                     </span>
                     <div>
                       <h3 className="font-heading font-black text-xl text-brand-dark">
-                        Ma Trận Thổ Nhưỡng – Giống Cây Trồng
+                        Giống phù hợp theo thửa đất
                       </h3>
                       <p className="text-xs text-brand-muted mt-0.5">
-                        Chuyên gia nông nghiệp phụ trách thửa đất tick chọn các giống cây trồng thích hợp với điều kiện của thửa. Khách hàng khi thuê chỉ được chọn những giống đã được tick.
+                        Chọn thửa đất, chọn giống phù hợp rồi lưu.
                       </p>
                     </div>
                   </div>

@@ -47,10 +47,10 @@ export default function SoilPrepView({
             <div className="space-y-2">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                 <span className="rounded-full bg-amber-500 px-3 py-1 text-xs font-black tracking-wide text-white uppercase shadow-xs">
-                  MAINTENANCE · BẢO TRÌ ĐẤT 4 NGÀY
+                  NGHỈ ĐẤT · BẢO TRÌ ĐẤT 4 NGÀY
                 </span>
                 <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-900 border border-amber-300">
-                  Quy định BR23
+                  Chu kỳ nghỉ đất
                 </span>
                 <span className="text-xs font-bold text-stone-500">
                   Thửa {plotCode}
@@ -62,7 +62,7 @@ export default function SoilPrepView({
               </h1>
 
               <p className="text-sm sm:text-base text-stone-600 max-w-2xl leading-relaxed">
-                Vụ mùa <strong className="text-stone-800">{cropName}</strong> vừa thu hoạch xong ({yieldKg} kg). Theo đúng quy định <strong>Business Rule BR23</strong>, thửa đất tự động chuyển sang trạng thái <strong>Bảo trì (Maintenance) trong 4 ngày</strong> để thu dọn gốc rễ, rải vôi khử trùng và phơi ải phục hồi đất trước khi cho thuê hoặc gieo trồng vụ mới.
+                Vụ mùa <strong className="text-stone-800">{cropName}</strong> vừa thu hoạch xong ({yieldKg} kg). Thửa đất đang trong thời gian nghỉ đất 4 ngày để thu dọn gốc rễ, rải vôi khử trùng và phơi ải phục hồi đất trước khi gieo trồng vụ mới.
               </p>
             </div>
           </div>
@@ -111,7 +111,7 @@ export default function SoilPrepView({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-amber-700 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-2xs">
-                    Khóa Chờ Admin Duyệt Hợp Đồng (BR11b)
+                    Đang chờ Admin duyệt hợp đồng
                   </span>
                   <span className="rounded-full bg-white px-2.5 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-300">
                     Đã thanh toán VNPay 100%
@@ -124,7 +124,7 @@ export default function SoilPrepView({
                   Yêu Cầu Gia Hạn Đang Chờ Ban Quản Trị Phê Duyệt & Phân Bổ Nhân Sự
                 </h4>
                 <p className="mt-0.5 text-xs text-amber-900/90 leading-relaxed max-w-2xl">
-                  Thửa đất đang bị khóa ở trạng thái bảo trì và phơi ải 4 ngày (BR23). Bảng bảo trì này sẽ tự động đóng và chính thức kích hoạt bắt đầu mùa vụ mới ngay khi Admin bấm phê duyệt hợp đồng.
+                  Thửa đất đang trong thời gian nghỉ đất 4 ngày. Vụ mùa mới sẽ bắt đầu sau khi Admin phê duyệt hợp đồng và hoàn tất thời gian nghỉ đất.
                 </p>
               </div>
             </div>

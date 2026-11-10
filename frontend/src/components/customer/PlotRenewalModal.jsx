@@ -510,12 +510,12 @@ export default function PlotRenewalModal({
                 Đã Gửi Yêu Cầu Gia Hạn Đến Ban Quản Trị!
               </h4>
               <p className="mt-2 text-sm text-stone-600 max-w-md mx-auto">
-                Hợp đồng thửa đất đã thanh toán thành công. Yêu cầu gia hạn thêm <strong>Vụ {successData.seasonNumber}: {successData.varietyName}</strong> đang được Quản trị viên (Admin) thẩm định & phân bổ nhân sự thực địa (BR11b).
+                Hợp đồng thửa đất đã thanh toán thành công. Yêu cầu gia hạn thêm <strong>Vụ {successData.seasonNumber}: {successData.varietyName}</strong> đang chờ Quản trị viên phê duyệt và phân công nhân sự thực địa.
               </p>
             </div>
             <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 max-w-sm mx-auto text-xs text-amber-900 space-y-1 text-left">
               <p>• <strong>Kế thừa:</strong> Toàn bộ dữ liệu thổ nhưỡng và lịch sử thửa đất được bảo lưu.</p>
-              <p>• <strong>Phê duyệt hợp đồng:</strong> Khi Admin duyệt, vụ mùa mới sẽ sẵn sàng canh tác sau 4 ngày nghỉ đất (BR23).</p>
+              <p>• <strong>Phê duyệt hợp đồng:</strong> Vụ mùa mới sẽ sẵn sàng canh tác sau khi Admin duyệt và hoàn tất 4 ngày nghỉ đất.</p>
             </div>
             <button
               type="button"

@@ -147,7 +147,7 @@ export default function AuditLogs() {
                   Nhật Ký Vận Hành &amp; Kiểm Toán (SCR-AD-10 Audit Log)
                 </h2>
                 <p className="text-xs text-brand-muted mt-0.5">
-                  Truy vết 100% mọi thao tác nhạy cảm: phê duyệt hủy hợp đồng, hoàn cọc VNPay, đổi trạng thái người dùng và xác thực tài khoản.
+                  Theo dõi các thao tác như phê duyệt hủy hợp đồng, hoàn cọc VNPay, đổi trạng thái người dùng và xác thực tài khoản.
                 </p>
               </div>
             </div>

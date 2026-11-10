@@ -2133,7 +2133,7 @@ export default function FieldWorkerDashboard() {
                           <Scale className="h-4 w-4" />
                         </span>
                         <h3 className="font-heading text-lg font-black text-brand-dark">
-                          Lịch Sử Thu Hoạch & Biên Bản Đối Chứng Theo Vụ Mùa (BR20)
+                          Lịch Sử Thu Hoạch & Biên Bản Đối Chứng Theo Vụ Mùa
                         </h3>
                       </div>
                       <p className="mt-1 text-xs text-brand-muted">
@@ -2741,7 +2741,7 @@ export default function FieldWorkerDashboard() {
                               <div>
                                 <p className="text-sm font-bold text-rose-900">Không thể kết nối đến máy chủ Open-Meteo API</p>
                                 <p className="text-xs text-rose-700 max-w-md mx-auto mt-1">
-                                  Hệ thống tuân thủ nguyên tắc SSoT: Chỉ hiển thị các thông số thời tiết khi nhận được phản hồi trực tiếp từ API thực địa, không sử dụng số liệu mô phỏng/mock.
+                                  Không thể hiển thị dữ liệu thời tiết lúc này. Vui lòng thử kết nối lại với Weather API.
                                 </p>
                               </div>
                               <Button
@@ -3431,7 +3431,7 @@ export default function FieldWorkerDashboard() {
       <Modal
         isOpen={Boolean(selectedHarvestProofModal)}
         onClose={() => setSelectedHarvestProofModal(null)}
-        title="Biên Bản Bàn Giao & Cân Đối Chứng Thu Hoạch (BR20)"
+        title="Biên Bản Bàn Giao & Cân Đối Chứng Thu Hoạch"
         subtitle={selectedHarvestProofModal ? `${selectedHarvestProofModal.plotCode} • ${selectedHarvestProofModal.plotName}` : ''}
         maxWidth="max-w-xl"
         headerVariant="green"
@@ -3463,7 +3463,7 @@ export default function FieldWorkerDashboard() {
 
               {/* 2. Ảnh cân đối chứng thực địa */}
               <div className="space-y-1.5">
-                <span className="font-bold text-stone-700 block">Ảnh chụp cân đối chứng thực tế tại vườn (BR20):</span>
+                <span className="font-bold text-stone-700 block">Ảnh chụp cân đối chứng thực tế tại vườn:</span>
                 <img
                   src={selectedHarvestProofModal.photoUrl || HARVEST_PHOTO_FALLBACK}
                   alt="Ảnh cân đối chứng"
@@ -3483,7 +3483,7 @@ export default function FieldWorkerDashboard() {
                   <strong className="text-stone-900">{selectedHarvestProofModal.verifiedAt || selectedHarvestProofModal.harvestDate || 'Hôm nay'}</strong>
                 </div>
                 <div>
-                  <span className="text-[10px] text-stone-400 block font-bold">Phương thức nhận (BR21):</span>
+                  <span className="text-[10px] text-stone-400 block font-bold">Phương thức nhận:</span>
                   <strong className="text-stone-900">
                     {/* BR21: thu hoạch luôn diễn ra tại nông trại */}
                     Tự nhận tại nông trại

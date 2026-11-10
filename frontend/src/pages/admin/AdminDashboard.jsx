@@ -2351,7 +2351,7 @@ export default function AdminDashboard() {
                     Quản Lý Hợp Đồng & Phê Duyệt Vụ Mùa
                   </h3>
                   <p className="text-xs text-brand-muted mt-0.5">
-                    Giám sát hợp đồng Master Lease, phê duyệt yêu cầu gia hạn vụ mùa mới (BR11b) và xử lý yêu cầu hủy & hoàn cọc (BR10).
+                    Giám sát hợp đồng Master Lease, phê duyệt yêu cầu gia hạn vụ mùa mới và xử lý yêu cầu hủy & hoàn cọc.
                   </p>
                 </div>
 
@@ -2366,7 +2366,7 @@ export default function AdminDashboard() {
                         : 'border-transparent text-stone-500 hover:text-stone-800'
                     }`}
                   >
-                    <span>Yêu Cầu Gia Hạn Hợp Đồng (BR11b)</span>
+                    <span>Yêu Cầu Gia Hạn Hợp Đồng</span>
                     <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px]">
                       {renewalRequests.filter((r) => r.status === 'PENDING').length}
                     </span>
@@ -2381,7 +2381,7 @@ export default function AdminDashboard() {
                         : 'border-transparent text-stone-500 hover:text-stone-800'
                     }`}
                   >
-                    <span>Phê Duyệt Hủy Hợp Đồng & Hoàn Cọc (BR10)</span>
+                    <span>Phê Duyệt Hủy Hợp Đồng & Hoàn Cọc</span>
                     <span className="rounded-full bg-rose-100 text-rose-800 px-2 py-0.5 text-[10px]">
                       {refundRequests.filter((r) => r.status === 'PENDING').length}
                     </span>
@@ -2394,7 +2394,7 @@ export default function AdminDashboard() {
                     <div className="rounded-2xl bg-emerald-50/70 border border-emerald-200 p-4 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <strong className="block font-heading font-black text-sm text-emerald-900">
-                          Quy trình Gia Hạn Vụ Mùa (Business Rule BR11b)
+                          Quy trình Gia Hạn Vụ Mùa
                         </strong>
                         <p className="mt-0.5 text-emerald-800/90">
                           Khách hàng thanh toán phí gia hạn trước ít nhất 3 ngày trước khi kết thúc hợp đồng. Khi Admin phê duyệt, hệ thống tự động thiết lập quy trình VietGAP cho Vụ mới sau 4 ngày bảo trì phơi đất (BR23).
@@ -2516,7 +2516,7 @@ export default function AdminDashboard() {
                       </h3>
                     </div>
                     <p className="text-xs text-brand-muted mt-0.5">
-                      Dữ liệu kết nối trực tiếp bảng <strong>site_visits</strong> (Database Farmely).
+                      Danh sách các lịch hẹn tham quan nông trại.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2539,7 +2539,7 @@ export default function AdminDashboard() {
                   {siteVisits.length === 0 ? (
                     <div className="text-center py-12 text-stone-500 space-y-2">
                       <Calendar className="w-10 h-10 mx-auto text-stone-300" />
-                      <p className="font-bold text-sm">Chưa có lịch hẹn tham quan nào trong Database</p>
+                      <p className="font-bold text-sm">Chưa có lịch hẹn tham quan nào.</p>
                       <p className="text-xs text-stone-400">Đơn đặt từ trang /site-visit/book sẽ xuất hiện ngay tại đây.</p>
                     </div>
                   ) : (

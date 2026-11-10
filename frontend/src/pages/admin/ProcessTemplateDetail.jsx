@@ -417,7 +417,7 @@ export default function ProcessTemplateDetail() {
               Lộ Trình Các Bước Canh Tác Chuẩn VietGAP
             </h3>
             <p className="text-xs text-brand-muted">
-              Mỗi bước kỹ thuật sẽ tự động sinh Care Task cho nhân viên vào ngày thứ Day Offset.
+              Mỗi bước kỹ thuật sẽ tự động tạo công việc chăm sóc cho nhân viên vào ngày thực hiện.
             </p>
           </div>
 
@@ -457,7 +457,7 @@ export default function ProcessTemplateDetail() {
                   <div className="flex items-start gap-4 flex-1">
                     {/* Day Offset Badge */}
                     <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-300 flex flex-col items-center justify-center shrink-0">
-                      <span className="text-[10px] uppercase font-bold text-amber-700">Mốc Ngày</span>
+                      <span className="text-[10px] uppercase font-bold text-amber-700">Ngày thực hiện</span>
                       <span className="text-lg font-heading font-black text-amber-900 leading-tight">
                         D+{step.dayOffset}
                       </span>
@@ -531,7 +531,7 @@ export default function ProcessTemplateDetail() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Input
-                label="Mốc Ngày Tuổi (Day Offset)"
+                label="Ngày thực hiện"
                 type="number"
                 min="0"
                 required

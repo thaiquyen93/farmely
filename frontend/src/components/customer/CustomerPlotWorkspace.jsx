@@ -1103,7 +1103,7 @@ function StandardProcessTimeline({
             <div
               onClick={() => onOpenHarvestReport?.(effectiveHarvest)}
               className="rounded-2xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100/40 to-lime-50/50 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition group cursor-pointer hover:shadow-md hover:border-emerald-400"
-              title="Bấm để xem Báo cáo thu hoạch & Biên bản nghiệm thu (BR20)"
+              title="Bấm để xem Báo cáo thu hoạch & Biên bản nghiệm thu"
             >
               <div className="flex items-start gap-3 min-w-0">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md text-xl group-hover:scale-105 transition-transform">
@@ -1130,7 +1130,7 @@ function StandardProcessTimeline({
                     Nông sản đã thu hoạch hoàn tất — Đã chốt biên bản sản lượng!
                   </h4>
                   <p className="mt-0.5 text-xs text-emerald-950/80 leading-relaxed max-w-2xl">
-                    {effectiveHarvest.enteredByWorker || effectiveHarvest.workerName || 'Chuyên viên lao động (Trần Văn Lực)'} đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Quý khách vui lòng đến nhận nông sản tại nông trại theo quy định BR21.
+                    {effectiveHarvest.enteredByWorker || effectiveHarvest.workerName || 'Chuyên viên lao động (Trần Văn Lực)'} đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Quý khách vui lòng đến nhận nông sản tại nông trại.
                   </p>
                 </div>
               </div>
@@ -1165,10 +1165,10 @@ function StandardProcessTimeline({
                       onGoToMaintenance();
                     }}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500 bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-black text-white shadow-xs transition cursor-pointer"
-                    title="Chuyển sang chu kỳ cải tạo đất 4 ngày theo BR23 & gia hạn vụ mới"
+                    title="Chuyển sang chu kỳ cải tạo đất 4 ngày và gia hạn vụ mới"
                   >
                     <Wrench className="w-3.5 h-3.5 text-white" />
-                    <span>🧹 Sang Bảo Trì Đất 4 Ngày & Gia Hạn (BR23) ›</span>
+                    <span>🧹 Nghỉ đất 4 ngày & gia hạn vụ mới ›</span>
                   </button>
                 )}
               </div>
@@ -1195,7 +1195,7 @@ function StandardProcessTimeline({
                     </span>
                   </div>
                   <h4 className="mt-1 text-sm font-heading font-black text-amber-950">
-                    Đến ngày thu hoạch vụ mùa — Chuyên viên lao động đang chuẩn bị tiến hành thu hoạch & cân thực địa (BR20)
+                    Đến ngày thu hoạch vụ mùa — Chuyên viên lao động đang chuẩn bị thu hoạch và cân sản lượng
                   </h4>
                   <p className="mt-0.5 text-xs text-amber-950/80 leading-relaxed max-w-2xl">
                     Nhiệm vụ thu hoạch đã được phân công cho Chuyên viên lao động (Trần Văn Lực). Sau khi nhân viên hoàn tất việc cắt, cân điện tử và tải ảnh đối chứng hiện trường, Biên bản nghiệm thu & Sản lượng thực tế sẽ tự động cập nhật tại đây.
@@ -1332,7 +1332,7 @@ function StandardProcessTimeline({
                                         onOpenHarvestReport?.(effectiveHarvest);
                                       }}
                                       className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition cursor-pointer"
-                                      title="Mở Báo cáo thu hoạch & Biên bản nghiệm thu sản lượng (BR20)"
+                                      title="Mở Báo cáo thu hoạch & Biên bản nghiệm thu sản lượng"
                                     >
                                       <Scale className="w-3.5 h-3.5 text-amber-200" />
                                       <span>{isDone ? 'Xem Biên bản nghiệm thu sản lượng' : '🌾 Tiến hành thu hoạch & Nghiệm thu'}</span>
@@ -2569,7 +2569,7 @@ function OverviewTab({
                     </span>
                   </div>
                   <h4 className="mt-1.5 text-base font-heading font-black text-amber-950">
-                    {activeSeason.seasonName || `Vụ ${activeSeason.seasonNumber}`} — Đang Chờ Ban Quản Trị Phê Duyệt Hợp Đồng (BR11b)
+                    {activeSeason.seasonName || `Vụ ${activeSeason.seasonNumber}`} — Đang chờ Ban Quản Trị phê duyệt hợp đồng
                   </h4>
                   <p className="mt-0.5 text-xs text-stone-600 max-w-2xl leading-relaxed">
                     Yêu cầu gia hạn hợp đồng và giữ thửa đất đã được chuyển tới Ban Quản Trị. Quản trị viên đang rà soát phụ lục hợp đồng và phân công kỹ thuật viên phụ trách.
@@ -2610,7 +2610,7 @@ function OverviewTab({
                     {activeSeason.seasonName || `Vụ ${activeSeason.seasonNumber}`} — Đã Lên Lịch Sẵn Sàng Canh Tác
                   </h4>
                   <p className="mt-0.5 text-xs text-stone-600 max-w-2xl leading-relaxed">
-                    Hợp đồng gia hạn vụ mùa đã được ghi nhận vào Master Lease Agreement. Vụ mùa sẽ tự động bắt đầu xuống giống ngay sau khi hoàn tất 4 ngày cải tạo và nghỉ đất theo quy chuẩn VietGAP (Fallow Protocol - BR23). Dưới đây là lộ trình chăm sóc toàn trình của vụ này.
+                    Yêu cầu gia hạn đã được ghi nhận. Vụ mùa sẽ bắt đầu sau 4 ngày cải tạo và nghỉ đất. Dưới đây là lộ trình chăm sóc của vụ này.
                   </p>
                 </div>
               </div>
@@ -4327,7 +4327,7 @@ export default function CustomerPlotWorkspace({
                       activityId: `HRV-${hr.harvestId || hr.id}`,
                       id: `HRV-${hr.harvestId || hr.id}`,
                       title: `Thu hoạch ${hr.crop || hr.cropName || 'nông sản'} — ${hr.formattedYield || `${hr.yieldAmount || 0} kg`}`,
-                      notes: `Chuyên viên lao động đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Khách hàng nhận nông sản tại nông trại theo BR21. Mã biên bản: HRV-${hr.harvestId || hr.id}.`,
+                      notes: `Chuyên viên lao động đã cắt, cân điện tử và lưu trữ biên bản sản lượng thực tế. Khách hàng nhận nông sản tại nông trại. Mã biên bản: HRV-${hr.harvestId || hr.id}.`,
                       workerName: hr.enteredByWorker || hr.workerName || 'Trần Văn Lực',
                       workerRole: 'Chuyên viên lao động (CVLĐ)',
                       status: 'COMPLETED',
