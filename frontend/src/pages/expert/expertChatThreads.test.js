@@ -11,4 +11,12 @@ describe('expert inbox', () => {
     ];
     expect(getVisibleExpertThreads(threads, 5).map((thread) => thread.id)).toEqual(['customer', 'worker']);
   });
+
+  it('includes an explicitly selected thread even before first message', () => {
+    const threads = [
+      { id: 'empty', role: 'customer', participantUserId: 2, messages: [], status: 'PENDING' },
+      { id: 'customer', role: 'customer', participantUserId: 2, messages: [{ id: 2 }], status: 'PENDING' }
+    ];
+    expect(getVisibleExpertThreads(threads, 5, 'empty').map((thread) => thread.id)).toEqual(['empty', 'customer']);
+  });
 });

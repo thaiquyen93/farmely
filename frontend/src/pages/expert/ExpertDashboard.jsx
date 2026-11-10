@@ -194,7 +194,7 @@ export default function ExpertDashboard() {
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
   const [assignedPlots, setAssignedPlots] = useState([]);
-  const visibleChatThreads = useMemo(() => getVisibleExpertThreads(chatThreads, user?.userId), [chatThreads, user?.userId]);
+  const visibleChatThreads = useMemo(() => getVisibleExpertThreads(chatThreads, user?.userId, selectedThreadId), [chatThreads, user?.userId, selectedThreadId]);
 
   const formatPlotCode = (raw) => {
     if (!raw) return '';
