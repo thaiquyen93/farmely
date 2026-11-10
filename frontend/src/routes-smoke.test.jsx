@@ -51,7 +51,8 @@ const cases = [
   ['customer overview', '/customer/dashboard', customer, CustomerDashboard], ['customer services', '/customer/dashboard?view=services', customer, CustomerDashboard],
   ['customer diary', '/customer/dashboard?view=diary', customer, CustomerDashboard], ['customer process', '/customer/dashboard?view=process', customer, CustomerDashboard],
   ['customer harvest', '/customer/dashboard?view=harvest', customer, CustomerDashboard], ['expert', '/expert/dashboard', expert, ExpertDashboard],
-  ['staff', '/staff/dashboard', staff, FieldWorkerDashboard], ['admin', '/admin/dashboard', admin, AdminDashboard]
+  ['staff', '/staff/dashboard', staff, FieldWorkerDashboard], ['admin', '/admin/dashboard', admin, AdminDashboard],
+  ['admin support tab', '/admin/dashboard?tab=support', admin, AdminDashboard]
 ];
 
 describe('all application routes mount', () => {
@@ -68,6 +69,11 @@ describe('all application routes mount', () => {
     const root = ReactDOM.createRoot(host);
     await act(async () => root.render(<MemoryRouter initialEntries={[entry]}><Page /></MemoryRouter>));
     expect(host.textContent).toBeTruthy();
+    if (_name === 'admin support tab') {
+      const supportButton = [...host.querySelectorAll('button')].find((button) => button.textContent.trim() === 'CSKH');
+      expect(supportButton?.className).toContain('bg-white');
+      expect(host.textContent).toContain('Danh sách yêu cầu');
+    }
     await act(async () => root.unmount());
     host.remove();
   });

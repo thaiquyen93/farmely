@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   ResponsiveContainer,
   BarChart,
@@ -11,6 +11,7 @@ import {
   Legend
 } from 'recharts';
 import PublicNavbar from '../../components/layout/PublicNavbar';
+import { SupportPanel } from '../support/SupportPage';
 import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
 import { siteVisitsService } from '../../api/siteVisitsService';
@@ -110,16 +111,23 @@ function CustomRevenueTooltip({ active, payload, label }) {
 
 export default function AdminDashboard() {
   const { user } = useAuthStore();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const supportTicketId = new URLSearchParams(location.search).get('ticket');
   const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const p = new URLSearchParams(window.location.search).get('tab');
-      if (['overview', 'dispatch', 'contracts', 'visits', 'users', 'audit-logs'].includes(p)) {
+    if (location.search) {
+      const p = new URLSearchParams(location.search).get('tab');
+      if (['overview', 'dispatch', 'contracts', 'visits', 'support', 'users', 'audit-logs'].includes(p)) {
         return p;
       }
     }
     return 'overview'; // SCR-AD-01: Default to Tổng Quan & Doanh Thu
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    if (['overview', 'dispatch', 'contracts', 'visits', 'support', 'users', 'audit-logs'].includes(tab)) setActiveTab(tab);
+  }, [location.search]);
 
   // Sub-tab inside Dispatch: 'staff_tasks' | 'staff_services' | 'expert_plots' | 'expert_issues'
   const [dispatchSubTab, setDispatchSubTab] = useState(() => {
@@ -1155,7 +1163,11 @@ export default function AdminDashboard() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => tab.id === 'support' ? window.location.assign('/admin/support') : setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    if (tab.id === 'support') navigate('/admin/dashboard?tab=support');
+                    else if (new URLSearchParams(location.search).get('tab') === 'support') navigate('/admin/dashboard', { replace: true });
+                  }}
                   title={sidebarCollapsed ? tab.label : undefined}
                   aria-label={sidebarCollapsed ? tab.label : undefined}
                   className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
@@ -1190,6 +1202,13 @@ export default function AdminDashboard() {
 
           {/* Admin Main Display Area */}
           <section className="flex-1 min-w-0 w-full space-y-6">
+
+            {activeTab === 'support' && <SupportPanel
+              admin
+              selectedTicketId={supportTicketId}
+              onSelectTicket={(ticketId) => navigate(`/admin/dashboard?tab=support&ticket=${encodeURIComponent(ticketId)}`)}
+              onBack={() => navigate('/admin/dashboard?tab=support')}
+            />}
 
             {/* ========================================================================= */}
             {/* TAB: ĐIỀU PHỐI NHIỆM VỤ NHÂN SỰ (STAFF & EXPERT DISPATCH)                */}

@@ -455,7 +455,6 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                   <LayoutDashboard className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" />
                   <span>Bảng Quản Trị</span>
                 </Link>
-                <Link to="/admin/support" className={`text-[11px] lg:text-xs xl:text-sm font-bold px-2.5 lg:px-3.5 py-1.5 rounded-xl ${location.pathname.startsWith('/admin/support') ? 'bg-brand-yellow text-brand-dark' : 'text-white/95 hover:text-brand-yellow hover:bg-white/10'}`}>CSKH</Link>
 
                 <Link
                   to="/admin/master-data"

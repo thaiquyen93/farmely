@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 
 // Public Pages
@@ -114,6 +114,11 @@ function CustomerCommerceRoute({ children }) {
   return children;
 }
 
+export function AdminSupportRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/admin/dashboard?tab=support${id ? `&ticket=${encodeURIComponent(id)}` : ''}`} replace />;
+}
+
 export default function App() {
   // Lắng nghe tín hiệu đồng bộ trạng thái tài khoản từ Ban Quản Trị (Real-time sync across tabs/roles)
   useEffect(() => {
@@ -191,8 +196,8 @@ export default function App() {
         <Route path="/customer/support" element={<RoleRoute role="CUSTOMER"><SupportPage /></RoleRoute>} />
         <Route path="/customer/support/:id" element={<RoleRoute role="CUSTOMER"><SupportPage /></RoleRoute>} />
         <Route path="/admin/dashboard" element={<RoleRoute role="ADMIN"><AdminDashboard /></RoleRoute>} />
-        <Route path="/admin/support" element={<RoleRoute role="ADMIN"><SupportPage admin /></RoleRoute>} />
-        <Route path="/admin/support/:id" element={<RoleRoute role="ADMIN"><SupportPage admin /></RoleRoute>} />
+        <Route path="/admin/support" element={<RoleRoute role="ADMIN"><AdminSupportRedirect /></RoleRoute>} />
+        <Route path="/admin/support/:id" element={<RoleRoute role="ADMIN"><AdminSupportRedirect /></RoleRoute>} />
         <Route path="/expert/dashboard" element={<RoleRoute role="EXPERT"><ExpertDashboard /></RoleRoute>} />
         <Route path="/expert/crops" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=crops" replace /></RoleRoute>} />
         <Route path="/expert/varieties" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=varieties" replace /></RoleRoute>} />
