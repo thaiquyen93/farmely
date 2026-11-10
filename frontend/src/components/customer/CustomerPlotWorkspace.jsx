@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { assessPlot, explainAlert } from '../../utils/iotInsights';
 import { fetchLiveAgroIotData } from '../../services/weatherIotService';
 import { resolveStandardCropProcess, getPersistedStaffActivities, resolvePlotSeasons } from '../../services/cropStandardProcess';
+import { buildDemoProcessPlot } from './demoProcessPlot';
 import SeasonSelector from './SeasonSelector';
 import SoilPrepView from './SoilPrepView';
 import PlotRenewalModal from './PlotRenewalModal';
@@ -284,10 +285,13 @@ function StandardProcessTimeline({
   onStartSeason,
   onResetSeason,
   latestHarvest = null,
+  harvestResults = [],
   onGoToDiary,
   onOpenHarvestReport,
   onOpenPhoto,
-  onGoToMaintenance
+  onGoToMaintenance,
+  onDemoDay1,
+  onDemoHarvest
 }) {
   if (!cropProcess?.stages?.length) return null;
 
@@ -402,15 +406,13 @@ function StandardProcessTimeline({
         // NHƯNG NHIỆM VỤ THU HOẠCH PHẢI GIỮ LẠI LÀ CHƯA XONG (PENDING) để người dùng test chức năng thu hoạch!
         let syncedStatus = act.status;
         const isServiceTask = Boolean(act.serviceRequestId || act.isCustom || (act.title && act.title.includes('[DỊCH VỤ')));
-        if (currentCropDay >= totalDays) {
+        if (currentCropDay >= totalDays && Number(d) < totalDays) {
           if (!isHarvestAct) {
             syncedStatus = 'COMPLETED';
-          } else {
-            syncedStatus = latestHarvest ? 'COMPLETED' : 'PENDING';
           }
         } else if (currentCropDay > d && !isHarvestAct) {
           syncedStatus = 'COMPLETED';
-        } else if (currentCropDay <= 1 && d === 1 && !isServiceTask) {
+        } else if (currentCropDay <= 1 && d === 1 && !isServiceTask && act.completionSource !== 'STAFF') {
           // Khi mới chuyển qua Ngày 1 hoặc chu kỳ vụ mùa đang ở Ngày 1:
           // Các task canh tác chuẩn VietGAP chưa thể hoàn thành! Bắt buộc là IN_PROGRESS hoặc PENDING
           syncedStatus = !cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING';
@@ -419,7 +421,9 @@ function StandardProcessTimeline({
         map[d].push({
           ...act,
           status: syncedStatus,
-          proofPhoto: syncedStatus === 'COMPLETED' ? (act.proofPhoto || act.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80') : null
+          completionSource: act.completionSource || (syncedStatus === 'COMPLETED' && act.status !== 'COMPLETED' ? 'DEMO' : null),
+          proofPhoto: syncedStatus === 'COMPLETED' && (act.completionSource === 'STAFF' || syncedStatus === act.status)
+            ? (act.proofPhoto || act.evidenceImageUrl || null) : null
         });
       }
     });
@@ -450,7 +454,8 @@ function StandardProcessTimeline({
         workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
         workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
         notes: 'Xử lý giá thể bầu ươm đạt chuẩn VietGAP, duy trì ẩm độ đất từ 65 - 70%.',
-        proofPhoto: currentCropDay > 1 ? 'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=600&q=80' : null
+        completionSource: currentCropDay > 1 ? 'DEMO' : null,
+        proofPhoto: null
       },
       {
         activityId: `STD-TASK-${plot?.id || 'PLOT'}-DAY-1-2`,
@@ -487,7 +492,7 @@ function StandardProcessTimeline({
     if (map[1] && currentCropDay <= 1) {
       map[1] = map[1].map((t) => {
         const isSvc = Boolean(t.serviceRequestId || t.isCustom || (t.title && t.title.includes('[DỊCH VỤ')));
-        if (isSvc && t.status === 'COMPLETED') return t;
+        if ((isSvc || t.completionSource === 'STAFF') && t.status === 'COMPLETED') return t;
         return {
           ...t,
           status: !cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING',
@@ -509,7 +514,8 @@ function StandardProcessTimeline({
           workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
           workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
           notes: 'Ngừng cấp dinh dưỡng trước 24h, test nhanh nitrat và hoạt chất bảo vệ sinh học đạt ngưỡng an toàn.',
-          proofPhoto: currentCropDay >= totalDays ? 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80' : null
+          completionSource: currentCropDay >= totalDays ? 'DEMO' : null,
+          proofPhoto: null
         },
         {
           activityId: `STD-TASK-DAY-${totalDays}-2`,
@@ -521,7 +527,7 @@ function StandardProcessTimeline({
           workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
           workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
           notes: 'Thu hoạch nhẹ tay tránh dập nát, xếp khay đục lỗ thoáng khí, cân trọng lượng nghiệm thu thực tế.',
-          proofPhoto: latestHarvest ? (latestHarvest.evidenceImageUrl || 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80') : null
+          proofPhoto: latestHarvest?.evidenceImageUrl || null
         }
       ];
     }
@@ -656,6 +662,11 @@ function StandardProcessTimeline({
   };
 
   const handleSimulateDay1 = async () => {
+    if (onDemoDay1) {
+      await onDemoDay1();
+      setSelectedDay(1);
+      return;
+    }
     setSelectedDay(1);
     const rentalId = plot?.rentalId || plot?.rental_id;
     if (rentalId) {
@@ -689,6 +700,11 @@ function StandardProcessTimeline({
   };
 
   const handleSimulateHarvest = async () => {
+    if (onDemoHarvest) {
+      await onDemoHarvest();
+      setSelectedDay(totalDays);
+      return;
+    }
     setSelectedDay(totalDays);
     const rentalId = plot?.rentalId || plot?.rental_id;
     if (rentalId) {
@@ -1281,7 +1297,7 @@ function StandardProcessTimeline({
                                   <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border shrink-0 ${
                                     isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : isHarvestAct ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse font-extrabold' : 'bg-stone-100 text-stone-600 border-stone-200'
                                   }`}>
-                                    {isDone ? '✓ ĐÃ XONG' : isHarvestAct ? '🌾 CHỜ THU HOẠCH' : (act.timestamp || act.time || (isSelf ? 'Cần làm' : 'Ca trực'))}
+                                    {isDone ? (act.completionSource === 'DEMO' ? '✓ HOÀN THÀNH DO TUA NGÀY' : '✓ ĐÃ XONG') : isHarvestAct ? '🌾 CHỜ THU HOẠCH' : (act.timestamp || act.time || (isSelf ? 'Cần làm' : 'Ca trực'))}
                                   </span>
                                 </div>
 
@@ -2443,6 +2459,8 @@ function OverviewTab({
   latestHarvest: propLatestHarvest,
   onOpenHarvestReport,
   onSimulateDay1,
+  onDemoDay1,
+  onDemoHarvest,
   showMaintenanceView = false,
   setShowMaintenanceView = () => {}
 }) {
@@ -2655,10 +2673,13 @@ function OverviewTab({
                 onStartSeason={onStartSeason}
                 onResetSeason={onResetSeason}
                 latestHarvest={latestHarvest}
+                harvestResults={harvestResults}
                 onGoToDiary={() => goTab?.('tasks')}
                 onOpenHarvestReport={onOpenHarvestReport}
                 onOpenPhoto={onOpenActivityPhoto}
                 onGoToMaintenance={() => setShowMaintenanceView(true)}
+                onDemoDay1={onDemoDay1}
+                onDemoHarvest={onDemoHarvest}
               />
             </div>
           </Card>
@@ -2674,7 +2695,7 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
   // SSoT: Tự động hợp nhất nhật ký khách hàng và toàn bộ công việc chăm sóc đã hoàn tất của Staff kèm ảnh minh chứng thực địa
   const mergedDiaryEntries = useMemo(() => {
     const list = [...(operations?.diary || [])].map((item) => {
-      const photo = resolveVietgapProofPhoto(item.title, item.image || item.imageUrl || item.photo || item.proofPhoto || item.evidenceImageUrl);
+      const photo = item.image || item.imageUrl || item.photo || item.proofPhoto || item.evidenceImageUrl || null;
       return {
         ...item,
         image: photo,
@@ -2697,7 +2718,7 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
       const hrId = String(hr.harvestId || hr.id || '');
       if (!hrId || seen.has(hrId)) return;
       seen.add(hrId);
-      const hrPhoto = resolveVietgapProofPhoto(`Thu hoạch ${hr.crop || hr.cropName}`, hr.evidenceImageUrl || hr.photo || hr.image);
+      const hrPhoto = hr.evidenceImageUrl || hr.photo || hr.image || null;
       list.push({
         id: hrId,
         taskId: hrId,
@@ -2730,7 +2751,7 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
         if (!seen.has(actId) && !seen.has(titleKey)) {
           seen.add(actId);
           seen.add(titleKey);
-          const actPhoto = resolveVietgapProofPhoto(act.title, act.proofPhoto || act.evidenceImageUrl || act.image || act.imageUrl || act.photo);
+          const actPhoto = act.completionSource === 'DEMO' ? null : (act.proofPhoto || act.evidenceImageUrl || act.image || act.imageUrl || act.photo || null);
           list.push({
             id: act.activityId || act.id,
             taskId: act.activityId || act.id,
@@ -2745,6 +2766,7 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
             photo: actPhoto,
             proofPhoto: actPhoto,
             isStaffTask: true,
+            completionSource: act.completionSource || (isAutoDone ? 'DEMO' : null),
             status: 'COMPLETED'
           });
         }
@@ -2767,7 +2789,7 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
       {mergedDiaryEntries.length ? (
         <ol className="relative space-y-3.5 border-l-2 border-emerald-100 pl-5">
           {mergedDiaryEntries.map((e, idx) => {
-            const photoUrl = e.proofPhoto || e.image || e.imageUrl || e.photo || resolveVietgapProofPhoto(e.title);
+            const photoUrl = e.proofPhoto || e.image || e.imageUrl || e.photo || null;
             const proofActivity = {
               title: e.title,
               timestamp: e.time,
@@ -2783,14 +2805,14 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
                 <span className="absolute -left-[27px] top-4 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 shadow" aria-hidden="true" />
                 <Card
                   className="p-4.5 cursor-pointer hover:border-emerald-400 hover:shadow-md transition bg-white group rounded-2xl border border-stone-200/80"
-                  onClick={() => onOpenPhoto?.(proofActivity)}
+                  onClick={() => photoUrl && onOpenPhoto?.(proofActivity)}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-xs font-semibold text-stone-500">{e.time}</span>
                     <div className="flex items-center gap-1.5">
                       {(e.isStaffTask || e.author?.includes('Lực') || e.author?.includes('Kỹ thuật') || e.status === 'COMPLETED') && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Đã hoàn thành
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" /> {e.completionSource === 'DEMO' ? 'Hoàn thành do tua ngày' : 'Đã hoàn thành'}
                         </span>
                       )}
                       <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-100">
@@ -3306,26 +3328,6 @@ export default function CustomerPlotWorkspace({
     return Number(plot.currentDay) > 0 && !isFuture;
   });
 
-  const handleStartSeason = useCallback(async () => {
-    setIsSeasonStarted(true);
-    try {
-      localStorage.setItem(`farmely_season_started_${plot.id}`, 'true');
-    } catch { }
-
-    const rentalId = plot.rentalId || plot.rental_id;
-    if (rentalId) {
-      try {
-        await fetch(`/api/rentals/${rentalId}/simulate-time`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'START_NOW' })
-        });
-      } catch (e) {
-        console.warn('Lỗi gọi API start season:', e);
-      }
-    }
-  }, [plot.id, plot.rentalId, plot.rental_id]);
-
   const handleResetSeason = useCallback(() => {
     setIsSeasonStarted(false);
     try {
@@ -3364,39 +3366,58 @@ export default function CustomerPlotWorkspace({
   const activeSeason = useMemo(() => {
     return plotSeasons.find((s) => s.id === activeSeasonId) || plotSeasons[0];
   }, [plotSeasons, activeSeasonId]);
+  const activeHarvestResults = useMemo(() => (harvestResults || []).filter((result) =>
+    result.seasonKey ? result.seasonKey === activeSeasonId : activeSeasonId === 'SEASON-1'
+  ), [harvestResults, activeSeasonId]);
+
+  const rentalIdForDemo = plot.rentalId || plot.rental_id;
+  const [demoTime, setDemoTime] = useState(null);
+  useEffect(() => {
+    if (!rentalIdForDemo) return undefined;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch(`/api/rentals/${rentalIdForDemo}/simulate-time`);
+        const body = await response.json();
+        if (active && body.success) setDemoTime(body.data || null);
+      } catch {}
+    };
+    refresh();
+    const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('farmely_demo_time_sync') : null;
+    if (channel) channel.onmessage = (event) => {
+      if (Number(event.data?.rentalId) === Number(rentalIdForDemo)) refresh();
+    };
+    window.addEventListener('focus', refresh);
+    return () => { active = false; channel?.close(); window.removeEventListener('focus', refresh); };
+  }, [rentalIdForDemo]);
+
+  const simulateDemoDay = useCallback(async (action) => {
+    if (!rentalIdForDemo) return;
+    const response = await fetch(`/api/rentals/${rentalIdForDemo}/simulate-time`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, seasonKey: activeSeasonId })
+    });
+    const body = await response.json();
+    if (!response.ok || !body.success) throw new Error(body.message || 'Không thể tua ngày demo');
+    setDemoTime(body.data);
+    setIsSeasonStarted(true);
+    try { localStorage.setItem(`farmely_season_started_${plot.id}`, 'true'); } catch {}
+    try {
+      const channel = new BroadcastChannel('farmely_demo_time_sync');
+      channel.postMessage({ rentalId: rentalIdForDemo, seasonKey: activeSeasonId });
+      channel.close();
+      const taskChannel = new BroadcastChannel('farmely_staff_activity_channel');
+      taskChannel.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', rentalId: rentalIdForDemo });
+      taskChannel.close();
+    } catch {}
+  }, [rentalIdForDemo, activeSeasonId, plot.id]);
 
   // 1. Phân tích và sinh quy trình canh tác chuẩn VietGAP tính theo ngày tuổi cho Vụ mùa đang chọn
   const cropProcess = useMemo(() => {
     if (!activeSeason) return resolveStandardCropProcess(plot, stages);
-    const isCurrentSeason = activeSeason.isCurrent || activeSeason.status === 'ACTIVE';
-    const isFuture = plot.startDate && new Date(plot.startDate).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
-
-    // Đối với vụ đang chạy (isCurrentSeason): phụ thuộc vào isSeasonStarted
-    // Đối với vụ tương lai (Vụ 2, Vụ 3): luôn ở trạng thái SCHEDULED (Ngày 0) cho đến khi vụ trước hoàn tất
-    const isSeasonScheduled = !isCurrentSeason
-      ? (activeSeason.status === 'SCHEDULED')
-      : (!isSeasonStarted && (activeSeason.status === 'SCHEDULED' || activeSeason.currentDay === 0 || isFuture));
-
-    const effectiveCurrentDay = !isCurrentSeason
-      ? (activeSeason.status === 'COMPLETED' ? activeSeason.totalDays : 0)
-      : (isSeasonStarted
-          ? Math.max(1, Number(activeSeason.currentDay !== undefined && activeSeason.currentDay !== null ? activeSeason.currentDay : plot.currentDay) || 1)
-          : (isSeasonScheduled ? 0 : (activeSeason.currentDay || plot.currentDay || 0)));
-
-    const effectiveSeasonStatus = !isCurrentSeason
-      ? activeSeason.status
-      : (isSeasonStarted ? 'ACTIVE' : activeSeason.status);
-
-    const plotForSeason = {
-      ...plot,
-      crop: activeSeason.cropName || plot.crop,
-      totalDays: activeSeason.totalDays || plot.totalDays,
-      currentDay: effectiveCurrentDay,
-      seasonStatus: effectiveSeasonStatus,
-      isScheduled: isSeasonScheduled
-    };
+    const plotForSeason = buildDemoProcessPlot(plot, activeSeason, demoTime, activeSeasonId, isSeasonStarted);
     return resolveStandardCropProcess(plotForSeason, stages);
-  }, [plot, stages, activeSeason, isSeasonStarted]);
+  }, [plot, stages, activeSeason, isSeasonStarted, demoTime, activeSeasonId]);
 
   const taskStorageKey = useMemo(() => {
     const cropKey = (cropProcess?.cropKey || cropProcess?.cropName || plot?.crop || 'crop').replace(/\s+/g, '_');
@@ -3679,6 +3700,7 @@ export default function CustomerPlotWorkspace({
 
                 return {
                   activityId: m.id || `TSK-${m.taskId}`,
+                  taskId: m.taskId,
                   plotId: m.plotCode || plot.id,
                   plotCode: m.plotCode || plot.plotCode || 'P-01',
                   rentalId: m.rentalId,
@@ -3695,8 +3717,9 @@ export default function CustomerPlotWorkspace({
                   title: m.title,
                   timestamp: formattedTimestamp,
                   status: isDone ? 'COMPLETED' : m.status === 'IN_PROG' ? 'IN_PROGRESS' : m.status || 'PENDING',
+                  completionSource: m.completionSource || null,
                   notes: m.instructions || m.notes || 'Thực hiện chăm sóc chuẩn quy trình VietGAP.',
-                  proofPhoto: isDone ? (m.proofPhoto || m.evidenceImageUrl || null) : null
+                  proofPhoto: isDone && m.completionSource !== 'DEMO' ? (m.proofPhoto || m.evidenceImageUrl || null) : null
                 };
               });
               setStaffActivities(mapped);
@@ -4189,12 +4212,14 @@ export default function CustomerPlotWorkspace({
             activeSeason={activeSeason}
             isSelf={isSelf}
             onToggleTask={handleToggleSelfTask}
-            onStartSeason={handleStartSeason}
+            onStartSeason={() => simulateDemoDay('START_NOW')}
             onResetSeason={handleResetSeason}
-            harvestResults={harvestResults}
-            latestHarvest={propLatestHarvest}
+            harvestResults={activeHarvestResults}
+            latestHarvest={activeHarvestResults[0] || null}
             onOpenHarvestReport={(harvest) => setSelectedHarvestReport(harvest)}
-            onSimulateDay1={handleSimulateDay1}
+            onSimulateDay1={() => simulateDemoDay('START_NOW')}
+            onDemoDay1={() => simulateDemoDay('START_NOW')}
+            onDemoHarvest={() => simulateDemoDay('HARVEST')}
             showMaintenanceView={showMaintenanceView}
             setShowMaintenanceView={setShowMaintenanceView}
           />
@@ -4281,9 +4306,6 @@ export default function CustomerPlotWorkspace({
                       const isHarvestAct = /thu hoạch|nghiệm thu/i.test(act.title);
                       if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && actDay < cropProcess.totalDays && !isHarvestAct) {
                         isDone = true;
-                        if (!proofPhoto) {
-                          proofPhoto = 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80';
-                        }
                       }
 
                       // Nếu task CHƯA hoàn thành (IN_PROGRESS hoặc PENDING): tuyệt đối không hiển thị ảnh minh chứng
@@ -4294,13 +4316,14 @@ export default function CustomerPlotWorkspace({
                       return {
                         ...act,
                         status: isDone ? 'COMPLETED' : (act.status === 'IN_PROGRESS' || act.status === 'IN_PROG' ? 'IN_PROGRESS' : 'PENDING'),
-                        proofPhoto,
+                        proofPhoto: act.completionSource === 'DEMO' ? null : proofPhoto,
+                        completionSource: act.completionSource || (isDone && act.status !== 'COMPLETED' ? 'DEMO' : null),
                         timestamp: isDone ? (act.completedAt || completedTimestamp || 'Đã hoàn tất') : act.timestamp
                       };
                     });
 
                     // 3. Hợp nhất biên bản thu hoạch (BR20) — CHỈ hiển thị khi đã tới mốc thu hoạch (currentDay >= totalDays)
-                    const harvestEntries = (cropProcess.currentDay >= cropProcess.totalDays ? (harvestResults || []) : []).map((hr) => ({
+                    const harvestEntries = (cropProcess.currentDay >= cropProcess.totalDays ? activeHarvestResults : []).map((hr) => ({
                       activityId: `HRV-${hr.harvestId || hr.id}`,
                       id: `HRV-${hr.harvestId || hr.id}`,
                       title: `Thu hoạch ${hr.crop || hr.cropName || 'nông sản'} — ${hr.formattedYield || `${hr.yieldAmount || 0} kg`}`,

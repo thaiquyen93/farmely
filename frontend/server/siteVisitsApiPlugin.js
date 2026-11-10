@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import pg from 'pg';
 const { Pool, Client } = pg;
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
+import { ensureHarvestDemoSchema, getDemoTime, recordHarvestOnce, simulateDemoTime } from './harvestDemoApi.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -631,6 +632,57 @@ JOIN plots p ON ins.plot_id = p.plot_id;
 
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
+
+        const demoTimeMatch = url.match(/^\/api\/(rentals|plots)\/(\d+)\/simulate-time(?:\?.*)?$/);
+        if (demoTimeMatch && ['GET', 'POST'].includes(req.method)) {
+          try {
+            let rentalId = Number(demoTimeMatch[2]);
+            if (demoTimeMatch[1] === 'plots') {
+              const lookup = await getPgPool().query(`
+                SELECT rental_id FROM rentals WHERE plot_id = $1 AND status = 'ACTIVE'
+                ORDER BY rental_id DESC LIMIT 1
+              `, [rentalId]);
+              rentalId = lookup.rows[0]?.rental_id;
+              if (!rentalId) throw new Error('Thửa chưa có lượt thuê đang canh tác');
+            }
+            const payload = req.method === 'POST'
+              ? await new Promise((resolve, reject) => {
+                  let body = '';
+                  req.on('data', (chunk) => { body += chunk; });
+                  req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch (error) { reject(error); } });
+                })
+              : null;
+            const data = req.method === 'POST'
+              ? await simulateDemoTime(getPgPool(), rentalId, payload)
+              : await getDemoTime(getPgPool(), rentalId);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, data }));
+          } catch (error) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: error.message }));
+          }
+          return;
+        }
+
+        if (req.method === 'POST' && (url === '/api/harvest' || url === '/api/harvest-results')) {
+          try {
+            const payload = await new Promise((resolve, reject) => {
+              let body = '';
+              req.on('data', (chunk) => { body += chunk; });
+              req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch (error) { reject(error); } });
+            });
+            const data = await recordHarvestOnce(getPgPool(), payload);
+            res.statusCode = data.alreadyRecorded ? 200 : 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, data }));
+          } catch (error) {
+            res.statusCode = /thay đổi/.test(error.message) ? 409 : 400;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: error.message }));
+          }
+          return;
+        }
 
         // 0. GET /api/db/status (Health check & statistics)
         if (req.method === 'GET' && url === '/api/db/status') {
@@ -3025,6 +3077,7 @@ SELECT json_build_object(
         // 8.02 GET /api/customer/harvest-results & GET /api/harvest & POST /api/harvest & POST /api/customer/harvest-results/confirm
         if (req.method === 'GET' && (url === '/api/customer/harvest-results' || url === '/api/harvest-results' || url === '/api/harvest' || url.startsWith('/api/customer/harvest-results?') || url.startsWith('/api/harvest-results?') || url.startsWith('/api/harvest?'))) {
           try {
+            await ensureHarvestDemoSchema(getPgPool());
             const urlObj = new URL(url, 'http://localhost:3000');
             const userId = urlObj.searchParams.get('userId') || '';
             const email = urlObj.searchParams.get('email') || '';
@@ -3055,6 +3108,8 @@ SELECT json_build_object(
         'HRV-' || hr.harvest_id AS id,
         'HRV-' || hr.harvest_id AS "harvestCode",
         hr.rental_id AS "rentalId",
+        hr.season_key AS "seasonKey",
+        hr.harvest_task_id AS "taskId",
         r.plot_id AS "plotId",
         p.plot_code AS "plotCode",
         'PLOT-' || p.plot_code AS "plotScopeId",
@@ -5967,6 +6022,7 @@ END $$;
         if (req.method === 'GET' && (url === '/api/care-tasks' || url === '/api/v1/care-tasks' || url === '/api/tasks' || url.startsWith('/api/care-tasks?') || url.startsWith('/api/v1/care-tasks?') || url.startsWith('/api/tasks?'))) {
           try {
             await ensureRentalLeaseColumns();
+            await ensureHarvestDemoSchema(getPgPool());
             const urlObj = new URL(url, 'http://localhost');
             const workerIdParam = urlObj.searchParams.get('workerId');
             const rentalIdParam = urlObj.searchParams.get('rentalId');
@@ -6002,6 +6058,10 @@ SELECT json_build_object(
         ct.task_id AS "taskId",
         'TSK-' || ct.task_id AS id,
         ct.rental_id AS "rentalId",
+        ct.step_id AS "stepId",
+        ts.task_type AS "taskType",
+        ds.season_key AS "seasonKey",
+        CASE WHEN ct.status = 'DONE' THEN 'STAFF' WHEN ct.demo_completed THEN 'DEMO' ELSE NULL END AS "completionSource",
         ct.service_request_id AS "serviceRequestId",
         COALESCE(ct.step_order, ts.step_order, 1) AS "stepOrder",
         rent.plot_id AS "plotId",
@@ -6026,6 +6086,7 @@ SELECT json_build_object(
         ct.task_assigned_to AS "taskAssignedTo",
         CASE 
           WHEN ct.status = 'DONE' THEN 'COMPLETED'
+          WHEN ct.demo_completed THEN 'COMPLETED'
           WHEN ct.status = 'IN_PROG' THEN 'IN_PROGRESS'
           ELSE 'PENDING'
         END AS status,
@@ -6034,8 +6095,12 @@ SELECT json_build_object(
           WHEN ct.service_request_id IS NOT NULL OR ct.notes ILIKE '%[ƯU TIÊN CAO]%' OR ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN 'HIGH'
           ELSE 'NORMAL'
         END AS priority,
-        TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS "dueDate",
-        TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS date,
+        TO_CHAR(CASE WHEN ds.current_day IS NOT NULL THEN CURRENT_DATE + (
+          COALESCE(ts.day_offset + 1, (ct.due_date - rent.start_date) + 1, 1) - ds.current_day
+        ) ELSE ct.due_date END, 'YYYY-MM-DD') AS "dueDate",
+        TO_CHAR(CASE WHEN ds.current_day IS NOT NULL THEN CURRENT_DATE + (
+          COALESCE(ts.day_offset + 1, (ct.due_date - rent.start_date) + 1, 1) - ds.current_day
+        ) ELSE ct.due_date END, 'YYYY-MM-DD') AS date,
         COALESCE(ts.day_offset, 0) AS "dayOffset",
         CASE
           WHEN ts.day_offset IS NOT NULL THEN ts.day_offset + 1
@@ -6043,6 +6108,7 @@ SELECT json_build_object(
           ELSE 1
         END AS "cropDay",
         CASE
+          WHEN ds.current_day IS NOT NULL THEN ds.current_day
           WHEN rent.start_date IS NOT NULL THEN GREATEST(1, CURRENT_DATE - DATE(rent.start_date) + 1)
           ELSE 1
         END AS "plotCurrentDay",
@@ -6073,6 +6139,7 @@ SELECT json_build_object(
       LEFT JOIN users u_expert ON rent.expert_id = u_expert.user_id
       LEFT JOIN varieties v ON rent.variety_id = v.variety_id
       LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+        LEFT JOIN demo_cultivation_state ds ON ds.rental_id = ct.rental_id AND ds.is_active
       LEFT JOIN service_requests sr ON ct.service_request_id = sr.request_id
       LEFT JOIN services s ON sr.service_id = s.service_id
       ${taskWhereSql}

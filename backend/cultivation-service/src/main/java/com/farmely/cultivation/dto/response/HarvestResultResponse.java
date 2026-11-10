@@ -17,6 +17,8 @@ public class HarvestResultResponse {
     private Integer harvestId;
     private String harvestCode; // e.g. HV-701
     private Integer rentalId;
+    private String seasonKey;
+    private Integer taskId;
     private Integer enteredBy;
     private String workerName;
     private LocalDate harvestDate;

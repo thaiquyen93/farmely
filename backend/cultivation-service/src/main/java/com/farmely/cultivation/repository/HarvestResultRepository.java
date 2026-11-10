@@ -7,9 +7,12 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface HarvestResultRepository extends JpaRepository<HarvestResultEntity, Integer> {
+
+    Optional<HarvestResultEntity> findByRentalIdAndSeasonKeyAndHarvestTaskId(Integer rentalId, String seasonKey, Integer harvestTaskId);
 
     List<HarvestResultEntity> findByRentalIdOrderByHarvestDateDesc(Integer rentalId);
 

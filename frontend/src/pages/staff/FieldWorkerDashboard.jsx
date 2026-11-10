@@ -7,6 +7,8 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import DashboardRail from '../../components/dashboard/DashboardRail';
 import { apiFetch, unwrapData } from '../../api/apiClient';
+import { submitHarvestOnce } from './harvestSubmission';
+import { publishHarvestCompleted } from '../../api/harvest/harvestSync';
 import { sendNotification } from '../../services/notificationService';
 import {
   UserCheck,
@@ -428,7 +430,7 @@ function IssueHistory({ issues, filter, onFilter, search, onSearch, selectedIssu
   );
 }
 
-function HarvestRecorder({ workItems, selected, onSelect, photos, onPhotos, onRemovePhoto, weight, onWeight, confirmed, onConfirmed, user, onSubmit }) {
+function HarvestRecorder({ workItems, selected, onSelect, photos, onPhotos, onRemovePhoto, weight, onWeight, confirmed, onConfirmed, user, onSubmit, submitting }) {
   return (
     <form onSubmit={onSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="space-y-5">
@@ -436,7 +438,7 @@ function HarvestRecorder({ workItems, selected, onSelect, photos, onPhotos, onRe
         <section className="rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-sm font-black text-white">2</span><div><h3 className="font-heading text-lg font-black text-brand-dark">Ảnh thu hoạch thực tế</h3><p className="text-xs text-brand-muted">Tối thiểu một ảnh rõ toàn bộ nông sản tại thửa.</p></div></div><label className="mt-4 flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 p-5 text-center"><Camera className="h-8 w-8 text-emerald-700" /><strong className="mt-2 text-sm text-brand-dark">Chụp ảnh hoặc tải ảnh lên</strong><span className="mt-1 text-xs text-brand-muted">Tối đa 4 ảnh</span><input type="file" accept="image/*" capture="environment" multiple onChange={(event) => onPhotos(event.target.files)} className="sr-only" /></label>{photos.length ? <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{photos.map((photo, index) => <div key={`${photo.slice(-20)}-${index}`} className="group relative"><img src={photo} alt={`Ảnh thu hoạch ${index + 1}`} className="h-28 w-full rounded-xl object-cover" /><button type="button" onClick={() => onRemovePhoto(index)} aria-label={`Xóa ảnh ${index + 1}`} className="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-rose-600"><Trash2 className="h-4 w-4" /></button></div>)}</div> : null}</section>
         <section className="rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-sm font-black text-white">3</span><div><h3 className="font-heading text-lg font-black text-brand-dark">Khối lượng và người ghi nhận</h3><p className="text-xs text-brand-muted">Nhập số cân thực tế và kiểm tra người thực hiện.</p></div></div><div className="mt-4 grid gap-4 lg:grid-cols-2"><div className="rounded-2xl bg-stone-50 p-4"><UserCheck className="h-6 w-6 text-emerald-700" /><strong className="mt-3 block text-brand-dark">{user?.fullName || user?.name || 'Nhân viên hiện trường'}</strong><span className="text-xs text-stone-500">Nhân viên ghi nhận</span><div className="mt-4 border-t pt-3 text-xs"><span className="text-stone-400">Thửa đất</span><strong className="mt-1 block text-brand-dark">{selected?.plotCode || 'Chưa chọn thửa'}</strong></div></div><label className="rounded-2xl border border-brand-border p-4"><span className="text-xs font-black text-brand-dark">Khối lượng thu hoạch</span><div className="mt-3 flex items-center rounded-xl border border-brand-border bg-white px-4 focus-within:border-emerald-500"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={weight} onChange={(event) => onWeight(event.target.value)} placeholder="0.00" className="min-w-0 flex-1 py-3 text-xl font-black text-brand-dark outline-none" /><span className="font-bold text-stone-500">kg</span></div><p className="mt-2 text-[11px] text-stone-400">Nhập tổng khối lượng đã cân tại thửa.</p></label></div><label className="mt-4 flex items-start gap-3 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-900"><input type="checkbox" checked={confirmed} onChange={(event) => onConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4" />Tôi xác nhận hình ảnh và số cân trên được ghi nhận trực tiếp tại đúng thửa đất.</label></section>
       </div>
-      <aside className="h-fit rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm xl:sticky xl:top-24"><h3 className="font-heading text-lg font-black text-brand-dark">Tóm tắt thu hoạch</h3><div className="mt-4 space-y-4 text-xs"><div><span className="text-stone-400">Thửa đất</span><strong className="mt-1 block text-brand-dark">{selected ? `${selected.plotCode} · ${selected.crop}` : 'Chưa chọn thửa'}</strong></div><div><span className="text-stone-400">Người ghi nhận</span><strong className="mt-1 block text-brand-dark">{user?.fullName || user?.name || 'Nhân viên hiện trường'}</strong></div><div><span className="text-stone-400">Khối lượng</span><strong className="mt-1 block text-lg text-brand-dark">{Number(weight) > 0 ? `${Number(weight).toLocaleString('vi-VN')} kg` : 'Chưa nhập'}</strong></div><div><span className="text-stone-400">Ảnh đã chụp</span><strong className="mt-1 block text-brand-dark">{photos.length} ảnh</strong></div></div><Button type="submit" disabled={!selected || photos.length === 0 || !(Number(weight) > 0) || !confirmed} className="mt-5 w-full"><Scale className="mr-2 h-4 w-4" />Hoàn tất thu hoạch</Button></aside>
+      <aside className="h-fit rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm xl:sticky xl:top-24"><h3 className="font-heading text-lg font-black text-brand-dark">Tóm tắt thu hoạch</h3><div className="mt-4 space-y-4 text-xs"><div><span className="text-stone-400">Thửa đất</span><strong className="mt-1 block text-brand-dark">{selected ? `${selected.plotCode} · ${selected.crop}` : 'Chưa chọn thửa'}</strong></div><div><span className="text-stone-400">Người ghi nhận</span><strong className="mt-1 block text-brand-dark">{user?.fullName || user?.name || 'Nhân viên hiện trường'}</strong></div><div><span className="text-stone-400">Khối lượng</span><strong className="mt-1 block text-lg text-brand-dark">{Number(weight) > 0 ? `${Number(weight).toLocaleString('vi-VN')} kg` : 'Chưa nhập'}</strong></div><div><span className="text-stone-400">Ảnh đã chụp</span><strong className="mt-1 block text-brand-dark">{photos.length} ảnh</strong></div></div><Button type="submit" disabled={submitting || !selected?.apiTaskId || selected?.status === 'COMPLETED' || photos.length === 0 || !(Number(weight) > 0) || !confirmed} className="mt-5 w-full"><Scale className="mr-2 h-4 w-4" />{submitting ? 'Đang lưu...' : 'Hoàn tất thu hoạch'}</Button></aside>
     </form>
   );
 }
@@ -509,6 +511,8 @@ export default function FieldWorkerDashboard() {
   const [harvestPhotos, setHarvestPhotos] = useState([]);
   const [harvestWeight, setHarvestWeight] = useState('');
   const [harvestConfirmed, setHarvestConfirmed] = useState(false);
+  const [harvestSubmitting, setHarvestSubmitting] = useState(false);
+  const harvestSubmittingRef = useRef(false);
   const [issueFilter, setIssueFilter] = useState('ALL');
   const [issueSearch, setIssueSearch] = useState('');
   const [selectedIssue, setSelectedIssue] = useState(null);
@@ -592,6 +596,10 @@ export default function FieldWorkerDashboard() {
           apiId: task.taskId || task.id,
           serviceRequestId: task.serviceRequestId,
           rentalId: task.rentalId,
+          stepId: task.stepId,
+          taskType: task.taskType,
+          seasonKey: task.seasonKey,
+          completionSource: task.completionSource,
           session: task.session || 'MORNING',
           title: task.title || 'Nhiệm vụ chăm sóc',
           plotCode: task.plotCode || (task.rentalId ? `P-${String(task.rentalId).padStart(2, '0')}` : 'Chưa gán'),
@@ -639,6 +647,8 @@ export default function FieldWorkerDashboard() {
           id: harvest.harvestCode || `HRV-${harvest.harvestId || harvest.id}`,
           apiId: harvest.harvestId || harvest.id,
           rentalId: harvest.rentalId,
+          taskId: harvest.taskId,
+          seasonKey: harvest.seasonKey,
           plotCode: harvest.plotCode || (harvest.rentalId ? `P-${String(harvest.rentalId).padStart(2, '0')}` : 'Chưa gán'),
           plotName: harvest.plotName || (harvest.plotCode ? `Thửa ${harvest.plotCode}` : (harvest.rentalId ? `Thửa #${harvest.rentalId}` : 'Thửa đất')),
           crop: harvest.cropName || harvest.crop || 'Nông sản VietGAP',
@@ -702,6 +712,7 @@ export default function FieldWorkerDashboard() {
     let bcStaff = null;
     let bcDispatch = null;
     let bcTasks = null;
+    let bcDemo = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         bc = new BroadcastChannel('farmely_iot_telemetry');
@@ -724,6 +735,8 @@ export default function FieldWorkerDashboard() {
 
         bcTasks = new BroadcastChannel('farmely_staff_tasks');
         bcTasks.onmessage = handleStaffSync;
+        bcDemo = new BroadcastChannel('farmely_demo_time_sync');
+        bcDemo.onmessage = handleStaffSync;
       }
     } catch {}
 
@@ -753,6 +766,9 @@ export default function FieldWorkerDashboard() {
       clearInterval(pollInterval);
       if (bc) try { bc.close(); } catch {}
       if (bcStaff) try { bcStaff.close(); } catch {}
+      if (bcDispatch) try { bcDispatch.close(); } catch {}
+      if (bcTasks) try { bcTasks.close(); } catch {}
+      if (bcDemo) try { bcDemo.close(); } catch {}
       if (bcDispatch) try { bcDispatch.close(); } catch {}
       if (bcTasks) try { bcTasks.close(); } catch {}
       window.removeEventListener('storage', handleStorage);
@@ -1132,6 +1148,7 @@ export default function FieldWorkerDashboard() {
   // Handle Record Harvest Scale
   const handleConfirmHarvestScale = async (e) => {
     e.preventDefault();
+    if (harvestSubmittingRef.current) return;
     const parsedWeight = Number(harvestWeight);
     if (!selectedHarvestTask || harvestPhotos.length === 0 || !(parsedWeight > 0) || !harvestConfirmed) {
       setDataError('Vui lòng chụp ít nhất một ảnh, nhập số cân và xác nhận thông tin trước khi hoàn tất.');
@@ -1139,51 +1156,60 @@ export default function FieldWorkerDashboard() {
     }
 
     const enteredBy = Number(String(user?.userId || user?.id || '').replace(/\D/g, ''));
-    if (!selectedHarvestTask.rentalId || !Number.isFinite(enteredBy)) {
+    if (!selectedHarvestTask.rentalId || !selectedHarvestTask.apiTaskId || !Number.isFinite(enteredBy)) {
       alert('Hệ thống chưa có mã lượt thuê hoặc mã nhân viên để ghi nhận thu hoạch.');
       return;
     }
+    setHarvestSubmitting(true);
     let saved;
     try {
-      saved = unwrapData(await apiFetch('/api/harvest', {
+      const response = await submitHarvestOnce(harvestSubmittingRef, () => apiFetch('/api/harvest', {
         method: 'POST',
         body: JSON.stringify({
           rentalId: selectedHarvestTask.rentalId,
+          taskId: selectedHarvestTask.apiTaskId,
+          seasonKey: selectedHarvestTask.seasonKey,
           enteredBy,
           harvestDate: new Date().toISOString().slice(0, 10),
           yieldAmount: parsedWeight,
+          deliveryType: 'PICKUP',
           evidenceImageUrl: harvestPhotos[0]
         })
-      })) || {};
+      }));
+      if (!response) return;
+      saved = unwrapData(response) || {};
     } catch (error) {
       setDataError(error.message || 'Không thể lưu ghi nhận thu hoạch lên hệ thống.');
       return;
+    } finally {
+      setHarvestSubmitting(false);
     }
     const completedHarvest = {
       ...selectedHarvestTask,
       id: saved.harvestCode || `HARVEST-${saved.harvestId || Date.now()}`,
       apiId: saved.harvestId,
+      taskId: saved.taskId,
+      seasonKey: saved.seasonKey,
       status: 'COMPLETED',
-      actualWeight: `${parsedWeight.toFixed(2)} kg`,
+      actualWeight: `${Number(saved.yieldAmount).toFixed(2)} kg`,
       photoUrl: saved.evidenceImageUrl || harvestPhotos[0],
       staffId: user?.id,
       staffName: user?.fullName || 'Nhân viên hiện trường',
       verifiedAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     };
-    setHarvestTasks((prev) => [completedHarvest, ...prev.filter((item) => item.id !== selectedHarvestTask.id)]);
+    setHarvestTasks((prev) => [completedHarvest, ...prev.filter((item) => item.id !== selectedHarvestTask.id && Number(item.apiId) !== Number(saved.harvestId))]);
     if (selectedHarvestTask.sourceTaskId) {
       setTasks((prev) => prev.map((task) => task.id === selectedHarvestTask.sourceTaskId ? { ...task, status: 'COMPLETED', completedAt: completedHarvest.verifiedAt } : task));
     }
 
     try {
       const shared = JSON.parse(localStorage.getItem('farmely_shared_harvest_plans') || '[]');
-      const code = selectedHarvestTask.plotCode;
       const updated = shared.map((item) => {
-        if (item.plotCode === code || item.plotId === selectedHarvestTask.rentalId) {
+        if (Number(item.rentalId) === Number(selectedHarvestTask.rentalId) && (!item.seasonKey || item.seasonKey === saved.seasonKey)) {
           return {
             ...item,
             status: 'COMPLETED',
-            actualYield: `${parsedWeight.toFixed(2)} kg`,
+            actualYield: `${Number(saved.yieldAmount).toFixed(2)} kg`,
             evidenceImageUrl: saved.evidenceImageUrl || harvestPhotos[0],
             completedAt: new Date().toISOString(),
             workerName: user?.fullName || 'Trần Văn Lực (CVLĐ)'
@@ -1192,10 +1218,9 @@ export default function FieldWorkerDashboard() {
         return item;
       });
       localStorage.setItem('farmely_shared_harvest_plans', JSON.stringify(updated));
-      const bc = new BroadcastChannel('farmely_harvest_sync');
-      bc.postMessage({ type: 'HARVEST_COMPLETED' });
-      bc.close();
     } catch {}
+
+    publishHarvestCompleted({ rentalId: saved.rentalId, seasonKey: saved.seasonKey, taskId: saved.taskId });
 
     setSelectedHarvestTask(completedHarvest);
     setHarvestPhotos([]);
@@ -1207,7 +1232,8 @@ export default function FieldWorkerDashboard() {
 
   const handleExecuteTask = (task) => {
     if (isHarvestTaskTitle(task.title)) {
-      const hItem = harvestWorkItems.find((item) => item.plotCode === task.plotCode);
+      const hItem = harvestWorkItems.find((item) => Number(item.apiTaskId || item.taskId) === Number(task.apiId)
+        && Number(item.rentalId) === Number(task.rentalId));
       setSelectedPlotModalCode(null);
       if (hItem) openHarvestWorkspace(hItem);
       else handleTaskAction(task);
@@ -1407,22 +1433,19 @@ export default function FieldWorkerDashboard() {
   const currentSession = new Date().getHours() < 12 ? 'MORNING' : 'AFTERNOON';
   const currentSessionTasks = tasks.filter((task) => task.session === currentSession);
   const harvestedWeight = harvestTasks.reduce((sum, item) => sum + (Number.parseFloat(item.actualWeight) || 0), 0);
-  const harvestCandidateTasks = [...tasks.reduce((byRental, task) => {
-    if (!task.rentalId) return byRental;
-    const current = byRental.get(task.rentalId);
-    const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(`${task.title} ${task.instructions}`);
-    if (!current || isHarvestTask) byRental.set(task.rentalId, task);
-    return byRental;
-  }, new Map()).values()];
+  const harvestCandidateTasks = tasks.filter((task) => task.rentalId && (
+    task.taskType === 'HARVEST' || (!task.stepId && /thu hoạch/i.test(task.title || ''))
+  ));
   const harvestTaskCandidates = harvestCandidateTasks
     .map((task) => {
-      const recordedHarvest = harvestTasks.find((item) => item.rentalId === task.rentalId);
-      const isHarvestTask = /thu hoạch|cân|đóng thùng/i.test(`${task.title} ${task.instructions}`);
+      const recordedHarvest = harvestTasks.find((item) => Number(item.taskId) === Number(task.apiId) && Number(item.rentalId) === Number(task.rentalId));
+      const isHarvestTask = true;
       const resolvedCrop = task.crop || 'Rau củ chuẩn VietGAP';
       return {
         id: `WORK-${task.id}`,
         sourceTaskId: isHarvestTask ? task.id : null,
         apiTaskId: isHarvestTask ? task.apiId : null,
+        seasonKey: task.seasonKey,
         apiId: recordedHarvest?.apiId,
         rentalId: task.rentalId,
         plotCode: task.plotCode,
@@ -1435,7 +1458,7 @@ export default function FieldWorkerDashboard() {
         deadline: task.deadline
       };
     });
-  const candidateRentalIds = new Set(harvestTaskCandidates.map((item) => item.rentalId).filter(Boolean));
+  const candidateTaskIds = new Set(harvestTaskCandidates.map((item) => Number(item.apiTaskId)).filter(Boolean));
   const candidatePlotCodes = new Set(harvestTaskCandidates.map((item) => item.plotCode).filter(Boolean));
 
   let sharedApprovedHarvests = [];
@@ -1464,7 +1487,7 @@ export default function FieldWorkerDashboard() {
   const harvestWorkItems = [
     ...harvestTaskCandidates,
     ...sharedApprovedHarvests,
-    ...harvestTasks.filter((item) => !candidateRentalIds.has(item.rentalId))
+    ...harvestTasks.filter((item) => !candidateTaskIds.has(Number(item.taskId)))
   ];
 
   // Danh sách các đợt thu hoạch đã hoàn tất đối chứng cân thực tế (BR20)
@@ -2098,6 +2121,7 @@ export default function FieldWorkerDashboard() {
                   onConfirmed={setHarvestConfirmed}
                   user={user}
                   onSubmit={handleConfirmHarvestScale}
+                  submitting={harvestSubmitting}
                 />
 
                 {/* KHỐI LỊCH SỬ THU HOẠCH & BIÊN BẢN ĐỐI CHỨNG THEO VỤ MÙA (BR20) */}

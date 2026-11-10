@@ -27,6 +27,12 @@ public class HarvestResultEntity {
     @Column(name = "rental_id", nullable = false)
     private Integer rentalId;
 
+    @Column(name = "season_key")
+    private String seasonKey;
+
+    @Column(name = "harvest_task_id")
+    private Integer harvestTaskId;
+
     @Column(name = "entered_by", nullable = false)
     private Integer enteredBy;
 

@@ -5,9 +5,14 @@ import com.farmely.cultivation.dto.request.RecordHarvestRequest;
 import com.farmely.cultivation.dto.response.HarvestResultResponse;
 import com.farmely.cultivation.entity.FarmDiaryEntity;
 import com.farmely.cultivation.entity.HarvestResultEntity;
+import com.farmely.cultivation.entity.CareTaskEntity;
+import com.farmely.cultivation.entity.TaskStatus;
 import com.farmely.cultivation.entity.RentalReference;
 import com.farmely.cultivation.entity.UserReference;
 import com.farmely.cultivation.exception.ResourceNotFoundException;
+import com.farmely.cultivation.exception.BadRequestException;
+import com.farmely.cultivation.repository.CareTaskRepository;
+import com.farmely.cultivation.repository.TemplateStepReferenceRepository;
 import com.farmely.cultivation.repository.FarmDiaryRepository;
 import com.farmely.cultivation.repository.HarvestResultRepository;
 import com.farmely.cultivation.repository.RentalReferenceRepository;
@@ -33,6 +38,8 @@ public class HarvestResultServiceImpl implements HarvestResultService {
     private final RentalReferenceRepository rentalReferenceRepository;
     private final UserReferenceRepository userReferenceRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final CareTaskRepository careTaskRepository;
+    private final TemplateStepReferenceRepository templateStepReferenceRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -65,8 +72,44 @@ public class HarvestResultServiceImpl implements HarvestResultService {
     @Override
     @Transactional
     public HarvestResultResponse recordHarvest(RecordHarvestRequest request) {
+        CareTaskEntity task = careTaskRepository.findById(request.getTaskId())
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy task thu hoạch"));
+        if (!request.getRentalId().equals(task.getRentalId())) {
+            throw new BadRequestException("Task thu hoạch không thuộc lượt thuê này");
+        }
+        boolean harvestStep = task.getStepId() != null && templateStepReferenceRepository.findById(task.getStepId())
+                .map(step -> "HARVEST".equalsIgnoreCase(step.getTaskType()))
+                .orElse(false);
+        if (!harvestStep && (task.getStepId() != null || task.getNotes() == null
+                || !task.getNotes().toLowerCase().contains("thu hoạch"))) {
+            throw new BadRequestException("Task không phải đợt thu hoạch");
+        }
+        if (request.getEvidenceImageUrl() == null || request.getEvidenceImageUrl().isBlank()) {
+            throw new BadRequestException("Cần ảnh thu hoạch thực tế");
+        }
+        var activeSeasons = jdbcTemplate.queryForList("""
+                SELECT season_key FROM demo_cultivation_state
+                WHERE rental_id = ? AND is_active ORDER BY updated_at DESC LIMIT 1
+                """, request.getRentalId());
+        String seasonKey = activeSeasons.isEmpty() ? "rental-" + request.getRentalId()
+                : String.valueOf(activeSeasons.get(0).get("season_key"));
+        if (request.getSeasonKey() != null && !request.getSeasonKey().equals(seasonKey)) {
+            throw new BadRequestException("Vụ thu hoạch đã thay đổi, vui lòng tải lại task");
+        }
+        if (!seasonKey.matches("[a-zA-Z0-9:_-]{1,100}")) {
+            throw new BadRequestException("Mã vụ không hợp lệ");
+        }
+        jdbcTemplate.query("SELECT pg_advisory_xact_lock(?, ?)",
+                ps -> { ps.setInt(1, request.getRentalId()); ps.setInt(2, request.getTaskId()); },
+                rs -> {});
+        var existing = harvestResultRepository.findByRentalIdAndSeasonKeyAndHarvestTaskId(
+                request.getRentalId(), seasonKey, request.getTaskId());
+        if (existing.isPresent()) return mapToResponse(existing.get());
+
         HarvestResultEntity entity = HarvestResultEntity.builder()
                 .rentalId(request.getRentalId())
+                .seasonKey(seasonKey)
+                .harvestTaskId(request.getTaskId())
                 .enteredBy(request.getEnteredBy())
                 .harvestDate(request.getHarvestDate() != null ? request.getHarvestDate() : LocalDate.now())
                 .yieldAmount(request.getYieldAmount())
@@ -77,11 +120,17 @@ public class HarvestResultServiceImpl implements HarvestResultService {
 
         HarvestResultEntity saved = harvestResultRepository.save(entity);
 
+        task.setStatus(TaskStatus.DONE);
+        task.setEvidenceImageUrl(saved.getEvidenceImageUrl());
+        careTaskRepository.save(task);
+
         // Auto record into Farm Diary (BR20)
         String diaryContent = String.format("Hoàn tất thu hoạch vụ mùa. Sản lượng cân điện tử đạt: %.2f kg. Phương thức bàn giao: %s.",
                 saved.getYieldAmount(), saved.getDeliveryType());
         FarmDiaryEntity diary = FarmDiaryEntity.builder()
                 .rentalId(saved.getRentalId())
+                .taskId(request.getTaskId())
+                .harvestId(saved.getHarvestId())
                 .content(diaryContent)
                 .imageUrl(saved.getEvidenceImageUrl())
                 .build();
@@ -159,6 +208,8 @@ public class HarvestResultServiceImpl implements HarvestResultService {
                 .harvestId(entity.getHarvestId())
                 .harvestCode(harvestCode)
                 .rentalId(entity.getRentalId())
+                .seasonKey(entity.getSeasonKey())
+                .taskId(entity.getHarvestTaskId())
                 .enteredBy(entity.getEnteredBy())
                 .workerName(workerName)
                 .harvestDate(entity.getHarvestDate())
