@@ -16,17 +16,29 @@ import com.farmely.identity.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.Map;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
+
+    private static final Map<String, Integer> LOCAL_DEMO_USERS = Map.of(
+            "customer@farmely.vn", 1,
+            "expert@farmely.vn", 5,
+            "worker@farmely.vn", 8,
+            "admin@farmely.vn", 11
+    );
+
+    @Value("${FARMELY_DEMO_AUTH_ENABLED:false}")
+    private boolean demoAuthEnabled;
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -42,7 +54,12 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(request.getEmail().trim().toLowerCase())
                 .orElseThrow(() -> new AppException("Email hoặc mật khẩu không chính xác", HttpStatus.UNAUTHORIZED));
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+        boolean demoLogin = demoAuthEnabled
+                && "123456".equals(request.getPassword())
+                && Integer.valueOf(user.getUserId()).equals(LOCAL_DEMO_USERS.get(user.getEmail()))
+                && ("CUSTOMER".equals(user.getRole().getRoleName()) || "EXPERT".equals(user.getRole().getRoleName())
+                    || "STAFF".equals(user.getRole().getRoleName()) || "ADMIN".equals(user.getRole().getRoleName()));
+        if (!demoLogin && !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             auditLogService.log(user.getUserId(), user.getEmail(), "LOGIN", "USER", String.valueOf(user.getUserId()), "Đăng nhập thất bại (sai mật khẩu)", null, "FAILURE");
             throw new AppException("Email hoặc mật khẩu không chính xác", HttpStatus.UNAUTHORIZED);
         }
@@ -59,7 +76,7 @@ public class AuthServiceImpl implements AuthService {
 
         boolean isRememberMe = Boolean.TRUE.equals(request.getRememberMe());
         auditLogService.log(user.getUserId(), user.getEmail(), "LOGIN", "USER", String.valueOf(user.getUserId()),
-                isRememberMe ? "Đăng nhập thành công (Ghi nhớ 14 ngày)" : "Đăng nhập thành công", null, "SUCCESS");
+                demoLogin ? "Đăng nhập demo local" : isRememberMe ? "Đăng nhập thành công (Ghi nhớ 14 ngày)" : "Đăng nhập thành công", null, "SUCCESS");
 
         String token = tokenProvider.generateToken(user, isRememberMe);
         UserResponse userResponse = userMapper.toUserResponse(user);

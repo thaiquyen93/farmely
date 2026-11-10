@@ -1146,6 +1146,7 @@ export default function AdminDashboard() {
               { id: 'dispatch', label: 'Điều Phối Nhân Sự', icon: UserCheck, count: totalDispatchPendingCount },
               { id: 'contracts', label: 'Hợp Đồng & Gia Hạn', icon: FileText, count: (renewalRequests.filter(r => r.status === 'PENDING').length + refundRequests.filter(r => r.status === 'PENDING').length) || null },
               { id: 'visits', label: 'Lịch Hẹn Tham Quan', icon: Calendar, count: siteVisits.filter(v => v.status === 'PENDING').length },
+              { id: 'support', label: 'CSKH', icon: PhoneCall, count: null },
               { id: 'users', label: 'Người Dùng & Phân Quyền', icon: Users, count: systemUsers.length },
               { id: 'audit-logs', label: 'Nhật Ký & Báo Cáo', icon: ShieldCheck, count: null }
             ].map((tab) => {
@@ -1154,7 +1155,7 @@ export default function AdminDashboard() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => tab.id === 'support' ? window.location.assign('/admin/support') : setActiveTab(tab.id)}
                   title={sidebarCollapsed ? tab.label : undefined}
                   aria-label={sidebarCollapsed ? tab.label : undefined}
                   className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${

@@ -2493,7 +2493,7 @@ ORDER BY u.user_id ASC;
 
               // Gọi identity-service trước nếu đang chạy để nhận JWT thật
               try {
-                const idRes = await fetch('http://localhost:8081/api/auth/login', {
+                const idRes = await fetch(`${process.env.IDENTITY_SERVICE_URL || 'http://localhost:8081'}/api/auth/login`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ email, password })
@@ -2611,7 +2611,7 @@ LIMIT 1;
           // Thử gọi identity-service trước nếu có token JWT chuẩn
           if (token && !token.startsWith('farmely-jwt-token-') && !token.startsWith('demo-token-')) {
             try {
-              const idRes = await fetch('http://localhost:8081/api/auth/me', {
+              const idRes = await fetch(`${process.env.IDENTITY_SERVICE_URL || 'http://localhost:8081'}/api/auth/me`, {
                 headers: { 'Authorization': `Bearer ${token}` }
               });
               if (idRes.ok) {

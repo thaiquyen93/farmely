@@ -19,6 +19,7 @@ import VnPayReturn from './pages/payment/VnPayReturn';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 import CustomerProfile from './pages/customer/CustomerProfile';
 import CustomerSettings from './pages/customer/CustomerSettings';
+import SupportPage from './pages/support/SupportPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ExpertDashboard from './pages/expert/ExpertDashboard';
 import FieldWorkerDashboard from './pages/staff/FieldWorkerDashboard';
@@ -187,7 +188,11 @@ export default function App() {
         <Route path="/customer/dashboard" element={<RoleRoute role="CUSTOMER"><CustomerDashboard /></RoleRoute>} />
         <Route path="/customer/profile" element={<RoleRoute role="CUSTOMER"><CustomerProfile /></RoleRoute>} />
         <Route path="/customer/settings" element={<RoleRoute role="CUSTOMER"><CustomerSettings /></RoleRoute>} />
+        <Route path="/customer/support" element={<RoleRoute role="CUSTOMER"><SupportPage /></RoleRoute>} />
+        <Route path="/customer/support/:id" element={<RoleRoute role="CUSTOMER"><SupportPage /></RoleRoute>} />
         <Route path="/admin/dashboard" element={<RoleRoute role="ADMIN"><AdminDashboard /></RoleRoute>} />
+        <Route path="/admin/support" element={<RoleRoute role="ADMIN"><SupportPage admin /></RoleRoute>} />
+        <Route path="/admin/support/:id" element={<RoleRoute role="ADMIN"><SupportPage admin /></RoleRoute>} />
         <Route path="/expert/dashboard" element={<RoleRoute role="EXPERT"><ExpertDashboard /></RoleRoute>} />
         <Route path="/expert/crops" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=crops" replace /></RoleRoute>} />
         <Route path="/expert/varieties" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=varieties" replace /></RoleRoute>} />

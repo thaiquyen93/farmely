@@ -288,8 +288,12 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                     <span>Vườn của tôi</span>
                   </Link>
                 )}
-
                 {/* Về Farmely (Direct Link to /about + Hover Dropdown for sections) */}
+                {isAuthenticated && userRole === 'CUSTOMER' ? (
+                  <Link to="/customer/support" className={`flex items-center gap-1 lg:gap-1.5 whitespace-nowrap text-[11px] lg:text-xs xl:text-sm 2xl:text-[15px] font-semibold transition-colors hover:text-brand-yellow py-1 px-1 lg:px-1.5 rounded-lg ${location.pathname.startsWith('/customer/support') ? 'text-brand-yellow font-bold' : 'text-white/95'}`}>
+                    <Info className="h-3.5 w-3.5 lg:h-4 lg:w-4 shrink-0" />Hỗ trợ
+                  </Link>
+                ) : (
                 <div
                   className="relative py-2 flex items-center"
                   onMouseEnter={() => setAboutDropdownOpen(true)}
@@ -371,6 +375,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                     </div>
                   )}
                 </div>
+                )}
               </>
             )}
 
@@ -450,6 +455,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                   <LayoutDashboard className="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" />
                   <span>Bảng Quản Trị</span>
                 </Link>
+                <Link to="/admin/support" className={`text-[11px] lg:text-xs xl:text-sm font-bold px-2.5 lg:px-3.5 py-1.5 rounded-xl ${location.pathname.startsWith('/admin/support') ? 'bg-brand-yellow text-brand-dark' : 'text-white/95 hover:text-brand-yellow hover:bg-white/10'}`}>CSKH</Link>
 
                 <Link
                   to="/admin/master-data"
@@ -799,8 +805,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                   <span>Vườn Của Tôi (Dashboard)</span>
                 </Link>
               )}
-
-              <div className="py-1 px-2 rounded-xl bg-white/5 space-y-1">
+              {isAuthenticated && userRole === 'CUSTOMER' ? <Link to="/customer/support" onClick={() => setMobileMenuOpen(false)} className="block py-2 text-sm font-bold text-brand-yellow">Hỗ trợ</Link> : <div className="py-1 px-2 rounded-xl bg-white/5 space-y-1">
                 <p className="text-[11px] font-bold text-brand-yellow uppercase tracking-wider py-1">
                   Về Farmely:
                 </p>
@@ -828,7 +833,7 @@ export default function PublicNavbar({ dashboardRailCollapsed, hideBrand = false
                   <Sprout className="w-3.5 h-3.5 text-brand-yellow" />
                   <span>Trải nghiệm canh tác (Self & Assisted)</span>
                 </button>
-              </div>
+              </div>}
             </>
           )}
 

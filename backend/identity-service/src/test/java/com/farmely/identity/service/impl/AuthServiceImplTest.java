@@ -2,6 +2,9 @@ package com.farmely.identity.service.impl;
 
 import com.farmely.identity.config.JwtTokenProvider;
 import com.farmely.identity.dto.RegisterRequest;
+import com.farmely.identity.dto.LoginRequest;
+import com.farmely.identity.entity.Role;
+import com.farmely.identity.entity.User;
 import com.farmely.identity.exception.AppException;
 import com.farmely.identity.mapper.UserMapper;
 import com.farmely.identity.repository.PasswordResetTokenRepository;
@@ -15,11 +18,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.any;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceImplTest {
@@ -44,5 +51,24 @@ class AuthServiceImplTest {
         AppException error = assertThrows(AppException.class, () -> authService.register(request));
         assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
         verify(roleRepository, never()).findByRoleName("ADMIN");
+    }
+
+    @Test
+    void demoPasswordIsRejectedByDefault() {
+        User user = User.builder().userId(1).email("customer@farmely.vn").passwordHash("different")
+                .role(Role.builder().roleName("CUSTOMER").build()).build();
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        LoginRequest request = LoginRequest.builder().email(user.getEmail()).password("123456").build();
+        assertThrows(AppException.class, () -> authService.login(request));
+    }
+
+    @Test
+    void enabledDemoPasswordReceivesSignedToken() {
+        ReflectionTestUtils.setField(authService, "demoAuthEnabled", true);
+        User user = User.builder().userId(1).email("customer@farmely.vn").passwordHash("different")
+                .role(Role.builder().roleName("CUSTOMER").build()).build();
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(tokenProvider.generateToken(user, false)).thenReturn("signed-token");
+        assertEquals("signed-token", authService.login(LoginRequest.builder().email(user.getEmail()).password("123456").build()).getToken());
     }
 }
