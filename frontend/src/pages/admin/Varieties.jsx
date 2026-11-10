@@ -8,9 +8,10 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
+import { processTemplateRoute } from './processTemplateRoute';
 import { Wheat, Plus, Eye, Edit, Clock, Layers, BookOpen, CheckCircle2, Trash2, AlertCircle, X } from 'lucide-react';
 
-export default function Varieties() {
+export default function Varieties({ processBasePath = '/admin/master-data/process-templates' }) {
   const [varieties, setVarieties] = useState(initialVarieties);
   const [crops, setCrops] = useState(initialCrops);
   const [loading, setLoading] = useState(true);
@@ -32,9 +33,11 @@ export default function Varieties() {
     setLoading(true);
     Promise.all([
       fetch('/api/varieties').then((r) => r.json()),
-      fetch('/api/crops').then((r) => r.json())
+      fetch('/api/crops').then((r) => r.json()),
+      fetch('/api/templates').then((r) => r.json()).catch(() => null)
     ])
-      .then(([varRes, cropRes]) => {
+      .then(([varRes, cropRes, templateRes]) => {
+        const templateByVariety = new Map((templateRes?.data || []).map((template) => [String(template.varietyId), template.templateId || template.id]));
         if (varRes && varRes.success && Array.isArray(varRes.data) && varRes.data.length > 0) {
           setVarieties(varRes.data.map((item) => ({
             id: item.varietyId,
@@ -43,6 +46,7 @@ export default function Varieties() {
             cropName: item.cropName,
             growthDuration: item.expectedDuration,
             bufferTime: item.bufferTime,
+            processTemplateId: templateByVariety.get(String(item.varietyId)) || null,
             imageUrl: item.imageUrl,
             status: item.isActive ? 'ACTIVE' : 'ARCHIVED'
           })));
@@ -208,7 +212,7 @@ export default function Varieties() {
       key: 'processTemplateName',
       render: (row) => (
         <Link
-          to={`/admin/master-data/process-templates?varietyId=${row.id}`}
+          to={processTemplateRoute(processBasePath, row.id, Boolean(row.processTemplateId))}
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-brand-cream border border-brand-border hover:border-brand-green text-brand-dark transition-all"
         >
           <BookOpen className="w-3.5 h-3.5 text-brand-green" />

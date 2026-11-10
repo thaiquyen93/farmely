@@ -5,8 +5,6 @@
  */
 
 const STORAGE_KEY = 'farmely_chat_threads_v9';
-const CUSTOMER_EXPERT_CACHE_PURGE_KEY = 'farmely_chat_customer_1_expert_5_purged_v1';
-const LO_THAI_QUYEN_EXPERT_CONVERSATIONS = new Set([11, 13, 14, 15]);
 
 export const DEMO_CUSTOMERS = [
   {
@@ -37,8 +35,6 @@ export const getSafeAvatar = (url, role = 'customer') => {
 
 function mergeDuplicateCustomerThreads(threads) {
   const output = [];
-  const indexByIdentity = new Map();
-
   threads.forEach((thread) => {
     if (thread?.role !== 'customer') {
       output.push(thread);
@@ -46,20 +42,18 @@ function mergeDuplicateCustomerThreads(threads) {
     }
     const email = String(thread.customerEmail || '').trim().toLowerCase();
     const userId = Number(thread.participantUserId);
-    const name = String(thread.customerName || '').trim().toLowerCase();
-    const isLoThaiQuyen = userId === 1 || email === 'customer@farmely.vn' || name === 'lô thái quyền';
-    const identity = isLoThaiQuyen
-      ? 'user:1'
-      : userId
-        ? `user:${userId}`
-        : (email ? `email:${email}` : (name ? `name:${name}` : ''));
-    if (!identity || !indexByIdentity.has(identity)) {
-      if (identity) indexByIdentity.set(identity, output.length);
+    const index = output.findIndex((candidate) => {
+      if (candidate.role !== 'customer') return false;
+      const candidateId = Number(candidate.participantUserId);
+      const candidateEmail = String(candidate.customerEmail || '').trim().toLowerCase();
+      if (userId && candidateId && userId !== candidateId) return false;
+      return Boolean((userId && candidateId === userId) || (email && candidateEmail === email));
+    });
+    if (index < 0) {
       output.push(thread);
       return;
     }
 
-    const index = indexByIdentity.get(identity);
     const existing = output[index];
     const messages = [...(existing.messages || []), ...(thread.messages || [])];
     const seenMessages = new Set();
@@ -72,6 +66,8 @@ function mergeDuplicateCustomerThreads(threads) {
     output[index] = {
       ...thread,
       ...existing,
+      participantUserId: Number(existing.participantUserId) || userId || undefined,
+      customerEmail: existing.customerEmail || thread.customerEmail,
       conversationId: existing.conversationId || thread.conversationId,
       conversationIds: [...new Set([...(existing.conversationIds || []), ...(thread.conversationIds || []), existing.conversationId, thread.conversationId].filter(Boolean).map(Number).filter(Number.isFinite))],
       messages: mergedMessages,
@@ -98,39 +94,13 @@ export function getStoredThreads() {
     } catch (_) {}
 
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      if (!window.localStorage.getItem(CUSTOMER_EXPERT_CACHE_PURGE_KEY)) {
-        window.localStorage.setItem(CUSTOMER_EXPERT_CACHE_PURGE_KEY, '1');
-      }
-      return [];
-    }
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) {
       return [];
     }
 
-    let working = parsed;
-    if (!window.localStorage.getItem(CUSTOMER_EXPERT_CACHE_PURGE_KEY)) {
-      working = working.filter((thread) => {
-        if (thread.role !== 'customer') return true;
-        const ids = [thread.conversationId, ...(thread.conversationIds || [])].map(Number);
-        const matchesCustomer = Number(thread.participantUserId) === 1
-          || String(thread.customerEmail || '').trim().toLowerCase() === 'customer@farmely.vn'
-          || String(thread.customerName || '').trim().toLowerCase() === 'lô thái quyền'
-          || thread.id === 'CONS-401';
-        return !(matchesCustomer || ids.some((id) => LO_THAI_QUYEN_EXPERT_CONVERSATIONS.has(id)));
-      });
-      window.localStorage.setItem(CUSTOMER_EXPERT_CACHE_PURGE_KEY, '1');
-    }
-
-    const merged = mergeDuplicateCustomerThreads(working);
-    // Dọn các hội thoại giả cũ, nhưng giữ lại tin nhắn thật và thread KH–Expert.
-    const cleaned = merged.filter((t) => {
-      if (/Mai Anh Thư|Nguyễn Văn Hùng|Phạm Thu Hương|Trần Minh Quân|Nguyễn Văn Đạt|Lê Thị Hoa|Hoàng Văn Nam|^qw$/i.test(t.customerName || '')) {
-        return false;
-      }
-      return true;
-    });
+    const cleaned = mergeDuplicateCustomerThreads(parsed);
 
     if (JSON.stringify(cleaned) !== JSON.stringify(parsed)) {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cleaned));
@@ -154,16 +124,13 @@ export function upsertCustomerChatThread({ threadId, conversationId, participant
   if (!threadId) return null;
   const threads = getStoredThreads();
   const normalizedEmail = String(customerEmail || '').trim().toLowerCase();
-  const normalizedName = String(customerName || '').trim().toLowerCase();
   const numericUserId = Number(participantUserId);
   const existingIndexes = threads.map((thread, index) => ({ thread, index })).filter(({ thread }) => {
     const sameId = thread.id === threadId;
     const sameUser = numericUserId && Number(thread.participantUserId) === numericUserId;
-    const sameEmail = normalizedEmail && String(thread.customerEmail || '').trim().toLowerCase() === normalizedEmail;
-    const threadHasStableIdentity = Number(thread.participantUserId) || String(thread.customerEmail || '').trim();
-    const sameNameOnly = !threadHasStableIdentity && normalizedName && thread.role === 'customer'
-      && String(thread.customerName || '').trim().toLowerCase() === normalizedName;
-    return sameId || sameUser || sameEmail || sameNameOnly;
+    const sameEmail = normalizedEmail && String(thread.customerEmail || '').trim().toLowerCase() === normalizedEmail
+      && (!numericUserId || !Number(thread.participantUserId) || Number(thread.participantUserId) === numericUserId);
+    return thread.role === 'customer' && (sameId || sameUser || sameEmail);
   });
   const existingIndex = existingIndexes[0]?.index ?? -1;
   const existing = existingIndex >= 0 ? threads[existingIndex] : null;

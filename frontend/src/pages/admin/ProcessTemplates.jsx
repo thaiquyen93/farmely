@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { varietiesData as initialVarieties } from '../../data/varieties';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
@@ -25,9 +25,13 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { sendNotification } from '../../services/notificationService';
+import { getProcessTemplateListState } from './processTemplateListState';
 
 export default function ProcessTemplates({ detailBasePath = '/admin/master-data/process-templates' }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedVarietyId = searchParams.get('varietyId');
+  const requestMode = searchParams.get('mode');
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN';
   const isExpert = user?.role === 'EXPERT';
@@ -42,9 +46,18 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
   const [toast, setToast] = useState(null);
 
   // Form State
-  const [varietyId, setVarietyId] = useState('1');
+  const [varietyId, setVarietyId] = useState(requestedVarietyId || '1');
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
+  const { isFiltered, visibleTemplates, matchingCount } = getProcessTemplateListState(templates, requestedVarietyId, requestMode);
+  const selectedVariety = varieties.find((variety) => String(variety.id || variety.varietyId) === String(requestedVarietyId));
+  const selectedVarietyName = selectedVariety?.name || selectedVariety?.varietyName || `Giống #${requestedVarietyId}`;
+  const clearVarietyFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('varietyId');
+    next.delete('mode');
+    setSearchParams(next);
+  };
 
   // Quick Steps State for new template
   const [steps, setSteps] = useState([
@@ -158,14 +171,14 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
       .then((res) => {
         if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
           setVarieties(res.data);
-          const first = res.data[0];
+          const first = res.data.find((variety) => String(variety.id || variety.varietyId) === String(requestedVarietyId)) || res.data[0];
           const fId = String(first.id || first.varietyId);
           setVarietyId(fId);
           setName(`Quy trình canh tác chuẩn VietGAP - ${first.name || first.varietyName}`);
         }
       })
       .catch(() => {});
-  }, []);
+  }, [requestedVarietyId]);
 
   // When variety selection changes, auto-suggest standard process name
   const handleVarietyChange = (vId) => {
@@ -216,7 +229,12 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
     }
 
     setIsSubmitting(true);
-    const numericVarietyId = parseInt(String(varietyId).replace(/\D/g, ''), 10) || 1;
+    const numericVarietyId = Number(varietyId);
+    if (!Number.isInteger(numericVarietyId) || numericVarietyId <= 0) {
+      showToast('error', 'Vui lòng chọn giống cây trồng hợp lệ.');
+      setIsSubmitting(false);
+      return;
+    }
     const selectedVariety = varieties.find((v) => String(v.id || v.varietyId) === String(varietyId));
     const varietyNameStr = selectedVariety?.name || selectedVariety?.varietyName || 'Giống cây trồng';
 
@@ -257,11 +275,10 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
       }
 
       const json = await res.json().catch(() => null);
-      if (json && json.success && (json.data?.templateId || json.data?.id)) {
+      if (res.ok && json?.success && (json.data?.templateId || json.data?.id)) {
         createdId = json.data.templateId || json.data.id;
       } else {
-        // Fallback local ID if backend proxy is running offline
-        createdId = Date.now();
+        throw new Error(json?.message || 'Không thể lưu quy trình vào hệ thống.');
       }
 
       setTemplateStatus(createdId, initialStatus);
@@ -480,7 +497,7 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
             {isLiveDb && (
               <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>{templates.length} Quy trình</span>
+                <span>{isFiltered ? `${visibleTemplates.length} kết quả cho giống ${selectedVarietyName}` : `${templates.length} Quy trình`}</span>
               </span>
             )}
           </div>
@@ -497,7 +514,7 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
           size="md"
           icon={Plus}
           onClick={() => {
-            const first = varieties[0];
+            const first = varieties.find((variety) => String(variety.id || variety.varietyId) === String(requestedVarietyId)) || varieties[0];
             if (first) {
               const fId = String(first.id || first.varietyId);
               setVarietyId(fId);
@@ -510,9 +527,27 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
         </Button>
       </div>
 
+      {isFiltered && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-border bg-white px-4 py-3 text-sm text-brand-dark">
+          <span>Đang xem quy trình của giống <strong>{selectedVarietyName}</strong> ({visibleTemplates.length} kết quả)</span>
+          <button type="button" onClick={clearVarietyFilter} className="font-bold text-brand-green hover:underline">
+            Xem tất cả quy trình
+          </button>
+        </div>
+      )}
+
+      {requestedVarietyId && requestMode !== 'create' && matchingCount === 0 && !loading && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-border bg-white px-4 py-3 text-sm text-brand-dark">
+          <span>Giống <strong>{selectedVarietyName}</strong> chưa có quy trình. Đang hiển thị tất cả {templates.length} quy trình hiện có.</span>
+          <button type="button" onClick={clearVarietyFilter} className="font-bold text-brand-green hover:underline">
+            Xem tất cả quy trình
+          </button>
+        </div>
+      )}
+
       <DataTable
         columns={columns}
-        data={templates}
+        data={visibleTemplates}
         searchPlaceholder="Tìm kiếm quy trình, giống cây..."
         searchField="name"
       />
