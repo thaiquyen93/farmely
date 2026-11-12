@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { farmApi, plotStatusBadge } from '../../api/farm/farmApi';
-import { formatArea } from '../../utils/polygonGeometry';
+import { formatRecordedArea } from '../../utils/polygonGeometry';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { Plus, Edit, Trash2, Loader2, PenLine, Map, Sparkles, CheckCircle2, Clock, EyeOff, Building2, FastForward, X, SlidersHorizontal } from 'lucide-react';
+import { Plus, Edit, Trash2, Loader2, Map, Sparkles, CheckCircle2, Clock, EyeOff, Building2, FastForward, X, SlidersHorizontal } from 'lucide-react';
 
 export default function Plots() {
   const [plots, setPlots] = useState([]);
@@ -60,7 +60,7 @@ export default function Plots() {
             landId: p.landId,
             landName: p.landName,
             areaNum: Number(p.area) || 0,
-            area: formatArea(Number(p.area)),
+            area: formatRecordedArea(Number(p.area)),
             rentalPrice: Number(p.pricePerPeriod) || 0,
             formattedPrice: `${Number(p.pricePerPeriod || 0).toLocaleString('vi-VN')} đ`,
             status: plotStatusBadge(p.status),
@@ -364,10 +364,10 @@ export default function Plots() {
 
           <Link
             to={`/admin/master-data/plots/create?editId=${row.id}`}
-            className="p-1.5 text-stone-500 hover:text-amber-600 hover:bg-stone-100 rounded-lg transition-colors"
-            title={row.drawn ? 'Chỉnh sửa' : 'Vẽ ranh giới'}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-brand-border bg-white px-2.5 py-1 text-xs font-semibold text-brand-dark transition-colors hover:border-brand-green hover:bg-emerald-50 hover:text-brand-green"
+            title={`Chỉnh sửa thửa ${row.code} và diện tích canh tác thực tế`}
           >
-            {row.drawn ? <Edit className="w-4 h-4" /> : <PenLine className="w-4 h-4" />}
+            <Edit className="h-3.5 w-3.5" /> Chỉnh sửa thửa
           </Link>
           <button
             onClick={() => setConfirmDeleteId(row.id)}

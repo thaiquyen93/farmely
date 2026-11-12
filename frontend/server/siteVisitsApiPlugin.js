@@ -4694,10 +4694,12 @@ SELECT row_to_json(p) FROM (
               const isPublished = payload.isPublished === true;
               const imageUrl = (payload.imageUrl || '').trim();
               const boundary = Array.isArray(payload.boundary) ? payload.boundary : null;
-              let area = parseFloat(payload.area) || 0;
-
-              if (boundary && boundary.length >= 3) {
-                area = calculateAreaM2(boundary);
+              const area = Number(payload.area);
+              if (!Number.isFinite(area) || area <= 0 || Math.abs(area * 100 - Math.round(area * 100)) > 1e-7) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Diện tích canh tác thực tế phải lớn hơn 0 và có tối đa 2 chữ số thập phân.' }));
+                return;
               }
 
               if (!landId) {
@@ -4811,10 +4813,12 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
               const isPublished = payload.isPublished === true;
               const imageUrl = (payload.imageUrl || '').trim();
               const boundary = Array.isArray(payload.boundary) ? payload.boundary : null;
-              let area = parseFloat(payload.area) || 0;
-
-              if (boundary && boundary.length >= 3) {
-                area = calculateAreaM2(boundary);
+              const area = Number(payload.area);
+              if (!Number.isFinite(area) || area <= 0 || Math.abs(area * 100 - Math.round(area * 100)) > 1e-7) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Diện tích canh tác thực tế phải lớn hơn 0 và có tối đa 2 chữ số thập phân.' }));
+                return;
               }
 
               const boundarySqlVal = boundary ? `'${JSON.stringify(boundary).replace(/'/g, "''")}'` : 'NULL';
@@ -4829,7 +4833,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                 `is_published = ${isPublished}`,
                 `updated_at = NOW()`
               ];
-              if (area > 0) setClauses.push(`area = ${area}`);
+              setClauses.push(`area = ${area}`);
               if (payload.imageUrl !== undefined) setClauses.push(`image_url = ${imgSqlVal}`);
               if (boundary) setClauses.push(`boundary_geojson = ${boundarySqlVal}`);
 

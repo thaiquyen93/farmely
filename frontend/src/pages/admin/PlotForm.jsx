@@ -7,8 +7,15 @@ import BoundaryDrawMap from '../../components/admin/BoundaryDrawMap';
 import { farmApi, PLOT_STATUS_OPTIONS } from '../../api/farm/farmApi';
 import { notifyExpertsOfNewPlot } from '../../services/notificationService';
 import { clearCompatibilityCache } from '../../utils/leaseSelection';
-import { cleanRing, formatArea, validateRing } from '../../utils/polygonGeometry';
+import { cleanRing, formatRecordedArea, validateRing } from '../../utils/polygonGeometry';
 import { AlertTriangle, ArrowLeft, CheckCircle2, Globe, ImagePlus, Loader2, Lock, Save, Trash2, Upload } from 'lucide-react';
+
+const parseArea = (value) => {
+  const raw = String(value).trim().replace(',', '.');
+  if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) return null;
+  const area = Number(raw);
+  return Number.isFinite(area) && area > 0 ? area : null;
+};
 
 export default function PlotForm() {
   const [searchParams] = useSearchParams();
@@ -56,7 +63,7 @@ export default function PlotForm() {
           setLandId(String(plot.landId));
           setCode(plot.plotCode || '');
           setOriginalCode(plot.plotCode || '');
-          setManualArea(plot.area != null ? String(plot.area) : '');
+          setManualArea(plot.area != null ? Number(plot.area).toFixed(2) : '');
           setPrice(plot.pricePerPeriod != null ? String(plot.pricePerPeriod) : '');
           setCarePrice(plot.carePricePerMonth != null ? String(plot.carePricePerMonth) : '0');
           setStatus(plot.status || 'MAINT');
@@ -108,7 +115,7 @@ setBoundary(plot.boundary || []);
     const errs = {};
     if (!landId) errs.landId = 'Chọn nông trại chứa thửa đất.';
     if (!code.trim()) errs.code = 'Nhập mã thửa đất (vd P-17).';
-    if (!hasRing && !(Number(manualArea) > 0) && !lockedBoundary) errs.area = 'Vẽ ranh giới trên bản đồ hoặc nhập diện tích.';
+    if (parseArea(manualArea) == null) errs.area = 'Nhập diện tích lớn hơn 0, tối đa 2 chữ số thập phân.';
     if (!(Number(price) >= 0) || price === '') errs.price = 'Nhập giá thuê hợp lệ.';
     if (!(Number(carePrice) >= 0) || carePrice === '') errs.carePrice = 'Nhập giá dịch vụ chăm sóc hợp lệ.';
     if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
@@ -179,7 +186,7 @@ setBoundary(plot.boundary || []);
       const body = {
         landId: Number(landId),
         plotCode: code.trim(),
-        area: hasRing ? null : Number(manualArea),
+        area: parseArea(manualArea),
         pricePerPeriod: Number(price),
         carePricePerMonth: Number(carePrice),
         status: effectiveStatus,
@@ -198,7 +205,7 @@ setBoundary(plot.boundary || []);
       navigate(`/admin/master-data/lands/${saved.landId}`, {
         state: {
           flash: isPublished
-            ? `Đã duyệt & xuất bản thửa ${saved.plotCode} (${formatArea(Number(saved.area))}) lên Marketplace!`
+            ? `Đã duyệt & xuất bản thửa ${saved.plotCode} (${formatRecordedArea(Number(saved.area))}) lên Marketplace!`
             : `${editId ? 'Đã lưu' : 'Đã tạo'} thửa ${saved.plotCode} ở trạng thái Chưa kích hoạt (chờ Expert thiết lập giống cây & quy trình).`,
           highlightPlotId: saved.plotId
         }
@@ -405,11 +412,10 @@ setBoundary(plot.boundary || []);
           )}
           {errors.boundary && <p className="text-xs font-medium text-rose-600">{errors.boundary}</p>}
 
-          {!hasRing && (
-            <div className="max-w-xs pt-2">
-              <Input label="Hoặc nhập diện tích (m²)" type="number" min={0.01} step={0.01} value={manualArea} onChange={(e) => setManualArea(e.target.value)} error={errors.area} helperText="Chỉ dùng khi chưa vẽ ranh giới." />
-            </div>
-          )}
+          <div className="max-w-xs pt-2">
+            <Input label="Diện tích canh tác thực tế (m²)" required type="text" inputMode="decimal" value={manualArea} onChange={(e) => setManualArea(e.target.value)} error={errors.area} helperText="Admin xác nhận theo hồ sơ hoặc đo thực địa; số này dùng cho giá thuê và hợp đồng." />
+          </div>
+          {parseArea(manualArea) != null && <p aria-live="polite" className="text-xs font-semibold text-brand-green">Diện tích sẽ lưu: {formatRecordedArea(parseArea(manualArea))}</p>}
         </section>
 
         {serverError && (
