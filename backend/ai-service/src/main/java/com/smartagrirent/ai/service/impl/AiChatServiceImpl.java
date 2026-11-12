@@ -55,6 +55,24 @@ public class AiChatServiceImpl implements AiChatService {
         } else if (isGoodbye(lower)) {
             reply = "Tạm biệt bạn nhé! Chúc bạn một ngày làm việc hiệu quả. Khi nào cần tra cứu số liệu thửa đất hay kỹ thuật chăm sóc, Farmely AI luôn sẵn sàng hỗ trợ!";
         }
+        // 2b. Giải thích mô hình nền tảng Farmely (4 phần khách quan, súc tích)
+        else if (lower.contains("farmely là gì") || lower.contains("farmely la gi") || lower.contains("hoạt động ra sao") || lower.contains("hoat dong ra sao") || lower.contains("hoạt động như thế nào") || lower.contains("mô hình") || lower.contains("mo hinh") || lower.contains("giới thiệu")) {
+            reply = "1. **Farmely là gì?**\n"
+                    + "Farmely là nền tảng nông nghiệp số cho phép người dùng thuê các thửa đất canh tác thực tế (Plot) tại nông trại và theo dõi quá trình trồng trọt trực tuyến (không phải trò chơi mô phỏng hay đất ảo).\n\n"
+                    + "2. **Farmely hoạt động như thế nào?**\n"
+                    + "Hệ thống phối hợp giữa 3 vai trò: Khách hàng (chọn thửa đất, giống cây, chế độ tự chăm sóc hoặc ủy thác và theo dõi tiến độ) — Chuyên gia nông nghiệp (thiết lập quy trình kỹ thuật và tư vấn khi cần) — Nhân viên hiện trường (thực hiện công việc tại vườn, ghi nhật ký ảnh và hỗ trợ cân đo thu hoạch).\n\n"
+                    + "3. **Công nghệ hỗ trợ ra sao?**\n"
+                    + "Nền tảng tích hợp dữ liệu cảm biến IoT, thông tin thời tiết địa phương, nhật ký canh tác điện tử theo từng công việc và trợ lý AI hỗ trợ tra cứu thông tin.\n\n"
+                    + "4. **Người dùng nhận được gì?**\n"
+                    + "Bạn có thể theo dõi và kiểm soát quá trình trồng rau từ xa qua dữ liệu và hình ảnh cập nhật mà không cần trực tiếp có mặt mỗi ngày, và nhận nông sản trực tiếp tại trang trại (PICKUP) khi thu hoạch.\n\n"
+                    + "Bạn muốn tìm hiểu chi tiết hơn về quy trình thuê thửa đất, vai trò của các bên hay tính năng theo dõi nào trên hệ thống?";
+            docs.add(ReferencedDocumentDto.builder()
+                    .chunkId("doc-farmely-intro")
+                    .docTitle("1. Farmely là gì? Giới thiệu tổng quan về nền tảng Farmely")
+                    .source("Quy trình Thuê đất & Chính sách Farmely")
+                    .similarityScore(0.96)
+                    .build());
+        }
         // 3. Tư vấn rau xà lách
         else if (lower.contains("xà lách") || lower.contains("xa lach")) {
             reply = "Rau xà lách (Romaine, mỡ, xoăn) tại Farmely phát triển lý tưởng ở nền nhiệt 18°C – 25°C, độ ẩm đất từ 65% – 75%.\n\n"
@@ -94,30 +112,41 @@ public class AiChatServiceImpl implements AiChatService {
                     .similarityScore(0.89)
                     .build());
         }
-        // 6. Quy trình thuê đất & hợp đồng
-        else if (lower.contains("thuê") || lower.contains("hợp đồng") || lower.contains("giá") || lower.contains("gia hạn") || lower.contains("chi phí")) {
-            reply = "Quy trình thuê thửa đất tại Farmely cực kỳ minh bạch và đơn giản:\n\n"
-                    + "1. Chọn thửa đất ưng ý trên bản đồ vệ tinh Marketplace (xem độ phì nhiêu pH, hướng nắng, hạ tầng tưới).\n"
-                    + "2. Chọn giống rau canh tác và phương thức (Tự trồng hoặc Trọn gói có nhân viên chăm sóc).\n"
-                    + "3. Thanh toán trực tuyến 100% qua VNPay/VietQR để kích hoạt hợp đồng điện tử.\n"
-                    + "4. Gia hạn hợp đồng: Bạn có thể chủ động gia hạn trước ngày kết thúc 3 ngày với chiết khấu từ 5% – 15%.";
+        // 6. Quy trình thuê đất, hủy & hợp đồng
+        else if (lower.contains("hủy") || lower.contains("huy") || lower.contains("hoàn tiền")) {
+            reply = "Chính sách hủy hợp đồng thuê đất tại Farmely (chỉ áp dụng khi hợp đồng chưa bắt đầu canh tác):\n\n"
+                    + "• Hủy trước ngày bắt đầu >= 3 ngày: Hoàn 80% giá trị thanh toán.\n"
+                    + "• Hủy trước ngày bắt đầu < 3 ngày: Hoàn 50% giá trị thanh toán.\n"
+                    + "• Khi hợp đồng đã đến ngày bắt đầu hoặc đang canh tác: Không áp dụng hủy hoàn tiền.\n"
+                    + "• Gia hạn hợp đồng: Cần thực hiện trước ngày hết hạn tối thiểu 3 ngày.";
+            docs.add(ReferencedDocumentDto.builder()
+                    .chunkId("doc-lease-cancel")
+                    .docTitle("3. Chính sách Hủy, Gia hạn & Thu hoạch")
+                    .source("Quy trình Thuê đất & Chính sách Farmely")
+                    .similarityScore(0.95)
+                    .build());
+        } else if (lower.contains("thuê") || lower.contains("hợp đồng") || lower.contains("giá") || lower.contains("gia hạn") || lower.contains("chi phí")) {
+            reply = "Quy trình thuê thửa đất tại Farmely minh bạch theo chuẩn vận hành:\n\n"
+                    + "1. Chọn thửa đất trống trên Marketplace bản đồ, chọn giống rau, chế độ Tự trồng (Self-Growing) hoặc Ủy thác trọn gói (+50% phí chăm sóc).\n"
+                    + "2. Chọn ngày bắt đầu (cách 5–14 ngày kể từ khi đặt) và kỳ hạn 1, 2, 3, 6 hoặc 12 tháng (tối thiểu >= thời gian sinh trưởng + 10 ngày buffer).\n"
+                    + "3. Thanh toán trả trước 100% qua VNPay/VietQR trong thời gian giữ chỗ (15 phút, tối đa +10 phút tại cổng thanh toán).\n"
+                    + "4. Gia hạn hợp đồng: Chủ động thực hiện trước ngày hết hạn 3 ngày (không có chiết khấu gia hạn mặc định).";
             docs.add(ReferencedDocumentDto.builder()
                     .chunkId("doc-lease-04")
-                    .docTitle("Quy chế Hợp đồng Thuê đất Nông nghiệp Công nghệ cao (BR11, BR12)")
-                    .source("Trung tâm Pháp lý Farmely")
-                    .similarityScore(0.91)
+                    .docTitle("Quy trình & Quy định Thuê đất Farmely")
+                    .source("Quy trình Thuê đất & Chính sách Farmely")
+                    .similarityScore(0.93)
                     .build());
         }
-        // 7. Thu hoạch & Nghiệm thu
+        // 7. Thu hoạch & Nghiệm thu (PICKUP tại nông trại)
         else if (lower.contains("thu hoạch") || lower.contains("sản lượng") || lower.contains("khiếu nại") || lower.contains("giao rau")) {
-            reply = "Khi đến kỳ thu hoạch:\n\n"
-                    + "• Nhân viên hiện trường sẽ cân sản lượng thực tế, dán tem QR truy xuất nguồn gốc và chụp ảnh đối chứng.\n"
-                    + "• Bạn có thể nghiệm thu đánh giá chất lượng (Độ tươi, Đóng gói) trên trang Quản lý.\n"
-                    + "• Trường hợp sản lượng thiếu hụt do yếu tố khách quan kỹ thuật, hệ thống bảo hiểm Farmely sẽ thẩm định bồi hoàn tiền hoặc bù sản lượng vụ kế tiếp cho bạn theo quy tắc BR16.";
+            reply = "Khi cây đạt ngày tuổi thu hoạch tại Farmely:\n\n"
+                    + "• Nhân viên hiện trường (CVLĐ) sẽ thu hoạch, cân sản lượng thực tế bằng cân điện tử, dán tem QR truy xuất nguồn gốc và chụp ảnh đối chứng lên Nhật ký canh tác.\n"
+                    + "• Bạn nghiệm thu kết quả ngay trên hệ thống và đến trực tiếp trang trại để nhận nông sản tươi sạch (PICKUP).";
             docs.add(ReferencedDocumentDto.builder()
                     .chunkId("doc-harvest-05")
-                    .docTitle("Quy trình Thu hoạch, Đóng gói & Bồi thường Sau Thu hoạch (BR16, BR17)")
-                    .source("Quy chế Vận hành Nông trường")
+                    .docTitle("4. Quy trình Thu hoạch & Nhận nông sản tại nông trại")
+                    .source("Hướng dẫn Sử dụng Nền tảng Farmely")
                     .similarityScore(0.93)
                     .build());
         }

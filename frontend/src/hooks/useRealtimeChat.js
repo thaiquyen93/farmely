@@ -31,6 +31,12 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
   }, [role, userId, initialThreadId, senderName, customerEmail, refreshThreads]);
 
   // Poll the shared backend so separate customer and expert sessions see replies.
+  const syncNow = useCallback(async () => {
+    if (!userId) return;
+    await chatService.syncBackendMessages({ role, userId });
+    refreshThreads();
+  }, [role, userId, refreshThreads]);
+
   useEffect(() => {
     if (!userId) return;
     let inFlight = false;
@@ -38,16 +44,15 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
       if (inFlight) return;
       inFlight = true;
       try {
-        await chatService.syncBackendMessages({ role, userId });
-        refreshThreads();
+        await syncNow();
       } finally {
         inFlight = false;
       }
     };
     sync();
-    const timer = window.setInterval(sync, 15000);
+    const timer = window.setInterval(sync, 5000);
     return () => window.clearInterval(timer);
-  }, [role, userId, refreshThreads]);
+  }, [userId, syncNow]);
 
   // Update selectedThreadId if initialThreadId changes
   useEffect(() => {
@@ -56,12 +61,13 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
     }
   }, [initialThreadId]);
 
-  // Set default selectedThreadId if not set
+  // Set default selectedThreadId if not set (skip auto-picking invisible threads for expert inbox)
   useEffect(() => {
+    if (role === 'expert') return;
     if (!selectedThreadId && threads.length > 0) {
       setSelectedThreadId(threads[0]?.id || null);
     }
-  }, [selectedThreadId, threads]);
+  }, [role, selectedThreadId, threads]);
 
   // Listen to real-time events across windows / tabs
   useEffect(() => {
@@ -73,8 +79,16 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
   }, [refreshThreads]);
 
   const currentThread = useMemo(() => {
-    return threads.find((t) => t.id === selectedThreadId) || threads[0] || null;
-  }, [threads, selectedThreadId]);
+    const byId = threads.find((t) => t.id === selectedThreadId);
+    if (byId) return byId;
+    if (role === 'customer' && Number(userId) > 0) {
+      return threads.find((t) => t.role === 'customer' && Number(t.participantUserId) === Number(userId)) || null;
+    }
+    if (role === 'worker' && Number(userId) > 0) {
+      return threads.find((t) => t.role === 'worker' && Number(t.participantUserId) === Number(userId)) || null;
+    }
+    return threads[0] || null;
+  }, [threads, selectedThreadId, role, userId]);
 
   // Filtered threads for lists
   const filteredThreads = useMemo(() => {
@@ -87,21 +101,27 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
   }, [threads, activeFilter]);
 
   // Send message
-  const sendMessage = useCallback((text, customSenderName = '', meta = {}) => {
-    if (!selectedThreadId || !text?.trim()) return null;
+  const sendMessage = useCallback(async (text, customSenderName = '', meta = {}, overrideThreadId = null) => {
+    const targetThreadId = overrideThreadId || selectedThreadId;
+    if (!targetThreadId || !text?.trim()) return null;
 
     const actualSender = customSenderName || senderName;
-    const res = chatService.sendMessage({
-      threadId: selectedThreadId,
-      sender: role,
-      text: text.trim(),
-      senderName: actualSender,
-      meta
-    });
-
-    refreshThreads();
-    return res;
-  }, [selectedThreadId, role, senderName, refreshThreads]);
+    try {
+      const res = await chatService.sendMessage({
+        threadId: targetThreadId,
+        sender: role,
+        text: text.trim(),
+        senderName: actualSender,
+        senderUserId: userId,
+        meta
+      });
+      refreshThreads();
+      return res;
+    } catch (error) {
+      refreshThreads();
+      throw error;
+    }
+  }, [selectedThreadId, role, senderName, userId, refreshThreads]);
 
   // Mark thread unread as false (for inbox list)
   const markAsRead = useCallback((threadIdToMark) => {
@@ -122,6 +142,7 @@ export function useRealtimeChat({ role = 'customer', initialThreadId = null, sen
     setActiveFilter,
     sendMessage,
     markAsRead,
-    refreshThreads
+    refreshThreads,
+    syncNow
   };
 }

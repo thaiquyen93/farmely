@@ -421,6 +421,7 @@ export default function AdminDashboard() {
           startDate: r.startDate || '',
           endDate: r.endDate || '',
           status: r.status || 'ACTIVE',
+          plotStatus: r.plotStatus || 'RENT',
           expertId: r.expertId,
           expertName: r.expertName || 'Chưa chỉ định',
           expertEmail: r.expertEmail || '',
@@ -1656,9 +1657,14 @@ export default function AdminDashboard() {
                                 return (
                                   <tr key={rental.id} className="hover:bg-emerald-50/30 transition-colors">
                                     <td className="py-3.5 px-4 whitespace-nowrap">
-                                      <div className="flex items-center gap-1.5">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
                                         <span className="font-mono font-bold text-sky-800 text-sm">{rental.plotCode}</span>
                                         <span className="font-semibold text-stone-800">{rental.name}</span>
+                                        {rental.plotStatus === 'MAINT' && (
+                                          <span className="inline-flex items-center rounded-md bg-orange-50 border border-orange-200 px-1.5 py-0.5 text-[10px] font-bold text-orange-800">
+                                            MAINT · Bảo trì
+                                          </span>
+                                        )}
                                       </div>
                                       <div className="flex items-center gap-1 text-[11px] text-stone-400 mt-0.5">
                                         <span className="font-mono">{rental.contractCode}</span>

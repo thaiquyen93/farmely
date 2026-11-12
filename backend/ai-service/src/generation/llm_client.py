@@ -10,17 +10,34 @@ def _mock_llm_response(user_query: str, rag_contexts: List[Dict[str, any]]) -> s
 
     if "1 + 1" in query_lower or "1 cộng 1" in query_lower:
         return (
-            "Chào bạn! 1 cộng 1 chắc chắn bằng 2 rồi ạ! 😊 "
-            "Cũng như tại Farmely: sự tận tâm của bạn cộng với nông nghiệp thông minh chuẩn VietGAP sẽ luôn mang lại những vụ mùa bội thu!"
+            "1 cộng 1 bằng 2. Nếu bạn cần trao đổi thêm về quy trình thuê thửa đất hoặc kỹ thuật chăm sóc cây trồng trên Farmely, bạn cứ đặt câu hỏi nhé."
+        )
+    elif "farmely là gì" in query_lower or "hoạt động ra sao" in query_lower or "hoạt động như thế nào" in query_lower or "mô hình" in query_lower or "giới thiệu" in query_lower:
+        return (
+            "1. **Farmely là gì?**\n"
+            "Farmely là nền tảng nông nghiệp số cho phép người dùng thuê các thửa đất canh tác thực tế tại nông trại và theo dõi quá trình trồng trọt trực tuyến (không phải trò chơi hay đất ảo).\n\n"
+            "2. **Farmely hoạt động như thế nào?**\n"
+            "Hệ thống vận hành qua sự phối hợp giữa 3 vai trò: **Khách hàng** chọn thửa đất, giống cây, hình thức tự chăm sóc (`Self-Growing`) hoặc ủy thác (`Assisted-Growing`) và theo dõi tiến độ; **Chuyên gia nông nghiệp** xây dựng quy trình kỹ thuật và tư vấn khi cần; **Nhân viên hiện trường** trực tiếp thực hiện các công việc chăm sóc tại vườn, ghi nhật ký ảnh và hỗ trợ cân đo thu hoạch.\n\n"
+            "3. **Công nghệ hỗ trợ ra sao?**\n"
+            "Nền tảng tích hợp dữ liệu cảm biến IoT, thông tin thời tiết địa phương, nhật ký canh tác điện tử theo từng công việc và trợ lý AI hỗ trợ tra cứu quy trình.\n\n"
+            "4. **Người dùng nhận được gì?**\n"
+            "Người dùng có thể theo dõi quá trình phát triển của cây trồng từ xa qua dữ liệu và hình ảnh minh bạch thay vì phải trực tiếp có mặt mỗi ngày, và nhận nông sản trực tiếp tại trang trại (`PICKUP`) khi thu hoạch.\n\n"
+            "Bạn muốn mình giải thích chi tiết hơn về quy trình thuê thửa đất, vai trò của các bên hay tính năng theo dõi nào trên hệ thống?"
+        )
+    elif "hủy" in query_lower or "hoàn tiền" in query_lower:
+        return (
+            "Theo chính sách hủy hợp đồng tại Farmely (Điều 10 / BR10), bạn gửi yêu cầu hủy trước ngày bắt đầu canh tác sớm nhất trong hợp đồng (lý do tối thiểu 10 ký tự, do Quản trị viên duyệt):\n"
+            "- Trước ngày bắt đầu từ **3 ngày trở lên**: hoàn **80%** tổng tiền đã thanh toán.\n"
+            "- Trước ngày bắt đầu **dưới 3 ngày**: hoàn **50%**.\n"
+            "- **Từ ngày bắt đầu trở đi**: không hoàn tiền (**0%**)."
         )
     elif "thuê" in query_lower or "giá" in query_lower or "plot" in query_lower or "hợp đồng" in query_lower:
         return (
-            "Chào bạn! Về quy trình thuê Plot tại Farmely, bạn có thể thực hiện theo các bước sau:\n"
-            "1. Khám phá và chọn Plot phù hợp trên hệ thống (diện tích, giá thuê, độ che phủ ánh sáng, giống cây tương thích).\n"
-            "2. Đặt lịch tham quan thực tế (ca sáng hoặc ca chiều) hoặc nhận tư vấn từ Chuyên gia Nông nghiệp (CGNN).\n"
-            "3. Lựa chọn hình thức canh tác: Tự chăm sóc (Self-growing) hoặc Ủy thác trọn gói (Assisted-growing).\n"
-            "4. Giữ chỗ (15 phút + 10 phút ân hạn thanh toán) và thanh toán trọn gói 100% (không cần đặt cọc).\n"
-            "Nếu cần hỗ trợ chi tiết hơn về hợp đồng, bạn hãy liên hệ trực tiếp đội ngũ Farmely nhé!"
+            "Chào bạn! Về quy trình thuê Plot tại Farmely, bạn thực hiện theo các bước sau:\n"
+            "1. Khám phá và chọn Plot phù hợp trên bản đồ Marketplace (diện tích, giá thuê/tháng, giống cây tương thích).\n"
+            "2. Đặt lịch tham quan thực tế (ca sáng 08:00–11:30 hoặc ca chiều 13:30–17:00) hoặc nhắn Chuyên gia (CGNN) nếu muốn tư vấn.\n"
+            "3. Cấu hình giống cây tương thích, ngày bắt đầu (cách ngày đặt 5–14 ngày), thời hạn 1/2/3/6/12 tháng (tối thiểu chu kỳ giống + 10 ngày đệm) và hình thức **Self-Growing** hoặc **Assisted-Growing**.\n"
+            "4. Giữ chỗ 15 phút (+ 10 phút ân hạn thanh toán) và thanh toán trước 100% qua VNPay/VietQR (không thu tiền cọc)."
         )
     elif "rệp" in query_lower or "sâu" in query_lower or "bọ trĩ" in query_lower:
         return (
@@ -86,8 +103,8 @@ def generate_chat_response(prompt: str, user_query: str, rag_contexts: List[Dict
                 }
             ],
             "generationConfig": {
-                "temperature": 0.7,
-                "maxOutputTokens": 800
+                "temperature": 0.25,
+                "maxOutputTokens": 2048
             }
         }
         for model_name in models_to_try:

@@ -54,15 +54,7 @@ public class DemoTimeService {
             SET current_day = EXCLUDED.current_day, total_days = EXCLUDED.total_days,
                 is_active = true, updated_at = now()
             """, rentalId, seasonKey, day, totalDays);
-        jdbcTemplate.update("""
-            UPDATE care_tasks ct SET demo_completed = (
-              ct.status <> 'DONE'::task_status_enum
-              AND COALESCE((SELECT ts.task_type FROM template_steps ts WHERE ts.step_id = ct.step_id), '') <> 'HARVEST'
-              AND (ct.step_id IS NOT NULL OR COALESCE(ct.title, '') NOT ILIKE '%thu hoạch%')
-              AND COALESCE((SELECT ts.day_offset + 1 FROM template_steps ts WHERE ts.step_id = ct.step_id),
-                  (ct.due_date - ?::date) + 1, 1) < ?
-            ) WHERE ct.rental_id = ?
-            """, rental.get("start_date"), day, rentalId);
+        jdbcTemplate.update("UPDATE care_tasks SET demo_completed = false WHERE rental_id = ? AND demo_completed = true", rentalId);
         return Map.of("rentalId", rentalId, "seasonKey", seasonKey, "currentDay", day, "totalDays", totalDays);
     }
 }

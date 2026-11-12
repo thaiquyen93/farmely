@@ -8,6 +8,12 @@
 
 const STORAGE_KEY = 'farmely_system_notifications_v1';
 const CHANNEL_NAME = 'farmely_notifications_channel';
+let localNotifSeq = 0;
+
+const normalizeNotifRole = (role) => {
+  const upper = String(role || '').toUpperCase();
+  return (upper === 'FIELD_WORKER' || upper === 'WORKER') ? 'STAFF' : upper;
+};
 
 const getBroadcastChannel = () => {
   if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -53,13 +59,16 @@ export const sendNotification = async ({
   title,
   content,
   type = 'GENERAL',
-  link
+  link,
+  notificationId = null,
+  skipApiPost = false
 }) => {
+  localNotifSeq = (localNotifSeq + 1) % 1000;
   const newNotice = {
-    id: `NOTIF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    notificationId: Date.now(),
+    id: notificationId ? `DB-NOTIF-${notificationId}` : `NOTIF-${Date.now()}-${localNotifSeq}-${Math.floor(Math.random() * 1000)}`,
+    notificationId: notificationId ? Number(notificationId) : Number(`${Date.now()}${String(localNotifSeq).padStart(3, '0')}`),
     userId: userId ? Number(userId) : null,
-    targetRole: targetRole ? String(targetRole).toUpperCase() : null,
+    targetRole: targetRole ? normalizeNotifRole(targetRole) : null,
     title,
     content,
     type,
@@ -70,9 +79,12 @@ export const sendNotification = async ({
 
   // 1. Lưu vào LocalStorage
   const list = getStoredNotifications();
-  list.unshift(newNotice);
+  const deduped = notificationId
+    ? list.filter((n) => String(n.notificationId) !== String(newNotice.notificationId) && String(n.id) !== String(newNotice.id))
+    : list;
+  deduped.unshift(newNotice);
   // Giữ tối đa 100 thông báo gần nhất
-  saveStoredNotifications(list.slice(0, 100));
+  saveStoredNotifications(deduped.slice(0, 100));
 
   // 2. Phát tín hiệu qua BroadcastChannel cho các tab khác
   try {
@@ -88,13 +100,13 @@ export const sendNotification = async ({
     window.dispatchEvent(new CustomEvent('farmely_notification_received', { detail: newNotice }));
   }
 
-  // 4. Đồng bộ lên Backend communication-service nếu có endpoint
+  // 4. Đồng bộ lên Backend notification API nếu chưa được endpoint nghiệp vụ lưu trước đó
   try {
-    if (userId) {
+    if (!skipApiPost && userId && Number.isFinite(Number(userId))) {
       fetch('/api/v1/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: Number(userId), title, content })
+        body: JSON.stringify({ userId: Number(userId), title, content, link, type })
       }).catch(() => {});
     }
   } catch {}
@@ -109,13 +121,13 @@ export const getNotificationsForUser = (user) => {
   if (!user) return [];
   const list = getStoredNotifications();
   const currentUserId = Number(user.userId || user.id);
-  const currentRole = String(user.role || '').toUpperCase();
+  const currentRole = normalizeNotifRole(user.role);
 
   return list.filter((n) => {
     // Nếu thông báo đích danh theo userId
     if (n.userId && currentUserId && n.userId === currentUserId) return true;
-    // Nếu thông báo gửi chung theo vai trò (ví dụ tất cả ADMIN hoặc STAFF)
-    if (n.targetRole && n.targetRole === currentRole) return true;
+    // Nếu thông báo gửi chung theo vai trò (ví dụ tất cả ADMIN hoặc STAFF/FIELD_WORKER)
+    if (n.targetRole && normalizeNotifRole(n.targetRole) === currentRole) return true;
     return false;
   });
 };
@@ -125,13 +137,27 @@ export const getNotificationsForUser = (user) => {
  */
 export const markAsRead = (notificationId) => {
   const list = getStoredNotifications();
+  let dbId = null;
   const updated = list.map((n) => {
     if (String(n.id) === String(notificationId) || String(n.notificationId) === String(notificationId)) {
+      if (n.notificationId && /^\d+$/.test(String(n.notificationId)) && Number(n.notificationId) < 1000000000000) {
+        dbId = Number(n.notificationId);
+      }
       return { ...n, isRead: true };
     }
     return n;
   });
   saveStoredNotifications(updated);
+
+  const dbMatch = String(notificationId || '').match(/^DB-NOTIF-(\d+)$/) || String(notificationId || '').match(/^(\d+)$/);
+  if (!dbId && dbMatch && Number(dbMatch[1]) < 1000000000000) {
+    dbId = Number(dbMatch[1]);
+  }
+  if (dbId && typeof fetch === 'function') {
+    try {
+      fetch(`/api/v1/notifications/${dbId}/read`, { method: 'PATCH' }).catch(() => {});
+    } catch {}
+  }
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('farmely_notification_received'));
@@ -144,18 +170,24 @@ export const markAsRead = (notificationId) => {
 export const markAllAsReadForUser = (user) => {
   if (!user) return;
   const currentUserId = Number(user.userId || user.id);
-  const currentRole = String(user.role || '').toUpperCase();
+  const currentRole = normalizeNotifRole(user.role);
   const list = getStoredNotifications();
 
   const updated = list.map((n) => {
     const matchUser = n.userId && currentUserId && n.userId === currentUserId;
-    const matchRole = n.targetRole && n.targetRole === currentRole;
+    const matchRole = n.targetRole && normalizeNotifRole(n.targetRole) === currentRole;
     if (matchUser || matchRole) {
       return { ...n, isRead: true };
     }
     return n;
   });
   saveStoredNotifications(updated);
+
+  if (currentUserId && Number.isFinite(currentUserId) && typeof fetch === 'function') {
+    try {
+      fetch(`/api/v1/notifications/read-all?userId=${currentUserId}`, { method: 'PATCH' }).catch(() => {});
+    } catch {}
+  }
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('farmely_notification_received'));

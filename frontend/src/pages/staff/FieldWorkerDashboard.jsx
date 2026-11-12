@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
@@ -9,7 +9,7 @@ import DashboardRail from '../../components/dashboard/DashboardRail';
 import { apiFetch, unwrapData } from '../../api/apiClient';
 import { submitHarvestOnce } from './harvestSubmission';
 import { publishHarvestCompleted } from '../../api/harvest/harvestSync';
-import { sendNotification } from '../../services/notificationService';
+import { sendNotification, getStoredNotifications } from '../../services/notificationService';
 import {
   UserCheck,
   CheckCircle2,
@@ -54,7 +54,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { fetchLiveAgroIotData } from '../../services/weatherIotService';
-import { recordStaffActivity, resolveStandardCropProcess } from '../../services/cropStandardProcess';
+import { recordStaffActivity, resolveStandardCropProcess, stripEvidenceNote } from '../../services/cropStandardProcess';
 import { shouldShowExpertNote, splitLeadingTag, formatAgendaDate, groupTasksByDueDate } from '../../utils/staffTaskDisplay';
 
 
@@ -101,7 +101,7 @@ const normalizeTaskStatus = (status) => {
   return status || 'PENDING';
 };
 
-const getTaskTimingMeta = (task, plotCurrentDay = null) => {
+const getTaskTimingMeta = (task, plotCurrentDay = null, plotTotalDays = null) => {
   if (task.status === 'COMPLETED') {
     return {
       key: 'COMPLETED',
@@ -117,9 +117,23 @@ const getTaskTimingMeta = (task, plotCurrentDay = null) => {
 
   const taskAge = task.cropDay !== undefined && task.cropDay !== null ? Number(task.cropDay) : (task.dayOffset !== undefined && task.dayOffset !== null ? Number(task.dayOffset) : null);
   const plotAge = plotCurrentDay !== null && plotCurrentDay !== undefined ? Number(plotCurrentDay) : (task.plotCurrentDay !== undefined && task.plotCurrentDay !== null ? Number(task.plotCurrentDay) : null);
+  const totalDays = plotTotalDays !== null && plotTotalDays !== undefined ? Number(plotTotalDays) : (task.totalDays !== undefined && task.totalDays !== null ? Number(task.totalDays) : null);
+  const isPreSeasonHandover = Number(task.stepOrder) === 0;
+  const isHarvest = isHarvestTaskTitle(task.title);
+
+  // 0. Task thu hoạch khi vụ mùa đã tới ngày thu hoạch -> Luôn thuộc công việc HÔM NAY, không đánh dấu quá hạn
+  if (isHarvest && plotAge !== null && plotAge >= (totalDays || 25)) {
+    return {
+      key: 'TODAY',
+      label: task.status === 'IN_PROGRESS' ? 'Đang làm trong ca' : 'Hôm nay',
+      tone: task.status === 'IN_PROGRESS' ? 'bg-sky-100 text-sky-800 border border-sky-300 font-bold' : 'bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold',
+      dot: task.status === 'IN_PROGRESS' ? 'bg-sky-500 animate-pulse' : 'bg-emerald-500',
+      row: task.status === 'IN_PROGRESS' ? 'border-l-sky-500 bg-sky-50/60' : 'border-l-emerald-500 bg-emerald-50/40'
+    };
+  }
 
   // 1. Nếu hạn ở tương lai (sau ngày hôm nay) HOẶC task thuộc ngày tuổi tương lai của vụ mùa -> Bắt buộc là Chưa tới hạn
-  if ((rawDate && rawDate > todayStr) || (plotAge !== null && taskAge !== null && taskAge > plotAge)) {
+  if ((rawDate && rawDate > todayStr) || (!isPreSeasonHandover && plotAge !== null && taskAge !== null && taskAge > plotAge)) {
     const isPriority = task.priority === 'HIGH' || task.priority === 'URGENT' || task.priority === 'EMERGENCY';
     return {
       key: 'NOT_DUE',
@@ -130,18 +144,7 @@ const getTaskTimingMeta = (task, plotCurrentDay = null) => {
     };
   }
 
-  // 2. Nếu đang làm trong ca
-  if (task.status === 'IN_PROGRESS') {
-    return {
-      key: 'TODAY',
-      label: 'Đang làm trong ca',
-      tone: 'bg-sky-100 text-sky-800 border border-sky-300 font-bold',
-      dot: 'bg-sky-500 animate-pulse',
-      row: 'border-l-sky-500 bg-sky-50/60'
-    };
-  }
-
-  // 3. Nếu là sự cố khẩn cấp (LÀM NGAY) trong ca hôm nay
+  // 2. Nếu là sự cố khẩn cấp (LÀM NGAY) trong ca hôm nay
   if (task.priority === 'EMERGENCY' || String(task.title || '').includes('[LÀM NGAY]')) {
     return {
       key: 'URGENT',
@@ -152,7 +155,7 @@ const getTaskTimingMeta = (task, plotCurrentDay = null) => {
     };
   }
 
-  // 4. Nếu quá hạn (ở quá khứ)
+  // 3. Nếu quá hạn (ở quá khứ) -> Tách riêng khỏi danh sách Hôm nay
   if (rawDate && rawDate < todayStr) {
     const isHigh = task.priority === 'HIGH' || task.priority === 'URGENT';
     return {
@@ -161,6 +164,17 @@ const getTaskTimingMeta = (task, plotCurrentDay = null) => {
       tone: 'bg-rose-100 text-rose-800 border border-rose-300 font-bold',
       dot: 'bg-rose-500',
       row: 'border-l-rose-400 bg-rose-50/70'
+    };
+  }
+
+  // 4. Nếu đang làm trong ca hôm nay
+  if (task.status === 'IN_PROGRESS') {
+    return {
+      key: 'TODAY',
+      label: 'Đang làm trong ca',
+      tone: 'bg-sky-100 text-sky-800 border border-sky-300 font-bold',
+      dot: 'bg-sky-500 animate-pulse',
+      row: 'border-l-sky-500 bg-sky-50/60'
     };
   }
 
@@ -203,33 +217,26 @@ const isHarvestTaskTitle = (title) => {
   return /thu hoạch|cân|đóng thùng|nghiệm thu/i.test(title);
 };
 
-const isTaskToday = (t, plotCurrentDay = null) => {
+const isTaskToday = (t, plotCurrentDay = null, plotTotalDays = null) => {
   if (t.status === 'COMPLETED') return false;
+  const meta = getTaskTimingMeta(t, plotCurrentDay, plotTotalDays);
+  return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT';
+};
 
-  const isHarvest = isHarvestTaskTitle(t.title);
-  const plotAge = plotCurrentDay !== null && plotCurrentDay !== undefined ? Number(plotCurrentDay) : (t.plotCurrentDay !== undefined && t.plotCurrentDay !== null ? Number(t.plotCurrentDay) : null);
+const isTaskOverdue = (t, plotCurrentDay = null, plotTotalDays = null) => {
+  if (t.status === 'COMPLETED') return false;
+  return getTaskTimingMeta(t, plotCurrentDay, plotTotalDays).key === 'OVERDUE';
+};
 
-  // Nếu là task thu hoạch và thửa đang ở giai đoạn thu hoạch (ngày tuổi >= 25) -> Luôn là việc HÔM NAY cần làm
-  if (isHarvest && plotAge !== null && plotAge >= 25) {
-    return true;
-  }
-
-  const rawDate = t.dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(t.deadline || '') ? t.deadline : null);
-  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-  if (rawDate && rawDate > todayStr) return false;
-
-  const taskAge = t.cropDay !== undefined && t.cropDay !== null ? Number(t.cropDay) : (t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null);
-  if (plotAge !== null && taskAge !== null && taskAge > plotAge) return false;
-
-  const meta = getTaskTimingMeta(t, plotCurrentDay);
-  return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
+const isTaskActionable = (t, plotCurrentDay = null, plotTotalDays = null) => {
+  return isTaskToday(t, plotCurrentDay, plotTotalDays) || isTaskOverdue(t, plotCurrentDay, plotTotalDays);
 };
 
 // Left accent + status word for a task card. Default "Hôm nay" shows no status word.
-const getTaskCardAccent = (task, variant, plotCurrentDay = null) => {
+const getTaskCardAccent = (task, variant, plotCurrentDay = null, plotTotalDays = null) => {
   if (variant === 'done') return { border: 'border-l-emerald-300', dot: 'bg-emerald-500', label: null };
   if (variant === 'upcoming') return { border: 'border-l-stone-300', dot: 'bg-stone-400', label: null };
-  const timing = getTaskTimingMeta(task, plotCurrentDay);
+  const timing = getTaskTimingMeta(task, plotCurrentDay, plotTotalDays);
   if (timing.key === 'URGENT') return { border: 'border-l-rose-500', dot: 'bg-rose-500', label: 'Khẩn cấp', text: 'text-rose-700' };
   if (timing.key === 'OVERDUE') return { border: 'border-l-rose-500', dot: 'bg-rose-500', label: 'Quá hạn', text: 'text-rose-700' };
   if (task.status === 'IN_PROGRESS' && timing.key === 'TODAY') return { border: 'border-l-sky-500', dot: 'bg-sky-500', label: 'Đang làm trong ca', text: 'text-sky-700' };
@@ -237,18 +244,17 @@ const getTaskCardAccent = (task, variant, plotCurrentDay = null) => {
   return { border: 'border-l-emerald-500', dot: 'bg-emerald-500', label: null };
 };
 
-function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onToggleExpand, fallbackWorker, plotCurrentDay = null }) {
+function PlotTaskCard({ task, variant, onOpenDetail, onExecute, isExpanded, onToggleExpand, fallbackWorker, plotCurrentDay = null, plotTotalDays = null }) {
   const { tag, text: titleText } = splitLeadingTag(task.title);
-  const accent = getTaskCardAccent(task, variant, plotCurrentDay || task.plotCurrentDay);
+  const accent = getTaskCardAccent(task, variant, plotCurrentDay || task.plotCurrentDay, plotTotalDays || task.totalDays);
   const isDone = variant === 'done';
   const isHarvest = isHarvestTaskTitle(task.title);
   const dayAge = task.cropDay || task.dayOffset;
-  const description = task.instructions || '';
+  const description = stripEvidenceNote(task.instructions || '');
   const isLong = description.length > 120;
-  const showNote = !isDone && shouldShowExpertNote(task.notes, description);
-  // Overdue tasks from earlier days sit in "Hôm nay"; keep their original due date visible.
+  const showNote = !isDone && shouldShowExpertNote(stripEvidenceNote(task.notes), description);
   const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
-  const overdueSince = variant === 'today' && task.dueDate && task.dueDate < todayStr ? `Hạn ${formatAgendaDate(task.dueDate)}` : null;
+  const overdueSince = accent.label === 'Quá hạn' && task.dueDate && task.dueDate < todayStr ? `Hạn ${formatAgendaDate(task.dueDate)}` : null;
   const metaParts = [overdueSince, dayAge ? `Ngày tuổi ${dayAge}` : null, task.workerName || fallbackWorker].filter(Boolean);
   const timeLabel = isDone ? (task.completedAt || '—') : (task.deadline || '—');
 
@@ -445,12 +451,11 @@ function HarvestRecorder({ workItems, selected, onSelect, photos, onPhotos, onRe
 
 export default function FieldWorkerDashboard() {
   const { user } = useAuthStore();
+  const location = useLocation();
   const workerId = Number(user?.userId || user?.id || 8);
   const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const p = new URLSearchParams(window.location.search).get('tab');
-      if (['tasks', 'services', 'issues', 'harvest', 'chat'].includes(p)) return p;
-    }
+    const p = new URLSearchParams(location.search || (typeof window !== 'undefined' ? window.location.search : '')).get('tab');
+    if (['tasks', 'services', 'issues', 'harvest', 'chat'].includes(p)) return p;
     return 'tasks';
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -531,6 +536,9 @@ export default function FieldWorkerDashboard() {
   const [assignedPlots, setAssignedPlots] = useState([]);
   const [selectedPlotCode, setSelectedPlotCode] = useState('P-01');
   const [selectedPlotModalCode, setSelectedPlotModalCode] = useState(null);
+  const knownTaskIdsRef = useRef(null);
+  const knownTodayTaskIdsRef = useRef(null);
+  const knownServiceIdsRef = useRef(null);
 
   const loadPlots = useCallback(() => {
     apiFetch('/api/rentals')
@@ -542,6 +550,8 @@ export default function FieldWorkerDashboard() {
           setAssignedPlots(activeList.map((p) => ({
             ...p,
             key: String(p.rentalId || p.id),
+            renterId: p.renterId || p.customerId || null,
+            customerId: p.customerId || p.renterId || null,
             plotCode: p.plotCode || p.code || p.name,
             plotName: p.plotName || p.name || `Thửa ${p.plotCode || p.code || ''}`,
             crop: p.crop || p.varietyName || 'Đang canh tác',
@@ -591,11 +601,12 @@ export default function FieldWorkerDashboard() {
         const harvestData = unwrapData(harvestBody) || [];
         const rawServices = unwrapData(serviceBody) || [];
 
-        setTasks(taskData.map((task) => ({
+        const mappedTasks = taskData.map((task) => ({
           id: task.taskCode || `TSK-${task.taskId || task.id}`,
           apiId: task.taskId || task.id,
           serviceRequestId: task.serviceRequestId,
           rentalId: task.rentalId,
+          customerId: task.customerId || task.renterId || null,
           stepId: task.stepId,
           taskType: task.taskType,
           seasonKey: task.seasonKey,
@@ -609,13 +620,14 @@ export default function FieldWorkerDashboard() {
           plotImage: task.plotImageUrl || task.image || null,
           deadline: task.deadline || '08:30 AM',
           dueDate: task.dueDate || null,
-          instructions: task.instructions || task.notes || 'Tuân thủ định mức và kỹ thuật VietGAP.',
-          notes: task.notes || '',
+          instructions: stripEvidenceNote(task.instructions || task.notes || 'Tuân thủ định mức và kỹ thuật VietGAP.'),
+          notes: stripEvidenceNote(task.notes || ''),
           expertName: task.expertName || 'Chuyên gia Nông nghiệp VietGAP',
-          stepOrder: task.stepOrder || 1,
+          stepOrder: task.stepOrder ?? 1,
           cropDay: task.cropDay || task.dayOffset || null,
           dayOffset: task.dayOffset || task.cropDay || null,
           plotCurrentDay: task.plotCurrentDay !== undefined ? Number(task.plotCurrentDay) : null,
+          totalDays: task.totalDays !== undefined ? Number(task.totalDays) : null,
           workerName: task.workerName || task.assignedTo || 'Kỹ thuật viên hiện trường chuyên trách',
           assignedTo: task.assignedTo || task.workerName || 'Kỹ thuật viên hiện trường chuyên trách',
           taskAssignedTo: task.taskAssignedTo || task.workerId,
@@ -623,7 +635,8 @@ export default function FieldWorkerDashboard() {
           priority: task.priority || (task.serviceRequestId ? 'HIGH' : (task.isOverdue ? 'OVERDUE' : 'NORMAL')),
           completedAt: task.completedAt || (task.updatedAt ? new Date(task.updatedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : null),
           proofPhoto: task.evidenceImageUrl || task.proofPhoto || null
-        })));
+        }));
+        setTasks(mappedTasks);
 
         setMyIssues(issueData.map((issue) => ({
           id: issue.issueCode || `ISS-${issue.issueId || issue.id}`,
@@ -643,24 +656,32 @@ export default function FieldWorkerDashboard() {
           createdAt: issue.createdAt || null
         })));
 
-        const mappedHarvests = harvestData.map((harvest) => ({
-          id: harvest.harvestCode || `HRV-${harvest.harvestId || harvest.id}`,
-          apiId: harvest.harvestId || harvest.id,
-          rentalId: harvest.rentalId,
-          taskId: harvest.taskId,
-          seasonKey: harvest.seasonKey,
-          plotCode: harvest.plotCode || (harvest.rentalId ? `P-${String(harvest.rentalId).padStart(2, '0')}` : 'Chưa gán'),
-          plotName: harvest.plotName || (harvest.plotCode ? `Thửa ${harvest.plotCode}` : (harvest.rentalId ? `Thửa #${harvest.rentalId}` : 'Thửa đất')),
-          crop: harvest.cropName || harvest.crop || 'Nông sản VietGAP',
-          customerName: harvest.customerName || 'Khách thuê',
-          expectedYield: 'Theo kết quả cân thực tế',
-          // Với CVLĐ, phiếu hoàn tất ngay khi đã cân thực tế — không chờ khách nghiệm thu
-          status: Number(harvest.yieldAmount) > 0 ? 'COMPLETED' : 'READY_TO_HARVEST',
-          actualWeight: harvest.yieldAmount ? `${harvest.yieldAmount} kg` : '',
-          photoUrl: harvest.evidenceImageUrl || '',
-          staffName: harvest.workerName || user?.fullName || 'Nhân viên hiện trường',
-          verifiedAt: formatHarvestTimestamp(harvest.createdAt || harvest.harvestDate)
-        }));
+        const mappedHarvests = harvestData.map((harvest) => {
+          const isUnverifiedDemoSeed =
+            !harvest.taskId &&
+            harvest.deliveryType === 'DELIVERY' &&
+            !harvest.customerConfirmed &&
+            String(harvest.evidenceImageUrl || '').includes('photo-1592417817098');
+          const hasWeight = Number(harvest.yieldAmount) > 0;
+          return {
+            id: harvest.harvestCode || `HRV-${harvest.harvestId || harvest.id}`,
+            apiId: harvest.harvestId || harvest.id,
+            rentalId: harvest.rentalId,
+            taskId: harvest.taskId,
+            seasonKey: harvest.seasonKey,
+            plotCode: harvest.plotCode || (harvest.rentalId ? `P-${String(harvest.rentalId).padStart(2, '0')}` : 'Chưa gán'),
+            plotName: harvest.plotName || (harvest.plotCode ? `Thửa ${harvest.plotCode}` : (harvest.rentalId ? `Thửa #${harvest.rentalId}` : 'Thửa đất')),
+            crop: harvest.cropName || harvest.crop || 'Nông sản VietGAP',
+            customerName: harvest.customerName || 'Khách thuê',
+            expectedYield: 'Theo kết quả cân thực tế',
+            // Với CVLĐ, phiếu hoàn tất ngay khi đã cân thực tế (không nhận diện nhầm bản ghi DELIVERY giả lúc đặt thuê)
+            status: hasWeight && !isUnverifiedDemoSeed ? 'COMPLETED' : 'READY_TO_HARVEST',
+            actualWeight: hasWeight && !isUnverifiedDemoSeed ? `${harvest.yieldAmount} kg` : '',
+            photoUrl: isUnverifiedDemoSeed ? '' : (harvest.evidenceImageUrl || ''),
+            staffName: harvest.workerName || user?.fullName || 'Nhân viên hiện trường',
+            verifiedAt: isUnverifiedDemoSeed ? '' : formatHarvestTimestamp(harvest.createdAt || harvest.harvestDate)
+          };
+        });
         setHarvestTasks(mappedHarvests);
         setSelectedHarvestTask((current) => current || mappedHarvests.find((item) => item.status !== 'COMPLETED') || mappedHarvests[0] || null);
 
@@ -688,6 +709,78 @@ export default function FieldWorkerDashboard() {
         }));
         setServiceRequests(mappedServices);
 
+        // Phát thông báo Realtime cho Staff khi phát hiện task mới (ở bất kỳ thửa nào) hoặc yêu cầu dịch vụ mới
+        try {
+          const allTaskKeys = new Set(mappedTasks.map((t) => String(t.apiId || t.id)));
+          const todayTaskKeys = new Set(
+            mappedTasks.filter((t) => isTaskToday(t)).map((t) => String(t.apiId || t.id))
+          );
+          const allServiceKeys = new Set(mappedServices.map((s) => String(s.requestId || s.id)));
+
+          if (knownTaskIdsRef.current === null) {
+            knownTaskIdsRef.current = allTaskKeys;
+            knownTodayTaskIdsRef.current = todayTaskKeys;
+            knownServiceIdsRef.current = allServiceKeys;
+          } else {
+            const existingNotifs = getStoredNotifications();
+            const nowMs = Date.now();
+            const wasNotifiedRecently = (plotCode, typeFilter) =>
+              existingNotifs.some(
+                (n) =>
+                  (!typeFilter || n.type === typeFilter || n.title?.includes(plotCode)) &&
+                  (!plotCode || String(n.title || n.content || '').includes(plotCode)) &&
+                  nowMs - Date.parse(n.createdAt || 0) < 15000
+              );
+
+            const newlyTriggeredTasks = mappedTasks.filter((t) => {
+              const key = String(t.apiId || t.id);
+              const isBrandNew = !knownTaskIdsRef.current.has(key) && t.status !== 'COMPLETED';
+              const newlyBecameToday = todayTaskKeys.has(key) && !knownTodayTaskIdsRef.current.has(key);
+              return isBrandNew || newlyBecameToday;
+            });
+
+            if (newlyTriggeredTasks.length > 0) {
+              const groupedByPlot = new Map();
+              newlyTriggeredTasks.forEach((t) => {
+                const code = t.plotCode || `RENTAL-${t.rentalId || ''}`;
+                if (!groupedByPlot.has(code)) groupedByPlot.set(code, []);
+                groupedByPlot.get(code).push(t);
+              });
+              groupedByPlot.forEach((list, plotCode) => {
+                if (!wasNotifiedRecently(plotCode)) {
+                  sendNotification({
+                    targetRole: 'STAFF',
+                    userId: user?.userId || user?.id,
+                    type: 'DAILY_TASK',
+                    title: `🌱 Công việc mới tại thửa ${plotCode}`,
+                    content: `Thửa ${plotCode} có ${list.length} nhiệm vụ mới cần thực hiện hôm nay (${list[0]?.title || 'Chăm sóc VietGAP'}).`,
+                    link: `/staff/dashboard?plot=${encodeURIComponent(plotCode)}`
+                  });
+                }
+              });
+            }
+
+            const newServices = mappedServices.filter((s) => !knownServiceIdsRef.current.has(String(s.requestId || s.id)));
+            newServices.forEach((svc) => {
+              const code = svc.plotCode || svc.plotName || 'Thửa đất';
+              if (!wasNotifiedRecently(code, 'SERVICE_REQUEST')) {
+                sendNotification({
+                  targetRole: 'STAFF',
+                  userId: user?.userId || user?.id,
+                  type: 'SERVICE_REQUEST',
+                  title: `🛎️ Yêu cầu dịch vụ mới (${code})`,
+                  content: `Khách hàng yêu cầu dịch vụ "${svc.serviceName}" cho ${svc.plotName || code}.`,
+                  link: '/staff/dashboard?tab=services'
+                });
+              }
+            });
+
+            knownTaskIdsRef.current = allTaskKeys;
+            knownTodayTaskIdsRef.current = todayTaskKeys;
+            knownServiceIdsRef.current = allServiceKeys;
+          }
+        } catch {}
+
         const plotExpansion = {};
         taskData.forEach((task) => {
           const code = task.plotCode || (task.rentalId ? `P-${String(task.rentalId).padStart(2, '0')}` : null);
@@ -707,7 +800,16 @@ export default function FieldWorkerDashboard() {
     loadPlots();
     loadTasksAndData();
 
-    // Đồng bộ tức thời khi Admin nhảy số IoT trạm, Expert giao việc hoặc khách hàng yêu cầu dịch vụ
+    let syncDebounceTimer = null;
+    const scheduleFullSync = () => {
+      if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(() => {
+        loadPlots();
+        loadTasksAndData();
+      }, 100);
+    };
+
+    // Đồng bộ tức thời khi Admin nhảy số IoT trạm, Expert giao việc hoặc khách hàng tua ngày / yêu cầu dịch vụ
     let bc = null;
     let bcStaff = null;
     let bcDispatch = null;
@@ -722,21 +824,16 @@ export default function FieldWorkerDashboard() {
           }
         };
 
-        const handleStaffSync = () => {
-          loadTasksAndData();
-          loadPlots();
-        };
-
         bcStaff = new BroadcastChannel('farmely_staff_activity_channel');
-        bcStaff.onmessage = handleStaffSync;
+        bcStaff.onmessage = scheduleFullSync;
 
         bcDispatch = new BroadcastChannel('farmely_staff_dispatch');
-        bcDispatch.onmessage = handleStaffSync;
+        bcDispatch.onmessage = scheduleFullSync;
 
         bcTasks = new BroadcastChannel('farmely_staff_tasks');
-        bcTasks.onmessage = handleStaffSync;
+        bcTasks.onmessage = scheduleFullSync;
         bcDemo = new BroadcastChannel('farmely_demo_time_sync');
-        bcDemo.onmessage = handleStaffSync;
+        bcDemo.onmessage = scheduleFullSync;
       }
     } catch {}
 
@@ -745,16 +842,13 @@ export default function FieldWorkerDashboard() {
         loadPlots();
       }
       if (e.key === 'farmely_task_sync' || e.key === 'farmely_staff_sync_ping' || e.key === 'farmely_persisted_staff_activities_v2' || e.key === 'farmely_time_simulated_at') {
-        loadTasksAndData();
-        loadPlots();
+        scheduleFullSync();
       }
     };
-    const handleTimeSimulated = () => {
-      loadPlots();
-      loadTasksAndData();
-    };
     window.addEventListener('storage', handleStorage);
-    window.addEventListener('farmely_time_simulated', handleTimeSimulated);
+    window.addEventListener('farmely_time_simulated', scheduleFullSync);
+    window.addEventListener('farmely_demo_time_sync', scheduleFullSync);
+    window.addEventListener('farmely_staff_activity_updated', scheduleFullSync);
 
     // Chu kỳ 10 giây đồng bộ số liệu IoT và công việc thực địa
     const pollInterval = setInterval(() => {
@@ -764,15 +858,16 @@ export default function FieldWorkerDashboard() {
 
     return () => {
       clearInterval(pollInterval);
+      if (syncDebounceTimer) clearTimeout(syncDebounceTimer);
       if (bc) try { bc.close(); } catch {}
       if (bcStaff) try { bcStaff.close(); } catch {}
       if (bcDispatch) try { bcDispatch.close(); } catch {}
       if (bcTasks) try { bcTasks.close(); } catch {}
       if (bcDemo) try { bcDemo.close(); } catch {}
-      if (bcDispatch) try { bcDispatch.close(); } catch {}
-      if (bcTasks) try { bcTasks.close(); } catch {}
       window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('farmely_time_simulated', handleTimeSimulated);
+      window.removeEventListener('farmely_time_simulated', scheduleFullSync);
+      window.removeEventListener('farmely_demo_time_sync', scheduleFullSync);
+      window.removeEventListener('farmely_staff_activity_updated', scheduleFullSync);
     };
   }, [loadPlots, loadTasksAndData]);
 
@@ -810,8 +905,8 @@ export default function FieldWorkerDashboard() {
     const targetTaskId = selectedTaskToExecute.apiId || selectedTaskToExecute.taskId || parseInt(String(selectedTaskToExecute.id).replace(/\D/g, ''), 10);
 
     try {
-      // 1. Cập nhật trạng thái nhiệm vụ và tự động đồng bộ vào farm_diaries của khách hàng
-      await apiFetch(`/api/tasks/${targetTaskId}/complete`, {
+      // 1. Cập nhật trạng thái nhiệm vụ và tự động đồng bộ vào farm_diaries & notifications của khách hàng
+      const completeRes = await apiFetch(`/api/tasks/${targetTaskId}/complete`, {
         method: 'PUT',
         body: JSON.stringify({
           evidenceImageUrl: taskProofPhoto,
@@ -823,20 +918,24 @@ export default function FieldWorkerDashboard() {
           rentalId: selectedTaskToExecute.rentalId
         })
       });
+      const serverNotif = completeRes?.notification || null;
 
-      // 2. Ghi nhận Staff Activity
+      // 2. Ghi nhận Staff Activity & gửi thông báo realtime cho Customer
+      const resolvedPlotCode = selectedTaskToExecute.plotCode || (selectedTaskToExecute.rentalId ? `P-${String(selectedTaskToExecute.rentalId).padStart(2, '0')}` : 'Chưa gán');
+      const matchedPlotForNotif = assignedPlots.find((p) => (selectedTaskToExecute.rentalId && Number(p.rentalId) === Number(selectedTaskToExecute.rentalId)) || p.plotCode === resolvedPlotCode);
+      const resolvedRentalId = selectedTaskToExecute.rentalId || matchedPlotForNotif?.rentalId || null;
+      const resolvedCustomerId = serverNotif?.userId || selectedTaskToExecute.customerId || matchedPlotForNotif?.renterId || matchedPlotForNotif?.customerId || null;
+
       try {
-        const pCode = selectedTaskToExecute.plotCode || (selectedTaskToExecute.rentalId ? `P-${String(selectedTaskToExecute.rentalId).padStart(2, '0')}` : 'Chưa gán');
-        const matchedPlot = assignedPlots.find(p => p.plotCode === pCode);
-        const resolvedTaskCropDay = selectedTaskToExecute.cropDay || selectedTaskToExecute.day || matchedPlot?.currentDay || 1;
+        const resolvedTaskCropDay = selectedTaskToExecute.cropDay || selectedTaskToExecute.day || matchedPlotForNotif?.currentDay || 1;
         const now = new Date();
         const dateFormatted = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
         const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         recordStaffActivity({
           activityId: `ACT-${targetTaskId}-${Date.now()}`,
-          plotId: pCode,
-          plotCode: pCode,
-          rentalId: selectedTaskToExecute.rentalId || matchedPlot?.rentalId || 1,
+          plotId: resolvedPlotCode,
+          plotCode: resolvedPlotCode,
+          rentalId: resolvedRentalId || 1,
           workerName: user?.fullName || 'Kỹ thuật viên hiện trường chuyên trách',
           workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
           title: selectedTaskToExecute.title || 'Chăm sóc luống cây trồng',
@@ -850,6 +949,23 @@ export default function FieldWorkerDashboard() {
         });
       } catch (e) {
         console.warn('Could not record staff activity:', e);
+      }
+
+      try {
+        sendNotification({
+          targetRole: 'CUSTOMER',
+          userId: resolvedCustomerId || undefined,
+          notificationId: serverNotif?.notificationId || undefined,
+          skipApiPost: Boolean(serverNotif),
+          type: 'TASK_COMPLETED',
+          title: serverNotif?.title || `✅ Hoàn thành công việc tại thửa ${resolvedPlotCode}`,
+          content: serverNotif?.content || `Nhân viên vừa hoàn thành "${selectedTaskToExecute.title || 'Chăm sóc hiện trường'}" tại thửa ${resolvedPlotCode} và cập nhật ảnh minh chứng vào nhật ký.`,
+          link: resolvedRentalId
+            ? `/customer/dashboard?plot=RENTAL-${resolvedRentalId}&tab=tasks`
+            : `/customer/dashboard?plot=${encodeURIComponent(resolvedPlotCode)}&tab=tasks`
+        });
+      } catch (notifErr) {
+        console.warn('Could not send customer completion notification:', notifErr);
       }
 
       // 3. Phát tin hiệu Realtime qua BroadcastChannel và LocalStorage để trang Khách Hàng (CustomerPlotWorkspace) ngay lập tức cập nhật nhật ký & kế hoạch mới
@@ -1222,6 +1338,23 @@ export default function FieldWorkerDashboard() {
 
     publishHarvestCompleted({ rentalId: saved.rentalId, seasonKey: saved.seasonKey, taskId: saved.taskId });
 
+    try {
+      const harvestNotif = saved?.notification || null;
+      const matchedPlotForHarvest = assignedPlots.find((p) => Number(p.rentalId) === Number(saved.rentalId || selectedHarvestTask.rentalId));
+      const customerUserId = harvestNotif?.userId || matchedPlotForHarvest?.renterId || matchedPlotForHarvest?.customerId || null;
+      const plotCodeLabel = selectedHarvestTask.plotCode || matchedPlotForHarvest?.plotCode || `RENTAL-${saved.rentalId}`;
+      sendNotification({
+        targetRole: 'CUSTOMER',
+        userId: customerUserId || undefined,
+        notificationId: harvestNotif?.notificationId || undefined,
+        skipApiPost: Boolean(harvestNotif),
+        type: 'HARVEST_COMPLETED',
+        title: harvestNotif?.title || `🌾 Đã thu hoạch tại thửa ${plotCodeLabel}`,
+        content: harvestNotif?.content || `Nhân viên đã hoàn tất thu hoạch tại thửa ${plotCodeLabel} (${Number(saved.yieldAmount).toFixed(2)} kg) và cập nhật biên bản đối chứng.`,
+        link: `/customer/dashboard?plot=RENTAL-${saved.rentalId || selectedHarvestTask.rentalId}&tab=tasks`
+      });
+    } catch {}
+
     setSelectedHarvestTask(completedHarvest);
     setHarvestPhotos([]);
     setHarvestWeight('');
@@ -1272,6 +1405,8 @@ export default function FieldWorkerDashboard() {
           key: itemKey,
           plotCode: p.plotCode || p.code || p.name,
           plotName: p.name || `Thửa ${p.plotCode || p.code || ''}`,
+          renterId: p.renterId || p.customerId || null,
+          customerId: p.customerId || p.renterId || null,
           customerName: p.renterName || p.customerName || 'Khách thuê',
           contractCode: p.contractCode || (p.plotCode ? `#CTR-${p.plotCode}` : 'Hợp đồng điện tử'),
           crop: p.crop || 'Rau củ chuẩn VietGAP',
@@ -1352,25 +1487,35 @@ export default function FieldWorkerDashboard() {
         map.set(fallbackKey, targetPlot);
       }
 
-      // Tự động đồng bộ các task khi tua ngày (Fast-forward sync cho Demo):
-      // Nếu thửa đã ở Ngày N (ví dụ Ngày 30), toàn bộ các task kỹ thuật từ các ngày trước
-      // (trừ Thu hoạch & Nghiệm thu) tự động đánh dấu là COMPLETED
+      // Đồng bộ currentDay mới nhất từ demo_cultivation_state nếu API task trả về cao hơn rentals
+      const taskPlotAge = task.plotCurrentDay !== undefined && task.plotCurrentDay !== null ? Number(task.plotCurrentDay) : null;
+      if (taskPlotAge !== null && (targetPlot.currentDay === undefined || taskPlotAge > Number(targetPlot.currentDay))) {
+        targetPlot.currentDay = taskPlotAge;
+      }
+
+      // Quy trình thực địa thật: các task chăm sóc chỉ COMPLETED khi Staff đã thực sự hoàn thành
       const isHarvestTask = /thu hoạch|nghiệm thu/i.test(`${task.title} ${task.instructions || ''}`);
       const taskAge = task.cropDay !== null && task.cropDay !== undefined ? Number(task.cropDay) : (task.dayOffset !== null && task.dayOffset !== undefined ? Number(task.dayOffset) : 1);
-      const plotAge = Number(targetPlot.currentDay) || 1;
+      const plotAge = Number(targetPlot.currentDay ?? 1);
       const totalPlotDays = Number(targetPlot.totalDays) || 30;
 
-      let effectiveStatus = task.status;
-      if (plotAge >= totalPlotDays && !isHarvestTask) {
-        effectiveStatus = 'COMPLETED';
-      } else if (plotAge > 1 && taskAge < plotAge && !isHarvestTask) {
-        effectiveStatus = 'COMPLETED';
-      } else if (isHarvestTask) {
-        // Nhiệm vụ thu hoạch chỉ thực sự COMPLETED khi đã có bản ghi thu hoạch trong CSDL
-        const hasRealHarvest = harvestTasks.some(h => (h.rentalId && task.rentalId && Number(h.rentalId) === Number(task.rentalId)) || (h.plotCode && h.plotCode === targetPlot.plotCode));
-        if (hasRealHarvest) {
+      let effectiveStatus = task.completionSource === 'DEMO' ? 'PENDING' : task.status;
+      if (isHarvestTask) {
+        // Nhiệm vụ thu hoạch chỉ thực sự COMPLETED khi đã có bản ghi thu hoạch thực tế khớp đúng rentalId/taskId hoặc bản thân task trong DB đã là COMPLETED
+        const hasRealHarvest = harvestTasks.some((h) => {
+          if (h.status !== 'COMPLETED') return false;
+          const sameRental = h.rentalId && task.rentalId
+            ? Number(h.rentalId) === Number(task.rentalId)
+            : (!task.rentalId && h.plotCode && h.plotCode === targetPlot.plotCode);
+          if (!sameRental) return false;
+          if (h.taskId && task.apiId) {
+            return Number(h.taskId) === Number(task.apiId);
+          }
+          return task.status === 'COMPLETED';
+        });
+        if (task.status === 'COMPLETED' || hasRealHarvest) {
           effectiveStatus = 'COMPLETED';
-        } else if (plotAge >= taskAge || plotAge >= totalPlotDays || plotAge >= 25) {
+        } else if (plotAge >= totalPlotDays || (taskAge > 0 && plotAge >= taskAge)) {
           // Chỉ chuyển sang IN_PROGRESS khi thửa đất đã thực sự tới giai đoạn thu hoạch
           effectiveStatus = 'IN_PROGRESS';
         } else {
@@ -1382,6 +1527,7 @@ export default function FieldWorkerDashboard() {
       targetPlot.tasks.push({
         ...task,
         status: effectiveStatus,
+        totalDays: totalPlotDays,
         plotCurrentDay: targetPlot.currentDay !== undefined ? targetPlot.currentDay : task.plotCurrentDay
       });
     });
@@ -1392,7 +1538,31 @@ export default function FieldWorkerDashboard() {
       const bPending = (b.tasks || []).filter((t) => t.status !== 'COMPLETED').length;
       return bPending - aPending;
     });
-  }, [assignedPlots, orderedTasks]);
+  }, [assignedPlots, orderedTasks, harvestTasks]);
+
+  const appliedPlotParamRef = useRef('');
+  useEffect(() => {
+    const requestedPlot = new URLSearchParams(location.search || '').get('plot');
+    if (!requestedPlot) {
+      appliedPlotParamRef.current = '';
+      return;
+    }
+    if (!plotSummaryList.length || appliedPlotParamRef.current === location.search) return;
+    const normReq = String(requestedPlot).replace(/\s+/g, '').toUpperCase();
+    const rentalTarget = normReq.startsWith('RENTAL-') ? normReq.replace('RENTAL-', '') : normReq;
+    const matched = plotSummaryList.find((p) => {
+      const pCodeNorm = String(p.plotCode || '').replace(/\s+/g, '').toUpperCase();
+      return (
+        p.key === requestedPlot ||
+        String(p.rentalId) === rentalTarget ||
+        pCodeNorm === normReq
+      );
+    });
+    if (matched) {
+      appliedPlotParamRef.current = location.search;
+      setSelectedPlotModalCode(matched.key || matched.plotCode);
+    }
+  }, [location.search, plotSummaryList]);
 
   // Tích hợp Open-Meteo Weather API thực địa cho Modal chi tiết thửa đất (SSoT: Không mock)
   const [modalWeather, setModalWeather] = useState(null);
@@ -1499,8 +1669,8 @@ export default function FieldWorkerDashboard() {
   }, [harvestTasks]);
 
   // Sidebar badge counts (display only)
-  const todayActionableCount = tasks.filter(isTaskToday).length;
-  const overdueTodayCount = tasks.filter((t) => isTaskToday(t) && ['OVERDUE', 'URGENT'].includes(getTaskTimingMeta(t).key)).length;
+  const todayActionableCount = tasks.filter((t) => isTaskActionable(t)).length;
+  const overdueTodayCount = tasks.filter((t) => isTaskOverdue(t) || getTaskTimingMeta(t).key === 'URGENT').length;
   const servicesOpenCount = serviceRequests.filter((s) => s.status !== 'DONE' && s.status !== 'COMPLETED').length;
   const servicesAwaitingAcceptCount = serviceRequests.filter((s) => ['PENDING', 'PAID', 'ASSIGNED'].includes(s.status)).length;
   const harvestOpenCount = harvestWorkItems.filter((h) => h.status !== 'COMPLETED').length;
@@ -1521,7 +1691,7 @@ export default function FieldWorkerDashboard() {
   // Thông báo nhiệm vụ ca trực hôm nay cho Nhân viên (Daily Care Tasks notification)
   useEffect(() => {
     if (tasks.length > 0) {
-      const todayCount = tasks.filter(isTaskToday).length;
+      const todayCount = tasks.filter((t) => isTaskToday(t)).length;
       if (todayCount > 0) {
         const todayDateKey = new Date().toISOString().slice(0, 10);
         const notifyKey = `farmely_staff_daily_tasks_notified_${user?.userId || 8}_${todayDateKey}`;
@@ -1762,11 +1932,8 @@ export default function FieldWorkerDashboard() {
                       const total = plot.tasks.length;
                       const progress = total > 0 ? Math.round((done / total) * 100) : 100;
 
-                      const todayPending = plot.tasks.filter((t) => {
-                        if (t.status === 'COMPLETED') return false;
-                        const meta = getTaskTimingMeta(t);
-                        return meta.key === 'TODAY' || meta.key === 'DUE_SOON' || meta.key === 'URGENT' || meta.key === 'OVERDUE';
-                      }).length;
+                      const todayPending = plot.tasks.filter((t) => isTaskToday(t, plot.currentDay, plot.totalDays)).length;
+                      const overduePending = plot.tasks.filter((t) => isTaskOverdue(t, plot.currentDay, plot.totalDays)).length;
 
                       return (
                         <div
@@ -1797,6 +1964,11 @@ export default function FieldWorkerDashboard() {
                                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-900 border border-amber-300 flex items-center gap-1 shadow-2xs">
                                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
                                   🔥 {todayPending} việc hôm nay
+                                </span>
+                              ) : overduePending > 0 ? (
+                                <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-800 border border-rose-300 flex items-center gap-1 shadow-2xs">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                                  Quá hạn {overduePending}
                                 </span>
                               ) : pending > 0 ? (
                                 <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] font-semibold text-stone-600 border border-stone-200">
@@ -2229,8 +2401,9 @@ export default function FieldWorkerDashboard() {
               const completedTasks = plotTasks.filter((t) => t.status === 'COMPLETED');
               const pendingTasks = plotTasks.filter((t) => t.status !== 'COMPLETED');
 
-              const todayTasks = pendingTasks.filter((t) => isTaskToday(t, activePlot.currentDay));
-              const upcomingTasks = pendingTasks.filter((t) => !isTaskToday(t, activePlot.currentDay));
+              const todayTasks = pendingTasks.filter((t) => isTaskToday(t, activePlot.currentDay, activePlot.totalDays));
+              const overdueTasks = pendingTasks.filter((t) => isTaskOverdue(t, activePlot.currentDay, activePlot.totalDays));
+              const upcomingTasks = pendingTasks.filter((t) => !isTaskToday(t, activePlot.currentDay, activePlot.totalDays) && !isTaskOverdue(t, activePlot.currentDay, activePlot.totalDays));
               const completedTodayTasks = completedTasks.filter((t) => {
                 if (isHarvestTaskTitle(t.title)) return true;
                 const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
@@ -2244,7 +2417,7 @@ export default function FieldWorkerDashboard() {
               const isNotStarted = activePlot.currentDay === 0;
 
               const plotProcess = resolveStandardCropProcess(activePlot);
-              const activeStage = plotProcess?.stages?.find((s) => s.status === 'IN_PROGRESS') || plotProcess?.stages?.[0];
+              const activeStage = plotProcess?.stages?.find((s) => s.status === 'IN_PROGRESS') || plotProcess?.currentStage || plotProcess?.stages?.[0];
               const currentStageName = activeStage?.name ? `${activeStage.name} (${activeStage.label || ''})` : (activePlot.stage || 'Sinh trưởng & phát triển');
 
               return (
@@ -2480,13 +2653,13 @@ export default function FieldWorkerDashboard() {
                               </thead>
                               <tbody className="divide-y divide-stone-100 text-stone-700">
                                 {rows.map((task) => {
-                                  const variant = task._rowVariant || (task.status === 'COMPLETED' ? 'done' : isTaskToday(task, activePlot.currentDay) ? 'today' : defaultVariant);
+                                  const variant = task._rowVariant || (task.status === 'COMPLETED' ? 'done' : isTaskToday(task, activePlot.currentDay, activePlot.totalDays) ? 'today' : isTaskOverdue(task, activePlot.currentDay, activePlot.totalDays) ? 'overdue' : defaultVariant);
                                   const isDone = variant === 'done' || task.status === 'COMPLETED';
                                   const isHarvest = isHarvestTaskTitle(task.title);
                                   const { tag, text: titleText } = splitLeadingTag(task.title);
-                                  const accent = getTaskCardAccent(task, variant, activePlot?.currentDay || task.plotCurrentDay);
+                                  const accent = getTaskCardAccent(task, variant, activePlot?.currentDay || task.plotCurrentDay, activePlot?.totalDays || task.totalDays);
                                   const dayAge = task.cropDay || task.dayOffset;
-                                  const overdueSince = variant === 'today' && task.dueDate && task.dueDate < todayStr ? `Hạn ${formatAgendaDate(task.dueDate)}` : null;
+                                  const overdueSince = accent.label === 'Quá hạn' && task.dueDate && task.dueDate < todayStr ? `Hạn ${formatAgendaDate(task.dueDate)}` : null;
                                   const timeLabel = isDone ? (task.completedAt || '—') : (task.deadline || '08:00');
                                   const dateDisplay = overdueSince || (variant === 'today' ? `Hôm nay (${todayLabel})` : task.dueDate ? formatAgendaDate(task.dueDate) : 'Sắp tới');
 
@@ -2556,12 +2729,12 @@ export default function FieldWorkerDashboard() {
                                       </td>
                                       <td className="py-3.5 px-4 whitespace-nowrap text-right">
                                         <div className="flex items-center justify-end gap-1.5">
-                                          {!isDone && variant === 'today' && (
+                                          {!isDone && (variant === 'today' || variant === 'overdue') && (
                                             <Button
                                               variant="secondary"
                                               size="sm"
                                               onClick={() => handleExecuteTask(task)}
-                                              title={isHarvest ? 'Mở màn thu hoạch' : 'Báo cáo xong việc & chụp ảnh minh chứng'}
+                                              title={isHarvest ? 'Mở màn thu hoạch' : 'Báo cáo xong việc & chụp ảnh'}
                                               className="font-bold text-xs gap-1 px-2.5 py-1"
                                             >
                                               {isHarvest ? <Scale className="h-3.5 w-3.5" /> : <Camera className="h-3.5 w-3.5" />}
@@ -2628,12 +2801,19 @@ export default function FieldWorkerDashboard() {
                             count: todayTasks.length > 0 ? todayTasks.length : (completedTodayTasks.length > 0 ? `${completedTodayTasks.length} đã xong` : 0),
                             emphasize: true
                           },
+                          {
+                            id: 'OVERDUE',
+                            label: 'Quá hạn',
+                            count: overdueTasks.length,
+                            isOverdue: true
+                          },
                           { id: 'UPCOMING', label: 'Sắp tới', count: upcomingTasks.length },
                           { id: 'COMPLETED', label: 'Đã hoàn thành', count: completedTasks.length }
                         ];
 
                         const activeRowsForAll = [
                           ...todayTasks.map((t) => ({ ...t, _rowVariant: 'today' })),
+                          ...overdueTasks.map((t) => ({ ...t, _rowVariant: 'overdue' })),
                           ...upcomingTasks.map((t) => ({ ...t, _rowVariant: 'upcoming' }))
                         ];
 
@@ -2643,6 +2823,13 @@ export default function FieldWorkerDashboard() {
                             <div className="no-scrollbar flex max-w-full gap-1 overflow-x-auto rounded-xl bg-stone-100 p-1 sm:inline-flex">
                               {chips.map((chip) => {
                                 const active = plotTaskFilter === chip.id;
+                                const badgeClass = chip.isOverdue && chip.count > 0
+                                  ? 'bg-rose-600 text-white'
+                                  : chip.emphasize && chip.count > 0
+                                    ? 'bg-emerald-600 text-white'
+                                    : active
+                                      ? 'bg-stone-100 text-stone-600'
+                                      : 'bg-stone-200/80 text-stone-500';
                                 return (
                                   <button
                                     key={chip.id}
@@ -2652,7 +2839,7 @@ export default function FieldWorkerDashboard() {
                                     className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${active ? 'bg-white text-emerald-900 shadow-2xs' : 'text-stone-500 hover:text-stone-800'}`}
                                   >
                                     <span>{chip.label}</span>
-                                    <span className={`min-w-5 rounded-full px-1.5 text-center text-[10px] leading-4 ${chip.emphasize && chip.count > 0 ? 'bg-emerald-600 text-white' : active ? 'bg-stone-100 text-stone-600' : 'bg-stone-200/80 text-stone-500'}`}>
+                                    <span className={`min-w-5 rounded-full px-1.5 text-center text-[10px] leading-4 ${badgeClass}`}>
                                       {chip.count}
                                     </span>
                                   </button>
@@ -2675,7 +2862,7 @@ export default function FieldWorkerDashboard() {
                                     : emptyLine('Hiện không có công việc nào đang chờ thực hiện.')
                                 )}
 
-                                {/* BẢNG HÔM NAY */}
+                                {/* BẢNG HÔM NAY (chỉ công việc đến hạn hôm nay / ngày thu hoạch, tách hoàn toàn việc quá hạn) */}
                                 {plotTaskFilter === 'TODAY' && (
                                   <div className="space-y-3">
                                     {todayTasks.length > 0
@@ -2690,6 +2877,13 @@ export default function FieldWorkerDashboard() {
                                       </div>
                                     )}
                                   </div>
+                                )}
+
+                                {/* BẢNG QUÁ HẠN (tách riêng khỏi tab Hôm nay) */}
+                                {plotTaskFilter === 'OVERDUE' && (
+                                  overdueTasks.length > 0
+                                    ? renderTasksTable(overdueTasks, 'overdue')
+                                    : emptyLine('Không có công việc quá hạn tại thửa này.')
                                 )}
 
                                 {/* BẢNG SẮP TỚI */}

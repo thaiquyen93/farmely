@@ -21,6 +21,7 @@ import { useRealtimeChat } from '../../hooks/useRealtimeChat';
 import { DEMO_CUSTOMERS } from '../../api/communication/chatStorage';
 import { chatService } from '../../api/communication/chatService';
 import { apiFetch, unwrapData } from '../../api/apiClient';
+import { sendNotification } from '../../services/notificationService';
 import { resolveStandardCropProcess } from '../../services/cropStandardProcess';
 import {
   Sprout,
@@ -161,7 +162,9 @@ export default function CustomerDashboard() {
   } = useRealtimeChat({
     role: 'customer',
     initialThreadId: selectedCustomerThreadId,
-    senderName: activeCustomerSenderName
+    senderName: activeCustomerSenderName,
+    userId: user?.userId,
+    customerEmail: user?.email || ''
   });
 
   const [customerChatInput, setCustomerChatInput] = useState('');
@@ -173,12 +176,16 @@ export default function CustomerDashboard() {
     }
   }, [showExpertChatModal, customerChatThread?.messages]);
 
-  const handleSendCustomerChat = (e) => {
+  const handleSendCustomerChat = async (e) => {
     if (e) e.preventDefault();
     if (!customerChatInput.trim()) return;
 
-    sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName);
-    setCustomerChatInput('');
+    try {
+      await sendCustomerMessage(customerChatInput.trim(), activeCustomerSenderName);
+      setCustomerChatInput('');
+    } catch (error) {
+      window.alert(error.message || 'Không thể gửi tin nhắn cho chuyên gia');
+    }
   };
 
   useEffect(() => {
@@ -303,6 +310,22 @@ export default function CustomerDashboard() {
       };
 
       setActiveServiceOrders(orders => [newOrder, ...orders]);
+      const plotCodeLabel = selectedPlot?.mapPlotId || selectedPlot?.plotCode || selectedPlot?.name || `RENTAL-${rentalId}`;
+      sendNotification({
+        targetRole: 'STAFF',
+        type: 'SERVICE_REQUEST',
+        title: `🛎️ Yêu cầu dịch vụ mới (${plotCodeLabel})`,
+        content: `Khách hàng vừa gửi yêu cầu "${customServiceData.title}" cho thửa ${plotCodeLabel}.`,
+        link: '/staff/dashboard?tab=services'
+      });
+      try {
+        localStorage.setItem('farmely_task_sync', String(Date.now()));
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_staff_activity_channel');
+          bc.postMessage({ type: 'SERVICE_PAID', plotId: selectedPlot?.id, rentalId });
+          bc.close();
+        }
+      } catch {}
       setShowCustomServiceModal(false);
       setCustomServiceData({ plotId: '', title: '', scheduledDate: '', budget: '', notes: '' });
       alert('Đã gửi yêu cầu dịch vụ đặc biệt thành công! Ban Quản Trị Farmely sẽ liên hệ phản hồi báo giá trong vòng 2 giờ.');
@@ -956,11 +979,12 @@ export default function CustomerDashboard() {
     setEmergencyRequests((current) => ({ ...current, [plot.id]: { ...request, status: 'PROCESSING' } }));
     setActiveServiceOrders((orders) => [request, ...orders]);
     try {
-      const response = await fetch('http://localhost:8085/api/services/requests', {
+      const targetRentalId = plot.rentalId || plot.rental_id || (plot.id === 'PLOT-CC-01' ? 1 : plot.id === 'PLOT-MC-02' ? 2 : 3);
+      const response = await fetch('/api/services/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          rentalId: plot.id === 'PLOT-CC-01' ? 1 : plot.id === 'PLOT-MC-02' ? 2 : 3,
+          rentalId: targetRentalId,
           serviceId: 1,
           scheduledDate: new Date().toISOString().slice(0, 10),
           notes: `Yêu cầu chăm sóc khẩn cấp từ cảnh báo vi khí hậu cho ${plot.name}`
@@ -970,6 +994,22 @@ export default function CustomerDashboard() {
       if (data?.data?.requestId) {
         setEmergencyRequests((current) => ({ ...current, [plot.id]: { ...current[plot.id], id: `REQ-${data.data.requestId}` } }));
       }
+      const plotCodeLabel = plot?.mapPlotId || plot?.plotCode || plot?.name || `RENTAL-${targetRentalId}`;
+      sendNotification({
+        targetRole: 'STAFF',
+        type: 'SERVICE_REQUEST',
+        title: `🚨 Yêu cầu chăm sóc khẩn cấp (${plotCodeLabel})`,
+        content: `Khách hàng vừa gửi yêu cầu xử lý cảnh báo vi khí hậu tại thửa ${plotCodeLabel}.`,
+        link: '/staff/dashboard?tab=services'
+      });
+      try {
+        localStorage.setItem('farmely_task_sync', String(Date.now()));
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_staff_activity_channel');
+          bc.postMessage({ type: 'SERVICE_PAID', plotId: plot?.id, rentalId: targetRentalId });
+          bc.close();
+        }
+      } catch {}
     } catch (error) {
       console.debug('Emergency service request fallback active:', error);
     }
@@ -1127,8 +1167,16 @@ export default function CustomerDashboard() {
         loadOperationsFromDb();
       }
 
-      // Lưu lại thửa đất vừa đặt dịch vụ để ưu tiên hiển thị công việc
+      // Lưu lại thửa đất vừa đặt dịch vụ để ưu tiên hiển thị công việc & gửi thông báo cho Staff
+      sendNotification({
+        targetRole: 'STAFF',
+        type: 'SERVICE_REQUEST',
+        title: `🛎️ Đơn dịch vụ mới (${targetPlotCode})`,
+        content: `Khách hàng vừa đặt dịch vụ "${selectedServiceToBuy.name}" tại thửa ${targetPlotCode} (lịch: ${scheduledDate}).`,
+        link: '/staff/dashboard?tab=services'
+      });
       try {
+        localStorage.setItem('farmely_task_sync', String(Date.now()));
         if (targetPlot?.id) {
           localStorage.setItem('farmely_selected_task_plot', targetPlot.id);
         }
@@ -1258,6 +1306,21 @@ export default function CustomerDashboard() {
     };
 
     setLastPaymentResult(resultInfo);
+    sendNotification({
+      targetRole: 'STAFF',
+      type: 'SERVICE_REQUEST',
+      title: `🛎️ Đơn dịch vụ mới (${targetPlotCode})`,
+      content: `Khách hàng vừa thanh toán dịch vụ "${selectedServiceToBuy?.name || 'Dịch vụ canh tác'}" tại thửa ${targetPlotCode} (lịch: ${scheduledDate}).`,
+      link: '/staff/dashboard?tab=services'
+    });
+    try {
+      localStorage.setItem('farmely_task_sync', String(Date.now()));
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        const bc = new BroadcastChannel('farmely_staff_activity_channel');
+        bc.postMessage({ type: 'SERVICE_PAID', plotId: targetPlot?.id, rentalId: targetRentalId });
+        bc.close();
+      }
+    } catch {}
     window.dispatchEvent(new CustomEvent('farmely_service_paid', { detail: resultInfo }));
     setSelectedServiceToBuy(null);
     setShowCheckoutSuccessModal(true);
@@ -1505,8 +1568,9 @@ export default function CustomerDashboard() {
             }
 
             const isPlotDay1 = matchingPlot && Number(matchingPlot.currentDay || 1) <= 1;
-            const isDay1Task = resolvedTaskDay === 1 && isPlotDay1;
-            const normalizedStatus = isDay1Task ? (t.status === 'DONE' || t.status === 'COMPLETED' ? 'IN_PROG' : t.status) : t.status;
+            const hasStaffProof = t.completionSource === 'STAFF' || Boolean(t.proofPhoto || t.evidenceImageUrl);
+            const isDay1UnverifiedDone = resolvedTaskDay === 1 && isPlotDay1 && !hasStaffProof;
+            const normalizedStatus = isDay1UnverifiedDone ? (t.status === 'DONE' || t.status === 'COMPLETED' ? 'IN_PROG' : t.status) : t.status;
 
             const formattedTask = {
               id: t.id || `TSK-${t.taskId}`,
@@ -1517,13 +1581,13 @@ export default function CustomerDashboard() {
               day: resolvedTaskDay,
               cropDay: resolvedTaskDay,
               dayOffset: t.dayOffset !== undefined && t.dayOffset !== null ? Number(t.dayOffset) : null,
-              stepOrder: t.stepOrder || 1,
+              stepOrder: t.stepOrder ?? 1,
               status: normalizedStatus,
               owner: t.workerName || t.assignedTo || 'Kỹ thuật viên hiện trường',
               crop: t.crop,
               instructions: t.instructions,
-              proofPhoto: isDay1Task ? null : (t.proofPhoto || t.evidenceImageUrl || null),
-              completedAt: isDay1Task ? null : t.completedAt
+              proofPhoto: isDay1UnverifiedDone ? null : (t.proofPhoto || t.evidenceImageUrl || null),
+              completedAt: isDay1UnverifiedDone ? null : t.completedAt
             };
 
             targetKeys.forEach((key) => {
@@ -1539,8 +1603,8 @@ export default function CustomerDashboard() {
             });
 
             // SSoT: Mọi nhiệm vụ chăm sóc thực địa đã hoàn thành (DONE / COMPLETED) tự động trở thành một mục nhật ký canh tác
-            // TUY NHIÊN: Khi thửa đất đang ở Ngày 1 (mới bắt đầu vụ), chưa có task nào hoàn thành nên không tạo nhật ký hoàn thành
-            if ((t.status === 'DONE' || t.status === 'COMPLETED') && !isDay1Task) {
+            // Chỉ bỏ qua nếu là trạng thái ảo ngày 1 chưa có minh chứng thực tế từ Staff
+            if ((t.status === 'DONE' || t.status === 'COMPLETED') && !isDay1UnverifiedDone) {
               const formattedDiaryFromTask = {
                 id: `TASK-DIR-${t.id || t.taskId}`,
                 taskId: t.taskId || t.id,
@@ -1707,12 +1771,14 @@ export default function CustomerDashboard() {
 
     window.addEventListener('storage', onStorageSync);
     window.addEventListener('farmely_task_completed', onTaskCompleted);
+    window.addEventListener('farmely_notification_received', onTaskCompleted);
     window.addEventListener('focus', onFocusOrVisible);
     document.addEventListener('visibilitychange', onFocusOrVisible);
 
     return () => {
       window.removeEventListener('storage', onStorageSync);
       window.removeEventListener('farmely_task_completed', onTaskCompleted);
+      window.removeEventListener('farmely_notification_received', onTaskCompleted);
       window.removeEventListener('focus', onFocusOrVisible);
       document.removeEventListener('visibilitychange', onFocusOrVisible);
       if (bc) bc.close();
@@ -1795,6 +1861,31 @@ export default function CustomerDashboard() {
     });
   }, [fetchHarvestResults, customerPlots]);
 
+  useEffect(() => {
+    let syncTimer = null;
+    const scheduleSync = () => {
+      if (syncTimer) clearTimeout(syncTimer);
+      syncTimer = setTimeout(() => {
+        fetchCustomerPlots(false);
+        fetchCultivationProcesses();
+        fetchHarvestResults();
+      }, 60);
+    };
+    let bcDemo = null;
+    try {
+      if (typeof window !== 'undefined' && window.BroadcastChannel) {
+        bcDemo = new BroadcastChannel('farmely_demo_time_sync');
+        bcDemo.onmessage = scheduleSync;
+      }
+    } catch {}
+    window.addEventListener('farmely_demo_time_sync', scheduleSync);
+    return () => {
+      if (syncTimer) clearTimeout(syncTimer);
+      try { bcDemo?.close(); } catch {}
+      window.removeEventListener('farmely_demo_time_sync', scheduleSync);
+    };
+  }, [fetchCustomerPlots, fetchCultivationProcesses, fetchHarvestResults]);
+
   const cultivationProcesses = dbCultivationProcesses;
   const fallbackIotAlerts = {
     'PLOT-CC-01': [
@@ -1812,32 +1903,10 @@ export default function CustomerDashboard() {
   const iotAlerts = fallbackIotAlerts;
 
   function defaultOperationsForPlot(plot) {
-    const isSelfMode = plot?.mode === 'Self-Growing' || plot?.cultivationMode === 'SELF' || plot?.service_type === 'SELF' || plot?.cultivation_mode === 'SELF';
-    if (isSelfMode) {
-      return {
-        tasks: [
-          { id: `TSK-${plot?.id || '1'}-01`, title: `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`, time: '07:30 hôm nay', status: 'IN_PROGRESS', owner: 'Chủ vườn (Tự canh tác)' },
-          { id: `TSK-${plot?.id || '1'}-02`, title: 'Kiểm tra sinh trưởng và chỉ số vi khí hậu thực địa', time: '14:00 hôm nay', status: 'PENDING', owner: 'Chủ vườn (Tự canh tác)' },
-          { id: `TSK-${plot?.id || '1'}-03`, title: 'Cắt tỉa lá gốc và vệ sinh luống canh tác', time: '09:00 hôm qua', status: 'COMPLETED', owner: 'Chủ vườn (Tự canh tác)' }
-        ],
-        diary: []
-      };
+    if (plot?.rentalId || plot?.rental_id) {
+      return { tasks: [], diary: [] };
     }
-
-    const defaultAuthor = plot?.worker || 'Trần Văn Lực (CVLĐ)';
-    const defaultTaskOwner = plot?.worker || 'Trần Văn Lực (CVLĐ)';
-
-    return {
-      tasks: [
-        { id: `TSK-${plot?.id || '1'}-01`, title: `Kiểm tra độ ẩm & tưới vi sinh cho ${plot?.crop || 'cây trồng'}`, time: '07:30 hôm nay', status: 'IN_PROGRESS', owner: defaultTaskOwner },
-        { id: `TSK-${plot?.id || '1'}-02`, title: 'Kiểm tra sinh trưởng và chỉ số vi khí hậu thực địa', time: '14:00 hôm nay', status: 'PENDING', owner: 'Farmely Smart Monitor' },
-        { id: `TSK-${plot?.id || '1'}-03`, title: 'Cắt tỉa lá gốc và vệ sinh luống canh tác', time: '09:00 hôm qua', status: 'COMPLETED', owner: defaultTaskOwner }
-      ],
-      diary: [
-        { time: '08:15 • Hôm nay', title: 'Tưới nước vi sinh & kiểm tra đất', note: `Độ ẩm duy trì ở mức ${plot?.soilMoisture || '68%'}, vi sinh phát triển tốt.`, author: defaultAuthor },
-        { time: '16:00 • Hôm qua', title: 'Kiểm tra sinh trưởng định kỳ', note: `Cây đang trong giai đoạn ${plot?.stage || 'phát triển tốt'}, không phát hiện sâu bệnh.`, author: 'ThS. Nguyễn Hoàng Nam' }
-      ]
-    };
+    return { tasks: [], diary: [] };
   }
 
   const defaultProcessForPlot = (plot) => {
@@ -1886,10 +1955,17 @@ export default function CustomerDashboard() {
     try {
       // 1. Thử gọi qua API Gateway / Vite Proxy: /api/ai/chat
       let response;
+      const activePlot = currentSelectedPlot || customerPlots[0] || null;
       const requestBody = JSON.stringify({
-        userId: 1,
+        userId: user?.userId || user?.id || 1,
         conversationId: aiConversationId,
-        plotId: 1,
+        plotId: activePlot?.plotId || (typeof activePlot?.rawPlotId === 'number' ? activePlot.rawPlotId : null),
+        plotCode: activePlot?.plotCode || activePlot?.mapPlotId || null,
+        rentalId: activePlot?.rentalId || null,
+        history: chatMessages.slice(-6).map((m) => ({
+          sender: m.sender === 'user' ? 'user' : 'ai',
+          content: m.text
+        })),
         message: query
       });
 
@@ -1936,17 +2012,21 @@ export default function CustomerDashboard() {
         const lower = query.toLowerCase();
 
         if (lower.match(/(1\s*\+\s*1|1\s*cộng\s*1)/)) {
-          reply = 'Dạ, 1 cộng 1 chắc chắn bằng 2 rồi ạ! 😊 Cũng như tại Farmely: sự tận tâm của người trồng cộng với công nghệ nông nghiệp thông minh sẽ luôn đem lại những mùa vụ xanh tươi bội thu!';
+          reply = '1 cộng 1 bằng 2. Nếu bạn cần trao đổi thêm về quy trình thuê thửa đất hoặc chăm sóc cây trồng trên Farmely, bạn cứ đặt câu hỏi nhé.';
+        } else if (lower.includes('farmely là gì') || lower.includes('hoạt động ra sao') || lower.includes('hoạt động như thế nào') || lower.includes('mô hình') || lower.includes('giới thiệu')) {
+          reply = '1. **Farmely là gì?**\nFarmely là nền tảng nông nghiệp số cho phép người dùng thuê các thửa đất canh tác thực tế tại nông trại và theo dõi quá trình trồng trọt trực tuyến (không phải trò chơi hay đất ảo).\n\n2. **Farmely hoạt động như thế nào?**\nHệ thống phối hợp giữa 3 vai trò: Khách hàng chọn thửa đất, giống cây, chế độ tự chăm sóc hoặc ủy thác và theo dõi tiến độ; Chuyên gia nông nghiệp thiết lập quy trình kỹ thuật và tư vấn khi cần; Nhân viên hiện trường thực hiện các công việc tại vườn, ghi nhật ký ảnh và hỗ trợ cân đo thu hoạch.\n\n3. **Công nghệ hỗ trợ ra sao?**\nNền tảng tích hợp dữ liệu cảm biến IoT, thông tin thời tiết/vi khí hậu, nhật ký canh tác điện tử và trợ lý AI hỗ trợ tra cứu thông tin.\n\n4. **Người dùng nhận được gì?**\nBạn có thể kiểm soát quá trình canh tác từ xa qua dữ liệu và hình ảnh cập nhật mà không cần trực tiếp có mặt mỗi ngày, và nhận nông sản trực tiếp tại trang trại (PICKUP) khi thu hoạch.\n\nBạn muốn tìm hiểu thêm về quy trình thuê thửa đất, vai trò của các bên hay tính năng theo dõi nào?';
+        } else if (lower.includes('hủy') || lower.includes('hoàn tiền')) {
+          reply = 'Chính sách hủy hợp đồng (chỉ áp dụng khi chưa bắt đầu canh tác): Hủy trước ngày bắt đầu >= 3 ngày hoàn 80%; hủy trước < 3 ngày hoàn 50%; đã đến ngày bắt đầu thì không hoàn tiền. Gia hạn hợp đồng cần thực hiện trước hạn tối thiểu 3 ngày.';
         } else if (lower.includes('độ ẩm') || lower.includes('tưới')) {
-          reply = 'Farmely AI nhận thấy: Độ ẩm đất chuẩn VietGAP lý tưởng duy trì từ 65% – 75%. Nếu độ ẩm vượt 80% thì hệ thống khuyến nghị tạm hoãn cữ tưới chiều nay để tránh úng rễ và xới nhẹ luống đất cho thoáng khí.';
+          reply = 'Theo cẩm nang tham khảo trên hệ thống: Độ ẩm đất phù hợp cho đa số rau ăn lá thường duy trì ở mức 65% – 75%. Nếu độ ẩm vượt 80% hoặc dự báo có mưa lớn, lịch tưới định kỳ có thể được tạm hoãn để tránh ngập úng rễ.';
         } else if (lower.includes('sâu') || lower.includes('bệnh') || lower.includes('rệp') || lower.includes('vietgap')) {
-          reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Dùng dung dịch tỏi ớt gừng lên men hoặc dầu khoáng sinh học SK Enspray pha loãng phun đều hai mặt lá vào chiều mát để xử lý rầy mềm và bọ trĩ.';
+          reply = 'Cẩm nang kỹ thuật trên Farmely ưu tiên biện pháp quản lý dịch hại tổng hợp (IPM) và chế phẩm sinh học (như dung dịch tỏi ớt gừng lên men hoặc dầu khoáng sinh học SK Enspray 99EC) theo đúng hướng dẫn sử dụng. Với tình trạng sâu bệnh nặng, bạn nên trao đổi qua Kênh Chuyên Gia để được xác minh thực tế.';
         } else if (lower.includes('thu hoạch') || lower.includes('khi nào')) {
-          reply = 'Rau cải ngọt, cải thìa thì 25-30 ngày là thu hoạch được; còn xà lách Romaine chu kỳ từ 35-45 ngày. Nên thu hoạch sáng sớm hoặc chiều mát, dùng dụng cụ sạch cắt cách gốc 2cm.';
+          reply = 'Thời gian thu hoạch phụ thuộc từng giống cây theo lịch vụ mùa (ví dụ cải ngọt khoảng 35 ngày, xà lách Romaine khoảng 45 ngày, dưa leo baby khoảng 55 ngày, cà chua bi khoảng 80 ngày). Khi thu hoạch, nhân viên hiện trường cân sản lượng, dán mã truy xuất và chụp ảnh đối chứng để bạn nghiệm thu và nhận trực tiếp tại trang trại (PICKUP).';
         } else if (lower.includes('dịch vụ') || lower.includes('thuê') || lower.includes('bón phân')) {
-          reply = 'Bạn có thể vào tab "Dịch vụ canh tác" để đặt các gói chăm sóc trọn vụ, gói theo tuần hoặc các dịch vụ lẻ như bón phân, nhổ cỏ. Hệ thống hỗ trợ thanh toán trực tuyến cực kỳ nhanh chóng.';
+          reply = 'Bạn có thể thuê thửa đất (kỳ hạn 1, 2, 3, 6, 12 tháng, ngày bắt đầu cách 5–14 ngày) theo chế độ Tự trồng (Self-Growing) hoặc Ủy thác (Assisted-Growing, mặc định +50% phí chăm sóc), và đặt thêm dịch vụ lẻ/trọn vụ trong tab "Dịch vụ canh tác". Hệ thống hỗ trợ thanh toán trả trước 100% qua VNPay/VietQR.';
         } else {
-          reply = `Xin chào bạn! Farmely AI luôn sẵn sàng hỗ trợ bạn kỹ thuật canh tác rau sạch chuẩn VietGAP, theo dõi độ ẩm vi khí hậu và thủ tục dịch vụ nông trại.`;
+          reply = 'Farmely AI Assistant có thể hỗ trợ bạn tìm hiểu mô hình hoạt động của Farmely, quy trình thuê thửa đất, theo dõi dữ liệu cảm biến/nhật ký canh tác hoặc tra cứu kỹ thuật chăm sóc cây trồng. Bạn đang cần tìm hiểu thông tin nào?';
         }
 
         setChatMessages((prev) => [
@@ -2068,6 +2148,7 @@ export default function CustomerDashboard() {
                 onSelectService={(service) => { setCheckoutPlotId(currentSelectedPlot.id); handleOpenBuyServiceModal(service); }}
                 onAddDiary={(plot) => { setDiaryPlotId(plot.id); setShowNewDiaryModal(true); }}
                 onHarvestConfirmed={() => { fetchHarvestResults(); fetchCustomerPlots(false); }}
+                onRefreshPlots={() => { fetchCustomerPlots(false); fetchCultivationProcesses(); fetchHarvestResults(); }}
               />
             )}
 

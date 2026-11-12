@@ -32,6 +32,58 @@ export async function ensureHarvestDemoSchema(pool) {
   return schemaPromise;
 }
 
+let lastSyncAt = 0;
+export async function syncPlotMaintenanceStatuses(pool, { force = false } = {}) {
+  const now = Date.now();
+  if (!force && now - lastSyncAt < 15000) return;
+  lastSyncAt = now;
+  await ensureHarvestDemoSchema(pool);
+  await pool.query(`
+    UPDATE rentals
+    SET status = 'DONE', updated_at = NOW()
+    WHERE status = 'ACTIVE' AND end_date < CURRENT_DATE;
+
+    UPDATE plots p
+    SET status = 'MAINT', is_published = false, updated_at = NOW()
+    WHERE p.status = 'RENT'
+      AND (
+        (
+          NOT EXISTS (SELECT 1 FROM rentals r WHERE r.plot_id = p.plot_id AND r.status = 'ACTIVE')
+          AND EXISTS (
+            SELECT 1 FROM rentals r
+            WHERE r.plot_id = p.plot_id AND r.end_date >= CURRENT_DATE - INTERVAL '4 days'
+          )
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM rentals r
+          JOIN harvest_results hr ON hr.rental_id = r.rental_id
+          WHERE r.plot_id = p.plot_id
+            AND r.status = 'ACTIVE'
+            AND hr.harvest_date >= CURRENT_DATE - INTERVAL '4 days'
+            AND hr.harvest_date <= CURRENT_DATE + INTERVAL '1 day'
+            AND NOT EXISTS (
+              SELECT 1 FROM demo_cultivation_state ds
+              WHERE ds.rental_id = r.rental_id
+                AND ds.is_active
+                AND ds.current_day = 1
+                AND ds.updated_at > hr.created_at
+            )
+        )
+      );
+
+    UPDATE plots p
+    SET status = 'AVAIL', updated_at = NOW()
+    WHERE p.status IN ('RENT', 'MAINT')
+      AND NOT EXISTS (SELECT 1 FROM rentals r WHERE r.plot_id = p.plot_id AND r.status = 'ACTIVE')
+      AND EXISTS (
+        SELECT 1 FROM rentals r
+        WHERE r.plot_id = p.plot_id
+          AND r.end_date BETWEEN CURRENT_DATE - INTERVAL '30 days' AND CURRENT_DATE - INTERVAL '4 days'
+      );
+  `);
+}
+
 export async function getDemoTime(pool, rentalId) {
   await ensureHarvestDemoSchema(pool);
   const { rows } = await pool.query(`
@@ -68,6 +120,21 @@ export async function simulateDemoTime(pool, rentalId, payload) {
           : action === 'ADD_DAYS' ? Math.min(totalDays, Number(prior?.current_day || 1) + Number(payload.days || 0)) : NaN;
     if (!Number.isInteger(day) || day < 1 || day > totalDays) throw new Error('Ngày demo không hợp lệ');
 
+    await client.query(`
+      UPDATE rentals
+      SET start_date = (CURRENT_DATE - ($2::int - 1))::date
+      WHERE rental_id = $1
+    `, [rentalId, day]);
+
+    if (action === 'START_NOW' || action === 'RESET') {
+      await client.query(`
+        UPDATE plots p
+        SET status = 'RENT', updated_at = now()
+        FROM rentals r
+        WHERE r.rental_id = $1 AND p.plot_id = r.plot_id AND p.status = 'MAINT'
+      `, [rentalId]);
+    }
+
     await client.query('UPDATE demo_cultivation_state SET is_active = false WHERE rental_id = $1', [rentalId]);
     await client.query(`
       INSERT INTO demo_cultivation_state(rental_id, season_key, current_day, total_days, is_active)
@@ -76,17 +143,57 @@ export async function simulateDemoTime(pool, rentalId, payload) {
       SET current_day = EXCLUDED.current_day, total_days = EXCLUDED.total_days,
           is_active = true, updated_at = now()
     `, [rentalId, seasonKey, day, totalDays]);
+
     await client.query(`
-      UPDATE care_tasks ct SET demo_completed = (
-        ct.status <> 'DONE'::task_status_enum
-        AND COALESCE((SELECT ts.task_type FROM template_steps ts WHERE ts.step_id = ct.step_id), '') <> 'HARVEST'
-        AND (ct.step_id IS NOT NULL OR COALESCE(ct.title, '') NOT ILIKE '%thu hoạch%')
-        AND COALESCE((SELECT ts.day_offset + 1 FROM template_steps ts WHERE ts.step_id = ct.step_id), (ct.due_date - $3::date) + 1, 1) < $2
-      )
-      WHERE ct.rental_id = $1
-    `, [rentalId, day, rental.start_date]);
+      UPDATE care_tasks ct
+      SET due_date = CASE
+            WHEN (
+              COALESCE(ts.task_type, '') = 'HARVEST'
+              OR (
+                COALESCE(ts.step_name, ct.title, '') ~* 'thu hoạch|nghiệm thu'
+                AND COALESCE(ts.step_name, ct.title, '') !~* 'trước thu hoạch|chuẩn bị'
+              )
+            ) THEN CASE
+              WHEN $2::int >= $3::int THEN CURRENT_DATE
+              ELSE ((CURRENT_DATE - ($2::int - 1)) + COALESCE(ts.day_offset, GREATEST(0, $3::int - 1)))::date
+            END
+            WHEN ts.day_offset IS NOT NULL
+              THEN ((CURRENT_DATE - ($2::int - 1)) + ts.day_offset)::date
+            WHEN $4::text IN ('START_NOW', 'RESET') AND ct.due_date > CURRENT_DATE
+              THEN CURRENT_DATE
+            ELSE ct.due_date
+          END,
+          status = CASE
+            WHEN (
+              COALESCE(ts.task_type, '') = 'HARVEST'
+              OR (
+                COALESCE(ts.step_name, ct.title, '') ~* 'thu hoạch|nghiệm thu'
+                AND COALESCE(ts.step_name, ct.title, '') !~* 'trước thu hoạch|chuẩn bị'
+              )
+            ) AND ct.status <> 'DONE'::task_status_enum THEN CASE
+              WHEN $2::int >= $3::int THEN 'IN_PROG'::task_status_enum
+              ELSE 'PENDING'::task_status_enum
+            END
+            ELSE ct.status
+          END,
+          demo_completed = false,
+          updated_at = now()
+      FROM (
+        SELECT ct_in.task_id, ts_in.task_type, ts_in.step_name, ts_in.day_offset
+        FROM care_tasks ct_in
+        LEFT JOIN template_steps ts_in ON ts_in.step_id = ct_in.step_id
+        WHERE ct_in.rental_id = $1
+      ) ts
+      WHERE ct.task_id = ts.task_id
+    `, [rentalId, day, totalDays, action]);
+
+    const startRow = (await client.query(
+      `SELECT to_char((CURRENT_DATE - ($1::int - 1))::date, 'YYYY-MM-DD') AS "startDate"`,
+      [day]
+    )).rows[0];
+
     await client.query('COMMIT');
-    return { rentalId, seasonKey, currentDay: day, totalDays };
+    return { rentalId, seasonKey, currentDay: day, totalDays, startDate: startRow?.startDate || null };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -146,6 +253,12 @@ export async function recordHarvestOnce(pool, payload) {
         ON CONFLICT (harvest_id) WHERE harvest_id IS NOT NULL DO NOTHING
       `, [rentalId, taskId, saved.harvestId, `Sản lượng cân điện tử: ${saved.yieldAmount} kg.`, payload.evidenceImageUrl]);
     }
+    await client.query(`
+      UPDATE plots p
+      SET status = 'MAINT', is_published = false, updated_at = now()
+      FROM rentals r
+      WHERE r.rental_id = $1 AND p.plot_id = r.plot_id
+    `, [rentalId]);
     await client.query('COMMIT');
     return { ...saved, harvestCode: `HRV-${saved.harvestId}`, alreadyRecorded: !saved.created };
   } catch (error) {

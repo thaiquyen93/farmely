@@ -17,7 +17,7 @@ import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import Crops from '../admin/Crops';
 import Varieties from '../admin/Varieties';
 import ProcessTemplates from '../admin/ProcessTemplates';
-import { getVisibleExpertThreads } from './expertChatThreads';
+import { getVisibleExpertThreads, resolveActiveExpertThread } from './expertChatThreads';
 import {
   Sprout,
   Wheat,
@@ -191,6 +191,7 @@ export default function ExpertDashboard() {
   const [chatInputText, setChatInputText] = useState('');
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
+  const [openedPlotThreadId, setOpenedPlotThreadId] = useState(null);
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
   const [assignedPlots, setAssignedPlots] = useState([]);
@@ -222,6 +223,7 @@ export default function ExpertDashboard() {
 
   // Handle select conversation
   const handleSelectThread = (threadId) => {
+    setOpenedPlotThreadId(null);
     setSelectedThreadId(threadId);
     setMobileShowChat(true);
     markExpertThreadAsRead(threadId);
@@ -232,12 +234,27 @@ export default function ExpertDashboard() {
     if (e) e.preventDefault();
     if (!chatInputText.trim()) return;
 
+    const targetThread = resolveActiveExpertThread(
+      chatThreads,
+      visibleChatThreads,
+      selectedThreadId,
+      openedPlotThreadId,
+      user?.userId
+    );
+    if (!targetThread?.id) {
+      window.alert('Vui lòng chọn một cuộc hội thoại trước khi gửi tin nhắn.');
+      return;
+    }
+    if (targetThread.id !== selectedThreadId) {
+      setSelectedThreadId(targetThread.id);
+    }
+
     const currentExpert = (isExpertUser && user?.fullName)
       ? user.fullName
-      : (activeRealtimeThread?.expertName || expertSenderName);
+      : (targetThread?.expertName || expertSenderName);
 
     try {
-      await sendExpertMessage(chatInputText.trim(), currentExpert);
+      await sendExpertMessage(chatInputText.trim(), currentExpert, {}, targetThread.id);
       setChatInputText('');
     } catch (error) {
       window.alert(error.message || 'Không thể gửi tin nhắn');
@@ -448,6 +465,14 @@ export default function ExpertDashboard() {
     if (demoMatch) {
       const existingThread = chatThreads.find((t) => t.id === demoMatch.threadId);
       if (existingThread) return existingThread.id;
+      chatService.upsertCustomerThread({
+        threadId: demoMatch.threadId,
+        participantUserId: plot.renterId || demoMatch.userId,
+        customerName: plot.renterName || demoMatch.name,
+        customerEmail: renterEmail || demoMatch.email,
+        customerAvatar: demoMatch.avatar
+      });
+      refreshThreads();
       return demoMatch.threadId;
     }
 
@@ -467,6 +492,7 @@ export default function ExpertDashboard() {
   const handleOpenChatWithCustomer = useCallback((plot) => {
     const threadId = findCustomerThreadForPlot(plot);
     if (threadId) {
+      setOpenedPlotThreadId(threadId);
       setSelectedThreadId(threadId);
       markExpertThreadAsRead(threadId);
     }
@@ -603,7 +629,6 @@ export default function ExpertDashboard() {
         const stageNameLower = (stage.name || '').trim().toLowerCase();
         if (!seenTitles.has(stageNameLower)) {
           const stageDay = stage.dayStart || 1;
-          const isDone = currentDay > stage.dayEnd;
           const isCurrent = currentDay >= stage.dayStart && currentDay <= stage.dayEnd;
 
           combined.push({
@@ -613,11 +638,11 @@ export default function ExpertDashboard() {
             dayRange: stage.label || `Ngày ${stage.dayStart} - ${stage.dayEnd}`,
             title: `${stage.name} (${stage.label})`,
             time: `Mốc ngày ${stage.dayStart} - ${stage.dayEnd} / ${totalDays}`,
-            status: isDone ? 'COMPLETED' : isCurrent ? 'IN_PROGRESS' : 'PENDING',
+            status: isCurrent ? 'IN_PROGRESS' : 'PENDING',
             author: plot.staffName || 'Trần Văn Lực (CVLĐ)',
             authorRole: 'Quy trình VietGAP phụ trách',
             note: `${stage.statusDesc ? stage.statusDesc + '. ' : ''}${stage.guide || ''}${stage.nutrition ? ' • Dinh dưỡng: ' + stage.nutrition : ''}${stage.pestAlert ? ' • Cảnh báo: ' + stage.pestAlert : ''}`,
-            proofPhoto: isDone ? (stage.samplePhoto || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=600&q=80') : null,
+            proofPhoto: null,
             isStandardStep: true
           });
         }
@@ -1747,7 +1772,10 @@ export default function ExpertDashboard() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setOpenedPlotThreadId(null);
+                    setActiveTab(tab.id);
+                  }}
                   title={sidebarCollapsed ? tab.label : undefined}
                   aria-label={sidebarCollapsed ? tab.label : undefined}
                   className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
@@ -1989,9 +2017,13 @@ export default function ExpertDashboard() {
 
                   {/* Right Column: Active Messenger Conversation View */}
                   {(() => {
-                    const activeThread =
-                      visibleChatThreads.find((t) => t.id === selectedThreadId) ||
-                      visibleChatThreads[0];
+                    const activeThread = resolveActiveExpertThread(
+                      chatThreads,
+                      visibleChatThreads,
+                      selectedThreadId,
+                      openedPlotThreadId,
+                      user?.userId
+                    );
 
                     if (!activeThread) return (
                       <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-sm text-stone-500">
@@ -2190,7 +2222,7 @@ export default function ExpertDashboard() {
                           {displayedMessages.map((msg) => {
                             const isExpert = msg.sender === 'expert' ||
                               msg.senderRole === 'EXPERT' ||
-                              Number(msg.senderId) === 2 ||
+                              (Number(user?.userId) > 0 && Number(msg.senderId) === Number(user?.userId)) ||
                               Number(msg.senderId) === 5 ||
                               String(msg.senderName || '').includes('Nguyễn Hoàng Nam') ||
                               String(msg.senderName || '').includes('Chuyên gia');

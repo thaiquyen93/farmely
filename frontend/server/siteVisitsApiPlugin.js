@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import pg from 'pg';
 const { Pool, Client } = pg;
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
-import { ensureHarvestDemoSchema, getDemoTime, recordHarvestOnce, simulateDemoTime } from './harvestDemoApi.js';
+import { ensureHarvestDemoSchema, getDemoTime, recordHarvestOnce, simulateDemoTime, syncPlotMaintenanceStatuses } from './harvestDemoApi.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,67 +43,530 @@ function getGeminiApiKey() {
   return '';
 }
 
-function callGeminiLlm({ message, contextDocs = [] }) {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) return Promise.resolve(null);
+const AI_PERSONA_FALLBACK = [
+  'Bạn là Farmely AI Assistant — trợ lý AI hỗ trợ thông tin và tra cứu trên nền tảng nông nghiệp số Farmely (farmely.vn).',
+  'Farmely cho phép người dùng thuê các thửa đất canh tác thực tế (Plot) tại nông trại và theo dõi quá trình trồng trọt trực tuyến (không phải trò chơi mô phỏng hay đất ảo).',
+  'Hệ thống phối hợp giữa 3 vai trò: Khách hàng (chọn thửa, giống cây, gói chăm sóc và theo dõi tiến độ) — Chuyên gia nông nghiệp (thiết kế quy trình kỹ thuật, tư vấn) — Nhân viên hiện trường (thực hiện công việc tại vườn, ghi nhật ký ảnh, hỗ trợ cân đo thu hoạch tại nông trại PICKUP).',
+  'Quy tắc hợp đồng đã quy định: kỳ hạn ' + ALLOWED_TERM_MONTHS.join(', ') + ' tháng (tối thiểu >= chu kỳ giống + 10 ngày buffer); ngày bắt đầu sau 5–14 ngày; Self-Growing hoặc Assisted-Growing (+50% phí chăm sóc); giữ chỗ 15+10 phút, thanh toán 100% trả trước; hủy >= 3 ngày hoàn 80%, < 3 ngày hoàn 50%, từ ngày bắt đầu 0%; gia hạn trước 3 ngày.',
+  'Giữ giọng điệu trung lập, khách quan, súc tích. KHÔNG tự khẳng định thông tin chưa có trong dữ liệu xác thực (quyền sở hữu pháp lý trang trại, giấy chứng nhận VietGAP, tên trang trại/mã thửa/giá chưa tra cứu).'
+].join('\n');
 
-  return new Promise((resolve) => {
-    let contextStr = '';
-    if (contextDocs.length > 0) {
-      contextStr = '\r\nTÀI LIỆU CẨM NANG KỸ THUẬT NÔNG TRẠI FARMELY THAM CHIẾU (nếu liên quan):\r\n' +
-        contextDocs.slice(0, 3).map((d, i) => `[Tài liệu ${i + 1}] Tiêu đề: ${d.title}\r\nNội dung tóm tắt: ${(d.content || '').slice(0, 500)}`).join('\r\n\r\n');
+const AI_SOURCE_LABELS = {
+  'quy_trinh_thue_dat_va_chinh_sach_farmely.md': 'Quy trình Thuê đất & Chính sách Farmely',
+  'huong_dan_su_dung_nen_tang_farmely.md': 'Hướng dẫn Sử dụng Nền tảng Farmely',
+  'quy_trinh_canh_tac_10_loai_rau_an_toan.md': 'Quy trình Canh tác 10 Loại Rau An toàn VietGAP',
+  'quy_trinh_trong_rau_an_toan.md': 'Sổ tay Kỹ thuật Trồng rau An toàn VietGAP',
+  'quy_trinh_rau_an_la_vietgap.md': 'Quy trình Canh tác Rau ăn lá VietGAP',
+  'ky_thuat_bon_phan_huu_co.md': 'Kỹ thuật Bón phân Hữu cơ & Vi sinh',
+  'phong_tru_sau_benh_sinh_hoc.md': 'Phòng trừ Sâu bệnh Sinh học (IPM)'
+};
+
+let cachedPersonaState = { path: null, mtimeMs: 0, text: '' };
+let cachedVectorState = { chunkPath: null, mtimeMs: 0, chunks: [], rows: 0, cols: 0, data: null };
+const queryEmbeddingCache = new Map();
+
+function resolveExistingPath(candidates) {
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+function getAiSystemInstruction() {
+  const personaPath = resolveExistingPath([
+    path.resolve(__dirname, '../../backend/ai-service/src/generation/persona.py'),
+    path.resolve(process.cwd(), '../backend/ai-service/src/generation/persona.py'),
+    path.resolve(process.cwd(), 'backend/ai-service/src/generation/persona.py')
+  ]);
+  if (!personaPath) return AI_PERSONA_FALLBACK;
+  try {
+    const stat = fs.statSync(personaPath);
+    if (cachedPersonaState.path === personaPath && cachedPersonaState.mtimeMs === stat.mtimeMs && cachedPersonaState.text) {
+      return cachedPersonaState.text;
     }
+    const raw = fs.readFileSync(personaPath, 'utf8');
+    const match = raw.match(/FARMELY_AI_SYSTEM_INSTRUCTION\s*=\s*"""([\s\S]*?)"""/);
+    if (match && match[1].trim()) {
+      cachedPersonaState = { path: personaPath, mtimeMs: stat.mtimeMs, text: match[1].trim() };
+      return cachedPersonaState.text;
+    }
+  } catch (e) { }
+  return AI_PERSONA_FALLBACK;
+}
 
-    const payload = JSON.stringify({
-      system_instruction: {
-        parts: [{
-          text: 'Bạn là Farmely AI — Trợ lý Nông Nghiệp Thông Minh, Thân Thiện và Có Tâm của nền tảng số Farmely (farmely.vn). ' +
-            'Phong cách giao tiếp: Tự nhiên, ấm áp, thông minh, lịch sự, nói chuyện như một chuyên gia nông nghiệp công nghệ cao thân thiện, có cảm xúc và "tính người" (human-like). Tuyệt đối không trả lời máy móc, dập khuôn. ' +
-            'Nếu người dùng hỏi câu hỏi thông thường, đố vui hoặc toán học đời thường (như "1 cộng 1 bằng mấy?", "hôm nay thời tiết đẹp không?", v.v.), hãy trả lời chính xác, duyên dáng, vui vẻ và có thể khéo léo gắn kết nhẹ nhàng với nông trại Farmely nếu thích hợp. ' +
-            'Nếu người dùng hỏi về kỹ thuật trồng trọt, sâu bệnh, độ ẩm, vi khí hậu, giống rau, thuê thửa đất, hãy dựa trên kiến thức cẩm nang được cung cấp (nếu có) để giải thích cặn kẽ, đưa ra phác đồ thực hành rõ ràng và hướng dẫn họ xem dữ liệu thời tiết & độ ẩm đất hoặc liên hệ kênh Chuyên gia khi cần.'
-        }]
-      },
-      contents: [
-        {
-          parts: [{ text: (contextStr ? contextStr + '\r\n\r\nCÂU HỎI TỪ KHÁCH HÀNG: ' : '') + message }]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 600
-      }
-    });
+function normalizeViText(input = '') {
+  return String(input)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd');
+}
 
-    const modelName = 'gemini-3.5-flash-lite';
+function tokenizeViKeywords(input = '') {
+  const norm = normalizeViText(input).replace(/[^a-z0-9\s]/g, ' ');
+  return Array.from(new Set(
+    norm.split(/\s+/).filter(w => w.length >= 2 && !VIETNAMESE_STOP_WORDS.has(w))
+  ));
+}
+
+function parseNpyFloatMatrix(filePath) {
+  const buf = fs.readFileSync(filePath);
+  if (buf.length < 12 || buf.toString('latin1', 1, 6) !== 'NUMPY') {
+    return null;
+  }
+  const major = buf[6];
+  const headerLen = major === 1 ? buf.readUInt16LE(8) : buf.readUInt32LE(8);
+  const headerStart = major === 1 ? 10 : 12;
+  const dataOffset = headerStart + headerLen;
+  const header = buf.toString('latin1', headerStart, dataOffset);
+  const shapeMatch = header.match(/'shape':\s*\(\s*(\d+)\s*,\s*(\d+)\s*,?\s*\)/);
+  if (!shapeMatch) return null;
+  const rows = parseInt(shapeMatch[1], 10);
+  const cols = parseInt(shapeMatch[2], 10);
+  const isFloat64 = header.includes('<f8');
+  const elemSize = isFloat64 ? 8 : 4;
+  if (buf.length < dataOffset + rows * cols * elemSize) return null;
+
+  const data = new Float32Array(rows * cols);
+  for (let i = 0; i < rows * cols; i++) {
+    const pos = dataOffset + i * elemSize;
+    data[i] = isFloat64 ? buf.readDoubleLE(pos) : buf.readFloatLE(pos);
+  }
+  return { rows, cols, data };
+}
+
+function getAiVectorStore() {
+  const chunkPath = resolveExistingPath([
+    path.resolve(__dirname, '../../backend/ai-service/data/processed/chunks.json'),
+    path.resolve(process.cwd(), '../backend/ai-service/data/processed/chunks.json'),
+    path.resolve(process.cwd(), 'backend/ai-service/data/processed/chunks.json')
+  ]);
+  if (!chunkPath) return { chunks: [], rows: 0, cols: 0, data: null };
+  const vecPath = path.join(path.dirname(chunkPath), 'vectors.npy');
+  try {
+    const chunkStat = fs.statSync(chunkPath);
+    const vecMtime = fs.existsSync(vecPath) ? fs.statSync(vecPath).mtimeMs : 0;
+    const stamp = chunkStat.mtimeMs + vecMtime;
+    if (cachedVectorState.chunkPath === chunkPath && cachedVectorState.mtimeMs === stamp) {
+      return cachedVectorState;
+    }
+    const chunks = JSON.parse(fs.readFileSync(chunkPath, 'utf8'));
+    const matrix = fs.existsSync(vecPath) ? parseNpyFloatMatrix(vecPath) : null;
+    cachedVectorState = {
+      chunkPath,
+      mtimeMs: stamp,
+      chunks: Array.isArray(chunks) ? chunks : [],
+      rows: matrix ? matrix.rows : 0,
+      cols: matrix ? matrix.cols : 0,
+      data: matrix ? matrix.data : null
+    };
+    return cachedVectorState;
+  } catch (e) {
+    return { chunks: [], rows: 0, cols: 0, data: null };
+  }
+}
+
+function geminiApiRequest(apiPath, bodyObj, timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    const payload = JSON.stringify(bodyObj);
     const req = https.request({
       hostname: 'generativelanguage.googleapis.com',
-      path: '/v1beta/models/' + modelName + ':generateContent?key=' + apiKey,
+      path: apiPath,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(payload)
       },
-      timeout: 8000
-    }, res => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
+      timeout: timeoutMs
+    }, (res) => {
+      let raw = '';
+      res.on('data', chunk => { raw += chunk; });
       res.on('end', () => {
         try {
-          if (res.statusCode === 200) {
-            const json = JSON.parse(data);
-            const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) return resolve(text.trim());
-          }
-        } catch (e) { }
-        resolve(null);
+          resolve({ status: res.statusCode || 0, data: JSON.parse(raw) });
+        } catch (e) {
+          resolve({ status: res.statusCode || 0, data: null });
+        }
       });
     });
-
-    req.on('error', () => resolve(null));
-    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.on('error', () => resolve({ status: 0, data: null }));
+    req.on('timeout', () => { req.destroy(); resolve({ status: 0, data: null }); });
     req.write(payload);
     req.end();
   });
+}
+
+async function embedQueryWithGemini(query, apiKey) {
+  if (!apiKey || !query) return null;
+  const cacheKey = query.trim().toLowerCase();
+  if (queryEmbeddingCache.has(cacheKey)) return queryEmbeddingCache.get(cacheKey);
+  const res = await geminiApiRequest(
+    '/v1beta/models/gemini-embedding-001:embedContent?key=' + apiKey,
+    {
+      model: 'models/gemini-embedding-001',
+      content: { parts: [{ text: query }] },
+      taskType: 'RETRIEVAL_QUERY'
+    },
+    6000
+  );
+  const vec = res?.status === 200 ? res?.data?.embedding?.values : null;
+  if (Array.isArray(vec) && vec.length > 0) {
+    if (queryEmbeddingCache.size >= 60) {
+      const oldestKey = queryEmbeddingCache.keys().next().value;
+      queryEmbeddingCache.delete(oldestKey);
+    }
+    queryEmbeddingCache.set(cacheKey, vec);
+    return vec;
+  }
+  return null;
+}
+
+function cosineSimRow(queryVec, matrixData, rowIdx, cols) {
+  if (!queryVec || !matrixData || queryVec.length !== cols) return 0;
+  let dot = 0;
+  let normQ = 0;
+  let normR = 0;
+  const offset = rowIdx * cols;
+  for (let j = 0; j < cols; j++) {
+    const q = queryVec[j];
+    const r = matrixData[offset + j];
+    dot += q * r;
+    normQ += q * q;
+    normR += r * r;
+  }
+  if (normQ <= 0 || normR <= 0) return 0;
+  return dot / (Math.sqrt(normQ) * Math.sqrt(normR));
+}
+
+function classifyAiQueryIntent(query = '') {
+  const norm = normalizeViText(query);
+  const needsFarmsPlots = /(trang trai|khu dat|o dau|dia diem|con trong|thua nao|ma thua|dien tich|gia thue|bao nhieu tien|bang gia|\bp-\s*\d+)/.test(norm);
+  const needsVarieties = /(giong cay|giong rau|loai rau nao|cay gi|trong duoc|danh muc cay|ho tro trong)/.test(norm);
+  const needsServices = /(dich vu|goi cham soc|bang phi|phi cham soc|bon phan|tuoi ho)/.test(norm);
+  const needsUserRentals = /(cua toi|dang thue|vuon cua toi|thua cua toi|thua cua minh|vuon cua minh|nhiet do hien tai|do am hien tai|cam bien|iot hien tai|nhat ky cua toi|cong viec hom nay|rental)/.test(norm);
+  const isOverview = /(farmely la gi|hoat dong ra sao|hoat dong nhu the nao|mo hinh|gioi thieu.*farmely|cach thuc hoat dong|nen tang farmely)/.test(norm)
+    && !(needsFarmsPlots || needsVarieties || needsUserRentals);
+
+  return { isOverview, needsFarmsPlots, needsVarieties, needsServices, needsUserRentals };
+}
+
+async function retrieveHybridFarmelyDocs(query, liveRagDocs = [], apiKey = '', intent = null) {
+  const store = getAiVectorStore();
+  const queryNorm = normalizeViText(query);
+  const queryTokens = tokenizeViKeywords(query);
+  const resolvedIntent = intent || classifyAiQueryIntent(query);
+  const queryVec = (store.data && store.chunks.length > 0)
+    ? await embedQueryWithGemini(query, apiKey)
+    : null;
+
+  const isPlatformDocQuery = resolvedIntent.isOverview || /farmely la gi|nen tang farmely|mo hinh|hoat dong|gioi thieu|thue dat|chinh sach|huy|gia han|tu trong|uy thac|thu hoach|giao rau|pickup/.test(queryNorm);
+  const candidates = [];
+
+  for (let i = 0; i < store.chunks.length; i++) {
+    const c = store.chunks[i];
+    const sourceFile = c.source_file || c.source || '';
+    if (resolvedIntent.isOverview && sourceFile !== 'quy_trinh_thue_dat_va_chinh_sach_farmely.md' && sourceFile !== 'huong_dan_su_dung_nen_tang_farmely.md') {
+      continue;
+    }
+    const haystack = normalizeViText(`${sourceFile} ${c.doc_title || ''} ${c.section_title || ''} ${c.content || ''}`);
+    const titleNorm = normalizeViText(`${sourceFile} ${c.doc_title || ''} ${c.section_title || ''}`);
+    const semanticScore = (queryVec && i < store.rows) ? cosineSimRow(queryVec, store.data, i, store.cols) : 0;
+
+    let tokenHits = 0;
+    let titleHits = 0;
+    for (const tk of queryTokens) {
+      if (haystack.includes(tk)) tokenHits++;
+      if (titleNorm.includes(tk)) titleHits++;
+    }
+    const kwScore = queryTokens.length > 0 ? tokenHits / queryTokens.length : 0;
+    const titleBoost = queryTokens.length > 0 ? (titleHits / queryTokens.length) * 0.15 : 0;
+    const isPlatformFile = sourceFile === 'quy_trinh_thue_dat_va_chinh_sach_farmely.md' || sourceFile === 'huong_dan_su_dung_nen_tang_farmely.md';
+    const policyBoost = (isPlatformDocQuery && isPlatformFile) ? 0.14 : 0;
+
+    const combined = queryVec
+      ? (semanticScore * 0.72 + kwScore * 0.28 + titleBoost + policyBoost)
+      : (kwScore * 0.85 + titleBoost + policyBoost);
+
+    if (combined >= 0.32 || semanticScore >= 0.56 || kwScore >= 0.4) {
+      candidates.push({
+        key: `md:${c.chunk_id || i}`,
+        docTitle: c.section_title || AI_SOURCE_LABELS[sourceFile] || sourceFile || 'Tài liệu Farmely',
+        source: AI_SOURCE_LABELS[sourceFile] || sourceFile || 'Hệ tri thức Farmely RAG',
+        similarityScore: Number(Math.min(0.99, Math.max(semanticScore || combined, combined)).toFixed(3)),
+        fileUrl: '/docs/rau_an_toan_vietgap_huyen.pdf',
+        content: c.content || '',
+        rankScore: combined
+      });
+    }
+  }
+
+  if (!resolvedIntent.isOverview) {
+    for (const item of liveRagDocs) {
+      const textNorm = normalizeViText(`${item.title || ''} ${item.content || ''}`);
+      let hits = 0;
+      for (const tk of queryTokens) {
+        if (textNorm.includes(tk)) hits++;
+      }
+      const kwScore = queryTokens.length > 0 ? hits / queryTokens.length : 0;
+      if (hits >= Math.min(2, Math.max(1, queryTokens.length))) {
+        candidates.push({
+          key: `pg:${item.document_id}`,
+          docTitle: item.title,
+          source: item.author_name || 'Thư viện Kỹ thuật Farmely (PostgreSQL)',
+          similarityScore: Number(Math.min(0.95, 0.55 + kwScore * 0.35).toFixed(3)),
+          fileUrl: item.file_url || '/docs/rau_an_toan_vietgap_huyen.pdf',
+          content: item.content || '',
+          rankScore: 0.45 + kwScore * 0.4
+        });
+      }
+    }
+  }
+
+  candidates.sort((a, b) => b.rankScore - a.rankScore);
+  const deduped = [];
+  const seenTitles = new Set();
+  const maxDocs = resolvedIntent.isOverview ? 2 : 4;
+  for (const item of candidates) {
+    const sig = normalizeViText(item.docTitle).slice(0, 60);
+    if (seenTitles.has(sig)) continue;
+    seenTitles.add(sig);
+    deduped.push(item);
+    if (deduped.length >= maxDocs) break;
+  }
+  return deduped;
+}
+
+async function loadLiveFarmelyContext({ userId, plotId, plotCode, rentalId, intent = null } = {}) {
+  const sections = [];
+  const summaryMeta = {};
+  const scope = intent || {};
+  if (!scope.needsFarmsPlots && !scope.needsVarieties && !scope.needsServices && !scope.needsUserRentals) {
+    return { text: '', meta: summaryMeta };
+  }
+
+  try {
+    const pool = getPgPool();
+
+    if (scope.needsFarmsPlots) {
+      const [landsRes, plotStatsRes, availPlotsRes] = await Promise.all([
+        pool.query(`SELECT land_id, land_name, address, COALESCE(is_published, false) AS is_published FROM lands ORDER BY land_id`),
+        pool.query(`
+          SELECT status::text AS status, COUNT(*)::int AS cnt,
+                 ROUND(MIN(area)::numeric, 0)::int AS min_area, ROUND(MAX(area)::numeric, 0)::int AS max_area,
+                 ROUND(MIN(price_per_period)::numeric, 0)::int AS min_price, ROUND(MAX(price_per_period)::numeric, 0)::int AS max_price
+          FROM plots WHERE COALESCE(is_published, true) = true GROUP BY status ORDER BY status
+        `),
+        pool.query(`
+          SELECT plot_code, ROUND(area::numeric, 0)::int AS area, ROUND(price_per_period::numeric, 0)::int AS price
+          FROM plots WHERE COALESCE(is_published, true) = true AND status::text = 'AVAIL' ORDER BY plot_id LIMIT 10
+        `)
+      ]);
+
+      if (landsRes.rows.length > 0) {
+        summaryMeta.lands = landsRes.rows;
+        sections.push('Trang trại đang niêm yết trên hệ thống Farmely:\n' + landsRes.rows.map(r =>
+          `- ${r.land_name} (${r.address}) [${r.is_published ? 'Đang mở cho thuê' : 'Chuẩn bị mở'}]`
+        ).join('\n'));
+      }
+
+      if (plotStatsRes.rows.length > 0) {
+        summaryMeta.plotStats = plotStatsRes.rows;
+        summaryMeta.availPlots = availPlotsRes.rows;
+        const statsText = plotStatsRes.rows.map(r =>
+          `${r.status}: ${r.cnt} thửa (${r.min_area}-${r.max_area} m², ${Number(r.min_price).toLocaleString('vi-VN')}-${Number(r.max_price).toLocaleString('vi-VN')} đ/tháng)`
+        ).join(', ');
+        const availText = availPlotsRes.rows.length > 0
+          ? '\nThửa còn trống tiêu biểu: ' + availPlotsRes.rows.map(p => `${p.plot_code} (${p.area}m² - ${Number(p.price).toLocaleString('vi-VN')}đ/tháng)`).join(', ')
+          : '';
+        sections.push(`Tình trạng thửa đất đang mở trên Marketplace: ${statsText}.${availText}`);
+      }
+    }
+
+    if (scope.needsVarieties) {
+      const varietiesRes = await pool.query(`
+        SELECT variety_name, expected_duration, buffer_time
+        FROM varieties WHERE COALESCE(is_active, true) = true ORDER BY variety_id
+      `);
+      if (varietiesRes.rows.length > 0) {
+        summaryMeta.varieties = varietiesRes.rows;
+        sections.push('Giống cây đang cung cấp trên hệ thống: ' + varietiesRes.rows.map(v =>
+          `${v.variety_name} (${v.expected_duration} ngày + ${v.buffer_time || 10} ngày buffer)`
+        ).join(', '));
+      }
+    }
+
+    if (scope.needsServices) {
+      const servicesRes = await pool.query(`
+        SELECT service_name, service_type::text AS service_type, ROUND(price::numeric, 0)::int AS price, unit
+        FROM services WHERE COALESCE(status::text, 'ACTIVE') = 'ACTIVE' ORDER BY service_id LIMIT 15
+      `);
+      if (servicesRes.rows.length > 0) {
+        sections.push('Dịch vụ chăm sóc bổ sung / trọn vụ: ' + servicesRes.rows.map(s =>
+          `${s.service_name} (${Number(s.price).toLocaleString('vi-VN')}đ/${s.unit || 'lần'})`
+        ).join(', '));
+      }
+    }
+
+    if (scope.needsUserRentals) {
+      const numericUserId = Number(userId);
+      const numericPlotId = Number(plotId);
+      const numericRentalId = Number(rentalId);
+      let userRentals = [];
+
+      if (Number.isInteger(numericUserId) && numericUserId > 0) {
+        const rentalsRes = await pool.query(`
+          SELECT r.rental_id, r.plot_id, p.plot_code, p.area, l.land_name, v.variety_name,
+                 r.cultivation_mode, r.term_months, r.start_date::text AS start_date, r.end_date::text AS end_date,
+                 r.status::text AS status, COALESCE(v.expected_duration, 45) AS total_days,
+                 COALESCE(ds.current_day, CASE WHEN CURRENT_DATE < r.start_date THEN 0 ELSE LEAST(COALESCE(v.expected_duration, 45), (CURRENT_DATE - r.start_date) + 1) END) AS current_day,
+                 sr.temperature, sr.soil_humidity, sr.air_humidity, sr.recorded_at::text AS sensor_time,
+                 (SELECT COUNT(*)::int FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND ct.status::text IN ('PENDING','IN_PROGRESS','OVERDUE')) AS open_tasks,
+                 (SELECT COUNT(*)::int FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND ct.status::text = 'COMPLETED') AS done_tasks
+          FROM rentals r
+          JOIN contracts c ON r.contract_id = c.contract_id
+          JOIN plots p ON r.plot_id = p.plot_id
+          LEFT JOIN lands l ON p.land_id = l.land_id
+          LEFT JOIN varieties v ON r.variety_id = v.variety_id
+          LEFT JOIN LATERAL (
+            SELECT current_day FROM demo_cultivation_state WHERE rental_id = r.rental_id AND is_active = true ORDER BY updated_at DESC LIMIT 1
+          ) ds ON true
+          LEFT JOIN LATERAL (
+            SELECT temperature, soil_humidity, air_humidity, recorded_at FROM sensor_readings WHERE plot_id = r.plot_id ORDER BY recorded_at DESC LIMIT 1
+          ) sr ON true
+          WHERE c.renter_id = $1 AND r.status::text IN ('ACTIVE', 'PENDING', 'UPCOMING')
+          ORDER BY r.rental_id DESC LIMIT 6
+        `, [numericUserId]);
+        userRentals = rentalsRes.rows;
+      } else if ((Number.isInteger(numericRentalId) && numericRentalId > 0) || (Number.isInteger(numericPlotId) && numericPlotId > 0) || plotCode) {
+        const targetRes = await pool.query(`
+          SELECT r.rental_id, r.plot_id, p.plot_code, p.area, l.land_name, v.variety_name,
+                 r.cultivation_mode, r.term_months, r.start_date::text AS start_date, r.end_date::text AS end_date,
+                 r.status::text AS status, COALESCE(v.expected_duration, 45) AS total_days,
+                 COALESCE(ds.current_day, CASE WHEN CURRENT_DATE < r.start_date THEN 0 ELSE LEAST(COALESCE(v.expected_duration, 45), (CURRENT_DATE - r.start_date) + 1) END) AS current_day,
+                 sr.temperature, sr.soil_humidity, sr.air_humidity, sr.recorded_at::text AS sensor_time,
+                 (SELECT COUNT(*)::int FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND ct.status::text IN ('PENDING','IN_PROGRESS','OVERDUE')) AS open_tasks,
+                 (SELECT COUNT(*)::int FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND ct.status::text = 'COMPLETED') AS done_tasks
+          FROM rentals r
+          JOIN plots p ON r.plot_id = p.plot_id
+          LEFT JOIN lands l ON p.land_id = l.land_id
+          LEFT JOIN varieties v ON r.variety_id = v.variety_id
+          LEFT JOIN LATERAL (
+            SELECT current_day FROM demo_cultivation_state WHERE rental_id = r.rental_id AND is_active = true ORDER BY updated_at DESC LIMIT 1
+          ) ds ON true
+          LEFT JOIN LATERAL (
+            SELECT temperature, soil_humidity, air_humidity, recorded_at FROM sensor_readings WHERE plot_id = r.plot_id ORDER BY recorded_at DESC LIMIT 1
+          ) sr ON true
+          WHERE ($1::int IS NOT NULL AND r.rental_id = $1)
+             OR ($2::int IS NOT NULL AND r.plot_id = $2)
+             OR ($3::text IS NOT NULL AND REPLACE(UPPER(p.plot_code), ' ', '') = REPLACE(UPPER($3), ' ', ''))
+          ORDER BY r.rental_id DESC LIMIT 3
+        `, [
+          Number.isInteger(numericRentalId) && numericRentalId > 0 ? numericRentalId : null,
+          Number.isInteger(numericPlotId) && numericPlotId > 0 ? numericPlotId : null,
+          plotCode ? String(plotCode).trim() : null
+        ]);
+        userRentals = targetRes.rows;
+      }
+
+      if (userRentals.length > 0) {
+        summaryMeta.userRentals = userRentals;
+        sections.push('Thửa đất khách hàng hiện tại đang thuê:\n' + userRentals.map(r => {
+          const sensorInfo = r.soil_humidity != null
+            ? `, IoT mới nhất: nhiệt độ ${r.temperature}°C, ẩm đất ${r.soil_humidity}%, ẩm KK ${r.air_humidity}%`
+            : '';
+          return `- Rental #${r.rental_id} | Thửa ${r.plot_code} (${r.land_name || 'Farmely'}, ${r.area}m²) | Giống: ${r.variety_name || 'Chưa chọn'} | Chế độ: ${r.cultivation_mode || 'Chưa rõ'} | Ngày tuổi: ${r.current_day}/${r.total_days} | Thời hạn: ${r.start_date} -> ${r.end_date} | Công việc: ${r.done_tasks} hoàn thành / ${r.open_tasks} đang chờ${sensorInfo}`;
+        }).join('\n'));
+      }
+    }
+  } catch (e) {
+    console.warn('[Farmely AI Live DB Context] Warning:', e.message);
+  }
+  return { text: sections.join('\n\n'), meta: summaryMeta };
+}
+
+function buildGeminiContents({ message, history = [], contextDocs = [], liveContext = '', intent = null }) {
+  const contents = [];
+  if (Array.isArray(history) && history.length > 0) {
+    for (const item of history.slice(-6)) {
+      const text = String(item?.content || item?.text || '').trim();
+      if (!text) continue;
+      const role = item?.sender === 'user' ? 'user' : 'model';
+      if (contents.length === 0 && role === 'model') continue; // Gemini conversation history must begin with user role
+      if (contents.length > 0 && contents[contents.length - 1].role === role) {
+        contents[contents.length - 1].parts[0].text += '\n' + text;
+      } else {
+        contents.push({ role, parts: [{ text }] });
+      }
+    }
+    if (contents.length > 0 && contents[contents.length - 1].role === 'user') {
+      contents.pop();
+    }
+  }
+
+  const promptParts = [];
+  if (contextDocs.length > 0) {
+    promptParts.push(
+      '[TÀI LIỆU THAM KHẢO TỪ HỆ THỐNG FARMELY]\n' +
+      contextDocs.slice(0, 4).map((d, i) =>
+        `--- Tài liệu #${i + 1}: ${d.docTitle} (${d.source}) ---\n${String(d.content || '').slice(0, 950)}`
+      ).join('\n\n')
+    );
+  }
+  if (liveContext) {
+    promptParts.push('[DỮ LIỆU HỆ THỐNG FARMELY THỜI GIAN THỰC (POSTGRESQL)]\n' + liveContext);
+  }
+  if (intent?.isOverview) {
+    promptParts.push(
+      '[YÊU CẦU ĐỊNH DẠNG CÂU HỎI TỔNG QUAN]\n' +
+      'Trả lời SÚC TÍCH (khoảng 150–250 từ), giọng khách quan, trung lập, đúng 4 mục:\n' +
+      '1. **Farmely là gì?** — Giải thích bản chất sản phẩm.\n' +
+      '2. **Farmely hoạt động như thế nào?** — Quy trình tổng quan & làm rõ phối hợp Khách hàng – Chuyên gia nông nghiệp – Nhân viên hiện trường.\n' +
+      '3. **Công nghệ hỗ trợ ra sao?** — Vai trò cảm biến IoT, thời tiết/vi khí hậu, nhật ký điện tử và AI.\n' +
+      '4. **Người dùng nhận được gì?** — Giá trị thực tế & nhận nông sản tại nông trại (PICKUP).\n' +
+      'KHÔNG tự nêu tên nông trại cụ thể (như Happy Valley), mã thửa (như P-16), giá thuê, diện tích hay danh sách cây; KHÔNG viết kiểu quảng cáo hay mời chào mua hàng; kết thúc bằng một câu hỏi mở lịch sự để tiếp tục hội thoại.'
+    );
+  } else {
+    promptParts.push(
+      '[YÊU CẦU TRẢ LỜI]\n' +
+      'Trả lời trực tiếp vào trọng tâm, khách quan. Chỉ nêu số liệu thực tế (tên trang trại, mã thửa, diện tích, giá thuê, giống cây, quyền sở hữu, chứng nhận) khi có trong ngữ cảnh xác thực trên; nếu thông tin chưa được cung cấp thì nói rõ giới hạn thay vì suy diễn.'
+    );
+  }
+  promptParts.push('[CÂU HỎI CỦA KHÁCH HÀNG]\n' + message);
+
+  contents.push({ role: 'user', parts: [{ text: promptParts.join('\n\n') }] });
+  return contents;
+}
+
+async function callGeminiLlm({ message, history = [], contextDocs = [], liveContext = '', apiKey = '', intent = null }) {
+  const resolvedKey = apiKey || getGeminiApiKey();
+  if (!resolvedKey) return null;
+
+  const systemInstruction = getAiSystemInstruction();
+  const contents = buildGeminiContents({ message, history, contextDocs, liveContext, intent });
+  const preferredModel = process.env.LLM_MODEL || 'gemini-3.5-flash-lite';
+  const candidateModels = Array.from(new Set([preferredModel, 'gemini-3.5-flash-lite', 'gemini-3-flash-preview']));
+
+  for (const modelName of candidateModels) {
+    const res = await geminiApiRequest(
+      `/v1beta/models/${modelName}:generateContent?key=${resolvedKey}`,
+      {
+        system_instruction: { parts: [{ text: systemInstruction }] },
+        contents,
+        generationConfig: {
+          temperature: 0.25,
+          maxOutputTokens: 2048
+        }
+      },
+      15000
+    );
+    const reply = res?.status === 200
+      ? res?.data?.candidates?.[0]?.content?.parts?.[0]?.text
+      : null;
+    if (reply && reply.trim()) {
+      return reply.trim();
+    }
+  }
+  return null;
 }
 
 let siteVisitColumnsEnsured = false;
@@ -244,6 +707,18 @@ DELETE FROM template_steps WHERE step_name ILIKE '%Thiết lập thời gian cá
 UPDATE care_tasks SET notes = 'Bón thúc đợt 2 phân trùn quế quanh vùng rễ' WHERE notes LIKE '%Test auto assign Zone B%';
 UPDATE care_tasks SET notes = '[LÀM NGAY] Xử lý rệp sáp bùng phát mặt dưới lá - Pha chế phẩm sinh học thảo mộc tỏi ớt 1:200, phun đều 2 mặt lá sau 16:30.' WHERE task_id = 15;
 
+UPDATE template_steps
+SET description = REGEXP_REPLACE(description, E'\\s*(Minh chứng|Yêu cầu minh chứng)\\s*:.*$', '', 'gi')
+WHERE description ~* '(Minh chứng|Yêu cầu minh chứng)\\s*:';
+
+UPDATE care_tasks
+SET description = REGEXP_REPLACE(description, E'\\s*(Minh chứng|Yêu cầu minh chứng)\\s*:.*$', '', 'gi')
+WHERE description ~* '(Minh chứng|Yêu cầu minh chứng)\\s*:';
+
+UPDATE care_tasks
+SET notes = REGEXP_REPLACE(notes, E'\\s*(Minh chứng|Yêu cầu minh chứng)\\s*:.*$', '', 'gi')
+WHERE notes ~* '(Minh chứng|Yêu cầu minh chứng)\\s*:';
+
 -- Chuẩn hóa chỉ đạo chuyên gia cho sự cố
 UPDATE issue_reports 
 SET resolution_notes = 'Pha chế phẩm sinh học thảo mộc tỏi ớt 1:200, phun sương đều 2 mặt lá sau 16:30. Đã phát lệnh giao việc #TSK-15 cho CVLĐ.',
@@ -277,7 +752,7 @@ function loadRootEnv() {
     try {
       if (fs.existsSync(envPath)) {
         const content = fs.readFileSync(envPath, 'utf8');
-        content.split(/\r?\r\n/).forEach(line => {
+        content.split(/\r?\n/).forEach(line => {
           const trimmed = line.trim();
           if (trimmed && !trimmed.startsWith('#')) {
             const idx = trimmed.indexOf('=');
@@ -316,7 +791,7 @@ const PSQL_PATH = PSQL_CANDIDATES.find(p => {
 
 function getPgConfig() {
   const rawPort = process.env.PGPORT || process.env.DB_PORT || rootEnv.DB_PORT || '5432';
-  const port = (rawPort === '5433') ? '5432' : (rawPort || '5432');
+  const port = rawPort || '5432';
   return {
     host: '127.0.0.1',
     port: port,
@@ -336,28 +811,55 @@ function invalidatePlotsCache() {
 }
 
 let pgPool = null;
+let resolvedPgPort = null;
 
-function getPgPool() {
-  const cfg = getPgConfig();
-  const targetPort = parseInt(String(cfg.port), 10) || 5432;
-  if (pgPool && pgPool.options && pgPool.options.port === targetPort) return pgPool;
-  if (pgPool) {
-    try { pgPool.end(); } catch {}
-    pgPool = null;
-  }
-  pgPool = new Pool({
+function createPoolForPort(cfg, portNum) {
+  const pool = new Pool({
     host: cfg.host,
-    port: targetPort,
+    port: portNum,
     user: cfg.user,
     password: String(cfg.password),
     database: cfg.database,
     max: 10,
     idleTimeoutMillis: 30000
   });
-  pgPool.on('error', (err) => {
+  pool.on('error', (err) => {
     console.warn('[PostgreSQL Pool] Warning:', err.message);
   });
-  return pgPool;
+  return pool;
+}
+
+async function withPoolFallback(method, args) {
+  const cfg = getPgConfig();
+  const preferredPort = resolvedPgPort || parseInt(String(cfg.port), 10) || 5432;
+  const candidatePorts = Array.from(new Set([preferredPort, 5432, 5433]));
+  let lastErr = null;
+  for (const portNum of candidatePorts) {
+    if (!pgPool || pgPool.options?.port !== portNum) {
+      if (pgPool) {
+        try { await pgPool.end(); } catch {}
+        pgPool = null;
+      }
+      pgPool = createPoolForPort(cfg, portNum);
+    }
+    try {
+      const res = await pgPool[method](...args);
+      resolvedPgPort = portNum;
+      return res;
+    } catch (err) {
+      lastErr = err;
+      const isConnRefused = err?.code === 'ECONNREFUSED' || /ECONNREFUSED/i.test(err?.message || '');
+      if (!isConnRefused) throw err;
+    }
+  }
+  throw lastErr;
+}
+
+function getPgPool() {
+  return {
+    query: (...args) => withPoolFallback('query', args),
+    connect: (...args) => withPoolFallback('connect', args)
+  };
 }
 
 async function runPostgreSqlAttempt(cfg, sqlQuery, params = []) {
@@ -633,13 +1135,54 @@ JOIN plots p ON ins.plot_id = p.plot_id;
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
 
-        const demoTimeMatch = url.match(/^\/api\/(rentals|plots)\/(\d+)\/simulate-time(?:\?.*)?$/);
+        const mediaMatch = url.match(/^\/api\/media\/(care-task|farm-diary|harvest|issue)\/(\d+)(?:\?.*)?$/);
+        if (mediaMatch && req.method === 'GET') {
+          try {
+            const kind = mediaMatch[1];
+            const mediaId = Number(mediaMatch[2]);
+            const mediaQuery = kind === 'care-task'
+              ? 'SELECT evidence_image_url AS media FROM care_tasks WHERE task_id = $1'
+              : kind === 'farm-diary'
+                ? 'SELECT image_url AS media FROM farm_diaries WHERE diary_id = $1'
+                : kind === 'harvest'
+                  ? 'SELECT evidence_image_url AS media FROM harvest_results WHERE harvest_id = $1'
+                  : 'SELECT image_url AS media FROM issue_reports WHERE issue_id = $1';
+            const mediaRes = await getPgPool().query(mediaQuery, [mediaId]);
+            const rawMedia = mediaRes.rows[0]?.media;
+            if (!rawMedia) {
+              res.statusCode = 404;
+              res.end('Not found');
+              return;
+            }
+            if (rawMedia.startsWith('data:')) {
+              const match = rawMedia.match(/^data:([^;]+);base64,(.+)$/s);
+              if (match) {
+                const buf = Buffer.from(match[2], 'base64');
+                res.statusCode = 200;
+                res.setHeader('Content-Type', match[1] || 'image/jpeg');
+                res.setHeader('Cache-Control', 'public, max-age=86400');
+                res.end(buf);
+                return;
+              }
+            }
+            res.statusCode = 302;
+            res.setHeader('Location', rawMedia);
+            res.end();
+          } catch (mediaErr) {
+            res.statusCode = 500;
+            res.end(String(mediaErr.message || mediaErr));
+          }
+          return;
+        }
+
+        const demoTimeMatch = url.match(/^\/api\/(?:v1\/)?(rentals|plots)\/(\d+)\/simulate-time(?:\?.*)?$/);
         if (demoTimeMatch && ['GET', 'POST'].includes(req.method)) {
           try {
             let rentalId = Number(demoTimeMatch[2]);
             if (demoTimeMatch[1] === 'plots') {
               const lookup = await getPgPool().query(`
-                SELECT rental_id FROM rentals WHERE plot_id = $1 AND status = 'ACTIVE'
+                SELECT rental_id FROM rentals
+                WHERE plot_id = $1 AND status::text IN ('ACTIVE', 'CONFIRMED', 'RENTED', 'IN_PROGRESS', 'PENDING')
                 ORDER BY rental_id DESC LIMIT 1
               `, [rentalId]);
               rentalId = lookup.rows[0]?.rental_id;
@@ -655,6 +1198,9 @@ JOIN plots p ON ins.plot_id = p.plot_id;
             const data = req.method === 'POST'
               ? await simulateDemoTime(getPgPool(), rentalId, payload)
               : await getDemoTime(getPgPool(), rentalId);
+            if (req.method === 'POST') {
+              invalidatePlotsCache();
+            }
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ success: true, data }));
           } catch (error) {
@@ -673,9 +1219,32 @@ JOIN plots p ON ins.plot_id = p.plot_id;
               req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch (error) { reject(error); } });
             });
             const data = await recordHarvestOnce(getPgPool(), payload);
+            invalidatePlotsCache();
+            let createdNotification = null;
+            if (!data.alreadyRecorded) {
+              try {
+                const notifRes = await getPgPool().query(`
+                  INSERT INTO notifications (user_id, title, content, is_read, created_at)
+                  SELECT
+                    c.renter_id,
+                    '🌾 Đã thu hoạch tại thửa ' || COALESCE(p.plot_code, ''),
+                    'Nhân viên đã hoàn tất thu hoạch tại thửa ' || COALESCE(p.plot_code, '') || ' với sản lượng ' || $2 || ' kg và cập nhật biên bản đối chứng.',
+                    false,
+                    NOW()
+                  FROM rentals r
+                  JOIN plots p ON r.plot_id = p.plot_id
+                  JOIN contracts c ON r.contract_id = c.contract_id
+                  WHERE r.rental_id = $1
+                  RETURNING notification_id AS "notificationId", user_id AS "userId", title, content, is_read AS "isRead", created_at AS "createdAt"
+                `, [data.rentalId, data.yieldAmount]);
+                createdNotification = notifRes.rows[0] || null;
+              } catch (notifErr) {
+                console.warn('[Harvest Notification] Warning:', notifErr.message);
+              }
+            }
             res.statusCode = data.alreadyRecorded ? 200 : 201;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(JSON.stringify({ success: true, data }));
+            res.end(JSON.stringify({ success: true, data: { ...data, notification: createdNotification } }));
           } catch (error) {
             res.statusCode = /thay đổi/.test(error.message) ? 409 : 400;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -737,6 +1306,7 @@ Write-Output $result
         // 0.2 GET /api/v1/master-data/summary or GET /api/master-data/summary
         if (req.method === 'GET' && (url === '/api/v1/master-data/summary' || url === '/api/master-data/summary' || url === '/api/admin/master-data/summary')) {
           try {
+            await syncPlotMaintenanceStatuses(getPgPool());
             const sql = `
 SELECT json_build_object(
   'success', true,
@@ -862,6 +1432,7 @@ SELECT json_build_object(
         // 0.3 GET /api/admin/analytics or /api/v1/admin/analytics (SCR-AD-01: Thống Kê Tổng Hợp Doanh Thu & Vận Hành)
         if (req.method === 'GET' && (url === '/api/admin/analytics' || url === '/api/v1/admin/analytics' || url.startsWith('/api/admin/analytics?') || url.startsWith('/api/v1/admin/analytics?'))) {
           try {
+            await syncPlotMaintenanceStatuses(getPgPool());
             const sql = `
 SELECT json_build_object(
   'success', true,
@@ -1110,53 +1681,56 @@ BEGIN
     VALUES (v_cid, 'PAYMENT', ${totalAmount}, '${paymentMethod}', '${gatewayRef}', 'SUCCESS', NOW());
 
     -- TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP (CHỈ CHO THỬA HỖ TRỢ TRỌN GÓI - ASSISTED)
-    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
     SELECT 
         r.rental_id,
         ts.step_id,
-        8, -- Kỹ thuật viên Trần Văn Lực (CVLĐ)
+        COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8),
         r.start_date + (ts.day_offset || ' days')::interval,
         CASE WHEN ts.step_order = 1 AND r.start_date <= CURRENT_DATE THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+        ts.step_name,
         ts.step_name || ' - ' || ts.description,
+        COALESCE(ts.step_order, 1),
         NOW(),
         NOW()
     FROM rentals r
-    JOIN process_templates pt ON pt.variety_id = r.variety_id
+    JOIN (SELECT DISTINCT ON (variety_id) template_id, variety_id FROM process_templates ORDER BY variety_id, template_id DESC) pt ON pt.variety_id = r.variety_id
     JOIN template_steps ts ON pt.template_id = ts.template_id
     WHERE r.contract_id = v_cid
       AND r.cultivation_mode = 'ASSISTED'
-      AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id)
-    ORDER BY ts.step_order;
+      AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND ct.step_id IS NOT NULL)
+    ORDER BY COALESCE(ts.step_order, 1), ts.day_offset, ts.step_id;
 
-    -- TỰ ĐỘNG KHỞI TẠO BẢN GHI NHẬT KÝ NÔNG TRẠI (FARM DIARY) (CHỈ CHO THỬA HỖ TRỢ TRỌN GÓI - ASSISTED)
-    INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
+    -- TỰ ĐỘNG GIAO NHIỆM VỤ KHỞI TẠO & BÀN GIAO THỬA ĐẤT CHO STAFF (TRẠNG THÁI CHỜ LÀM HÔM NAY, KHÔNG TỰ HOÀN TẤT)
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
     SELECT 
         r.rental_id,
-        'Khởi tạo và bàn giao thửa đất cho mùa vụ mới. Đã hoàn tất làm đất, xử lý phơi ải, bón lót phân trùn quế và kiểm tra trạm IoT vi sinh theo quy trình VietGAP cho giống ' || COALESCE(v.variety_name, 'cây trồng') || '.',
-        COALESCE(p.image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80'),
+        NULL,
+        COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8),
+        CURRENT_DATE,
+        'PENDING'::task_status_enum,
+        'Khởi tạo và bàn giao thửa đất cho mùa vụ mới',
+        'Thực hiện làm đất, xử lý phơi ải, bón lót phân trùn quế và kiểm tra trạm IoT vi sinh theo quy trình VietGAP cho giống ' || COALESCE(v.variety_name, 'cây trồng') || '.',
+        0,
+        NOW(),
         NOW()
     FROM rentals r
-    JOIN plots p ON r.plot_id = p.plot_id
     LEFT JOIN varieties v ON r.variety_id = v.variety_id
     WHERE r.contract_id = v_cid
-      AND r.cultivation_mode = 'ASSISTED'
-      AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.rental_id = r.rental_id);
+      AND COALESCE(r.cultivation_mode, 'ASSISTED') <> 'SELF'
+      AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND COALESCE(ct.step_order, 1) = 0);
 
-    -- TỰ ĐỘNG KHỞI TẠO HỒ SƠ THU HOẠCH & NGHIỆM THU
-    INSERT INTO harvest_results (rental_id, entered_by, harvest_date, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at)
-    SELECT 
-        r.rental_id,
-        8,
-        r.start_date + 65 * INTERVAL '1 day',
-        ROUND(COALESCE(p.area * 0.3, 35.0)::numeric, 1),
-        'https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80',
-        'DELIVERY',
+    INSERT INTO notifications (user_id, title, content, is_read, created_at)
+    SELECT
+        COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8),
+        '🌱 Phân công phụ trách thửa đất mới (' || p.plot_code || ')',
+        'Khách hàng vừa thuê thửa ' || p.plot_code || '. Vui lòng thực hiện nhiệm vụ khởi tạo và bàn giao thửa đất cho mùa vụ mới.',
         false,
         NOW()
     FROM rentals r
     JOIN plots p ON r.plot_id = p.plot_id
     WHERE r.contract_id = v_cid
-      AND NOT EXISTS (SELECT 1 FROM harvest_results hr WHERE hr.rental_id = r.rental_id);
+      AND COALESCE(r.cultivation_mode, 'ASSISTED') <> 'SELF';
 END $$;
 `;
                 } else {
@@ -1241,9 +1815,9 @@ BEGIN
         SELECT 
             v_rental_id,
             ts.step_id,
-            v_staff_id,
-            DATE '${itemCultivationDate}' + (ts.day_offset || ' days')::INTERVAL,
-            CASE WHEN DATE '${itemCultivationDate}' <= CURRENT_DATE AND (COALESCE(ts.day_offset, 0) = 0 OR COALESCE(ts.step_order, 1) = 1) THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
+            fn_resolve_staff_for_plot(v_plot_id),
+            DATE '${startDate}' + (ts.day_offset || ' days')::INTERVAL,
+            CASE WHEN DATE '${startDate}' <= CURRENT_DATE AND (COALESCE(ts.day_offset, 0) = 0 OR COALESCE(ts.step_order, 1) = 1) THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
             ts.step_name,
             ts.description || ' (Vật tư: ' || COALESCE(ts.materials_needed, 'Theo quy chuẩn VietGAP') || ')',
             COALESCE(ts.step_order, 1),
@@ -1252,49 +1826,40 @@ BEGIN
         FROM template_steps ts
         WHERE ts.template_id = (SELECT pt.template_id FROM process_templates pt WHERE pt.variety_id = ${varietyId} ORDER BY pt.template_id DESC LIMIT 1)
         ORDER BY ts.day_offset;
+
+        INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
+        SELECT
+            v_rental_id,
+            NULL,
+            fn_resolve_staff_for_plot(v_plot_id),
+            CURRENT_DATE,
+            'PENDING'::task_status_enum,
+            'Khởi tạo và bàn giao thửa đất cho mùa vụ mới',
+            'Thực hiện làm đất, xử lý phơi ải, bón lót phân trùn quế và kiểm tra trạm IoT vi sinh theo quy trình VietGAP cho giống ' || COALESCE(v.variety_name, 'cây trồng') || '.',
+            0,
+            NOW(),
+            NOW()
+        FROM varieties v WHERE v.variety_id = ${varietyId};
     END IF;
 
     -- Tự động mở kênh chat CUST_EXP (chống tạo trùng lặp kênh chat cho cùng một khách hàng và chuyên gia)
     IF NOT EXISTS (
         SELECT 1 FROM conversations 
-        WHERE participant_one = v_renter_id 
+        WHERE participant_one = v_user_id 
           AND participant_two = fn_resolve_expert_for_variety(${varietyId}) 
           AND type = 'CUST_EXP'
     ) THEN
         INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
-        VALUES (v_renter_id, fn_resolve_expert_for_variety(${varietyId}), v_rental_id, v_plot_id, 'CUST_EXP', 'OPEN', NOW());
+        VALUES (v_user_id, fn_resolve_expert_for_variety(${varietyId}), v_rental_id, v_plot_id, 'CUST_EXP', 'OPEN', NOW());
     ELSE
         UPDATE conversations 
         SET rental_id = v_rental_id, plot_id = v_plot_id
-        WHERE participant_one = v_renter_id 
+        WHERE participant_one = v_user_id 
           AND participant_two = fn_resolve_expert_for_variety(${varietyId}) 
           AND type = 'CUST_EXP';
     END IF;
 
-      -- 2. TỰ ĐỘNG KHỞI TẠO BẢN GHI NHẬT KÝ NÔNG TRẠI (FARM DIARY)
-      INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
-      SELECT 
-          v_rental_id,
-          'Khởi tạo và bàn giao thửa đất cho mùa vụ mới. Đã hoàn tất làm đất, xử lý phơi ải, bón lót phân trùn quế và kiểm tra trạm IoT vi sinh theo quy trình VietGAP cho giống ' || COALESCE(v.variety_name, 'cây trồng') || '.',
-          COALESCE((SELECT image_url FROM plots WHERE plot_id = v_plot_id), 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80'),
-          NOW()
-      FROM varieties v WHERE v.variety_id = ${varietyId};
-    END IF;
-
-    -- 3. TỰ ĐỘNG KHỞI TẠO HỒ SƠ THU HOẠCH & BÀN GIAO (HARVEST RESULTS)
-    INSERT INTO harvest_results (rental_id, entered_by, harvest_date, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at)
-    VALUES (
-        v_rental_id,
-        8,
-        '${startDate}'::date + COALESCE((SELECT MAX(day_offset + duration_days) FROM template_steps ts JOIN process_templates pt ON ts.template_id = pt.template_id WHERE pt.variety_id = ${varietyId}), 65) * INTERVAL '1 day',
-        ROUND(COALESCE((SELECT area * 0.3 FROM plots WHERE plot_id = v_plot_id), 35.0)::numeric, 1),
-        'https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80',
-        'DELIVERY',
-        false,
-        NOW()
-    );
-
-    -- 4. TỰ ĐỘNG KHỞI TẠO DỮ LIỆU CẢM BIẾN IOT NẾU THỬA CHƯA CÓ
+    -- 3. KHỞI TẠO DỮ LIỆU CẢM BIẾN IOT NẾU THỬA CHƯA CÓ (KHÔNG tạo harvest_results giả tại thời điểm đặt thuê)
     INSERT INTO sensor_readings (plot_id, temperature, air_humidity, soil_humidity, recorded_at)
     SELECT v_plot_id, 28.5, 74.0, 68.0, NOW()
     WHERE NOT EXISTS (SELECT 1 FROM sensor_readings WHERE plot_id = v_plot_id);
@@ -1814,10 +2379,11 @@ SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json) FROM (
     rr.contract_id AS "contractId",
     COALESCE(c.contract_number, 'HĐ-CTR-' || COALESCE(rr.contract_id, rr.rental_id, 1)) AS "contractNumber",
     COALESCE(c.contract_number, 'HĐ-CTR-' || COALESCE(rr.contract_id, rr.rental_id, 1)) AS "contractCode",
-    COALESCE(rr.plot_code, 'P-05') AS "plotCode",
-    COALESCE(rr.customer_name, u.full_name, 'Tạ Nguyễn Khôi Nguyên') AS "customerName",
-    COALESCE(rr.customer_phone, u.phone_number, '0912345678') AS "customerPhone",
-    COALESCE(rr.variety_name, 'Dưa leo baby F1') AS "varietyName",
+    REPLACE(COALESCE(rr.plot_code, ''), ' ', '') AS "plotCode",
+    COALESCE(NULLIF(rr.customer_name, ''), u.full_name, '') AS "customerName",
+    COALESCE(NULLIF(rr.customer_phone, ''), u.phone_number, '') AS "customerPhone",
+    rr.new_variety_id AS "newVarietyId",
+    COALESCE(rr.variety_name, '') AS "varietyName",
     COALESCE(rr.cultivation_mode, 'ASSISTED') AS "cultivationMode",
     COALESCE(rr.seasons_count, 1) AS "seasonsCount",
     COALESCE(rr.season_number, 2) AS "seasonNumber",
@@ -1852,32 +2418,91 @@ SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json) FROM (
               await ensureRentalLeaseColumns();
               const body = Buffer.concat(chunks).toString('utf8');
               const payload = JSON.parse(body || '{}');
-              const rentalId = parseInt(payload.rentalId || 2, 10);
-              const contractId = parseInt(payload.contractId || rentalId, 10);
-              const plotCode = String(payload.plotCode || 'P-05').replace(/'/g, "''");
-              const customerName = String(payload.customerName || 'Tạ Nguyễn Khôi Nguyên').replace(/'/g, "''");
-              const customerPhone = String(payload.customerPhone || '0912345678').replace(/'/g, "''");
+              const rentalId = parseInt(payload.rentalId || 0, 10);
+              if (!rentalId || Number.isNaN(rentalId)) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Thiếu mã lượt thuê hợp lệ để gia hạn.' }));
+                return;
+              }
+              const payloadContractId = payload.contractId ? parseInt(payload.contractId, 10) : null;
+              const rawPlotCode = String(payload.plotCode || '').replace(/\s+/g, '').replace(/'/g, "''");
+              const rawCustomerName = String(payload.customerName || '').trim().replace(/'/g, "''");
+              const rawCustomerPhone = String(payload.customerPhone || '').trim().replace(/'/g, "''");
               const newVarietyId = parseInt(payload.newVarietyId || 2, 10);
-              const varietyName = String(payload.varietyName || 'Dưa leo baby F1').replace(/'/g, "''");
+              const rawVarietyName = String(payload.varietyName || '').trim().replace(/'/g, "''");
               const cultivationMode = String(payload.cultivationMode || 'ASSISTED').replace(/'/g, "''");
               const seasonsCount = parseInt(payload.selectedSeasonsCount || payload.seasonsCount || 1, 10);
               const seasonNumber = parseInt(payload.newSeasonNumber || payload.seasonNumber || 2, 10);
-              const additionalAmount = parseFloat(payload.totalAmount || payload.additionalAmount || 1200000);
+              const additionalAmount = parseFloat(payload.totalAmount || payload.additionalAmount || 0);
               const newEndDate = String(payload.newEndDate || '').replace(/'/g, "''");
+              const gatewayRef = String(payload.gatewayRef || '').trim().replace(/'/g, "''");
 
               const insertSql = `
-INSERT INTO renewal_requests
-  (rental_id, contract_id, plot_code, customer_name, customer_phone, new_variety_id, variety_name, cultivation_mode, seasons_count, season_number, additional_amount, new_end_date, status, payment_status, created_at)
-VALUES
-  (${rentalId}, ${contractId}, '${plotCode}', '${customerName}', '${customerPhone}', ${newVarietyId}, '${varietyName}', '${cultivationMode}', ${seasonsCount}, ${seasonNumber}, ${additionalAmount}, NULLIF('${newEndDate}', '')::date, 'PENDING', 'PAID', NOW())
-RETURNING id;
+WITH ctx AS (
+  SELECT
+    r.rental_id,
+    r.contract_id,
+    REPLACE(COALESCE(p.plot_code, ''), ' ', '') AS db_plot_code,
+    COALESCE(u.full_name, '') AS db_customer_name,
+    COALESCE(u.phone_number, '') AS db_customer_phone,
+    COALESCE(v.variety_name, '') AS db_variety_name,
+    COALESCE(p.price_per_period, 1200000) AS db_price_per_period
+  FROM rentals r
+  LEFT JOIN plots p ON r.plot_id = p.plot_id
+  LEFT JOIN contracts c ON r.contract_id = c.contract_id
+  LEFT JOIN users u ON c.renter_id = u.user_id
+  LEFT JOIN varieties v ON v.variety_id = ${newVarietyId}
+  WHERE r.rental_id = ${rentalId}
+  LIMIT 1
+),
+ins AS (
+  INSERT INTO renewal_requests
+    (rental_id, contract_id, plot_code, customer_name, customer_phone, new_variety_id, variety_name, cultivation_mode, seasons_count, season_number, additional_amount, new_end_date, status, payment_status, created_at)
+  SELECT
+    ${rentalId},
+    COALESCE(${payloadContractId || 'NULL'}, ctx.contract_id, ${rentalId}),
+    COALESCE(NULLIF('${rawPlotCode}', ''), NULLIF(ctx.db_plot_code, ''), ''),
+    COALESCE(NULLIF('${rawCustomerName}', ''), NULLIF(ctx.db_customer_name, ''), 'Khách hàng Farmely'),
+    COALESCE(NULLIF('${rawCustomerPhone}', ''), NULLIF(ctx.db_customer_phone, ''), ''),
+    ${newVarietyId},
+    COALESCE(NULLIF('${rawVarietyName}', ''), NULLIF(ctx.db_variety_name, ''), 'Giống VietGAP'),
+    '${cultivationMode}',
+    ${seasonsCount},
+    ${seasonNumber},
+    CASE WHEN ${additionalAmount} > 0 THEN ${additionalAmount} ELSE COALESCE(ctx.db_price_per_period, 1200000) * ${seasonsCount} END,
+    NULLIF('${newEndDate}', '')::date,
+    'PENDING',
+    'PAID',
+    NOW()
+  FROM (SELECT 1) _dummy
+  LEFT JOIN ctx ON true
+  RETURNING id, contract_id, plot_code, variety_name, additional_amount
+)
+SELECT row_to_json(ins) FROM ins;
 `;
-              await runPostgreSql(insertSql);
+              const insJson = await runPostgreSql(insertSql);
+              const inserted = JSON.parse(insJson || '{}');
+              if (gatewayRef && inserted?.contract_id) {
+                try {
+                  await runPostgreSql(`
+                    INSERT INTO payment_transactions (contract_id, type, amount, payment_method, gateway_ref, status, created_at)
+                    SELECT ${inserted.contract_id}, 'PAYMENT', ${Number(inserted.additional_amount || additionalAmount || 0)}, 'VNPAY', '${gatewayRef}', 'SUCCESS', NOW()
+                    WHERE NOT EXISTS (SELECT 1 FROM payment_transactions WHERE gateway_ref = '${gatewayRef}');
+                  `);
+                } catch {}
+              }
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
                 message: 'Yêu cầu gia hạn hợp đồng vụ mùa đã được gửi đến Ban Quản Trị để phê duyệt (BR11b)',
-                data: { rentalId, plotCode, varietyName, status: 'PENDING' }
+                data: {
+                  id: inserted?.id,
+                  rentalId,
+                  plotCode: inserted?.plot_code || rawPlotCode,
+                  varietyName: inserted?.variety_name || rawVarietyName,
+                  status: 'PENDING'
+                }
               }));
             } catch (err) {
               console.error('Error on POST /api/contracts/renewals:', err);
@@ -1904,37 +2529,46 @@ DECLARE
 BEGIN
   SELECT * INTO v_req FROM renewal_requests WHERE id = ${renewalId};
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'Yêu cầu gia hạn không tồn tại hoặc đã được phê duyệt';
+    RAISE EXCEPTION 'Yêu cầu gia hạn không tồn tại';
+  END IF;
+  IF v_req.status = 'APPROVED' THEN
+    RAISE EXCEPTION 'Yêu cầu gia hạn #% đã được phê duyệt trước đó', ${renewalId};
   END IF;
 
   UPDATE renewal_requests
   SET status = 'APPROVED', approved_by = 1, updated_at = NOW()
   WHERE id = ${renewalId};
 
-  -- Tự động gia hạn rental và cập nhật tổng tiền
+  -- Tự động gia hạn rental và cập nhật tổng tiền 1 lần duy nhất
   IF v_req.rental_id IS NOT NULL THEN
     v_new_end := COALESCE(v_req.new_end_date, CURRENT_DATE + INTERVAL '45 days');
     UPDATE rentals
     SET
       end_date = COALESCE(GREATEST(end_date, v_new_end), end_date + INTERVAL '40 days'),
-      total_price = COALESCE(total_price, 0) + COALESCE(v_req.additional_amount, 1200000),
+      total_price = COALESCE(total_price, 0) + COALESCE(v_req.additional_amount, 0),
       variety_id = COALESCE(v_req.new_variety_id, variety_id),
+      cultivation_mode = COALESCE(NULLIF(v_req.cultivation_mode, ''), cultivation_mode),
+      expert_id = COALESCE(fn_resolve_expert_for_variety(v_req.new_variety_id), expert_id),
       updated_at = NOW()
     WHERE rental_id = v_req.rental_id;
 
+    UPDATE contracts
+    SET
+      total_amount = COALESCE(total_amount, 0) + COALESCE(v_req.additional_amount, 0),
+      updated_at = NOW()
+    WHERE contract_id = COALESCE(v_req.contract_id, (SELECT contract_id FROM rentals WHERE rental_id = v_req.rental_id));
+
     -- Tự động sinh bộ Care Tasks cho Vụ mới chuẩn VietGAP (bắt đầu sau 4 ngày bảo trì BR23)
+    -- Bảo lưu harvest_results & farm_diaries lịch sử của vụ trước, chỉ làm mới task chưa hoàn thành.
     IF COALESCE(v_req.cultivation_mode, 'ASSISTED') <> 'SELF' THEN
       v_season_start := CURRENT_DATE + INTERVAL '4 days';
-      -- Dọn sạch care_tasks và farm_diaries cũ của vụ trước để vụ mùa mới bắt đầu hoàn toàn mới (100% PENDING)
-      DELETE FROM care_tasks WHERE rental_id = v_req.rental_id;
-      DELETE FROM farm_diaries WHERE rental_id = v_req.rental_id;
-      DELETE FROM harvest_results WHERE rental_id = v_req.rental_id;
+      DELETE FROM care_tasks WHERE rental_id = v_req.rental_id AND status <> 'DONE'::task_status_enum;
 
       INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
       SELECT
         v_req.rental_id,
         ts.step_id,
-        8, -- Trần Văn Lực (CVLĐ)
+        COALESCE((SELECT staff_id FROM rentals WHERE rental_id = v_req.rental_id), 8),
         (v_season_start + (ts.day_offset || ' days')::INTERVAL)::date,
         'PENDING'::task_status_enum,
         ts.step_name,
@@ -2267,7 +2901,7 @@ BEGIN
     SELECT 
         r.rental_id,
         ts.step_id,
-        r.staff_id,
+        COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8),
         r.start_date + (ts.day_offset || ' days')::interval,
         CASE WHEN r.start_date <= CURRENT_DATE AND (COALESCE(ts.day_offset, 0) = 0 OR COALESCE(ts.step_order, 1) = 1) THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
         ts.step_name,
@@ -2280,8 +2914,39 @@ BEGIN
     JOIN template_steps ts ON pt.template_id = ts.template_id
     WHERE r.contract_id = ${contractId}
       AND COALESCE(r.cultivation_mode, 'ASSISTED') <> 'SELF'
-      AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id)
+      AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND ct.step_id IS NOT NULL)
     ORDER BY COALESCE(ts.step_order, 1), ts.day_offset, ts.step_id;
+
+    -- Giao nhiệm vụ khởi tạo và bàn giao thửa đất cho Staff làm ngay hôm nay (trạng thái PENDING, KHÔNG tự đánh dấu hoàn thành)
+    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, title, notes, step_order, created_at, updated_at)
+    SELECT 
+        r.rental_id,
+        NULL,
+        COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8),
+        CURRENT_DATE,
+        'PENDING'::task_status_enum,
+        'Khởi tạo và bàn giao thửa đất cho mùa vụ mới',
+        'Thực hiện làm đất, xử lý phơi ải, bón lót phân trùn quế và kiểm tra trạm IoT vi sinh theo quy trình VietGAP cho giống ' || COALESCE(v.variety_name, 'cây trồng') || '.',
+        0,
+        NOW(),
+        NOW()
+    FROM rentals r
+    LEFT JOIN varieties v ON r.variety_id = v.variety_id
+    WHERE r.contract_id = ${contractId}
+      AND COALESCE(r.cultivation_mode, 'ASSISTED') <> 'SELF'
+      AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id AND COALESCE(ct.step_order, 1) = 0);
+
+    INSERT INTO notifications (user_id, title, content, is_read, created_at)
+    SELECT
+        COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8),
+        '🌱 Phân công phụ trách thửa đất mới (' || p.plot_code || ')',
+        'Khách hàng vừa thuê thửa ' || p.plot_code || '. Vui lòng thực hiện nhiệm vụ khởi tạo và bàn giao thửa đất cho mùa vụ mới.',
+        false,
+        NOW()
+    FROM rentals r
+    JOIN plots p ON r.plot_id = p.plot_id
+    WHERE r.contract_id = ${contractId}
+      AND COALESCE(r.cultivation_mode, 'ASSISTED') <> 'SELF';
 
     -- Tự động mở kênh chat CUST_EXP (chống tạo trùng lặp)
     INSERT INTO conversations (participant_one, participant_two, rental_id, plot_id, type, status, created_at)
@@ -2298,56 +2963,6 @@ BEGIN
     SELECT contract_id, 'PAYMENT', total_amount, 'VNPAY', 'VNP-' || TO_CHAR(NOW(), 'YYYYMMDDHH24MISS'), 'SUCCESS', NOW()
     FROM contracts WHERE contract_id = v_cid
       AND NOT EXISTS (SELECT 1 FROM payment_transactions pt WHERE pt.contract_id = v_cid AND pt.status = 'SUCCESS');
-
-    -- TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP NẾU CHƯA CÓ
-    -- TỰ ĐỘNG SINH CÔNG VIỆC CANH TÁC (CARE TASKS) THEO QUY TRÌNH VIETGAP (CHỈ CHO THỬA HỖ TRỢ TRỌN GÓI - ASSISTED)
-    INSERT INTO care_tasks (rental_id, step_id, task_assigned_to, due_date, status, notes, created_at, updated_at)
-    SELECT 
-        r.rental_id,
-        ts.step_id,
-        8, -- Kỹ thuật viên Trần Văn Lực (CVLĐ)
-        CURRENT_DATE + (ts.day_offset || ' days')::interval,
-        CASE WHEN ts.step_order = 1 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
-        ts.step_name || ' - ' || ts.description,
-        NOW(),
-        NOW()
-    FROM rentals r
-    JOIN process_templates pt ON pt.variety_id = r.variety_id
-    JOIN template_steps ts ON pt.template_id = ts.template_id
-    WHERE r.contract_id = v_cid
-      AND r.cultivation_mode = 'ASSISTED'
-      AND NOT EXISTS (SELECT 1 FROM care_tasks ct WHERE ct.rental_id = r.rental_id)
-    ORDER BY ts.step_order;
-
-    -- TỰ ĐỘNG KHỞI TẠO BẢN GHI NHẬT KÝ NÔNG TRẠI (FARM DIARY) (CHỈ CHO THỬA HỖ TRỢ TRỌN GÓI - ASSISTED)
-    INSERT INTO farm_diaries (rental_id, content, image_url, created_at)
-    SELECT 
-        r.rental_id,
-        'Khởi tạo và bàn giao thửa đất cho mùa vụ mới. Đã hoàn tất làm đất, xử lý phơi ải, bón lót phân trùn quế và kiểm tra trạm IoT vi sinh theo quy trình VietGAP cho giống ' || COALESCE(v.variety_name, 'cây trồng') || '.',
-        COALESCE(p.image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80'),
-        NOW()
-    FROM rentals r
-    JOIN plots p ON r.plot_id = p.plot_id
-    LEFT JOIN varieties v ON r.variety_id = v.variety_id
-    WHERE r.contract_id = v_cid
-      AND r.cultivation_mode = 'ASSISTED'
-      AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.rental_id = r.rental_id);
-
-    -- TỰ ĐỘNG KHỞI TẠO HỒ SƠ THU HOẠCH & NGHIỆM THU
-    INSERT INTO harvest_results (rental_id, entered_by, harvest_date, yield_amount, evidence_image_url, delivery_type, customer_confirmed, created_at)
-    SELECT 
-        r.rental_id,
-        8,
-        CURRENT_DATE + 65 * INTERVAL '1 day',
-        ROUND(COALESCE(p.area * 0.3, 35.0)::numeric, 1),
-        'https://images.unsplash.com/photo-1592417817098-8f3d69103632?auto=format&fit=crop&w=800&q=80',
-        'DELIVERY',
-        false,
-        NOW()
-    FROM rentals r
-    JOIN plots p ON r.plot_id = p.plot_id
-    WHERE r.contract_id = v_cid
-      AND NOT EXISTS (SELECT 1 FROM harvest_results hr WHERE hr.rental_id = r.rental_id);
 END $$;
 `;
             await runPostgreSql(activateSql);
@@ -2854,6 +3469,8 @@ VALUES (
               return;
             }
 
+            await ensureHarvestDemoSchema(getPgPool());
+
             const sql = `
 SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
   SELECT 
@@ -2882,6 +3499,7 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
       LIMIT 1
     ), 'Chăm sóc sinh trưởng VietGAP') AS stage,
     CASE 
+      WHEN ds.current_day IS NOT NULL THEN ds.current_day
       WHEN CURRENT_DATE < r.start_date THEN 0
       ELSE (CURRENT_DATE - r.start_date) + 1
     END AS "currentDay",
@@ -2889,6 +3507,7 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
     COALESCE(v.expected_duration, GREATEST(1, r.end_date - r.start_date)) AS "cycleDays",
     GREATEST(1, r.end_date - r.start_date) AS "termDays",
     CASE
+      WHEN ds.current_day IS NOT NULL THEN LEAST(100, GREATEST(1, ROUND((ds.current_day::numeric / GREATEST(1, COALESCE(v.expected_duration, r.end_date - r.start_date))::numeric) * 100)))
       WHEN CURRENT_DATE < r.start_date THEN 0
       ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - r.start_date + 1)::numeric / GREATEST(1, COALESCE(v.expected_duration, r.end_date - r.start_date))::numeric) * 100)))
     END AS "progressPercent",
@@ -2935,6 +3554,13 @@ SELECT COALESCE(json_agg(row_to_json(p_row)), '[]'::json) FROM (
   JOIN lands l ON p.land_id = l.land_id
   LEFT JOIN varieties v ON r.variety_id = v.variety_id
   LEFT JOIN services s ON r.service_id = s.service_id
+  LEFT JOIN LATERAL (
+    SELECT current_day
+    FROM demo_cultivation_state
+    WHERE rental_id = r.rental_id AND is_active
+    ORDER BY updated_at DESC
+    LIMIT 1
+  ) ds ON true
   WHERE ${userClause} AND r.parent_rental_id IS NULL
   ORDER BY 
     CASE WHEN c.status = 'ACTIVE' OR r.status = 'ACTIVE' THEN 0 ELSE 1 END ASC,
@@ -3021,12 +3647,12 @@ SELECT json_build_object(
         ts.step_id AS "stepId",
         ts.step_order AS "stepOrder",
         ts.step_name AS stage,
-        ts.description AS guide,
+        REGEXP_REPLACE(COALESCE(ts.description, ''), E'\\s*(Minh chứng|Yêu cầu minh chứng)\\s*:.*$', '', 'gi') AS guide,
         ts.materials_needed AS "materialsNeeded",
         CASE 
           WHEN ts.step_order = (SELECT max(s2.step_order) FROM template_steps s2 WHERE s2.template_id = pt.template_id)
-            THEN GREATEST(ts.day_offset, (r.end_date - r.start_date)::int)
-          ELSE ts.day_offset
+            THEN COALESCE(v.expected_duration, LEAST(GREATEST(ts.day_offset, 1), COALESCE(v.expected_duration, 45)))
+          ELSE LEAST(GREATEST(ts.day_offset, 1), COALESCE(v.expected_duration, 45))
         END AS "dayOffset",
         ts.duration_days AS "durationDays",
         ts.min_temp AS "minTemp",
@@ -3035,12 +3661,19 @@ SELECT json_build_object(
         ts.max_humidity AS "maxHumidity",
         CASE 
           WHEN ts.step_order = (SELECT max(s2.step_order) FROM template_steps s2 WHERE s2.template_id = pt.template_id)
-            THEN TO_CHAR(r.end_date, 'DD/MM/YYYY')
+            THEN TO_CHAR(r.start_date + ((COALESCE(v.expected_duration, 45) - 1) || ' days')::interval, 'DD/MM/YYYY')
           ELSE TO_CHAR(r.start_date + (ts.day_offset || ' days')::interval, 'DD/MM/YYYY')
         END AS date,
         CASE 
+          WHEN ds.current_day IS NOT NULL THEN
+            CASE
+              WHEN ts.step_order = (SELECT max(s2.step_order) FROM template_steps s2 WHERE s2.template_id = pt.template_id) THEN
+                CASE WHEN ds.current_day >= COALESCE(v.expected_duration, 45) THEN 'IN_PROGRESS' ELSE 'PENDING' END
+              WHEN ds.current_day >= COALESCE(ts.day_offset, 1) + COALESCE(ts.duration_days, 1) THEN 'COMPLETED'
+              WHEN ds.current_day >= COALESCE(ts.day_offset, 1) THEN 'IN_PROGRESS'
+              ELSE 'PENDING'
+            END
           WHEN CURRENT_DATE < r.start_date THEN 'PENDING'
-          WHEN CURRENT_DATE >= r.end_date THEN 'COMPLETED'
           WHEN CURRENT_DATE >= (r.start_date + ((ts.day_offset + ts.duration_days) || ' days')::interval) THEN 'COMPLETED'
           WHEN CURRENT_DATE >= (r.start_date + (ts.day_offset || ' days')::interval) THEN 'IN_PROGRESS'
           ELSE 'PENDING'
@@ -3056,6 +3689,9 @@ SELECT json_build_object(
       )
       JOIN template_steps ts ON pt.template_id = ts.template_id
       JOIN varieties v ON r.variety_id = v.variety_id
+      LEFT JOIN LATERAL (
+        SELECT current_day FROM demo_cultivation_state WHERE rental_id = r.rental_id AND is_active ORDER BY updated_at DESC LIMIT 1
+      ) ds ON true
       WHERE r.status IN ('ACTIVE', 'PENDING') AND ${userClause}
       ORDER BY r.rental_id ASC, ts.day_offset ASC, ts.step_id ASC
     ) cp
@@ -3121,7 +3757,11 @@ SELECT json_build_object(
         TO_CHAR(hr.harvest_date, 'DD/MM/YYYY') AS "harvestDateFormatted",
         hr.yield_amount AS "yieldAmount",
         hr.yield_amount || ' kg' AS "formattedYield",
-        hr.evidence_image_url AS "evidenceImageUrl",
+        CASE
+          WHEN hr.evidence_image_url LIKE 'data:image%' AND octet_length(hr.evidence_image_url) > 512
+            THEN '/api/media/harvest/' || hr.harvest_id
+          ELSE hr.evidence_image_url
+        END AS "evidenceImageUrl",
         hr.delivery_type AS "deliveryType",
         hr.customer_confirmed AS "customerConfirmed",
         CASE WHEN hr.customer_confirmed THEN 'CONFIRMED' ELSE 'PENDING' END AS status,
@@ -3688,6 +4328,7 @@ WHERE land_id = ${landId};
         // 9.1 GET /api/plots & /api/v1/plots (List plots with filters & camelCase data)
         if (req.method === 'GET' && (url === '/api/plots' || url === '/api/v1/plots' || url.startsWith('/api/plots?') || url.startsWith('/api/v1/plots?'))) {
           try {
+            await syncPlotMaintenanceStatuses(getPgPool());
             const urlObj = new URL(url, 'http://localhost:3000');
             const statusFilter = urlObj.searchParams.get('status');
             const landFilter = urlObj.searchParams.get('landId');
@@ -3720,6 +4361,7 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
     p.care_price_per_month AS care_price_per_month,
     TO_CHAR(p.price_per_period, 'FM999,999,999') || ' đ' AS price_text,
     CASE 
+      WHEN p.status = 'MAINT' THEN 'MAINT'
       WHEN EXISTS (
         SELECT 1 FROM rentals r 
         JOIN contracts c ON r.contract_id = c.contract_id
@@ -3731,6 +4373,7 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
       ELSE p.status::text
     END AS "status", 
     CASE 
+      WHEN p.status = 'MAINT' THEN 'Bảo trì'
       WHEN EXISTS (
         SELECT 1 FROM rentals r 
         JOIN contracts c ON r.contract_id = c.contract_id
@@ -3741,7 +4384,6 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
       ) THEN 'Đã thuê'
       WHEN p.status = 'AVAIL' THEN 'Đang trống'
       WHEN p.status = 'RENT' THEN 'Đã thuê'
-      WHEN p.status = 'MAINT' THEN 'Bảo trì'
       ELSE p.status::text
     END AS status_text,
     p.is_published AS "isPublished",
@@ -5434,6 +6076,7 @@ SELECT json_build_object(
         // 17. RENTALS API (GET /api/rentals & /api/v1/rentals)
         if (req.method === 'GET' && (url === '/api/rentals' || url === '/api/v1/rentals' || url === '/api/customer/rentals' || url.startsWith('/api/rentals?') || url.startsWith('/api/v1/rentals?') || url.startsWith('/api/customer/rentals?'))) {
           try {
+            await ensureHarvestDemoSchema(getPgPool());
             const urlObj = new URL(url, 'http://localhost:3000');
             const emailFilter = (urlObj.searchParams.get('email') || '').trim().toLowerCase();
             const customerIdParam = parseInt(urlObj.searchParams.get('customerId') || urlObj.searchParams.get('renter_id') || '0', 10);
@@ -5477,9 +6120,17 @@ SELECT json_build_object(
         'Sinh trưởng & phát triển' AS stage,
         p.image_url AS image,
         c.contract_number AS "contractCode",
+        rent.contract_id AS "contractId",
+        rent.term_months AS "termMonths",
         c.renter_id AS "renterId",
         u.full_name AS "renterName",
+        u.full_name AS "customerName",
+        COALESCE(u.phone_number, '') AS "customerPhone",
         u.email AS "renterEmail",
+        COALESCE(p.price_per_period, 0)::numeric AS "pricePerPeriod",
+        COALESCE(p.price_per_period, 0)::numeric AS "rentalPrice",
+        COALESCE(NULLIF(p.care_price_per_month, 0), ROUND(COALESCE(p.price_per_period, 0) * 0.5))::numeric AS "carePricePerMonth",
+        p.status AS "plotStatus",
         TO_CHAR(rent.start_date, 'YYYY-MM-DD') AS "startDate",
         TO_CHAR(rent.end_date, 'YYYY-MM-DD') AS "endDate",
         TO_CHAR(rent.end_date, 'DD/MM/YYYY') AS "expectedHarvestDate",
@@ -5503,6 +6154,7 @@ SELECT json_build_object(
         'Đất phù sa bồi lắng giàu mùn (pH 6.5)' AS "soilType",
         'Hệ thống nước tưới ngầm lọc cát + UV' AS "waterSource",
         CASE 
+          WHEN ds.current_day IS NOT NULL THEN ds.current_day
           WHEN CURRENT_DATE < rent.start_date THEN 0
           ELSE (CURRENT_DATE - rent.start_date) + 1
         END AS "currentDay",
@@ -5510,6 +6162,7 @@ SELECT json_build_object(
         COALESCE(v.expected_duration, 60) AS "cycleDays",
         GREATEST(1, rent.end_date - rent.start_date) AS "termDays",
         CASE
+          WHEN ds.current_day IS NOT NULL THEN LEAST(100, GREATEST(1, ROUND((ds.current_day::numeric / NULLIF(COALESCE(v.expected_duration, 60), 0)::numeric) * 100)))
           WHEN CURRENT_DATE < rent.start_date THEN 0
           ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - rent.start_date + 1)::numeric / NULLIF(COALESCE(v.expected_duration, 60), 0)::numeric) * 100)))
         END AS "progressPercent"
@@ -5521,6 +6174,13 @@ SELECT json_build_object(
       LEFT JOIN users u_exp ON rent.expert_id = u_exp.user_id
       LEFT JOIN users u_stf ON rent.staff_id = u_stf.user_id
       LEFT JOIN varieties v ON rent.variety_id = v.variety_id
+      LEFT JOIN LATERAL (
+        SELECT current_day
+        FROM demo_cultivation_state
+        WHERE rental_id = rent.rental_id AND is_active
+        ORDER BY updated_at DESC
+        LIMIT 1
+      ) ds ON true
       LEFT JOIN LATERAL (
         SELECT temperature, air_humidity, soil_humidity 
         FROM sensor_readings 
@@ -5692,331 +6352,7 @@ END $$;
           return;
         }
 
-        // 17D. SIMULATE CULTIVATION TIME FOR DEMO (POST /api/rentals/:id/simulate-time & POST /api/plots/:id/simulate-time)
-        if (req.method === 'POST' && (url.match(/^\/api\/(?:v1\/)?rentals\/(\d+)\/simulate-time/) || url.match(/^\/api\/(?:v1\/)?plots\/(\d+)\/simulate-time/))) {
-          const isPlotRoute = url.includes('/plots/');
-          const rawId = parseInt(url.match(/^\/api\/(?:v1\/)?(?:rentals|plots)\/(\d+)\/simulate-time/)[1], 10);
-          let body = '';
-          req.on('data', chunk => body += chunk);
-          req.on('end', async () => {
-            try {
-              const payload = JSON.parse(body || '{}');
-              const action = String(payload.action || 'START_NOW').toUpperCase();
-
-              // Resolve rental_id
-              let rentalId = rawId;
-              if (isPlotRoute) {
-                const findRentSql = `
-                  SELECT COALESCE(
-                    (
-                      SELECT json_build_object('rentalId', rental_id)
-                      FROM rentals 
-                      WHERE plot_id = ${rawId} AND status IN ('ACTIVE', 'CONFIRMED', 'RENTED', 'IN_PROGRESS', 'PENDING')
-                      ORDER BY rental_id DESC 
-                      LIMIT 1
-                    ),
-                    '{}'::json
-                  );
-                `;
-                const rentRes = await runPostgreSql(findRentSql);
-                const parsed = typeof rentRes === 'string' ? JSON.parse(rentRes || '{}') : rentRes;
-                rentalId = Number(parsed?.rentalId || (Array.isArray(parsed) ? parsed[0]?.rentalId : parsed));
-                if (!rentalId || isNaN(rentalId)) {
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                  res.end(JSON.stringify({ success: false, message: 'Thửa đất này hiện chưa có hợp đồng thuê hoặc chưa canh tác' }));
-                  return;
-                }
-              }
-
-              // Fetch current rental details
-              const rentalSql = `
-                SELECT row_to_json(r) FROM (
-                  SELECT 
-                    r.rental_id, r.plot_id, r.start_date, r.end_date, r.variety_id,
-                    COALESCE(v.expected_duration, 45) AS expected_duration,
-                    COALESCE(v.variety_name, 'Cây trồng') AS variety_name,
-                    p.plot_code
-                  FROM rentals r
-                  JOIN plots p ON r.plot_id = p.plot_id
-                  LEFT JOIN varieties v ON r.variety_id = v.variety_id
-                  WHERE r.rental_id = ${rentalId}
-                ) r;
-              `;
-              const rentalRaw = await runPostgreSql(rentalSql);
-              const rental = typeof rentalRaw === 'string' ? JSON.parse(rentalRaw || '{}') : rentalRaw;
-              if (!rental || !rental.rental_id) {
-                res.statusCode = 404;
-                res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.end(JSON.stringify({ success: false, message: 'Không tìm thấy thông tin hợp đồng thuê' }));
-                return;
-              }
-
-              const totalDays = Number(rental.expected_duration) || 45;
-              let message = '';
-
-              if (action === 'START_NOW' || action === 'RESET') {
-                await runPostgreSql(`
-                  UPDATE rentals 
-                  SET start_date = CURRENT_DATE, status = 'ACTIVE' 
-                  WHERE rental_id = ${rentalId};
-                `);
-                await runPostgreSql(`UPDATE plots SET status = 'RENT' WHERE plot_id = ${rental.plot_id};`);
-                
-                // Xóa sạch biên bản thu hoạch và các bài nhật ký tự sinh khi reset về Ngày 1
-                await runPostgreSql(`DELETE FROM harvest_results WHERE rental_id = ${rentalId};`);
-                await runPostgreSql(`DELETE FROM farm_diaries WHERE rental_id = ${rentalId};`);
-
-                // Reset toàn bộ care_tasks về PENDING (chỉ Ngày 1 là IN_PROG), xóa sạch ảnh minh chứng & thời gian hoàn thành cũ
-                await runPostgreSql(`
-                  UPDATE care_tasks
-                  SET 
-                    due_date = (CURRENT_DATE + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
-                    status = CASE WHEN COALESCE(ts.day_offset, 0) = 0 THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END,
-                    evidence_image_url = NULL,
-                    updated_at = NOW()
-                  FROM template_steps ts
-                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = ${rentalId};
-                `);
-
-                await runPostgreSql(`
-                  UPDATE care_tasks
-                  SET 
-                    status = 'PENDING'::task_status_enum,
-                    evidence_image_url = NULL,
-                    updated_at = NOW()
-                  WHERE rental_id = ${rentalId} AND (step_id IS NULL OR step_id NOT IN (SELECT step_id FROM template_steps WHERE day_offset = 0));
-                `);
-
-                cachedPlotsData = null;
-                message = `Đã kích hoạt canh tác ngay hôm nay cho thửa ${rental.plot_code} (Ngày 1/${totalDays})`;
-              } else if (action === 'ADD_DAYS') {
-                const days = Math.max(1, Number(payload.days) || 7);
-                await runPostgreSql(`
-                  UPDATE rentals 
-                  SET start_date = start_date - INTERVAL '${days} days' 
-                  WHERE rental_id = ${rentalId};
-                `);
-                await runPostgreSql(`
-                  UPDATE care_tasks
-                  SET 
-                    due_date = (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date,
-                    status = CASE 
-                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%') AND NOT EXISTS (SELECT 1 FROM harvest_results hr WHERE hr.rental_id = ${rentalId}) THEN 'IN_PROG'::task_status_enum
-                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN 'DONE'::task_status_enum
-                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date = CURRENT_DATE THEN 'IN_PROG'::task_status_enum
-                      ELSE 'PENDING'::task_status_enum
-                    END,
-                    evidence_image_url = CASE 
-                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%') AND NOT EXISTS (SELECT 1 FROM harvest_results hr WHERE hr.rental_id = ${rentalId}) THEN NULL
-                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
-                      ELSE NULL
-                    END,
-                    updated_at = NOW()
-                  FROM template_steps ts, rentals r
-                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
-                `);
-
-                // Đồng bộ farm_diaries
-                await runPostgreSql(`
-                  DELETE FROM farm_diaries 
-                  WHERE rental_id = ${rentalId} 
-                    AND task_id IN (SELECT task_id FROM care_tasks WHERE rental_id = ${rentalId} AND status != 'DONE');
-                `);
-                await runPostgreSql(`
-                  INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
-                  SELECT 
-                    ct.rental_id,
-                    ct.task_id,
-                    COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
-                    COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
-                    COALESCE(ct.step_order, ts.step_order, 1),
-                    ct.evidence_image_url,
-                    NOW()
-                  FROM care_tasks ct
-                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
-                  WHERE ct.rental_id = ${rentalId} AND ct.status = 'DONE'
-                    AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.task_id = ct.task_id);
-                `);
-
-                message = `Đã tua nhanh +${days} ngày canh tác cho thửa ${rental.plot_code}`;
-              } else if (action === 'HARVEST') {
-                const offset = totalDays - 1;
-                await runPostgreSql(`
-                  UPDATE rentals 
-                  SET start_date = CURRENT_DATE - INTERVAL '${offset} days', status = 'ACTIVE' 
-                  WHERE rental_id = ${rentalId};
-                `);
-
-                // Xóa bất kỳ biên bản thu hoạch cũ nào trước đó để đảm bảo khi tua tới Ngày thu hoạch,
-                // task thu hoạch ở trạng thái IN_PROG và nhân viên/khách hàng phải thực hiện thu hoạch thật!
-                await runPostgreSql(`DELETE FROM harvest_results WHERE rental_id = ${rentalId};`);
-                await runPostgreSql(`DELETE FROM farm_diaries WHERE rental_id = ${rentalId} AND title ILIKE '%thu hoạch%';`);
-
-                await runPostgreSql(`
-                  UPDATE care_tasks
-                  SET 
-                    due_date = CASE 
-                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN CURRENT_DATE
-                      ELSE (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date
-                    END,
-                    status = CASE 
-                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN 'IN_PROG'::task_status_enum
-                      ELSE 'DONE'::task_status_enum
-                    END,
-                    evidence_image_url = CASE 
-                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN NULL
-                      ELSE COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
-                    END,
-                    updated_at = NOW()
-                  FROM template_steps ts, rentals r
-                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
-                `);
-
-                // Cập nhật cả các nhiệm vụ không gắn template_steps (dịch vụ, sự cố phát sinh) về trạng thái phù hợp
-                await runPostgreSql(`
-                  UPDATE care_tasks
-                  SET 
-                    status = CASE 
-                      WHEN title ILIKE '%thu hoạch%' THEN 'IN_PROG'::task_status_enum
-                      ELSE 'DONE'::task_status_enum
-                    END,
-                    evidence_image_url = CASE 
-                      WHEN title ILIKE '%thu hoạch%' THEN NULL
-                      ELSE COALESCE(evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
-                    END,
-                    updated_at = NOW()
-                  WHERE rental_id = ${rentalId} AND step_id IS NULL;
-                `);
-
-                // Đồng bộ farm_diaries
-                await runPostgreSql(`
-                  DELETE FROM farm_diaries 
-                  WHERE rental_id = ${rentalId} 
-                    AND task_id IN (SELECT task_id FROM care_tasks WHERE rental_id = ${rentalId} AND status != 'DONE');
-                `);
-                await runPostgreSql(`
-                  INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
-                  SELECT 
-                    ct.rental_id,
-                    ct.task_id,
-                    COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
-                    COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
-                    COALESCE(ct.step_order, ts.step_order, 1),
-                    ct.evidence_image_url,
-                    NOW()
-                  FROM care_tasks ct
-                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
-                  WHERE ct.rental_id = ${rentalId} AND ct.status = 'DONE'
-                    AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.task_id = ct.task_id);
-                `);
-
-                message = `Đã giả lập thửa ${rental.plot_code} đến ngày thu hoạch (Ngày ${totalDays}/${totalDays})! Nhiệm vụ thu hoạch đã sẵn sàng cho CVLĐ và Khách hàng.`;
-              } else if (action === 'SET_DAY') {
-                const day = Math.max(1, Number(payload.day !== undefined ? payload.day : payload.days) || 1);
-                const offset = day - 1;
-                await runPostgreSql(`
-                  UPDATE rentals 
-                  SET start_date = CURRENT_DATE - INTERVAL '${offset} days', status = 'ACTIVE' 
-                  WHERE rental_id = ${rentalId};
-                `);
-
-                if (day >= totalDays) {
-                  await runPostgreSql(`DELETE FROM harvest_results WHERE rental_id = ${rentalId};`);
-                  await runPostgreSql(`DELETE FROM farm_diaries WHERE rental_id = ${rentalId} AND title ILIKE '%thu hoạch%';`);
-                }
-
-                await runPostgreSql(`
-                  UPDATE care_tasks
-                  SET 
-                    due_date = CASE 
-                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) AND ${day} >= ${totalDays} THEN CURRENT_DATE
-                      ELSE (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date
-                    END,
-                    status = CASE 
-                      WHEN (ts.step_name ILIKE '%thu hoạch%' OR ts.step_name ILIKE '%nghiệm thu%' OR COALESCE(ts.day_offset, 0) >= ${totalDays} - 1) THEN (
-                        CASE WHEN ${day} >= ${totalDays} THEN 'IN_PROG'::task_status_enum ELSE 'PENDING'::task_status_enum END
-                      )
-                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN 'DONE'::task_status_enum
-                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date = CURRENT_DATE THEN 'IN_PROG'::task_status_enum
-                      ELSE 'PENDING'::task_status_enum
-                    END,
-                    evidence_image_url = CASE 
-                      WHEN (r.start_date + (COALESCE(ts.day_offset, 0) || ' days')::INTERVAL)::date < CURRENT_DATE THEN COALESCE(care_tasks.evidence_image_url, 'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=600&q=80')
-                      ELSE NULL
-                    END,
-                    updated_at = NOW()
-                  FROM template_steps ts, rentals r
-                  WHERE care_tasks.step_id = ts.step_id AND care_tasks.rental_id = r.rental_id AND care_tasks.rental_id = ${rentalId};
-                `);
-
-                // Đồng bộ farm_diaries
-                await runPostgreSql(`
-                  DELETE FROM farm_diaries 
-                  WHERE rental_id = ${rentalId} 
-                    AND task_id IN (SELECT task_id FROM care_tasks WHERE rental_id = ${rentalId} AND status != 'DONE');
-                `);
-                await runPostgreSql(`
-                  INSERT INTO farm_diaries (rental_id, task_id, title, content, step_order, image_url, created_at)
-                  SELECT 
-                    ct.rental_id,
-                    ct.task_id,
-                    COALESCE(ct.title, ts.step_name, 'Nhiệm vụ chăm sóc hiện trường'),
-                    COALESCE(ct.notes, ts.description, 'Đã hoàn tất công việc theo quy trình kỹ thuật.'),
-                    COALESCE(ct.step_order, ts.step_order, 1),
-                    ct.evidence_image_url,
-                    NOW()
-                  FROM care_tasks ct
-                  LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
-                  WHERE ct.rental_id = ${rentalId} AND ct.status = 'DONE'
-                    AND NOT EXISTS (SELECT 1 FROM farm_diaries fd WHERE fd.task_id = ct.task_id);
-                `);
-
-                message = `Đã chuyển tiến độ thửa ${rental.plot_code} đến Ngày ${day}/${totalDays}`;
-              }
-
-              const checkSql = `
-                SELECT row_to_json(r) FROM (
-                  SELECT 
-                    r.rental_id AS "rentalId",
-                    r.plot_id AS "plotId",
-                    p.plot_code AS "plotCode",
-                    COALESCE(v.variety_name, 'Cây trồng') AS "varietyName",
-                    TO_CHAR(r.start_date, 'YYYY-MM-DD') AS "startDate",
-                    TO_CHAR(r.end_date, 'YYYY-MM-DD') AS "endDate",
-                    CASE 
-                      WHEN CURRENT_DATE < r.start_date THEN 0
-                      ELSE (CURRENT_DATE - r.start_date) + 1
-                    END AS "currentDay",
-                    COALESCE(v.expected_duration, 45) AS "totalDays",
-                    CASE
-                      WHEN CURRENT_DATE < r.start_date THEN 0
-                      ELSE LEAST(100, GREATEST(1, ROUND(((CURRENT_DATE - r.start_date + 1)::numeric / NULLIF(COALESCE(v.expected_duration, 45), 0)::numeric) * 100)))
-                    END AS "progressPercent"
-                  FROM rentals r
-                  JOIN plots p ON r.plot_id = p.plot_id
-                  LEFT JOIN varieties v ON r.variety_id = v.variety_id
-                  WHERE r.rental_id = ${rentalId}
-                ) r;
-              `;
-              const updatedRaw = await runPostgreSql(checkSql);
-              const updatedData = typeof updatedRaw === 'string' ? JSON.parse(updatedRaw || '{}') : updatedRaw;
-
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({
-                success: true,
-                message,
-                data: updatedData
-              }));
-            } catch (err) {
-              console.error('Lỗi khi giả lập thời gian canh tác:', err);
-              res.statusCode = 500;
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(JSON.stringify({ success: false, message: 'Lỗi server: ' + err.message }));
-            }
-          });
-          return;
-        }
+        // 17D. (/api/rentals/:id/simulate-time đã được xử lý thống nhất qua harvestDemoApi ở đầu middleware)
 
         // 18. CARE TASKS API (GET, POST, PATCH /api/care-tasks)
         if (req.method === 'GET' && (url === '/api/care-tasks' || url === '/api/v1/care-tasks' || url === '/api/tasks' || url.startsWith('/api/care-tasks?') || url.startsWith('/api/v1/care-tasks?') || url.startsWith('/api/tasks?'))) {
@@ -6061,7 +6397,7 @@ SELECT json_build_object(
         ct.step_id AS "stepId",
         ts.task_type AS "taskType",
         ds.season_key AS "seasonKey",
-        CASE WHEN ct.status = 'DONE' THEN 'STAFF' WHEN ct.demo_completed THEN 'DEMO' ELSE NULL END AS "completionSource",
+        CASE WHEN ct.status = 'DONE' THEN 'STAFF' ELSE NULL END AS "completionSource",
         ct.service_request_id AS "serviceRequestId",
         COALESCE(ct.step_order, ts.step_order, 1) AS "stepOrder",
         rent.plot_id AS "plotId",
@@ -6076,9 +6412,11 @@ SELECT json_build_object(
           ELSE COALESCE(ct.notes, 'Chăm sóc vi sinh tiêu chuẩn')
         END AS title,
         COALESCE(ct.title, ts.step_name, ct.notes, '') AS "taskTitle",
-        COALESCE(ct.description, ts.description, '') AS description,
+        REGEXP_REPLACE(COALESCE(ct.description, ts.description, ''), E'\\s*(Minh chứng|Yêu cầu minh chứng)\\s*:.*$', '', 'gi') AS description,
         COALESCE(ct.step_order, ts.step_order, 1) AS "stepOrder",
         COALESCE(v.variety_name, 'Đang canh tác') AS crop,
+        c.renter_id AS "customerId",
+        c.renter_id AS "renterId",
         COALESCE(u_renter.full_name, 'Khách thuê') AS "customerName",
         COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS "assignedTo",
         COALESCE(u_worker.full_name, 'Trần Văn Lực (CVLĐ)') AS "workerName",
@@ -6086,7 +6424,6 @@ SELECT json_build_object(
         ct.task_assigned_to AS "taskAssignedTo",
         CASE 
           WHEN ct.status = 'DONE' THEN 'COMPLETED'
-          WHEN ct.demo_completed THEN 'COMPLETED'
           WHEN ct.status = 'IN_PROG' THEN 'IN_PROGRESS'
           ELSE 'PENDING'
         END AS status,
@@ -6095,20 +6432,42 @@ SELECT json_build_object(
           WHEN ct.service_request_id IS NOT NULL OR ct.notes ILIKE '%[ƯU TIÊN CAO]%' OR ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN 'HIGH'
           ELSE 'NORMAL'
         END AS priority,
-        TO_CHAR(CASE WHEN ds.current_day IS NOT NULL THEN CURRENT_DATE + (
-          COALESCE(ts.day_offset + 1, (ct.due_date - rent.start_date) + 1, 1) - ds.current_day
-        ) ELSE ct.due_date END, 'YYYY-MM-DD') AS "dueDate",
-        TO_CHAR(CASE WHEN ds.current_day IS NOT NULL THEN CURRENT_DATE + (
-          COALESCE(ts.day_offset + 1, (ct.due_date - rent.start_date) + 1, 1) - ds.current_day
-        ) ELSE ct.due_date END, 'YYYY-MM-DD') AS date,
+        TO_CHAR(CASE
+          WHEN ct.step_order = 0 AND ct.step_id IS NULL THEN ct.due_date
+          WHEN (COALESCE(ts.task_type, '') = 'HARVEST' OR (COALESCE(ct.title, ts.step_name, '') ~* 'thu hoạch|nghiệm thu' AND COALESCE(ct.title, ts.step_name, '') !~* 'trước thu hoạch|chuẩn bị')) AND ds.current_day IS NOT NULL THEN
+            CASE
+              WHEN ds.current_day >= GREATEST(COALESCE(ts.day_offset + 1, 1), COALESCE(v.expected_duration, ts.day_offset + 1, 45)) THEN CURRENT_DATE
+              ELSE CURRENT_DATE + (GREATEST(COALESCE(ts.day_offset + 1, 1), COALESCE(v.expected_duration, ts.day_offset + 1, 45)) - ds.current_day)
+            END
+          WHEN ds.current_day IS NOT NULL THEN CURRENT_DATE + (
+            COALESCE(ts.day_offset + 1, (ct.due_date - rent.start_date) + 1, 1) - ds.current_day
+          )
+          ELSE ct.due_date
+        END, 'YYYY-MM-DD') AS "dueDate",
+        TO_CHAR(CASE
+          WHEN ct.step_order = 0 AND ct.step_id IS NULL THEN ct.due_date
+          WHEN (COALESCE(ts.task_type, '') = 'HARVEST' OR (COALESCE(ct.title, ts.step_name, '') ~* 'thu hoạch|nghiệm thu' AND COALESCE(ct.title, ts.step_name, '') !~* 'trước thu hoạch|chuẩn bị')) AND ds.current_day IS NOT NULL THEN
+            CASE
+              WHEN ds.current_day >= GREATEST(COALESCE(ts.day_offset + 1, 1), COALESCE(v.expected_duration, ts.day_offset + 1, 45)) THEN CURRENT_DATE
+              ELSE CURRENT_DATE + (GREATEST(COALESCE(ts.day_offset + 1, 1), COALESCE(v.expected_duration, ts.day_offset + 1, 45)) - ds.current_day)
+            END
+          WHEN ds.current_day IS NOT NULL THEN CURRENT_DATE + (
+            COALESCE(ts.day_offset + 1, (ct.due_date - rent.start_date) + 1, 1) - ds.current_day
+          )
+          ELSE ct.due_date
+        END, 'YYYY-MM-DD') AS date,
         COALESCE(ts.day_offset, 0) AS "dayOffset",
         CASE
+          WHEN ct.step_order = 0 AND ct.step_id IS NULL THEN 0
+          WHEN (COALESCE(ts.task_type, '') = 'HARVEST' OR (COALESCE(ct.title, ts.step_name, '') ~* 'thu hoạch|nghiệm thu' AND COALESCE(ct.title, ts.step_name, '') !~* 'trước thu hoạch|chuẩn bị'))
+            THEN GREATEST(COALESCE(ts.day_offset + 1, 1), COALESCE(v.expected_duration, ts.day_offset + 1, 45))
           WHEN ts.day_offset IS NOT NULL THEN ts.day_offset + 1
           WHEN rent.start_date IS NOT NULL AND ct.due_date IS NOT NULL THEN GREATEST(1, DATE(ct.due_date) - DATE(rent.start_date) + 1)
           ELSE 1
         END AS "cropDay",
         CASE
           WHEN ds.current_day IS NOT NULL THEN ds.current_day
+          WHEN rent.start_date IS NOT NULL AND CURRENT_DATE < DATE(rent.start_date) THEN 0
           WHEN rent.start_date IS NOT NULL THEN GREATEST(1, CURRENT_DATE - DATE(rent.start_date) + 1)
           ELSE 1
         END AS "plotCurrentDay",
@@ -6116,19 +6475,32 @@ SELECT json_build_object(
         ts.duration_days AS "durationDays",
         '08:30 AM' AS deadline,
         'MORNING' AS session,
-        ct.evidence_image_url AS "proofPhoto",
-        ct.evidence_image_url AS "evidenceImageUrl",
-        ct.notes AS notes,
-        COALESCE(u_expert.full_name, 'Chuyên gia Nông nghiệp VietGAP') AS "expertName",
         CASE
-          WHEN ct.description IS NOT NULL AND ct.description <> '' THEN ct.description
-          WHEN ts.description IS NOT NULL AND ts.description <> '' AND ts.description NOT LIKE '%Thửa%' THEN ts.description
-          WHEN ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN ct.notes
-          WHEN ct.notes LIKE '% - %' THEN SUBSTRING(ct.notes FROM POSITION(' - ' IN ct.notes) + 3)
-          WHEN ct.notes LIKE '%' || CHR(10) || '%' THEN SUBSTRING(ct.notes FROM POSITION(CHR(10) IN ct.notes) + 1)
-          WHEN ct.notes IS NOT NULL AND ct.notes NOT LIKE '%Thửa ' || p.plot_code THEN ct.notes
-          ELSE 'Tuân thủ định mức kỹ thuật VietGAP và hướng dẫn chuyên gia. Kiểm tra độ ẩm đất qua trạm IoT trước khi thực hiện.'
-        END AS instructions,
+          WHEN ct.evidence_image_url LIKE 'data:image%' AND octet_length(ct.evidence_image_url) > 512
+            THEN '/api/media/care-task/' || ct.task_id || '?v=' || EXTRACT(EPOCH FROM COALESCE(ct.updated_at, NOW()))::bigint
+          ELSE ct.evidence_image_url
+        END AS "proofPhoto",
+        CASE
+          WHEN ct.evidence_image_url LIKE 'data:image%' AND octet_length(ct.evidence_image_url) > 512
+            THEN '/api/media/care-task/' || ct.task_id || '?v=' || EXTRACT(EPOCH FROM COALESCE(ct.updated_at, NOW()))::bigint
+          ELSE ct.evidence_image_url
+        END AS "evidenceImageUrl",
+        REGEXP_REPLACE(COALESCE(ct.notes, ''), E'\\s*(Minh chứng|Yêu cầu minh chứng)\\s*:.*$', '', 'gi') AS notes,
+        COALESCE(u_expert.full_name, 'Chuyên gia Nông nghiệp VietGAP') AS "expertName",
+        REGEXP_REPLACE(
+          CASE
+            WHEN ct.description IS NOT NULL AND ct.description <> '' THEN ct.description
+            WHEN ts.description IS NOT NULL AND ts.description <> '' AND ts.description NOT LIKE '%Thửa%' THEN ts.description
+            WHEN ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN ct.notes
+            WHEN ct.notes LIKE '% - %' THEN SUBSTRING(ct.notes FROM POSITION(' - ' IN ct.notes) + 3)
+            WHEN ct.notes LIKE '%' || CHR(10) || '%' THEN SUBSTRING(ct.notes FROM POSITION(CHR(10) IN ct.notes) + 1)
+            WHEN ct.notes IS NOT NULL AND ct.notes NOT LIKE '%Thửa ' || p.plot_code THEN ct.notes
+            ELSE 'Tuân thủ định mức kỹ thuật và hướng dẫn chuyên gia. Kiểm tra độ ẩm đất qua trạm IoT trước khi thực hiện.'
+          END,
+          E'\\s*(Minh chứng|Yêu cầu minh chứng)\\s*:.*$',
+          '',
+          'gi'
+        ) AS instructions,
         CASE WHEN ct.status = 'DONE' THEN TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') ELSE NULL END AS "completedAt"
       FROM care_tasks ct
       JOIN rentals rent ON ct.rental_id = rent.rental_id
@@ -6284,13 +6656,39 @@ END $$;
                 }
               }
 
+              let createdNotification = null;
+              if (isComplete) {
+                try {
+                  const notifRes = await getPgPool().query(`
+                    INSERT INTO notifications (user_id, title, content, is_read, created_at)
+                    SELECT
+                      c.renter_id,
+                      '✅ Hoàn thành công việc tại thửa ' || COALESCE(p.plot_code, ''),
+                      'Nhân viên đã hoàn thành "' || COALESCE(ct.title, ts.step_name, 'Chăm sóc hiện trường') || '" tại thửa ' || COALESCE(p.plot_code, '') || ' và cập nhật ảnh minh chứng vào nhật ký.',
+                      false,
+                      NOW()
+                    FROM care_tasks ct
+                    JOIN rentals r ON ct.rental_id = r.rental_id
+                    JOIN plots p ON r.plot_id = p.plot_id
+                    JOIN contracts c ON r.contract_id = c.contract_id
+                    LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+                    WHERE ct.task_id = $1
+                    RETURNING notification_id AS "notificationId", user_id AS "userId", title, content, is_read AS "isRead", created_at AS "createdAt"
+                  `, [parseInt(taskId, 10)]);
+                  createdNotification = notifRes.rows[0] || null;
+                } catch (notifErr) {
+                  console.warn('[Task Complete Notification] Warning:', notifErr.message);
+                }
+              }
+
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
                 message: isComplete
                   ? `Hoàn thành nhiệm vụ #${taskId} thành công và đã tự động đồng bộ vào nhật ký nông trại`
                   : `Cập nhật nhiệm vụ #${taskId} thành công`,
-                data: taskRow
+                data: taskRow,
+                notification: createdNotification
               }));
             } catch (err) {
               res.statusCode = 500;
@@ -6403,13 +6801,25 @@ SELECT json_build_object(
         'Thửa ' || p.plot_code AS "plotName",
         COALESCE(v.variety_name, 'Cà chua bi') AS crop,
         COALESCE(fd.title, ct.title, ts.step_name, 'Nhật ký canh tác') AS title,
-        fd.content,
-        fd.content AS description,
-        fd.content AS note,
+        REGEXP_REPLACE(COALESCE(fd.content, ''), E'\\s*(Minh chứng|Yêu cầu minh chứng)\\s*:.*$', '', 'gi') AS content,
+        REGEXP_REPLACE(COALESCE(fd.content, ''), E'\\s*(Minh chứng|Yêu cầu minh chứng)\\s*:.*$', '', 'gi') AS description,
+        REGEXP_REPLACE(COALESCE(fd.content, ''), E'\\s*(Minh chứng|Yêu cầu minh chứng)\\s*:.*$', '', 'gi') AS note,
         COALESCE(fd.step_order, ct.step_order) AS "stepOrder",
-        fd.image_url AS "imageUrl",
-        fd.image_url AS photo,
-        fd.image_url AS image,
+        CASE
+          WHEN fd.image_url LIKE 'data:image%' AND octet_length(fd.image_url) > 512
+            THEN '/api/media/farm-diary/' || fd.diary_id
+          ELSE fd.image_url
+        END AS "imageUrl",
+        CASE
+          WHEN fd.image_url LIKE 'data:image%' AND octet_length(fd.image_url) > 512
+            THEN '/api/media/farm-diary/' || fd.diary_id
+          ELSE fd.image_url
+        END AS photo,
+        CASE
+          WHEN fd.image_url LIKE 'data:image%' AND octet_length(fd.image_url) > 512
+            THEN '/api/media/farm-diary/' || fd.diary_id
+          ELSE fd.image_url
+        END AS image,
         COALESCE(fd.step_order, ct.step_order, ts.step_order, 1) AS "stepOrder",
         COALESCE(ts.day_offset, 0) AS "dayOffset",
         CASE
@@ -6574,6 +6984,117 @@ END $$;
           return;
         }
 
+        // 19b. NOTIFICATIONS API (GET, POST, PATCH /api/v1/notifications & /api/notifications)
+        if (req.method === 'GET' && (url.startsWith('/api/v1/notifications') || url.startsWith('/api/notifications'))) {
+          try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const userId = parseInt(String(urlObj.searchParams.get('userId') || '').replace(/\D/g, ''), 10);
+            if (urlObj.pathname.endsWith('/unread-count')) {
+              const countRes = userId > 0
+                ? await getPgPool().query('SELECT COUNT(*)::int AS cnt FROM notifications WHERE user_id = $1 AND is_read = false', [userId])
+                : { rows: [{ cnt: 0 }] };
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, data: countRes.rows[0]?.cnt ?? 0 }));
+              return;
+            }
+            const rowsRes = userId > 0
+              ? await getPgPool().query(`
+                  SELECT
+                    n.notification_id AS "notificationId",
+                    'DB-NOTIF-' || n.notification_id AS id,
+                    n.user_id AS "userId",
+                    n.title,
+                    n.content,
+                    n.is_read AS "isRead",
+                    n.created_at AS "createdAt"
+                  FROM notifications n
+                  WHERE n.user_id = $1
+                  ORDER BY n.created_at DESC, n.notification_id DESC
+                  LIMIT 50
+                `, [userId])
+              : { rows: [] };
+            const enriched = rowsRes.rows.map((row) => {
+              const txt = `${row.title || ''} ${row.content || ''}`;
+              const plotMatch = txt.match(/(?:thửa(?:\s+đất)?|\()\s*(P\s*-\s*\d+)/i);
+              const plotCode = plotMatch ? plotMatch[1].replace(/\s+/g, '') : '';
+              let link = null;
+              if (plotCode) {
+                link = /Phân công|nhiệm vụ mới|ca trực/i.test(txt)
+                  ? `/staff/dashboard?plot=${encodeURIComponent(plotCode)}`
+                  : `/customer/dashboard?plot=${encodeURIComponent(plotCode)}&tab=tasks`;
+              }
+              return { ...row, link };
+            });
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, data: enriched }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, message: err.message }));
+          }
+          return;
+        }
+
+        if (req.method === 'POST' && (url === '/api/v1/notifications' || url === '/api/notifications')) {
+          let body = '';
+          req.on('data', chunk => { body += chunk; });
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const userId = parseInt(String(payload.userId || '').replace(/\D/g, ''), 10);
+              if (!userId) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, message: 'Thiếu userId hợp lệ' }));
+                return;
+              }
+              const title = String(payload.title || 'Thông báo hệ thống');
+              const content = String(payload.content || '');
+              const ins = await getPgPool().query(`
+                INSERT INTO notifications (user_id, title, content, is_read, created_at)
+                VALUES ($1, $2, $3, false, NOW())
+                RETURNING notification_id AS "notificationId", 'DB-NOTIF-' || notification_id AS id, user_id AS "userId", title, content, is_read AS "isRead", created_at AS "createdAt"
+              `, [userId, title, content]);
+              res.statusCode = 201;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, data: { ...ins.rows[0], link: payload.link || null } }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+          });
+          return;
+        }
+
+        if (req.method === 'PATCH' && url.match(/^\/api\/(?:v1\/)?notifications\/read-all/)) {
+          try {
+            const urlObj = new URL(url, 'http://localhost:3000');
+            const userId = parseInt(String(urlObj.searchParams.get('userId') || '').replace(/\D/g, ''), 10);
+            if (userId > 0) {
+              await getPgPool().query('UPDATE notifications SET is_read = true WHERE user_id = $1 AND is_read = false', [userId]);
+            }
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, message: err.message }));
+          }
+          return;
+        }
+
+        if (req.method === 'PATCH' && url.match(/^\/api\/(?:v1\/)?notifications\/(\d+)\/read/)) {
+          try {
+            const notifId = parseInt(url.match(/^\/api\/(?:v1\/)?notifications\/(\d+)\/read/)[1], 10);
+            if (notifId > 0) {
+              await getPgPool().query('UPDATE notifications SET is_read = true WHERE notification_id = $1', [notifId]);
+            }
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, message: err.message }));
+          }
+          return;
+        }
+
         // 19c. CONVERSATIONS & MESSAGES API (GET, POST /api/conversations & /api/v1/conversations)
         if (req.method === 'GET' && (url === '/api/conversations' || url === '/api/v1/conversations' || url.startsWith('/api/conversations?') || url.startsWith('/api/v1/conversations?'))) {
           try {
@@ -6582,7 +7103,7 @@ END $$;
             const userIdParam = parseInt(urlObj.searchParams.get('userId') || '0', 10);
             let whereClause = '';
             if (expertIdParam > 0) {
-              whereClause = `WHERE c.participant_two = ${expertIdParam}`;
+              whereClause = `WHERE c.participant_two = ${expertIdParam} OR c.participant_one = ${expertIdParam}`;
             } else if (userIdParam > 0) {
               whereClause = `WHERE c.participant_one = ${userIdParam} OR c.participant_two = ${userIdParam}`;
             }
@@ -6625,11 +7146,15 @@ SELECT json_build_object(
         COALESCE((
           SELECT json_agg(json_build_object(
             'id', m.message_id,
-            'sender', CASE WHEN m.sender_id = c.participant_two THEN 'expert' WHEN r1.role_name IN ('STAFF', 'FIELD_WORKER') THEN 'worker' ELSE 'customer' END,
+            'messageId', m.message_id,
+            'sender', CASE WHEN m.sender_id = c.participant_two THEN 'expert' WHEN r1.role_name IN ('STAFF', 'FIELD_WORKER') THEN 'worker' WHEN r1.role_name = 'ADMIN' THEN 'admin' ELSE 'customer' END,
             'senderId', m.sender_id,
             'senderName', COALESCE(sm.full_name, 'Người dùng'),
             'text', m.content,
+            'attachmentUrl', m.attachment_url,
+            'photoUrl', m.attachment_url,
             'time', TO_CHAR(m.created_at, 'HH24:MI'),
+            'createdAt', m.created_at,
             'seen', true
           ) ORDER BY m.created_at ASC)
           FROM messages m
@@ -6668,8 +7193,10 @@ SELECT json_build_object(
               const payload = JSON.parse(body || '{}');
               const participantOne = Number(payload.participantOne);
               const participantTwo = Number(payload.participantTwo);
-              const type = payload.type === 'STAFF_EXP' ? 'STAFF_EXP' : 'CUST_EXP';
-              if (!Number.isInteger(participantOne) || participantOne <= 0 || !Number.isInteger(participantTwo) || participantTwo <= 0) {
+              const type = payload.type === 'STAFF_EXP'
+                ? 'STAFF_EXP'
+                : (payload.type === 'ADMIN_EXP' ? 'ADMIN_EXP' : 'CUST_EXP');
+              if (!Number.isInteger(participantOne) || participantOne <= 0 || !Number.isInteger(participantTwo) || participantTwo <= 0 || participantOne === participantTwo) {
                 res.statusCode = 400;
                 res.end(JSON.stringify({ success: false, message: 'Người tham gia không hợp lệ' }));
                 return;
@@ -6888,7 +7415,11 @@ SELECT json_build_object(
         ir.handled_by AS "handledBy",
         ir.issue_type AS "issueType",
         ir.description,
-        ir.image_url AS "photoUrl",
+        CASE
+          WHEN ir.image_url LIKE 'data:image%' AND octet_length(ir.image_url) > 512
+            THEN '/api/media/issue/' || ir.issue_id
+          ELSE ir.image_url
+        END AS "photoUrl",
         CASE 
           WHEN ir.status = 'RESOLVED' THEN 'RESOLVED'
           WHEN (SELECT ct.status FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) = 'DONE' THEN 'RESOLVED'
@@ -8309,96 +8840,133 @@ GROUP BY p.plot_id, p.plot_code;
             try { payload = JSON.parse(body); } catch { }
             const userMsg = (payload.message || '').trim();
             const lower = userMsg.toLowerCase();
+            const lowerNorm = normalizeViText(userMsg);
             const convId = payload.conversationId || `conv-${Date.now()}`;
+
+            // Tùy chọn chuyển tiếp sang Python FastAPI RAG nếu biến môi trường AI_PYTHON_URL được bật
+            const pythonAiUrl = process.env.AI_PYTHON_URL;
+            if (pythonAiUrl) {
+              try {
+                const pyRes = await fetch(`${pythonAiUrl.replace(/\/$/, '')}/api/ai/chat`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload),
+                  signal: AbortSignal.timeout(8000)
+                });
+                if (pyRes.ok) {
+                  const pyData = await pyRes.json();
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                  res.end(JSON.stringify(pyData));
+                  return;
+                }
+              } catch (e) { }
+            }
 
             let reply = '';
             let docs = [];
 
-            // Truy vấn động các tài liệu RAG từ bảng knowledge_documents trong PostgreSQL
+            // Truy vấn động tài liệu RAG từ bảng knowledge_documents + Live DB context + Hybrid Vector RAG (.md chunks)
             let liveRagDocs = [];
             try {
-              const rawRag = await runPostgreSql(`
-                SELECT json_agg(t) FROM (
-                  SELECT kd.document_id, kd.title, COALESCE(kd.file_url, '/docs/rau_an_toan_vietgap_huyen.pdf') AS file_url, 
-                         kd.content, COALESCE(kd.author_name, u.full_name, 'Chuyên gia Nông nghiệp') AS author_name
-                  FROM knowledge_documents kd
-                  LEFT JOIN users u ON kd.kd_created_by = u.user_id
-                  WHERE COALESCE(kd.is_indexed_for_rag, true) = true
-                  ORDER BY kd.document_id ASC
-                ) t;
+              const ragRes = await getPgPool().query(`
+                SELECT kd.document_id, kd.title, COALESCE(kd.file_url, '/docs/rau_an_toan_vietgap_huyen.pdf') AS file_url,
+                       kd.content, COALESCE(kd.author_name, u.full_name, 'Chuyên gia Nông nghiệp') AS author_name
+                FROM knowledge_documents kd
+                LEFT JOIN users u ON kd.kd_created_by = u.user_id
+                WHERE COALESCE(kd.is_indexed_for_rag, true) = true
+                ORDER BY kd.document_id ASC
               `);
-              liveRagDocs = typeof rawRag === 'string' && rawRag ? JSON.parse(rawRag) : (Array.isArray(rawRag) ? rawRag : []);
+              liveRagDocs = ragRes.rows || [];
             } catch (e) {
               liveRagDocs = [];
             }
 
-            // Phân tích từ khóa chuyên môn (loại bỏ stop words tiếng Việt để tránh nhận diện nhầm câu đố/toán học thành nông nghiệp)
-            const domainWords = lower
-              .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-              .split(/\s+/)
-              .filter(w => w.length > 2 && !VIETNAMESE_STOP_WORDS.has(w));
+            const apiKey = getGeminiApiKey();
+            const queryIntent = classifyAiQueryIntent(userMsg);
+            const [matchedDocs, liveCtx] = await Promise.all([
+              retrieveHybridFarmelyDocs(userMsg, liveRagDocs, apiKey, queryIntent),
+              loadLiveFarmelyContext({
+                userId: payload.userId,
+                plotId: payload.plotId,
+                plotCode: payload.plotCode,
+                rentalId: payload.rentalId,
+                intent: queryIntent
+              })
+            ]);
 
-            let matchedDocs = [];
-            if (domainWords.length > 0) {
-              matchedDocs = liveRagDocs.filter(item => {
-                const text = (item.title + ' ' + (item.content || '')).toLowerCase();
-                const count = domainWords.filter(w => text.includes(w)).length;
-                return count >= Math.min(2, domainWords.length);
-              });
-            }
-
-            // 1. Thử gọi LLM Google Gemini để câu trả lời sinh động, có tư duy và "tính LLM" tự nhiên
-            let geminiReply = await callGeminiLlm({ message: userMsg, contextDocs: matchedDocs });
+            // 1. Gọi LLM Google Gemini với Persona chuẩn + Hybrid RAG + Dữ liệu PostgreSQL có phạm vi rõ ràng + History
+            const geminiReply = await callGeminiLlm({
+              message: userMsg,
+              history: Array.isArray(payload.history) ? payload.history : [],
+              contextDocs: matchedDocs,
+              liveContext: liveCtx.text,
+              apiKey,
+              intent: queryIntent
+            });
 
             if (geminiReply) {
               reply = geminiReply;
               if (matchedDocs.length > 0) {
-                docs = matchedDocs.slice(0, 2).map(d => ({
-                  docTitle: d.title,
-                  source: d.author_name || 'Hệ sinh thái Farmely RAG',
-                  similarityScore: 0.92,
-                  fileUrl: d.file_url
+                docs = matchedDocs.slice(0, 3).map(d => ({
+                  docTitle: d.docTitle,
+                  source: d.source,
+                  similarityScore: d.similarityScore,
+                  fileUrl: d.fileUrl
                 }));
               }
             } else {
-              // 2. Fallback thông minh khi mất kết nối Gemini hoặc hết hạn ngạch
-              // Xử lý toán học / câu đố đời thường
+              // 2. Fallback chuẩn nghiệp vụ khi mất kết nối Gemini hoặc hết hạn ngạch
               if (lower.match(/(1\s*\+\s*1|1\s*cộng\s*1)/)) {
-                reply = 'Dạ, 1 cộng 1 thì bằng 2 rồi bạn nhé! 😊 Cũng giống như ở Farmely: một thửa đất màu mỡ cộng với một quy trình chăm sóc chuẩn VietGAP thì chắc chắn sẽ cho ra những mùa màng tươi tốt bội thu!';
-              } else if (lower.match(/^(chào|chao|hello|hi|xin chào|alo|farmely ai|ai|bot)(\s+bạn|\s+ạ)?/i) || (lower.includes('chào') && lower.length <= 15)) {
-                reply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Tôi có thể hỗ trợ bạn về kỹ thuật gieo trồng chuẩn VietGAP, theo dõi độ ẩm vi khí hậu IoT và thủ tục thuê thửa đất. Bạn cần tôi giải đáp nội dung nào?';
-                const d = liveRagDocs.find(item => item.title.includes('VietGAP')) || liveRagDocs[0];
-                if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Hệ sinh thái Farmely RAG', similarityScore: 0.95, fileUrl: d.file_url });
+                reply = '1 cộng 1 bằng 2. Nếu bạn cần trao đổi thêm về quy trình thuê thửa đất hoặc kỹ thuật chăm sóc cây trồng trên Farmely, bạn cứ đặt câu hỏi nhé.';
+              } else if (lower.match(/^(chào|chao|hello|hi|xin chào|alo|farmely ai|ai|bot)(\s+bạn|\s+ạ)?$/i) || (lower.includes('chào') && lower.length <= 15)) {
+                reply = 'Xin chào. Mình là Farmely AI Assistant — trợ lý hỗ trợ thông tin và tra cứu trên nền tảng Farmely. Bạn muốn tìm hiểu về mô hình hoạt động, quy trình thuê thửa đất hay kỹ thuật chăm sóc cây trồng?';
               } else if (lower.includes('cảm ơn') || lower.includes('thank') || lower.includes('tks')) {
-                reply = 'Rất vui được hỗ trợ bạn! Chúc bạn có những vụ mùa bội thu, rau sạch chuẩn VietGAP và trải nghiệm canh tác tuyệt vời trên Farmely. Cần hỗ trợ thêm, bạn cứ nhắn cho Farmely AI nhé!';
+                reply = 'Rất vui được hỗ trợ bạn. Nếu còn thắc mắc nào về quy trình thuê thửa đất hoặc chăm sóc cây trồng trên Farmely, bạn cứ nhắn lại nhé.';
               } else if (lower.includes('tạm biệt') || lower.includes('bye') || lower.includes('hẹn gặp lại')) {
-                reply = 'Tạm biệt bạn nhé! Chúc bạn một ngày làm việc hiệu quả. Khi nào cần tra cứu số liệu thửa đất hay kỹ thuật chăm sóc, Farmely AI luôn sẵn sàng hỗ trợ!';
+                reply = 'Tạm biệt bạn. Khi cần tra cứu thông tin thửa đất hoặc quy trình canh tác trên Farmely, bạn có thể nhắn lại bất kỳ lúc nào.';
+              } else if (lowerNorm.includes('farmely la gi') || lowerNorm.includes('hoat dong ra sao') || lowerNorm.includes('hoat dong nhu the nao') || lowerNorm.includes('mo hinh') || lowerNorm.includes('nen tang farmely')) {
+                reply = [
+                  '1. **Farmely là gì?**\nFarmely là nền tảng nông nghiệp số cho phép người dùng thuê các thửa đất canh tác thực tế tại nông trại và theo dõi quá trình trồng trọt trực tuyến (không phải trò chơi mô phỏng hay đất ảo).',
+                  '2. **Farmely hoạt động như thế nào?**\nHệ thống phối hợp giữa 3 vai trò: Khách hàng chọn thửa đất, giống cây, chế độ tự chăm sóc (`Self-Growing`) hoặc ủy thác (`Assisted-Growing`) và theo dõi tiến độ; Chuyên gia nông nghiệp thiết lập quy trình kỹ thuật và tư vấn khi cần; Nhân viên hiện trường thực hiện công việc tại vườn, ghi nhật ký ảnh và hỗ trợ cân đo thu hoạch.',
+                  '3. **Công nghệ hỗ trợ ra sao?**\nNền tảng tích hợp dữ liệu cảm biến IoT, thông tin thời tiết địa phương, nhật ký canh tác điện tử theo từng công việc và trợ lý AI hỗ trợ tra cứu thông tin.',
+                  '4. **Người dùng nhận được gì?**\nBạn có thể theo dõi và kiểm soát quá trình trồng rau từ xa qua dữ liệu và hình ảnh minh bạch thay vì phải trực tiếp có mặt mỗi ngày, và nhận nông sản trực tiếp tại trang trại (`PICKUP`) khi thu hoạch.',
+                  'Bạn muốn mình giải thích chi tiết hơn về quy trình thuê thửa đất, vai trò của các bên hay tính năng theo dõi nào trên hệ thống?'
+                ].join('\n\n');
+                docs.push({ docTitle: '1. Farmely là gì? Giới thiệu tổng quan về nền tảng Farmely', source: 'Quy trình Thuê đất & Chính sách Farmely', similarityScore: 0.96, fileUrl: '/docs/rau_an_toan_vietgap_huyen.pdf' });
+              } else if (lowerNorm.includes('huy hop dong') || lowerNorm.includes('hoan tien') || (lowerNorm.includes('huy') && lowerNorm.includes('thue'))) {
+                reply = 'Chính sách hủy hợp đồng tại Farmely (chỉ áp dụng khi hợp đồng chưa bắt đầu canh tác): Hủy trước ngày bắt đầu >= 3 ngày được hoàn 80% giá trị thanh toán; hủy trước < 3 ngày được hoàn 50%; khi hợp đồng đã đến ngày bắt đầu thì không áp dụng hủy hoàn tiền. Riêng gia hạn tiếp hợp đồng cần thực hiện trước ngày hết hạn tối thiểu 3 ngày.';
+                docs.push({ docTitle: '3. Chính sách Hủy, Gia hạn & Thu hoạch', source: 'Quy trình Thuê đất & Chính sách Farmely', similarityScore: 0.95, fileUrl: '/docs/rau_an_toan_vietgap_huyen.pdf' });
+              } else if (lowerNorm.includes('thua') && (lowerNorm.includes('dang thue') || lowerNorm.includes('cua toi')) && liveCtx.meta?.userRentals?.length > 0) {
+                const lines = liveCtx.meta.userRentals.map(r =>
+                  `• Thửa ${r.plot_code} (${r.land_name}): ${r.variety_name} — Chế độ ${r.cultivation_mode}, ngày tuổi ${r.current_day}/${r.total_days} (${r.done_tasks} việc hoàn thành / ${r.open_tasks} việc chờ)`
+                ).join('\n');
+                reply = `Thông tin các thửa đất hiện tại của bạn trên Farmely:\n${lines}`;
+              } else if (lowerNorm.includes('thue') || lowerNorm.includes('hop dong') || lowerNorm.includes('gia han') || lowerNorm.includes('chi phi')) {
+                reply = `Quy trình thuê đất tại Farmely: Bạn chọn thửa đất trống trên Marketplace, chọn giống cây tương thích, chế độ Tự trồng (Self-Growing) hoặc Ủy thác (Assisted-Growing, mặc định +50% phí chăm sóc), ngày bắt đầu cách 5–14 ngày và kỳ hạn ${ALLOWED_TERM_MONTHS.join(', ')} tháng (tối thiểu >= chu kỳ giống + 10 ngày dự phòng). Hệ thống giữ chỗ 15 phút (tối đa +10 phút tại cổng thanh toán), thanh toán 100% trả trước qua VNPay/VietQR. Gia hạn thực hiện trước ngày kết thúc ít nhất 3 ngày.`;
+                docs.push({ docTitle: '2. Quy trình & Quy định Thuê đất (Rules)', source: 'Quy trình Thuê đất & Chính sách Farmely', similarityScore: 0.94, fileUrl: '/docs/rau_an_toan_vietgap_huyen.pdf' });
+              } else if (lowerNorm.includes('thu hoach') || lowerNorm.includes('giao rau') || lowerNorm.includes('san luong')) {
+                reply = 'Khi cây đạt ngày tuổi thu hoạch, nhân viên hiện trường (CVLĐ) sẽ thu hoạch, cân sản lượng thực tế, dán mã truy xuất và chụp ảnh đối chứng lên Nhật ký. Bạn xác nhận nghiệm thu trên hệ thống và nhận nông sản trực tiếp tại trang trại (PICKUP).';
+                docs.push({ docTitle: '4. Quy trình thu hoạch và nghiệm thu nông sản (Harvesting)', source: 'Hướng dẫn Sử dụng Nền tảng Farmely', similarityScore: 0.94, fileUrl: '/docs/rau_an_toan_vietgap_huyen.pdf' });
               } else if (lower.includes('xà lách') || lower.includes('xa lach')) {
-                reply = 'Rau xà lách tại Farmely phát triển tốt nhất ở nhiệt độ 18°C – 25°C, độ ẩm đất 65% – 75%. Nên tưới phun mưa mịn vào sáng sớm (6h30 - 7h30) và chiều mát (16h - 17h). Tránh tưới đẫm vào ban đêm để hạn chế nấm thối nhũn bẹ lá nhé!';
-                const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('xà lách') || item.title.toLowerCase().includes('rau')) || liveRagDocs[0];
-                if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94, fileUrl: d.file_url });
+                reply = 'Theo cẩm nang kỹ thuật tham khảo, rau xà lách thường phù hợp ở nhiệt độ 18°C – 25°C và độ ẩm đất khoảng 65% – 75%. Nên tưới phun mưa mịn vào sáng sớm và chiều mát, hạn chế tưới đẫm ban đêm để giảm nguy cơ thối nhũn lá.';
+                const d = matchedDocs[0] || liveRagDocs[0];
+                if (d) docs.push({ docTitle: d.docTitle || d.title, source: d.source || d.author_name || 'Cẩm nang Sinh học Cây trồng Farmely', similarityScore: 0.94, fileUrl: d.fileUrl || d.file_url });
               } else if (lower.includes('độ ẩm') || lower.includes('ẩm đất') || lower.includes('tưới nước') || lower.includes('tưới bù') || lower.includes('mưa')) {
-                reply = 'Theo quy chuẩn vi khí hậu của Farmely: Độ ẩm đất duy trì lý tưởng từ 60% – 75%. Dưới 38% hệ thống sẽ kích hoạt tưới nhỏ giọt bù ẩm. Nếu độ ẩm đất ≥ 80% hoặc xác suất mưa ≥ 70%, trạm điều hành sẽ tự động hoãn ca tưới để chống úng rễ cây.';
-                const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('vi khí hậu') || item.title.toLowerCase().includes('tbkt')) || liveRagDocs[1] || liveRagDocs[0];
-                if (d) docs.push({ docTitle: d.title, source: 'Tài liệu Vận hành Trạm Khí Tượng Nông Nghiệp Farmely', similarityScore: 0.96, fileUrl: d ? d.file_url : '/docs/rau_an_toan_vietgap_huyen.pdf' });
+                reply = 'Theo cẩm nang tham khảo trên hệ thống: Độ ẩm đất phù hợp cho đa số rau ăn lá khoảng 60% – 75%. Nếu độ ẩm xuống thấp kéo dài cần kiểm tra lịch tưới bù ẩm; nếu độ ẩm đất >= 80% hoặc có dự báo mưa lớn, hệ thống hỗ trợ hoãn ca tưới để hạn chế ngập úng rễ.';
+                const d = matchedDocs[0] || liveRagDocs[1] || liveRagDocs[0];
+                if (d) docs.push({ docTitle: d.docTitle || d.title, source: d.source || 'Tài liệu Vận hành Trạm Khí Tượng Nông Nghiệp Farmely', similarityScore: 0.95, fileUrl: d.fileUrl || d.file_url || '/docs/rau_an_toan_vietgap_huyen.pdf' });
               } else if (lower.includes('sâu') || lower.includes('rầy') || lower.includes('bọ trĩ') || lower.includes('ốc sên') || lower.includes('bệnh')) {
-                reply = 'Farmely áp dụng 100% biện pháp sinh học hữu cơ: Đối với bọ trĩ và rầy mềm thì phun dung dịch tỏi ớt gừng lên men vi sinh hoặc dầu khoáng sinh học SK Enspray 99EC. Đối với ốc sên thì rải vỏ trứng vụn hoặc bẫy sinh học men bia quanh gốc cây.';
-                const d = liveRagDocs.find(item => (item.title + ' ' + (item.content||'')).toLowerCase().includes('ipm') || item.title.toLowerCase().includes('qlsb') || item.title.toLowerCase().includes('sâu')) || liveRagDocs[2] || liveRagDocs[0];
-                if (d) docs.push({ docTitle: d.title, source: d.author_name || 'Sổ tay Nông nghiệp Hữu cơ', similarityScore: 0.92, fileUrl: d.file_url });
-              } else if (lower.includes('thuê') || lower.includes('hợp đồng') || lower.includes('giá') || lower.includes('gia hạn')) {
-                reply = 'Quy trình thuê đất tại Farmely: Bạn chọn thửa đất ưng ý trên Marketplace bản đồ vệ tinh, chọn giống rau và gói chăm sóc, thanh toán trực tuyến 100% qua VNPay/VietQR. Hợp đồng điện tử có hiệu lực ngay và bạn có thể gia hạn trước 3 ngày với chiết khấu từ 5% – 15%.';
-                const d = liveRagDocs.find(item => item.title.includes('VietGAP')) || liveRagDocs[0];
-                if (d) docs.push({ docTitle: d.title, source: 'Trung tâm Pháp lý & Hợp đồng Farmely', similarityScore: 0.93, fileUrl: d.file_url });
+                reply = 'Theo hướng dẫn IPM trong cẩm nang Farmely, ưu tiên dùng bẫy sinh học hoặc chế phẩm sinh học phù hợp (như dung dịch tỏi ớt gừng lên men hoặc dầu khoáng sinh học SK Enspray 99EC) theo đúng hướng dẫn. Nếu cây nhiễm nặng, bạn nên trao đổi qua Kênh Chuyên Gia để được kiểm tra thực tế.';
+                const d = matchedDocs[0] || liveRagDocs[2] || liveRagDocs[0];
+                if (d) docs.push({ docTitle: d.docTitle || d.title, source: d.source || d.author_name || 'Sổ tay Nông nghiệp Hữu cơ', similarityScore: 0.92, fileUrl: d.fileUrl || d.file_url });
               } else if (matchedDocs.length > 0) {
                 const top = matchedDocs[0];
-                reply = `Dựa trên cẩm nang kỹ thuật "${top.title}": ${top.content ? top.content.slice(0, 260) + '...' : 'Tài liệu hướng dẫn kỹ thuật canh tác chuẩn của nông trại Farmely.'}`;
-                docs.push({ docTitle: top.title, source: top.author_name || 'Cơ sở tri thức Farmely RAG', similarityScore: 0.89, fileUrl: top.file_url });
+                reply = `Dựa trên tài liệu "${top.docTitle}": ${top.content ? top.content.slice(0, 320) + '...' : 'Tài liệu tham khảo quy trình canh tác và vận hành trên nền tảng Farmely.'}`;
+                docs.push({ docTitle: top.docTitle, source: top.source, similarityScore: top.similarityScore, fileUrl: top.fileUrl });
               } else {
-                if (userMsg.length <= 8) {
-                  reply = 'Farmely AI sẵn sàng hỗ trợ bạn! Bạn đang quan tâm đến kỹ thuật gieo trồng, kiểm tra độ ẩm vi khí hậu hay muốn tìm hiểu thủ tục thuê đất trên Farmely? Cứ nhắn cụ thể câu hỏi cho tôi nhé! Nếu cần phác đồ chuyên sâu, bạn có thể bấm tab "Kênh Chuyên Gia" để trao đổi với ThS. Hoàng Nam nha.';
-                } else {
-                  reply = 'Chào bạn! Farmely AI luôn sẵn sàng đồng hành cùng bạn trong canh tác nông nghiệp công nghệ cao. Bạn có thể theo dõi biểu đồ cảm biến IoT thời gian thực của thửa đất (độ ẩm đất, nhiệt độ, EC) hoặc bấm sang tab "Kênh Chuyên Gia" để trao đổi trực tiếp với ThS. Hoàng Nam nhé!';
-                }
+                reply = userMsg.length <= 8
+                  ? 'Mình là Farmely AI Assistant. Bạn đang cần tìm hiểu về mô hình hoạt động, quy trình thuê thửa đất, theo dõi cảm biến hay kỹ thuật canh tác?'
+                  : 'Mình có thể hỗ trợ giải đáp về mô hình hoạt động của Farmely, quy trình thuê/hủy/gia hạn thửa đất, tra cứu thông tin thửa đất từ hệ thống và kỹ thuật canh tác tham khảo. Bạn muốn hỏi cụ thể về nội dung nào?';
               }
             }
 
@@ -8414,11 +8982,15 @@ GROUP BY p.plot_id, p.plot_code;
         }
 
         if (url.startsWith('/api/ai/health')) {
+          const store = getAiVectorStore();
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.end(JSON.stringify({
             status: 'UP',
-            service: 'Farmely AI Chatbot Service',
-            ragReady: true
+            service: 'Farmely AI Chatbot Service (Unified Hybrid RAG + Live PostgreSQL)',
+            ragReady: true,
+            chunksLoaded: store.chunks.length,
+            vectorMatrixRows: store.rows,
+            geminiConfigured: Boolean(getGeminiApiKey())
           }));
           return;
         }

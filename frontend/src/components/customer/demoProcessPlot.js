@@ -18,6 +18,6 @@ export function buildDemoProcessPlot(plot, season, demoTime, activeSeasonId, isS
     currentDay,
     seasonStatus: hasActiveDemo ? 'ACTIVE' : !isCurrentSeason ? season.status : isSeasonStarted ? 'ACTIVE' : season.status,
     isScheduled,
-    startDate: hasActiveDemo ? demoStartDate : plot.startDate
+    startDate: hasActiveDemo ? (demoTime?.startDate || demoStartDate) : plot.startDate
   };
 }

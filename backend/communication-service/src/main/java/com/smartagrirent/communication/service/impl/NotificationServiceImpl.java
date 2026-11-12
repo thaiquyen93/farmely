@@ -44,14 +44,33 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional
+    public void markAllAsRead(Integer userId) {
+        List<Notification> unread = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .filter(n -> !Boolean.TRUE.equals(n.getIsRead()))
+                .collect(Collectors.toList());
+        if (!unread.isEmpty()) {
+            unread.forEach(n -> n.setIsRead(true));
+            notificationRepository.saveAll(unread);
+        }
+    }
+
+    @Override
+    @Transactional
     public void createNotification(Integer userId, String title, String content) {
+        createAndGetNotification(userId, title, content);
+    }
+
+    @Override
+    @Transactional
+    public NotificationResponse createAndGetNotification(Integer userId, String title, String content) {
         Notification notification = Notification.builder()
                 .userId(userId)
                 .title(title)
                 .content(content)
                 .isRead(false)
                 .build();
-        notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+        return mapToResponse(saved);
     }
 
     private NotificationResponse mapToResponse(Notification n) {

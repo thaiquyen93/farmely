@@ -192,6 +192,21 @@ export default function VnPayReturn() {
           localStorage.setItem('farmely_selected_task_plot', 'PLOT-' + serviceInfo.plotCode.replace(/^PLOT-/i, ''));
         } catch {}
       }
+      sendNotification({
+        targetRole: 'STAFF',
+        type: 'SERVICE_REQUEST',
+        title: `🛎️ Đơn dịch vụ mới (${serviceInfo.plotCode || serviceInfo.plotName})`,
+        content: `Khách hàng vừa thanh toán dịch vụ "${serviceInfo.serviceName}" tại ${serviceInfo.plotName} (lịch: ${serviceInfo.scheduledDate}).`,
+        link: '/staff/dashboard?tab=services'
+      });
+      try {
+        localStorage.setItem('farmely_task_sync', String(Date.now()));
+        if (typeof window !== 'undefined' && window.BroadcastChannel) {
+          const bc = new BroadcastChannel('farmely_staff_activity_channel');
+          bc.postMessage({ type: 'SERVICE_PAID', plotCode: serviceInfo.plotCode, rentalId: pendingService?.rentalId });
+          bc.close();
+        }
+      } catch {}
       localStorage.removeItem('farmely_pending_vnpay_service');
       window.dispatchEvent(new CustomEvent('farmely_service_paid', { detail: serviceInfo }));
       return serviceInfo;
@@ -216,16 +231,22 @@ export default function VnPayReturn() {
 
       if (pendingRenewal) {
         try {
-          await fetch(`/api/rentals/${pendingRenewal.rentalId || 1}/renew`, {
+          await fetch('/api/contracts/renewals', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              newEndDate: pendingRenewal.newEndDate,
+              rentalId: pendingRenewal.rentalId || 1,
+              contractId: pendingRenewal.contractId || null,
+              plotCode: pendingRenewal.plotCode || pendingRenewal.plotKey || '',
+              customerName: pendingRenewal.customerName || '',
+              customerPhone: pendingRenewal.customerPhone || '',
               newVarietyId: pendingRenewal.newVarietyId,
-              newServiceId: pendingRenewal.newServiceId,
+              varietyName: pendingRenewal.varietyName,
               cultivationMode: pendingRenewal.cultivationMode,
+              seasonsCount: pendingRenewal.selectedSeasonsCount || 1,
+              seasonNumber: pendingRenewal.newSeasonNumber || 2,
               additionalAmount: rawAmount || pendingRenewal.totalAmount || 0,
-              additionalSeasons: pendingRenewal.selectedSeasonsCount || 1,
+              newEndDate: pendingRenewal.newEndDate,
               gatewayRef: transNo || txnRef || `VNPAY-RENEW-${Date.now()}`
             })
           });

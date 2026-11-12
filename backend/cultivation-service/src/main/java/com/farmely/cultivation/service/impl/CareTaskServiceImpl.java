@@ -264,7 +264,7 @@ public class CareTaskServiceImpl implements CareTaskService {
 
     private CareTaskResponse mapToResponse(CareTaskEntity entity) {
         String taskCode = "TSK-" + entity.getTaskId();
-        boolean demoCompleted = Boolean.TRUE.equals(entity.getDemoCompleted());
+        boolean demoCompleted = false;
         boolean isOverdue = entity.getStatus() != TaskStatus.DONE && !demoCompleted &&
                 entity.getDueDate() != null &&
                 entity.getDueDate().isBefore(LocalDate.now());

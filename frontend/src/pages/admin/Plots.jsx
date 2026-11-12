@@ -244,27 +244,29 @@ export default function Plots() {
     {
       header: 'Trạng Thái',
       key: 'status',
-      width: '120px',
+      width: '165px',
       sortable: true,
       render: (row) => {
-        if (row.isPublished) {
-          return (
-            <Badge variant="ACTIVE" size="sm" className="font-bold">
-              ACTIVE
-            </Badge>
-          );
-        }
-        if (row.compatibleVarietiesCount > 0) {
-          return (
-            <Badge variant="REVIEW_REQUIRED" size="sm" className="font-bold">
-              PENDING
-            </Badge>
-          );
-        }
+        const opStatus = row.status;
         return (
-          <Badge variant="ARCHIVED" size="sm" className="font-bold text-stone-600">
-            UNACTIVE
-          </Badge>
+          <div className="flex flex-col items-start gap-1">
+            {opStatus === 'MAINTENANCE' ? (
+              <Badge variant="MAINTENANCE" size="sm" className="font-bold">
+                MAINT · Bảo trì
+              </Badge>
+            ) : opStatus === 'RENTED' ? (
+              <Badge variant="RENTED" size="sm" className="font-bold">
+                RENT · Đang thuê
+              </Badge>
+            ) : (
+              <Badge variant="AVAILABLE" size="sm" className="font-bold">
+                AVAIL · Sẵn sàng
+              </Badge>
+            )}
+            <span className="text-[10px] font-semibold text-stone-500">
+              {row.isPublished ? '• Đang niêm yết' : row.compatibleVarietiesCount > 0 ? '• Đang ẩn / Nghỉ đất' : '• Chưa niêm yết'}
+            </span>
+          </div>
         );
       }
     },

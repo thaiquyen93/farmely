@@ -496,8 +496,9 @@ describe('LUỒNG 3 TEST SUITE: VÒNG ĐỜI VỤ MÙA THÔNG MINH (FLOW 3 LIFEC
     expect(host.textContent).toContain('18.5');
     expect(host.textContent).toContain('Trần Văn Lực');
 
-    // 2. Nút xem biên bản trong Nhật ký
-    expect(host.textContent).toContain('Xem biên bản trong Nhật ký');
+    // 2. Chỉ giữ duy nhất nút Báo cáo thu hoạch trên banner
+    expect(host.textContent).toContain('Báo cáo thu hoạch');
+    expect(host.textContent).not.toContain('Xem biên bản trong Nhật ký');
 
     // 3. Chuyển sang Tab "Công việc & Nhật ký": biên bản thu hoạch HRV-88 xuất hiện
     await act(async () => {

@@ -832,6 +832,12 @@ export const CROP_STANDARDS = {
   }
 };
 
+export function stripEvidenceNote(text) {
+  return String(text ?? '')
+    .replace(/\s*(?:Minh chứng|Yêu cầu minh chứng)\s*:[\s\S]*$/i, '')
+    .trim();
+}
+
 /**
  * Phân tích và sinh quy trình chuẩn theo ngày dựa trên thông tin thửa đất
  */
@@ -895,33 +901,43 @@ export function resolveStandardCropProcess(plot, dbStages = []) {
     const sortedDb = Array.from(stagesByDay.values()).sort((a, b) => a.dayOffset - b.dayOffset);
 
     computedStages = sortedDb.map((d, sIdx) => {
-      const rawStart = d.dayOffset !== undefined && d.dayOffset !== null
+      const stageName = d.stage || d.name || d.stepName || d.title || `Giai đoạn ${sIdx + 1}`;
+      const isFinalHarvestStage = sIdx === sortedDb.length - 1 && /thu hoạch|nghiệm thu|thu hái/i.test(stageName);
+      let rawStart = d.dayOffset !== undefined && d.dayOffset !== null
         ? Math.max(1, Number(d.dayOffset))
         : (d.dayStart || (sIdx === 0 ? 1 : Math.round((sIdx / sortedDb.length) * totalDays)));
+      if (rawStart > totalDays) {
+        rawStart = totalDays;
+      }
+      if (isFinalHarvestStage && sortedDb.length > 1) {
+        const prevStart = Math.max(1, Number(sortedDb[sIdx - 1]?.dayOffset ?? 1));
+        if (rawStart > totalDays) rawStart = totalDays;
+        if (totalDays > prevStart && rawStart < totalDays && currentDay >= totalDays) {
+          // Khi đã đến ngày thu hoạch (currentDay >= totalDays), giữ giai đoạn cuối thu hoạch bao phủ đúng tới totalDays
+        }
+      }
 
       let dayEnd = totalDays;
       if (sIdx < sortedDb.length - 1) {
-        const nextStart = sortedDb[sIdx + 1].dayOffset !== undefined && sortedDb[sIdx + 1].dayOffset !== null
-          ? Math.max(rawStart, Number(sortedDb[sIdx + 1].dayOffset))
+        const rawNext = sortedDb[sIdx + 1].dayOffset !== undefined && sortedDb[sIdx + 1].dayOffset !== null
+          ? Math.max(rawStart, Math.min(totalDays, Number(sortedDb[sIdx + 1].dayOffset)))
           : Math.round(((sIdx + 1) / sortedDb.length) * totalDays);
-        dayEnd = Math.max(rawStart, nextStart - 1);
+        dayEnd = Math.max(rawStart, rawNext - 1);
       }
 
+      // Tính trạng thái giai đoạn nhất quán theo currentDay thực tế (kể cả khi tua ngày demo),
+      // tránh status tĩnh từ SQL lệch với ngày tuổi đang chọn/giả lập.
       let status = 'PENDING';
       if (!isNotStarted) {
-        if (d.status === 'DONE' || d.status === 'COMPLETED') {
-          status = 'COMPLETED';
-        } else if (d.status === 'IN_PROG' || d.status === 'IN_PROGRESS') {
-          status = 'IN_PROGRESS';
-        } else if (currentDay > dayEnd) {
+        if (currentDay > dayEnd) {
           status = 'COMPLETED';
         } else if (currentDay >= rawStart && currentDay <= dayEnd) {
           status = 'IN_PROGRESS';
         }
       }
 
-      const stageName = d.stage || d.name || d.stepName || d.title || `Giai đoạn ${sIdx + 1}`;
-      const guide = d.guide || d.description || d.instructions || 'Tuân thủ định mức và kỹ thuật chuẩn VietGAP.';
+      const rawGuide = d.guide || d.description || d.instructions || 'Tuân thủ định mức và kỹ thuật canh tác an toàn.';
+      const guide = stripEvidenceNote(rawGuide) || 'Tuân thủ định mức và kỹ thuật canh tác an toàn.';
       const materials = d.materials || d.materialsNeeded || d.materialsRequired || 'Phân bón & chế phẩm sinh học VietGAP';
 
       return {
@@ -1141,7 +1157,7 @@ export const DEFAULT_STAFF_ACTIVITIES = [
 /**
  * Lấy danh sách hoạt động của nhân viên được lưu trữ (kết hợp DB + LocalStorage)
  */
-export function getPersistedStaffActivities(plotId = null) {
+export function getPersistedStaffActivities(plotId = null, rentalId = null) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     let list = raw ? JSON.parse(raw) : [];
@@ -1150,10 +1166,16 @@ export function getPersistedStaffActivities(plotId = null) {
       list = [];
     }
 
-    if (!plotId) return list;
+    if (!plotId && !rentalId) return list;
 
-    const cleanId = String(plotId).replace(/^PLOT-|^PLT-/i, '').trim().toUpperCase();
+    const cleanId = String(plotId || '').replace(/^PLOT-|^PLT-/i, '').trim().toUpperCase();
     return list.filter((item) => {
+      if (rentalId && item.rentalId) {
+        return Number(item.rentalId) === Number(rentalId);
+      }
+      if (rentalId && !item.rentalId) {
+        return false;
+      }
       const itemCode = String(item.plotCode || item.plotId || '').replace(/^PLOT-|^PLT-/i, '').trim().toUpperCase();
       const numMatch = cleanId.replace(/\D/g, '') !== '' && cleanId.replace(/\D/g, '') === itemCode.replace(/\D/g, '');
       return itemCode === cleanId || item.plotId === plotId || numMatch || !plotId;
@@ -1217,44 +1239,134 @@ export function recordStaffActivity(activity) {
    Bảo trì thửa đất 4 ngày trước khi cho thuê lại hoặc gieo trồng vụ mới.
    ────────────────────────────────────────────────────────────────────────── */
 
+export const STANDARD_FALLOW_DAYS = 4;
+
 export const FALLOW_PROTOCOL_STEPS = [
   {
     step: 1,
     title: 'Thu dọn tàn dư vụ cũ & Vệ sinh mặt luống',
+    shortTitle: 'Thu dọn tàn dư vụ cũ',
     desc: 'Nhổ bỏ gốc rễ cũ, thu gom toàn bộ thân lá tàn dư để ngăn ngừa mầm bệnh ủ trong lòng đất.',
     duration: 'Ngày 1',
-    status: 'COMPLETED',
-    worker: 'Trần Văn Lực (CVLĐ)',
     image: '/images/Mucangchai3.jpg'
   },
   {
     step: 2,
     title: 'Rải vôi nông nghiệp khử trùng & Cân bằng pH',
+    shortTitle: 'Rải vôi khử trùng đất',
     desc: 'Rải vôi bột nông nghiệp (15 - 20 kg/100m²) để diệt khuẩn, hạ phèn và nâng pH đất lên mức tối ưu 6.0 - 6.5.',
     duration: 'Ngày 2',
-    status: 'COMPLETED',
-    worker: 'Trần Văn Lực (CVLĐ)',
     image: '/images/moc-chau-2811.jpg'
   },
   {
     step: 3,
     title: 'Cày xới sâu & Phơi ải diệt nấm bệnh tự nhiên',
+    shortTitle: 'Cày xới & Phơi ải',
     desc: 'Xới sâu 20 - 25cm, phơi ải dưới ánh nắng mặt trời giúp diệt nấm hại, tuyến trùng và ấu trùng sâu bọ.',
     duration: 'Ngày 3',
-    status: 'IN_PROGRESS',
-    worker: 'Trần Văn Lực (CVLĐ)',
     image: '/images/Mucangchai3.jpg'
   },
   {
     step: 4,
     title: 'Bổ sung vi sinh hữu cơ Trichoderma & Hoàn tất phục hồi',
+    shortTitle: 'Phục hồi vi sinh',
     desc: 'Bổ sung nguồn phân trùn quế hoai mục và hệ vi sinh đối kháng Trichoderma để tái tạo độ phì nhiêu sẵn sàng cho vụ mùa mới.',
     duration: 'Ngày 4',
-    status: 'PENDING',
-    worker: 'Trần Văn Lực (CVLĐ)',
     image: '/images/moc-chau-2811.jpg'
   }
 ];
+
+function parseDateToLocalStart(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const str = String(value).trim();
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+  }
+  const vnMatch = str.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (vnMatch) {
+    return new Date(Number(vnMatch[3]), Number(vnMatch[2]) - 1, Number(vnMatch[1]));
+  }
+  const dt = new Date(str);
+  if (Number.isNaN(dt.getTime())) return null;
+  return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+
+/**
+ * Tính tiến độ nghỉ đất / bảo trì thực tế (BR23) từ dữ liệu mùa vụ & biên bản thu hoạch thật.
+ * Khi vừa thu hoạch trong ngày -> bắt đầu ở Ngày 1 / totalDays (không hardcode Ngày 3/4).
+ */
+export function resolveFallowProgress({ plot = {}, season = {}, nextSeason = null, latestHarvest = null, now = new Date() } = {}) {
+  const totalDays = Math.max(1, Number(season?.fallowDays || plot?.fallowDays || STANDARD_FALLOW_DAYS));
+  const seasonTotalDays = Number(season?.totalDays || plot?.totalDays || 0);
+  const rawPlotDay = Number(plot?.currentDay || 0);
+
+  let currentDay = 1;
+  let isCompleted = Boolean(season?.fallowCompleted);
+
+  if (isCompleted) {
+    currentDay = totalDays;
+  } else if (season?.fallowDay !== undefined && season?.fallowDay !== null && Number.isFinite(Number(season.fallowDay))) {
+    const explicitDay = Number(season.fallowDay);
+    if (explicitDay > totalDays) {
+      isCompleted = true;
+      currentDay = totalDays;
+    } else {
+      currentDay = Math.max(1, explicitDay);
+    }
+  } else if (seasonTotalDays > 0 && rawPlotDay > seasonTotalDays) {
+    const dayAfterHarvest = rawPlotDay - seasonTotalDays;
+    if (dayAfterHarvest > totalDays) {
+      isCompleted = true;
+      currentDay = totalDays;
+    } else {
+      currentDay = Math.max(1, dayAfterHarvest);
+    }
+  } else {
+    const harvestDate = parseDateToLocalStart(
+      latestHarvest?.harvestDate || latestHarvest?.harvestDateFormatted || latestHarvest?.createdAt || season?.fallowStartDate || plot?.harvestedAt
+    );
+    const today = parseDateToLocalStart(now) || parseDateToLocalStart(new Date());
+    if (harvestDate && today) {
+      const elapsedDays = Math.max(0, Math.floor((today.getTime() - harvestDate.getTime()) / 86400000));
+      if (elapsedDays >= totalDays) {
+        isCompleted = true;
+        currentDay = totalDays;
+      } else {
+        currentDay = Math.max(1, elapsedDays + 1);
+      }
+    }
+  }
+
+  const remainingDays = isCompleted ? 0 : Math.max(0, totalDays - currentDay);
+  const workerName = plot?.staffName || plot?.worker || latestHarvest?.enteredByWorker || latestHarvest?.workerName || null;
+
+  const steps = FALLOW_PROTOCOL_STEPS.slice(0, totalDays).map((item) => {
+    let status = 'PENDING';
+    if (isCompleted || item.step < currentDay) {
+      status = 'COMPLETED';
+    } else if (item.step === currentDay) {
+      status = 'IN_PROGRESS';
+    }
+    return {
+      ...item,
+      worker: workerName || 'Kỹ thuật viên nông trại',
+      status
+    };
+  });
+
+  return {
+    currentDay,
+    totalDays,
+    remainingDays,
+    isCompleted,
+    steps
+  };
+}
 
 /**
  * Chuẩn hóa danh sách các Vụ mùa theo đúng thứ tự tuần tự (Sequential):
@@ -1384,7 +1496,7 @@ function enforceSequentialSeasons(rawSeasons = [], plot = {}) {
       fallowDays,
       isCurrent,
       inFallow,
-      yieldKgActual: status === 'COMPLETED' ? (s.yieldKgActual || 12.5) : null
+      yieldKgActual: status === 'COMPLETED' ? (s.yieldKgActual ?? null) : null
     });
 
     const nextStart = new Date(seasonEnd);
@@ -1461,7 +1573,7 @@ export function resolvePlotSeasons(plot, allRentals = []) {
     else if (termMonths <= 9) targetSeasons = 3;
     else targetSeasons = Math.min(4, Math.floor(termMonths / 3));
   } else if (termDays > 0) {
-    const seasonDuration = cycleDays + 5;
+    const seasonDuration = cycleDays + STANDARD_FALLOW_DAYS;
     targetSeasons = Math.max(1, Math.round(termDays / seasonDuration));
   }
 
@@ -1472,7 +1584,7 @@ export function resolvePlotSeasons(plot, allRentals = []) {
     cropKey: primaryCropKey,
     cropName: cropDisplayName,
     totalDays: cycleDays,
-    fallowDays: 5,
+    fallowDays: STANDARD_FALLOW_DAYS,
     rentalId: i === 0 ? (plot.rentalId || 1) : (plot.rentalId ? plot.rentalId * 100 + (i + 1) : i + 1),
     cultivationMode: plot.mode || 'ASSISTED'
   }));

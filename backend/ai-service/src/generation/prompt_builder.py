@@ -1,19 +1,28 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 from src.generation.persona import FARMELY_AI_SYSTEM_INSTRUCTION
 
 def build_chat_prompt(
     user_query: str,
     rag_contexts: List[Dict[str, any]],
-    chat_history: List[Dict[str, str]] = None
+    chat_history: List[Dict[str, str]] = None,
+    live_context: Optional[str] = None,
+    response_guidance: Optional[str] = None
 ) -> str:
     """
     Xây dựng Prompt hoàn chỉnh để gửi tới LLM bao gồm:
     1. System Instruction (Farmely AI Assistant)
-    2. Ngữ cảnh trích xuất từ tài liệu quy trình RAG
-    3. Lịch sử hội thoại nhiều lượt gần nhất (Multi-turn Memory)
-    4. Câu hỏi hiện tại của người dùng
+    2. Dữ liệu hệ thống Farmely thời gian thực từ PostgreSQL (chỉ khi câu hỏi cần tra cứu)
+    3. Ngữ cảnh trích xuất từ tài liệu quy trình RAG
+    4. Chỉ dẫn ngữ cảnh định dạng câu trả lời theo ý định hỏi
+    5. Lịch sử hội thoại nhiều lượt gần nhất (Multi-turn Memory)
+    6. Câu hỏi hiện tại của người dùng
     """
     prompt_parts = [FARMELY_AI_SYSTEM_INSTRUCTION.strip()]
+
+    if live_context and live_context.strip():
+        prompt_parts.append(
+            f"\n--- [DỮ LIỆU HỆ THỐNG FARMELY THỜI GIAN THỰC (POSTGRESQL)] ---\n{live_context.strip()}\n------------------------------------------------------------------"
+        )
 
     # 1. Thêm ngữ cảnh RAG nếu tìm thấy tài liệu phù hợp
     if rag_contexts:
@@ -21,9 +30,12 @@ def build_chat_prompt(
             f"[Tài liệu #{i+1}: {c.get('doc_title', '')} - {c.get('section_title', '')} (Nguồn: {c.get('source', '')})]\n{c.get('content', '')}"
             for i, c in enumerate(rag_contexts)
         ])
-        prompt_parts.append(f"\n--- [TÀI LIỆU KỸ THUẬT & NGHIỆP VỤ FARMELY DÙNG ĐỂ THAM KHẢO] ---\n{context_str}\n------------------------------------------------------------")
+        prompt_parts.append(f"\n--- [TÀI LIỆU THAM KHẢO TỪ HỆ THỐNG FARMELY] ---\n{context_str}\n------------------------------------------------------------")
     else:
-        prompt_parts.append("\n[LƯU Ý: Không tìm thấy tài liệu trực tiếp cho câu hỏi này trong hệ thống. Hãy trả lời dựa trên kiến thức nông nghiệp tổng quát và hướng dẫn liên hệ chuyên gia Farmely nếu cần.]")
+        prompt_parts.append("\n[LƯU Ý: Không tìm thấy đoạn trích RAG khớp trực tiếp. Chỉ sử dụng kiến thức nền tảng đã xác nhận, tuyệt đối không tự suy diễn giá thuê, tên trang trại, mã thửa, danh sách cây hay thông tin chứng nhận.]")
+
+    if response_guidance and response_guidance.strip():
+        prompt_parts.append(f"\n--- [CHỈ DẪN ĐỊNH DẠNG VÀ PHẠM VI] ---\n{response_guidance.strip()}")
 
     # 2. Thêm lịch sử trò chuyện trong phiên (in-session memory)
     if chat_history:

@@ -1,7 +1,29 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { X, Sprout, Calendar, ShieldCheck, Check, Sparkles, AlertCircle, ArrowRight, LoaderCircle, CheckCircle2 } from 'lucide-react';
-import { rentalApi } from '../../api/rental/rentalApi';
 import VnPayModal from '../payment/VnPayModal';
+
+function parseFlexibleDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const str = String(value).trim();
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+  }
+  const vnMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (vnMatch) {
+    return new Date(Number(vnMatch[3]), Number(vnMatch[2]) - 1, Number(vnMatch[1]));
+  }
+  const parsed = new Date(str);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatIsoDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
 
 const COMPATIBLE_VARIETIES = [
   {
@@ -170,7 +192,7 @@ export default function PlotRenewalModal({
           name: rawName || fallback.name,
           cropKey: fallback.cropKey || 'tomato',
           expectedDuration: Number(rawDuration) || fallback.expectedDuration || 35,
-          bufferTime: Number(rawBuffer) || fallback.bufferTime || 5,
+          bufferTime: Number(rawBuffer) || fallback.bufferTime || 4,
           expectedYield: item.expectedYield || fallback.expectedYield || '15 kg/thửa',
           price: Number(item.price) || fallback.price || 350000,
           image: item.imageUrl || item.image || fallback.image,
@@ -254,27 +276,32 @@ export default function PlotRenewalModal({
       setPendingRenewal(null);
       setSuccessData(null);
       setErrorMessage('');
+      setSelectedCareMode(
+        plot?.mode === 'Assisted-Growing' || plot?.cultivationMode === 'ASSISTED' ? 'ASSISTED' : 'SELF'
+      );
     }
-  }, [isOpen, plot?.id]);
+  }, [isOpen, plot?.id, plot?.mode, plot?.cultivationMode]);
 
-  // Tính toán ngày kết thúc mới (newEndDate)
+  // Tính toán ngày kết thúc mới (newEndDate) từ ngày kết thúc thực tế của hợp đồng & giống cây đã chọn
   const calculation = useMemo(() => {
-    const baseEndDate = plot?.expectedHarvestDate || plot?.endDate || new Date().toISOString().slice(0, 10);
-    const startDateObj = new Date(baseEndDate);
+    const startDateObj = parseFlexibleDate(plot?.endDate || plot?.expectedHarvestDate) || new Date();
 
     // Thời gian nghỉ đất (Fallow) + Thời gian vụ mùa (Duration) x Số vụ
-    const singleSeasonDays = (selectedVariety?.expectedDuration || 35) + (selectedVariety?.bufferTime || 5);
+    const fallowBuffer = Number(selectedVariety?.bufferTime) || 4;
+    const singleSeasonDays = (Number(selectedVariety?.expectedDuration) || 35) + fallowBuffer;
     const totalAdditionalDays = singleSeasonDays * selectedSeasonsCount;
 
-    const newEndObj = new Date(startDateObj);
+    const newEndObj = new Date(startDateObj.getTime());
     newEndObj.setDate(newEndObj.getDate() + totalAdditionalDays);
-    const newEndDateStr = newEndObj.toISOString().slice(0, 10);
+    const newEndDateStr = formatIsoDate(newEndObj);
 
-    // Tính giá
-    const plotPricePerPeriod = Number(plot?.rentalPrice || plot?.pricePerPeriod || 1200000);
+    // Tính giá dựa trên đơn giá thật của thửa đất (plots.price_per_month)
+    const plotPricePerPeriod = Number(plot?.pricePerPeriod || plot?.price_per_period || plot?.rentalPrice || 0) || 1200000;
     const configuredCarePrice = plot?.carePricePerMonth ?? plot?.care_price_per_month ?? plot?.careServicePrice;
     const careServicePrice = selectedCareMode === 'ASSISTED'
-      ? (configuredCarePrice != null ? Math.max(0, Number(configuredCarePrice) || 0) : 450000)
+      ? (configuredCarePrice != null && Number(configuredCarePrice) > 0
+        ? Number(configuredCarePrice)
+        : Math.round(plotPricePerPeriod * 0.5))
       : 0;
     const subtotal = (plotPricePerPeriod + careServicePrice) * selectedSeasonsCount;
     const totalAmount = subtotal;
@@ -294,7 +321,12 @@ export default function PlotRenewalModal({
 
   const buildPendingRenewalPayload = () => {
     const rentalId = plot?.rentalId || plot?.rental_id || 1;
-    const plotKey = String(plot?.plotCode || plot?.mapPlotId || plot?.id || '').replace(/^PLOT-/i, '').trim().toUpperCase();
+    const rawPlotCode = String(plot?.plotCode || plot?.mapPlotId || plot?.code || plot?.id || '')
+      .replace(/^PLOT-/i, '')
+      .replace(/\s+/g, '')
+      .trim()
+      .toUpperCase();
+    const plotKey = rawPlotCode;
     const rentalIdSuffix = plot?.rentalId ? `_${plot.rentalId}` : '';
     const storageKey = `farmely_plot_seasons_${plotKey}${rentalIdSuffix}`;
 
@@ -312,7 +344,8 @@ export default function PlotRenewalModal({
     }
 
     if (baseSeasons.length === 0) {
-      const s1Crop = plot?.crop || 'Xà lách Lô Lô Xanh Thủy Canh';
+      const s1Crop = plot?.crop || selectedVariety?.name || 'Vụ mùa hiện tại';
+      const fallbackEnd = parseFlexibleDate(plot?.endDate || plot?.expectedHarvestDate) || new Date();
       baseSeasons = [
         {
           seasonNumber: 1,
@@ -321,11 +354,11 @@ export default function PlotRenewalModal({
           cropKey: 'lettuce',
           cropName: s1Crop,
           status: 'ACTIVE',
-          totalDays: Number(plot?.totalDays) || 32,
+          totalDays: Number(plot?.totalDays) || 45,
           currentDay: plot?.currentDay || 1,
-          startDate: plot?.startDate || new Date().toISOString().slice(0, 10),
-          endDate: plot?.expectedHarvestDate || plot?.endDate || '2026-11-30',
-          fallowDays: 5,
+          startDate: formatIsoDate(parseFlexibleDate(plot?.startDate) || new Date()),
+          endDate: formatIsoDate(fallbackEnd),
+          fallowDays: 4,
           rentalId: plot?.rentalId || 1,
           cultivationMode: plot?.mode || 'ASSISTED',
           isCurrent: true
@@ -334,18 +367,22 @@ export default function PlotRenewalModal({
     }
 
     const addedSeasons = [];
-    let prevEndStr = baseSeasons[baseSeasons.length - 1]?.endDate || plot?.expectedHarvestDate || plot?.endDate || new Date().toISOString().slice(0, 10);
-    let prevFallow = Number(baseSeasons[baseSeasons.length - 1]?.fallowDays) || 5;
+    let prevEndDate = parseFlexibleDate(
+      baseSeasons[baseSeasons.length - 1]?.endDate || plot?.endDate || plot?.expectedHarvestDate
+    ) || new Date();
+    let prevFallow = Number(baseSeasons[baseSeasons.length - 1]?.fallowDays) || 4;
 
     for (let i = 0; i < selectedSeasonsCount; i++) {
       const sNum = baseSeasons.length + i + 1;
-      const nextStartObj = new Date(prevEndStr);
+      const nextStartObj = new Date(prevEndDate.getTime());
       nextStartObj.setDate(nextStartObj.getDate() + prevFallow);
-      const sStartStr = nextStartObj.toISOString().slice(0, 10);
+      const sStartStr = formatIsoDate(nextStartObj);
 
-      const nextEndObj = new Date(nextStartObj);
+      const nextEndObj = new Date(nextStartObj.getTime());
       nextEndObj.setDate(nextEndObj.getDate() + (Number(selectedVariety.expectedDuration) || 35));
-      const sEndStr = nextEndObj.toISOString().slice(0, 10);
+      const sEndStr = formatIsoDate(nextEndObj);
+
+      const nextFallow = Number(selectedVariety.bufferTime) || 4;
 
       addedSeasons.push({
         seasonNumber: sNum,
@@ -359,14 +396,14 @@ export default function PlotRenewalModal({
         currentDay: 0,
         startDate: sStartStr,
         endDate: sEndStr,
-        fallowDays: selectedVariety.bufferTime || 5,
+        fallowDays: nextFallow,
         rentalId: Date.now() + i,
         cultivationMode: selectedCareMode,
         isCurrent: false
       });
 
-      prevEndStr = sEndStr;
-      prevFallow = Number(selectedVariety.bufferTime) || 5;
+      prevEndDate = nextEndObj;
+      prevFallow = nextFallow;
     }
 
     const updatedSeasons = [...baseSeasons, ...addedSeasons];
@@ -379,6 +416,8 @@ export default function PlotRenewalModal({
       plotId: plot?.id || `PLOT-${plotKey}`,
       plotCode: plotKey,
       plotName: String(plot?.name || plotKey).replace(/^Thửa\s+/i, 'Thửa '),
+      customerName: plot?.renterName || plot?.customerName || '',
+      customerPhone: plot?.renterPhone || plot?.customerPhone || '',
       newEndDate: calculation.newEndDate,
       newVarietyId: selectedVariety.varietyId,
       varietyName: selectedVariety.name,
@@ -415,39 +454,28 @@ export default function PlotRenewalModal({
     setErrorMessage('');
     try {
       const renewalData = pendingRenewal || buildPendingRenewalPayload();
-      try {
-        await rentalApi.renewRental(renewalData.rentalId, {
-          newEndDate: renewalData.newEndDate,
+      const postRes = await fetch('/api/contracts/renewals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rentalId: renewalData.rentalId,
+          contractId: renewalData.contractId,
+          plotCode: renewalData.plotCode || renewalData.plotKey,
+          customerName: renewalData.customerName || plot?.renterName || plot?.customerName || '',
+          customerPhone: renewalData.customerPhone || plot?.renterPhone || plot?.customerPhone || '',
           newVarietyId: renewalData.newVarietyId,
-          newServiceId: renewalData.newServiceId,
+          varietyName: renewalData.varietyName,
           cultivationMode: renewalData.cultivationMode,
+          seasonsCount: renewalData.selectedSeasonsCount,
+          seasonNumber: renewalData.newSeasonNumber,
           additionalAmount: renewalData.totalAmount,
-          additionalSeasons: renewalData.selectedSeasonsCount
-        });
-      } catch (apiErr) {
-        console.warn('API call fallback to local state:', apiErr.message);
-      }
-
-      try {
-        await fetch('/api/contracts/renewals', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            rentalId: renewalData.rentalId,
-            plotCode: plot?.code || plot?.plotCode || renewalData.plotKey || 'P-05',
-            customerName: plot?.customerName || 'Tạ Nguyễn Khôi Nguyên',
-            customerPhone: plot?.customerPhone || '0912345678',
-            newVarietyId: renewalData.newVarietyId,
-            varietyName: renewalData.varietyName,
-            cultivationMode: renewalData.cultivationMode,
-            seasonsCount: renewalData.selectedSeasonsCount,
-            seasonNumber: renewalData.newSeasonNumber,
-            additionalAmount: renewalData.totalAmount,
-            newEndDate: renewalData.newEndDate
-          })
-        });
-      } catch (postErr) {
-        console.warn('API call renewal request error:', postErr.message);
+          newEndDate: renewalData.newEndDate,
+          gatewayRef: `VNP-RENEW-${Date.now()}`
+        })
+      });
+      const postBody = await postRes.json().catch(() => ({}));
+      if (!postRes.ok || postBody?.success === false) {
+        throw new Error(postBody?.message || 'Không thể gửi yêu cầu gia hạn đến Ban Quản Trị.');
       }
 
       localStorage.setItem(renewalData.storageKey, JSON.stringify(renewalData.updatedSeasons));
@@ -486,7 +514,7 @@ export default function PlotRenewalModal({
                 Gia Hạn Hợp Đồng Thuê Thửa Đất
               </h3>
               <p className="text-xs text-emerald-100">
-                {String(plot?.name || plot?.plotCode || 'P-06').replace(/^Thửa\s+/i, 'Thửa ')} · Quyền ưu tiên giữ thửa quen theo Vụ mùa
+                {String(plot?.name || plot?.plotCode || 'Thửa đất').replace(/^Thửa\s+/i, 'Thửa ')} · Quyền ưu tiên giữ thửa quen theo Vụ mùa
               </p>
             </div>
           </div>
@@ -541,11 +569,14 @@ export default function PlotRenewalModal({
                 1. Chọn số vụ mùa muốn thuê tiếp:
               </label>
               <div className="grid grid-cols-3 gap-3">
-                {[
-                  { count: 1, label: '+1 Vụ Mùa', desc: '35 - 45 ngày canh tác' },
-                  { count: 2, label: '+2 Vụ Mùa', desc: '70 - 90 ngày canh tác' },
-                  { count: 3, label: '+3 Vụ (Trọn năm)', desc: '105 - 130 ngày canh tác' }
-                ].map((item) => (
+                {(() => {
+                  const dur = Number(selectedVariety?.expectedDuration) || 45;
+                  return [
+                    { count: 1, label: '+1 Vụ Mùa', desc: `~${dur} ngày canh tác` },
+                    { count: 2, label: '+2 Vụ Mùa', desc: `~${dur * 2} ngày canh tác` },
+                    { count: 3, label: '+3 Vụ (Dài hạn)', desc: `~${dur * 3} ngày canh tác` }
+                  ];
+                })().map((item) => (
                   <button
                     key={item.count}
                     type="button"
