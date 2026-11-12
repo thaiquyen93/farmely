@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import PublicNavbar from '../../components/layout/PublicNavbar';
 import Footer from '../../components/layout/Footer';
 import { useAuthStore } from '../../stores/authStore';
@@ -17,6 +17,7 @@ import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import Crops from '../admin/Crops';
 import Varieties from '../admin/Varieties';
 import ProcessTemplates from '../admin/ProcessTemplates';
+import { getVisibleExpertThreads } from './expertChatThreads';
 import {
   Sprout,
   Wheat,
@@ -150,6 +151,7 @@ const DEFAULT_HARVEST_REQUESTS = [
 ];
 
 export default function ExpertDashboard() {
+  const location = useLocation();
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -159,6 +161,13 @@ export default function ExpertDashboard() {
     return 'chat';
   });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    if (['chat', 'plots', 'issues', 'crops', 'varieties', 'templates', 'compatibility', 'knowledge'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [location.search]);
 
   const isExpertUser = user?.role === 'EXPERT';
   const expertSenderName = isExpertUser && user?.fullName ? user.fullName : 'ThS. Nguyễn Hoàng Nam';
@@ -174,7 +183,8 @@ export default function ExpertDashboard() {
   } = useRealtimeChat({
     role: 'expert',
     initialThreadId: null,
-    senderName: expertSenderName
+    senderName: expertSenderName,
+    userId: user?.userId
   });
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [chatFilter, setChatFilter] = useState('all'); // 'all' | 'customer' | 'worker' | 'pending'
@@ -184,7 +194,7 @@ export default function ExpertDashboard() {
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
   const [assignedPlots, setAssignedPlots] = useState([]);
-  const visibleChatThreads = useMemo(() => chatThreads, [chatThreads]);
+  const visibleChatThreads = useMemo(() => getVisibleExpertThreads(chatThreads, user?.userId, selectedThreadId), [chatThreads, user?.userId, selectedThreadId]);
 
   const formatPlotCode = (raw) => {
     if (!raw) return '';
@@ -218,7 +228,7 @@ export default function ExpertDashboard() {
   };
 
   // Handle send message in the shared, non plot based conversation.
-  const handleSendCustomerMessage = (e) => {
+  const handleSendCustomerMessage = async (e) => {
     if (e) e.preventDefault();
     if (!chatInputText.trim()) return;
 
@@ -226,8 +236,13 @@ export default function ExpertDashboard() {
       ? user.fullName
       : (activeRealtimeThread?.expertName || expertSenderName);
 
-    sendExpertMessage(chatInputText.trim(), currentExpert);
-    setChatInputText('');
+    try {
+      await sendExpertMessage(chatInputText.trim(), currentExpert);
+      setChatInputText('');
+    } catch (error) {
+      window.alert(error.message || 'Không thể gửi tin nhắn');
+      return;
+    }
     setTimeout(() => {
       if (chatContainerRef.current) {
         chatContainerRef.current.scrollTo({
@@ -376,7 +391,7 @@ export default function ExpertDashboard() {
             totalDays,
             progressPercent,
             renterName: rental.renterName || rental.customerName || 'Khách thuê',
-            renterEmail: rental.renterEmail || rental.customerEmail || 'customer@farmely.vn',
+            renterEmail: rental.renterEmail || rental.customerEmail || '',
             staffName: rental.staffName || rental.workerName || 'Trần Văn Lực (CVLĐ)',
             stage: rental.stage || (currentDay <= 7 ? 'Gieo ươm & Hồi xanh rễ non' : currentDay <= 22 ? 'Phát triển thân lá' : currentDay <= 35 ? 'Ra hoa & Đậu quả' : 'Chăm sóc & Thu hoạch'),
             temp: rental.temp || '27.96°C',
@@ -389,8 +404,9 @@ export default function ExpertDashboard() {
         for (const rental of plotsById.values()) {
           const customerEmail = rental.renterEmail || '';
           const demo = DEMO_CUSTOMERS.find((customer) => customer.email?.toLowerCase() === customerEmail.toLowerCase());
-          const threadId = demo?.threadId || `CONS-${customerEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
-          customers.set(threadId, { threadId, participantUserId: demo?.userId, customerName: rental.renterName, customerEmail });
+          const customerId = rental.renterId || rental.customerId || demo?.userId;
+          const threadId = demo?.threadId || `CONS-${customerId || customerEmail.replace(/[^a-zA-Z0-9]/g, '_') || rental.rentalId}`;
+          customers.set(threadId, { threadId, participantUserId: customerId, customerName: rental.renterName, customerEmail });
         }
         customers.forEach((customer) => chatService.upsertCustomerThread(customer));
         refreshThreads();
@@ -413,10 +429,10 @@ export default function ExpertDashboard() {
       if (match) return match.id;
     }
 
-    if (renterName) {
+    if (renterName && !renterEmail && !plot.renterId) {
       const match = customerThreads.find((t) => {
         const tName = (t.customerName || '').trim().toLowerCase();
-        return tName && (tName === renterName || tName.includes(renterName) || renterName.includes(tName));
+        return tName && tName === renterName && !t.participantUserId && !t.customerEmail;
       });
       if (match) return match.id;
     }
@@ -425,7 +441,7 @@ export default function ExpertDashboard() {
       const cEmail = (c.email || '').trim().toLowerCase();
       const cName = (c.name || '').trim().toLowerCase();
       if (renterEmail && cEmail && cEmail === renterEmail) return true;
-      if (renterName && cName && (cName === renterName || cName.includes(renterName) || renterName.includes(cName))) return true;
+      if (!renterEmail && !plot.renterId && renterName && cName === renterName) return true;
       return false;
     });
 
@@ -435,7 +451,7 @@ export default function ExpertDashboard() {
       return demoMatch.threadId;
     }
 
-    const identity = renterEmail || renterName || `customer-${plot.renterId || Date.now()}`;
+    const identity = plot.renterId || renterEmail || `rental-${plot.rentalId || plot.plotId || Date.now()}`;
     const newThreadId = `CONS-${String(identity).replace(/[^a-zA-Z0-9]/g, '_')}`;
     chatService.upsertCustomerThread({
       threadId: newThreadId,
@@ -727,11 +743,13 @@ export default function ExpertDashboard() {
         taskBc = new BroadcastChannel('farmely_staff_tasks');
         taskBc.onmessage = () => {
           loadTasksAndDiaries();
+          loadFieldIssues();
         };
 
         actBc = new BroadcastChannel('farmely_staff_activity_channel');
         actBc.onmessage = () => {
           loadTasksAndDiaries();
+          loadFieldIssues();
         };
       }
     } catch {}
@@ -740,8 +758,9 @@ export default function ExpertDashboard() {
       if (e.key === 'farmely_iot_sync_ping') {
         loadAssignedPlots();
       }
-      if (e.key === 'farmely_staff_activities_v4' || e.key === 'farmely_chat_threads_v9') {
+      if (e.key === 'farmely_staff_activities_v4' || e.key === 'farmely_chat_threads_v9' || e.key === 'farmely_task_sync' || e.key === 'farmely_issue_sync' || e.key === 'farmely_staff_sync_ping') {
         loadTasksAndDiaries();
+        loadFieldIssues();
       }
     };
     window.addEventListener('storage', handleStorage);
@@ -749,6 +768,7 @@ export default function ExpertDashboard() {
     const pollInterval = setInterval(() => {
       loadAssignedPlots();
       loadTasksAndDiaries();
+      loadFieldIssues();
     }, 5000);
 
     return () => {
@@ -1703,7 +1723,7 @@ export default function ExpertDashboard() {
     <div className="dashboard-readable min-h-screen bg-[#F5F3E9] flex flex-col font-sans overflow-x-hidden">
       <PublicNavbar dashboardRailCollapsed={sidebarCollapsed} />
 
-      <main className={`box-border flex-1 pt-24 sm:pt-28 pb-16 ${activeTab === 'chat' ? 'max-w-none' : 'max-w-[1720px]'} mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
+      <main className={`box-border flex-1 pt-24 sm:pt-28 ${activeTab === 'chat' ? 'pb-6 max-w-none' : 'pb-16 max-w-[1720px]'} mx-auto px-4 sm:px-8 lg:px-10 w-full lg:w-auto space-y-6 transition-[margin] duration-200 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-72'}`}>
         
         {/* Layout Left Sidebar + Content */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -1713,13 +1733,13 @@ export default function ExpertDashboard() {
             <div className={`px-2 pb-2 text-xs font-bold text-emerald-100/70 uppercase tracking-wider ${sidebarCollapsed ? 'lg:hidden' : ''}`}>Bàn Làm Việc Kỹ Thuật</div>
 
             {[
-              { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: chatThreads.filter(c => c.status === 'PENDING').length },
+              { id: 'chat', label: 'Hộp Thư Tư Vấn & Chỉ Đạo', icon: MessageSquare, count: visibleChatThreads.filter(c => c.status === 'PENDING').length },
               { id: 'plots', label: 'Thửa Đất Giám Sát', icon: Layers, count: assignedPlots.length },
               { id: 'issues', label: 'Xử Lý Sự Cố Hiện Trường', icon: AlertTriangle, count: fieldIssues.filter(i => i.status === 'PENDING' || i.status === 'OPEN').length },
               { id: 'crops', label: 'Danh Mục Cây Trồng (Crops)', icon: Sprout, count: null },
               { id: 'varieties', label: 'Giống Cây Trồng (Varieties)', icon: Wheat, count: null },
               { id: 'templates', label: 'Quy Trình Canh Tác VietGAP', icon: FileSpreadsheet, count: null },
-              { id: 'compatibility', label: 'Ma Trận Thổ Nhưỡng – Giống', icon: SlidersHorizontal, count: null },
+              { id: 'compatibility', label: 'Giống phù hợp theo thửa đất', icon: SlidersHorizontal, count: null },
               { id: 'knowledge', label: 'Kho Tri Thức Nông Nghiệp & AI', icon: BookOpen, count: null }
             ].map((tab) => {
               const Icon = tab.icon;
@@ -1771,13 +1791,13 @@ export default function ExpertDashboard() {
 
             {/* TAB 1: UNIFIED CHAT - MESSENGER FOR CUSTOMERS & FIELD WORKERS */}
             {activeTab === 'chat' && (
-              <div className="bg-white rounded-3xl border border-brand-border shadow-sm overflow-hidden flex flex-col h-[740px]">
+              <div className="bg-white rounded-3xl border border-brand-border shadow-sm overflow-hidden flex flex-col h-[min(740px,calc(100dvh-9rem))] min-h-[420px]">
                 
                 {/* Messenger Layout: Left (Thread List) + Right (Active Chat) */}
                 <div className="flex-1 flex flex-col md:flex-row min-h-0">
                   
                   {/* Left Column: Conversation Threads */}
-                  <div className={`w-full md:w-80 lg:w-96 border-r border-brand-border flex flex-col bg-stone-50/50 shrink-0 ${
+                  <div className={`w-full md:w-80 lg:w-96 min-h-0 border-r border-brand-border flex flex-col bg-stone-50/50 shrink-0 ${
                     mobileShowChat ? 'hidden md:flex' : 'flex'
                   }`}>
                     {/* Sidebar Header */}
@@ -1790,7 +1810,7 @@ export default function ExpertDashboard() {
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         </div>
                         <span className="text-xs font-bold text-amber-900 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 whitespace-nowrap">
-                          {chatThreads.filter(c => c.status === 'PENDING').length} Chờ trả lời
+                          {visibleChatThreads.filter(c => c.status === 'PENDING').length} Chờ trả lời
                         </span>
                       </div>
 
@@ -1973,7 +1993,11 @@ export default function ExpertDashboard() {
                       visibleChatThreads.find((t) => t.id === selectedThreadId) ||
                       visibleChatThreads[0];
 
-                    if (!activeThread) return null;
+                    if (!activeThread) return (
+                      <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-sm text-stone-500">
+                        Chưa có hội thoại nào có tin nhắn.
+                      </div>
+                    );
 
                     const isAdminThread = activeThread.role === 'admin' || activeThread.category === 'admin' || /Ban Quản Trị|Admin/i.test(activeThread.customerName || '');
                     const isWorkerThread = activeThread.role === 'worker' || activeThread.category === 'worker';
@@ -2464,9 +2488,6 @@ export default function ExpertDashboard() {
                     <h3 className="font-heading font-black text-xl text-brand-dark">
                       Xử Lý Báo Cáo Sự Cố Hiện Trường
                     </h3>
-                    <p className="text-xs text-brand-muted mt-0.5">
-                      Tiếp nhận ảnh chụp và phản ánh từ Chuyên viên lao động hiện trường để chẩn đoán sâu và ban hành chỉ đạo can thiệp kỹ thuật.
-                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -2497,11 +2518,8 @@ export default function ExpertDashboard() {
                         <CheckCircle2 className="w-6 h-6" />
                       </div>
                       <h4 className="font-heading font-bold text-stone-800 text-sm">
-                        Hiện tại không có sự cố nào cần xử lý
+                        Chưa có báo cáo sự cố cần xử lý.
                       </h4>
-                      <p className="text-xs text-stone-500 mt-1 max-w-md mx-auto">
-                        Toàn bộ các thửa đất đang phát triển an toàn theo quy trình chuẩn VietGAP. Khi nhân viên hiện trường gửi báo cáo sự cố mới, cảnh báo sẽ hiển thị ngay tại đây.
-                      </p>
                     </div>
                   ) : (
                     fieldIssues.map((issue) => (
@@ -2528,16 +2546,16 @@ export default function ExpertDashboard() {
                           )}
                         </div>
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          issue.status === 'RESOLVED'
+                          issue.status === 'RESOLVED' || issue.status === 'DONE'
                             ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                            : issue.assignedTaskCode
+                            : issue.status === 'IN_PROGRESS' || issue.assignedTaskCode
                             ? 'bg-sky-100 text-sky-800 border border-sky-300'
                             : 'bg-amber-100 text-amber-800 border border-amber-300'
                         }`}>
-                          {issue.status === 'RESOLVED'
-                            ? '✓ Đã ban hành phác đồ'
-                            : issue.assignedTaskCode
-                            ? '⚡ Đã giao nhiệm vụ'
+                          {issue.status === 'RESOLVED' || issue.status === 'DONE'
+                            ? '✓ Đã xong'
+                            : issue.status === 'IN_PROGRESS' || issue.assignedTaskCode
+                            ? '⚡ Đang xử lý'
                             : '⏳ Chờ chẩn đoán'}
                         </span>
                       </div>
@@ -2629,7 +2647,7 @@ export default function ExpertDashboard() {
             {/* TAB VARIETIES: QUẢN LÝ GIỐNG CÂY TRỒNG (SCR-CGNN-02, UC-EXP01) */}
             {activeTab === 'varieties' && (
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-brand-border shadow-sm">
-                <Varieties />
+                <Varieties processBasePath="/expert/dashboard?tab=templates" />
               </div>
             )}
 
@@ -2650,10 +2668,10 @@ export default function ExpertDashboard() {
                     </span>
                     <div>
                       <h3 className="font-heading font-black text-xl text-brand-dark">
-                        Ma Trận Thổ Nhưỡng – Giống Cây Trồng
+                        Giống phù hợp theo thửa đất
                       </h3>
                       <p className="text-xs text-brand-muted mt-0.5">
-                        Chuyên gia nông nghiệp phụ trách thửa đất tick chọn các giống cây trồng thích hợp với điều kiện của thửa. Khách hàng khi thuê chỉ được chọn những giống đã được tick.
+                        Chọn thửa đất, chọn giống phù hợp rồi lưu.
                       </p>
                     </div>
                   </div>
@@ -3375,15 +3393,15 @@ export default function ExpertDashboard() {
                   {selectedIssueDetail.issueCode || selectedIssueDetail.id}
                 </span>
                 <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-                  selectedIssueDetail.status === 'RESOLVED'
+                  selectedIssueDetail.status === 'RESOLVED' || selectedIssueDetail.status === 'DONE'
                     ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                    : selectedIssueDetail.assignedTaskCode
+                    : selectedIssueDetail.status === 'IN_PROGRESS' || selectedIssueDetail.assignedTaskCode
                     ? 'bg-sky-100 text-sky-800 border border-sky-300'
                     : 'bg-amber-100 text-amber-900 border border-amber-300'
                 }`}>
-                  {selectedIssueDetail.status === 'RESOLVED'
-                    ? '✓ Đã ban hành phác đồ'
-                    : selectedIssueDetail.assignedTaskCode
+                  {selectedIssueDetail.status === 'RESOLVED' || selectedIssueDetail.status === 'DONE'
+                    ? '✓ Đã xong'
+                    : selectedIssueDetail.status === 'IN_PROGRESS' || selectedIssueDetail.assignedTaskCode
                     ? '⚡ Đã phát lệnh giao việc'
                     : '⏳ Chờ chuyên gia chẩn đoán'}
                 </span>
@@ -3559,7 +3577,13 @@ export default function ExpertDashboard() {
 
             {/* Bước 3: Giao việc khắc phục cho CVLĐ */}
             <section className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
-              {renderSectionHeader(3, 'Giao việc cho CVLĐ', Boolean(selectedIssueDetail.assignedTaskCode))}
+              {renderSectionHeader(3, 'Giao việc cho CVLĐ', Boolean(selectedIssueDetail.assignedTaskCode || selectedIssueDetail.status === 'RESOLVED'))}
+              {(selectedIssueDetail.status === 'RESOLVED' || selectedIssueDetail.status === 'DONE') && (
+                <div className="p-3 bg-emerald-100/90 border border-emerald-300 rounded-xl text-emerald-900 font-bold text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>✓ Nhân viên hiện trường đã hoàn thành ca khắc phục sự cố này và đồng bộ ảnh minh chứng vào nhật ký nông trại.</span>
+                </div>
+              )}
               <IssueAssignmentPanel
                 workers={availableFieldWorkers}
                 workerId={detailAssignWorkerId}

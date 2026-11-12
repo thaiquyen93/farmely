@@ -243,16 +243,9 @@ export default function MarketplacePlotDetailPanel({
   const baseImg =
     plot.img ||
     plot.imageUrl ||
-    'https://images.unsplash.com/photo-1628352081506-83c43123ed6d?auto=format&fit=crop&w=800&q=80';
+    null;
 
-  const photos =
-    Array.isArray(plot.gallery) && plot.gallery.length > 0
-      ? plot.gallery
-      : [
-          baseImg,
-          'https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&w=800&q=80',
-          'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80'
-        ];
+  const photos = Array.isArray(plot.gallery) && plot.gallery.length > 0 ? plot.gallery : baseImg ? [baseImg] : [];
 
   const currentPhoto = photos[photoIndex] || baseImg;
 
@@ -263,11 +256,6 @@ export default function MarketplacePlotDetailPanel({
   const carePricePerMonth = plot.carePricePerMonth ?? plot.care_price_per_month ?? plot.careServicePrice;
   const unitPricePerSqm = Math.round(rentalPriceNum / areaNumber);
   const formattedUnitPrice = `${unitPricePerSqm.toLocaleString('vi-VN')} đ/m²`;
-
-  // Specifications & IoT Telemetry
-  const direction = plot.direction || plot.specs?.orientation || 'Đông Nam';
-  const phValue = plot.ph || plot.specs?.ph || '6.2 - 6.6';
-  const tempValue = plot.temp || plot.specs?.temp || '20 - 28°C';
 
   const configError = getLeaseConfigError(leaseConfig, selectedCrop);
 
@@ -289,45 +277,6 @@ export default function MarketplacePlotDetailPanel({
     setPhotoIndex((prev) => (prev - 1 + photos.length) % photos.length);
   };
 
-  // IoT metrics
-  const iotMetrics = [
-    {
-      icon: Thermometer,
-      label: 'Nhiệt độ',
-      value: tempValue,
-      statusText: 'Tối ưu',
-      iconBg: 'bg-rose-50',
-      iconColor: 'text-rose-500',
-      iconBorder: 'border-rose-100'
-    },
-    {
-      icon: Sparkles,
-      label: 'Độ pH đất',
-      value: phValue,
-      statusText: 'Tối ưu',
-      iconBg: 'bg-amber-50',
-      iconColor: 'text-amber-500',
-      iconBorder: 'border-amber-100'
-    },
-    {
-      icon: Droplets,
-      label: 'Tưới tự động',
-      value: 'Israel nhỏ giọt',
-      statusText: 'Hoạt động',
-      iconBg: 'bg-sky-50',
-      iconColor: 'text-sky-500',
-      iconBorder: 'border-sky-100'
-    },
-    {
-      icon: Cpu,
-      label: 'Thời Tiết API',
-      value: 'Khí tượng 24/7',
-      statusText: 'Trực tuyến',
-      iconBg: 'bg-violet-50',
-      iconColor: 'text-violet-500',
-      iconBorder: 'border-violet-100'
-    }
-  ];
 
   const handleBookClick = () => {
     const err = getLeaseConfigError(leaseConfig, selectedCrop);
@@ -411,7 +360,7 @@ export default function MarketplacePlotDetailPanel({
           1. HERO IMAGE (h-[128px] sm:h-[136px] 2xl:h-[160px])
       ───────────────────────────────────────────────────────────────────────────── */}
       <div className="relative h-[128px] sm:h-[136px] 2xl:h-[160px] w-full shrink-0 select-none overflow-hidden bg-gradient-to-br from-emerald-950 via-slate-900 to-teal-950 group">
-        <img
+        {currentPhoto && <img
           key={currentPhoto}
           id="detail-img"
           src={currentPhoto}
@@ -421,7 +370,7 @@ export default function MarketplacePlotDetailPanel({
             e.currentTarget.classList.add('hidden');
           }}
           className="w-full h-full object-cover transition-all duration-700 ease-out group-hover:scale-105 text-transparent [font-size:0]"
-        />
+        />}
 
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-black/15 pointer-events-none" />
 
@@ -562,9 +511,6 @@ export default function MarketplacePlotDetailPanel({
             <div className="flex items-center gap-1">
               <span className="whitespace-nowrap bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200/60 text-[11px] font-black text-slate-800">
                 {plotArea}
-              </span>
-              <span className="whitespace-nowrap bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-200/60 text-[11px] font-black text-slate-800">
-                {direction}
               </span>
             </div>
           </div>
@@ -723,15 +669,11 @@ export default function MarketplacePlotDetailPanel({
               </div>
             </div>
 
-            {/* Quick specs grid 3 cột di chuyển sang tab kỹ thuật */}
-            <div className="grid grid-cols-3 gap-1.5">
+            {/* Quick specs */}
+            <div className="grid grid-cols-2 gap-1.5">
               <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100 text-center">
                 <p className="text-[9px] text-slate-400 font-medium">Diện tích</p>
                 <p className="text-xs font-black text-slate-800 mt-0.5">{plotArea}</p>
-              </div>
-              <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100 text-center">
-                <p className="text-[9px] text-slate-400 font-medium">Hướng</p>
-                <p className="text-xs font-black text-slate-800 mt-0.5">{direction}</p>
               </div>
               <div className="p-2 rounded-xl bg-slate-50/80 border border-slate-100 text-center">
                 <p className="text-[9px] text-slate-400 font-medium">Đơn giá</p>
@@ -944,53 +886,6 @@ export default function MarketplacePlotDetailPanel({
                   <BookOpen className="w-3.5 h-3.5" />
                   Xem cẩm nang kỹ thuật toàn diện (VietGAP)
                 </button>
-              </div>
-            </div>
-
-            {/* IoT Telemetry */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                  </span>
-                  <h4 className="font-extrabold text-[10px] text-slate-600 uppercase tracking-wider">
-                    Vi Khí Hậu & Thổ Nhưỡng
-                  </h4>
-                </div>
-                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200/50">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Trực tiếp 24/7
-                </span>
-              </div>
-
-              <div className="space-y-1.5">
-                {iotMetrics.map((metric, idx) => {
-                  const Icon = metric.icon;
-                  return (
-                    <div
-                      key={idx}
-                      className="p-2.5 rounded-xl bg-white border border-slate-100 shadow-2xs flex items-center gap-2.5 hover:border-emerald-200 transition-all group"
-                    >
-                      <div
-                        className={`w-8 h-8 rounded-lg ${metric.iconBg} ${metric.iconColor} flex items-center justify-center shrink-0 border ${metric.iconBorder} group-hover:scale-105 transition-transform`}
-                      >
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[9px] text-slate-400 font-medium">{metric.label}</p>
-                        <p className="text-xs font-extrabold text-slate-900 leading-tight">
-                          {metric.value}
-                        </p>
-                      </div>
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1 bg-emerald-50 text-emerald-600">
-                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
-                        {metric.statusText}
-                      </span>
-                    </div>
-                  );
-                })}
               </div>
             </div>
 

@@ -1,6 +1,6 @@
 /**
  * Site Visit Service - Đặt lịch tham quan khảo sát thửa đất (SCR-PUB-05 / Table site_visits)
- * Tích hợp trực tiếp SQL Server isp392_agritech
+ * Đọc và ghi lịch thăm trong PostgreSQL Farmely.
  */
 
 export const siteVisitsService = {

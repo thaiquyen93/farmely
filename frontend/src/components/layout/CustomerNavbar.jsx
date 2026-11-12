@@ -97,6 +97,7 @@ export default function CustomerNavbar({ activeTab, setActiveTab }) {
             >
               <span>Marketplace</span>
             </Link>
+            <Link to="/customer/support" className="flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold text-stone-600 hover:bg-black/5">Hỗ trợ</Link>
           </div>
 
           {/* RIGHT: Notifications + Role Switcher + User Dropdown */}
@@ -232,6 +233,7 @@ export default function CustomerNavbar({ activeTab, setActiveTab }) {
           >
             Marketplace (Thuê thêm thửa đất)
           </Link>
+          <Link to="/customer/support" onClick={() => setMobileMenuOpen(false)} className="block py-2 font-bold text-brand-green">Hỗ trợ</Link>
         </div>
       )}
     </nav>

@@ -238,15 +238,9 @@ export default function Lands() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: Land (Master Property)
-          </span>
-          <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
+          <h2 className="text-2xl font-heading font-black text-brand-dark">
             Quản Lý Nông Trại
           </h2>
-          <p className="text-xs text-brand-muted mt-0.5">
-            Quản lý các khu đất mẹ do Farmely trực tiếp sở hữu và quy hoạch thành các thửa đất nhỏ.
-          </p>
         </div>
 
         <Link to="/admin/master-data/lands/create">

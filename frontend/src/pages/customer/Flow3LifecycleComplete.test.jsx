@@ -519,6 +519,6 @@ describe('LUỒNG 3 TEST SUITE: VÒNG ĐỜI VỤ MÙA THÔNG MINH (FLOW 3 LIFEC
     expect(host.textContent).toContain('Thu hoạch Dưa leo baby F1 — 18.50 kg');
     expect(host.textContent).toContain('Trần Văn Lực');
     expect(host.textContent).toContain('HRV-88');
-    expect(host.textContent).toContain('BR21');
+    expect(host.textContent).toContain('Khách hàng nhận nông sản tại nông trại.');
   });
 });

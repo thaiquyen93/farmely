@@ -27,7 +27,6 @@ export default function KnowledgeDocuments() {
   const [editDescription, setEditDescription] = useState('');
   const [editFile, setEditFile] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isLiveDb, setIsLiveDb] = useState(false);
 
   // Upload Form State
   const [title, setTitle] = useState('');
@@ -62,7 +61,6 @@ export default function KnowledgeDocuments() {
             };
           });
           setDocs(normalized);
-          setIsLiveDb(true);
         }
       })
       .catch((err) => {
@@ -294,7 +292,7 @@ export default function KnowledgeDocuments() {
       )
     },
     {
-      header: 'RAG AI Indexing',
+      header: 'Dùng cho trợ lý AI',
       key: 'isIndexedForRAG',
       render: (row) => {
         const isIndexed = row.isIndexedForRAG ?? row.is_indexed_for_rag ?? false;
@@ -306,10 +304,10 @@ export default function KnowledgeDocuments() {
                 ? 'text-emerald-800 bg-emerald-50 border-emerald-200 hover:bg-emerald-100' 
                 : 'text-stone-500 bg-stone-50 border-stone-200 hover:bg-stone-100'
             }`}
-            title="Bấm để bật/tắt nạp vào dữ liệu huấn luyện RAG cho AI Chatbot"
+            title="Bật hoặc tắt tài liệu trong trợ lý AI"
           >
             <CheckCircle2 className={`w-3.5 h-3.5 ${isIndexed ? 'text-emerald-600' : 'text-stone-400'}`} />
-            {isIndexed ? 'Đã index cho AI (RAG)' : 'Chưa index'}
+            {isIndexed ? 'Đang dùng' : 'Chưa dùng'}
           </button>
         );
       }
@@ -371,23 +369,9 @@ export default function KnowledgeDocuments() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-              Thực thể: KnowledgeDocument (Cơ sở dữ liệu RAG AI)
-            </span>
-            {isLiveDb && (
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live DB: {docs.length} Tài liệu RAG</span>
-              </span>
-            )}
-          </div>
-          <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
+          <h2 className="text-2xl font-heading font-black text-brand-dark">
             Kho Tài Liệu Kỹ Thuật Nông Học
           </h2>
-          <p className="text-xs text-brand-muted mt-0.5">
-            Quản lý các tài liệu kỹ thuật chuyên môn làm cơ sở dữ liệu tri thức sinh học cho trợ lý AI Chatbot và sổ tay khách hàng.
-          </p>
         </div>
 
         <Button variant="primary" size="md" icon={Upload} onClick={() => setShowUploadModal(true)}>
@@ -407,7 +391,6 @@ export default function KnowledgeDocuments() {
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         title="Tải Lên Tài Liệu Kỹ Thuật Mới"
-        subtitle="Hệ thống tự động phân tách và nhúng vector vào kho tri thức RAG"
       >
         <form onSubmit={handleUpload} className="space-y-4">
           <Input
@@ -617,7 +600,7 @@ export default function KnowledgeDocuments() {
               </p>
               <p className="text-[11px] text-stone-500">
                 {editFile
-                  ? `${(editFile.size / (1024 * 1024)).toFixed(2)} MB - Sẽ tự động lưu vào /docs và cập nhật database`
+                  ? `${(editFile.size / (1024 * 1024)).toFixed(2)} MB`
                   : 'Nếu không chọn tệp mới, hệ thống sẽ giữ nguyên tệp hiện tại'}
               </p>
             </label>
@@ -683,7 +666,7 @@ export default function KnowledgeDocuments() {
 
             <div className="p-3.5 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Tài liệu đã được chia đoạn (chunking) và lập chỉ mục trong vector database phục vụ Chatbot AI.</span>
+              <span>Tài liệu này có thể được dùng để trả lời câu hỏi của khách hàng.</span>
             </div>
 
             <div className="pt-2 flex items-center justify-between border-t border-brand-border">

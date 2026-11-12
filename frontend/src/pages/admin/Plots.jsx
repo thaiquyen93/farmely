@@ -63,8 +63,6 @@ export default function Plots() {
             area: formatArea(Number(p.area)),
             rentalPrice: Number(p.pricePerPeriod) || 0,
             formattedPrice: `${Number(p.pricePerPeriod || 0).toLocaleString('vi-VN')} đ`,
-            drawn: p.boundary?.length >= 3,
-            corners: p.boundary?.length || 0,
             status: plotStatusBadge(p.status),
             isPublished: p.isPublished,
             compatibleVarietiesCount: compatCount,
@@ -190,9 +188,6 @@ export default function Plots() {
             <span className="inline-block whitespace-nowrap text-[11px] font-black font-mono text-brand-yellow bg-brand-dark px-1.5 py-0.5 rounded">
               {row.code}
             </span>
-            <span className="text-[11px] text-stone-500 block mt-0.5">
-              {row.soilType || 'Đất phù sa'}
-            </span>
           </div>
         </div>
       )
@@ -234,14 +229,6 @@ export default function Plots() {
       width: '105px',
       sortable: true,
       render: (row) => <span className="font-bold text-brand-dark text-xs">{row.area}</span>
-    },
-    {
-      header: 'Ranh Giới',
-      key: 'drawn',
-      width: '120px',
-      render: (row) => row.drawn
-        ? <span className="text-xs font-semibold text-emerald-700">Đã vẽ · {row.corners} góc</span>
-        : <span className="text-xs text-stone-400">Chưa vẽ</span>
     },
     {
       header: 'Giá Thuê / Tháng',
@@ -461,15 +448,9 @@ export default function Plots() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-            Thực thể: Thửa Đất (Plot)
-          </span>
-          <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
+          <h2 className="text-2xl font-heading font-black text-brand-dark">
             Quản Lý Thửa Đất Canh Tác
           </h2>
-          <p className="text-xs text-brand-muted mt-0.5">
-            Mỗi thửa đất quản lý độc lập về diện tích, trạm vi khí hậu, danh mục giống tương thích và trạng thái lịch khả dụng.
-          </p>
         </div>
 
         <Link to="/admin/master-data/plots/create">

@@ -7,6 +7,7 @@ import com.farmely.rental.dto.response.AvailabilityCheckResponse;
 import com.farmely.rental.dto.response.RentalResponse;
 import com.farmely.rental.entity.RentalStatus;
 import com.farmely.rental.service.RentalService;
+import com.farmely.rental.service.DemoTimeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/rentals")
@@ -23,6 +25,18 @@ import java.util.List;
 public class RentalController {
 
     private final RentalService rentalService;
+    private final DemoTimeService demoTimeService;
+
+    @GetMapping("/{id}/simulate-time")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getDemoTime(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.success(demoTimeService.get(id)));
+    }
+
+    @PostMapping("/{id}/simulate-time")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> simulateTime(
+            @PathVariable Integer id, @RequestBody Map<String, Object> payload) {
+        return ResponseEntity.ok(ApiResponse.success(demoTimeService.simulate(id, payload)));
+    }
 
     @PostMapping("/check-availability")
     @Operation(summary = "Kiểm tra tính khả dụng, độ tương thích giống rau & chu kỳ tối thiểu (BR03, BR04, BR07)")

@@ -51,6 +51,10 @@ public class CareTaskEntity {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "demo_completed", nullable = false)
+    @Builder.Default
+    private Boolean demoCompleted = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

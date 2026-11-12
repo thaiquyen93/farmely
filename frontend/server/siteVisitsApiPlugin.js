@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import pg from 'pg';
 const { Pool, Client } = pg;
 import { getLeaseTermError, getCareFeePerMonth, ALLOWED_TERM_MONTHS } from '../src/utils/leaseSelection.js';
+import { ensureHarvestDemoSchema, getDemoTime, recordHarvestOnce, simulateDemoTime } from './harvestDemoApi.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -103,6 +104,16 @@ function callGeminiLlm({ message, contextDocs = [] }) {
     req.write(payload);
     req.end();
   });
+}
+
+let siteVisitColumnsEnsured = false;
+async function ensureSiteVisitColumns() {
+  if (siteVisitColumnsEnsured) return;
+  await runPostgreSql(`
+ALTER TABLE site_visits ADD COLUMN IF NOT EXISTS group_size INT NOT NULL DEFAULT 2;
+ALTER TABLE site_visits ADD COLUMN IF NOT EXISTS notes TEXT;
+`);
+  siteVisitColumnsEnsured = true;
 }
 
 let rentalLeaseColumnsEnsured = false;
@@ -622,6 +633,57 @@ JOIN plots p ON ins.plot_id = p.plot_id;
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
 
+        const demoTimeMatch = url.match(/^\/api\/(rentals|plots)\/(\d+)\/simulate-time(?:\?.*)?$/);
+        if (demoTimeMatch && ['GET', 'POST'].includes(req.method)) {
+          try {
+            let rentalId = Number(demoTimeMatch[2]);
+            if (demoTimeMatch[1] === 'plots') {
+              const lookup = await getPgPool().query(`
+                SELECT rental_id FROM rentals WHERE plot_id = $1 AND status = 'ACTIVE'
+                ORDER BY rental_id DESC LIMIT 1
+              `, [rentalId]);
+              rentalId = lookup.rows[0]?.rental_id;
+              if (!rentalId) throw new Error('Thửa chưa có lượt thuê đang canh tác');
+            }
+            const payload = req.method === 'POST'
+              ? await new Promise((resolve, reject) => {
+                  let body = '';
+                  req.on('data', (chunk) => { body += chunk; });
+                  req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch (error) { reject(error); } });
+                })
+              : null;
+            const data = req.method === 'POST'
+              ? await simulateDemoTime(getPgPool(), rentalId, payload)
+              : await getDemoTime(getPgPool(), rentalId);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, data }));
+          } catch (error) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: error.message }));
+          }
+          return;
+        }
+
+        if (req.method === 'POST' && (url === '/api/harvest' || url === '/api/harvest-results')) {
+          try {
+            const payload = await new Promise((resolve, reject) => {
+              let body = '';
+              req.on('data', (chunk) => { body += chunk; });
+              req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch (error) { reject(error); } });
+            });
+            const data = await recordHarvestOnce(getPgPool(), payload);
+            res.statusCode = data.alreadyRecorded ? 200 : 201;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, data }));
+          } catch (error) {
+            res.statusCode = /thay đổi/.test(error.message) ? 409 : 400;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: false, message: error.message }));
+          }
+          return;
+        }
+
         // 0. GET /api/db/status (Health check & statistics)
         if (req.method === 'GET' && url === '/api/db/status') {
           try {
@@ -846,7 +908,8 @@ SELECT json_build_object(
           'Tháng ' || TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM') AS "monthLabel",
           SUM(CASE WHEN pt.contract_id IS NOT NULL AND pt.service_request_id IS NULL THEN CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END ELSE 0 END) AS "leaseRevenue",
           SUM(CASE WHEN pt.service_request_id IS NOT NULL THEN CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END ELSE 0 END) AS "serviceRevenue",
-          SUM(CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END) AS "totalRevenue"
+          SUM(CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END) AS "totalRevenue",
+          COUNT(*)::int AS "transactionCount"
         FROM payment_transactions pt
         WHERE pt.status = 'SUCCESS'
         GROUP BY TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM/YYYY'), 'Tháng ' || TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM')
@@ -864,13 +927,15 @@ SELECT json_build_object(
           COALESCE(pt.gateway_ref, 'VNPAY_SANDBOX') AS "gatewayRef",
           pt.status,
           TO_CHAR(pt.created_at, 'HH24:MI - DD/MM/YYYY') AS "createdAt",
+          TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM/YYYY') AS "month",
+          CASE WHEN pt.service_request_id IS NOT NULL THEN 'Dịch vụ phát sinh' ELSE 'Thuê thửa đất' END AS "category",
           COALESCE(c.contract_number, 'Dịch vụ phát sinh') AS "referenceCode",
           COALESCE(u.full_name, 'Khách vãng lai') AS "customerName"
         FROM payment_transactions pt
         LEFT JOIN contracts c ON pt.contract_id = c.contract_id
         LEFT JOIN users u ON c.renter_id = u.user_id
         ORDER BY pt.created_at DESC
-        LIMIT 8
+        LIMIT 150
       ) tx
     ),
     'cultivationBreakdown', (
@@ -900,6 +965,7 @@ SELECT json_build_object(
         // 1. GET /api/site-visits
         if (req.method === 'GET' && (url === '/api/site-visits' || url.startsWith('/api/site-visits?'))) {
           try {
+            await ensureSiteVisitColumns();
             const sql = `
 SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json) FROM (
   SELECT 
@@ -909,11 +975,10 @@ SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json) FROM (
     COALESCE(p.area, 100.00) AS area, 
     v.visitor_name, 
     v.visitor_phone, 
-    COALESCE(v.visitor_email, v.visitor_name || '@farmely.vn') AS visitor_email,
+    v.group_size,
+    COALESCE(v.notes, '') AS notes,
     TO_CHAR(v.visit_date, 'YYYY-MM-DD') AS visit_date, 
     v.visit_slot::text AS visit_slot, 
-    COALESCE(v.group_size, 2) AS group_size, 
-    COALESCE(v.notes, '') AS notes, 
     v.status::text AS status, 
     TO_CHAR(v.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at 
   FROM site_visits v 
@@ -925,27 +990,8 @@ SELECT COALESCE(json_agg(row_to_json(v)), '[]'::json) FROM (
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(data || '[]');
           } catch (err) {
-            try {
-              const script = `
-$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True")
-$conn.Open()
-$cmd = $conn.CreateCommand()
-$cmd.CommandText = "SELECT v.visit_id, v.plot_id, p.plot_code, p.area, v.visitor_name, v.visitor_phone, v.visitor_email, CONVERT(varchar(10), v.visit_date, 120) as visit_date, v.visit_slot, v.group_size, v.notes, v.status, CONVERT(varchar(19), v.created_at, 120) as created_at FROM site_visits v LEFT JOIN plots p ON v.plot_id = p.plot_id ORDER BY v.visit_id DESC FOR JSON PATH"
-$reader = $cmd.ExecuteReader()
-$sb = New-Object System.Text.StringBuilder
-while ($reader.Read()) { [void]$sb.Append($reader.GetString(0)) }
-$conn.Close()
-$json = $sb.ToString()
-if (-not $json) { $json = "[]" }
-Write-Output $json
-`;
-              const data = await runPowershell(script);
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              res.end(data || '[]');
-            } catch (err2) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: String(err2) }));
-            }
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: String(err) }));
           }
           return;
         }
@@ -957,29 +1003,26 @@ Write-Output $json
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const plotId = payload.plot_id ? parseInt(payload.plot_id, 10) : 1;
-              const name = (payload.visitor_name || 'Khách hàng').replace(/'/g, "''");
-              const phone = (payload.visitor_phone || '0900000000').replace(/'/g, "''");
-              const date = payload.visit_date || new Date().toISOString().slice(0, 10);
-              const slot = (payload.visit_slot || 'MORNING').toUpperCase();
-              const validSlot = (slot === 'AFTERNOON') ? 'AFTERNOON' : 'MORNING';
-              const email = (payload.visitor_email || '').replace(/'/g, "''");
-              const notes = (payload.notes || '').replace(/'/g, "''");
-              const groupSize = parseInt(payload.group_size, 10) || 2;
+              const plotId = Number.parseInt(payload.plot_id, 10);
+              const name = String(payload.visitor_name || '').trim();
+              const phone = String(payload.visitor_phone || '').trim();
+              const date = String(payload.visit_date || '');
+              const slot = payload.visit_slot === 'AFTERNOON' ? 'AFTERNOON' : 'MORNING';
+              if (!Number.isInteger(plotId) || !name || !phone || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, message: 'Thông tin lịch thăm không hợp lệ.' }));
+                return;
+              }
 
-              let createdObj = { visit_id: Date.now(), visitor_name: name, visitor_phone: phone, visitor_email: email, visit_date: date, visit_slot: validSlot, group_size: groupSize, notes: notes, status: 'PENDING' };
-
-              // Thử ghi vào PostgreSQL (farmely)
-              try {
-                const pgSql = `
-INSERT INTO site_visits (plot_id, visitor_name, visitor_phone, visitor_email, visit_date, visit_slot, group_size, notes, status)
-VALUES (${plotId}, '${name}', '${phone}', ${email ? `'${email}'` : 'NULL'}, '${date}', '${validSlot}', ${groupSize}, ${notes ? `'${notes}'` : 'NULL'}, 'PENDING')
+              await ensureSiteVisitColumns();
+              const output = await runPostgreSql(`
+INSERT INTO site_visits (plot_id, visitor_name, visitor_phone, visit_date, visit_slot, group_size, notes, status)
+VALUES ($1, $2, $3, $4, $5::visit_slot_enum, $6, $7, 'PENDING')
 RETURNING json_build_object(
   'visit_id', visit_id,
   'plot_id', plot_id,
   'visitor_name', visitor_name,
   'visitor_phone', visitor_phone,
-  'visitor_email', visitor_email,
   'visit_date', TO_CHAR(visit_date, 'YYYY-MM-DD'),
   'visit_slot', visit_slot,
   'group_size', group_size,
@@ -987,54 +1030,8 @@ RETURNING json_build_object(
   'status', status,
   'created_at', TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS')
 );
-`;
-                const pgOutput = await runPostgreSql(pgSql);
-                const jsonMatch = pgOutput.match(/\{[\s\S]*\}/);
-                if (jsonMatch) createdObj = JSON.parse(jsonMatch[0]);
-              } catch (pgErr) { }
-
-              // Đồng bộ song song sang SQL Server (isp392_agritech)
-              try {
-                const b64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
-                const msScript = `
-$bytes = [System.Convert]::FromBase64String("${b64}")
-$obj = [System.Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json
-$conn = New-Object System.Data.SqlClient.SqlConnection("Server=localhost;Database=isp392_agritech;Integrated Security=True;TrustServerCertificate=True")
-$conn.Open()
-$cmd = $conn.CreateCommand()
-$cmd.CommandText = "INSERT INTO site_visits (plot_id, visitor_name, visitor_phone, visitor_email, visit_date, visit_slot, group_size, notes, status, created_at) OUTPUT INSERTED.visit_id, INSERTED.visitor_name, INSERTED.visitor_phone, INSERTED.visitor_email, CONVERT(varchar(10), INSERTED.visit_date, 120) as visit_date, INSERTED.visit_slot, INSERTED.group_size, INSERTED.notes, INSERTED.status, CONVERT(varchar(19), INSERTED.created_at, 120) as created_at VALUES (@plot_id, @name, @phone, @email, @date, @slot, @group, @notes, 'PENDING', GETDATE())"
-[void]$cmd.Parameters.AddWithValue("@plot_id", $(if ($obj.plot_id) { [int]$obj.plot_id } else { [System.DBNull]::Value }))
-[void]$cmd.Parameters.AddWithValue("@name", [string]$obj.visitor_name)
-[void]$cmd.Parameters.AddWithValue("@phone", [string]$obj.visitor_phone)
-[void]$cmd.Parameters.AddWithValue("@email", $(if ($obj.visitor_email) { [string]$obj.visitor_email } else { "$phone@farmely.vn" }))
-[void]$cmd.Parameters.AddWithValue("@date", [string]$obj.visit_date)
-[void]$cmd.Parameters.AddWithValue("@slot", $(if ($obj.visit_slot) { [string]$obj.visit_slot } else { "MORNING" }))
-[void]$cmd.Parameters.AddWithValue("@group", $(if ($obj.group_size) { [int]$obj.group_size } else { 1 }))
-[void]$cmd.Parameters.AddWithValue("@notes", $(if ($obj.notes) { [string]$obj.notes } else { "" }))
-$adapter = New-Object System.Data.SqlClient.SqlDataAdapter($cmd)
-$dt = New-Object System.Data.DataTable
-[void]$adapter.Fill($dt)
-$conn.Close()
-Write-Output ($dt | ConvertTo-Json -Compress)
-`;
-                const msResultStr = await runPowershell(msScript);
-                const jsonMatch = msResultStr.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                  const msRow = JSON.parse(jsonMatch[0]);
-                  createdObj = {
-                    visit_id: msRow.visit_id,
-                    visitor_name: msRow.visitor_name,
-                    visitor_phone: msRow.visitor_phone,
-                    visitor_email: msRow.visitor_email,
-                    visit_date: msRow.visit_date,
-                    visit_slot: msRow.visit_slot,
-                    group_size: msRow.group_size,
-                    notes: msRow.notes,
-                    status: msRow.status,
-                    created_at: msRow.created_at
-                  };
-                }
-              } catch (msErr) { }
+`, [plotId, name, phone, date, slot, Number.parseInt(payload.group_size, 10) || 2, String(payload.notes || '')]);
+              const createdObj = JSON.parse(output);
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
@@ -2551,7 +2548,7 @@ ORDER BY u.user_id ASC;
 
               // Gọi identity-service trước nếu đang chạy để nhận JWT thật
               try {
-                const idRes = await fetch('http://localhost:8081/api/auth/login', {
+                const idRes = await fetch(`${process.env.IDENTITY_SERVICE_URL || 'http://localhost:8081'}/api/auth/login`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ email, password })
@@ -2669,7 +2666,7 @@ LIMIT 1;
           // Thử gọi identity-service trước nếu có token JWT chuẩn
           if (token && !token.startsWith('farmely-jwt-token-') && !token.startsWith('demo-token-')) {
             try {
-              const idRes = await fetch('http://localhost:8081/api/auth/me', {
+              const idRes = await fetch(`${process.env.IDENTITY_SERVICE_URL || 'http://localhost:8081'}/api/auth/me`, {
                 headers: { 'Authorization': `Bearer ${token}` }
               });
               if (idRes.ok) {
@@ -3083,6 +3080,7 @@ SELECT json_build_object(
         // 8.02 GET /api/customer/harvest-results & GET /api/harvest & POST /api/harvest & POST /api/customer/harvest-results/confirm
         if (req.method === 'GET' && (url === '/api/customer/harvest-results' || url === '/api/harvest-results' || url === '/api/harvest' || url.startsWith('/api/customer/harvest-results?') || url.startsWith('/api/harvest-results?') || url.startsWith('/api/harvest?'))) {
           try {
+            await ensureHarvestDemoSchema(getPgPool());
             const urlObj = new URL(url, 'http://localhost:3000');
             const userId = urlObj.searchParams.get('userId') || '';
             const email = urlObj.searchParams.get('email') || '';
@@ -3113,6 +3111,8 @@ SELECT json_build_object(
         'HRV-' || hr.harvest_id AS id,
         'HRV-' || hr.harvest_id AS "harvestCode",
         hr.rental_id AS "rentalId",
+        hr.season_key AS "seasonKey",
+        hr.harvest_task_id AS "taskId",
         r.plot_id AS "plotId",
         p.plot_code AS "plotCode",
         'PLOT-' || p.plot_code AS "plotScopeId",
@@ -3719,6 +3719,8 @@ SELECT COALESCE(json_agg(row_to_json(p)), '[]'::json) FROM (
     p.image_url AS image_url, 
     p.price_per_period AS "pricePerPeriod", 
     p.price_per_period AS price_per_period, 
+    p.care_price_per_month AS "carePricePerMonth",
+    p.care_price_per_month AS care_price_per_month,
     TO_CHAR(p.price_per_period, 'FM999,999,999') || ' đ' AS price_text,
     CASE 
       WHEN EXISTS (
@@ -3945,6 +3947,7 @@ SELECT row_to_json(p) FROM (
     p.area || ' m²' AS "areaText",
     p.image_url AS "imageUrl", 
     p.price_per_period AS "pricePerPeriod", 
+    p.care_price_per_month AS "carePricePerMonth",
     TO_CHAR(p.price_per_period, 'FM999,999,999') || ' đ/tháng' AS "formattedPrice",
     p.status::text AS "status", 
     p.is_published AS "isPublished",
@@ -4042,6 +4045,8 @@ SELECT row_to_json(p) FROM (
               const landId = parseInt(payload.landId, 10);
               const plotCode = (payload.plotCode || '').trim().toUpperCase();
               const pricePerPeriod = parseFloat(payload.pricePerPeriod) || 1200000;
+              const carePricePerMonth = Number(payload.carePricePerMonth ?? 0);
+              if (!Number.isFinite(carePricePerMonth) || carePricePerMonth < 0) throw new Error('Giá chăm sóc không hợp lệ');
               const status = (payload.status || 'MAINT').toUpperCase();
               const isPublished = payload.isPublished === true;
               const imageUrl = (payload.imageUrl || '').trim();
@@ -4070,8 +4075,8 @@ SELECT row_to_json(p) FROM (
               const imgSqlVal = imageUrl ? `'${imageUrl.replace(/'/g, "''")}'` : 'NULL';
 
               const insertPg = `
-INSERT INTO plots (land_id, plot_code, area, image_url, price_per_period, status, is_published, boundary_geojson, created_at, updated_at)
-VALUES (${landId}, '${plotCode.replace(/'/g, "''")}', ${area}, ${imgSqlVal}, ${pricePerPeriod}, '${status}', ${isPublished}, ${boundarySqlVal}, NOW(), NOW())
+INSERT INTO plots (land_id, plot_code, area, image_url, price_per_period, care_price_per_month, status, is_published, boundary_geojson, created_at, updated_at)
+VALUES (${landId}, '${plotCode.replace(/'/g, "''")}', ${area}, ${imgSqlVal}, ${pricePerPeriod}, ${carePricePerMonth}, '${status}', ${isPublished}, ${boundarySqlVal}, NOW(), NOW())
 RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_published, created_at, updated_at;
 `;
               const pgOut = await runPostgreSql(insertPg);
@@ -4100,6 +4105,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                   plotCode,
                   area,
                   pricePerPeriod,
+                  carePricePerMonth,
                   status,
                   isPublished,
                   boundary,
@@ -4128,6 +4134,8 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
               const landId = parseInt(payload.landId, 10);
               const plotCode = (payload.plotCode || '').trim().toUpperCase();
               const pricePerPeriod = parseFloat(payload.pricePerPeriod) || 1200000;
+              const carePricePerMonth = Number(payload.carePricePerMonth ?? 0);
+              if (!Number.isFinite(carePricePerMonth) || carePricePerMonth < 0) throw new Error('Giá chăm sóc không hợp lệ');
               const status = (payload.status || 'MAINT').toUpperCase();
               const isPublished = payload.isPublished === true;
               const imageUrl = (payload.imageUrl || '').trim();
@@ -4145,6 +4153,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                 `land_id = ${landId}`,
                 `plot_code = '${plotCode.replace(/'/g, "''")}'`,
                 `price_per_period = ${pricePerPeriod}`,
+                `care_price_per_month = ${carePricePerMonth}`,
                 `status = '${status}'`,
                 `is_published = ${isPublished}`,
                 `updated_at = NOW()`
@@ -4180,6 +4189,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                   plotCode,
                   area,
                   pricePerPeriod,
+                  carePricePerMonth,
                   status,
                   isPublished,
                   boundary,
@@ -4486,9 +4496,9 @@ SELECT json_build_object(
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const name = (payload.name || payload.variety_name || '').trim();
+              const name = (payload.varietyName || payload.name || payload.variety_name || '').trim();
               const cropId = parseInt(payload.cropId || payload.crop_id || 1, 10);
-              const duration = parseInt(payload.growthDuration || payload.duration || 30, 10);
+              const duration = parseInt(payload.expectedDuration || payload.growthDuration || payload.duration || 30, 10);
               const buffer = parseInt(payload.bufferTime || 4, 10);
               if (!name) {
                 res.statusCode = 400;
@@ -4515,9 +4525,9 @@ SELECT json_build_object(
           req.on('end', async () => {
             try {
               const payload = JSON.parse(body || '{}');
-              const name = (payload.name || payload.variety_name || '').trim();
+              const name = (payload.varietyName || payload.name || payload.variety_name || '').trim();
               const cropId = parseInt(payload.cropId || payload.crop_id || 1, 10);
-              const duration = parseInt(payload.growthDuration || payload.duration || 30, 10);
+              const duration = parseInt(payload.expectedDuration || payload.growthDuration || payload.duration || 30, 10);
               const buffer = parseInt(payload.bufferTime || 4, 10);
               await runPostgreSql(`UPDATE varieties SET variety_name = '${name.replace(/'/g, "''")}', crop_id = ${cropId}, expected_duration = ${duration}, buffer_time = ${buffer} WHERE variety_id = ${varId};`);
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -6015,6 +6025,7 @@ END $$;
         if (req.method === 'GET' && (url === '/api/care-tasks' || url === '/api/v1/care-tasks' || url === '/api/tasks' || url.startsWith('/api/care-tasks?') || url.startsWith('/api/v1/care-tasks?') || url.startsWith('/api/tasks?'))) {
           try {
             await ensureRentalLeaseColumns();
+            await ensureHarvestDemoSchema(getPgPool());
             const urlObj = new URL(url, 'http://localhost');
             const workerIdParam = urlObj.searchParams.get('workerId');
             const rentalIdParam = urlObj.searchParams.get('rentalId');
@@ -6050,6 +6061,10 @@ SELECT json_build_object(
         ct.task_id AS "taskId",
         'TSK-' || ct.task_id AS id,
         ct.rental_id AS "rentalId",
+        ct.step_id AS "stepId",
+        ts.task_type AS "taskType",
+        ds.season_key AS "seasonKey",
+        CASE WHEN ct.status = 'DONE' THEN 'STAFF' WHEN ct.demo_completed THEN 'DEMO' ELSE NULL END AS "completionSource",
         ct.service_request_id AS "serviceRequestId",
         COALESCE(ct.step_order, ts.step_order, 1) AS "stepOrder",
         rent.plot_id AS "plotId",
@@ -6074,6 +6089,7 @@ SELECT json_build_object(
         ct.task_assigned_to AS "taskAssignedTo",
         CASE 
           WHEN ct.status = 'DONE' THEN 'COMPLETED'
+          WHEN ct.demo_completed THEN 'COMPLETED'
           WHEN ct.status = 'IN_PROG' THEN 'IN_PROGRESS'
           ELSE 'PENDING'
         END AS status,
@@ -6082,8 +6098,12 @@ SELECT json_build_object(
           WHEN ct.service_request_id IS NOT NULL OR ct.notes ILIKE '%[ƯU TIÊN CAO]%' OR ct.notes ILIKE '%[CHỈ ĐẠO CGNN]%' THEN 'HIGH'
           ELSE 'NORMAL'
         END AS priority,
-        TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS "dueDate",
-        TO_CHAR(ct.due_date, 'YYYY-MM-DD') AS date,
+        TO_CHAR(CASE WHEN ds.current_day IS NOT NULL THEN CURRENT_DATE + (
+          COALESCE(ts.day_offset + 1, (ct.due_date - rent.start_date) + 1, 1) - ds.current_day
+        ) ELSE ct.due_date END, 'YYYY-MM-DD') AS "dueDate",
+        TO_CHAR(CASE WHEN ds.current_day IS NOT NULL THEN CURRENT_DATE + (
+          COALESCE(ts.day_offset + 1, (ct.due_date - rent.start_date) + 1, 1) - ds.current_day
+        ) ELSE ct.due_date END, 'YYYY-MM-DD') AS date,
         COALESCE(ts.day_offset, 0) AS "dayOffset",
         CASE
           WHEN ts.day_offset IS NOT NULL THEN ts.day_offset + 1
@@ -6091,6 +6111,7 @@ SELECT json_build_object(
           ELSE 1
         END AS "cropDay",
         CASE
+          WHEN ds.current_day IS NOT NULL THEN ds.current_day
           WHEN rent.start_date IS NOT NULL THEN GREATEST(1, CURRENT_DATE - DATE(rent.start_date) + 1)
           ELSE 1
         END AS "plotCurrentDay",
@@ -6121,6 +6142,7 @@ SELECT json_build_object(
       LEFT JOIN users u_expert ON rent.expert_id = u_expert.user_id
       LEFT JOIN varieties v ON rent.variety_id = v.variety_id
       LEFT JOIN template_steps ts ON ct.step_id = ts.step_id
+        LEFT JOIN demo_cultivation_state ds ON ds.rental_id = ct.rental_id AND ds.is_active
       LEFT JOIN service_requests sr ON ct.service_request_id = sr.request_id
       LEFT JOIN services s ON sr.service_id = s.service_id
       ${taskWhereSql}
@@ -6171,7 +6193,10 @@ SELECT json_build_object(
               }
               if (payload.notes !== undefined || payload.taskProofNote !== undefined) {
                 const n = String(payload.notes !== undefined ? payload.notes : payload.taskProofNote).replace(/'/g, "''");
-                setClauses.push(`notes = '${n}'`);
+                setClauses.push(`notes = CASE 
+                  WHEN notes LIKE '%[ISS-%' OR notes LIKE '%[CHỈ ĐẠO CGNN]%' THEN SPLIT_PART(notes, E'\n', 1) || E'\n' || '${n}'
+                  ELSE '${n}'
+                END`);
               } else if (payload.instructions || payload.description) {
                 const notes = (payload.instructions || payload.description).replace(/'/g, "''");
                 setClauses.push(`notes = '${notes}'`);
@@ -6245,6 +6270,15 @@ BEGIN
   UPDATE service_requests
   SET status = 'DONE'
   WHERE request_id = (SELECT service_request_id FROM care_tasks WHERE task_id = ${taskId});
+
+  -- Tự động chuyển sự cố sang RESOLVED nếu task giải quyết sự cố này đã hoàn thành
+  UPDATE issue_reports
+  SET status = 'RESOLVED', resolved_at = NOW()
+  WHERE issue_id = (
+    SELECT CAST(SUBSTRING(notes FROM '\[ISS-(\d+)\]') AS INTEGER)
+    FROM care_tasks
+    WHERE task_id = ${taskId} AND notes ~ '\[ISS-\d+\]'
+  );
 END $$;
 `;
                   await runPostgreSql(syncDiarySql);
@@ -6573,10 +6607,12 @@ SELECT json_build_object(
         'Thửa ' || COALESCE(p.plot_code, 'P-01') AS "plotName",
         COALESCE(v.variety_name, 'Rau củ chuẩn VietGAP') AS crop,
         c.participant_one AS "participantOneId",
+        c.participant_one AS "participantOne",
         u1.full_name AS "customerName",
         COALESCE(u1.email, '') AS "customerEmail",
         r1.role_name AS "partnerRole",
         c.participant_two AS "participantTwoId",
+        c.participant_two AS "participantTwo",
         u2.full_name AS "expertName",
         u2.email AS "expertEmail",
         CASE 
@@ -6624,6 +6660,41 @@ SELECT json_build_object(
             res.statusCode = 500;
             res.end(JSON.stringify({ success: false, error: String(err) }));
           }
+          return;
+        }
+
+        if (req.method === 'POST' && (url === '/api/conversations' || url === '/api/v1/conversations')) {
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const participantOne = Number(payload.participantOne);
+              const participantTwo = Number(payload.participantTwo);
+              const type = payload.type === 'STAFF_EXP' ? 'STAFF_EXP' : 'CUST_EXP';
+              if (!Number.isInteger(participantOne) || participantOne <= 0 || !Number.isInteger(participantTwo) || participantTwo <= 0) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, message: 'Người tham gia không hợp lệ' }));
+                return;
+              }
+              const sql = `SELECT row_to_json(c) FROM (
+                SELECT conversation_id AS "conversationId" FROM conversations
+                WHERE participant_one = ${participantOne} AND participant_two = ${participantTwo} AND type = '${type}'
+                ORDER BY conversation_id DESC LIMIT 1
+              ) c;`;
+              let data = await runPostgreSql(sql);
+              if (!data || data === 'null') {
+                data = await runPostgreSql(`INSERT INTO conversations (participant_one, participant_two, type, status)
+                  VALUES (${participantOne}, ${participantTwo}, '${type}', 'OPEN')
+                  RETURNING json_build_object('conversationId', conversation_id);`);
+              }
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, data: JSON.parse(data) }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, message: String(err) }));
+            }
+          });
           return;
         }
 
@@ -6682,11 +6753,11 @@ SELECT json_build_object(
                 const sql = `
 INSERT INTO messages (conversation_id, sender_id, content, attachment_url, created_at)
 VALUES (${convId}, ${senderId}, '${content}', ${attachmentUrl ? `'${attachmentUrl}'` : 'NULL'}, NOW())
-RETURNING message_id, conversation_id, sender_id, content, created_at;
+RETURNING json_build_object('messageId', message_id, 'conversationId', conversation_id, 'senderId', sender_id, 'content', content);
 `;
-                const result = await runPostgreSql(sql);
+                const result = JSON.parse(await runPostgreSql(sql));
                 res.setHeader('Content-Type', 'application/json; charset=utf-8');
-                res.end(JSON.stringify({ success: true, message: 'Gửi tin nhắn thành công', data: result[0] }));
+                res.end(JSON.stringify({ success: true, message: 'Gửi tin nhắn thành công', data: result }));
               } catch (err) {
                 console.error('Error inserting message:', err);
                 res.statusCode = 500;
@@ -6821,7 +6892,11 @@ SELECT json_build_object(
         ir.issue_type AS "issueType",
         ir.description,
         ir.image_url AS "photoUrl",
-        ir.status,
+        CASE 
+          WHEN ir.status = 'RESOLVED' THEN 'RESOLVED'
+          WHEN (SELECT ct.status FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) = 'DONE' THEN 'RESOLVED'
+          ELSE ir.status
+        END AS status,
         COALESCE(ir.resolution_notes, '') AS diagnosis,
         COALESCE(ir.resolution_notes, '') AS "resolutionNotes",
         TO_CHAR(ir.created_at, 'HH24:MI - DD/MM/YYYY') AS "reportedTime",
@@ -6910,18 +6985,23 @@ RETURNING issue_id, rental_id, issue_type, status;
               }
               let isDiagnosed = false;
               let diagnosisText = '';
+              const isResolved = payload.markResolved || payload.status === 'RESOLVED' || payload.status === 'DONE';
               if (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes) {
                 const diag = (payload.diagnosis || payload.resolutionNotes || payload.resolution_notes).replace(/'/g, "''");
                 diagnosisText = diag;
                 isDiagnosed = true;
-                const nextStatus = payload.markResolved ? 'RESOLVED' : 'OPEN';
+                const nextStatus = isResolved ? 'RESOLVED' : (payload.status || 'OPEN');
                 setClauses.push(`status = '${nextStatus}'`);
                 setClauses.push(`resolution_notes = '${diag}'`);
-                setClauses.push('resolved_at = NOW()');
+                if (isResolved) setClauses.push('resolved_at = NOW()');
               } else if (payload.notes) {
                 const n = payload.notes.replace(/'/g, "''");
                 setClauses.push(`resolution_notes = 'Giao chuyên gia: ${n}'`);
-                setClauses.push(`status = 'OPEN'`);
+                setClauses.push(`status = '${isResolved ? 'RESOLVED' : 'OPEN'}'`);
+                if (isResolved) setClauses.push('resolved_at = NOW()');
+              } else if (payload.status) {
+                setClauses.push(`status = '${payload.status}'`);
+                if (isResolved) setClauses.push('resolved_at = NOW()');
               }
 
               if (setClauses.length === 0) setClauses.push(`status = 'IN_PROGRESS'`);
@@ -6934,8 +7014,21 @@ RETURNING issue_id, handled_by, status;
 `;
               await runPostgreSql(sql);
 
-              // Tự động sinh Care Task xử lý sự cố cho CVLĐ nếu chuyên gia vừa chỉ đạo kỹ thuật
-              if (isDiagnosed && diagnosisText) {
+              // Nếu sự cố đã RESOLVED, tự động đánh dấu các task xử lý sự cố này thành DONE
+              if (payload.status === 'RESOLVED' || payload.status === 'DONE') {
+                try {
+                  await runPostgreSql(`
+                    UPDATE care_tasks
+                    SET status = 'DONE', updated_at = NOW()
+                    WHERE notes LIKE '%[ISS-' || ${issueId} || ']%' OR notes LIKE '%[ISSUE-' || ${issueId} || ']%';
+                  `);
+                } catch (e) {
+                  console.error('Error auto-completing care task for resolved issue:', e);
+                }
+              }
+
+              // Tự động sinh Care Task xử lý sự cố cho CVLĐ nếu chuyên gia vừa chỉ đạo kỹ thuật và sự cố chưa RESOLVED
+              if (isDiagnosed && diagnosisText && payload.status !== 'RESOLVED' && payload.status !== 'DONE') {
                 try {
                   await runPostgreSql(`
 DO $$
@@ -6950,7 +7043,7 @@ BEGIN
   FROM issue_reports ir
   JOIN rentals r ON ir.rental_id = r.rental_id
   JOIN plots p ON r.plot_id = p.plot_id
-  WHERE ir.issue_id = ${issueId};
+  WHERE ir.issue_id = ${issueId} AND ir.status <> 'RESOLVED';
 
   IF v_rental_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM care_tasks WHERE rental_id = v_rental_id AND (notes LIKE '%[ISS-' || ${issueId} || ']%' OR notes LIKE '%[ISSUE-' || ${issueId} || ']%')
@@ -7750,71 +7843,6 @@ SELECT json_build_object(
           return;
         }
 
-        // 22. IOT STATIONS API (GET /api/iot-stations)
-        if (req.method === 'GET' && (url === '/api/iot-stations' || url === '/api/v1/iot-stations' || url.startsWith('/api/iot-stations?') || url.startsWith('/api/v1/iot-stations?'))) {
-          try {
-            const sql = `
-SELECT json_build_object(
-  'success', true,
-  'message', 'Lấy trạm cảm biến IoT và đo đạc thực tế thành công từ PostgreSQL',
-  'data', (
-    SELECT COALESCE(json_agg(row_to_json(s)), '[]'::json) FROM (
-      SELECT 
-        'IOT-' || p.plot_code AS id,
-        'Trạm Quan Trắc #' || p.plot_code AS name,
-        p.plot_id AS "plotId",
-        p.plot_code AS "plotCode",
-        'Thửa ' || p.plot_code AS "plotName",
-        COALESCE(l.land_name, 'Happy Valley Củ Chi') AS "landName",
-        'ONLINE' AS status,
-        '96%' AS "batteryLevel",
-        'Tốt (-62 dBm)' AS "signalStrength",
-        'v2.4.1-pro' AS "firmwareVersion",
-        CASE 
-          WHEN sr.recorded_at IS NULL THEN 'Chưa có dữ liệu'
-          WHEN NOW() - sr.recorded_at < INTERVAL '1 minute' THEN 'Vừa xong'
-          WHEN NOW() - sr.recorded_at < INTERVAL '60 minutes' THEN EXTRACT(MINUTE FROM NOW() - sr.recorded_at)::int || ' phút trước'
-          ELSE TO_CHAR(sr.recorded_at, 'HH24:MI DD/MM')
-        END AS "lastSeen",
-        json_build_object(
-          'soilMoisture', COALESCE(sr.soil_humidity, 68.0) || '%',
-          'temperature', COALESCE(sr.temperature, 28.5) || '°C',
-          'humidity', COALESCE(sr.air_humidity, 74.0) || '%',
-          'airHumidity', COALESCE(sr.air_humidity, 74.0) || '%',
-          'soilPh', '6.5',
-          'light', '45.000 Lux',
-          'lastUpdate', TO_CHAR(COALESCE(sr.recorded_at, NOW()), 'HH24:MI:SS - DD/MM/YYYY')
-        ) AS readings,
-        ARRAY[
-          'Độ ẩm đất điện dung (Capacitive Soil Sensor)',
-          'Nhiệt độ & Độ ẩm không khí SHT35',
-          'Cảm biến đo độ pH đất chuyên dụng',
-          'Cảm biến bức xạ mặt trời Solar Lux'
-        ] AS "sensorTypes"
-      FROM plots p
-      LEFT JOIN lands l ON p.land_id = l.land_id
-      LEFT JOIN LATERAL (
-        SELECT temperature, air_humidity, soil_humidity, recorded_at 
-        FROM sensor_readings 
-        WHERE plot_id = p.plot_id 
-        ORDER BY recorded_at DESC 
-        LIMIT 1
-      ) sr ON true
-      ORDER BY p.plot_id ASC
-    ) s
-  )
-);
-`;
-            const data = await runPostgreSql(sql);
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(data || '{"success":true,"data":[]}');
-          } catch (err) {
-            res.statusCode = 500;
-            res.end(JSON.stringify({ success: false, error: String(err) }));
-          }
-          return;
-        }
-
         // 23. SENSOR READINGS HISTORY API (GET /api/sensor-readings)
         if (req.method === 'GET' && (url === '/api/sensor-readings' || url === '/api/v1/sensor-readings' || url.startsWith('/api/sensor-readings?') || url.startsWith('/api/v1/sensor-readings?'))) {
           try {
@@ -7940,38 +7968,6 @@ LIMIT 1;
               global.__farmelySseClients = global.__farmelySseClients.filter((c) => c !== client);
             }
           });
-          return;
-        }
-
-        // 24. SIMULATE / TRIGGER SENSOR TELEMETRY INTO POSTGRESQL (POST /api/iot-stations/simulate)
-        if (req.method === 'POST' && (url === '/api/iot-stations/simulate' || url.startsWith('/api/iot-stations/simulate?') || url === '/api/sensors/mock/generate' || url.startsWith('/api/sensors/mock/generate?'))) {
-          try {
-            const parsedUrl = new URL(req.url, 'http://localhost');
-            const plotIdParam = parsedUrl.searchParams.get('plotId');
-            const modeParam = parsedUrl.searchParams.get('mode') || 'normal';
-
-            global.__farmelySimulatedScenario = {
-              mode: modeParam,
-              plotId: plotIdParam,
-              expiresAt: Date.now() + 30000 // Giữ kịch bản 30s rồi trở về bình thường
-            };
-
-            let list = [];
-            if (global.__triggerBulkTelemetryInsert) {
-              list = await global.__triggerBulkTelemetryInsert(global.__farmelySimulatedScenario);
-            }
-
-            res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            res.end(JSON.stringify({
-              success: true,
-              message: 'Đã kích hoạt đo đạc đồng loạt 17 trạm cảm biến IoT vào PostgreSQL',
-              count: list.length,
-              sample: list[0] || null
-            }));
-          } catch (err) {
-            res.statusCode = 500;
-            res.end(JSON.stringify({ success: false, error: String(err) }));
-          }
           return;
         }
 

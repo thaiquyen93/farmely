@@ -2,19 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { farmApi, plotStatusBadge } from '../../api/farm/farmApi';
 import { formatArea } from '../../utils/polygonGeometry';
-import { iotStationsData } from '../../data/iotStations';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import {
   ArrowLeft,
   MapPin,
-  Radio,
   Sprout,
-  Activity,
   Edit,
   ExternalLink,
-  Thermometer,
-  Droplets,
   CheckCircle2,
   Loader2,
   AlertCircle
@@ -47,17 +42,8 @@ export default function PlotDetail() {
             status: plotStatusBadge(d.status),
             price: Number(d.pricePerPeriod || d.price_per_period || 0),
             formattedPrice: `${Number(d.pricePerPeriod || d.price_per_period || 0).toLocaleString('vi-VN')} đ/tháng`,
-            soilType: d.soilType || 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
-            description: d.description || `Thửa đất canh tác tiêu chuẩn VietGAP thuộc ${d.landName || 'Happy Valley Củ Chi'}.`,
-            iotStationId: d.iotStationId || `IOT-${d.plotCode || 'CC-01'}`,
-            recentSensorReadings: d.recentSensorReadings || {
-              temperature: '28.5 °C',
-              humidity: '74 %',
-              soilMoisture: '68 %'
-            },
-            compatibleCrops: Array.isArray(d.compatibleCrops) && d.compatibleCrops.length > 0
-              ? d.compatibleCrops
-              : ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby']
+            description: d.description || '',
+            compatibleVarieties: Array.isArray(d.compatibleVarieties) ? d.compatibleVarieties : []
           });
         }
       })
@@ -80,15 +66,8 @@ export default function PlotDetail() {
               status: plotStatusBadge(found.status),
               price: Number(found.pricePerPeriod),
               formattedPrice: `${Number(found.pricePerPeriod || 0).toLocaleString('vi-VN')} đ/tháng`,
-              soilType: 'Đất phù sa bồi lắng giàu mùn hữu cơ (pH 6.2 - 6.8)',
-              description: found.description || 'Thửa đất sinh thái đạt chuẩn VietGAP với hệ thống tưới nhỏ giọt tự động và giám sát vi khí hậu 24/7.',
-              iotStationId: `IOT-${found.plotCode}`,
-              compatibleCrops: ['Cà chua bi Cherry', 'Xà lách Lollo Bionda', 'Dưa leo Baby'],
-              recentSensorReadings: {
-                temperature: '28.5 °C',
-                humidity: '74 %',
-                soilMoisture: '68 %'
-              }
+              description: found.description || '',
+              compatibleVarieties: Array.isArray(found.compatibleVarieties) ? found.compatibleVarieties : []
             });
           } else {
             setError('Không tìm thấy thửa đất trong Database.');
@@ -129,7 +108,6 @@ export default function PlotDetail() {
     );
   }
 
-  const station = iotStationsData.find((s) => s.id === plot?.iotStationId);
 
   return (
     <div className="space-y-6">
@@ -170,10 +148,10 @@ export default function PlotDetail() {
       </div>
 
       {/* Grid Specs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         
         {/* Info Card - 2 cols */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-brand-border shadow-sm space-y-4">
+        <div className="bg-white rounded-2xl p-6 border border-brand-border shadow-sm space-y-4">
           <h3 className="font-heading text-base font-bold text-brand-dark">
             Thông Số Kỹ Thuật & Thổ Nhưỡng
           </h3>
@@ -196,55 +174,8 @@ export default function PlotDetail() {
             </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-brand-cream/60 border border-brand-border/80 text-xs space-y-1">
-            <span className="text-brand-dark font-bold block">Đặc điểm thổ nhưỡng:</span>
-            <span className="text-stone-700">{plot.soilType}</span>
-          </div>
         </div>
 
-        {/* Bound IoT Station Card - 1 col */}
-        <div className="bg-white rounded-2xl p-6 border border-brand-border shadow-sm flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-brand-green uppercase tracking-wider flex items-center gap-1.5">
-                <Radio className="w-4 h-4" />
-                Trạm Quan Trắc Vi Khí Hậu
-              </span>
-              {station && <Badge variant={station.status} size="sm">{station.status}</Badge>}
-            </div>
-            <h4 className="font-heading text-lg font-bold text-brand-dark">
-              {station ? station.name : plot.iotStationId}
-            </h4>
-            <p className="text-xs text-brand-muted mt-1">
-              Mã kết nối: <span className="font-mono font-bold text-brand-dark">{plot.iotStationId}</span>
-            </p>
-          </div>
-
-          {plot.recentSensorReadings && (
-            <div className="p-4 rounded-xl bg-brand-cream text-xs space-y-2 border border-brand-border">
-              <div className="flex justify-between items-center">
-                <span className="flex items-center gap-1"><Thermometer className="w-3.5 h-3.5 text-rose-500" /> Nhiệt độ:</span>
-                <strong className="text-brand-dark font-mono">{plot.recentSensorReadings.temperature}</strong>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="flex items-center gap-1"><Droplets className="w-3.5 h-3.5 text-sky-500" /> Độ ẩm đất:</span>
-                <strong className="text-brand-green font-mono">{plot.recentSensorReadings.soilMoisture}</strong>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="flex items-center gap-1"><Activity className="w-3.5 h-3.5 text-emerald-500" /> Độ ẩm khí:</span>
-                <strong className="text-brand-dark font-mono">{plot.recentSensorReadings.humidity}</strong>
-              </div>
-            </div>
-          )}
-
-          <Link
-            to={`/admin/master-data/iot-stations/${plot.iotStationId}`}
-            className="text-xs font-bold text-brand-green hover:underline flex items-center justify-between"
-          >
-            <span>Cấu hình thông số trạm</span>
-            <span>→</span>
-          </Link>
-        </div>
 
       </div>
 
@@ -282,21 +213,11 @@ export default function PlotDetail() {
                 </div>
               </div>
             ))
-          ) : (plot.compatibleCrops || []).length > 0 ? (
-            (plot.compatibleCrops || []).map((c, idx) => (
-              <div
-                key={idx}
-                className="p-3.5 rounded-xl bg-brand-cream/50 border border-brand-border flex items-center gap-3 text-xs"
-              >
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="font-bold text-brand-dark">{c}</span>
-              </div>
-            ))
           ) : (
             <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 col-span-3 text-xs text-amber-900 space-y-1">
               <p className="font-bold">⚠️ Chưa phân bổ giống cây tương thích cho thửa đất này</p>
               <p className="text-amber-800">
-                Theo quy trình nghiệp vụ, Chuyên Gia Nông Nghiệp (CGNN) phụ trách thửa đất này sẽ tiến hành khảo nghiệm thổ nhưỡng và phê duyệt danh mục giống cây được phép canh tác tại <strong>Bàn Làm Việc Chuyên Gia &gt; Ma Trận Thổ Nhưỡng – Giống Cây Trồng</strong>.
+                Theo quy trình nghiệp vụ, Chuyên Gia Nông Nghiệp (CGNN) phụ trách thửa đất này sẽ tiến hành khảo nghiệm thổ nhưỡng và phê duyệt danh mục giống cây được phép canh tác tại <strong>Bàn Làm Việc Chuyên Gia &gt; Giống phù hợp theo thửa đất</strong>.
               </p>
             </div>
           )}

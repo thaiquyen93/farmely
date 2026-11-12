@@ -11,7 +11,6 @@ import { Sprout, Plus, Edit, Eye, Power, Trash2, Loader2, CheckCircle2, AlertCir
 export default function Crops() {
   const [crops, setCrops] = useState(initialCrops);
   const [loading, setLoading] = useState(true);
-  const [isLiveDb, setIsLiveDb] = useState(false);
   const [selectedCrop, setSelectedCrop] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -21,9 +20,7 @@ export default function Crops() {
   // Form modal state
   const [showModal, setShowModal] = useState(false);
   const [cropName, setCropName] = useState('');
-  const [cropCode, setCropCode] = useState('');
   const [cropDesc, setCropDesc] = useState('');
-  const [cropCycle, setCropCycle] = useState('30 - 45 ngày');
 
   const loadCrops = () => {
     setLoading(true);
@@ -32,7 +29,6 @@ export default function Crops() {
       .then((res) => {
         if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
           setCrops(res.data);
-          setIsLiveDb(true);
         }
       })
       .catch((err) => {
@@ -48,9 +44,7 @@ export default function Crops() {
   const openCreateModal = () => {
     setIsEditing(false);
     setCropName('');
-    setCropCode('');
     setCropDesc('');
-    setCropCycle('30 - 45 ngày');
     setFormError('');
     setShowModal(true);
   };
@@ -59,9 +53,7 @@ export default function Crops() {
     setIsEditing(true);
     setSelectedCrop(c);
     setCropName(c.name);
-    setCropCode(c.code);
-    setCropDesc(c.description);
-    setCropCycle(c.standardGrowthCycle);
+    setCropDesc(c.description || '');
     setFormError('');
     setShowModal(true);
   };
@@ -69,7 +61,7 @@ export default function Crops() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!cropName.trim()) {
-      setFormError('Vui lòng nhập tên nhóm cây trồng');
+      setFormError('Vui lòng nhập tên danh mục cây trồng');
       return;
     }
     setIsSaving(true);
@@ -81,13 +73,13 @@ export default function Crops() {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: cropName.trim(), description: cropDesc, cycle: cropCycle })
+        body: JSON.stringify({ name: cropName.trim(), description: cropDesc })
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Lỗi khi lưu danh mục cây');
       }
-      setToast({ type: 'success', message: data.message || `Đã lưu nhóm cây "${cropName}" thành công vào PostgreSQL!` });
+      setToast({ type: 'success', message: data.message || `Đã lưu nhóm cây "${cropName}".` });
       loadCrops();
       try {
         if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -115,7 +107,7 @@ export default function Crops() {
         setTimeout(() => setToast(null), 5000);
         return;
       }
-      setToast({ type: 'success', message: `Đã xóa nhóm cây #${id} thành công khỏi PostgreSQL!` });
+      setToast({ type: 'success', message: 'Đã xóa nhóm cây.' });
       loadCrops();
       try {
         if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -242,23 +234,9 @@ export default function Crops() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-              Thực thể: Crop (Phân loại thực vật học)
-            </span>
-            {isLiveDb && (
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live DB: {crops.length} Loại cây</span>
-              </span>
-            )}
-          </div>
-          <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
+          <h2 className="text-2xl font-heading font-black text-brand-dark">
             Danh Mục Cây Trồng
           </h2>
-          <p className="text-xs text-brand-muted mt-0.5">
-            Nhóm cây trồng cấp độ tổng quát (rau ăn lá, cây ăn quả, dưa leo...) quản lý tập hợp các giống F1.
-          </p>
         </div>
 
         <Button variant="primary" size="md" icon={Plus} onClick={openCreateModal}>
@@ -288,35 +266,21 @@ export default function Crops() {
           )}
 
           <Input
-            label="Tên Nhóm Cây Trồng"
+            label="Tên Danh Mục Cây Trồng"
             required
-            placeholder="Ví dụ: Rau ăn lá, Cà chua & Quả mọng"
+            placeholder="Ví dụ: Dưa leo, Cà chua, Cải bó xôi..."
             value={cropName}
             onChange={(e) => setCropName(e.target.value)}
           />
 
-          <Input
-            label="Mã Phân Loại (Code)"
-            required
-            placeholder="LEAFY_GREENS"
-            value={cropCode}
-            onChange={(e) => setCropCode(e.target.value)}
-          />
-
-          <Input
-            label="Chu Kỳ Sinh Trưởng Chuẩn"
-            placeholder="Ví dụ: 30 - 45 ngày"
-            value={cropCycle}
-            onChange={(e) => setCropCycle(e.target.value)}
-          />
-
           <div>
             <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-1.5">
-              Mô Tả Đặc Điểm
+              Mô Tả Danh Mục
             </label>
             <textarea
               rows={3}
               value={cropDesc}
+              placeholder="Mô tả tóm tắt đặc tính sinh học hoặc nhóm phân loại..."
               onChange={(e) => setCropDesc(e.target.value)}
               className="w-full rounded-xl border border-brand-border bg-white px-3.5 py-2 text-sm text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-green/20"
             />

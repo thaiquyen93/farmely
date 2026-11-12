@@ -125,7 +125,7 @@ describe('HarvestReportModal & Workspace Integration', () => {
 
     // Modal popup is now OPEN!
     expect(container.textContent).toContain('Báo Cáo Nghiệm Thu Sản Lượng Vụ Mùa');
-    expect(container.textContent).toContain('Sản lượng chốt cân thực tế (BR20)');
+    expect(container.textContent).toContain('Sản lượng chốt cân thực tế');
     expect(container.textContent).toContain('20.00 kg');
     expect(container.textContent).toContain('Trần Văn Lực');
 

@@ -11,6 +11,7 @@ import SelfGrowingDashboard from '../../components/customer/SelfGrowingDashboard
 import AssistedGrowingDashboard from '../../components/customer/AssistedGrowingDashboard';
 import CardPaymentModal from '../../components/payment/CardPaymentModal';
 import CustomerPlotWorkspace from '../../components/customer/CustomerPlotWorkspace';
+import { subscribeHarvestCompleted } from '../../api/harvest/harvestSync';
 import PlotRenewalModal from '../../components/customer/PlotRenewalModal';
 import ContractCancellationModal from '../../components/customer/ContractCancellationModal';
 import CustomerContractCenter from '../../components/customer/CustomerContractCenter';
@@ -1786,6 +1787,14 @@ export default function CustomerDashboard() {
     fetchHarvestResults();
   }, [fetchCultivationProcesses, fetchHarvestResults, customerPlots.length]);
 
+  useEffect(() => {
+    return subscribeHarvestCompleted((event) => {
+      if (!customerPlots.some((plot) => Number(plot.rentalId || plot.rental_id) === event.rentalId)) return;
+      fetchHarvestResults();
+      loadOperationsFromDb();
+    });
+  }, [fetchHarvestResults, customerPlots]);
+
   const cultivationProcesses = dbCultivationProcesses;
   const fallbackIotAlerts = {
     'PLOT-CC-01': [
@@ -2042,12 +2051,9 @@ export default function CustomerDashboard() {
                   }
                   return false;
                 })}
-                harvestResults={dbHarvestResults.filter(h => 
-                  h.plotScopeId === currentSelectedPlot.id || 
-                  h.plotCode === currentSelectedPlot.plotCode || 
-                  h.plotCode === currentSelectedPlot.mapPlotId ||
-                  (currentSelectedPlot.rentalId && Number(h.rentalId) === Number(currentSelectedPlot.rentalId))
-                )}
+                harvestResults={dbHarvestResults.filter((h) => currentSelectedPlot.rentalId
+                  ? Number(h.rentalId) === Number(currentSelectedPlot.rentalId)
+                  : h.plotScopeId === currentSelectedPlot.id || h.plotCode === currentSelectedPlot.plotCode)}
                 activeTab={plotTabFromUrl}
                 onTabChange={(tab) => navigate(`/customer/dashboard?plot=${selectedPlotId || (currentSelectedPlot.rentalId ? `RENTAL-${currentSelectedPlot.rentalId}` : currentSelectedPlot.id)}${tab === 'overview' ? '' : `&tab=${tab}`}`, { replace: true })}
                 onBack={() => navigate('/customer/dashboard')}
@@ -4282,7 +4288,26 @@ export default function CustomerDashboard() {
         </div>
       )}
 
-      <CustomerMobileNav activeView={activeTab} />
+      <CustomerMobileNav
+        activeView={selectedPlotId ? plotTabFromUrl : activeTab}
+        onSelectTab={(view) => {
+          const targetPlot = currentSelectedPlot || customerPlots[0];
+          if (selectedPlotId && currentSelectedPlot) {
+            const plotKey = selectedPlotId || (currentSelectedPlot.rentalId ? `RENTAL-${currentSelectedPlot.rentalId}` : currentSelectedPlot.id);
+            navigate(`/customer/dashboard?plot=${plotKey}${view === 'overview' ? '' : `&tab=${view}`}`, { replace: true });
+          } else if (view === 'overview') {
+            setSelectedPlotId(null);
+            setActiveTab('yards');
+            navigate('/customer/dashboard');
+          } else if (targetPlot) {
+            const plotKey = targetPlot.rentalId ? `RENTAL-${targetPlot.rentalId}` : targetPlot.id;
+            setSelectedPlotId(plotKey);
+            navigate(`/customer/dashboard?plot=${plotKey}&tab=${view}`);
+          } else {
+            setActiveTab(view === 'tasks' ? 'diary' : view);
+          }
+        }}
+      />
     </div>
   );
 }

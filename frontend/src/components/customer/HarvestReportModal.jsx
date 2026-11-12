@@ -61,7 +61,7 @@ export default function HarvestReportModal({
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300 border border-emerald-400/30">
               <Award className="w-3.5 h-3.5 text-amber-300" />
-              BIÊN BẢN NGHIỆM THU & BÁO CÁO THU HOẠCH (BR20 - BR21)
+              BIÊN BẢN NGHIỆM THU & BÁO CÁO THU HOẠCH
             </span>
           </div>
           <h3 id="harvest-report-title" className="mt-1 font-heading text-lg sm:text-xl font-black text-white">
@@ -78,7 +78,7 @@ export default function HarvestReportModal({
           <div className="rounded-2xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-lime-50/40 to-emerald-50/70 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
-                Sản lượng chốt cân thực tế (BR20)
+                Sản lượng chốt cân thực tế
               </span>
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="font-heading font-black text-3xl sm:text-4xl text-emerald-950">
@@ -106,7 +106,7 @@ export default function HarvestReportModal({
             <div className="flex items-center justify-between">
               <span className="font-bold text-stone-900 flex items-center gap-1.5">
                 <Scale className="w-3.5 h-3.5 text-emerald-600" />
-                Ảnh chụp cân đối chứng thực tế tại hiện trường (BR20):
+                Ảnh chụp cân đối chứng thực tế tại hiện trường:
               </span>
               <span className="text-[10px] text-stone-500 italic">
                 Ảnh do nhân viên tải lên
@@ -159,7 +159,7 @@ export default function HarvestReportModal({
               <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
                 <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
-                  Phương thức nhận (BR21):
+                  Phương thức nhận:
                 </span>
                 <strong className="text-stone-900 font-semibold">Tự nhận tại nông trại Farmely</strong>
                 <span className="text-[10px] text-stone-500 block">Địa chỉ: Nông trại Farmely Củ Chi</span>
@@ -170,7 +170,7 @@ export default function HarvestReportModal({
               <Sprout className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
               <div>
                 <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
-                  Kế hoạch thửa đất (BR23):
+                  Kế hoạch thửa đất:
                 </span>
                 <strong className="text-stone-900 font-semibold">Bảo trì & Cải tạo đất (Fallow)</strong>
                 <span className="text-[10px] text-stone-500 block">Nghỉ đất 4 ngày trước vụ mới</span>

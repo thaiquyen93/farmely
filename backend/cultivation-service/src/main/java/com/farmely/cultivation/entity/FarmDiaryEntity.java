@@ -26,6 +26,9 @@ public class FarmDiaryEntity {
     @Column(name = "task_id")
     private Integer taskId;
 
+    @Column(name = "harvest_id")
+    private Integer harvestId;
+
     @Column(name = "content", columnDefinition = "TEXT")
     private String content;
 

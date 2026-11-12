@@ -18,6 +18,11 @@ public class RecordHarvestRequest {
     @NotNull(message = "Mã lượt thuê (rentalId) không được để trống")
     private Integer rentalId;
 
+    @NotNull(message = "Mã task thu hoạch không được để trống")
+    private Integer taskId;
+
+    private String seasonKey;
+
     @NotNull(message = "Mã công nhân ghi nhận (enteredBy) không được để trống")
     private Integer enteredBy;
 

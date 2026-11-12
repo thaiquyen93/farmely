@@ -89,7 +89,7 @@ export default function SeasonSelector({
                       {isCompleted
                         ? `Hoàn tất (${season.yieldKgActual ? `${season.yieldKgActual}kg` : `${season.totalDays}N`})`
                         : isPendingApproval
-                        ? 'Chờ Admin duyệt (BR11b)'
+                        ? 'Chờ Admin duyệt'
                         : isSoilPrep
                         ? `Cải tạo đất (${season.fallowDays || 5} ngày)`
                         : isScheduled

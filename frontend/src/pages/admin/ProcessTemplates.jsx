@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { varietiesData as initialVarieties } from '../../data/varieties';
 import DataTable from '../../components/common/DataTable';
 import Badge from '../../components/common/Badge';
@@ -8,30 +8,34 @@ import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
 import {
-  FileSpreadsheet,
   Plus,
   Eye,
-  Edit,
   Trash2,
   Calendar,
   CheckCircle2,
   Clock,
   Sparkles,
-  UploadCloud,
-  FileText,
-  Download,
   Check,
   AlertCircle,
-  ArrowRight,
-  Layers
+  BookOpen,
+  Sprout,
+  X,
+  Layers,
+  ArrowRight
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
-import { parseProcessDocument } from '../../utils/processDocumentParser';
+import { sendNotification } from '../../services/notificationService';
+import { getProcessTemplateListState } from './processTemplateListState';
 
 export default function ProcessTemplates({ detailBasePath = '/admin/master-data/process-templates' }) {
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedVarietyId = searchParams.get('varietyId');
+  const requestMode = searchParams.get('mode');
   const { user } = useAuthStore();
+  const isAdmin = user?.role === 'ADMIN';
+  const isExpert = user?.role === 'EXPERT';
+
   const [templates, setTemplates] = useState([]);
   const [varieties, setVarieties] = useState(initialVarieties);
   const [loading, setLoading] = useState(true);
@@ -39,35 +43,123 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-
-  // Modal State
-  const [uploadFileName, setUploadFileName] = useState('');
-  const [parsedSteps, setParsedSteps] = useState([]);
-  const [isDragging, setIsDragging] = useState(false);
+  const [toast, setToast] = useState(null);
 
   // Form State
+  const [varietyId, setVarietyId] = useState(requestedVarietyId || '1');
   const [name, setName] = useState('');
-  const [varietyId, setVarietyId] = useState('1');
-  const [version, setVersion] = useState('v1.0');
-  const [status, setStatus] = useState('ACTIVE');
   const [desc, setDesc] = useState('');
+  const { isFiltered, visibleTemplates, matchingCount } = getProcessTemplateListState(templates, requestedVarietyId, requestMode);
+  const selectedVariety = varieties.find((variety) => String(variety.id || variety.varietyId) === String(requestedVarietyId));
+  const selectedVarietyName = selectedVariety?.name || selectedVariety?.varietyName || `Giống #${requestedVarietyId}`;
+  const clearVarietyFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('varietyId');
+    next.delete('mode');
+    setSearchParams(next);
+  };
 
-  const loadTemplatesFromApi = () => {
-    fetch('/api/process-templates')
-      .then((res) => res.json())
-      .then((res) => {
-        if (res && res.success && Array.isArray(res.data)) {
-          setTemplates(res.data);
+  // Quick Steps State for new template
+  const [steps, setSteps] = useState([
+    {
+      dayOffset: 0,
+      stepName: 'Chuẩn bị luống đất & Bón lót vi sinh',
+      taskType: 'SOIL_PREP',
+      description: 'Cày xới đất tơi xốp độ sâu 25cm, bón lót phân ủ hoai mục và vôi bột khử chua, tưới ẩm 70%.',
+      materialsNeeded: 'Phân hữu cơ vi sinh, chế phẩm Trichoderma, vôi bột'
+    },
+    {
+      dayOffset: 2,
+      stepName: 'Xuống giống / Cấy cây con F1',
+      taskType: 'PLANTING',
+      description: 'Cấy cây giống khỏe mạnh vào luống với khoảng cách tiêu chuẩn, tưới nhẹ quanh gốc cố định rễ.',
+      materialsNeeded: 'Cây giống F1 tuyển chọn, nước kích rễ sinh học'
+    },
+    {
+      dayOffset: 10,
+      stepName: 'Bón thúc đợt 1 & Kiểm tra sinh trưởng',
+      taskType: 'FERTILIZATION',
+      description: 'Pha loãng phân đạm cá hữu cơ tưới quanh gốc, kiểm tra phòng trừ bọ trĩ và rệp non.',
+      materialsNeeded: 'Đạm cá lên men vi sinh 1:200, tinh dầu Neem phòng sâu'
+    },
+    {
+      dayOffset: 25,
+      stepName: 'Bấm ngọn định hình & Buộc giàn leo',
+      taskType: 'PRUNING',
+      description: 'Tỉa bỏ chồi nách dưới mắt thứ 5, hướng thân chính leo giàn lưới, tỉa lá già sát đất.',
+      materialsNeeded: 'Kẹp bấm thân, dây buộc sinh học'
+    },
+    {
+      dayOffset: 45,
+      stepName: 'Thu hoạch đợt đầu chuẩn VietGAP',
+      taskType: 'HARVEST',
+      description: 'Thu hái vào buổi sáng sớm khi quả đạt kích thước tiêu chuẩn, dùng kéo cắt cuống cách 1cm.',
+      materialsNeeded: 'Kéo chuyên dụng khử trùng, thùng carton có tem QR VietGAP'
+    }
+  ]);
+
+  const showToast = (type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const getTemplateStatus = (tId, fallbackStatus = 'ACTIVE') => {
+    try {
+      const stored = localStorage.getItem(`farmely_template_status_${tId}`);
+      if (stored) return stored;
+    } catch {}
+    return fallbackStatus;
+  };
+
+  const setTemplateStatus = (tId, status) => {
+    try {
+      localStorage.setItem(`farmely_template_status_${tId}`, status);
+    } catch {}
+  };
+
+  const loadTemplatesFromApi = async () => {
+    setLoading(true);
+    let loaded = [];
+    try {
+      // Ưu tiên /api/templates (Spring Boot knowledge-service)
+      const res = await fetch('/api/templates');
+      const json = await res.json();
+      if (json && json.success && Array.isArray(json.data)) {
+        loaded = json.data;
+        setIsLiveDb(true);
+      }
+    } catch (e) {
+      console.warn('Cannot fetch /api/templates, trying fallback:', e);
+    }
+
+    if (loaded.length === 0) {
+      try {
+        const res2 = await fetch('/api/process-templates');
+        const json2 = await res2.json();
+        if (json2 && json2.success && Array.isArray(json2.data)) {
+          loaded = json2.data;
           setIsLiveDb(true);
         }
-      })
-      .catch((err) => {
-        console.warn('Cannot fetch process templates:', err);
-        setTemplates([]);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      } catch (_) {}
+    }
+
+    // Merge status from localStorage
+    const merged = loaded.map((t) => {
+      const id = t.templateId || t.id;
+      const effectiveStatus = getTemplateStatus(id, t.status || 'ACTIVE');
+      return {
+        ...t,
+        id,
+        templateId: id,
+        name: t.name || `Quy Trình Canh Tác ${t.varietyName || 'VietGAP'}`,
+        status: effectiveStatus,
+        totalSteps: t.steps?.length || t.totalSteps || 0,
+        totalDays: t.steps && t.steps.length > 0 ? Math.max(...t.steps.map((s) => s.dayOffset || 0)) + 5 : (t.totalDays || 45)
+      };
+    });
+
+    setTemplates(merged);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -79,88 +171,166 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
       .then((res) => {
         if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
           setVarieties(res.data);
-          if (res.data[0]?.id || res.data[0]?.varietyId) {
-            setVarietyId(String(res.data[0].id || res.data[0].varietyId));
-          }
+          const first = res.data.find((variety) => String(variety.id || variety.varietyId) === String(requestedVarietyId)) || res.data[0];
+          const fId = String(first.id || first.varietyId);
+          setVarietyId(fId);
+          setName(`Quy trình canh tác chuẩn VietGAP - ${first.name || first.varietyName}`);
         }
       })
       .catch(() => {});
-  }, []);
+  }, [requestedVarietyId]);
 
-  // Process Document File Upload
-  const handleFileChange = (file) => {
-    if (!file) return;
-    setUploadFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = e.target.result;
-        const parsed = parseProcessDocument(text, varieties);
-        setName(parsed.name);
-        if (parsed.varietyId) setVarietyId(String(parsed.varietyId));
-        setVersion(parsed.version);
-        setStatus(parsed.status);
-        setDesc(parsed.description);
-        setParsedSteps(parsed.steps || []);
-      } catch (err) {
-        alert('Lỗi đọc tài liệu: ' + err.message);
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  // Quick Load Sample Document
-  const handleLoadSampleDocument = async () => {
-    try {
-      const res = await fetch('/templates/quy-trinh-chuan-vietgap-dua-leo-baby.txt');
-      const text = await res.text();
-      const parsed = parseProcessDocument(text, varieties);
-      setName(parsed.name);
-      if (parsed.varietyId) setVarietyId(String(parsed.varietyId));
-      setVersion(parsed.version);
-      setStatus(parsed.status);
-      setDesc(parsed.description);
-      setParsedSteps(parsed.steps || []);
-      setUploadFileName('quy-trinh-chuan-vietgap-dua-leo-baby.txt');
-    } catch (err) {
-      alert('Không thể nạp file mẫu: ' + err.message);
+  // When variety selection changes, auto-suggest standard process name
+  const handleVarietyChange = (vId) => {
+    setVarietyId(vId);
+    const selected = varieties.find((v) => String(v.id || v.varietyId) === String(vId));
+    if (selected) {
+      setName(`Quy trình canh tác chuẩn VietGAP - ${selected.name || selected.varietyName}`);
     }
   };
 
+  // Add a new step row
+  const handleAddStepRow = () => {
+    const lastDay = steps.length > 0 ? Math.max(...steps.map((s) => Number(s.dayOffset || 0))) : 0;
+    setSteps([
+      ...steps,
+      {
+        dayOffset: lastDay + 7,
+        stepName: 'Chăm sóc & Theo dõi sinh trưởng định kỳ',
+        taskType: 'CARE',
+        description: 'Kiểm tra độ ẩm đất, tưới nước bổ sung và tỉa lá gốc thông thoáng.',
+        materialsNeeded: 'Chế phẩm sinh học hữu cơ'
+      }
+    ]);
+  };
+
+  // Remove a step row
+  const handleRemoveStepRow = (index) => {
+    if (steps.length <= 1) {
+      alert('Quy trình canh tác cần có tối thiểu 1 bước kỹ thuật.');
+      return;
+    }
+    setSteps(steps.filter((_, i) => i !== index));
+  };
+
+  // Update step field
+  const handleStepFieldChange = (index, field, value) => {
+    setSteps(
+      steps.map((s, i) => (i === index ? { ...s, [field]: value } : s))
+    );
+  };
+
+  // Create Template Handler
   const handleCreate = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    if (!name.trim()) {
+      alert('Vui lòng nhập tên quy trình canh tác');
+      return;
+    }
 
-    const numericVarietyId = parseInt(String(varietyId).replace(/\D/g, ''), 10) || 1;
+    setIsSubmitting(true);
+    const numericVarietyId = Number(varietyId);
+    if (!Number.isInteger(numericVarietyId) || numericVarietyId <= 0) {
+      showToast('error', 'Vui lòng chọn giống cây trồng hợp lệ.');
+      setIsSubmitting(false);
+      return;
+    }
+    const selectedVariety = varieties.find((v) => String(v.id || v.varietyId) === String(varietyId));
+    const varietyNameStr = selectedVariety?.name || selectedVariety?.varietyName || 'Giống cây trồng';
+
+    // Role business logic: Expert creates -> PENDING_APPROVAL; Admin creates -> ACTIVE
+    const initialStatus = isExpert ? 'PENDING_APPROVAL' : 'ACTIVE';
+
+    const payload = {
+      varietyId: numericVarietyId,
+      version: 'v1.0',
+      name: name.trim(),
+      description: desc.trim() || `Quy trình kỹ thuật nông nghiệp chuẩn VietGAP dành cho ${varietyNameStr}.`,
+      ptCreatedBy: user?.userId || 5,
+      steps: steps.map((s, idx) => ({
+        stepOrder: idx + 1,
+        stepName: s.stepName.trim(),
+        dayOffset: parseInt(s.dayOffset, 10) || 0,
+        taskType: s.taskType || 'CARE',
+        durationDays: 1,
+        description: s.description.trim(),
+        materialsNeeded: s.materialsNeeded?.trim() || 'Vật tư hữu cơ sinh học'
+      }))
+    };
 
     try {
-      const payload = {
-        varietyId: numericVarietyId,
-        version: version.trim() || 'v1.0',
-        name: name.trim(),
-        description: desc.trim(),
-        ptCreatedBy: user?.userId || 5,
-        steps: parsedSteps && parsedSteps.length > 0 ? parsedSteps : []
-      };
-
-      const res = await fetch('/api/process-templates', {
+      let createdId = null;
+      let res = await fetch('/api/templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const json = await res.json();
-      if (res.ok && json.success && json.data?.id) {
-        setShowModal(false);
-        // Chuyển thẳng tới trang chi tiết quy trình vừa tạo
-        navigate(`${detailBasePath}/${json.data.id}`);
-        return;
+
+      if (!res.ok) {
+        res = await fetch('/api/process-templates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
       }
-      throw new Error(json.message || 'Không thể lưu quy trình.');
+
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success && (json.data?.templateId || json.data?.id)) {
+        createdId = json.data.templateId || json.data.id;
+      } else {
+        throw new Error(json?.message || 'Không thể lưu quy trình vào hệ thống.');
+      }
+
+      setTemplateStatus(createdId, initialStatus);
+
+      // GỬI THÔNG BÁO THEO NGHIỆP VỤ:
+      if (isExpert) {
+        // Thông báo 1: Expert tạo quy trình -> gửi cho ADMIN phê duyệt
+        await sendNotification({
+          targetRole: 'ADMIN',
+          title: '📋 Quy trình canh tác mới cần phê duyệt',
+          content: `Chuyên gia ${user?.fullName || 'Nông nghiệp'} vừa thiết lập quy trình "${name.trim()}" cho giống ${varietyNameStr}. Vui lòng kiểm tra và phê duyệt.`,
+          type: 'PROCESS_TEMPLATE',
+          link: `/admin/master-data/process-templates`
+        });
+        showToast('success', `Đã tạo quy trình và gửi thông báo tới Quản trị viên chờ phê duyệt!`);
+      } else {
+        showToast('success', `Đã ban hành quy trình canh tác "${name.trim()}" thành công!`);
+      }
+
+      setShowModal(false);
+      await loadTemplatesFromApi();
+
+      // Tùy chọn chuyển tới trang chi tiết
+      if (createdId) {
+        navigate(`${detailBasePath}/${createdId}`);
+      }
     } catch (err) {
       alert(err.message || 'Không thể lưu quy trình. Vui lòng thử lại.');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Admin Phê Duyệt Quy Trình (Approve)
+  const handleApproveTemplate = async (template) => {
+    const tId = template.id || template.templateId;
+    if (!window.confirm(`Xác nhận phê duyệt và ban hành quy trình "${template.name}"?`)) return;
+
+    setTemplateStatus(tId, 'ACTIVE');
+
+    // Gửi thông báo lại cho Expert thông báo quy trình đã được duyệt
+    await sendNotification({
+      targetRole: 'EXPERT',
+      userId: template.ptCreatedBy || null,
+      title: '✅ Quy trình canh tác đã được phê duyệt',
+      content: `Quản trị viên đã phê duyệt và ban hành quy trình "${template.name}". Quy trình chính thức có hiệu lực áp dụng trên các thửa đất.`,
+      type: 'PROCESS_TEMPLATE',
+      link: `/expert/dashboard?tab=templates`
+    });
+
+    showToast('success', `Đã phê duyệt quy trình "${template.name}" thành công! Thông báo đã được gửi tới Chuyên gia.`);
+    await loadTemplatesFromApi();
   };
 
   const handleDelete = async (row) => {
@@ -173,6 +343,7 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
       if (!response.ok || payload?.success === false) {
         throw new Error(payload?.message || 'Không thể xóa quy trình.');
       }
+      showToast('success', `Đã xóa quy trình thành công.`);
       setTemplates((current) => current.filter((template) => String(template.id || template.templateId) !== String(templateId)));
     } catch (error) {
       window.alert(error.message || 'Không thể xóa quy trình.');
@@ -188,14 +359,16 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
       sortable: true,
       render: (row) => (
         <div>
-          <span className="font-mono text-[10px] text-brand-muted uppercase block">{row.id || row.code}</span>
+          <span className="font-mono text-[10px] text-brand-muted uppercase block">#{row.id || row.templateId}</span>
           <Link
-            to={`${detailBasePath}/${row.id}`}
+            to={`${detailBasePath}/${row.id || row.templateId}`}
             className="font-bold text-brand-dark hover:text-brand-green text-xs block mt-0.5"
           >
             {row.name}
           </Link>
-          <span className="text-[11px] text-stone-500">Người thiết lập: {row.author || row.authorName || 'Chuyên gia Nông nghiệp'}</span>
+          <span className="text-[11px] text-stone-500">
+            Biên soạn: {row.author || row.authorName || (row.ptCreatedBy === user?.userId ? user?.fullName : 'Chuyên gia Nông nghiệp')}
+          </span>
         </div>
       )
     },
@@ -205,22 +378,13 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
       sortable: true,
       render: (row) => (
         <div>
-          <span className="text-[10px] font-bold text-brand-green uppercase">{row.cropName || 'Rau củ'}</span>
-          <p className="font-bold text-brand-dark text-xs">{row.varietyName}</p>
+          <span className="text-[10px] font-bold text-brand-green uppercase">{row.cropName || 'Rau củ VietGAP'}</span>
+          <p className="font-bold text-brand-dark text-xs">{row.varietyName || 'Giống F1'}</p>
         </div>
       )
     },
     {
-      header: 'Phiên Bản',
-      key: 'version',
-      render: (row) => (
-        <span className="font-mono text-xs font-bold text-brand-green bg-brand-cream px-2 py-0.5 rounded border border-brand-border">
-          {row.version}
-        </span>
-      )
-    },
-    {
-      header: 'Lộ Trình Sinh Trưởng',
+      header: 'Lộ Trình Canh Tác',
       key: 'totalSteps',
       render: (row) => (
         <div className="flex items-center gap-2">
@@ -232,20 +396,57 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
     {
       header: 'Trạng Thái',
       key: 'status',
-      render: (row) => <Badge variant={row.status || 'ACTIVE'} size="sm">{row.status || 'ACTIVE'}</Badge>
+      render: (row) => {
+        const isPending = row.status === 'PENDING_APPROVAL';
+        return (
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+              isPending
+                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+            }`}
+          >
+            {isPending ? (
+              <>
+                <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                <span>Chờ Admin duyệt</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Đã ban hành</span>
+              </>
+            )}
+          </span>
+        );
+      }
     },
     {
       header: 'Hành Động',
       key: 'actions',
       render: (row) => (
         <div className="flex items-center gap-1.5">
+          {/* Nút Phê Duyệt nếu là Admin và quy trình đang chờ duyệt */}
+          {isAdmin && row.status === 'PENDING_APPROVAL' && (
+            <button
+              type="button"
+              onClick={() => handleApproveTemplate(row)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+              title="Phê duyệt quy trình này để áp dụng cho khách hàng"
+            >
+              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Phê Duyệt</span>
+            </button>
+          )}
+
           <Link
-            to={`${detailBasePath}/${row.id}`}
-            className="p-1.5 text-stone-400 hover:text-brand-green hover:bg-brand-cream/50 rounded-lg transition-colors"
+            to={`${detailBasePath}/${row.id || row.templateId}`}
+            className="p-1.5 text-stone-500 hover:text-brand-green hover:bg-brand-cream/50 rounded-lg transition-colors"
             title="Xem chi tiết lộ trình"
           >
             <Eye className="w-4 h-4" />
           </Link>
+
           <button
             type="button"
             disabled={String(deletingId) === String(row.id || row.templateId)}
@@ -263,6 +464,29 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
 
   return (
     <div className="space-y-6">
+      {/* Toast Feedback */}
+      {toast && (
+        <div
+          className={`p-4 rounded-xl flex items-center justify-between gap-3 text-sm font-medium border shadow-xs animate-in fade-in duration-200 ${
+            toast.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+              : 'bg-red-50 text-red-800 border-red-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {toast.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+            )}
+            <span>{toast.message}</span>
+          </div>
+          <button onClick={() => setToast(null)} className="p-1 hover:opacity-70">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Banner / Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -273,7 +497,7 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
             {isLiveDb && (
               <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live DB: {templates.length} Quy trình</span>
+                <span>{isFiltered ? `${visibleTemplates.length} kết quả cho giống ${selectedVarietyName}` : `${templates.length} Quy trình`}</span>
               </span>
             )}
           </div>
@@ -281,227 +505,218 @@ export default function ProcessTemplates({ detailBasePath = '/admin/master-data/
             Quy Trình Canh Tác Chuẩn VietGAP
           </h2>
           <p className="text-xs text-brand-muted mt-0.5">
-            Các mẫu quy trình kỹ thuật theo từng mốc ngày tuổi (Day Offset), hướng dẫn chăm sóc và tự động sinh Care Task cho gói Assisted-growing.
+            Mẫu quy trình kỹ thuật theo từng ngày thực hiện để nhân viên chăm sóc và sinh nhật ký tự động.
           </p>
         </div>
 
-        <Button variant="primary" size="md" icon={Plus} onClick={() => {
-          setShowModal(true);
-        }}>
-          Tạo Quy Trình Chuẩn Mới
+        <Button
+          variant="primary"
+          size="md"
+          icon={Plus}
+          onClick={() => {
+            const first = varieties.find((variety) => String(variety.id || variety.varietyId) === String(requestedVarietyId)) || varieties[0];
+            if (first) {
+              const fId = String(first.id || first.varietyId);
+              setVarietyId(fId);
+              setName(`Quy trình canh tác chuẩn VietGAP - ${first.name || first.varietyName}`);
+            }
+            setShowModal(true);
+          }}
+        >
+          {isExpert ? 'Soạn Quy Trình Mới' : 'Tạo Quy Trình Chuẩn Mới'}
         </Button>
       </div>
 
+      {isFiltered && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-border bg-white px-4 py-3 text-sm text-brand-dark">
+          <span>Đang xem quy trình của giống <strong>{selectedVarietyName}</strong> ({visibleTemplates.length} kết quả)</span>
+          <button type="button" onClick={clearVarietyFilter} className="font-bold text-brand-green hover:underline">
+            Xem tất cả quy trình
+          </button>
+        </div>
+      )}
+
+      {requestedVarietyId && requestMode !== 'create' && matchingCount === 0 && !loading && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-border bg-white px-4 py-3 text-sm text-brand-dark">
+          <span>Giống <strong>{selectedVarietyName}</strong> chưa có quy trình. Đang hiển thị tất cả {templates.length} quy trình hiện có.</span>
+          <button type="button" onClick={clearVarietyFilter} className="font-bold text-brand-green hover:underline">
+            Xem tất cả quy trình
+          </button>
+        </div>
+      )}
+
       <DataTable
         columns={columns}
-        data={templates}
+        data={visibleTemplates}
         searchPlaceholder="Tìm kiếm quy trình, giống cây..."
         searchField="name"
       />
 
-      {/* MODAL CREATE TEMPLATE WITH SMART UPLOAD */}
+      {/* MODAL THÊM QUY TRÌNH TINH GỌN */}
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title="Tạo Mẫu Quy Trình Canh Tác Mới"
-        subtitle="Nạp và phân tích tự động từ tài liệu kỹ thuật chuẩn VietGAP (.txt / .json)"
-        maxWidth="max-w-3xl"
+        title={isExpert ? 'Biên Soạn Quy Trình Canh Tác Mới' : 'Tạo Quy Trình Canh Tác Chuẩn'}
+        subtitle={
+          isExpert
+            ? 'Quy trình sau khi lưu sẽ được gửi tới Quản trị viên (Admin) phê duyệt trước khi ban hành.'
+            : 'Thiết lập các mốc ngày tuổi và hướng dẫn kỹ thuật chuẩn VietGAP.'
+        }
+        maxWidth="max-w-4xl"
       >
-        <div className="space-y-5">
-          <div className="space-y-4">
-            {/* Dropzone Container */}
-            <div
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDragging(false);
-                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                  handleFileChange(e.dataTransfer.files[0]);
-                }
-              }}
-              onClick={() => fileInputRef.current?.click()}
-              className={`p-6 border-2 border-dashed rounded-2xl text-center cursor-pointer transition-all ${
-                isDragging
-                  ? 'border-brand-green bg-emerald-50/70 scale-[1.01]'
-                  : uploadFileName
-                  ? 'border-emerald-400 bg-emerald-50/40'
-                  : 'border-stone-300 bg-stone-50/50 hover:bg-stone-50 hover:border-brand-green/60'
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".txt,.json,.md"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleFileChange(e.target.files[0]);
-                  }
-                }}
-              />
+        <form onSubmit={handleCreate} className="space-y-5">
+          {/* Thông tin cốt lõi */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Select
+              label="Áp Dụng Cho Giống Cây Trồng"
+              required
+              value={varietyId}
+              onChange={(e) => handleVarietyChange(e.target.value)}
+              options={varieties.map((v) => ({
+                value: String(v.id || v.varietyId),
+                label: `${v.name || v.varietyName} (${v.cropName || 'Rau màu'})`
+              }))}
+            />
 
-              <div className="max-w-md mx-auto space-y-2">
-                <div className="w-12 h-12 rounded-2xl bg-white border border-brand-border flex items-center justify-center mx-auto text-brand-green shadow-xs">
-                  {uploadFileName ? <CheckCircle2 className="w-6 h-6 text-emerald-600" /> : <UploadCloud className="w-6 h-6 text-brand-green" />}
-                </div>
-
-                <div>
-                  <h4 className="font-heading font-bold text-sm text-brand-dark">
-                    {uploadFileName ? (
-                      <span className="text-emerald-700 flex items-center justify-center gap-1.5">
-                        <span>Đã nạp file:</span> <strong>{uploadFileName}</strong>
-                      </span>
-                    ) : (
-                      'Kéo thả file tài liệu quy trình chuẩn vào đây'
-                    )}
-                  </h4>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Định dạng hỗ trợ: <strong className="text-stone-700">.txt</strong> (Văn bản VietGAP có cấu trúc) hoặc <strong className="text-stone-700">.json</strong>
-                  </p>
-                </div>
-
-                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
-                  <span className="px-3 py-1 bg-white border border-stone-200 text-stone-700 rounded-xl text-xs font-semibold hover:border-brand-green">
-                    Duyệt file từ máy tính
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Technical Document Quick Preset */}
-            <div className="p-3 bg-brand-cream/60 rounded-xl border border-brand-border flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-brand-green shrink-0" />
-                <span className="text-stone-700 font-medium">Tài liệu kỹ thuật chuẩn:</span>
-                <strong className="text-brand-dark font-mono text-[11px]">Dưa leo baby F1 (8 bước)</strong>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleLoadSampleDocument}
-                  className="px-3 py-1.5 bg-brand-green text-white rounded-lg font-bold hover:bg-emerald-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Nạp Tài Liệu Chuẩn VietGAP</span>
-                </button>
-
-                <a
-                  href="/templates/quy-trinh-chuan-vietgap-dua-leo-baby.txt"
-                  download="quy-trinh-chuan-vietgap-dua-leo-baby.txt"
-                  className="px-3 py-1.5 bg-white border border-brand-border text-brand-dark rounded-lg font-semibold hover:bg-stone-50 transition-colors flex items-center gap-1.5"
-                >
-                  <Download className="w-3.5 h-3.5 text-stone-500" />
-                  <span>Tải File Mẫu (.txt)</span>
-                </a>
-              </div>
-            </div>
-
-            {/* Parsed Results Preview Card */}
-            {parsedSteps.length > 0 && (
-              <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200 space-y-3">
-                <div className="flex items-center justify-between border-b border-emerald-200/80 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span className="font-heading font-black text-xs text-emerald-900 uppercase tracking-wider">
-                      Đã Phân Tích Thành Công: {parsedSteps.length} Bước Kỹ Thuật (Day Offset)
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-bold text-emerald-800 bg-white px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    Chu kỳ: {Math.max(...parsedSteps.map(s => s.dayOffset)) + 7} ngày
-                  </span>
-                </div>
-
-                {/* Quick Timeline Preview Chips */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                  {parsedSteps.map((s, idx) => (
-                    <div key={idx} className="p-2 bg-white rounded-xl border border-emerald-100 flex items-start gap-2 text-xs">
-                      <span className="px-2 py-0.5 rounded bg-brand-yellow font-black text-[10px] text-brand-dark shrink-0">
-                        D+{s.dayOffset}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-brand-dark truncate">{s.stepName}</p>
-                        <span className="text-[10px] text-stone-500 block truncate">
-                          {s.taskType} • {s.durationMinutes}p • {s.materialsNeeded || 'Vật tư hữu cơ'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Form fields (Always editable and in sync) */}
-          <form onSubmit={handleCreate} className="space-y-4 pt-2">
             <Input
               label="Tên Quy Trình Canh Tác"
               required
-              placeholder="Ví dụ: Quy Trình VietGAP Dưa Leo Baby F1 Chuẩn Hóa"
+              placeholder="Quy trình canh tác chuẩn VietGAP - ..."
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
+          </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Select
-                label="Áp Dụng Cho Giống Cây"
-                required
-                value={varietyId}
-                onChange={(e) => setVarietyId(e.target.value)}
-                options={varieties.map((v) => ({
-                  value: String(v.id || v.varietyId),
-                  label: `${v.name || v.varietyName} (${v.cropName || 'Rau màu'})`
-                }))}
-              />
-
-              <Input
-                label="Mã Phiên Bản (Version)"
-                required
-                placeholder="v2.5 (Chuẩn VietGAP)"
-                value={version}
-                onChange={(e) => setVersion(e.target.value)}
-              />
-            </div>
-
-            <Select
-              label="Trạng Thái Quy Trình"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              options={[
-                { value: 'ACTIVE', label: 'ACTIVE (Đang ban hành áp dụng)' },
-                { value: 'DRAFT', label: 'DRAFT (Bản thảo khảo nghiệm)' },
-                { value: 'ARCHIVED', label: 'ARCHIVED (Đã lưu trữ / Hết hiệu lực)' }
-              ]}
+          <div>
+            <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-1.5">
+              Mô Tả & Ghi Chú Kỹ Thuật (Tùy Chọn)
+            </label>
+            <textarea
+              rows={2}
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="Ghi chú tổng quát về mùa vụ thích hợp, đặc tính dinh dưỡng hoặc lưu ý chung..."
+              className="w-full rounded-xl border border-brand-border bg-white px-3.5 py-2 text-sm text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-green/20"
             />
+          </div>
 
-            <div>
-              <label className="block text-xs font-bold text-brand-dark uppercase tracking-wider mb-1.5">
-                Mô Tả Quy Trình
-              </label>
-              <textarea
-                rows={3}
-                value={desc}
-                onChange={(e) => setDesc(e.target.value)}
-                placeholder="Mô tả tóm tắt mục tiêu, điều kiện thời tiết thích hợp và chu kỳ thu hoạch..."
-                className="w-full rounded-xl border border-brand-border bg-white px-3.5 py-2 text-sm text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-green/20"
-              />
+          {/* TRÌNH THÊM NHANH CÁC BƯỚC KỸ THUẬT (QUICK STEPS EDITOR) */}
+          <div className="border border-brand-border rounded-2xl p-4 bg-brand-cream/30 space-y-3">
+            <div className="flex items-center justify-between border-b border-brand-border pb-2.5">
+              <div className="flex items-center gap-2">
+                <Sprout className="w-4 h-4 text-brand-green" />
+                <h4 className="font-heading font-black text-xs text-brand-dark uppercase tracking-wider">
+                  Lộ Trình Các Bước Kỹ Thuật ({steps.length} bước)
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddStepRow}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-brand-cream border border-brand-border rounded-lg text-xs font-bold text-brand-green transition-all shadow-2xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Thêm Bước Công Việc</span>
+              </button>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-brand-border">
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              {steps.map((step, idx) => (
+                <div
+                  key={idx}
+                  className="p-3 bg-white rounded-xl border border-brand-border space-y-2.5 shadow-2xs relative"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1">
+                      {/* Mốc ngày D+ */}
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-bold text-brand-dark">Ngày</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={step.dayOffset}
+                          onChange={(e) => handleStepFieldChange(idx, 'dayOffset', e.target.value)}
+                          className="w-16 px-2 py-1 text-xs font-mono font-bold bg-amber-50 text-amber-900 border border-amber-300 rounded-lg text-center focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+
+                      {/* Tên bước */}
+                      <input
+                        type="text"
+                        required
+                        placeholder="Tên công việc kỹ thuật..."
+                        value={step.stepName}
+                        onChange={(e) => handleStepFieldChange(idx, 'stepName', e.target.value)}
+                        className="flex-1 px-3 py-1 text-xs font-bold text-brand-dark border border-brand-border rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-green"
+                      />
+
+                      {/* Loại công việc */}
+                      <select
+                        value={step.taskType}
+                        onChange={(e) => handleStepFieldChange(idx, 'taskType', e.target.value)}
+                        className="px-2.5 py-1 text-xs font-semibold text-brand-dark border border-brand-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-brand-green"
+                      >
+                        <option value="SOIL_PREP">Làm đất & Khử chua</option>
+                        <option value="PLANTING">Xuống giống / Cấy cây</option>
+                        <option value="IRRIGATION">Tưới nước giữ ẩm</option>
+                        <option value="FERTILIZATION">Bón phân hữu cơ</option>
+                        <option value="PEST_CONTROL">Phòng trừ sâu bệnh</option>
+                        <option value="PRUNING">Bấm ngọn & Tỉa cành</option>
+                        <option value="CARE">Chăm sóc định kỳ</option>
+                        <option value="HARVEST">Thu hoạch sản phẩm</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveStepRow(idx)}
+                      className="p-1 text-stone-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                      title="Xóa bước này"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <input
+                      type="text"
+                      placeholder="Hướng dẫn kỹ thuật chi tiết cho nhân viên..."
+                      value={step.description}
+                      onChange={(e) => handleStepFieldChange(idx, 'description', e.target.value)}
+                      className="px-3 py-1 text-xs text-stone-700 border border-stone-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-green"
+                    />
+
+                    <input
+                      type="text"
+                      placeholder="Vật tư, chế phẩm sinh học cần cấp (nếu có)..."
+                      value={step.materialsNeeded}
+                      onChange={(e) => handleStepFieldChange(idx, 'materialsNeeded', e.target.value)}
+                      className="px-3 py-1 text-xs text-stone-700 border border-stone-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-green"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-between pt-3 border-t border-brand-border">
+            <span className="text-xs text-brand-muted">
+              {isExpert ? '⏳ Quy trình sẽ gửi tới Admin để phê duyệt' : '✓ Quy trình sẽ được ban hành ngay'}
+            </span>
+            <div className="flex items-center gap-2.5">
               <Button variant="outline" size="sm" type="button" onClick={() => setShowModal(false)} disabled={isSubmitting}>
                 Hủy
               </Button>
               <Button variant="primary" size="sm" type="submit" disabled={isSubmitting}>
                 {isSubmitting
-                  ? 'Đang Lưu Vào PostgreSQL...'
-                  : parsedSteps.length > 0
-                  ? `Khởi Tạo & Lưu Vào PostgreSQL (${parsedSteps.length} Bước)`
-                  : 'Khởi Tạo Template & Nhập Lộ Trình'}
+                  ? 'Đang Lưu...'
+                  : isExpert
+                  ? `Lưu & Gửi Admin Duyệt (${steps.length} Bước)`
+                  : `Ban Hành Quy Trình (${steps.length} Bước)`}
               </Button>
             </div>
-          </form>
-        </div>
+          </div>
+        </form>
       </Modal>
     </div>
   );

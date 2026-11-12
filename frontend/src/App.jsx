@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 
 // Public Pages
@@ -19,6 +19,7 @@ import VnPayReturn from './pages/payment/VnPayReturn';
 import CustomerDashboard from './pages/customer/CustomerDashboard';
 import CustomerProfile from './pages/customer/CustomerProfile';
 import CustomerSettings from './pages/customer/CustomerSettings';
+import SupportPage from './pages/support/SupportPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ExpertDashboard from './pages/expert/ExpertDashboard';
 import FieldWorkerDashboard from './pages/staff/FieldWorkerDashboard';
@@ -32,7 +33,6 @@ import LandDetail from './pages/admin/LandDetail';
 import Plots from './pages/admin/Plots';
 import PlotForm from './pages/admin/PlotForm';
 import PlotDetailAdmin from './pages/admin/PlotDetail';
-import IoTStations from './pages/admin/IoTStations';
 import Crops from './pages/admin/Crops';
 import Varieties from './pages/admin/Varieties';
 import VarietyDetail from './pages/admin/VarietyDetail';
@@ -114,6 +114,11 @@ function CustomerCommerceRoute({ children }) {
   return children;
 }
 
+export function AdminSupportRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/admin/dashboard?tab=support${id ? `&ticket=${encodeURIComponent(id)}` : ''}`} replace />;
+}
+
 export default function App() {
   // Lắng nghe tín hiệu đồng bộ trạng thái tài khoản từ Ban Quản Trị (Real-time sync across tabs/roles)
   useEffect(() => {
@@ -188,7 +193,11 @@ export default function App() {
         <Route path="/customer/dashboard" element={<RoleRoute role="CUSTOMER"><CustomerDashboard /></RoleRoute>} />
         <Route path="/customer/profile" element={<RoleRoute role="CUSTOMER"><CustomerProfile /></RoleRoute>} />
         <Route path="/customer/settings" element={<RoleRoute role="CUSTOMER"><CustomerSettings /></RoleRoute>} />
+        <Route path="/customer/support" element={<RoleRoute role="CUSTOMER"><SupportPage /></RoleRoute>} />
+        <Route path="/customer/support/:id" element={<RoleRoute role="CUSTOMER"><SupportPage /></RoleRoute>} />
         <Route path="/admin/dashboard" element={<RoleRoute role="ADMIN"><AdminDashboard /></RoleRoute>} />
+        <Route path="/admin/support" element={<RoleRoute role="ADMIN"><AdminSupportRedirect /></RoleRoute>} />
+        <Route path="/admin/support/:id" element={<RoleRoute role="ADMIN"><AdminSupportRedirect /></RoleRoute>} />
         <Route path="/expert/dashboard" element={<RoleRoute role="EXPERT"><ExpertDashboard /></RoleRoute>} />
         <Route path="/expert/crops" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=crops" replace /></RoleRoute>} />
         <Route path="/expert/varieties" element={<RoleRoute role="EXPERT"><Navigate to="/expert/dashboard?tab=varieties" replace /></RoleRoute>} />
@@ -210,9 +219,6 @@ export default function App() {
           <Route path="plots/create" element={<PlotForm />} />
           <Route path="plots/:id" element={<PlotDetailAdmin />} />
 
-          {/* IoT Stations */}
-          <Route path="iot-stations" element={<IoTStations />} />
-          <Route path="iot-stations/:id" element={<IoTStations />} />
 
           {/* Biology Master Data */}
           <Route path="crops" element={<Crops />} />

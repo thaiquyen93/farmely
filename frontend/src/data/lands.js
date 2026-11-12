@@ -16,7 +16,6 @@ export const landsData = [
     createdDate: "2026-01-15",
     geographicalBoundary: "11.0842° N, 106.5298° E (Vùng quy hoạch nông nghiệp công nghệ cao Củ Chi)",
     imageUrl: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80",
-    soilType: "Đất phù sa bồi lắng giàu mùn hữu cơ",
     waterSource: "Hệ thống lọc nước ngầm tầng sâu kết hợp lắng lọc vi sinh",
   }
 ];

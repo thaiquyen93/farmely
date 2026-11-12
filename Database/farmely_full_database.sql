@@ -137,6 +137,8 @@ CREATE TABLE site_visits (
     plot_id       INT               NOT NULL REFERENCES plots(plot_id),
     visitor_name  VARCHAR(150)      NOT NULL,
     visitor_phone VARCHAR(20)       NOT NULL,
+    group_size    INT               NOT NULL DEFAULT 2,
+    notes         TEXT,
     visit_date    DATE              NOT NULL,
     visit_slot    visit_slot_enum   NOT NULL,
     status        visit_status_enum NOT NULL DEFAULT 'PENDING',

@@ -1,32 +1,61 @@
 import React from 'react';
-import { CalendarDays, FileText, Leaf, ShoppingBag, UserRound } from 'lucide-react';
+import { CalendarCheck, LayoutDashboard, ShoppingBag } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const items = [
-  { label: 'Vườn của tôi', icon: Leaf, to: '/customer/dashboard', view: 'yards' },
-  { label: 'Lịch canh tác', icon: CalendarDays, to: '/customer/dashboard?view=tasks', view: 'tasks' },
-  { label: 'Dịch vụ', icon: ShoppingBag, to: '/customer/dashboard?view=services', view: 'services' },
-  { label: 'Hợp đồng', icon: FileText, to: '/customer/dashboard?view=contracts', view: 'contracts' },
-  { label: 'Tài khoản', icon: UserRound, to: '/customer/profile', view: 'account' }
+  { label: 'Tổng quan', icon: LayoutDashboard, view: 'overview' },
+  { label: 'Công việc & Nhật ký', icon: CalendarCheck, view: 'tasks' },
+  { label: 'Dịch vụ', icon: ShoppingBag, view: 'services' }
 ];
 
-export default function CustomerMobileNav({ activeView }) {
+export default function CustomerMobileNav({ activeView, onSelectTab }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const inferredView = location.pathname.includes('/customer/profile') || location.pathname.includes('/customer/settings')
-    ? 'account'
-    : new URLSearchParams(location.search).get('view') || 'yards';
-  const current = activeView || inferredView;
+  const searchParams = new URLSearchParams(location.search);
+  const plotParam = searchParams.get('plot') || searchParams.get('plotCode');
+  const rawView = searchParams.get('tab') || searchParams.get('view') || 'overview';
+  const normalizedView = rawView === 'yards' ? 'overview' : rawView === 'diary' ? 'tasks' : rawView;
+  const current = activeView === 'yards' ? 'overview' : activeView === 'diary' ? 'tasks' : (activeView || normalizedView);
+
+  const handleSelect = (view) => {
+    if (typeof onSelectTab === 'function') {
+      onSelectTab(view);
+      return;
+    }
+    if (plotParam) {
+      navigate(`/customer/dashboard?plot=${encodeURIComponent(plotParam)}${view === 'overview' ? '' : `&tab=${view}`}`);
+      return;
+    }
+    if (view === 'overview') {
+      navigate('/customer/dashboard');
+    } else if (view === 'tasks') {
+      navigate('/customer/dashboard?view=diary');
+    } else {
+      navigate(`/customer/dashboard?view=${view}`);
+    }
+  };
 
   return (
-    <nav aria-label="Điều hướng khách hàng trên di động" className="fixed inset-x-0 bottom-0 z-[70] border-t border-[#d8dfd9] bg-white/95 px-1.5 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_30px_rgba(6,61,43,0.12)] backdrop-blur lg:hidden">
-      <div className="mx-auto grid max-w-lg grid-cols-5">
-        {items.map(({ label, icon: Icon, to, view }) => {
+    <nav aria-label="Điều hướng khách hàng trên di động" className="fixed inset-x-0 bottom-0 z-[70] border-t border-[#d8dfd9] bg-white/95 px-2 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1.5 shadow-[0_-8px_30px_rgba(6,61,43,0.12)] backdrop-blur lg:hidden">
+      <div className="mx-auto grid max-w-lg grid-cols-3 gap-1.5">
+        {items.map(({ label, icon: Icon, view }) => {
           const selected = current === view;
-          return <button key={view} type="button" onClick={() => navigate(to)} aria-current={selected ? 'page' : undefined} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-bold transition ${selected ? 'bg-emerald-50 text-emerald-800' : 'text-stone-500 active:bg-stone-100'}`}>
-            <Icon className={`h-5 w-5 ${selected ? 'stroke-[2.5]' : ''}`} />
-            <span className="max-w-full truncate">{label}</span>
-          </button>;
+          return (
+            <button
+              key={view}
+              type="button"
+              onClick={() => handleSelect(view)}
+              aria-current={selected ? 'page' : undefined}
+              className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-[11px] sm:text-xs font-bold transition cursor-pointer ${
+                selected
+                  ? 'bg-[#18352b] text-white shadow-sm'
+                  : 'text-stone-600 hover:bg-stone-100 active:bg-stone-100'
+              }`}
+            >
+              <Icon className={`h-4 w-4 shrink-0 ${selected ? 'text-lime-300 stroke-[2.5]' : ''}`} />
+              <span className="truncate">{label}</span>
+            </button>
+          );
         })}
       </div>
     </nav>

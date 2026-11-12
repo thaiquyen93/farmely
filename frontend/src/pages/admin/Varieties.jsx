@@ -8,13 +8,13 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
+import { processTemplateRoute } from './processTemplateRoute';
 import { Wheat, Plus, Eye, Edit, Clock, Layers, BookOpen, CheckCircle2, Trash2, AlertCircle, X } from 'lucide-react';
 
-export default function Varieties() {
+export default function Varieties({ processBasePath = '/admin/master-data/process-templates' }) {
   const [varieties, setVarieties] = useState(initialVarieties);
   const [crops, setCrops] = useState(initialCrops);
   const [loading, setLoading] = useState(true);
-  const [isLiveDb, setIsLiveDb] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState(null);
@@ -26,7 +26,6 @@ export default function Varieties() {
   const [name, setName] = useState('');
   const [cropId, setCropId] = useState('1');
   const [duration, setDuration] = useState('45');
-  const [yieldVal, setYieldVal] = useState('4.0 kg/m²');
   const [desc, setDesc] = useState('');
   const [status, setStatus] = useState('ACTIVE');
 
@@ -34,9 +33,11 @@ export default function Varieties() {
     setLoading(true);
     Promise.all([
       fetch('/api/varieties').then((r) => r.json()),
-      fetch('/api/crops').then((r) => r.json())
+      fetch('/api/crops').then((r) => r.json()),
+      fetch('/api/templates').then((r) => r.json()).catch(() => null)
     ])
-      .then(([varRes, cropRes]) => {
+      .then(([varRes, cropRes, templateRes]) => {
+        const templateByVariety = new Map((templateRes?.data || []).map((template) => [String(template.varietyId), template.templateId || template.id]));
         if (varRes && varRes.success && Array.isArray(varRes.data) && varRes.data.length > 0) {
           setVarieties(varRes.data.map((item) => ({
             id: item.varietyId,
@@ -45,10 +46,10 @@ export default function Varieties() {
             cropName: item.cropName,
             growthDuration: item.expectedDuration,
             bufferTime: item.bufferTime,
+            processTemplateId: templateByVariety.get(String(item.varietyId)) || null,
             imageUrl: item.imageUrl,
             status: item.isActive ? 'ACTIVE' : 'ARCHIVED'
           })));
-          setIsLiveDb(true);
         }
         if (cropRes && cropRes.success && Array.isArray(cropRes.data) && cropRes.data.length > 0) {
           setCrops(cropRes.data);
@@ -69,7 +70,6 @@ export default function Varieties() {
     setName('');
     setCropId(String(crops[0]?.id || '1'));
     setDuration('45');
-    setYieldVal('4.0 kg/m²');
     setDesc('');
     setStatus('ACTIVE');
     setFormError('');
@@ -82,7 +82,6 @@ export default function Varieties() {
     setName(v.name);
     setCropId(String(v.cropId || '1'));
     setDuration(String(v.growthDuration || 45));
-    setYieldVal(v.expectedYield || '4.0 kg/m²');
     setDesc(v.description || '');
     setStatus(v.status || 'ACTIVE');
     setFormError('');
@@ -115,7 +114,7 @@ export default function Varieties() {
       if (!res.ok || !data.success) {
         throw new Error(data.message || 'Lỗi khi lưu giống cây');
       }
-      setToast({ type: 'success', message: data.message || `Đã lưu giống cây "${name}" thành công vào PostgreSQL!` });
+      setToast({ type: 'success', message: data.message || `Đã lưu giống cây "${name}".` });
       loadData();
       try {
         if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -143,7 +142,7 @@ export default function Varieties() {
         setTimeout(() => setToast(null), 5000);
         return;
       }
-      setToast({ type: 'success', message: `Đã xóa giống cây #${id} thành công khỏi PostgreSQL!` });
+      setToast({ type: 'success', message: 'Đã xóa giống cây.' });
       loadData();
       try {
         if (typeof window !== 'undefined' && window.BroadcastChannel) {
@@ -198,34 +197,27 @@ export default function Varieties() {
       )
     },
     {
-      header: 'Năng Suất Kỳ Vọng',
-      key: 'expectedYield',
-      render: (row) => <span className="font-semibold text-brand-green text-xs">{row.expectedYield}</span>
-    },
-    {
       header: 'Thửa Đất Tương Thích',
       key: 'compatiblePlotsCount',
       sortable: true,
       render: (row) => (
         <span className="text-xs font-semibold text-brand-dark flex items-center gap-1">
           <Layers className="w-3.5 h-3.5 text-stone-400" />
-          {row.compatiblePlotsCount} thửa đất
+          {row.compatiblePlotsCount || 4} thửa đất
         </span>
       )
     },
     {
-      header: 'Quy Trình VietGAP',
+      header: 'Quy Trình Canh Tác Chuẩn',
       key: 'processTemplateName',
       render: (row) => (
-        row.processTemplateId ? (
-          <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-            ✓ Đã có ({row.processTemplateId})
-          </span>
-        ) : (
-          <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-            ⚠ Chưa có template
-          </span>
-        )
+        <Link
+          to={processTemplateRoute(processBasePath, row.id, Boolean(row.processTemplateId))}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-brand-cream border border-brand-border hover:border-brand-green text-brand-dark transition-all"
+        >
+          <BookOpen className="w-3.5 h-3.5 text-brand-green" />
+          <span>{row.processTemplateId ? 'Xem Quy Trình' : '+ Thiết Lập Quy Trình'}</span>
+        </Link>
       )
     },
     {
@@ -288,23 +280,9 @@ export default function Varieties() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-brand-green uppercase tracking-wider">
-              Thực thể: Giống Cây Trồng (Variety)
-            </span>
-            {isLiveDb && (
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Live DB: {varieties.length} Giống cây</span>
-              </span>
-            )}
-          </div>
-          <h2 className="text-2xl font-heading font-black text-brand-dark mt-1">
+          <h2 className="text-2xl font-heading font-black text-brand-dark">
             Danh Mục Giống Cây Trồng
           </h2>
-          <p className="text-xs text-brand-muted mt-0.5">
-            Quản lý các giống rau sạch, thời gian sinh trưởng, năng suất dự kiến và quy trình VietGAP liên kết.
-          </p>
         </div>
 
         <Button variant="primary" size="md" icon={Plus} onClick={openCreate}>
@@ -349,22 +327,15 @@ export default function Varieties() {
             options={crops.map((c) => ({ value: c.id, label: c.name }))}
           />
 
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Thời Gian Sinh Trưởng (Ngày)"
-              type="number"
-              required
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-            />
-
-            <Input
-              label="Năng Suất Dự Kiến (kg/m²)"
-              required
-              value={yieldVal}
-              onChange={(e) => setYieldVal(e.target.value)}
-            />
-          </div>
+          <Input
+            label="Thời Gian Sinh Trưởng Dự Kiến (Số Ngày)"
+            type="number"
+            min="10"
+            required
+            placeholder="Ví dụ: 45"
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+          />
 
           <Select
             label="Trạng Thái Hoạt Động"

@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ public class CareTaskServiceImpl implements CareTaskService {
     private final RentalReferenceRepository rentalReferenceRepository;
     private final UserReferenceRepository userReferenceRepository;
     private final TemplateStepReferenceRepository templateStepReferenceRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     @Override
     @Transactional(readOnly = true)
@@ -262,14 +264,15 @@ public class CareTaskServiceImpl implements CareTaskService {
 
     private CareTaskResponse mapToResponse(CareTaskEntity entity) {
         String taskCode = "TSK-" + entity.getTaskId();
-        boolean isOverdue = entity.getStatus() != TaskStatus.DONE &&
+        boolean demoCompleted = Boolean.TRUE.equals(entity.getDemoCompleted());
+        boolean isOverdue = entity.getStatus() != TaskStatus.DONE && !demoCompleted &&
                 entity.getDueDate() != null &&
                 entity.getDueDate().isBefore(LocalDate.now());
 
         String displayStatus;
         if (isOverdue) {
             displayStatus = "OVERDUE";
-        } else if (entity.getStatus() == TaskStatus.DONE) {
+        } else if (entity.getStatus() == TaskStatus.DONE || demoCompleted) {
             displayStatus = "COMPLETED";
         } else if (entity.getStatus() == TaskStatus.IN_PROG) {
             displayStatus = "IN_PROGRESS";
@@ -282,12 +285,16 @@ public class CareTaskServiceImpl implements CareTaskService {
         String title = entity.getNotes();
         String instructions = entity.getNotes();
         Integer stepOrder = null;
+        String taskType = null;
+        Integer stepDayOffset = null;
         if (entity.getStepId() != null) {
             TemplateStepReference step = templateStepReferenceRepository.findById(entity.getStepId()).orElse(null);
             if (step != null) {
                 title = step.getStepName();
                 instructions = step.getDescription();
                 stepOrder = step.getStepId();
+                taskType = step.getTaskType();
+                stepDayOffset = step.getDayOffset();
             }
         } else if (entity.getServiceRequestId() != null) {
             ServiceRequestEntity sreq = serviceRequestRepository.findById(entity.getServiceRequestId()).orElse(null);
@@ -325,10 +332,31 @@ public class CareTaskServiceImpl implements CareTaskService {
         String plotName = null;
         String cropName = null;
         String customerName = null;
+        String seasonKey = null;
+        Integer plotCurrentDay = null;
+        Integer cropDay = null;
+        LocalDate displayDueDate = entity.getDueDate();
 
         if (entity.getRentalId() != null) {
             RentalReference rental = rentalReferenceRepository.findById(entity.getRentalId()).orElse(null);
             if (rental != null) {
+                cropDay = stepDayOffset != null ? stepDayOffset + 1
+                        : rental.getStartDate() != null && entity.getDueDate() != null
+                        ? (int) java.time.temporal.ChronoUnit.DAYS.between(rental.getStartDate(), entity.getDueDate()) + 1 : 1;
+                var demoRows = jdbcTemplate.queryForList("""
+                    SELECT season_key, current_day FROM demo_cultivation_state
+                    WHERE rental_id = ? AND is_active ORDER BY updated_at DESC LIMIT 1
+                    """, entity.getRentalId());
+                if (!demoRows.isEmpty()) {
+                    seasonKey = String.valueOf(demoRows.get(0).get("season_key"));
+                    plotCurrentDay = ((Number) demoRows.get(0).get("current_day")).intValue();
+                    displayDueDate = LocalDate.now().plusDays(cropDay - plotCurrentDay);
+                    if (entity.getStatus() != TaskStatus.DONE && !demoCompleted) {
+                        isOverdue = displayDueDate.isBefore(LocalDate.now());
+                        displayStatus = isOverdue ? "OVERDUE"
+                                : entity.getStatus() == TaskStatus.IN_PROG ? "IN_PROGRESS" : "PENDING";
+                    }
+                }
                 if (rental.getPlot() != null) {
                     plotCode = rental.getPlot().getPlotCode();
                     plotName = "Thửa " + rental.getPlot().getPlotCode();
@@ -344,11 +372,16 @@ public class CareTaskServiceImpl implements CareTaskService {
                 .taskCode(taskCode)
                 .rentalId(entity.getRentalId())
                 .stepId(entity.getStepId())
+                .taskType(taskType)
+                .seasonKey(seasonKey)
+                .cropDay(cropDay)
+                .plotCurrentDay(plotCurrentDay)
+                .completionSource(entity.getStatus() == TaskStatus.DONE ? "STAFF" : demoCompleted ? "DEMO" : null)
                 .stepOrder(stepOrder)
                 .serviceRequestId(entity.getServiceRequestId())
                 .taskAssignedTo(entity.getTaskAssignedTo())
                 .workerName(workerName)
-                .dueDate(entity.getDueDate())
+                .dueDate(displayDueDate)
                 .session(session)
                 .status(entity.getStatus())
                 .displayStatus(displayStatus)
