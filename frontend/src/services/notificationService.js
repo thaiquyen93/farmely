@@ -193,3 +193,45 @@ export const markAllAsReadForUser = (user) => {
     window.dispatchEvent(new CustomEvent('farmely_notification_received'));
   }
 };
+
+/**
+ * Thông báo cho Chuyên gia khi Admin tạo thửa đất mới để vào gán giống cây tương thích.
+ */
+export const notifyExpertsOfNewPlot = async (savedPlot = {}) => {
+  const plotCode = String(savedPlot.plotCode || savedPlot.code || '').trim().toUpperCase();
+  if (!plotCode) return [];
+
+  const areaNum = Number(savedPlot.area);
+  const areaLabel = Number.isFinite(areaNum) && areaNum > 0 ? ` (${Math.round(areaNum)} m²)` : '';
+  const plotIdParam = savedPlot.plotId ? `&plotId=${encodeURIComponent(savedPlot.plotId)}` : '';
+  const link = `/expert/dashboard?tab=compatibility&plot=${encodeURIComponent(plotCode)}${plotIdParam}`;
+  const title = `🌱 Thửa đất mới ${plotCode} cần gán giống cây trồng`;
+  const content = `Quản trị viên vừa thêm thửa đất mới ${plotCode}${areaLabel}. Vui lòng thêm giống cây trồng tương thích cho thửa đất này.`;
+
+  if (Array.isArray(savedPlot.expertNotifications) && savedPlot.expertNotifications.length > 0) {
+    return Promise.all(
+      savedPlot.expertNotifications.map((item) =>
+        sendNotification({
+          notificationId: item.notificationId,
+          userId: item.userId,
+          targetRole: 'EXPERT',
+          title: item.title || title,
+          content: item.content || content,
+          type: item.type || 'PLOT_COMPATIBILITY',
+          link: item.link || link,
+          skipApiPost: true
+        })
+      )
+    );
+  }
+
+  return [
+    await sendNotification({
+      targetRole: 'EXPERT',
+      title,
+      content,
+      type: 'PLOT_COMPATIBILITY',
+      link
+    })
+  ];
+};

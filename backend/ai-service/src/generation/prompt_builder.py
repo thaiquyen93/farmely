@@ -21,18 +21,20 @@ def build_chat_prompt(
 
     if live_context and live_context.strip():
         prompt_parts.append(
-            f"\n--- [DỮ LIỆU HỆ THỐNG FARMELY THỜI GIAN THỰC (POSTGRESQL)] ---\n{live_context.strip()}\n------------------------------------------------------------------"
+            f"\n--- [DỮ LIỆU VẬN HÀNH HIỆN TẠI TRÊN FARMELY (TỪ HỆ THỐNG)] ---\n{live_context.strip()}\n------------------------------------------------------------------"
         )
 
     # 1. Thêm ngữ cảnh RAG nếu tìm thấy tài liệu phù hợp
     if rag_contexts:
         context_str = "\n\n".join([
-            f"[Tài liệu #{i+1}: {c.get('doc_title', '')} - {c.get('section_title', '')} (Nguồn: {c.get('source', '')})]\n{c.get('content', '')}"
+            f"[Tài liệu nội bộ #{i+1}: {c.get('doc_title', '')} - {c.get('section_title', '')} (Nguồn: {c.get('source', '')})]\n{c.get('content', '')}"
             for i, c in enumerate(rag_contexts)
         ])
-        prompt_parts.append(f"\n--- [TÀI LIỆU THAM KHẢO TỪ HỆ THỐNG FARMELY] ---\n{context_str}\n------------------------------------------------------------")
+        prompt_parts.append(
+            f"\n--- [KHO TRI THỨC NỘI BỘ FARMELY — CHỈ DÙNG ĐỂ TRA CỨU TƯ VẤN KHÁCH HÀNG, KHÔNG PHẢI DO KHÁCH HÀNG CUNG CẤP] ---\n{context_str}\n------------------------------------------------------------"
+        )
     else:
-        prompt_parts.append("\n[LƯU Ý: Không tìm thấy đoạn trích RAG khớp trực tiếp. Chỉ sử dụng kiến thức nền tảng đã xác nhận, tuyệt đối không tự suy diễn giá thuê, tên trang trại, mã thửa, danh sách cây hay thông tin chứng nhận.]")
+        prompt_parts.append("\n[LƯU Ý: Kho tri thức nội bộ chưa có đoạn trích khớp trực tiếp. Chỉ sử dụng thông tin nền tảng đã xác nhận của Farmely, tuyệt đối không tự suy diễn giá thuê, tên trang trại, mã thửa, danh sách cây hay thông tin chứng nhận.]")
 
     if response_guidance and response_guidance.strip():
         prompt_parts.append(f"\n--- [CHỈ DẪN ĐỊNH DẠNG VÀ PHẠM VI] ---\n{response_guidance.strip()}")

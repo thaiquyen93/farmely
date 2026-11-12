@@ -653,4 +653,138 @@ describe('Assisted-Growing Split-Screen Demo, Upload-to-Done & Staff Notificatio
     expect(toast.textContent).toContain('Hoàn thành công việc tại thửa P-10');
     expect(toast.textContent).toContain('Xem ngay');
   });
+
+  it('does not inject unnecessary safety lab inspection task on harvest day', async () => {
+    const harvestedPlot = {
+      id: 'RENT-12',
+      rentalId: 12,
+      plotCode: 'MIXIGAMING',
+      name: 'Thửa MIXIGAMING',
+      mode: 'Assisted-Growing',
+      cultivationMode: 'ASSISTED',
+      startDate: '2026-10-14',
+      currentDay: 30,
+      totalDays: 30,
+      crop: 'Rau muống lá tre F1',
+      status: 'ACTIVE'
+    };
+
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input || '');
+      if (url.includes('/api/harvest')) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            data: [
+              {
+                harvestId: 11,
+                id: 'HRV-11',
+                rentalId: 12,
+                yieldAmount: 23,
+                formattedYield: '23.00 kg',
+                harvestDate: '2026-11-12',
+                enteredByWorker: 'Trần Văn Lực'
+              }
+            ]
+          })
+        };
+      }
+      return { ok: true, json: async () => ({ success: true, data: [] }) };
+    });
+
+    await act(async () => {
+      root.render(
+        <BrowserRouter>
+          <CustomerPlotWorkspace
+            plot={harvestedPlot}
+            plots={[harvestedPlot]}
+            activeTab="overview"
+            stages={[{ stepOrder: 1, name: 'Thu hoạch', dayStart: 30, dayEnd: 30 }]}
+            operations={{ tasks: [], diary: [] }}
+          />
+        </BrowserRouter>
+      );
+      await new Promise((r) => setTimeout(r, 20));
+    });
+
+    expect(host.textContent).not.toContain('Kiểm nghiệm dư lượng an toàn');
+    expect(host.textContent).toContain('Thu hoạch, phân loại chất lượng loại 1 & dán tem truy xuất nguồn gốc');
+  });
+
+  it('deduplicates completed task and its farm_diaries mirror entry ("Nhiệm vụ chăm sóc hiện trường") in Lịch Sử Đã Hoàn Tất', async () => {
+    const plot = {
+      id: 'RENT-12',
+      rentalId: 12,
+      plotCode: 'MIXIGAMING',
+      name: 'Thửa MIXIGAMING',
+      mode: 'Assisted-Growing',
+      cultivationMode: 'ASSISTED',
+      startDate: '2026-11-12',
+      currentDay: 1,
+      totalDays: 30,
+      crop: 'Rau muống lá tre F1',
+      status: 'ACTIVE'
+    };
+
+    const handoverTask = {
+      id: 'TSK-96',
+      taskId: 96,
+      rentalId: 12,
+      plotCode: 'MIXIGAMING',
+      title: 'Khởi tạo và bàn giao thửa đất cho mùa vụ mới',
+      cropDay: 1,
+      stepOrder: 0,
+      dueDate: '2026-11-12',
+      status: 'DONE',
+      completionSource: 'STAFF',
+      proofPhoto: '/api/media/care-task/96?v=1794475348',
+      completedAt: '15:44 - 12/11/2026',
+      workerName: 'Trần Văn Lực'
+    };
+
+    const mirrorDiary = {
+      id: 'DIR-35',
+      diaryId: 35,
+      taskId: 96,
+      title: 'Nhiệm vụ chăm sóc hiện trường',
+      note: 'Nhiệm vụ đã được hoàn tất.',
+      author: 'Trần Văn Lực',
+      image: '/api/media/farm-diary/35',
+      imageUrl: '/api/media/farm-diary/35',
+      time: '12/11/2026 15:44',
+      cropDay: 1,
+      day: 1
+    };
+
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input || '');
+      if (url.includes('/api/tasks')) {
+        return { ok: true, json: async () => ({ success: true, data: [handoverTask] }) };
+      }
+      if (url.includes('/api/harvest')) {
+        return { ok: true, json: async () => ({ success: true, data: [] }) };
+      }
+      return { ok: true, json: async () => ({ success: true, data: [] }) };
+    });
+
+    await act(async () => {
+      root.render(
+        <BrowserRouter>
+          <CustomerPlotWorkspace
+            plot={plot}
+            plots={[plot]}
+            activeTab="tasks"
+            stages={[{ stepOrder: 1, name: 'Giai đoạn 1', dayStart: 1, dayEnd: 10 }]}
+            operations={{ tasks: [], diary: [mirrorDiary] }}
+          />
+        </BrowserRouter>
+      );
+      await new Promise((r) => setTimeout(r, 20));
+    });
+
+    expect(host.textContent).toContain('Lịch Sử Đã Hoàn Tất (1)');
+    expect(host.textContent).toContain('Khởi tạo và bàn giao thửa đất cho mùa vụ mới');
+    expect(host.textContent).not.toContain('Nhiệm vụ chăm sóc hiện trường');
+  });
 });

@@ -72,7 +72,10 @@ def _build_response_guidance(intent: Dict[str, bool]) -> str:
             "TUYỆT ĐỐI KHÔNG tự liệt kê tên trang trại cụ thể (như Happy Valley), mã thửa (như P-16), giá thuê, diện tích hay danh sách cây; KHÔNG dùng ngôn từ quảng cáo bán hàng hay mời chọn thửa cụ thể. Kết thúc bằng một câu hỏi mở lịch sự để tiếp tục hội thoại."
         )
     return (
-        "Trả lời thẳng trọng tâm, khách quan. Chỉ nêu số liệu, tên trang trại, mã thửa, giá, giống cây hoặc tình trạng sở hữu/chứng nhận khi thông tin đó có trong ngữ cảnh xác thực được cấp; nếu thiếu dữ liệu xác thực thì nói rõ phạm vi chưa có."
+        "Người hỏi đang là KHÁCH HÀNG tìm hiểu hoặc sử dụng Farmely. Trả lời thẳng đúng trọng tâm câu hỏi bằng văn phong tự nhiên của trợ lý Farmely.\n"
+        "- KHÔNG nói 'dựa trên tài liệu bạn cung cấp' hay 'theo dữ liệu hệ thống được cung cấp'; hãy nói trực tiếp 'Tại Farmely,...' hoặc 'Quy trình tại Farmely gồm...'.\n"
+        "- KHÔNG tự thêm mục 'Farmely là gì?' hay chèn câu rào đón về tên trang trại/giá thuê nếu khách hàng không hỏi đến.\n"
+        "- Chỉ nêu số liệu cụ thể (tên trang trại, mã thửa, giá, giống cây, quyền sở hữu/chứng nhận) khi có trong dữ liệu hệ thống Farmely."
     )
 
 

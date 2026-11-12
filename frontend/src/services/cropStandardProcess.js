@@ -81,7 +81,7 @@ export const CROP_STANDARDS = {
         dayStart: 43,
         dayEnd: 45,
         label: 'Ngày 43 - 45',
-        statusDesc: 'Kiểm nghiệm dư lượng an toàn và tiến hành thu hái giao cho khách',
+        statusDesc: 'Thu hoạch nông sản và cân đo nghiệm thu sản lượng thực tế',
         waterRegime: 'Ngừng tưới 24h trước khi thu hái để bảo quản được lâu hơn',
         nutrition: 'Thời gian cách ly dinh dưỡng đạt 100% tiêu chuẩn VietGAP',
         guide: 'Thu hái bằng kéo chuyên dụng giữ nguyên cuống quả xanh tươi lúc 06:30 - 08:30 sáng. Xếp vào khay thoáng khí, cân mẫu và đóng gói gửi tới nhà khách.',

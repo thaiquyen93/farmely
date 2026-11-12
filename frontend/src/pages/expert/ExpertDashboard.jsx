@@ -1410,6 +1410,20 @@ export default function ExpertDashboard() {
   }, [plotCompatibilityList, activeCompatPlotId]);
 
   useEffect(() => {
+    if (plotCompatibilityList.length === 0) return;
+    const params = new URLSearchParams(location.search);
+    const targetPlotId = Number(params.get('plotId') || 0);
+    const targetPlotCode = String(params.get('plot') || '').replace(/\s+/g, '').trim().toUpperCase();
+    const matched = plotCompatibilityList.find((p) =>
+      (targetPlotId > 0 && Number(p.plotId) === targetPlotId) ||
+      (targetPlotCode && String(p.plotCode || '').replace(/\s+/g, '').toUpperCase() === targetPlotCode)
+    );
+    if (matched) {
+      setActiveCompatPlotId(matched.plotId);
+    }
+  }, [location.search, plotCompatibilityList]);
+
+  useEffect(() => {
     if (activeCompatPlot) {
       const vIds = (activeCompatPlot.compatibleVarieties || []).map((v) => Number(v.varietyId || v.id));
       setSelectedCompatVarietyIds(vIds);

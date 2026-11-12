@@ -1626,7 +1626,12 @@ export default function CustomerDashboard() {
 
               targetKeys.forEach((key) => {
                 if (!next[key]) next[key] = { tasks: [], diary: [] };
-                const diaryIdx = next[key].diary.findIndex((d) => d.id === formattedDiaryFromTask.id || (t.taskId && d.taskId === t.taskId) || d.title === t.title);
+                const normTid = String(t.taskId || t.id || '').replace(/^TSK-/i, '');
+                const diaryIdx = next[key].diary.findIndex((d) =>
+                  d.id === formattedDiaryFromTask.id ||
+                  (normTid && String(d.taskId || '').replace(/^TSK-/i, '') === normTid) ||
+                  d.title === t.title
+                );
                 if (diaryIdx >= 0) {
                   next[key].diary[diaryIdx] = { ...next[key].diary[diaryIdx], ...formattedDiaryFromTask };
                 } else {
@@ -1702,6 +1707,9 @@ export default function CustomerDashboard() {
 
             const formattedDiary = {
               id: d.id,
+              diaryId: d.diaryId || null,
+              taskId: d.taskId || null,
+              harvestId: d.harvestId || null,
               date: d.date,
               time: d.dateFormatted || (d.date && d.time ? `${d.date} ${d.time}` : 'Hôm nay'),
               title: d.title || (d.content ? d.content.slice(0, 45) : 'Cập nhật hiện trường'),
@@ -1718,7 +1726,12 @@ export default function CustomerDashboard() {
               if (!next[key]) {
                 next[key] = { tasks: [], diary: [] };
               }
-              if (!next[key].diary.some((existing) => existing.id === d.id)) {
+              const normDiaryTaskId = d.taskId ? String(d.taskId).replace(/^TSK-/i, '') : '';
+              const existingIdx = next[key].diary.findIndex((existing) =>
+                existing.id === d.id ||
+                (normDiaryTaskId && String(existing.taskId || '').replace(/^TSK-/i, '') === normDiaryTaskId)
+              );
+              if (existingIdx < 0) {
                 next[key].diary.unshift(formattedDiary);
               }
             });

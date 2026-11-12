@@ -4,6 +4,7 @@ import {
   getNotificationsForUser,
   markAsRead,
   markAllAsReadForUser,
+  notifyExpertsOfNewPlot,
   getStoredNotifications,
   saveStoredNotifications
 } from './notificationService';
@@ -94,5 +95,26 @@ describe('Notification Service & Scenarios', () => {
 
     markAllAsReadForUser(adminUser);
     expect(getNotificationsForUser(adminUser).filter(n => !n.isRead).length).toBe(0);
+  });
+
+  it('Scenario 4: Admin creates new plot -> Expert receives notification linking to compatibility tab', async () => {
+    const expertUser = { userId: 5, role: 'EXPERT' };
+    const adminUser = { userId: 4, role: 'ADMIN' };
+
+    await notifyExpertsOfNewPlot({
+      plotId: 25,
+      plotCode: 'P-18',
+      area: 150,
+      expertNotifications: [
+        { notificationId: 901, userId: 5 }
+      ]
+    });
+
+    const expertNotifs = getNotificationsForUser(expertUser);
+    expect(expertNotifs).toHaveLength(1);
+    expect(expertNotifs[0].title).toContain('P-18');
+    expect(expertNotifs[0].title).toContain('cần gán giống cây trồng');
+    expect(expertNotifs[0].link).toBe('/expert/dashboard?tab=compatibility&plot=P-18&plotId=25');
+    expect(getNotificationsForUser(adminUser)).toHaveLength(0);
   });
 });

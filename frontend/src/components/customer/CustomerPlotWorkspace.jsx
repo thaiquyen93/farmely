@@ -30,6 +30,8 @@ export const PLOT_TABS = [
   { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag }
 ];
 
+const normalizeTaskRef = (val) => String(val ?? '').replace(/^(TSK-|TASK-DIR-|DIARY-FROM-TASK-)/i, '').trim();
+
 const LEVEL_STYLE = {
   OK: { chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', marker: 'bg-emerald-600', hex: '#059669', dot: 'bg-lime-400' },
   LOW: { chip: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200', marker: 'bg-sky-600', hex: '#0284c7', dot: 'bg-sky-400' },
@@ -372,13 +374,13 @@ function StandardProcessTimeline({
         }
 
         const titleLower = String(e.title || '').trim().toLowerCase();
-        const isDuplicateTaskMirror = isFromTask && (staffActivities || []).some(
+        const eTaskRef = normalizeTaskRef(e.taskId);
+        const isDuplicateTaskMirror = (isFromTask || eTaskRef) && (staffActivities || []).some(
           (act) => {
+            const actTaskRef = normalizeTaskRef(act.taskId || act.activityId || act.id);
+            if (eTaskRef && actTaskRef && eTaskRef === actTaskRef) return true;
             const actDay = act.day || act.cropDay || getEntryCropDay(act);
-            return actDay === d && (
-              (e.taskId && (act.activityId === e.taskId || act.id === e.taskId)) ||
-              String(act.title || '').trim().toLowerCase() === titleLower
-            );
+            return actDay === d && String(act.title || '').trim().toLowerCase() === titleLower;
           }
         );
 
@@ -520,23 +522,10 @@ function StandardProcessTimeline({
           activityId: `STD-TASK-DAY-${totalDays}-1`,
           day: totalDays,
           cropDay: totalDays,
-          title: 'Kiểm nghiệm dư lượng an toàn và hoàn tất thời gian cách ly VietGAP',
-          timestamp: endCalDate ? `${endCalDate} • Ca sáng (06:30 - 08:00)` : 'Ca sáng (06:30 - 08:00)',
-          status: !cropProcess.isNotStarted && currentCropDay >= totalDays ? 'IN_PROGRESS' : 'PENDING',
-          workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
-          workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
-          notes: 'Ngừng cấp dinh dưỡng trước 24h, test nhanh nitrat và hoạt chất bảo vệ sinh học đạt ngưỡng an toàn.',
-          completionSource: null,
-          proofPhoto: null
-        },
-        {
-          activityId: `STD-TASK-DAY-${totalDays}-2`,
-          day: totalDays,
-          cropDay: totalDays,
           title: 'Thu hoạch, phân loại chất lượng loại 1 & dán tem truy xuất nguồn gốc',
           timestamp: endCalDate ? `${endCalDate} • Ca sáng (08:00 - 10:30)` : 'Ca sáng (08:00 - 10:30)',
-          status: latestHarvest ? 'COMPLETED' : 'PENDING',
-          workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
+          status: latestHarvest ? 'COMPLETED' : (!cropProcess.isNotStarted && currentCropDay >= totalDays ? 'IN_PROGRESS' : 'PENDING'),
+          workerName: isSelf ? 'Chủ vườn tự thực hiện' : (plot?.staffName || plot?.worker || 'Trần Văn Lực'),
           workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
           notes: 'Thu hoạch nhẹ tay tránh dập nát, xếp khay đục lỗ thoáng khí, cân trọng lượng nghiệm thu thực tế.',
           proofPhoto: latestHarvest?.evidenceImageUrl || null
@@ -545,7 +534,7 @@ function StandardProcessTimeline({
     }
 
     return map;
-  }, [staffActivities, getEntryCropDay, totalDays, currentCropDay, cropProcess.isNotStarted, isSelf, plot?.startDate]);
+  }, [staffActivities, getEntryCropDay, totalDays, currentCropDay, cropProcess.isNotStarted, isSelf, plot?.startDate, plot?.staffName, plot?.worker, latestHarvest]);
 
   const trackRef = useRef(null);
   const isDraggingRef = useRef(false);
@@ -2688,10 +2677,19 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
 
   // SSoT: Tự động hợp nhất nhật ký khách hàng và toàn bộ công việc chăm sóc đã hoàn tất của Staff kèm ảnh minh chứng thực địa
   const mergedDiaryEntries = useMemo(() => {
+    const taskTitleByRef = new Map();
+    (staffActivities || []).forEach((act) => {
+      const ref = normalizeTaskRef(act.taskId || act.activityId || act.id);
+      if (ref && act.title) taskTitleByRef.set(ref, act.title);
+    });
+
     const list = [...(operations?.diary || [])].map((item) => {
       const photo = item.image || item.imageUrl || item.photo || item.proofPhoto || item.evidenceImageUrl || null;
+      const ref = normalizeTaskRef(item.taskId);
+      const canonicalTitle = (ref && /nhiệm vụ chăm sóc hiện trường/i.test(item.title || '') && taskTitleByRef.get(ref)) || item.title;
       return {
         ...item,
+        title: canonicalTitle,
         image: photo,
         imageUrl: photo,
         photo: photo,
@@ -2700,8 +2698,11 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
     });
     const seen = new Set();
     list.forEach((e) => {
+      const tRef = normalizeTaskRef(e.taskId);
+      if (tRef) seen.add(tRef);
       if (e.taskId) seen.add(String(e.taskId));
       if (e.id) seen.add(String(e.id));
+      if (e.harvestId) seen.add(`HRV-${e.harvestId}`);
       if (e.title) seen.add(e.title.trim().toLowerCase());
     });
 
@@ -2710,8 +2711,9 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
     // (Assisted-growing) hoặc đơn dịch vụ thu hoạch hộ (Self-growing, BR27).
     (harvestResults || []).forEach((hr) => {
       const hrId = String(hr.harvestId || hr.id || '');
-      if (!hrId || seen.has(hrId)) return;
+      if (!hrId || seen.has(hrId) || seen.has(`HRV-${hrId}`)) return;
       seen.add(hrId);
+      seen.add(`HRV-${hrId}`);
       const hrPhoto = hr.evidenceImageUrl || hr.photo || hr.image || null;
       list.push({
         id: hrId,
@@ -2738,7 +2740,9 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
       if (isCompleted && !isHarvestTask) {
         const titleKey = (act.title || '').trim().toLowerCase();
         const actId = String(act.activityId || act.id || '');
-        if (!seen.has(actId) && !seen.has(titleKey)) {
+        const actRef = normalizeTaskRef(act.taskId || act.activityId || act.id);
+        if ((!actRef || !seen.has(actRef)) && !seen.has(actId) && !seen.has(titleKey)) {
+          if (actRef) seen.add(actRef);
           seen.add(actId);
           seen.add(titleKey);
           const actPhoto = act.completionSource === 'DEMO' ? null : (act.proofPhoto || act.evidenceImageUrl || act.image || act.imageUrl || act.photo || null);
@@ -4317,18 +4321,21 @@ export default function CustomerPlotWorkspace({
 
                     rawDiaries.forEach((d) => {
                       const normTitle = String(d.title || '').trim().toLowerCase();
-                      if (d.taskId) diaryByTaskId.set(String(d.taskId), d);
-                      if (normTitle) diaryByTitle.set(normTitle, d);
+                      const dTaskRef = normalizeTaskRef(d.taskId);
+                      if (dTaskRef) diaryByTaskId.set(dTaskRef, d);
+                      if (normTitle && !/nhiệm vụ chăm sóc hiện trường/i.test(normTitle)) {
+                        diaryByTitle.set(normTitle, d);
+                      }
                     });
 
                     // 2. Đồng bộ 100% từng task trong base với diary và trạng thái thực tế
                     const syncedBase = base.map((act) => {
                       const actDay = act.day || act.cropDay || 1;
                       const actId = String(act.activityId || act.id || '');
+                      const actRef = normalizeTaskRef(act.taskId || act.activityId || act.id);
                       const normTitle = String(act.title || '').trim().toLowerCase();
 
-                      const matchingDiary = (act.taskId && diaryByTaskId.get(String(act.taskId))) ||
-                        diaryByTaskId.get(actId) ||
+                      const matchingDiary = (actRef && diaryByTaskId.get(actRef)) ||
                         diaryByTitle.get(normTitle);
 
                       let isDone = (act.status === 'COMPLETED' || act.status === 'DONE') && act.completionSource !== 'DEMO';
@@ -4385,20 +4392,40 @@ export default function CustomerPlotWorkspace({
                       isHarvest: true
                     }));
 
-                    // 4. Những bài viết nhật ký tự do của khách (không trùng với task VietGAP nào)
+                    // 4. Những bài viết nhật ký tự do của khách (không trùng với task VietGAP hoặc biên bản thu hoạch nào)
+                    const taskRefs = new Set(
+                      syncedBase.map((item) => normalizeTaskRef(item.taskId || item.activityId || item.id)).filter(Boolean)
+                    );
+                    const completedTimestamps = new Set(
+                      syncedBase
+                        .filter((item) => item.status === 'COMPLETED')
+                        .map((item) => String(item.timestamp || '').replace(/\s*•\s*/g, ' ').trim().toLowerCase())
+                        .filter(Boolean)
+                    );
                     const standaloneDiaries = [];
                     rawDiaries.forEach((d) => {
                       const dId = String(d.id || d.diaryId || '');
                       const normTitle = String(d.title || '').trim().toLowerCase();
+                      const dTaskRef = normalizeTaskRef(d.taskId);
                       const diaryKey = dId || `${d.day}_${normTitle}`;
+                      const dTimeNorm = String(d.time || d.date || '').replace(/\s*•\s*/g, ' ').trim().toLowerCase();
+                      const isHarvestMirror = Boolean(d.harvestId) && harvestEntries.length > 0;
+                      const isGenericStaffMirror = /nhiệm vụ chăm sóc hiện trường/i.test(normTitle) &&
+                        completedTimestamps.size > 0 &&
+                        (!dTimeNorm || completedTimestamps.has(dTimeNorm));
                       const isMatched = matchedDiaryKeys.has(diaryKey) ||
-                        syncedBase.some(t => String(t.title || '').trim().toLowerCase() === normTitle || (d.taskId && (t.taskId === d.taskId || t.activityId === d.taskId)));
+                        (dTaskRef && taskRefs.has(dTaskRef)) ||
+                        isHarvestMirror ||
+                        isGenericStaffMirror ||
+                        syncedBase.some((t) => String(t.title || '').trim().toLowerCase() === normTitle);
 
                       if (!isMatched) {
                         const finalDay = calculateEntryCropDay(d, activePlot?.startDate || plot?.startDate, cropProcess.currentDay, cropProcess.totalDays) || Number(d.day || d.cropDay) || 1;
                         standaloneDiaries.push({
                           activityId: d.id || `DIARY-${d.taskId || Date.now()}`,
                           id: d.id || `DIARY-${d.taskId || Date.now()}`,
+                          taskId: d.taskId || null,
+                          harvestId: d.harvestId || null,
                           title: d.title || 'Ghi chép nhật ký vụ mùa',
                           notes: d.note || d.content,
                           workerName: d.author || 'Chủ vườn',
@@ -4413,10 +4440,10 @@ export default function CustomerPlotWorkspace({
                       }
                     });
 
-                    const taskIds = new Set(syncedBase.map((item) => String(item.taskId || item.activityId || item.id || '').replace(/^(TSK-|TASK-DIR-|DIARY-FROM-TASK-)/, '')));
                     const taskEvidence = new Set(syncedBase.map((item) => item.proofPhoto || item.imageUrl || item.image || item.photo).filter(Boolean));
                     const combined = [...syncedBase, ...harvestEntries, ...standaloneDiaries.filter((item) => {
-                      if (item.taskId && taskIds.has(String(item.taskId).replace(/^(TSK-|TASK-DIR-|DIARY-FROM-TASK-)/, ''))) return false;
+                      const itemTaskRef = normalizeTaskRef(item.taskId);
+                      if (itemTaskRef && taskRefs.has(itemTaskRef)) return false;
                       const image = item.proofPhoto || item.imageUrl || item.image || item.photo;
                       return !(image && taskEvidence.has(image) && /nhiệm vụ chăm sóc hiện trường/i.test(item.title || ''));
                     })];

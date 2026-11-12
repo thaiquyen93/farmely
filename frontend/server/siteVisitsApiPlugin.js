@@ -44,11 +44,12 @@ function getGeminiApiKey() {
 }
 
 const AI_PERSONA_FALLBACK = [
-  'Bạn là Farmely AI Assistant — trợ lý AI hỗ trợ thông tin và tra cứu trên nền tảng nông nghiệp số Farmely (farmely.vn).',
+  'Bạn là Farmely AI Assistant — trợ lý AI hỗ trợ KHÁCH HÀNG tra cứu và tìm hiểu dịch vụ trên nền tảng nông nghiệp số Farmely (farmely.vn).',
+  'Người hỏi chuyện là KHÁCH HÀNG (không phải nhân viên kỹ thuật hay người gửi tài liệu). Toàn bộ cẩm nang và dữ liệu là thông tin chính thức có sẵn trong hệ thống Farmely — TUYỆT ĐỐI KHÔNG nói "dựa trên tài liệu bạn cung cấp" hay "dữ liệu hệ thống bạn cung cấp".',
   'Farmely cho phép người dùng thuê các thửa đất canh tác thực tế (Plot) tại nông trại và theo dõi quá trình trồng trọt trực tuyến (không phải trò chơi mô phỏng hay đất ảo).',
   'Hệ thống phối hợp giữa 3 vai trò: Khách hàng (chọn thửa, giống cây, gói chăm sóc và theo dõi tiến độ) — Chuyên gia nông nghiệp (thiết kế quy trình kỹ thuật, tư vấn) — Nhân viên hiện trường (thực hiện công việc tại vườn, ghi nhật ký ảnh, hỗ trợ cân đo thu hoạch tại nông trại PICKUP).',
   'Quy tắc hợp đồng đã quy định: kỳ hạn ' + ALLOWED_TERM_MONTHS.join(', ') + ' tháng (tối thiểu >= chu kỳ giống + 10 ngày buffer); ngày bắt đầu sau 5–14 ngày; Self-Growing hoặc Assisted-Growing (+50% phí chăm sóc); giữ chỗ 15+10 phút, thanh toán 100% trả trước; hủy >= 3 ngày hoàn 80%, < 3 ngày hoàn 50%, từ ngày bắt đầu 0%; gia hạn trước 3 ngày.',
-  'Giữ giọng điệu trung lập, khách quan, súc tích. KHÔNG tự khẳng định thông tin chưa có trong dữ liệu xác thực (quyền sở hữu pháp lý trang trại, giấy chứng nhận VietGAP, tên trang trại/mã thửa/giá chưa tra cứu).'
+  'Giữ giọng điệu trung lập, khách quan, súc tích, trả lời đúng trọng tâm câu hỏi (không tự thêm "Farmely là gì?" nếu khách hỏi quy trình). KHÔNG tự khẳng định thông tin chưa có trong dữ liệu xác thực (quyền sở hữu pháp lý trang trại, giấy chứng nhận VietGAP, tên trang trại/mã thửa/giá chưa tra cứu).'
 ].join('\n');
 
 const AI_SOURCE_LABELS = {
@@ -506,29 +507,29 @@ function buildGeminiContents({ message, history = [], contextDocs = [], liveCont
   const promptParts = [];
   if (contextDocs.length > 0) {
     promptParts.push(
-      '[TÀI LIỆU THAM KHẢO TỪ HỆ THỐNG FARMELY]\n' +
+      '[KHO TRI THỨC NỘI BỘ FARMELY — CHỈ DÙNG ĐỂ TRA CỨU TƯ VẤN KHÁCH HÀNG, KHÔNG PHẢI DO KHÁCH HÀNG GỬI]\n' +
       contextDocs.slice(0, 4).map((d, i) =>
-        `--- Tài liệu #${i + 1}: ${d.docTitle} (${d.source}) ---\n${String(d.content || '').slice(0, 950)}`
+        `--- Tài liệu nội bộ #${i + 1}: ${d.docTitle} (${d.source}) ---\n${String(d.content || '').slice(0, 950)}`
       ).join('\n\n')
     );
   }
   if (liveContext) {
-    promptParts.push('[DỮ LIỆU HỆ THỐNG FARMELY THỜI GIAN THỰC (POSTGRESQL)]\n' + liveContext);
+    promptParts.push('[DỮ LIỆU VẬN HÀNH HIỆN TẠI TRÊN FARMELY]\n' + liveContext);
   }
   if (intent?.isOverview) {
     promptParts.push(
       '[YÊU CẦU ĐỊNH DẠNG CÂU HỎI TỔNG QUAN]\n' +
-      'Trả lời SÚC TÍCH (khoảng 150–250 từ), giọng khách quan, trung lập, đúng 4 mục:\n' +
+      'Trả lời SÚC TÍCH (khoảng 150–250 từ), giọng khách quan, trung lập với tư cách trợ lý Farmely tư vấn cho khách hàng, đúng 4 mục:\n' +
       '1. **Farmely là gì?** — Giải thích bản chất sản phẩm.\n' +
       '2. **Farmely hoạt động như thế nào?** — Quy trình tổng quan & làm rõ phối hợp Khách hàng – Chuyên gia nông nghiệp – Nhân viên hiện trường.\n' +
       '3. **Công nghệ hỗ trợ ra sao?** — Vai trò cảm biến IoT, thời tiết/vi khí hậu, nhật ký điện tử và AI.\n' +
       '4. **Người dùng nhận được gì?** — Giá trị thực tế & nhận nông sản tại nông trại (PICKUP).\n' +
-      'KHÔNG tự nêu tên nông trại cụ thể (như Happy Valley), mã thửa (như P-16), giá thuê, diện tích hay danh sách cây; KHÔNG viết kiểu quảng cáo hay mời chào mua hàng; kết thúc bằng một câu hỏi mở lịch sự để tiếp tục hội thoại.'
+      'TUYỆT ĐỐI KHÔNG nói "dựa trên tài liệu bạn cung cấp"; KHÔNG tự nêu tên nông trại cụ thể (như Happy Valley), mã thửa (như P-16), giá thuê, diện tích hay danh sách cây; KHÔNG viết kiểu quảng cáo; kết thúc bằng một câu hỏi mở lịch sự.'
     );
   } else {
     promptParts.push(
       '[YÊU CẦU TRẢ LỜI]\n' +
-      'Trả lời trực tiếp vào trọng tâm, khách quan. Chỉ nêu số liệu thực tế (tên trang trại, mã thửa, diện tích, giá thuê, giống cây, quyền sở hữu, chứng nhận) khi có trong ngữ cảnh xác thực trên; nếu thông tin chưa được cung cấp thì nói rõ giới hạn thay vì suy diễn.'
+      'Người đang hỏi là KHÁCH HÀNG tìm hiểu hoặc sử dụng Farmely. Trả lời thẳng đúng trọng tâm câu hỏi dưới góc độ tư vấn khách hàng (ví dụ: "Tại Farmely,..." hoặc "Quy trình trên Farmely gồm..."). TUYỆT ĐỐI KHÔNG nói "dựa trên tài liệu bạn cung cấp", KHÔNG lặp lại mục "1. Farmely là gì?" khi khách không hỏi định nghĩa, và KHÔNG chèn rào đón về tên trang trại/giá cả trừ khi khách hỏi chi tiết đó. Chỉ nêu số liệu thực tế (tên trang trại, mã thửa, diện tích, giá thuê, giống cây, quyền sở hữu, chứng nhận) khi có trong dữ liệu của Farmely ở trên.'
     );
   }
   promptParts.push('[CÂU HỎI CỦA KHÁCH HÀNG]\n' + message);
@@ -4736,6 +4737,33 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
 
               invalidatePlotsCache();
 
+              let expertNotifications = [];
+              if (newPlotId && varietyIds.length === 0) {
+                try {
+                  const notifTitle = `🌱 Thửa đất mới ${plotCode} cần gán giống cây trồng`;
+                  const areaLabel = Number.isFinite(area) && area > 0 ? ` (${Math.round(area)} m²)` : '';
+                  const notifContent = `Quản trị viên vừa thêm thửa đất mới ${plotCode}${areaLabel}. Vui lòng thêm giống cây trồng tương thích cho thửa đất này.`;
+                  const notifLink = `/expert/dashboard?tab=compatibility&plot=${encodeURIComponent(plotCode)}&plotId=${newPlotId}`;
+                  const notifRes = await getPgPool().query(
+                    `INSERT INTO notifications (user_id, title, content, is_read, created_at)
+                     SELECT u.user_id, $1, $2, false, NOW()
+                     FROM users u
+                     WHERE UPPER(u.role::text) = 'EXPERT'
+                       AND COALESCE(u.status::text, 'ACTIVE') = 'ACTIVE'
+                     RETURNING notification_id AS "notificationId", user_id AS "userId", title, content, is_read AS "isRead", created_at AS "createdAt"`,
+                    [notifTitle, notifContent]
+                  );
+                  expertNotifications = (notifRes.rows || []).map((row) => ({
+                    ...row,
+                    id: `DB-NOTIF-${row.notificationId}`,
+                    link: notifLink,
+                    type: 'PLOT_COMPATIBILITY'
+                  }));
+                } catch (notifErr) {
+                  console.warn('[New Plot Expert Notification] Warning:', notifErr.message);
+                }
+              }
+
               res.statusCode = 201;
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
@@ -4751,7 +4779,8 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                   status,
                   isPublished,
                   boundary,
-                  imageUrl
+                  imageUrl,
+                  expertNotifications
                 }
               }));
             } catch (err) {
@@ -4801,7 +4830,7 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                 `updated_at = NOW()`
               ];
               if (area > 0) setClauses.push(`area = ${area}`);
-              if (imageUrl) setClauses.push(`image_url = ${imgSqlVal}`);
+              if (payload.imageUrl !== undefined) setClauses.push(`image_url = ${imgSqlVal}`);
               if (boundary) setClauses.push(`boundary_geojson = ${boundarySqlVal}`);
 
               const updateSql = `UPDATE plots SET ${setClauses.join(', ')} WHERE plot_id = ${plotId};`;
@@ -6372,7 +6401,7 @@ END $$;
             if (!allPlotsParam && !rentalIdParam) {
               taskWhere.push(`rent.status = 'ACTIVE'`);
               taskWhere.push(`c.status = 'ACTIVE'`);
-              taskWhere.push(`p.status = 'RENT'`);
+              taskWhere.push(`p.status IN ('RENT', 'MAINT')`);
             }
             if (workerIdParam && parseInt(workerIdParam, 10)) {
               taskWhere.push(`ct.task_assigned_to = ${parseInt(workerIdParam, 10)}`);
@@ -7018,10 +7047,14 @@ END $$;
               : { rows: [] };
             const enriched = rowsRes.rows.map((row) => {
               const txt = `${row.title || ''} ${row.content || ''}`;
-              const plotMatch = txt.match(/(?:thửa(?:\s+đất)?|\()\s*(P\s*-\s*\d+)/i);
-              const plotCode = plotMatch ? plotMatch[1].replace(/\s+/g, '') : '';
+              const plotMatch = txt.match(/(?:thửa(?:\s+đất)?(?:\s+mới)?|\()\s*([A-Z]\s*-\s*\d+)/i);
+              const plotCode = plotMatch ? plotMatch[1].replace(/\s+/g, '').toUpperCase() : '';
               let link = null;
-              if (plotCode) {
+              if (/gán giống cây|giống cây trồng tương thích|thửa(?:\s+đất)?\s+mới.*giống/i.test(txt)) {
+                link = plotCode
+                  ? `/expert/dashboard?tab=compatibility&plot=${encodeURIComponent(plotCode)}`
+                  : '/expert/dashboard?tab=compatibility';
+              } else if (plotCode) {
                 link = /Phân công|nhiệm vụ mới|ca trực/i.test(txt)
                   ? `/staff/dashboard?plot=${encodeURIComponent(plotCode)}`
                   : `/customer/dashboard?plot=${encodeURIComponent(plotCode)}&tab=tasks`;
@@ -8964,7 +8997,7 @@ GROUP BY p.plot_id, p.plot_code;
                 if (d) docs.push({ docTitle: d.docTitle || d.title, source: d.source || d.author_name || 'Sổ tay Nông nghiệp Hữu cơ', similarityScore: 0.92, fileUrl: d.fileUrl || d.file_url });
               } else if (matchedDocs.length > 0) {
                 const top = matchedDocs[0];
-                reply = `Dựa trên tài liệu "${top.docTitle}": ${top.content ? top.content.slice(0, 320) + '...' : 'Tài liệu tham khảo quy trình canh tác và vận hành trên nền tảng Farmely.'}`;
+                reply = `Theo hướng dẫn "${top.docTitle}" của Farmely: ${top.content ? top.content.slice(0, 320) + '...' : 'Quy trình canh tác và vận hành trên nền tảng Farmely.'}`;
                 docs.push({ docTitle: top.docTitle, source: top.source, similarityScore: top.similarityScore, fileUrl: top.fileUrl });
               } else {
                 reply = userMsg.length <= 8
