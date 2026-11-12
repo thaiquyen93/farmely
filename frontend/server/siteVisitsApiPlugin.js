@@ -1479,7 +1479,8 @@ SELECT json_build_object(
           'Tháng ' || TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM') AS "monthLabel",
           SUM(CASE WHEN pt.contract_id IS NOT NULL AND pt.service_request_id IS NULL THEN CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END ELSE 0 END) AS "leaseRevenue",
           SUM(CASE WHEN pt.service_request_id IS NOT NULL THEN CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END ELSE 0 END) AS "serviceRevenue",
-          SUM(CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END) AS "totalRevenue"
+          SUM(CASE WHEN pt.type = 'REFUND' THEN -pt.amount ELSE pt.amount END) AS "totalRevenue",
+          COUNT(*)::int AS "transactionCount"
         FROM payment_transactions pt
         WHERE pt.status = 'SUCCESS'
         GROUP BY TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM/YYYY'), 'Tháng ' || TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM')
@@ -1497,13 +1498,15 @@ SELECT json_build_object(
           COALESCE(pt.gateway_ref, 'VNPAY_SANDBOX') AS "gatewayRef",
           pt.status,
           TO_CHAR(pt.created_at, 'HH24:MI - DD/MM/YYYY') AS "createdAt",
+          TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM/YYYY') AS "month",
+          CASE WHEN pt.service_request_id IS NOT NULL THEN 'Dịch vụ phát sinh' ELSE 'Thuê thửa đất' END AS "category",
           COALESCE(c.contract_number, 'Dịch vụ phát sinh') AS "referenceCode",
           COALESCE(u.full_name, 'Khách vãng lai') AS "customerName"
         FROM payment_transactions pt
         LEFT JOIN contracts c ON pt.contract_id = c.contract_id
         LEFT JOIN users u ON c.renter_id = u.user_id
         ORDER BY pt.created_at DESC
-        LIMIT 8
+        LIMIT 150
       ) tx
     ),
     'cultivationBreakdown', (

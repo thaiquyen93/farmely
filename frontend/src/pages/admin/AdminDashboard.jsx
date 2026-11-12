@@ -58,6 +58,9 @@ import {
   ShieldAlert,
   CreditCard,
   ArrowUpRight,
+  ArrowDownRight,
+  RotateCw,
+  Receipt,
   Wallet,
   Landmark,
   PieChart
@@ -231,6 +234,10 @@ export default function AdminDashboard() {
   // 12. Financial & Revenue Analytics (SCR-AD-01 / UC-AD12)
   const [analyticsData, setAnalyticsData] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(true);
+  const [selectedRevenueMonth, setSelectedRevenueMonth] = useState('ALL');
+  const [transactionSearchTerm, setTransactionSearchTerm] = useState('');
+  const [transactionCategoryFilter, setTransactionCategoryFilter] = useState('ALL');
+  const [transactionPage, setTransactionPage] = useState(1);
 
   // Filtered staff and expert lists
   const staffUsers = useMemo(() => {
@@ -1079,69 +1086,6 @@ export default function AdminDashboard() {
             <button onClick={() => setDataError('')} className="text-rose-500 font-bold hover:underline">Đóng</button>
           </div>
         )}
-        
-        {/* Operational KPI Metric Gauges */}
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Tỷ Lệ Lấp Đầy Đất
-            </span>
-            <div className="text-xl sm:text-2xl font-heading font-black text-brand-dark">
-              {landStats.total ? Math.round((landStats.rented / landStats.total) * 100) : 0}%
-            </div>
-            <span className="text-[10px] text-brand-muted font-medium block">{landStats.rented} / {landStats.total} thửa đang thuê</span>
-          </div>
-
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Care Tasks Chờ Giao
-            </span>
-            <div className="text-xl sm:text-2xl font-heading font-black text-emerald-800">
-              {pendingStaffTasksCount} việc
-            </div>
-            <span className="text-[10px] text-emerald-800 font-bold block">Giao CVLĐ thực hiện</span>
-          </div>
-
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Dịch Vụ Chờ Giao
-            </span>
-            <div className="text-xl sm:text-2xl font-heading font-black text-amber-600">
-              {pendingStaffServicesCount} đơn
-            </div>
-            <span className="text-[10px] text-amber-700 font-bold block">Đơn dịch vụ khách đặt</span>
-          </div>
-
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Sự Cố Chờ Chuyên Gia
-            </span>
-            <div className="text-xl sm:text-2xl font-heading font-black text-rose-600">
-              {pendingExpertIssuesCount} vụ
-            </div>
-            <span className="text-[10px] text-rose-700 font-bold block">Cần CGNN chẩn đoán</span>
-          </div>
-
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Lịch Tham Quan Mới
-            </span>
-            <div className="text-xl sm:text-2xl font-heading font-black text-sky-600">
-              {siteVisits.filter(v => v.status === 'PENDING').length} lịch
-            </div>
-            <span className="text-[10px] text-sky-700 font-bold block">Chờ gọi xác nhận</span>
-          </div>
-
-          <div className="bg-white p-3 rounded-xl border border-brand-border shadow-sm space-y-0.5 text-center">
-            <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
-              Yêu Cầu Hoàn Cọc
-            </span>
-            <div className="text-xl sm:text-2xl font-heading font-black text-stone-700">
-              {refundRequests.filter(r => r.status === 'PENDING').length} phiếu
-            </div>
-            <span className="text-[10px] text-stone-500 font-bold block">Chờ phê duyệt</span>
-          </div>
-        </div>
 
         {/* Layout with Sidebar Navigation + Content */}
         <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -1866,8 +1810,55 @@ export default function AdminDashboard() {
               }
               const kpi = analyticsData.kpi;
               const monthlyChartData = analyticsData.monthlyRevenue || [];
-
               const recentTransactions = analyticsData?.recentTransactions || [];
+
+              // Tính toán số liệu phân tích theo từng tháng (MoM growth, tỷ trọng nguồn thu)
+              const monthlyRevenueWithMetrics = monthlyChartData.map((m, idx, arr) => {
+                let growthPct = null;
+                if (idx > 0 && arr[idx - 1].totalRevenue > 0) {
+                  growthPct = Math.round(((m.totalRevenue - arr[idx - 1].totalRevenue) / arr[idx - 1].totalRevenue) * 1000) / 10;
+                }
+                const leasePct = m.totalRevenue > 0 ? Math.round((m.leaseRevenue / m.totalRevenue) * 100) : 0;
+                const servicePct = m.totalRevenue > 0 ? Math.round((m.serviceRevenue / m.totalRevenue) * 100) : 0;
+                const count = m.transactionCount || recentTransactions.filter(t => t.month === m.month).length;
+                return {
+                  ...m,
+                  growthPct,
+                  leasePct,
+                  servicePct,
+                  transactionCount: count
+                };
+              });
+
+              // Lọc danh sách giao dịch theo tháng, phân loại nguồn thu và từ khóa tìm kiếm
+              let filteredTransactions = recentTransactions;
+              if (selectedRevenueMonth !== 'ALL') {
+                filteredTransactions = filteredTransactions.filter(t => t.month === selectedRevenueMonth);
+              }
+              if (transactionCategoryFilter !== 'ALL') {
+                filteredTransactions = filteredTransactions.filter(t => {
+                  if (transactionCategoryFilter === 'LEASE') {
+                    return t.category === 'Thuê thửa đất' || (t.referenceCode && t.referenceCode.startsWith('HD-'));
+                  }
+                  if (transactionCategoryFilter === 'SERVICE') {
+                    return t.category === 'Dịch vụ phát sinh' || t.referenceCode === 'Dịch vụ phát sinh';
+                  }
+                  return true;
+                });
+              }
+              if (transactionSearchTerm.trim()) {
+                const q = transactionSearchTerm.trim().toLowerCase();
+                filteredTransactions = filteredTransactions.filter(t =>
+                  (t.code && t.code.toLowerCase().includes(q)) ||
+                  (t.customerName && t.customerName.toLowerCase().includes(q)) ||
+                  (t.referenceCode && t.referenceCode.toLowerCase().includes(q)) ||
+                  (t.gatewayRef && t.gatewayRef.toLowerCase().includes(q))
+                );
+              }
+
+              const pageSize = 10;
+              const totalPages = Math.ceil(filteredTransactions.length / pageSize) || 1;
+              const paginatedTransactions = filteredTransactions.slice((transactionPage - 1) * pageSize, transactionPage * pageSize);
 
               return (
                 <div className="space-y-6">
@@ -1887,22 +1878,19 @@ export default function AdminDashboard() {
                         Tổng Quan Doanh Thu & Chỉ Số Vận Hành
                       </h2>
                       <p className="text-xs text-brand-muted mt-1">
-                        Theo dõi dòng tiền thanh toán 100% trọn gói, tỷ lệ lấp đầy quỹ đất và tiến độ hoàn thành thực địa.
+                        Theo dõi dòng tiền thanh toán 100% trọn gói, chi tiết doanh thu theo tháng và tiến độ hoàn thành thực địa.
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <span>PostgreSQL Live Sync</span>
-                      </span>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={loadAdminData}
-                        className="text-xs font-bold"
+                        className="text-xs font-bold flex items-center gap-1.5"
                       >
-                        Làm mới
+                        <RotateCw className="w-3.5 h-3.5" />
+                        <span>Làm mới</span>
                       </Button>
                     </div>
                   </div>
@@ -2025,7 +2013,7 @@ export default function AdminDashboard() {
                             <span>Biểu Đồ Doanh Thu Theo Tháng</span>
                           </h3>
                           <p className="text-xs text-brand-muted mt-0.5">
-                            Doanh thu thực nhận từ hợp đồng thuê đất (Lump-sum) và các dịch vụ chăm sóc phát sinh
+                            Bấm vào cột tháng để tự động lọc danh sách giao dịch chi tiết bên dưới
                           </p>
                         </div>
                         <div className="flex items-center gap-3 text-xs">
@@ -2042,7 +2030,18 @@ export default function AdminDashboard() {
 
                       <div className="w-full h-64 pt-2">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={monthlyChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                          <BarChart
+                            data={monthlyChartData}
+                            margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                            onClick={(data) => {
+                              if (data && data.activePayload && data.activePayload[0]) {
+                                const m = data.activePayload[0].payload.month;
+                                setSelectedRevenueMonth(selectedRevenueMonth === m ? 'ALL' : m);
+                                setTransactionPage(1);
+                              }
+                            }}
+                            className="cursor-pointer"
+                          >
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                             <XAxis dataKey="monthLabel" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={{ stroke: '#e2e8f0' }} />
                             <YAxis
@@ -2123,225 +2122,349 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                         </div>
-
-                        {/* Note SSoT */}
-                        <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-[11px] text-stone-600 leading-relaxed">
-                          💡 <span className="font-bold text-stone-800">Quy tắc thanh toán:</span> 100% tiền thuê đất được thanh toán trọn gói trước khi kích hoạt canh tác. Giữ chỗ 15 phút + 10 phút gia hạn thanh toán.
-                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Recent Transactions Table */}
+                  {/* BẢNG TỔNG HỢP DOANH THU THEO THÁNG (Monthly Revenue Breakdown Table) */}
                   <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm space-y-4">
-                    <div className="flex items-center justify-between border-b border-brand-border/60 pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
                       <div>
                         <h3 className="font-heading font-black text-lg text-brand-dark flex items-center gap-2">
-                          <Wallet className="w-5 h-5 text-emerald-800" />
-                          <span>Nhật Ký Dòng Tiền & Giao Dịch Gần Nhất</span>
+                          <Receipt className="w-5 h-5 text-emerald-800" />
+                          <span>Bảng Doanh Thu Chi Tiết Theo Tháng</span>
                         </h3>
                         <p className="text-xs text-brand-muted mt-0.5">
-                          Dữ liệu đối soát thời gian thực từ bảng payment_transactions trong CSDL PostgreSQL
+                          Đối soát cơ cấu Master Lease, dịch vụ phát sinh và tỷ lệ tăng trưởng doanh thu thực thu theo từng chu kỳ kế toán
                         </p>
                       </div>
-                      <span className="text-xs font-bold text-stone-600 bg-stone-100 px-3 py-1 rounded-full">
-                        {recentTransactions.length} Giao dịch mới nhất
-                      </span>
+
+                      <div className="flex items-center gap-2 flex-wrap text-xs">
+                        <span className="text-stone-500 font-medium">Lọc kỳ xem:</span>
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedRevenueMonth('ALL'); setTransactionPage(1); }}
+                          className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer ${
+                            selectedRevenueMonth === 'ALL'
+                              ? 'bg-emerald-800 text-white shadow-sm'
+                              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                          }`}
+                        >
+                          Tất cả các tháng
+                        </button>
+                        {monthlyRevenueWithMetrics.map(m => (
+                          <button
+                            key={m.month}
+                            type="button"
+                            onClick={() => { setSelectedRevenueMonth(m.month); setTransactionPage(1); }}
+                            className={`px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                              selectedRevenueMonth === m.month
+                                ? 'bg-emerald-800 text-white shadow-sm'
+                                : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                            }`}
+                          >
+                            <span>{m.monthLabel}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                              selectedRevenueMonth === m.month ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-700'
+                            }`}>
+                              {m.transactionCount}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
+                    {/* Table */}
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs">
                         <thead>
-                          <tr className="border-b border-brand-border text-stone-500 font-bold uppercase tracking-wider text-[11px]">
-                            <th className="pb-3 px-3">Mã GD</th>
-                            <th className="pb-3 px-3">Khách Hàng / Hợp Đồng</th>
-                            <th className="pb-3 px-3">Loại giao dịch</th>
-                            <th className="pb-3 px-3">Cổng TT</th>
-                            <th className="pb-3 px-3 text-right">Số Tiền</th>
-                            <th className="pb-3 px-3">Thời Gian</th>
-                            <th className="pb-3 px-3 text-center">Trạng Thái</th>
+                          <tr className="border-b border-brand-border text-stone-500 font-bold uppercase tracking-wider text-[11px] bg-stone-50/70">
+                            <th className="py-3 px-4 rounded-l-xl">Kỳ Doanh Thu</th>
+                            <th className="py-3 px-4">Thuê Đất (Master Lease)</th>
+                            <th className="py-3 px-4">Dịch Vụ Phát Sinh</th>
+                            <th className="py-3 px-4">Tổng Thực Thu</th>
+                            <th className="py-3 px-4 text-center">Tăng Trưởng (MoM)</th>
+                            <th className="py-3 px-4 text-center">Số Giao Dịch</th>
+                            <th className="py-3 px-4 text-right rounded-r-xl">Chi Tiết</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-brand-border/60">
-                          {recentTransactions.map((tx) => (
-                            <tr key={tx.id} className="hover:bg-slate-50/70 transition-colors">
-                              <td className="py-3 px-3 font-mono font-bold text-stone-800">
-                                {tx.code}
-                              </td>
-                              <td className="py-3 px-3">
-                                <div className="font-bold text-stone-900">{tx.customerName}</div>
-                                <div className="text-[11px] text-stone-500">{tx.referenceCode}</div>
-                              </td>
-                              <td className="py-3 px-3">
-                                {tx.type === 'REFUND' ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
-                                    Hoàn tiền
+                          {monthlyRevenueWithMetrics.map(m => {
+                            const isSelected = selectedRevenueMonth === m.month;
+                            return (
+                              <tr
+                                key={m.month}
+                                onClick={() => {
+                                  setSelectedRevenueMonth(isSelected ? 'ALL' : m.month);
+                                  setTransactionPage(1);
+                                }}
+                                className={`transition-colors cursor-pointer ${
+                                  isSelected ? 'bg-emerald-50/80 font-medium' : 'hover:bg-stone-50/80'
+                                }`}
+                              >
+                                <td className="py-3.5 px-4">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-heading font-black text-stone-800 text-sm">
+                                      {m.monthLabel}
+                                    </span>
+                                    <span className="text-[11px] text-stone-400 font-mono">({m.month})</span>
+                                    {m.month === '11/2026' && (
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                        Kỳ hiện tại
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <div className="space-y-1">
+                                    <span className="font-bold text-stone-800">{formatVnd(m.leaseRevenue)}</span>
+                                    <div className="w-24 bg-stone-100 h-1.5 rounded-full overflow-hidden">
+                                      <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${m.leasePct}%` }}></div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="font-bold text-stone-700">{formatVnd(m.serviceRevenue)}</span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="font-heading font-black text-emerald-800 text-sm">
+                                    {formatVnd(m.totalRevenue)}
                                   </span>
-                                ) : tx.referenceCode && tx.referenceCode.startsWith('HD-') ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                    Thuê đất (Master Lease)
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  {m.growthPct !== null ? (
+                                    <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                      m.growthPct >= 0
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-rose-100 text-rose-800'
+                                    }`}>
+                                      {m.growthPct >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                                      <span>{m.growthPct > 0 ? `+${m.growthPct}%` : `${m.growthPct}%`}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-[11px] text-stone-400 italic">Kỳ đối chuẩn</span>
+                                  )}
+                                </td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <span className="px-2.5 py-1 rounded-full bg-stone-100 text-stone-700 font-bold text-xs">
+                                    {m.transactionCount} GD
                                   </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                    Dịch vụ phát sinh
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-3">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  tx.paymentMethod === 'VNPAY'
-                                    ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                                    : 'bg-purple-50 text-purple-800 border border-purple-200'
-                                }`}>
-                                  {tx.paymentMethod}
-                                </span>
-                              </td>
-                              <td className={`py-3 px-3 text-right font-mono font-black text-sm ${tx.type === 'REFUND' ? 'text-rose-700' : 'text-stone-900'}`}>
-                                {tx.type === 'REFUND' ? `-${formatVnd(tx.amount)}` : formatVnd(tx.amount)}
-                              </td>
-                              <td className="py-3 px-3 text-stone-500 whitespace-nowrap">
-                                {tx.createdAt}
-                              </td>
-                              <td className="py-3 px-3 text-center whitespace-nowrap">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                  tx.status === 'SUCCESS'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-amber-100 text-amber-800'
-                                }`}>
-                                  {tx.status === 'SUCCESS' ? '✓ Thành công' : '⏳ Đang chờ'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                                <td className="py-3.5 px-4 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedRevenueMonth(isSelected ? 'ALL' : m.month);
+                                      setTransactionPage(1);
+                                    }}
+                                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-emerald-800 text-white shadow-sm'
+                                        : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-100'
+                                    }`}
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>{isSelected ? 'Đang lọc' : 'Xem detail'}</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
                   </div>
 
-                  {/* Operational Quick Actions (Components from previous Overview) */}
+                  {/* BẢNG CHI TIẾT GIAO DỊCH TỪNG THÁNG (Transaction Drill-Down Table) */}
                   <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm space-y-4">
-                    <div className="flex items-center justify-between border-b border-brand-border/60 pb-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-brand-border/60 pb-4">
                       <div>
-                        <h3 className="font-heading font-black text-lg text-brand-dark">
-                          Hoạt Động Nổi Bật Cần Xử Lý
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-heading font-black text-lg text-brand-dark flex items-center gap-2">
+                            <Wallet className="w-5 h-5 text-emerald-800" />
+                            <span>Chi Tiết Giao Dịch Dòng Tiền</span>
+                          </h3>
+                          {selectedRevenueMonth !== 'ALL' && (
+                            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              Lọc: Tháng {selectedRevenueMonth}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-brand-muted mt-0.5">
-                          Tổng hợp các tác vụ vận hành quan trọng từ khách hàng và công nhân nông trường.
+                          Toàn bộ dữ liệu giao dịch thanh toán thành công, đối soát tự động từ CSDL PostgreSQL
                         </p>
                       </div>
-                      <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                        Hệ thống hoạt động bình thường
-                      </span>
+
+                      {/* Search & Filters */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Category Filter */}
+                        <div className="flex items-center bg-stone-100 p-1 rounded-xl text-xs font-bold text-stone-600">
+                          <button
+                            type="button"
+                            onClick={() => { setTransactionCategoryFilter('ALL'); setTransactionPage(1); }}
+                            className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                              transactionCategoryFilter === 'ALL' ? 'bg-white text-stone-900 shadow-sm' : 'hover:text-stone-900'
+                            }`}
+                          >
+                            Tất cả
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setTransactionCategoryFilter('LEASE'); setTransactionPage(1); }}
+                            className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                              transactionCategoryFilter === 'LEASE' ? 'bg-white text-emerald-800 shadow-sm' : 'hover:text-emerald-800'
+                            }`}
+                          >
+                            Thuê đất
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setTransactionCategoryFilter('SERVICE'); setTransactionPage(1); }}
+                            className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                              transactionCategoryFilter === 'SERVICE' ? 'bg-white text-amber-700 shadow-sm' : 'hover:text-amber-700'
+                            }`}
+                          >
+                            Dịch vụ
+                          </button>
+                        </div>
+
+                        {/* Search Input */}
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={transactionSearchTerm}
+                            onChange={(e) => { setTransactionSearchTerm(e.target.value); setTransactionPage(1); }}
+                            placeholder="Tìm mã GD, khách hàng..."
+                            className="pl-8 pr-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-700/20 w-44 sm:w-52"
+                          />
+                          {transactionSearchTerm && (
+                            <button
+                              type="button"
+                              onClick={() => { setTransactionSearchTerm(''); setTransactionPage(1); }}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+
+                        {selectedRevenueMonth !== 'ALL' && (
+                          <button
+                            type="button"
+                            onClick={() => { setSelectedRevenueMonth('ALL'); setTransactionPage(1); }}
+                            className="text-xs text-stone-500 hover:text-stone-800 font-bold flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-stone-100 cursor-pointer"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Bỏ lọc tháng</span>
+                          </button>
+                        )}
+
+                        <span className="text-xs font-bold text-stone-600 bg-stone-100 px-3 py-1 rounded-full">
+                          {filteredTransactions.length} Giao dịch
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-                      <div
-                        onClick={() => {
-                          setActiveTab('dispatch');
-                          setDispatchSubTab('expert_plots');
-                          setPlotAssignFilter('UNASSIGNED');
-                        }}
-                        className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-2 cursor-pointer hover:bg-sky-50 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-sky-900 flex items-center gap-1.5">
-                            <Users className="w-4 h-4 text-sky-700" />
-                            <span>Đơn Thuê Chờ Giao</span>
-                          </span>
-                          <span className="px-2 py-0.5 rounded bg-sky-200 text-sky-900 font-bold text-[10px]">
-                            {unassignedRentals.length} Chưa giao
-                          </span>
-                        </div>
-                        <p className="text-stone-700 leading-relaxed">
-                          Đơn thuê mới từ khách hàng cần Admin chỉ định cả CVLĐ chăm sóc thực địa và CGNN cố vấn kỹ thuật.
-                        </p>
-                      </div>
-
-                      <div
-                        onClick={() => {
-                          setActiveTab('dispatch');
-                          setDispatchSubTab('staff_tasks');
-                        }}
-                        className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2 cursor-pointer hover:bg-emerald-50 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-emerald-900 flex items-center gap-1.5">
-                            <Wrench className="w-4 h-4 text-emerald-700" />
-                            <span>Care Tasks CVLĐ</span>
-                          </span>
-                          <span className="px-2 py-0.5 rounded bg-emerald-200 text-emerald-900 font-bold text-[10px]">
-                            {pendingStaffTasksCount} Chờ giao
-                          </span>
-                        </div>
-                        <p className="text-stone-700 leading-relaxed">
-                          Các nhiệm vụ tưới nước, bón phân vi sinh, nhổ cỏ xới đất cần phân công chuyên viên lao động phụ trách.
-                        </p>
-                      </div>
-
-                      <div
-                        onClick={() => {
-                          setActiveTab('dispatch');
-                          setDispatchSubTab('expert_issues');
-                        }}
-                        className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200 space-y-2 cursor-pointer hover:bg-rose-50 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-rose-900 flex items-center gap-1.5">
-                            <AlertTriangle className="w-4 h-4 text-rose-700" />
-                            <span>Sự Cố Cần Chuyên Gia</span>
-                          </span>
-                          <span className="px-2 py-0.5 rounded bg-rose-200 text-rose-900 font-bold text-[10px]">
-                            {pendingExpertIssuesCount} Sự cố
-                          </span>
-                        </div>
-                        <p className="text-stone-700 leading-relaxed">
-                          Các vấn đề sâu bệnh và vi khí hậu bất thường từ đồng ruộng cần chuyên gia nông nghiệp thẩm định phác đồ.
-                        </p>
-                      </div>
-
-                      <div
-                        onClick={() => setActiveTab('contracts')}
-                        className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2 cursor-pointer hover:bg-amber-50 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-amber-900 flex items-center gap-1.5">
-                            <RotateCcw className="w-4 h-4 text-amber-700" />
-                            <span>Yêu Cầu Hoàn Cọc</span>
-                          </span>
-                          <span className="px-2 py-0.5 rounded bg-amber-200 text-amber-900 font-bold text-[10px]">
-                            {refundRequests.filter((r) => r.status === 'PENDING').length} Phiếu
-                          </span>
-                        </div>
-                        <p className="text-stone-700 leading-relaxed">
-                          Khách hàng yêu cầu hủy hợp đồng trước thời hạn canh tác. Hệ thống tính sẵn mức hoàn tiền theo chính sách.
-                        </p>
-                      </div>
+                    {/* Transactions Table */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-brand-border text-stone-500 font-bold uppercase tracking-wider text-[11px] bg-stone-50/70">
+                            <th className="py-3 px-3 rounded-l-xl">Mã GD</th>
+                            <th className="py-3 px-3">Khách Hàng</th>
+                            <th className="py-3 px-3">Hợp Đồng / Đối Tượng</th>
+                            <th className="py-3 px-3">Phân Loại</th>
+                            <th className="py-3 px-3">Cổng TT</th>
+                            <th className="py-3 px-3 text-right">Số Tiền</th>
+                            <th className="py-3 px-3">Thời Gian</th>
+                            <th className="py-3 px-3 text-right rounded-r-xl">Trạng Thái</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-brand-border/60">
+                          {paginatedTransactions.length === 0 ? (
+                            <tr>
+                              <td colSpan={8} className="py-8 text-center text-stone-400">
+                                Không tìm thấy giao dịch nào phù hợp với bộ lọc.
+                              </td>
+                            </tr>
+                          ) : (
+                            paginatedTransactions.map((tx) => (
+                              <tr key={tx.id} className="hover:bg-stone-50/70 transition-colors">
+                                <td className="py-3 px-3 font-mono font-bold text-stone-800">
+                                  {tx.code}
+                                </td>
+                                <td className="py-3 px-3 font-bold text-stone-800">
+                                  {tx.customerName}
+                                </td>
+                                <td className="py-3 px-3 text-stone-600 font-medium">
+                                  {tx.referenceCode}
+                                </td>
+                                <td className="py-3 px-3">
+                                  <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                    tx.category === 'Thuê thửa đất' || (tx.referenceCode && tx.referenceCode.startsWith('HD-'))
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}>
+                                    {tx.category === 'Thuê thửa đất' || (tx.referenceCode && tx.referenceCode.startsWith('HD-'))
+                                      ? 'Thuê thửa đất'
+                                      : 'Dịch vụ phát sinh'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 font-medium">
+                                  <span className="px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-mono text-[10px]">
+                                    {tx.paymentMethod === 'VIETQR' ? 'VietQR 24/7' : tx.paymentMethod === 'VNPAY' ? 'VNPAY Sandbox' : 'Trực tiếp'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-right font-mono font-bold text-emerald-800">
+                                  {formatVnd(tx.amount)}
+                                </td>
+                                <td className="py-3 px-3 text-stone-500 font-mono text-[11px]">
+                                  {tx.createdAt}
+                                </td>
+                                <td className="py-3 px-3 text-right">
+                                  <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
+                                    tx.status === 'SUCCESS' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                                  }`}>
+                                    {tx.status === 'SUCCESS' ? '✓ Thành công' : '⏳ Đang chờ'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
                     </div>
-                  </div>
 
-                  {/* Farm Occupancy Status */}
-                  <div className="bg-white rounded-3xl p-6 sm:p-7 border border-brand-border shadow-sm space-y-4">
-                    <h3 className="font-heading font-black text-lg text-brand-dark">
-                      Tình Trạng Phân Bổ Quỹ Đất & Khai Thác
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                      <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1">
-                        <p className="font-bold text-emerald-900">Trang trại Happy Valley Củ Chi (TP.HCM)</p>
-                        <p className="text-2xl font-black text-emerald-700">
-                          {kpi.rentedPlots || landStats.rented} / {kpi.totalPlots || landStats.total || 17} Thửa Đang Thuê
-                        </p>
-                        <p className="text-stone-600">
-                          Xem tình trạng từng thửa trong danh sách thửa đất.
-                        </p>
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between pt-3 border-t border-brand-border/60 text-xs">
+                        <span className="text-stone-500">
+                          Hiển thị trang <span className="font-bold text-stone-800">{transactionPage}</span> / {totalPages} ({filteredTransactions.length} giao dịch)
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={transactionPage === 1}
+                            onClick={() => setTransactionPage(p => Math.max(1, p - 1))}
+                            className="text-xs font-bold py-1 px-3"
+                          >
+                            Trang trước
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={transactionPage === totalPages}
+                            onClick={() => setTransactionPage(p => Math.min(totalPages, p + 1))}
+                            className="text-xs font-bold py-1 px-3"
+                          >
+                            Trang sau
+                          </Button>
+                        </div>
                       </div>
-                      <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 space-y-1">
-                        <p className="font-bold text-sky-900">Nông Trại Củ Chi Eco Farm (Vùng Mở Rộng)</p>
-                        <p className="text-2xl font-black text-sky-700">12 / 16 Thửa Đang Thuê</p>
-                        <p className="text-stone-600">
-                          Quy hoạch canh tác dưa leo baby, ớt chuông và xà lách thủy canh VietGAP.
-                        </p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               );
