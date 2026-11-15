@@ -2496,6 +2496,25 @@ SELECT row_to_json(ins) FROM ins;
                   `);
                 } catch {}
               }
+              try {
+                const notifPlot = inserted?.plot_code || rawPlotCode || `RENTAL-${rentalId}`;
+                const notifVariety = inserted?.variety_name || rawVarietyName || 'Giống VietGAP';
+                const notifCustomer = rawCustomerName || 'Khách hàng';
+                await getPgPool().query(
+                  `INSERT INTO notifications (user_id, title, content, is_read, created_at)
+                   SELECT u.user_id, $1, $2, false, NOW()
+                   FROM users u
+                   JOIN roles r ON u.role_id = r.role_id
+                   WHERE UPPER(r.role_name::text) = 'ADMIN'
+                     AND COALESCE(u.status::text, 'ACTIVE') = 'ACTIVE'`,
+                  [
+                    `🔄 Yêu cầu gia hạn hợp đồng (${notifPlot})`,
+                    `${notifCustomer} vừa thanh toán và gửi yêu cầu gia hạn thửa ${notifPlot} (${notifVariety}). Vui lòng kiểm tra và phê duyệt.`
+                  ]
+                );
+              } catch (notifErr) {
+                console.warn('[Renewal Admin Notification] Warning:', notifErr.message);
+              }
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
@@ -2608,6 +2627,72 @@ END $$;
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ success: false, message: err.message || 'Không thể phê duyệt gia hạn hợp đồng' }));
           }
+          return;
+        }
+
+        // 4.6F. POST /api/contracts/renewals/:id/reject (Admin từ chối yêu cầu gia hạn vụ mùa)
+        if (req.method === 'POST' && url.match(/^\/api\/(?:v1\/)?contracts\/renewals\/(\d+)\/reject/)) {
+          const match = url.match(/^\/api\/(?:v1\/)?contracts\/renewals\/(\d+)\/reject/);
+          const renewalId = parseInt(match[1], 10);
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const reason = String(payload.reason || '').trim();
+              const cur = await getPgPool().query(
+                'SELECT id, status, rental_id, contract_id, plot_code, variety_name FROM renewal_requests WHERE id = $1',
+                [renewalId]
+              );
+              const row = cur.rows[0];
+              if (!row) {
+                res.statusCode = 404;
+                res.end(JSON.stringify({ success: false, message: 'Yêu cầu gia hạn không tồn tại' }));
+                return;
+              }
+              if (row.status === 'APPROVED') {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, message: `Yêu cầu gia hạn #${renewalId} đã được phê duyệt trước đó` }));
+                return;
+              }
+              await getPgPool().query(
+                `UPDATE renewal_requests SET status = 'REJECTED', approved_by = 1, updated_at = NOW() WHERE id = $1`,
+                [renewalId]
+              );
+
+              try {
+                const plotCode = row.plot_code || 'thửa đất';
+                const reasonText = reason ? ` Lý do: ${reason}` : '';
+                await getPgPool().query(
+                  `INSERT INTO notifications (user_id, title, content, is_read, created_at)
+                   SELECT DISTINCT c.renter_id, $1, $2, false, NOW()
+                   FROM contracts c
+                   LEFT JOIN rentals r ON r.contract_id = c.contract_id
+                   WHERE c.contract_id = $3 OR r.rental_id = $4`,
+                  [
+                    `❌ Yêu cầu gia hạn thửa ${plotCode} bị từ chối`,
+                    `Ban Quản Trị đã từ chối yêu cầu gia hạn #RNW-${renewalId} tại thửa ${plotCode}.${reasonText}`,
+                    row.contract_id || 0,
+                    row.rental_id || 0
+                  ]
+                );
+              } catch (notifErr) {
+                console.warn('[Renewal Reject Notification] Warning:', notifErr.message);
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                success: true,
+                message: `Đã từ chối yêu cầu gia hạn #RNW-${renewalId}`,
+                data: { id: renewalId, status: 'REJECTED' }
+              }));
+            } catch (err) {
+              console.error('Error on POST /api/contracts/renewals/:id/reject:', err);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: err.message || 'Không thể từ chối yêu cầu gia hạn' }));
+            }
+          });
           return;
         }
 
@@ -4750,7 +4835,8 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
                     `INSERT INTO notifications (user_id, title, content, is_read, created_at)
                      SELECT u.user_id, $1, $2, false, NOW()
                      FROM users u
-                     WHERE UPPER(u.role::text) = 'EXPERT'
+                     JOIN roles r ON u.role_id = r.role_id
+                     WHERE UPPER(r.role_name::text) = 'EXPERT'
                        AND COALESCE(u.status::text, 'ACTIVE') = 'ACTIVE'
                      RETURNING notification_id AS "notificationId", user_id AS "userId", title, content, is_read AS "isRead", created_at AS "createdAt"`,
                     [notifTitle, notifContent]
@@ -5267,13 +5353,14 @@ SELECT json_build_object(
       SELECT 
         pt.template_id AS id,
         'TPL-' || LPAD(pt.template_id::text, 3, '0') AS code,
-        'Quy trình chuẩn VietGAP - ' || v.variety_name AS name,
+        COALESCE(NULLIF(pt.name, ''), 'Quy trình chuẩn VietGAP - ' || v.variety_name) AS name,
         pt.variety_id AS "varietyId",
         v.variety_name AS "varietyName",
         c.crop_id AS "cropId",
         c.crop_name AS "cropName",
         pt.version,
-        'ACTIVE' AS status,
+        COALESCE(NULLIF(pt.status, ''), 'ACTIVE') AS status,
+        pt.pt_created_by AS "ptCreatedBy",
         COALESCE(
           (SELECT count(*)::int FROM template_steps ts WHERE ts.template_id = pt.template_id), 0
         ) AS "totalSteps",
@@ -5365,13 +5452,14 @@ SELECT json_build_object(
       SELECT 
         pt.template_id AS id,
         'TPL-' || LPAD(pt.template_id::text, 3, '0') AS code,
-        'Quy trình chuẩn VietGAP - ' || v.variety_name AS name,
+        COALESCE(NULLIF(pt.name, ''), 'Quy trình chuẩn VietGAP - ' || v.variety_name) AS name,
         pt.variety_id AS "varietyId",
         v.variety_name AS "varietyName",
         c.crop_id AS "cropId",
         c.crop_name AS "cropName",
         pt.version,
-        'ACTIVE' AS status,
+        COALESCE(NULLIF(pt.status, ''), 'ACTIVE') AS status,
+        pt.pt_created_by AS "ptCreatedBy",
         COALESCE(
           (SELECT count(*)::int FROM template_steps ts WHERE ts.template_id = pt.template_id), 0
         ) AS "totalSteps",
@@ -5462,14 +5550,19 @@ SELECT json_build_object(
               const varietyId = parseInt(String(payload.varietyId || 1).replace(/\D/g, ''), 10) || 1;
               const version = (payload.version || 'v1.0').replace(/'/g, "''");
               const createdBy = parseInt(payload.ptCreatedBy || payload.createdBy || 5, 10) || 5;
+              const templateName = String(payload.name || '').trim();
+              const templateDesc = String(payload.description || '').trim();
+              const templateStatus = String(payload.status || 'ACTIVE').trim().toUpperCase() === 'PENDING_APPROVAL'
+                ? 'PENDING_APPROVAL'
+                : 'ACTIVE';
 
-              const insertSql = `
-INSERT INTO process_templates (variety_id, pt_created_by, version, created_at)
-VALUES (${varietyId}, ${createdBy}, '${version}', NOW())
-RETURNING template_id;
-`;
-              const insertRes = await runPostgreSql(insertSql);
-              const templateId = parseInt(String(insertRes).replace(/\D/g, ''), 10) || 1;
+              const insRes = await getPgPool().query(
+                `INSERT INTO process_templates (variety_id, pt_created_by, version, name, description, status, created_at)
+                 VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6, NOW())
+                 RETURNING template_id`,
+                [varietyId, createdBy, version, templateName, templateDesc, templateStatus]
+              );
+              const templateId = insRes.rows[0]?.template_id || 1;
 
               // Nếu có gửi kèm các bước ban đầu
               if (Array.isArray(payload.steps) && payload.steps.length > 0) {
@@ -5501,6 +5594,28 @@ VALUES (
                 await syncVarietyDurationFromTemplate(templateId);
               }
 
+              if (templateStatus === 'PENDING_APPROVAL') {
+                try {
+                  const vRes = await getPgPool().query('SELECT variety_name FROM varieties WHERE variety_id = $1', [varietyId]);
+                  const vName = vRes.rows[0]?.variety_name || `giống #${varietyId}`;
+                  const displayTitle = templateName || `Quy trình chuẩn VietGAP - ${vName}`;
+                  await getPgPool().query(
+                    `INSERT INTO notifications (user_id, title, content, is_read, created_at)
+                     SELECT u.user_id, $1, $2, false, NOW()
+                     FROM users u
+                     JOIN roles r ON u.role_id = r.role_id
+                     WHERE UPPER(r.role_name::text) = 'ADMIN'
+                       AND COALESCE(u.status::text, 'ACTIVE') = 'ACTIVE'`,
+                    [
+                      '📋 Quy trình canh tác mới cần phê duyệt',
+                      `Chuyên gia vừa thiết lập quy trình "${displayTitle}" cho giống ${vName}. Vui lòng kiểm tra và phê duyệt.`
+                    ]
+                  );
+                } catch (notifErr) {
+                  console.warn('[Template Admin Notification] Warning:', notifErr.message);
+                }
+              }
+
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
               res.end(JSON.stringify({
                 success: true,
@@ -5509,12 +5624,66 @@ VALUES (
                   id: templateId,
                   templateId,
                   varietyId,
-                  version
+                  version,
+                  status: templateStatus
                 }
               }));
             } catch (err) {
               res.statusCode = 500;
               res.end(JSON.stringify({ success: false, error: String(err) }));
+            }
+          });
+          return;
+        }
+
+        // 14.3b PATCH /api/templates/:id/status (Admin phê duyệt / cập nhật trạng thái quy trình)
+        if ((req.method === 'PATCH' || req.method === 'PUT') && url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/status$/)) {
+          const rawId = url.match(/^\/api\/(?:v1\/)?(?:process-templates|templates)\/([A-Za-z0-9_-]+)\/status$/)[1];
+          const templateId = parseInt(rawId.replace(/\D/g, ''), 10) || 0;
+          let body = '';
+          req.on('data', chunk => body += chunk);
+          req.on('end', async () => {
+            try {
+              const payload = JSON.parse(body || '{}');
+              const nextStatus = String(payload.status || 'ACTIVE').trim().toUpperCase();
+              if (!templateId) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ success: false, message: 'Thiếu templateId hợp lệ' }));
+                return;
+              }
+              const upd = await getPgPool().query(
+                `UPDATE process_templates
+                 SET status = $1
+                 WHERE template_id = $2
+                 RETURNING template_id AS "templateId", pt_created_by AS "ptCreatedBy", COALESCE(NULLIF(name, ''), 'Quy trình #' || template_id) AS name, status`,
+                [nextStatus, templateId]
+              );
+              const row = upd.rows[0];
+              if (!row) {
+                res.statusCode = 404;
+                res.end(JSON.stringify({ success: false, message: 'Không tìm thấy quy trình' }));
+                return;
+              }
+              if (nextStatus === 'ACTIVE' && row.ptCreatedBy) {
+                try {
+                  await getPgPool().query(
+                    `INSERT INTO notifications (user_id, title, content, is_read, created_at)
+                     VALUES ($1, $2, $3, false, NOW())`,
+                    [
+                      row.ptCreatedBy,
+                      '✅ Quy trình canh tác đã được phê duyệt',
+                      `Quản trị viên đã phê duyệt và ban hành quy trình "${row.name}". Quy trình chính thức có hiệu lực áp dụng trên các thửa đất.`
+                    ]
+                  );
+                } catch (notifErr) {
+                  console.warn('[Template Approve Notification] Warning:', notifErr.message);
+                }
+              }
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true, data: row }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ success: false, message: err.message }));
             }
           });
           return;
@@ -6693,6 +6862,7 @@ END $$;
               }
 
               let createdNotification = null;
+              let createdExpertNotification = null;
               if (isComplete) {
                 try {
                   const notifRes = await getPgPool().query(`
@@ -6715,6 +6885,58 @@ END $$;
                 } catch (notifErr) {
                   console.warn('[Task Complete Notification] Warning:', notifErr.message);
                 }
+
+                try {
+                  const issueNotifRes = await getPgPool().query(`
+                    WITH linked_issue AS (
+                      SELECT
+                        ir.issue_id,
+                        ir.issue_type,
+                        ir.handled_by,
+                        r.expert_id,
+                        p.plot_code,
+                        COALESCE(ct.title, 'Xử lý sự cố hiện trường') AS task_title
+                      FROM care_tasks ct
+                      JOIN rentals r ON ct.rental_id = r.rental_id
+                      JOIN plots p ON r.plot_id = p.plot_id
+                      JOIN issue_reports ir ON (
+                        (ct.notes ~ '\\[ISS-\\d+\\]' AND ir.issue_id = CAST(SUBSTRING(ct.notes FROM '\\[ISS-(\\d+)\\]') AS INTEGER))
+                        OR (ct.notes NOT LIKE '%[ISS-%' AND ir.rental_id = ct.rental_id AND ct.notes LIKE '%' || ir.issue_type || '%')
+                      )
+                      WHERE ct.task_id = $1
+                      ORDER BY ir.issue_id DESC
+                      LIMIT 1
+                    ),
+                    target_experts AS (
+                      SELECT DISTINCT u.user_id, li.*
+                      FROM linked_issue li
+                      JOIN users u ON (
+                        u.user_id = COALESCE(li.handled_by, li.expert_id)
+                        OR (
+                          COALESCE(li.handled_by, li.expert_id) IS NULL
+                          AND EXISTS (
+                            SELECT 1 FROM roles ro
+                            WHERE ro.role_id = u.role_id
+                              AND UPPER(ro.role_name::text) = 'EXPERT'
+                          )
+                          AND COALESCE(u.status::text, 'ACTIVE') = 'ACTIVE'
+                        )
+                      )
+                    )
+                    INSERT INTO notifications (user_id, title, content, is_read, created_at)
+                    SELECT
+                      te.user_id,
+                      '✅ Đã xử lý xong sự cố #ISS-' || te.issue_id || ' (' || COALESCE(te.plot_code, '') || ')',
+                      'Nhân viên đã hoàn thành công việc "' || te.task_title || '" cho sự cố "' || COALESCE(te.issue_type, '') || '" tại thửa ' || COALESCE(te.plot_code, '') || ' và cập nhật ảnh minh chứng.',
+                      false,
+                      NOW()
+                    FROM target_experts te
+                    RETURNING notification_id AS "notificationId", user_id AS "userId", title, content, is_read AS "isRead", created_at AS "createdAt"
+                  `, [parseInt(taskId, 10)]);
+                  createdExpertNotification = issueNotifRes.rows[0] || null;
+                } catch (expertNotifErr) {
+                  console.warn('[Issue Complete Expert Notification] Warning:', expertNotifErr.message);
+                }
               }
 
               res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -6724,7 +6946,8 @@ END $$;
                   ? `Hoàn thành nhiệm vụ #${taskId} thành công và đã tự động đồng bộ vào nhật ký nông trại`
                   : `Cập nhật nhiệm vụ #${taskId} thành công`,
                 data: taskRow,
-                notification: createdNotification
+                notification: createdNotification,
+                expertNotification: createdExpertNotification
               }));
             } catch (err) {
               res.statusCode = 500;
@@ -7053,13 +7276,25 @@ END $$;
               const txt = `${row.title || ''} ${row.content || ''}`;
               const plotMatch = txt.match(/(?:thửa(?:\s+đất)?(?:\s+mới)?|\()\s*([A-Z]\s*-\s*\d+)/i);
               const plotCode = plotMatch ? plotMatch[1].replace(/\s+/g, '').toUpperCase() : '';
+              const issueMatch = txt.match(/#?ISS-(\d+)/i);
               let link = null;
-              if (/gán giống cây|giống cây trồng tương thích|thửa(?:\s+đất)?\s+mới.*giống/i.test(txt)) {
+              if (issueMatch || /xử lý xong sự cố|sự cố.*hoàn thành/i.test(txt)) {
+                const issueId = issueMatch ? issueMatch[1] : '';
+                link = `/expert/dashboard?tab=issues${issueId ? `&issueId=${encodeURIComponent(issueId)}` : ''}${plotCode ? `&plot=${encodeURIComponent(plotCode)}` : ''}`;
+              } else if (/quy trình.*cần phê duyệt|quy trình canh tác mới/i.test(txt)) {
+                link = '/admin/master-data/process-templates';
+              } else if (/quy trình.*đã được phê duyệt/i.test(txt)) {
+                link = '/expert/dashboard?tab=templates';
+              } else if (/yêu cầu gia hạn|gia hạn hợp đồng/i.test(txt)) {
+                link = '/admin/dashboard?tab=renewals';
+              } else if (/dịch vụ|chăm sóc khẩn cấp/i.test(txt)) {
+                link = '/staff/dashboard?tab=services';
+              } else if (/gán giống cây|giống cây trồng tương thích|thửa(?:\s+đất)?\s+mới.*giống/i.test(txt)) {
                 link = plotCode
                   ? `/expert/dashboard?tab=compatibility&plot=${encodeURIComponent(plotCode)}`
                   : '/expert/dashboard?tab=compatibility';
               } else if (plotCode) {
-                link = /Phân công|nhiệm vụ mới|ca trực/i.test(txt)
+                link = /Phân công|nhiệm vụ mới|ca trực|Bắt đầu mùa vụ/i.test(txt)
                   ? `/staff/dashboard?plot=${encodeURIComponent(plotCode)}`
                   : `/customer/dashboard?plot=${encodeURIComponent(plotCode)}&tab=tasks`;
               }
@@ -7104,6 +7339,21 @@ END $$;
           return;
         }
 
+        if (req.method === 'PATCH' && url.match(/^\/api\/(?:v1\/)?notifications\/(\d+)\/read$/)) {
+          const notifId = parseInt(url.match(/^\/api\/(?:v1\/)?notifications\/(\d+)\/read$/)[1], 10);
+          try {
+            if (notifId > 0) {
+              await getPgPool().query('UPDATE notifications SET is_read = true WHERE notification_id = $1', [notifId]);
+            }
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, message: err.message }));
+          }
+          return;
+        }
+
         if (req.method === 'PATCH' && url.match(/^\/api\/(?:v1\/)?notifications\/read-all/)) {
           try {
             const urlObj = new URL(url, 'http://localhost:3000');
@@ -7113,6 +7363,37 @@ END $$;
             }
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
             res.end(JSON.stringify({ success: true }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ success: false, message: err.message }));
+          }
+          return;
+        }
+
+        // 19c. IOT ALERTS API (GET /api/iot-alerts & /api/v1/iot-alerts)
+        if (req.method === 'GET' && (url.startsWith('/api/iot-alerts') || url.startsWith('/api/v1/iot-alerts'))) {
+          try {
+            const alertsRes = await getPgPool().query(`
+              SELECT
+                a.alert_id AS "alertId",
+                a.plot_id AS "plotId",
+                p.plot_code AS "plotCode",
+                a.alert_type AS "alertType",
+                a.severity AS level,
+                a.status,
+                a.metric_name AS "metricName",
+                a.actual_value AS "actualValue",
+                a.threshold_value AS "thresholdValue",
+                a.message,
+                a.action_suggested AS "actionSuggested",
+                a.detected_at AS "detectedAt"
+              FROM iot_alerts a
+              LEFT JOIN plots p ON a.plot_id = p.plot_id
+              ORDER BY a.detected_at DESC, a.alert_id DESC
+              LIMIT 100
+            `);
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ success: true, data: alertsRes.rows }));
           } catch (err) {
             res.statusCode = 500;
             res.end(JSON.stringify({ success: false, message: err.message }));
@@ -7474,7 +7755,13 @@ SELECT json_build_object(
           ELSE 'NORMAL'
         END AS urgency,
         (SELECT 'TSK-' || ct.task_id FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "assignedTaskCode",
-        (SELECT TO_CHAR(ct.due_date, 'YYYY-MM-DD') FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "assignedDueDate"
+        (SELECT TO_CHAR(ct.due_date, 'YYYY-MM-DD') FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "assignedDueDate",
+        (SELECT ct.title FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "assignedTaskTitle",
+        (SELECT ct.notes FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "assignedTaskNotes",
+        (SELECT ct.status::text FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "assignedTaskStatus",
+        (SELECT CASE WHEN ct.evidence_image_url LIKE 'data:image%' AND octet_length(ct.evidence_image_url) > 512 THEN '/api/media/care-task/' || ct.task_id || '?v=' || EXTRACT(EPOCH FROM COALESCE(ct.updated_at, NOW()))::bigint ELSE ct.evidence_image_url END FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "resolutionProofPhoto",
+        (SELECT TO_CHAR(ct.updated_at, 'HH24:MI - DD/MM/YYYY') FROM care_tasks ct WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "resolutionCompletedAt",
+        (SELECT u_w.full_name FROM care_tasks ct LEFT JOIN users u_w ON ct.task_assigned_to = u_w.user_id WHERE ct.rental_id = ir.rental_id AND (ct.notes LIKE '%' || ir.issue_type || '%' OR ct.notes LIKE '%[' || 'ISS-' || ir.issue_id || ']%') ORDER BY ct.task_id DESC LIMIT 1) AS "assignedWorkerName"
       FROM issue_reports ir
       JOIN rentals rent ON ir.rental_id = rent.rental_id
       JOIN plots p ON rent.plot_id = p.plot_id
@@ -8303,6 +8590,29 @@ SELECT json_build_object(
 
               const resultRaw = await runPostgreSql(sql);
               invalidatePlotsCache();
+              try {
+                const parsedRes = JSON.parse(resultRaw || '{}');
+                const reqId = parsedRes?.requestId || payload.existingRequestId;
+                if (reqId) {
+                  await getPgPool().query(
+                    `INSERT INTO notifications (user_id, title, content, is_read, created_at)
+                     SELECT
+                       COALESCE(r.staff_id, fn_resolve_staff_for_plot(r.plot_id), 8),
+                       '🛎️ Đơn dịch vụ mới (' || COALESCE(p.plot_code, 'Thửa đất') || ')',
+                       'Khách hàng vừa đặt dịch vụ "' || COALESCE(s.service_name, $2) || '" tại thửa ' || COALESCE(p.plot_code, '') || '.',
+                       false,
+                       NOW()
+                     FROM service_requests sr
+                     JOIN rentals r ON sr.rental_id = r.rental_id
+                     JOIN plots p ON r.plot_id = p.plot_id
+                     LEFT JOIN services s ON sr.service_id = s.service_id
+                     WHERE sr.request_id = $1`,
+                    [Number(reqId), serviceName]
+                  );
+                }
+              } catch (notifErr) {
+                console.warn('[Service Staff Notification] Warning:', notifErr.message);
+              }
 
               // Fetch details of created/updated request
               const detailSql = `

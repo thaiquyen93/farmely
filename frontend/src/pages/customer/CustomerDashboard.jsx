@@ -1900,20 +1900,37 @@ export default function CustomerDashboard() {
   }, [fetchCustomerPlots, fetchCultivationProcesses, fetchHarvestResults]);
 
   const cultivationProcesses = dbCultivationProcesses;
-  const fallbackIotAlerts = {
-    'PLOT-CC-01': [
-      { level: 'MEDIUM', title: 'Độ ẩm đất ổn định', metric: '68% → 70% trong 30 phút', time: '12 phút trước' }
-    ],
-    'PLOT-MC-02': [
-      { level: 'MEDIUM', title: 'Cường độ nắng cao lúc 12:00', metric: '38.000 Lux', time: '18 phút trước' },
-      { level: 'LOW', title: 'Độ ẩm đất gần ngưỡng thấp', metric: '62% · ngưỡng khuyến nghị 60–75%', time: '32 phút trước' }
-    ],
-    'PLOT-CG-03': [
-      { level: 'HIGH', title: 'Gió tăng cao tại khu vực giàn', metric: '28 km/h', time: '8 phút trước' },
-      { level: 'MEDIUM', title: 'Nhiệt độ tăng', metric: '29°C · cao hơn 2°C so với hôm qua', time: '25 phút trước' }
-    ]
-  };
-  const iotAlerts = fallbackIotAlerts;
+  const [iotAlerts, setIotAlerts] = useState({});
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/iot-alerts')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (!active || !payload?.success || !Array.isArray(payload.data)) return;
+        const grouped = {};
+        payload.data.forEach((item) => {
+          const itemPayload = {
+            level: item.level || 'MEDIUM',
+            title: item.alertType || item.metricName || 'Cảnh báo IoT',
+            metric: item.message || (item.actualValue != null ? `${item.actualValue} (ngưỡng ${item.thresholdValue ?? '—'})` : ''),
+            time: item.detectedAt ? new Date(item.detectedAt).toLocaleString('vi-VN') : ''
+          };
+          const keys = [
+            item.plotCode,
+            item.plotCode ? `PLOT-${item.plotCode}` : null,
+            item.plotId ? `PLOT-${item.plotId}` : null
+          ].filter(Boolean);
+          keys.forEach((k) => {
+            if (!grouped[k]) grouped[k] = [];
+            grouped[k].push(itemPayload);
+          });
+        });
+        setIotAlerts(grouped);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   function defaultOperationsForPlot(plot) {
     if (plot?.rentalId || plot?.rental_id) {

@@ -512,6 +512,7 @@ export default function FieldWorkerDashboard() {
   // Harvest records loaded from the cultivation service.
   const [harvestTasks, setHarvestTasks] = useState([]);
   const [selectedHarvestTask, setSelectedHarvestTask] = useState(null);
+  const [showHarvestReportModal, setShowHarvestReportModal] = useState(false);
   const [selectedHarvestProofModal, setSelectedHarvestProofModal] = useState(null);
   const [harvestPhotos, setHarvestPhotos] = useState([]);
   const [harvestWeight, setHarvestWeight] = useState('');
@@ -964,6 +965,22 @@ export default function FieldWorkerDashboard() {
             ? `/customer/dashboard?plot=RENTAL-${resolvedRentalId}&tab=tasks`
             : `/customer/dashboard?plot=${encodeURIComponent(resolvedPlotCode)}&tab=tasks`
         });
+
+        const expertNotif = completeRes?.expertNotification || null;
+        const issueMatch = String(selectedTaskToExecute?.notes || selectedTaskToExecute?.title || '').match(/\[?ISS-(\d+)\]?/i);
+        if (expertNotif || issueMatch) {
+          const issueIdParam = issueMatch ? issueMatch[1] : '';
+          sendNotification({
+            targetRole: 'EXPERT',
+            userId: expertNotif?.userId || undefined,
+            notificationId: expertNotif?.notificationId || undefined,
+            skipApiPost: Boolean(expertNotif),
+            type: 'ISSUE_RESOLVED',
+            title: expertNotif?.title || `✅ Đã xử lý xong sự cố #ISS-${issueIdParam} (${resolvedPlotCode})`,
+            content: expertNotif?.content || `Nhân viên đã hoàn thành công việc "${selectedTaskToExecute.title || 'Xử lý sự cố'}" tại thửa ${resolvedPlotCode} và cập nhật ảnh minh chứng.`,
+            link: `/expert/dashboard?tab=issues${issueIdParam ? `&issueId=${encodeURIComponent(issueIdParam)}` : ''}${resolvedPlotCode ? `&plot=${encodeURIComponent(resolvedPlotCode)}` : ''}`
+          });
+        }
       } catch (notifErr) {
         console.warn('Could not send customer completion notification:', notifErr);
       }
@@ -1248,11 +1265,11 @@ export default function FieldWorkerDashboard() {
   };
 
   const openHarvestWorkspace = (task) => {
-    setSelectedHarvestTask(task);
-    setActiveTab('harvest');
+    setSelectedHarvestTask(task || harvestWorkItems[0] || null);
     setHarvestPhotos([]);
     setHarvestWeight('');
     setHarvestConfirmed(false);
+    setShowHarvestReportModal(true);
   };
 
   const handleHarvestPhotos = (files) => {
@@ -1356,6 +1373,7 @@ export default function FieldWorkerDashboard() {
     } catch {}
 
     setSelectedHarvestTask(completedHarvest);
+    setShowHarvestReportModal(false);
     setHarvestPhotos([]);
     setHarvestWeight('');
     setHarvestConfirmed(false);
@@ -2280,22 +2298,6 @@ export default function FieldWorkerDashboard() {
 
             {!selectedPlotModalCode && activeTab === 'harvest' && (
               <div className="space-y-6">
-                <HarvestRecorder
-                  workItems={harvestWorkItems}
-                  selected={selectedHarvestTask}
-                  onSelect={openHarvestWorkspace}
-                  photos={harvestPhotos}
-                  onPhotos={handleHarvestPhotos}
-                  onRemovePhoto={(index) => setHarvestPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index))}
-                  weight={harvestWeight}
-                  onWeight={setHarvestWeight}
-                  confirmed={harvestConfirmed}
-                  onConfirmed={setHarvestConfirmed}
-                  user={user}
-                  onSubmit={handleConfirmHarvestScale}
-                  submitting={harvestSubmitting}
-                />
-
                 {/* KHỐI LỊCH SỬ THU HOẠCH & BIÊN BẢN ĐỐI CHỨNG THEO VỤ MÙA (BR20) */}
                 <section className="rounded-3xl border border-brand-border bg-white p-5 sm:p-7 shadow-sm space-y-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-brand-border/70 pb-4">
@@ -2312,9 +2314,22 @@ export default function FieldWorkerDashboard() {
                         Danh sách các đợt thu hoạch đã hoàn tất cân thực tế, lưu ảnh minh chứng tại thửa và bàn giao cho khách hàng nghiệm thu.
                       </p>
                     </div>
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                      {completedHarvests.length} Đợt Thu Hoạch Đã Ghi Nhận
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        {completedHarvests.length} Đợt Thu Hoạch Đã Ghi Nhận
+                      </span>
+                      {harvestWorkItems.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => openHarvestWorkspace(selectedHarvestTask || harvestWorkItems[0])}
+                          className="font-bold text-xs gap-1.5 bg-[#07533d] hover:bg-[#053d2d] text-white"
+                        >
+                          <PackageCheck className="w-3.5 h-3.5" />
+                          <span>Báo cáo thu hoạch</span>
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {completedHarvests.length === 0 ? (
@@ -2491,9 +2506,12 @@ export default function FieldWorkerDashboard() {
                             <button
                               type="button"
                               onClick={() => {
-                                setSelectedPlotModalCode(null);
-                                if (harvest) openHarvestWorkspace(harvest);
-                                else setActiveTab('harvest');
+                                if (harvest || harvestWorkItems.length > 0) {
+                                  openHarvestWorkspace(harvest || harvestWorkItems[0]);
+                                } else {
+                                  setSelectedPlotModalCode(null);
+                                  setActiveTab('harvest');
+                                }
                               }}
                               className="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-800 hover:bg-emerald-900 text-white transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
                             >
@@ -3196,9 +3214,12 @@ export default function FieldWorkerDashboard() {
                                 variant="primary"
                                 size="sm"
                                 onClick={() => {
-                                  setSelectedPlotModalCode(null);
-                                  if (harvest) openHarvestWorkspace(harvest);
-                                  else setActiveTab('harvest');
+                                  if (harvest || harvestWorkItems.length > 0) {
+                                    openHarvestWorkspace(harvest || harvestWorkItems[0]);
+                                  } else {
+                                    setSelectedPlotModalCode(null);
+                                    setActiveTab('harvest');
+                                  }
                                 }}
                                 className="font-bold text-xs gap-2 bg-[#07533d] hover:bg-[#053d2d] text-white shrink-0"
                               >
@@ -3219,6 +3240,31 @@ export default function FieldWorkerDashboard() {
         </div>
 
       </main>
+
+      {/* Popup Báo cáo thu hoạch (Upload ảnh & ghi nhận sản lượng) */}
+      <Modal
+        isOpen={showHarvestReportModal}
+        onClose={() => setShowHarvestReportModal(false)}
+        title="Báo cáo thu hoạch & Cân đối chứng"
+        subtitle="Upload ảnh minh chứng thực tế và ghi nhận khối lượng thu hoạch tại thửa đất"
+        size="xl"
+      >
+        <HarvestRecorder
+          workItems={harvestWorkItems}
+          selected={selectedHarvestTask}
+          onSelect={(task) => openHarvestWorkspace(task)}
+          photos={harvestPhotos}
+          onPhotos={handleHarvestPhotos}
+          onRemovePhoto={(index) => setHarvestPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index))}
+          weight={harvestWeight}
+          onWeight={setHarvestWeight}
+          confirmed={harvestConfirmed}
+          onConfirmed={setHarvestConfirmed}
+          user={user}
+          onSubmit={handleConfirmHarvestScale}
+          submitting={harvestSubmitting}
+        />
+      </Modal>
 
       {/* Modal 0: Chi Tiết Nhiệm Vụ & Lưu Ý / Chỉ Đạo Từ Chuyên Gia Nông Nghiệp (CGNN) */}
       <Modal

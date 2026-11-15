@@ -928,6 +928,22 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleRejectRenewal = async (renewalId) => {
+    const reason = window.prompt(`Nhập lý do từ chối yêu cầu gia hạn #RNW-${renewalId} (tùy chọn):`, '');
+    if (reason === null) return;
+    try {
+      await apiFetch(`/api/contracts/renewals/${renewalId}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason.trim() })
+      });
+      triggerSuccessToast(`Đã từ chối yêu cầu gia hạn #RNW-${renewalId}.`);
+      setRenewalRequests((prev) => prev.map((r) => (r.id === renewalId ? { ...r, status: 'REJECTED' } : r)));
+      await loadAdminData();
+    } catch (error) {
+      setDataError(error.message || 'Không thể từ chối yêu cầu gia hạn hợp đồng.');
+    }
+  };
+
   // 7. Xác nhận lịch tham quan (SCR-PUB-05)
   const handleConfirmVisit = async (visitId) => {
     try {
@@ -2539,93 +2555,162 @@ export default function AdminDashboard() {
                         Hiện chưa có yêu cầu gia hạn vụ mùa nào cần xử lý.
                       </div>
                     ) : (
-                      renewalRequests.map((req) => (
-                        <div
-                          key={req.id}
-                          className="p-5 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3 text-xs"
-                        >
-                          <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-brand-green text-sm">RNW-{req.id}</span>
-                              <span className="text-stone-400">| Hợp đồng: {req.contractCode || req.contractNumber || 'HĐ-CTR'}</span>
-                              <span className="rounded-md bg-stone-100 px-2 py-0.5 font-bold text-stone-700">
-                                Thửa {req.plotCode || 'P-05'}
-                              </span>
-                            </div>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              req.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
-                            }`}>
-                              {req.status === 'PENDING' ? '⏳ Chờ Ban Quản Trị phê duyệt' : '✓ Đã phê duyệt & Sẵn sàng vụ mới'}
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-600">
-                            <p>Khách hàng: <strong className="text-brand-dark">{req.customerName}</strong> ({req.customerPhone || '0912345678'})</p>
-                            <p>Vụ đăng ký: <strong className="text-brand-dark">Vụ {req.seasonNumber || 2}: {req.varietyName || 'Dưa leo baby F1'}</strong> (+{req.seasonsCount || 1} Vụ)</p>
-                            <p>Hình thức canh tác: <strong className="text-stone-800">{req.cultivationMode === 'SELF' ? 'Tự canh tác (Self-Growing)' : 'Ủy thác trọn gói (Assisted-Growing)'}</strong></p>
-                            <p>Thanh toán: <strong className="text-emerald-700 font-bold">{Number(req.additionalAmount || 1200000).toLocaleString('vi-VN')} đ</strong> (VNPay - Đã thanh toán 100%)</p>
-                            <p className="sm:col-span-2 text-stone-500">
-                              Thời hạn vụ mới đến: <strong className="text-stone-800">{req.newEndDate || '2027-06-11'}</strong> • Tự động kích hoạt quy trình chuẩn VietGAP sau 4 ngày bảo trì (BR23).
-                            </p>
-                          </div>
-
-                          {req.status === 'PENDING' && (
-                            <div className="pt-2 flex justify-end gap-2 border-t border-brand-border/40">
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                onClick={() => handleApproveRenewal(req.id)}
-                                className="bg-emerald-700 hover:bg-emerald-800 font-bold cursor-pointer"
-                              >
-                                ✓ Phê duyệt gia hạn & Phân bổ kỹ thuật
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      ))
+                      <div className="overflow-x-auto rounded-2xl border border-brand-border bg-white shadow-sm">
+                        <table className="min-w-full divide-y divide-brand-border/70 text-left text-xs">
+                          <thead className="bg-stone-50 text-[11px] font-bold uppercase tracking-wider text-stone-500">
+                            <tr>
+                              <th className="px-4 py-3">Mã / Hợp đồng</th>
+                              <th className="px-4 py-3">Thửa đất</th>
+                              <th className="px-4 py-3">Khách hàng</th>
+                              <th className="px-4 py-3">Vụ &amp; Giống đăng ký</th>
+                              <th className="px-4 py-3">Thanh toán &amp; Thời hạn</th>
+                              <th className="px-4 py-3">Trạng thái</th>
+                              <th className="px-4 py-3 text-right">Thao tác</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-brand-border/50 bg-white">
+                            {renewalRequests.map((req) => (
+                              <tr key={req.id} className="hover:bg-stone-50/70 transition-colors">
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className="font-mono font-bold text-brand-green block">RNW-{req.id}</span>
+                                  <span className="text-[11px] text-stone-400">{req.contractCode || req.contractNumber || 'HĐ-CTR'}</span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className="rounded-md bg-stone-100 px-2 py-0.5 font-bold text-stone-800">
+                                    Thửa {req.plotCode || 'P-05'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <strong className="text-brand-dark block">{req.customerName}</strong>
+                                  <span className="text-[11px] text-stone-500">{req.customerPhone || '—'}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <strong className="text-brand-dark block">
+                                    Vụ {req.seasonNumber || 2}: {req.varietyName || 'Dưa leo baby F1'} (+{req.seasonsCount || 1} Vụ)
+                                  </strong>
+                                  <span className="text-[11px] text-stone-500">
+                                    {req.cultivationMode === 'SELF' ? 'Tự canh tác (Self-Growing)' : 'Ủy thác trọn gói (Assisted-Growing)'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <strong className="text-emerald-700 font-bold block">
+                                    {Number(req.additionalAmount || 1200000).toLocaleString('vi-VN')} đ
+                                  </strong>
+                                  <span className="text-[11px] text-stone-500">
+                                    Đến: {req.newEndDate || '—'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                    req.status === 'PENDING'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : req.status === 'REJECTED'
+                                        ? 'bg-rose-100 text-rose-800'
+                                        : 'bg-emerald-100 text-emerald-800'
+                                  }`}>
+                                    {req.status === 'PENDING'
+                                      ? '⏳ Chờ duyệt'
+                                      : req.status === 'REJECTED'
+                                        ? '✕ Đã từ chối'
+                                        : '✓ Đã phê duyệt'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-right">
+                                  {req.status === 'PENDING' ? (
+                                    <div className="inline-flex items-center gap-2">
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={() => handleApproveRenewal(req.id)}
+                                        className="bg-emerald-700 hover:bg-emerald-800 font-bold cursor-pointer text-[11px]"
+                                      >
+                                        ✓ Phê duyệt
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleRejectRenewal(req.id)}
+                                        className="border-rose-300 text-rose-700 hover:bg-rose-50 font-bold cursor-pointer text-[11px]"
+                                      >
+                                        ✕ Từ chối
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[11px] text-stone-400">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {refundRequests.map((req) => (
-                      <div
-                        key={req.id}
-                        className="p-5 rounded-2xl border border-brand-border bg-white shadow-sm space-y-3 text-xs"
-                      >
-                        <div className="flex items-center justify-between pb-2 border-b border-brand-border/60">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-brand-green text-sm">{req.id}</span>
-                            <span className="text-stone-400">| Hợp đồng: {req.contractCode}</span>
-                          </div>
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            req.status === 'PENDING' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                          }`}>
-                            {req.status === 'PENDING' ? 'Chờ quản trị viên phê duyệt' : 'Đã duyệt hoàn tiền'}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-600">
-                          <p>Khách hàng: <strong className="text-brand-dark">{req.customerName}</strong> ({req.customerPhone || 'Khách hàng'})</p>
-                          <p>Thửa đất hủy: <strong className="text-brand-dark">{req.plotCode || '—'}</strong></p>
-                          <p>Đã thanh toán: <strong className="text-brand-dark">{req.totalPaid}</strong></p>
-                          <p>Được hoàn: <strong className="text-emerald-700 font-bold">{req.refundAmount} ({req.refundPercent}%)</strong></p>
-                          <p className="sm:col-span-2 text-stone-500">Khấu trừ: {req.deductionFee} • Lý do: "{req.reason}"</p>
-                        </div>
-
-                        {req.status === 'PENDING' && (
-                          <div className="pt-2 flex justify-end gap-2 border-t border-brand-border/40">
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => handleApproveRefund(req.id)}
-                              className="bg-emerald-700 hover:bg-emerald-800 !text-white hover:!text-white font-bold cursor-pointer shadow-sm"
-                            >
-                              ✓ Phê duyệt hoàn {req.refundAmount}
-                            </Button>
-                          </div>
-                        )}
+                  <div className="overflow-x-auto rounded-2xl border border-brand-border bg-white shadow-sm">
+                    {refundRequests.length === 0 ? (
+                      <div className="p-8 text-center text-stone-500 text-xs">
+                        Hiện chưa có yêu cầu hủy hợp đồng &amp; hoàn cọc nào.
                       </div>
-                    ))}
+                    ) : (
+                      <table className="min-w-full divide-y divide-brand-border/70 text-left text-xs">
+                        <thead className="bg-stone-50 text-[11px] font-bold uppercase tracking-wider text-stone-500">
+                          <tr>
+                            <th className="px-4 py-3">Mã / Hợp đồng</th>
+                            <th className="px-4 py-3">Khách hàng</th>
+                            <th className="px-4 py-3">Thửa đất</th>
+                            <th className="px-4 py-3">Thanh toán &amp; Hoàn tiền</th>
+                            <th className="px-4 py-3">Lý do</th>
+                            <th className="px-4 py-3">Trạng thái</th>
+                            <th className="px-4 py-3 text-right">Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-brand-border/50 bg-white">
+                          {refundRequests.map((req) => (
+                            <tr key={req.id} className="hover:bg-stone-50/70 transition-colors">
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="font-mono font-bold text-brand-green block">{req.id}</span>
+                                <span className="text-[11px] text-stone-400">{req.contractCode}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <strong className="text-brand-dark block">{req.customerName}</strong>
+                                <span className="text-[11px] text-stone-500">{req.customerPhone || 'Khách hàng'}</span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap font-bold text-stone-800">{req.plotCode || '—'}</td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className="text-stone-600 block">Đã trả: {req.totalPaid}</span>
+                                <strong className="text-emerald-700 font-bold">Hoàn: {req.refundAmount} ({req.refundPercent}%)</strong>
+                              </td>
+                              <td className="px-4 py-3 max-w-[220px] text-stone-600">
+                                <span className="line-clamp-2">{req.reason || '—'}</span>
+                                <span className="text-[11px] text-stone-400">Khấu trừ: {req.deductionFee}</span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  req.status === 'PENDING' ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                                }`}>
+                                  {req.status === 'PENDING' ? 'Chờ phê duyệt' : 'Đã duyệt hoàn tiền'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-right">
+                                {req.status === 'PENDING' ? (
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    onClick={() => handleApproveRefund(req.id)}
+                                    className="bg-emerald-700 hover:bg-emerald-800 !text-white hover:!text-white font-bold cursor-pointer text-[11px]"
+                                  >
+                                    ✓ Duyệt hoàn {req.refundAmount}
+                                  </Button>
+                                ) : (
+                                  <span className="text-[11px] text-stone-400">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 )}
               </div>

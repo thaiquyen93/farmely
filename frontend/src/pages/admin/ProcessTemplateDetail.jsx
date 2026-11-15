@@ -114,6 +114,16 @@ export default function ProcessTemplateDetail() {
     const tId = template.id || template.templateId || id;
     if (!window.confirm(`Xác nhận phê duyệt và ban hành quy trình "${template.name}"?`)) return;
 
+    let approvedInDb = false;
+    try {
+      const res = await fetch(`/api/templates/${tId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'ACTIVE' })
+      });
+      approvedInDb = res.ok;
+    } catch {}
+
     setTemplateStatus(tId, 'ACTIVE');
     setTemplate((prev) => ({ ...prev, status: 'ACTIVE' }));
 
@@ -121,6 +131,7 @@ export default function ProcessTemplateDetail() {
     await sendNotification({
       targetRole: 'EXPERT',
       userId: template.ptCreatedBy || null,
+      skipApiPost: approvedInDb,
       title: '✅ Quy trình canh tác đã được phê duyệt',
       content: `Quản trị viên đã phê duyệt và ban hành quy trình "${template.name}". Quy trình chính thức có hiệu lực áp dụng trên các thửa đất.`,
       type: 'PROCESS_TEMPLATE',

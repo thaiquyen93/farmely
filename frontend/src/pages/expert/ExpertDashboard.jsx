@@ -274,6 +274,24 @@ export default function ExpertDashboard() {
   const [fieldIssues, setFieldIssues] = useState([]);
 
   const [selectedIssueDetail, setSelectedIssueDetail] = useState(null);
+  const handledUrlIssueRef = React.useRef('');
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const rawIssueId = params.get('issueId');
+    if (!rawIssueId || !Array.isArray(fieldIssues) || fieldIssues.length === 0) return;
+    const key = `${location.search}:${rawIssueId}`;
+    if (handledUrlIssueRef.current === key) return;
+    const numericTarget = Number(String(rawIssueId).replace(/\D/g, ''));
+    const matched = fieldIssues.find((item) => {
+      const itemNumeric = Number(String(item.issueId || item.apiId || item.id || '').replace(/\D/g, ''));
+      return (numericTarget > 0 && itemNumeric === numericTarget) || String(item.id) === String(rawIssueId) || String(item.issueCode) === String(rawIssueId);
+    });
+    if (matched) {
+      handledUrlIssueRef.current = key;
+      setActiveTab('issues');
+      setSelectedIssueDetail(matched);
+    }
+  }, [location.search, fieldIssues]);
   const [detailDiagnosisText, setDetailDiagnosisText] = useState('');
   const [detailAssignWorkerId, setDetailAssignWorkerId] = useState(8);
   const [detailDueDate, setDetailDueDate] = useState('');
@@ -1559,7 +1577,13 @@ export default function ExpertDashboard() {
           diagnosis: issue.diagnosis || issue.resolutionNotes || '',
           status: issue.status || issue.displayStatus || 'OPEN',
           assignedTaskCode: issue.assignedTaskCode || null,
-          assignedDueDate: issue.assignedDueDate || null
+          assignedDueDate: issue.assignedDueDate || null,
+          assignedTaskTitle: issue.assignedTaskTitle || '',
+          assignedTaskNotes: issue.assignedTaskNotes || '',
+          assignedTaskStatus: issue.assignedTaskStatus || '',
+          resolutionProofPhoto: issue.resolutionProofPhoto || '',
+          resolutionCompletedAt: issue.resolutionCompletedAt || '',
+          assignedWorkerName: issue.assignedWorkerName || ''
         })));
       }
       if (templates.length > 0) {
@@ -3624,10 +3648,57 @@ export default function ExpertDashboard() {
             {/* Bước 3: Giao việc khắc phục cho CVLĐ */}
             <section className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
               {renderSectionHeader(3, 'Giao việc cho CVLĐ', Boolean(selectedIssueDetail.assignedTaskCode || selectedIssueDetail.status === 'RESOLVED'))}
-              {(selectedIssueDetail.status === 'RESOLVED' || selectedIssueDetail.status === 'DONE') && (
-                <div className="p-3 bg-emerald-100/90 border border-emerald-300 rounded-xl text-emerald-900 font-bold text-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>✓ Nhân viên hiện trường đã hoàn thành ca khắc phục sự cố này và đồng bộ ảnh minh chứng vào nhật ký nông trại.</span>
+              {(selectedIssueDetail.status === 'RESOLVED' || selectedIssueDetail.status === 'DONE' || selectedIssueDetail.assignedTaskStatus === 'DONE') && (
+                <div className="space-y-3 rounded-xl border border-emerald-300 bg-white p-3.5 shadow-xs">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>Nhân viên hiện trường đã hoàn thành ca khắc phục sự cố này và cập nhật minh chứng thực tế.</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs">
+                    <div className="space-y-1.5 rounded-lg border border-emerald-100 bg-emerald-50/40 p-2.5">
+                      <p className="font-bold text-brand-dark">
+                        Công việc: {selectedIssueDetail.assignedTaskTitle || 'Xử lý sự cố hiện trường'}
+                        {selectedIssueDetail.assignedTaskCode ? ` (${selectedIssueDetail.assignedTaskCode})` : ''}
+                      </p>
+                      <p className="text-stone-600">
+                        Nhân viên thực hiện: <strong className="text-stone-800">{selectedIssueDetail.assignedWorkerName || selectedIssueDetail.workerName || 'Nhân viên hiện trường'}</strong>
+                      </p>
+                      {selectedIssueDetail.resolutionCompletedAt && (
+                        <p className="text-stone-600">
+                          Hoàn thành lúc: <strong className="text-stone-800">{selectedIssueDetail.resolutionCompletedAt}</strong>
+                        </p>
+                      )}
+                      {selectedIssueDetail.assignedTaskNotes && (
+                        <p className="whitespace-pre-line text-stone-700 pt-1 border-t border-emerald-100">
+                          {selectedIssueDetail.assignedTaskNotes}
+                        </p>
+                      )}
+                    </div>
+
+                    {selectedIssueDetail.resolutionProofPhoto ? (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">Ảnh minh chứng Staff đã chụp</p>
+                        <a
+                          href={selectedIssueDetail.resolutionProofPhoto}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block overflow-hidden rounded-lg border border-emerald-200 bg-stone-50"
+                          title="Nhấn để xem ảnh minh chứng kích thước đầy đủ"
+                        >
+                          <img
+                            src={selectedIssueDetail.resolutionProofPhoto}
+                            alt="Ảnh minh chứng hoàn thành sự cố"
+                            className="h-36 w-full object-cover transition-transform hover:scale-[1.02]"
+                          />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center rounded-lg border border-dashed border-emerald-200 bg-stone-50 p-3 text-[11px] text-stone-500">
+                        Đã đồng bộ nhật ký (không có ảnh đính kèm)
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               <IssueAssignmentPanel
