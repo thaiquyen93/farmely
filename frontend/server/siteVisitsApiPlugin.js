@@ -4394,9 +4394,24 @@ WHERE land_id = ${landId};
               return;
             }
 
-            await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id IN (SELECT plot_id FROM plots WHERE land_id = ${landId});`);
-            await runPostgreSql(`DELETE FROM plots WHERE land_id = ${landId};`);
-            await runPostgreSql(`DELETE FROM lands WHERE land_id = ${landId};`);
+            await getPgPool().query(`
+              DELETE FROM messages WHERE conversation_id IN (
+                SELECT conversation_id FROM conversations
+                WHERE plot_id IN (SELECT plot_id FROM plots WHERE land_id = $1)
+                   OR rental_id IN (SELECT rental_id FROM rentals WHERE plot_id IN (SELECT plot_id FROM plots WHERE land_id = $1))
+              );
+            `, [landId]);
+            await getPgPool().query(`
+              DELETE FROM conversations
+              WHERE plot_id IN (SELECT plot_id FROM plots WHERE land_id = $1)
+                 OR rental_id IN (SELECT rental_id FROM rentals WHERE plot_id IN (SELECT plot_id FROM plots WHERE land_id = $1));
+            `, [landId]);
+            await getPgPool().query('DELETE FROM sensor_readings WHERE plot_id IN (SELECT plot_id FROM plots WHERE land_id = $1);', [landId]);
+            await getPgPool().query('DELETE FROM iot_alerts WHERE plot_id IN (SELECT plot_id FROM plots WHERE land_id = $1);', [landId]);
+            await getPgPool().query('DELETE FROM site_visits WHERE plot_id IN (SELECT plot_id FROM plots WHERE land_id = $1);', [landId]);
+            await getPgPool().query('DELETE FROM plot_variety_compatibility WHERE plot_id IN (SELECT plot_id FROM plots WHERE land_id = $1);', [landId]);
+            await getPgPool().query('DELETE FROM plots WHERE land_id = $1;', [landId]);
+            await getPgPool().query('DELETE FROM lands WHERE land_id = $1;', [landId]);
 
             invalidatePlotsCache();
 
@@ -4971,11 +4986,42 @@ RETURNING plot_id, land_id, plot_code, area, price_per_period, status, is_publis
           const match = url.match(/^\/api(?:\/v1)?\/plots\/(\d+)$/);
           const plotId = parseInt(match[1], 10);
           try {
-            await runPostgreSql(`DELETE FROM plot_variety_compatibility WHERE plot_id = ${plotId};`);
-            await runPostgreSql(`DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = ${plotId});`);
-            await runPostgreSql(`DELETE FROM rentals WHERE plot_id = ${plotId};`);
-            await runPostgreSql(`DELETE FROM site_visits WHERE plot_id = ${plotId};`);
-            await runPostgreSql(`DELETE FROM plots WHERE plot_id = ${plotId};`);
+            const client = await getPgPool().connect();
+            try {
+              await client.query('BEGIN');
+              await client.query(`
+                DELETE FROM messages WHERE conversation_id IN (
+                  SELECT conversation_id FROM conversations
+                  WHERE plot_id = $1
+                     OR rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = $1)
+                )
+              `, [plotId]);
+              await client.query(`
+                DELETE FROM conversations
+                WHERE plot_id = $1
+                   OR rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = $1)
+              `, [plotId]);
+              await client.query('DELETE FROM sensor_readings WHERE plot_id = $1', [plotId]);
+              await client.query('DELETE FROM iot_alerts WHERE plot_id = $1', [plotId]);
+              await client.query('DELETE FROM plot_variety_compatibility WHERE plot_id = $1', [plotId]);
+              await client.query('DELETE FROM site_visits WHERE plot_id = $1', [plotId]);
+              await client.query('DELETE FROM farm_diaries WHERE rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = $1)', [plotId]);
+              await client.query('DELETE FROM harvest_results WHERE rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = $1)', [plotId]);
+              await client.query('DELETE FROM issue_reports WHERE rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = $1)', [plotId]);
+              await client.query('DELETE FROM payment_transactions WHERE service_request_id IN (SELECT request_id FROM service_requests WHERE rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = $1))', [plotId]);
+              await client.query('DELETE FROM care_tasks WHERE rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = $1)', [plotId]);
+              await client.query('DELETE FROM service_requests WHERE rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = $1)', [plotId]);
+              await client.query('DELETE FROM renewal_requests WHERE rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = $1)', [plotId]);
+              await client.query('DELETE FROM demo_cultivation_state WHERE rental_id IN (SELECT rental_id FROM rentals WHERE plot_id = $1)', [plotId]);
+              await client.query('DELETE FROM rentals WHERE plot_id = $1', [plotId]);
+              await client.query('DELETE FROM plots WHERE plot_id = $1', [plotId]);
+              await client.query('COMMIT');
+            } catch (txErr) {
+              await client.query('ROLLBACK').catch(() => {});
+              throw txErr;
+            } finally {
+              client.release();
+            }
 
             invalidatePlotsCache();
 

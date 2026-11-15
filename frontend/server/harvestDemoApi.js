@@ -247,11 +247,15 @@ export async function recordHarvestOnce(pool, payload) {
           evidence_image_url = $2, updated_at = now()
         WHERE task_id = $1
       `, [taskId, payload.evidenceImageUrl]);
+      const qualityNote = String(payload.qualityNotes || payload.notes || '').trim();
+      const diaryContent = qualityNote
+        ? `Sản lượng cân điện tử: ${saved.yieldAmount} kg. Nhận xét năng suất: ${qualityNote}`
+        : `Sản lượng cân điện tử: ${saved.yieldAmount} kg.`;
       await client.query(`
         INSERT INTO farm_diaries(rental_id, task_id, harvest_id, title, content, image_url, created_at)
         VALUES ($1, $2, $3, 'Thu hoạch', $4, $5, now())
         ON CONFLICT (harvest_id) WHERE harvest_id IS NOT NULL DO NOTHING
-      `, [rentalId, taskId, saved.harvestId, `Sản lượng cân điện tử: ${saved.yieldAmount} kg.`, payload.evidenceImageUrl]);
+      `, [rentalId, taskId, saved.harvestId, diaryContent, payload.evidenceImageUrl]);
     }
     await client.query(`
       UPDATE plots p

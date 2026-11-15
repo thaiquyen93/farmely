@@ -436,15 +436,131 @@ function IssueHistory({ issues, filter, onFilter, search, onSearch, selectedIssu
   );
 }
 
-function HarvestRecorder({ workItems, selected, onSelect, photos, onPhotos, onRemovePhoto, weight, onWeight, confirmed, onConfirmed, user, onSubmit, submitting }) {
+function HarvestRecorder({ workItems, selected, onSelect, photos, onPhotos, onRemovePhoto, weight, onWeight, note, onNote, confirmed, onConfirmed, user, onSubmit, submitting }) {
   return (
-    <form onSubmit={onSubmit} className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="space-y-5">
-        <section className="rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-sm font-black text-white">1</span><div><h3 className="font-heading text-lg font-black text-brand-dark">Thửa đất thu hoạch</h3><p className="text-xs text-brand-muted">Chọn đúng thửa trước khi ghi nhận.</p></div></div><div className="mt-4 grid gap-3 sm:grid-cols-2">{workItems.map((item) => <button key={item.id} type="button" onClick={() => onSelect(item)} className={`flex items-center gap-3 rounded-2xl border p-3 text-left ${selected?.id === item.id ? 'border-emerald-600 bg-emerald-50' : 'border-brand-border'}`}><div className="flex h-16 w-20 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 font-bold font-mono text-sm">{item.plotCode}</div><div className="min-w-0"><strong className="block truncate text-sm text-brand-dark">{item.plotCode} · {item.crop}</strong><span className="mt-1 block text-xs text-stone-500">{item.plotName}</span></div>{selected?.id === item.id ? <CheckCircle2 className="ml-auto h-5 w-5 text-emerald-600" /> : null}</button>)}</div></section>
-        <section className="rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-sm font-black text-white">2</span><div><h3 className="font-heading text-lg font-black text-brand-dark">Ảnh thu hoạch thực tế</h3><p className="text-xs text-brand-muted">Tối thiểu một ảnh rõ toàn bộ nông sản tại thửa.</p></div></div><label className="mt-4 flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 p-5 text-center"><Camera className="h-8 w-8 text-emerald-700" /><strong className="mt-2 text-sm text-brand-dark">Chụp ảnh hoặc tải ảnh lên</strong><span className="mt-1 text-xs text-brand-muted">Tối đa 4 ảnh</span><input type="file" accept="image/*" capture="environment" multiple onChange={(event) => onPhotos(event.target.files)} className="sr-only" /></label>{photos.length ? <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{photos.map((photo, index) => <div key={`${photo.slice(-20)}-${index}`} className="group relative"><img src={photo} alt={`Ảnh thu hoạch ${index + 1}`} className="h-28 w-full rounded-xl object-cover" /><button type="button" onClick={() => onRemovePhoto(index)} aria-label={`Xóa ảnh ${index + 1}`} className="absolute right-2 top-2 rounded-full bg-white/90 p-1.5 text-rose-600"><Trash2 className="h-4 w-4" /></button></div>)}</div> : null}</section>
-        <section className="rounded-3xl border border-brand-border bg-white p-4 shadow-sm sm:p-6"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-700 text-sm font-black text-white">3</span><div><h3 className="font-heading text-lg font-black text-brand-dark">Khối lượng và người ghi nhận</h3><p className="text-xs text-brand-muted">Nhập số cân thực tế và kiểm tra người thực hiện.</p></div></div><div className="mt-4 grid gap-4 lg:grid-cols-2"><div className="rounded-2xl bg-stone-50 p-4"><UserCheck className="h-6 w-6 text-emerald-700" /><strong className="mt-3 block text-brand-dark">{user?.fullName || user?.name || 'Nhân viên hiện trường'}</strong><span className="text-xs text-stone-500">Nhân viên ghi nhận</span><div className="mt-4 border-t pt-3 text-xs"><span className="text-stone-400">Thửa đất</span><strong className="mt-1 block text-brand-dark">{selected?.plotCode || 'Chưa chọn thửa'}</strong></div></div><label className="rounded-2xl border border-brand-border p-4"><span className="text-xs font-black text-brand-dark">Khối lượng thu hoạch</span><div className="mt-3 flex items-center rounded-xl border border-brand-border bg-white px-4 focus-within:border-emerald-500"><input type="number" min="0.01" step="0.01" inputMode="decimal" value={weight} onChange={(event) => onWeight(event.target.value)} placeholder="0.00" className="min-w-0 flex-1 py-3 text-xl font-black text-brand-dark outline-none" /><span className="font-bold text-stone-500">kg</span></div><p className="mt-2 text-[11px] text-stone-400">Nhập tổng khối lượng đã cân tại thửa.</p></label></div><label className="mt-4 flex items-start gap-3 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-900"><input type="checkbox" checked={confirmed} onChange={(event) => onConfirmed(event.target.checked)} className="mt-0.5 h-4 w-4" />Tôi xác nhận hình ảnh và số cân trên được ghi nhận trực tiếp tại đúng thửa đất.</label></section>
+    <form onSubmit={onSubmit} className="space-y-4">
+      {/* Thông tin cơ bản */}
+      <div className="rounded-2xl border border-brand-border bg-stone-50/70 p-4 space-y-3 text-xs">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="block font-bold text-stone-600 mb-1">Thửa đất thu hoạch</label>
+            <select
+              value={selected?.id || ''}
+              onChange={(e) => {
+                const found = workItems.find((item) => String(item.id) === String(e.target.value));
+                if (found) onSelect(found);
+              }}
+              className="w-full rounded-xl border border-brand-border bg-white px-3 py-2 text-xs font-bold text-brand-dark outline-none focus:border-emerald-500"
+            >
+              {workItems.length === 0 && <option value="">Chưa có thửa cần thu hoạch</option>}
+              {workItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.plotCode} · {item.crop} ({item.plotName})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className="block font-bold text-stone-600 mb-1">Nhân viên ghi nhận</span>
+            <div className="flex items-center gap-2 rounded-xl border border-brand-border bg-white px-3 py-2 font-bold text-brand-dark">
+              <UserCheck className="h-4 w-4 text-emerald-700 shrink-0" />
+              <span className="truncate">{user?.fullName || user?.name || 'Nhân viên hiện trường'}</span>
+            </div>
+          </div>
+        </div>
       </div>
-      <aside className="h-fit rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm xl:sticky xl:top-24"><h3 className="font-heading text-lg font-black text-brand-dark">Tóm tắt thu hoạch</h3><div className="mt-4 space-y-4 text-xs"><div><span className="text-stone-400">Thửa đất</span><strong className="mt-1 block text-brand-dark">{selected ? `${selected.plotCode} · ${selected.crop}` : 'Chưa chọn thửa'}</strong></div><div><span className="text-stone-400">Người ghi nhận</span><strong className="mt-1 block text-brand-dark">{user?.fullName || user?.name || 'Nhân viên hiện trường'}</strong></div><div><span className="text-stone-400">Khối lượng</span><strong className="mt-1 block text-lg text-brand-dark">{Number(weight) > 0 ? `${Number(weight).toLocaleString('vi-VN')} kg` : 'Chưa nhập'}</strong></div><div><span className="text-stone-400">Ảnh đã chụp</span><strong className="mt-1 block text-brand-dark">{photos.length} ảnh</strong></div></div><Button type="submit" disabled={submitting || !selected?.apiTaskId || selected?.status === 'COMPLETED' || photos.length === 0 || !(Number(weight) > 0) || !confirmed} className="mt-5 w-full"><Scale className="mr-2 h-4 w-4" />{submitting ? 'Đang lưu...' : 'Hoàn tất thu hoạch'}</Button></aside>
+
+      {/* Sản lượng (kg) */}
+      <div>
+        <label className="block text-xs font-bold text-brand-dark mb-1.5">
+          Sản lượng thu hoạch thực tế (kg) <span className="text-rose-500">*</span>
+        </label>
+        <div className="flex items-center rounded-xl border border-brand-border bg-white px-3.5 focus-within:border-emerald-500">
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            inputMode="decimal"
+            value={weight}
+            onChange={(event) => onWeight(event.target.value)}
+            placeholder="Ví dụ: 35.50"
+            className="min-w-0 flex-1 py-2.5 text-base font-black text-brand-dark outline-none"
+          />
+          <span className="font-bold text-sm text-stone-500">kg</span>
+        </div>
+      </div>
+
+      {/* Ảnh thu hoạch */}
+      <div>
+        <label className="block text-xs font-bold text-brand-dark mb-1.5">
+          Ảnh thu hoạch thực tế <span className="text-rose-500">*</span>
+        </label>
+        <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 p-4 text-center hover:bg-emerald-50/70 transition-colors">
+          <Camera className="h-6 w-6 text-emerald-700" />
+          <strong className="mt-1.5 text-xs text-brand-dark">Chụp ảnh hoặc tải ảnh lên</strong>
+          <span className="mt-0.5 text-[11px] text-brand-muted">Tối đa 4 ảnh rõ nông sản &amp; cân đối chứng</span>
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            onChange={(event) => onPhotos(event.target.files)}
+            className="sr-only"
+          />
+        </label>
+        {photos.length > 0 && (
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {photos.map((photo, index) => (
+              <div key={`${photo.slice(-20)}-${index}`} className="group relative">
+                <img src={photo} alt={`Ảnh thu hoạch ${index + 1}`} className="h-24 w-full rounded-xl object-cover border border-stone-200" />
+                <button
+                  type="button"
+                  onClick={() => onRemovePhoto(index)}
+                  aria-label={`Xóa ảnh ${index + 1}`}
+                  className="absolute right-1.5 top-1.5 rounded-full bg-white/95 p-1 text-rose-600 shadow-xs"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Nhận xét năng suất */}
+      <div>
+        <label className="block text-xs font-bold text-brand-dark mb-1.5">
+          Nhận xét năng suất &amp; chất lượng nông sản
+        </label>
+        <textarea
+          rows={3}
+          value={note}
+          onChange={(e) => onNote(e.target.value)}
+          placeholder="Ví dụ: Nông sản tươi đồng đều, đạt chuẩn VietGAP, năng suất đạt tốt..."
+          className="w-full rounded-xl border border-brand-border bg-white px-3.5 py-2.5 text-xs text-brand-dark outline-none focus:border-emerald-500"
+        />
+      </div>
+
+      <label className="flex items-start gap-2.5 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-900 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(event) => onConfirmed(event.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0"
+        />
+        <span>Tôi xác nhận hình ảnh và số cân trên được ghi nhận trực tiếp tại đúng thửa đất.</span>
+      </label>
+
+      <div className="flex justify-end pt-1">
+        <Button
+          type="submit"
+          disabled={submitting || !selected?.apiTaskId || selected?.status === 'COMPLETED' || photos.length === 0 || !(Number(weight) > 0) || !confirmed}
+          className="w-full sm:w-auto font-bold"
+        >
+          <Scale className="mr-2 h-4 w-4" />
+          {submitting ? 'Đang lưu...' : 'Hoàn tất thu hoạch'}
+        </Button>
+      </div>
     </form>
   );
 }
@@ -516,6 +632,7 @@ export default function FieldWorkerDashboard() {
   const [selectedHarvestProofModal, setSelectedHarvestProofModal] = useState(null);
   const [harvestPhotos, setHarvestPhotos] = useState([]);
   const [harvestWeight, setHarvestWeight] = useState('');
+  const [harvestNote, setHarvestNote] = useState('');
   const [harvestConfirmed, setHarvestConfirmed] = useState(false);
   const [harvestSubmitting, setHarvestSubmitting] = useState(false);
   const harvestSubmittingRef = useRef(false);
@@ -1268,6 +1385,7 @@ export default function FieldWorkerDashboard() {
     setSelectedHarvestTask(task || harvestWorkItems[0] || null);
     setHarvestPhotos([]);
     setHarvestWeight('');
+    setHarvestNote('');
     setHarvestConfirmed(false);
     setShowHarvestReportModal(true);
   };
@@ -1306,7 +1424,8 @@ export default function FieldWorkerDashboard() {
           harvestDate: new Date().toISOString().slice(0, 10),
           yieldAmount: parsedWeight,
           deliveryType: 'PICKUP',
-          evidenceImageUrl: harvestPhotos[0]
+          evidenceImageUrl: harvestPhotos[0],
+          qualityNotes: harvestNote.trim()
         })
       }));
       if (!response) return;
@@ -1376,6 +1495,7 @@ export default function FieldWorkerDashboard() {
     setShowHarvestReportModal(false);
     setHarvestPhotos([]);
     setHarvestWeight('');
+    setHarvestNote('');
     setHarvestConfirmed(false);
     setDataError('');
     setDataSuccess('Đã lưu hình ảnh, số cân và người ghi nhận thu hoạch tại thửa.');
@@ -3241,13 +3361,13 @@ export default function FieldWorkerDashboard() {
 
       </main>
 
-      {/* Popup Báo cáo thu hoạch (Upload ảnh & ghi nhận sản lượng) */}
+      {/* Popup Báo cáo thu hoạch (Form gọn: Thông tin cơ bản, sản lượng, ảnh, nhận xét năng suất) */}
       <Modal
         isOpen={showHarvestReportModal}
         onClose={() => setShowHarvestReportModal(false)}
-        title="Báo cáo thu hoạch & Cân đối chứng"
-        subtitle="Upload ảnh minh chứng thực tế và ghi nhận khối lượng thu hoạch tại thửa đất"
-        size="xl"
+        title="Báo cáo thu hoạch"
+        subtitle="Nhập thông tin cơ bản, sản lượng (kg), ảnh minh chứng và nhận xét năng suất"
+        size="lg"
       >
         <HarvestRecorder
           workItems={harvestWorkItems}
@@ -3258,6 +3378,8 @@ export default function FieldWorkerDashboard() {
           onRemovePhoto={(index) => setHarvestPhotos((current) => current.filter((_, photoIndex) => photoIndex !== index))}
           weight={harvestWeight}
           onWeight={setHarvestWeight}
+          note={harvestNote}
+          onNote={setHarvestNote}
           confirmed={harvestConfirmed}
           onConfirmed={setHarvestConfirmed}
           user={user}
