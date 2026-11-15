@@ -33,9 +33,44 @@ export const getSafeAvatar = (url, role = 'customer') => {
   return DEFAULT_AVATARS[role] || DEFAULT_AVATARS.customer;
 };
 
+function sanitizeStoredThreads(threads) {
+  return threads
+    .filter((thread) => thread && typeof thread === 'object')
+    .map((thread) => {
+      // Heal CONS-401 if a previous sync overwrote participantUserId with Expert (5)
+      if (
+        thread.id === 'CONS-401' &&
+        thread.role === 'customer' &&
+        (Number(thread.participantUserId) === 5 || String(thread.customerName || '').includes('Hoàng Nam'))
+      ) {
+        const demo = DEMO_CUSTOMERS[0];
+        return {
+          ...thread,
+          participantUserId: demo.userId,
+          customerName: demo.name,
+          customerEmail: demo.email,
+          customerAvatar: demo.avatar,
+          expertName: demo.expertName
+        };
+      }
+      return thread;
+    })
+    .filter((thread) => {
+      // Remove corrupted self-threads created when Expert/Admin mounted global customer widget
+      if (thread.role === 'customer' && (
+        thread.id === 'CONS-USER-5' ||
+        thread.id === 'CONS-5' ||
+        (Number(thread.participantUserId) === 5 && String(thread.customerName || '').includes('Hoàng Nam'))
+      )) {
+        return false;
+      }
+      return true;
+    });
+}
+
 function mergeDuplicateCustomerThreads(threads) {
   const output = [];
-  threads.forEach((thread) => {
+  sanitizeStoredThreads(threads).forEach((thread) => {
     if (thread?.role !== 'customer') {
       output.push(thread);
       return;

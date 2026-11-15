@@ -216,6 +216,13 @@ export function formatArea(m2) {
   return m2 >= 10000 ? `${sqm} (${(m2 / 10000).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} ha)` : sqm;
 }
 
+/** Diện tích do Admin nhập: giữ phần thập phân, không làm tròn thành số nguyên. */
+export function formatRecordedArea(m2) {
+  if (!Number.isFinite(m2) || m2 <= 0) return '—';
+  const sqm = `${m2.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} m²`;
+  return m2 >= 10000 ? `${sqm} (${(m2 / 10000).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} ha)` : sqm;
+}
+
 export function formatLength(m) {
   if (!Number.isFinite(m) || m <= 0) return '—';
   return m >= 1000 ? `${(m / 1000).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} km` : `${Math.round(m).toLocaleString('vi-VN')} m`;

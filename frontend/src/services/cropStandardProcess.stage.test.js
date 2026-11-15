@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveStandardCropProcess } from './cropStandardProcess';
+import { resolveStandardCropProcess, stripEvidenceNote } from './cropStandardProcess';
 
 /**
  * Chọn giai đoạn hiện tại khi lịch template_steps có khoảng trống ngày.
@@ -53,5 +53,26 @@ describe('resolveStandardCropProcess — currentStage', () => {
     expect(r.stages[1].label).toBe('Ngày 10 – 24');
     expect(r.stages[2].label).toBe('Ngày 25 – 44');
     expect(r.stages[3].label).toBe('Ngày 45');
+  });
+
+  it('bỏ phần Minh chứng trong hướng dẫn và chọn đúng giai đoạn Thu hoạch ở Ngày 45/45 kể cả khi dayOffset vượt tổng ngày', () => {
+    const stagesWithIsolationAndHarvest = [
+      {
+        stepId: 1,
+        dayOffset: 36,
+        stage: 'Cách ly phân thuốc & Tưới gốc',
+        description: 'Ngừng toàn bộ phân bón lá và thuốc. Chỉ tưới nước sạch. Minh chứng: Ảnh bụi xà lách nở tròn đều'
+      },
+      {
+        stepId: 2,
+        dayOffset: 90,
+        stage: 'Thu hoạch & Đóng gói',
+        description: 'Thu hoạch xà lách, cân điện tử và dán tem truy xuất. Minh chứng: Ảnh giỏ thu hoạch'
+      }
+    ];
+    const r = resolveStandardCropProcess({ crop: 'Xà lách Romaine', totalDays: 45, currentDay: 45 }, stagesWithIsolationAndHarvest);
+    expect(r.currentStage.name).toBe('Thu hoạch & Đóng gói');
+    expect(r.stages[0].statusDesc).not.toContain('Minh chứng:');
+    expect(stripEvidenceNote('Chăm sóc định kỳ. Minh chứng: Ảnh vườn')).toBe('Chăm sóc định kỳ.');
   });
 });

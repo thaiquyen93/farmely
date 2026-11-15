@@ -56,21 +56,55 @@ export const chatService = {
   /**
    * Send a new message to a thread
    */
-  async sendMessage({ threadId, sender, text, senderName = '', meta = {} }) {
+  async sendMessage({ threadId, sender, text, senderName = '', senderUserId = null, expertId = 5, meta = {} }) {
     if (!threadId || !text?.trim()) return null;
 
     const currentThread = getStoredThreadById(threadId);
-    const authUserId = Number(getStoredAuth()?.user?.userId);
-    const customerId = Number(currentThread?.participantUserId) || (sender === 'customer' ? authUserId : 0);
-    const senderId = sender === 'expert' ? authUserId : customerId;
-    if (!Number.isInteger(senderId) || senderId <= 0) throw new Error('Không xác định được người gửi tin nhắn');
+    const storedAuthUser = getStoredAuth()?.user;
+    const authUserId = Number(senderUserId || storedAuthUser?.userId || (typeof storedAuthUser?.id === 'number' ? storedAuthUser.id : 0));
+
+    let customerId = 0;
+    let targetExpertId = Number(currentThread?.expertId) || Number(expertId) || 5;
+    let senderId = 0;
+
+    if (sender === 'expert') {
+      senderId = authUserId;
+      targetExpertId = authUserId || targetExpertId;
+      customerId = Number(currentThread?.participantUserId) || 0;
+      if (!customerId || customerId === senderId) {
+        const matchedDemo = DEMO_CUSTOMERS.find((c) => c.threadId === threadId);
+        if (matchedDemo) {
+          customerId = Number(matchedDemo.userId);
+        } else {
+          const idMatch = String(threadId).match(/^CONS-(?:USER-)?(\d+)$/);
+          if (idMatch) customerId = Number(idMatch[1]);
+        }
+      }
+      if (!Number.isInteger(senderId) || senderId <= 0) {
+        throw new Error('Không xác định được tài khoản chuyên gia đang gửi');
+      }
+      if (!Number.isInteger(customerId) || customerId <= 0 || customerId === senderId) {
+        throw new Error('Không xác định được người nhận cuộc hội thoại');
+      }
+    } else {
+      senderId = authUserId;
+      customerId = authUserId;
+      if (!Number.isInteger(senderId) || senderId <= 0) {
+        throw new Error('Vui lòng đăng nhập để gửi tin nhắn cho chuyên gia');
+      }
+    }
 
     let conversationId = Number(currentThread?.conversationId);
     if (!conversationId && customerId > 0) {
+      const convType = currentThread?.role === 'admin'
+        ? 'ADMIN_EXP'
+        : (sender === 'worker' || currentThread?.role === 'worker')
+          ? 'STAFF_EXP'
+          : 'CUST_EXP';
       const conversationResponse = await fetch('/api/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getChatAuthHeaders() },
-        body: JSON.stringify({ participantOne: customerId, participantTwo: sender === 'expert' ? senderId : 5, type: sender === 'worker' ? 'STAFF_EXP' : 'CUST_EXP' })
+        body: JSON.stringify({ participantOne: customerId, participantTwo: targetExpertId, type: convType })
       });
       const conversationPayload = await conversationResponse.json();
       if (!conversationResponse.ok || !conversationPayload.success) throw new Error(conversationPayload.message || 'Không thể mở hội thoại');
@@ -83,7 +117,12 @@ export const chatService = {
     const response = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getChatAuthHeaders() },
-      body: JSON.stringify({ senderId, content: text.trim(), attachmentUrl: meta?.photoUrl || null })
+      body: JSON.stringify({
+        senderId,
+        senderName: senderName || undefined,
+        content: text.trim(),
+        attachmentUrl: meta?.photoUrl || null
+      })
     });
     const payload = await response.json();
     if (!response.ok || !payload.success) throw new Error(payload.message || 'Gửi tin nhắn thất bại');
@@ -97,9 +136,11 @@ export const chatService = {
       backendMessageId: payload.data?.messageId || null,
       conversationId,
       sender,
+      senderId,
       text: text.trim(),
       senderName,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdAt: payload.data?.createdAt || new Date().toISOString(),
       ...messageMeta
     });
 
@@ -138,6 +179,7 @@ export const chatService = {
 
   updateRentalContext(payload) {
     const result = updateThreadRentalInStorage(payload);
+    if (!result) return null;
     communicationBus.postMessage({
       type: CHAT_EVENTS.RENTAL_UPDATED,
       threadId: payload.threadId,
@@ -178,8 +220,9 @@ export const chatService = {
 
   async syncBackendMessages({ role, userId } = {}) {
     try {
-      if (!userId) return;
-      const query = role === 'expert' ? `expertId=${userId}` : `userId=${userId}`;
+      const currentUserId = Number(userId);
+      if (!currentUserId) return;
+      const query = role === 'expert' ? `expertId=${currentUserId}` : `userId=${currentUserId}`;
       const res = await fetch(`/api/conversations?${query}`, { headers: getChatAuthHeaders() });
       if (!res.ok) return;
       const json = await res.json();
@@ -190,17 +233,30 @@ export const chatService = {
       let hasNewOverall = false;
 
       const customerGroups = new Map();
-      backendConvs.filter((conversation) => conversation.type === 'CUST_EXP').forEach((conversation) => {
-        const firstId = Number(conversation.participantOne);
-        const secondId = Number(conversation.participantTwo);
-        const expertId = Number(userId);
-        if (firstId !== expertId && secondId !== expertId) return;
-        const customerId = firstId === expertId ? secondId : firstId;
-        if (!customerId || customerId === expertId) return;
-        const key = `${customerId}:${expertId}`;
-        if (!customerGroups.has(key)) customerGroups.set(key, { customerId, expertId, conversations: [] });
-        customerGroups.get(key).conversations.push(conversation);
-      });
+      backendConvs
+        .filter((conversation) => (
+          conversation.type === 'CUST_EXP' &&
+          conversation.role !== 'admin' &&
+          !/Ban Quản Trị|Admin/i.test(conversation.customerName || '')
+        ))
+        .forEach((conversation) => {
+          const firstId = Number(conversation.participantOne);
+          const secondId = Number(conversation.participantTwo);
+          if (firstId !== currentUserId && secondId !== currentUserId) return;
+          if (!firstId || !secondId || firstId === secondId) return;
+
+          const expertId = role === 'expert'
+            ? currentUserId
+            : (firstId === currentUserId ? secondId : firstId);
+          const customerId = role === 'expert'
+            ? (firstId === currentUserId ? secondId : firstId)
+            : currentUserId;
+          if (!customerId || !expertId || customerId === expertId) return;
+
+          const key = `${customerId}:${expertId}`;
+          if (!customerGroups.has(key)) customerGroups.set(key, { customerId, expertId, conversations: [] });
+          customerGroups.get(key).conversations.push(conversation);
+        });
 
       customerGroups.forEach(({ customerId, expertId, conversations }) => {
         const knownCustomer = DEMO_CUSTOMERS.find((customer) => Number(customer.userId) === customerId);
@@ -217,15 +273,21 @@ export const chatService = {
             senderId: message.senderId,
             senderName: message.senderName || (sender === 'expert' ? 'Chuyên gia' : 'Khách hàng'),
             text,
+            photoUrl: message.photoUrl || message.attachmentUrl || null,
             time: message.time || 'Vừa xong',
             createdAt: message.createdAt,
             seen: true
           };
         }));
 
-        const customerName = backendMessages.find((message) => message.sender !== 'expert')?.senderName;
+        const convCustomerName = conversations.find((c) => c.customerName)?.customerName;
+        const convCustomerEmail = conversations.find((c) => c.customerEmail)?.customerEmail;
+        const convExpertName = conversations.find((c) => c.expertName)?.expertName;
+        const customerName = convCustomerName || backendMessages.find((message) => message.sender !== 'expert')?.senderName;
+
         const candidates = threads.filter((thread) => thread.role === 'customer' && (
           Number(thread.participantUserId) === customerId ||
+          thread.id === `CONS-USER-${customerId}` ||
           (knownCustomer && (thread.id === knownCustomer.threadId || String(thread.customerEmail || '').toLowerCase() === knownCustomer.email.toLowerCase())
             && (!Number(thread.participantUserId) || Number(thread.participantUserId) === customerId)) ||
           (thread.conversationIds || []).some((id) => conversationIds.includes(Number(id))) ||
@@ -234,26 +296,44 @@ export const chatService = {
         const existing = candidates[0] || null;
         const directConversation = [...conversations].sort((a, b) => Number(a.conversationId) - Number(b.conversationId))[0];
         const oldMessages = candidates.flatMap((thread) => thread.messages || []);
-        const mergedMessages = [...oldMessages, ...backendMessages];
-        const uniqueMessages = mergedMessages.filter((message, index, all) => {
+
+        const dedupedMessages = [];
+        const msgKeyIndex = new Map();
+        [...oldMessages, ...backendMessages].forEach((message) => {
           const messageId = message.backendMessageId || message.id;
-          return all.findIndex((candidate) => String(candidate.backendMessageId || candidate.id) === String(messageId)
-            && candidate.text === message.text && candidate.sender === message.sender) === index;
-        }).sort((a, b) => {
+          const key = `${String(messageId)}::${message.sender}::${message.text}`;
+          if (!msgKeyIndex.has(key)) {
+            msgKeyIndex.set(key, dedupedMessages.length);
+            dedupedMessages.push({ ...message });
+          } else {
+            const idx = msgKeyIndex.get(key);
+            dedupedMessages[idx] = {
+              ...dedupedMessages[idx],
+              ...message,
+              createdAt: message.createdAt || dedupedMessages[idx].createdAt,
+              photoUrl: message.photoUrl || dedupedMessages[idx].photoUrl,
+              senderName: message.senderName || dedupedMessages[idx].senderName
+            };
+          }
+        });
+        const uniqueMessages = dedupedMessages.sort((a, b) => {
           const timeA = Date.parse(a.createdAt || '') || (Number(a.id) > 1e12 ? Number(a.id) : 0);
           const timeB = Date.parse(b.createdAt || '') || (Number(b.id) > 1e12 ? Number(b.id) : 0);
           return timeA - timeB;
         });
+
         const threadId = existing?.id || knownCustomer?.threadId || `CONS-${customerId}`;
         const thread = upsertCustomerChatThread({
           threadId,
           conversationId: directConversation?.conversationId,
           participantUserId: customerId,
           customerName: customerName || existing?.customerName || knownCustomer?.name || `Khách hàng #${customerId}`,
-          customerEmail: existing?.customerEmail || knownCustomer?.email,
+          customerEmail: convCustomerEmail || existing?.customerEmail || knownCustomer?.email,
           customerAvatar: existing?.customerAvatar
         })?.thread;
         if (!thread) return;
+        thread.expertId = expertId;
+        thread.expertName = convExpertName || thread.expertName || 'ThS. Nguyễn Hoàng Nam';
         thread.conversationIds = conversationIds;
         thread.messages = uniqueMessages;
         thread.lastTime = uniqueMessages.at(-1)?.time || 'Chưa có tin nhắn';
@@ -270,28 +350,31 @@ export const chatService = {
       });
 
       backendConvs.filter((conversation) => ['ADMIN_EXP', 'STAFF_EXP'].includes(conversation.type)).forEach((bConv) => {
+        const partnerRole = bConv.type === 'ADMIN_EXP' ? 'admin' : 'worker';
+        const partnerId = Number(bConv.participantOne) === currentUserId ? Number(bConv.participantTwo) : Number(bConv.participantOne);
+        const workerThreadId = partnerRole === 'worker' ? `WORK-${bConv.participantOne}` : '';
         let threadIndex = threads.findIndex((t) =>
           (bConv.conversationId && Number(t.conversationId) === Number(bConv.conversationId)) ||
           t.id === bConv.id ||
+          (workerThreadId && t.id === workerThreadId) ||
           (bConv.conversationId && (t.id === `CONS-${bConv.conversationId}` || t.conversationId === bConv.conversationId)) ||
-          (Number(t.participantUserId) > 0 && Number(t.participantUserId) === (Number(bConv.participantOne) === Number(userId) ? Number(bConv.participantTwo) : Number(bConv.participantOne)) && t.role === (bConv.type === 'ADMIN_EXP' ? 'admin' : 'worker'))
+          (Number(t.participantUserId) > 0 && Number(t.participantUserId) === partnerId && t.role === partnerRole)
         );
 
-        const partnerRole = bConv.type === 'ADMIN_EXP' ? 'admin' : 'worker';
         const thread = threadIndex >= 0
           ? { ...threads[threadIndex] }
           : {
-              id: bConv.id || `CONS-${bConv.conversationId}`,
+              id: (role === 'worker' && workerThreadId) ? workerThreadId : (bConv.id || `CONS-${bConv.conversationId}`),
               conversationId: Number(bConv.conversationId),
               conversationIds: [Number(bConv.conversationId)],
-              participantUserId: Number(bConv.participantOne) === Number(userId) ? Number(bConv.participantTwo) : Number(bConv.participantOne),
+              participantUserId: role === 'expert' ? partnerId : Number(bConv.participantOne),
               role: partnerRole,
               roleLabel: bConv.roleLabel || (partnerRole === 'admin' ? 'Ban Quản Trị' : 'CVLĐ Hiện Trường'),
               category: partnerRole,
               customerName: bConv.customerName || (partnerRole === 'admin' ? 'Ban Quản Trị Farmely' : 'Nhân viên hiện trường'),
               customerEmail: bConv.customerEmail || '',
               customerAvatar: getSafeAvatar(null, partnerRole),
-              expertName: bConv.expertName || '',
+              expertName: bConv.expertName || 'ThS. Nguyễn Hoàng Nam',
               isOnline: false,
               lastTime: 'Chưa có tin nhắn',
               status: 'REPLIED',
@@ -315,11 +398,13 @@ export const chatService = {
                 id: messageId,
                 backendMessageId: bMsg.messageId || bMsg.id || null,
                 conversationId: Number(bConv.conversationId),
-                sender: bMsg.sender || (Number(bMsg.senderId) === Number(userId) ? 'expert' : partnerRole),
+                sender: bMsg.sender || (Number(bMsg.senderId) === Number(bConv.participantTwo) ? 'expert' : partnerRole),
                 senderId: bMsg.senderId,
                 senderName: bMsg.senderName,
                 text: messageText,
+                photoUrl: bMsg.photoUrl || bMsg.attachmentUrl || null,
                 time: bMsg.time || 'Vừa xong',
+                createdAt: bMsg.createdAt,
                 seen: true
               });
             }

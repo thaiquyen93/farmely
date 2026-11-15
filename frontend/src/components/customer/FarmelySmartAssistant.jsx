@@ -38,22 +38,32 @@ const FALLBACK_KNOWLEDGE_BASE = [
     source: 'Sổ tay Kiểm soát Sâu bệnh Hữu cơ Farmely'
   },
   {
-    keywords: ['thuê đất', 'hợp đồng', 'gia hạn', 'chi phí', 'giá'],
-    reply: 'Quy trình thuê đất tại Farmely bao gồm: Chọn thửa đất trên Marketplace bản đồ vệ tinh, chọn giống cây & gói canh tác (Tự trồng hoặc Có hỗ trợ chăm sóc), thanh toán trả trước 100% qua VNPay/VietQR. Hợp đồng được kích hoạt và bạn có thể gia hạn trước khi hết hạn 3 ngày với chiết khấu từ 5% – 15%.',
-    source: 'Điều khoản Hợp đồng & Pháp lý Farmely'
+    keywords: ['farmely là gì', 'hoạt động ra sao', 'hoạt động như thế nào', 'mô hình', 'giới thiệu', 'tự trồng', 'ủy thác'],
+    reply: '1. **Farmely là gì?**\nFarmely là nền tảng nông nghiệp số cho phép người dùng thuê các thửa đất canh tác thực tế tại nông trại và theo dõi quá trình trồng trọt trực tuyến (không phải trò chơi hay đất ảo).\n\n2. **Farmely hoạt động như thế nào?**\nHệ thống phối hợp giữa 3 vai trò: Khách hàng chọn thửa đất, giống cây, chế độ tự chăm sóc hoặc ủy thác và theo dõi tiến độ; Chuyên gia nông nghiệp thiết lập quy trình kỹ thuật và tư vấn khi cần; Nhân viên hiện trường thực hiện công việc tại vườn, ghi nhật ký ảnh và hỗ trợ cân đo thu hoạch.\n\n3. **Công nghệ hỗ trợ ra sao?**\nNền tảng tích hợp dữ liệu cảm biến IoT, thông tin thời tiết/vi khí hậu, nhật ký canh tác điện tử theo công việc và trợ lý AI hỗ trợ tra cứu thông tin.\n\n4. **Người dùng nhận được gì?**\nBạn có thể kiểm soát quá trình canh tác từ xa qua dữ liệu và hình ảnh cập nhật mà không cần trực tiếp có mặt mỗi ngày, và nhận nông sản trực tiếp tại trang trại (PICKUP) khi thu hoạch.\n\nBạn muốn tìm hiểu thêm về quy trình thuê thửa đất, vai trò của các bên hay tính năng theo dõi nào?',
+    source: 'Quy trình Thuê đất & Chính sách Farmely'
   },
   {
-    keywords: ['thu hoạch', 'sản lượng', 'chất lượng', 'khiếu nại'],
-    reply: 'Khi đến kỳ thu hoạch, nhân viên hiện trường sẽ cân sản lượng thực tế, dán mã QR truy xuất và chụp ảnh đối chứng. Khách hàng nhận bàn giao và đánh giá chất lượng (Độ tươi, Bao gói). Nếu sản lượng thiếu hụt do lỗi vận hành, bạn có quyền gửi hồ sơ khiếu nại để nhận bồi thường hoàn tiền hoặc bù vụ tiếp theo.',
-    source: 'Quy chế Bàn giao & Bảo hiểm Nông sản Farmely'
+    keywords: ['hủy hợp đồng', 'hoàn tiền', 'hủy thuê'],
+    reply: 'Chính sách hủy hợp đồng tại Farmely (chỉ áp dụng trước khi vụ mùa bắt đầu): Hủy trước ngày bắt đầu >= 3 ngày được hoàn 80%; hủy trước < 3 ngày được hoàn 50%; khi hợp đồng đã bắt đầu thì không hoàn tiền. Gia hạn tiếp hợp đồng cần thực hiện trước ngày hết hạn tối thiểu 3 ngày.',
+    source: 'Quy trình Thuê đất & Chính sách Farmely'
+  },
+  {
+    keywords: ['thuê đất', 'hợp đồng', 'gia hạn', 'chi phí', 'giá'],
+    reply: 'Quy trình thuê đất tại Farmely: Chọn thửa đất trống trên Marketplace, chọn giống rau, chế độ Tự trồng hoặc Ủy thác trọn gói (+50% phí chăm sóc), ngày bắt đầu cách 5–14 ngày và kỳ hạn 1, 2, 3, 6 hoặc 12 tháng (tối thiểu >= ngày sinh trưởng + 10 ngày buffer). Thanh toán trả trước 100% qua VNPay/VietQR trong thời gian giữ chỗ (15 phút, tối đa +10 phút tại cổng thanh toán). Bạn có thể gia hạn trước ngày kết thúc 3 ngày.',
+    source: 'Quy trình Thuê đất & Chính sách Farmely'
+  },
+  {
+    keywords: ['thu hoạch', 'sản lượng', 'chất lượng', 'giao rau'],
+    reply: 'Khi đến kỳ thu hoạch, nhân viên hiện trường (CVLĐ) sẽ thu hoạch, cân sản lượng thực tế, dán mã QR truy xuất và chụp ảnh đối chứng lên Nhật ký canh tác. Sau khi nghiệm thu trên ứng dụng, bạn đến trực tiếp trang trại để nhận nông sản tươi sạch (PICKUP).',
+    source: 'Hướng dẫn Sử dụng Nền tảng Farmely'
   }
 ];
 
 const QUICK_PROMPTS = [
-  'Kỹ thuật tưới cho xà lách giòn ngọt?',
+  'Farmely là gì và hoạt động ra sao?',
+  'Quy trình thuê đất & chính sách hủy thế nào?',
   'Độ ẩm đất bao nhiêu là an toàn?',
-  'Cách phòng ngừa sâu bọ sinh học?',
-  'Quy trình thuê đất tại Farmely thế nào?'
+  'Cách phòng ngừa sâu bọ sinh học?'
 ];
 
 export default function FarmelySmartAssistant() {
@@ -131,23 +141,31 @@ export default function FarmelySmartAssistant() {
   const [expertChatError, setExpertChatError] = useState('');
   const [isSendingExpert, setIsSendingExpert] = useState(false);
   const isStaff = user?.role === 'STAFF';
+  const isExpertOrAdmin = user?.role === 'EXPERT' || user?.role === 'ADMIN';
+  const effectiveChatUserId = isExpertOrAdmin ? null : (user?.userId || (typeof user?.id === 'number' ? user.id : null));
   const chatRole = isStaff ? 'worker' : 'customer';
   const fallbackName = isStaff ? 'Nhân viên hiện trường' : 'Khách hàng';
   const threadId = useMemo(
     () => isStaff
       ? `WORK-${user?.userId || user?.id || 'STAFF'}`
       : DEMO_CUSTOMERS.find((customer) => Number(customer.userId) === Number(user?.userId))?.threadId
-        || `CONS-USER-${user?.userId || user?.id || 'CUSTOMER'}`,
+        || `CONS-${user?.userId || user?.id || 'CUSTOMER'}`,
     [isStaff, user?.userId, user?.id]
   );
 
-  const { currentThread, sendMessage: sendExpertMessage } = useRealtimeChat({
+  const { currentThread, sendMessage: sendExpertMessage, syncNow } = useRealtimeChat({
     role: chatRole,
     initialThreadId: threadId,
     senderName: user?.fullName || user?.name || fallbackName,
-    userId: user?.userId,
+    userId: effectiveChatUserId,
     customerEmail: user?.email || ''
   });
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'expert' && effectiveChatUserId) {
+      syncNow().catch(() => {});
+    }
+  }, [isOpen, activeTab, effectiveChatUserId, syncNow]);
 
   const dragRef = useRef(null);
   const panelRef = useRef(null);
@@ -208,6 +226,21 @@ export default function FarmelySmartAssistant() {
     setIsAiLoading(true);
 
     try {
+      const searchParams = new URLSearchParams(location.search || '');
+      const rawPlotParam = (searchParams.get('plot') || '').trim();
+      const rentalMatch = rawPlotParam.match(/^RENTAL-(\d+)$/i);
+      const pathPlotMatch = (location.pathname || '').match(/\/plots?\/(\d+)/i);
+      const parsedRentalId = rentalMatch
+        ? Number(rentalMatch[1])
+        : (searchParams.get('rentalId') ? Number(searchParams.get('rentalId')) : null);
+      const parsedPlotId = Number(searchParams.get('plotId') || (pathPlotMatch ? pathPlotMatch[1] : null)) || null;
+      const parsedPlotCode = (!rentalMatch && rawPlotParam && !/^\d+$/.test(rawPlotParam)) ? rawPlotParam : null;
+      const resolvedUserId = user?.userId || (typeof user?.id === 'number' ? user.id : null) || null;
+      const recentHistory = aiMessages.slice(-6).map((m) => ({
+        sender: m.sender === 'user' ? 'user' : 'ai',
+        content: m.text
+      }));
+
       // 1. Thử gọi Backend AI Microservice (/api/ai/chat)
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -216,10 +249,13 @@ export default function FarmelySmartAssistant() {
           ...(localStorage.getItem('token') ? { Authorization: `Bearer ${localStorage.getItem('token')}` } : {})
         },
         body: JSON.stringify({
-          userId: user?.id || 1,
+          userId: resolvedUserId,
           message: question,
-          plotId: null,
-          conversationId: aiConversationId || null
+          plotId: parsedPlotId,
+          plotCode: parsedPlotCode,
+          rentalId: parsedRentalId,
+          conversationId: aiConversationId || null,
+          history: recentHistory
         })
       });
 
@@ -254,17 +290,17 @@ export default function FarmelySmartAssistant() {
 
       // 0. Nhận diện phép tính toán học / đố vui
       if (lowerQ.match(/(1\s*\+\s*1|1\s*cộng\s*1)/)) {
-        fallbackReply = 'Dạ, 1 cộng 1 chắc chắn bằng 2 rồi ạ! 😊 Nếu bạn đang cần tính toán mật độ gieo trồng hay diện tích thửa đất trên Farmely, cứ chia sẻ thêm với mình nhé!';
+        fallbackReply = '1 cộng 1 bằng 2. Nếu bạn cần trao đổi thêm về quy trình thuê thửa đất hoặc kỹ thuật chăm sóc cây trồng trên Farmely, bạn cứ đặt câu hỏi nhé.';
         fallbackSource = 'Hệ thống Farmely AI';
       }
       // 1. Chào hỏi tự nhiên
       else if (lowerQ.match(/^(chào|hello|hi|xin chào|farmely ai|ai|bot|alo|ơi|ê)(\s+bạn|\s+ạ)?$/i) || (lowerQ.includes('chào') && lowerQ.length <= 15)) {
-        fallbackReply = 'Xin chào bạn! Tôi là Farmely AI — Trợ lý nông nghiệp thông minh của nền tảng Farmely. Rất vui được hỗ trợ bạn. Bạn cần tư vấn về kỹ thuật gieo trồng, kiểm tra dữ liệu thời tiết & độ ẩm đất hay tìm hiểu thủ tục thuê thửa đất nào hôm nay?';
+        fallbackReply = 'Xin chào! Mình là Farmely AI Assistant — trợ lý hỗ trợ tra cứu thông tin và kỹ thuật canh tác trên nền tảng Farmely. Bạn muốn tìm hiểu về mô hình nền tảng, quy trình thuê thửa đất hay kỹ thuật chăm sóc cây trồng?';
         fallbackSource = 'Cẩm nang Hướng dẫn Khách hàng Farmely';
       }
       // 2. Cảm ơn, tạm biệt
       else if (lowerQ.includes('cảm ơn') || lowerQ.includes('thank') || lowerQ.includes('tks')) {
-        fallbackReply = 'Rất vui được hỗ trợ bạn! Chúc bạn có những vụ mùa bội thu, rau sạch chuẩn VietGAP và trải nghiệm canh tác tuyệt vời trên Farmely. Cần hỗ trợ thêm, bạn cứ nhắn cho Farmely AI nhé!';
+        fallbackReply = 'Rất vui được hỗ trợ bạn. Nếu còn thắc mắc nào về quy trình thuê thửa đất hay chăm sóc cây trồng trên Farmely, bạn cứ nhắn lại nhé.';
         fallbackSource = 'Hệ thống Farmely AI';
       }
       // 3. Khớp từ khóa cẩm nang nông nghiệp
@@ -606,83 +642,103 @@ export default function FarmelySmartAssistant() {
           {/* NỘI DUNG CHAT TAB 2: CHUYÊN GIA HOÀNG NAM */}
           {activeTab === 'expert' && (
             <div className="flex-1 flex flex-col min-h-0 bg-stone-50/60">
-              {/* Vùng tin nhắn chuyên gia */}
-              <div ref={expertScrollRef} className="flex-1 overflow-y-auto p-3.5 space-y-3">
-                {(!currentThread?.messages || currentThread.messages.length === 0) ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400 space-y-2">
-                    <MessageSquare className="w-10 h-10 text-emerald-600/40" />
-                    <p className="text-xs font-bold text-slate-600">Bắt đầu phiên tư vấn chuyên môn</p>
-                    <p className="text-[11px] leading-relaxed">
-                      Đặt câu hỏi hoặc báo cáo sự cố hiện trường để Chuyên gia Nông học ThS. Nguyễn Hoàng Nam hỗ trợ bạn trực tiếp.
-                    </p>
-                  </div>
-                ) : (
-                  currentThread.messages.map((message) => {
-                    const isMe = message.sender === chatRole || message.sender === 'user';
-                    return (
-                      <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                        <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">
-                          {isMe ? (message.senderName || fallbackName) : (currentThread.expertName || 'ThS. Nguyễn Hoàng Nam')}
-                        </span>
-                        <div
-                          className={`max-w-[88%] rounded-2xl p-3 text-xs leading-relaxed shadow-sm ${
-                            isMe
-                              ? 'bg-[#064b37] text-white rounded-tr-xs'
-                              : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-xs'
-                          }`}
-                        >
-                          {message.photoUrl && (
-                            <img
-                              src={message.photoUrl}
-                              alt="Minh chứng hiện trường"
-                              className="mb-2 max-h-36 w-full rounded-xl object-cover border border-slate-200"
-                            />
-                          )}
-                          <p className="whitespace-pre-wrap">{message.text}</p>
-                        </div>
-                        <span className="text-[9px] text-slate-400 mt-1 px-1">{message.time}</span>
+              {isExpertOrAdmin ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-500 space-y-2">
+                  <MessageSquare className="w-10 h-10 text-emerald-600/40" />
+                  <p className="text-xs font-bold text-slate-700">Kênh dành cho Khách hàng &amp; CVLĐ</p>
+                  <p className="text-[11px] leading-relaxed">
+                    Bạn đang đăng nhập với vai trò {user?.role === 'EXPERT' ? 'Chuyên gia' : 'Quản trị viên'}. Vui lòng mở mục Tin nhắn trên trang điều hành để trao đổi với khách hàng.
+                  </p>
+                </div>
+              ) : !effectiveChatUserId ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-500 space-y-2">
+                  <MessageSquare className="w-10 h-10 text-emerald-600/40" />
+                  <p className="text-xs font-bold text-slate-700">Vui lòng đăng nhập để chat với Chuyên gia</p>
+                  <p className="text-[11px] leading-relaxed">
+                    Đăng nhập tài khoản Khách hàng để gửi câu hỏi trực tiếp và nhận phản hồi từ ThS. Nguyễn Hoàng Nam.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Vùng tin nhắn chuyên gia */}
+                  <div ref={expertScrollRef} className="flex-1 overflow-y-auto p-3.5 space-y-3">
+                    {(!currentThread?.messages || currentThread.messages.length === 0) ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center p-6 text-slate-400 space-y-2">
+                        <MessageSquare className="w-10 h-10 text-emerald-600/40" />
+                        <p className="text-xs font-bold text-slate-600">Bắt đầu phiên tư vấn chuyên môn</p>
+                        <p className="text-[11px] leading-relaxed">
+                          Đặt câu hỏi hoặc báo cáo sự cố hiện trường để Chuyên gia Nông học ThS. Nguyễn Hoàng Nam hỗ trợ bạn trực tiếp.
+                        </p>
                       </div>
-                    );
-                  })
-                )}
-              </div>
+                    ) : (
+                      currentThread.messages.map((message) => {
+                        const isMe = message.sender === chatRole || message.sender === 'user';
+                        return (
+                          <div key={message.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                            <span className="text-[10px] font-bold text-slate-400 mb-1 px-1">
+                              {isMe ? (message.senderName || fallbackName) : (currentThread.expertName || 'ThS. Nguyễn Hoàng Nam')}
+                            </span>
+                            <div
+                              className={`max-w-[88%] rounded-2xl p-3 text-xs leading-relaxed shadow-sm ${
+                                isMe
+                                  ? 'bg-[#064b37] text-white rounded-tr-xs'
+                                  : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-xs'
+                              }`}
+                            >
+                              {message.photoUrl && (
+                                <img
+                                  src={message.photoUrl}
+                                  alt="Minh chứng hiện trường"
+                                  className="mb-2 max-h-36 w-full rounded-xl object-cover border border-slate-200"
+                                />
+                              )}
+                              <p className="whitespace-pre-wrap">{message.text}</p>
+                            </div>
+                            <span className="text-[9px] text-slate-400 mt-1 px-1">{message.time}</span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
 
-              {/* Form nhập tin nhắn gửi chuyên gia */}
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (expertInput.trim() && !isSendingExpert) {
-                    setIsSendingExpert(true);
-                    setExpertChatError('');
-                    try {
-                      await sendExpertMessage(expertInput.trim());
-                      setExpertInput('');
-                    } catch (error) {
-                      setExpertChatError(error.message || 'Không thể gửi tin nhắn');
-                    } finally {
-                      setIsSendingExpert(false);
-                    }
-                  }
-                }}
-                className="p-2.5 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0"
-              >
-                <input
-                  type="text"
-                  value={expertInput}
-                  onChange={(e) => setExpertInput(e.target.value)}
-                  placeholder="Gửi tin nhắn hoặc câu hỏi tới ThS. Nam..."
-                  className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-100 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-                />
-                <button
-                  type="submit"
-                  disabled={!expertInput.trim() || isSendingExpert}
-                  className="w-9 h-9 rounded-xl bg-[#064b37] text-white flex items-center justify-center hover:opacity-95 active:scale-95 disabled:opacity-40 transition-all cursor-pointer shadow-sm"
-                  aria-label="Gửi tin nhắn cho chuyên gia"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
-              {expertChatError && <p role="alert" className="px-3 pb-2 text-xs text-red-600">{expertChatError}</p>}
+                  {/* Form nhập tin nhắn gửi chuyên gia */}
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (expertInput.trim() && !isSendingExpert) {
+                        setIsSendingExpert(true);
+                        setExpertChatError('');
+                        try {
+                          await sendExpertMessage(expertInput.trim());
+                          setExpertInput('');
+                        } catch (error) {
+                          setExpertChatError(error.message || 'Không thể gửi tin nhắn');
+                        } finally {
+                          setIsSendingExpert(false);
+                        }
+                      }
+                    }}
+                    className="p-2.5 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0"
+                  >
+                    <input
+                      type="text"
+                      value={expertInput}
+                      onChange={(e) => setExpertInput(e.target.value)}
+                      placeholder="Gửi tin nhắn hoặc câu hỏi tới ThS. Nam..."
+                      className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-100 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!expertInput.trim() || isSendingExpert}
+                      className="w-9 h-9 rounded-xl bg-[#064b37] text-white flex items-center justify-center hover:opacity-95 active:scale-95 disabled:opacity-40 transition-all cursor-pointer shadow-sm"
+                      aria-label="Gửi tin nhắn cho chuyên gia"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </form>
+                  {expertChatError && <p role="alert" className="px-3 pb-2 text-xs text-red-600">{expertChatError}</p>}
+                </>
+              )}
             </div>
           )}
         </section>

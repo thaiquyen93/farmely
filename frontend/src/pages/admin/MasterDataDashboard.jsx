@@ -140,12 +140,7 @@ export default function MasterDataDashboard() {
           type
         };
       })
-    : [
-        { title: 'Cập nhật ngưỡng cảnh báo khí tượng khu Củ Chi', time: '15 phút trước', user: 'CGNN. Nguyễn Hoàng Nam', type: 'Weather Config' },
-        { title: 'Phê duyệt quy trình VietGAP Cà chua bi v2.3', time: '2 giờ trước', user: 'Hội đồng Nông học', type: 'Template' },
-        { title: 'Thêm giống mới: Dâu tây Nhật Hana chịu nhiệt', time: 'Hôm qua, 16:30', user: 'CGNN. Đặng Thu Thảo', type: 'Variety' },
-        { title: 'Hoàn tất bảo trì nghỉ đất 4 ngày thửa P-16', time: '2 ngày trước', user: 'Admin Hệ Thống', type: 'Fallow Protocol' }
-      ];
+    : [];
 
   return (
     <div className="space-y-4 animate-fadeIn">
@@ -246,7 +241,11 @@ export default function MasterDataDashboard() {
         </div>
 
         <ul className="mt-2 divide-y divide-brand-border/60">
-          {recentUpdates.slice(0, 5).map((item, idx) => (
+          {recentUpdates.length === 0 ? (
+            <li className="px-1 py-4 text-center text-xs font-medium text-brand-muted">
+              Chưa có nhật ký cập nhật dữ liệu nào được ghi nhận trong hệ thống.
+            </li>
+          ) : recentUpdates.slice(0, 5).map((item, idx) => (
             <li
               key={idx}
               className="flex items-center justify-between gap-3 rounded-lg px-1 py-2 transition-colors hover:bg-brand-cream/40"

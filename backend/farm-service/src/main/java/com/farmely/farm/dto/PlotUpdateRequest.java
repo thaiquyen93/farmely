@@ -21,7 +21,8 @@ public class PlotUpdateRequest {
     @Size(max = 50, message = "Mã thửa đất tối đa 50 ký tự")
     private String plotCode;
 
-    /** Bắt buộc nếu thửa không có ranh giới; nếu có, server tự tính từ đa giác. */
+    /** Diện tích canh tác thực tế do Admin xác nhận (m²). */
+    @NotNull(message = "Cần nhập diện tích canh tác")
     @DecimalMin(value = "0.01", message = "Diện tích thửa đất phải lớn hơn 0 m²")
     private BigDecimal area;
 

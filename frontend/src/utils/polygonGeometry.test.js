@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   areaM2, cleanRing, isSimple, contains, overlaps, validateRing,
-  formatArea, parseLatLng, interiorPoint, perimeterM,
+  formatArea, formatRecordedArea, parseLatLng, interiorPoint, perimeterM,
   parseGpsPoint, pointInPolygon
 } from './polygonGeometry';
 
@@ -109,6 +109,8 @@ describe('polygonGeometry (khớp backend PolygonGeometryTest)', () => {
   it('formats area, perimeter and parses coordinates', () => {
     expect(formatArea(850)).toBe('850 m²');
     expect(formatArea(12180.5)).toBe('12.181 m² (1,22 ha)');
+    expect(formatRecordedArea(24592.84)).toBe('24.592,84 m² (2,46 ha)');
+    expect(formatRecordedArea(80.25)).toBe('80,25 m²');
     expect(perimeterM(sq(106.35, 10.68))).toBeGreaterThan(430);
     expect(parseLatLng('10.6876, 106.3502')).toEqual([106.3502, 10.6876]);
     expect(parseLatLng('11.0842° N, 106.5298° E')).toEqual([106.5298, 11.0842]);

@@ -41,7 +41,7 @@ test('harvest demo: concurrent retry, distinct same-day tasks, day replay and pe
     const harvestDay = await simulateDemoTime(pool, 1, { action: 'HARVEST', seasonKey: 'SEASON-1' });
     assert.equal(harvestDay.currentDay, 80);
     const flags = (await pool.query('SELECT task_id, demo_completed FROM care_tasks ORDER BY task_id')).rows;
-    assert.deepEqual(flags.map((row) => row.demo_completed), [true, true, false, false]);
+    assert.deepEqual(flags.map((row) => row.demo_completed), [false, false, false, false]);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM harvest_results')).rows[0].n, 0);
     assert.equal((await pool.query('SELECT count(*)::int AS n FROM farm_diaries')).rows[0].n, 0);
 

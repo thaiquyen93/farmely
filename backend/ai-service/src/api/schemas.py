@@ -6,6 +6,9 @@ class ChatRequest(BaseModel):
     userId: Optional[int] = Field(default=None, description="ID người dùng gửi tin")
     conversationId: Optional[int] = Field(default=None, description="ID phiên trò chuyện nếu đã có")
     plotId: Optional[int] = Field(default=None, description="ID thửa đất liên quan (optional)")
+    rentalId: Optional[int] = Field(default=None, description="ID lượt thuê liên quan (optional)")
+    plotCode: Optional[str] = Field(default=None, description="Mã thửa đất liên quan (optional)")
+    history: Optional[List[dict]] = Field(default=None, description="Lịch sử hội thoại gần đây từ client")
     message: str = Field(..., min_length=1, description="Nội dung câu hỏi của người dùng")
 
 class ReferencedDocumentDto(BaseModel):

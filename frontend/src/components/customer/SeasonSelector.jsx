@@ -91,7 +91,7 @@ export default function SeasonSelector({
                         : isPendingApproval
                         ? 'Chờ Admin duyệt'
                         : isSoilPrep
-                        ? `Cải tạo đất (${season.fallowDays || 5} ngày)`
+                        ? `Cải tạo đất (${season.fallowDays || 4} ngày)`
                         : isScheduled
                         ? (index > 0 ? `Chờ hết Vụ ${index} (N0/${season.totalDays})` : `Chưa bắt đầu (N0/${season.totalDays})`)
                         : `Đang trồng (N${season.currentDay}/${season.totalDays})`}

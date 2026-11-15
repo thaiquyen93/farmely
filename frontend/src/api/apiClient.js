@@ -4,7 +4,7 @@ export const getStoredAuth = () => {
   try {
 if (typeof sessionStorage !== 'undefined') {
       const sess = JSON.parse(sessionStorage.getItem('farmely_auth') || 'null');
-      if (sess?.token && sess?.user) return sess;
+      if (sess?.user) return sess;
     }
     if (typeof localStorage !== 'undefined') {
       return JSON.parse(localStorage.getItem('farmely_auth') || 'null');

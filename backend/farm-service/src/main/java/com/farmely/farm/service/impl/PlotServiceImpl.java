@@ -82,7 +82,7 @@ public class PlotServiceImpl implements PlotService {
         LandEntity land = landRepository.findById(request.getLandId())
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nông trại với ID: " + request.getLandId()));
 
-        // Có ranh giới -> kiểm tra nằm trong nông trại, không chồng lấn, và tự tính diện tích
+        // Có ranh giới -> kiểm tra nằm trong nông trại và không chồng lấn.
         List<double[]> ring = hasRing(request.getBoundary()) ? boundaryRules.parse(request.getBoundary()) : null;
         if (ring != null) {
             boundaryRules.checkPlotFits(land, null, ring);
@@ -91,7 +91,7 @@ public class PlotServiceImpl implements PlotService {
         PlotEntity plot = PlotEntity.builder()
                 .landId(land.getLandId())
                 .plotCode(request.getPlotCode().trim().toUpperCase())
-                .area(resolveArea(request.getArea(), ring))
+                .area(resolveArea(request.getArea()))
                 .boundaryGeojson(ring != null ? BoundaryCodec.toGeoJson(ring) : null)
                 .imageUrl(request.getImageUrl())
                 .pricePerPeriod(request.getPricePerPeriod())
@@ -144,7 +144,7 @@ public class PlotServiceImpl implements PlotService {
         plot.setLandId(land.getLandId());
         plot.setPlotCode(request.getPlotCode().trim().toUpperCase());
         plot.setBoundaryGeojson(ring != null ? BoundaryCodec.toGeoJson(ring) : null);
-        plot.setArea(resolveArea(request.getArea() != null ? request.getArea() : plot.getArea(), ring));
+        plot.setArea(resolveArea(request.getArea()));
         plot.setImageUrl(request.getImageUrl());
         plot.setPricePerPeriod(request.getPricePerPeriod());
         if (request.getCarePricePerMonth() != null) {
@@ -292,13 +292,10 @@ public class PlotServiceImpl implements PlotService {
         return boundary != null && !boundary.isEmpty();
     }
 
-    /** Có ranh giới thì diện tích lấy từ đa giác; không thì bắt buộc client gửi diện tích. */
-    private static BigDecimal resolveArea(BigDecimal requested, List<double[]> ring) {
-        if (ring != null) {
-            return BigDecimal.valueOf(PolygonGeometry.areaM2(ring)).setScale(2, java.math.RoundingMode.HALF_UP);
-        }
-        if (requested == null) {
-            throw new BadRequestException("Cần nhập diện tích hoặc vẽ ranh giới thửa đất trên bản đồ.");
+    /** Diện tích nghiệp vụ do Admin xác nhận; nét vẽ chỉ dùng để đối chiếu. */
+    private static BigDecimal resolveArea(BigDecimal requested) {
+        if (requested == null || requested.signum() <= 0) {
+            throw new BadRequestException("Cần nhập diện tích canh tác lớn hơn 0.");
         }
         return requested;
     }

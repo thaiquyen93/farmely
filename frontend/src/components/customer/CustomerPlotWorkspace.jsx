@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { assessPlot, explainAlert } from '../../utils/iotInsights';
 import { fetchLiveAgroIotData } from '../../services/weatherIotService';
-import { resolveStandardCropProcess, getPersistedStaffActivities, resolvePlotSeasons } from '../../services/cropStandardProcess';
+import { resolveStandardCropProcess, getPersistedStaffActivities, resolvePlotSeasons, stripEvidenceNote } from '../../services/cropStandardProcess';
 import { buildDemoProcessPlot } from './demoProcessPlot';
+import { sendNotification } from '../../services/notificationService';
 import SeasonSelector from './SeasonSelector';
 import SoilPrepView from './SoilPrepView';
 import PlotRenewalModal from './PlotRenewalModal';
@@ -28,6 +29,8 @@ export const PLOT_TABS = [
   { id: 'tasks', label: 'Công việc & Nhật ký', short: 'Việc & Nhật ký', icon: CalendarCheck },
   { id: 'services', label: 'Dịch vụ', short: 'Dịch vụ', icon: ShoppingBag }
 ];
+
+const normalizeTaskRef = (val) => String(val ?? '').replace(/^(TSK-|TASK-DIR-|DIARY-FROM-TASK-)/i, '').trim();
 
 const LEVEL_STYLE = {
   OK: { chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', marker: 'bg-emerald-600', hex: '#059669', dot: 'bg-lime-400' },
@@ -157,7 +160,7 @@ function PlotStatusHero({ plot, cropProcess, topAlerts = [], liveProviderInfo })
           <p className="mt-1 text-xs sm:text-sm leading-relaxed text-white/90">
             {isNotStarted
               ? 'Vụ mùa kế tiếp đã được lên lịch. Tiến độ sẽ bắt đầu tính khi vào vụ mới (sau chu kỳ nghỉ đất và làm đất tiêu chuẩn 5 ngày).'
-              : (currentStage?.statusDesc || 'Cây trồng đang phát triển thuận lợi theo đúng chỉ dẫn kỹ thuật nông học.')}
+              : (stripEvidenceNote(currentStage?.statusDesc) || 'Cây trồng đang phát triển thuận lợi theo chỉ dẫn kỹ thuật nông học.')}
           </p>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-white/10 text-xs">
@@ -315,8 +318,11 @@ function StandardProcessTimeline({
   }, [latestHarvest, plot]);
 
   useEffect(() => {
-    setSelectedDay(cropProcess.isNotStarted ? 1 : (cropProcess.currentDay || 1));
-  }, [cropProcess.currentDay, cropProcess.isNotStarted]);
+    const clampedDay = cropProcess.isNotStarted
+      ? 1
+      : Math.min(cropProcess.totalDays || 45, Math.max(1, cropProcess.currentDay || 1));
+    setSelectedDay(clampedDay);
+  }, [cropProcess.currentDay, cropProcess.totalDays, cropProcess.isNotStarted]);
 
   // Tìm giai đoạn tương ứng với ngày đang chọn
   const activeStage = useMemo(() => {
@@ -368,13 +374,13 @@ function StandardProcessTimeline({
         }
 
         const titleLower = String(e.title || '').trim().toLowerCase();
-        const isDuplicateTaskMirror = isFromTask && (staffActivities || []).some(
+        const eTaskRef = normalizeTaskRef(e.taskId);
+        const isDuplicateTaskMirror = (isFromTask || eTaskRef) && (staffActivities || []).some(
           (act) => {
+            const actTaskRef = normalizeTaskRef(act.taskId || act.activityId || act.id);
+            if (eTaskRef && actTaskRef && eTaskRef === actTaskRef) return true;
             const actDay = act.day || act.cropDay || getEntryCropDay(act);
-            return actDay === d && (
-              (e.taskId && (act.activityId === e.taskId || act.id === e.taskId)) ||
-              String(act.title || '').trim().toLowerCase() === titleLower
-            );
+            return actDay === d && String(act.title || '').trim().toLowerCase() === titleLower;
           }
         );
 
@@ -401,18 +407,23 @@ function StandardProcessTimeline({
       if (d !== null && d !== undefined) {
         if (!map[d]) map[d] = [];
 
-        // Đồng bộ hoàn thành khi tua ngày (Fast-forward sync):
-        // Nếu đã ở ngày thu hoạch (currentCropDay >= totalDays), các task trước đó (không phải thu hoạch/nghiệm thu) hoàn thành 100%
-        // NHƯNG NHIỆM VỤ THU HOẠCH PHẢI GIỮ LẠI LÀ CHƯA XONG (PENDING) để người dùng test chức năng thu hoạch!
+        // Chỉ đánh dấu COMPLETED khi công việc thực sự được Staff (hoặc chủ vườn tự canh tác) hoàn thành.
+        // Tuyệt đối không tự động tick COMPLETED khi tua ngày (time-fly) đến thu hoạch.
         let syncedStatus = act.status;
         const isServiceTask = Boolean(act.serviceRequestId || act.isCustom || (act.title && act.title.includes('[DỊCH VỤ')));
-        if (currentCropDay >= totalDays && Number(d) < totalDays) {
-          if (!isHarvestAct) {
+        const isRealDone = (act.status === 'COMPLETED' || act.status === 'DONE') && act.completionSource !== 'DEMO';
+        const hasStaffCompletion = isRealDone && (act.completionSource === 'STAFF' || Boolean(act.proofPhoto || act.evidenceImageUrl));
+        if (!isSelf) {
+          if (hasStaffCompletion) {
             syncedStatus = 'COMPLETED';
+          } else if (currentCropDay <= 1 && d === 1 && !isServiceTask) {
+            syncedStatus = !cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING';
+          } else if (syncedStatus === 'COMPLETED' || syncedStatus === 'DONE') {
+            syncedStatus = 'PENDING';
           }
-        } else if (currentCropDay > d && !isHarvestAct) {
-          syncedStatus = 'COMPLETED';
-        } else if (currentCropDay <= 1 && d === 1 && !isServiceTask && act.completionSource !== 'STAFF') {
+        } else if (act.completionSource === 'DEMO') {
+          syncedStatus = 'PENDING';
+        } else if (currentCropDay <= 1 && d === 1 && !isServiceTask && act.completionSource !== 'STAFF' && !isRealDone) {
           // Khi mới chuyển qua Ngày 1 hoặc chu kỳ vụ mùa đang ở Ngày 1:
           // Các task canh tác chuẩn VietGAP chưa thể hoàn thành! Bắt buộc là IN_PROGRESS hoặc PENDING
           syncedStatus = !cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING';
@@ -421,8 +432,8 @@ function StandardProcessTimeline({
         map[d].push({
           ...act,
           status: syncedStatus,
-          completionSource: act.completionSource || (syncedStatus === 'COMPLETED' && act.status !== 'COMPLETED' ? 'DEMO' : null),
-          proofPhoto: syncedStatus === 'COMPLETED' && (act.completionSource === 'STAFF' || syncedStatus === act.status)
+          completionSource: hasStaffCompletion ? 'STAFF' : (act.completionSource === 'DEMO' ? null : (act.completionSource || null)),
+          proofPhoto: syncedStatus === 'COMPLETED' && (hasStaffCompletion || act.completionSource === 'STAFF' || syncedStatus === act.status)
             ? (act.proofPhoto || act.evidenceImageUrl || null) : null
         });
       }
@@ -450,11 +461,11 @@ function StandardProcessTimeline({
         cropDay: 1,
         title: 'Làm đất tơi xốp, bón lót phân trùn quế & xử lý Trichoderma',
         timestamp: startCalDate ? `${startCalDate} • Ca sáng (07:30 - 09:00)` : 'Ca sáng (07:30 - 09:00)',
-        status: currentCropDay > 1 ? 'COMPLETED' : (!cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING'),
+        status: !cropProcess.isNotStarted && currentCropDay >= 1 ? 'IN_PROGRESS' : 'PENDING',
         workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
         workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
         notes: 'Xử lý giá thể bầu ươm đạt chuẩn VietGAP, duy trì ẩm độ đất từ 65 - 70%.',
-        completionSource: currentCropDay > 1 ? 'DEMO' : null,
+        completionSource: null,
         proofPhoto: null
       },
       {
@@ -464,7 +475,7 @@ function StandardProcessTimeline({
         cropDay: 1,
         title: 'Tưới ẩm luống đất (65-70%) & xuống giống non theo mật độ VietGAP',
         timestamp: startCalDate ? `${startCalDate} • Ca chiều (16:00 - 17:30)` : 'Ca chiều (16:00 - 17:30)',
-        status: currentCropDay > 1 ? 'COMPLETED' : (!cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING'),
+        status: !cropProcess.isNotStarted && currentCropDay >= 1 ? 'IN_PROGRESS' : 'PENDING',
         workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
         workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
         notes: 'Khoảng cách cây cách cây đạt chuẩn 20 - 25cm, duy trì ẩm độ luống đất.'
@@ -474,25 +485,28 @@ function StandardProcessTimeline({
     if (!map[1] || map[1].length === 0) {
       map[1] = defaultDay1Activities;
     } else {
-      // Giới hạn Ngày 1 tối đa 2 việc, lọc sạch các bản ghi trùng lặp
+      // Lọc sạch các bản ghi trùng lặp và giữ nguyên thứ tự bước (stepOrder = 0 bàn giao trước, sau đó đến bước 1...)
       const seenTitles = new Set();
       const cleanDay1 = [];
-      map[1].forEach((t) => {
-        const key = (t.title || '').trim().toLowerCase();
-        if (!seenTitles.has(key)) {
-          seenTitles.add(key);
-          cleanDay1.push(t);
-        }
-      });
-      map[1] = cleanDay1.slice(0, 2);
+      [...map[1]]
+        .sort((a, b) => (a.stepOrder ?? 99) - (b.stepOrder ?? 99))
+        .forEach((t) => {
+          const key = (t.title || '').trim().toLowerCase();
+          if (!seenTitles.has(key)) {
+            seenTitles.add(key);
+            cleanDay1.push(t);
+          }
+        });
+      map[1] = cleanDay1;
     }
 
     // Khi ở Ngày 1 (vừa chuyển qua Ngày 1 hoặc bắt đầu vụ):
-    // Tuyệt đối không có task canh tác chuẩn VietGAP nào của Ngày 1 hiển thị hoàn thành (COMPLETED / ✓ ĐÃ XONG)
+    // Task chỉ hiển thị hoàn thành nếu là dịch vụ hoặc Staff đã thực sự upload ảnh & xác nhận tại hiện trường
     if (map[1] && currentCropDay <= 1) {
       map[1] = map[1].map((t) => {
         const isSvc = Boolean(t.serviceRequestId || t.isCustom || (t.title && t.title.includes('[DỊCH VỤ')));
-        if ((isSvc || t.completionSource === 'STAFF') && t.status === 'COMPLETED') return t;
+        const isStaffVerified = t.completionSource === 'STAFF' || Boolean(t.proofPhoto || t.evidenceImageUrl);
+        if ((isSvc || isStaffVerified) && (t.status === 'COMPLETED' || t.status === 'DONE')) return t;
         return {
           ...t,
           status: !cropProcess.isNotStarted ? 'IN_PROGRESS' : 'PENDING',
@@ -508,23 +522,10 @@ function StandardProcessTimeline({
           activityId: `STD-TASK-DAY-${totalDays}-1`,
           day: totalDays,
           cropDay: totalDays,
-          title: 'Kiểm nghiệm dư lượng an toàn và hoàn tất thời gian cách ly VietGAP',
-          timestamp: endCalDate ? `${endCalDate} • Ca sáng (06:30 - 08:00)` : 'Ca sáng (06:30 - 08:00)',
-          status: currentCropDay >= totalDays ? 'COMPLETED' : 'PENDING',
-          workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
-          workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
-          notes: 'Ngừng cấp dinh dưỡng trước 24h, test nhanh nitrat và hoạt chất bảo vệ sinh học đạt ngưỡng an toàn.',
-          completionSource: currentCropDay >= totalDays ? 'DEMO' : null,
-          proofPhoto: null
-        },
-        {
-          activityId: `STD-TASK-DAY-${totalDays}-2`,
-          day: totalDays,
-          cropDay: totalDays,
           title: 'Thu hoạch, phân loại chất lượng loại 1 & dán tem truy xuất nguồn gốc',
           timestamp: endCalDate ? `${endCalDate} • Ca sáng (08:00 - 10:30)` : 'Ca sáng (08:00 - 10:30)',
-          status: latestHarvest ? 'COMPLETED' : 'PENDING',
-          workerName: isSelf ? 'Chủ vườn tự thực hiện' : 'Trần Văn Lực',
+          status: latestHarvest ? 'COMPLETED' : (!cropProcess.isNotStarted && currentCropDay >= totalDays ? 'IN_PROGRESS' : 'PENDING'),
+          workerName: isSelf ? 'Chủ vườn tự thực hiện' : (plot?.staffName || plot?.worker || 'Trần Văn Lực'),
           workerRole: isSelf ? 'Chủ vườn' : 'Kỹ thuật viên hiện trường chuyên trách',
           notes: 'Thu hoạch nhẹ tay tránh dập nát, xếp khay đục lỗ thoáng khí, cân trọng lượng nghiệm thu thực tế.',
           proofPhoto: latestHarvest?.evidenceImageUrl || null
@@ -533,7 +534,7 @@ function StandardProcessTimeline({
     }
 
     return map;
-  }, [staffActivities, getEntryCropDay, totalDays, currentCropDay, cropProcess.isNotStarted, isSelf, plot?.startDate]);
+  }, [staffActivities, getEntryCropDay, totalDays, currentCropDay, cropProcess.isNotStarted, isSelf, plot?.startDate, plot?.staffName, plot?.worker, latestHarvest]);
 
   const trackRef = useRef(null);
   const isDraggingRef = useRef(false);
@@ -662,12 +663,11 @@ function StandardProcessTimeline({
   };
 
   const handleSimulateDay1 = async () => {
+    setSelectedDay(1);
     if (onDemoDay1) {
       await onDemoDay1();
-      setSelectedDay(1);
       return;
     }
-    setSelectedDay(1);
     const rentalId = plot?.rentalId || plot?.rental_id;
     if (rentalId) {
       try {
@@ -692,20 +692,19 @@ function StandardProcessTimeline({
         const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
         bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
         setTimeout(() => { try { bc1.close(); } catch {} }, 1000);
-        const bc2 = new BroadcastChannel('farmely_iot_telemetry');
-        bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
+        const bc2 = new BroadcastChannel('farmely_demo_time_sync');
+        bc2.postMessage({ type: 'DEMO_TIME_UPDATED', rentalId, action: 'START_NOW' });
         setTimeout(() => { try { bc2.close(); } catch {} }, 1000);
       } catch {}
     }
   };
 
   const handleSimulateHarvest = async () => {
+    setSelectedDay(totalDays);
     if (onDemoHarvest) {
       await onDemoHarvest();
-      setSelectedDay(totalDays);
       return;
     }
-    setSelectedDay(totalDays);
     const rentalId = plot?.rentalId || plot?.rental_id;
     if (rentalId) {
       try {
@@ -730,12 +729,11 @@ function StandardProcessTimeline({
         const bc1 = new BroadcastChannel('farmely_staff_activity_channel');
         bc1.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', timestamp: Date.now() });
         setTimeout(() => { try { bc1.close(); } catch {} }, 1000);
-        const bc2 = new BroadcastChannel('farmely_iot_telemetry');
-        bc2.postMessage({ type: 'TELEMETRY_UPDATED', timestamp: Date.now() });
+        const bc2 = new BroadcastChannel('farmely_demo_time_sync');
+        bc2.postMessage({ type: 'DEMO_TIME_UPDATED', rentalId, action: 'HARVEST' });
         setTimeout(() => { try { bc2.close(); } catch {} }, 1000);
       } catch {}
     }
-    window.location.reload();
   };
 
   return (
@@ -914,14 +912,7 @@ function StandardProcessTimeline({
                         const targetDay = evt.displayDay || evt.dayStart;
                         setSelectedDay(targetDay);
                         if (isHarvestNode) {
-                          const rentalId = plot?.rentalId || plot?.rental_id;
-                          if (rentalId) {
-                            fetch(`/api/rentals/${rentalId}/simulate-time`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'HARVEST' })
-                            }).catch(() => {});
-                          }
+                          handleSimulateHarvest();
                         }
                       }}
                       className={`group flex items-center justify-center rounded-2xl transition-all duration-300 cursor-pointer ${
@@ -1102,14 +1093,14 @@ function StandardProcessTimeline({
             /* TRƯỜNG HỢP 1: ĐÃ THU HOẠCH THẬT (Staff đã cân đo & tạo biên bản thực tế) */
             <div
               onClick={() => onOpenHarvestReport?.(effectiveHarvest)}
-              className="rounded-2xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100/40 to-lime-50/50 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition group cursor-pointer hover:shadow-md hover:border-emerald-400"
+              className="rounded-2xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-emerald-100/40 to-lime-50/50 p-3.5 sm:p-4 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5 transition group cursor-pointer hover:shadow-md hover:border-emerald-400"
               title="Bấm để xem Báo cáo thu hoạch & Biên bản nghiệm thu"
             >
-              <div className="flex items-start gap-3 min-w-0">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md text-xl group-hover:scale-105 transition-transform">
                   🌾
                 </span>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="rounded-full bg-emerald-700 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
                       🌾 Đã Thu Hoạch Vụ Mùa
@@ -1134,7 +1125,7 @@ function StandardProcessTimeline({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
+              <div className="flex items-center gap-2 lg:shrink-0 self-start lg:self-center flex-wrap">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1145,17 +1136,6 @@ function StandardProcessTimeline({
                 >
                   <Award className="w-3.5 h-3.5 text-emerald-200" />
                   <span>Báo cáo thu hoạch</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenHarvestReport?.(effectiveHarvest);
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400 bg-white px-3 py-1.5 text-xs font-bold text-emerald-900 shadow-xs hover:bg-emerald-50 transition cursor-pointer"
-                >
-                  <BookOpen className="w-3.5 h-3.5 text-emerald-700" />
-                  <span>Xem biên bản trong Nhật ký</span>
                 </button>
                 {onGoToMaintenance && (
                   <button
@@ -1176,13 +1156,13 @@ function StandardProcessTimeline({
           ) : (
             /* TRƯỜNG HỢP 2: ĐẾN NGÀY THU HOẠCH NHƯNG STAFF CHƯA HOÀN THÀNH -> HIỆN CHỜ THU HOẠCH, CÒN 1 TASK THU HOẠCH CHO STAFF */
             <div
-              className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100/30 to-orange-50/40 p-3.5 sm:p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition"
+              className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-100/30 to-orange-50/40 p-3.5 sm:p-4 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3.5 transition"
             >
-              <div className="flex items-start gap-3 min-w-0">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md text-xl animate-pulse">
                   ⏳
                 </span>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
                       ⏳ Đang Chờ Thu Hoạch (Ngày {totalDays})
@@ -1202,7 +1182,7 @@ function StandardProcessTimeline({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <div className="flex items-center gap-2 lg:shrink-0 self-start lg:self-center flex-wrap">
                 <span className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-100/70 px-3 py-1.5 text-xs font-bold text-amber-900">
                   <Clock className="w-3.5 h-3.5 text-amber-700" />
                   <span>Đang chờ Lực (CVLĐ) thực hiện</span>
@@ -1269,26 +1249,39 @@ function StandardProcessTimeline({
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (isHarvestAct && !isDone) {
-                                    onOpenHarvestReport?.(effectiveHarvest);
-                                  } else {
-                                    onToggleTask?.(act.id || act.activityId);
-                                  }
-                                }}
-                                className={`mt-0.5 h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${
-                                  isDone
-                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
-                                    : isHarvestAct
-                                    ? 'border-amber-400 bg-amber-50 hover:border-amber-500 hover:bg-amber-100'
-                                    : 'border-stone-300 bg-white hover:border-emerald-500'
-                                }`}
-                                title={isDone ? 'Bấm để đánh dấu chưa xong' : isHarvestAct ? 'Bấm để mở Báo cáo thu hoạch & Nghiệm thu' : 'Bấm để đánh dấu hoàn thành'}
-                              >
-                                {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                              </button>
+                              {isSelf || isHarvestAct ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isHarvestAct && !isDone) {
+                                      onOpenHarvestReport?.(effectiveHarvest);
+                                    } else {
+                                      onToggleTask?.(act.id || act.activityId);
+                                    }
+                                  }}
+                                  className={`mt-0.5 h-5 w-5 rounded-md border flex items-center justify-center shrink-0 transition cursor-pointer ${
+                                    isDone
+                                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                                      : isHarvestAct
+                                      ? 'border-amber-400 bg-amber-50 hover:border-amber-500 hover:bg-amber-100'
+                                      : 'border-stone-300 bg-white hover:border-emerald-500'
+                                  }`}
+                                  title={isDone ? 'Bấm để đánh dấu chưa xong' : isHarvestAct ? 'Bấm để mở Báo cáo thu hoạch & Nghiệm thu' : 'Bấm để đánh dấu hoàn thành'}
+                                >
+                                  {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                </button>
+                              ) : (
+                                <span
+                                  className={`mt-0.5 h-5 w-5 rounded-md border flex items-center justify-center shrink-0 ${
+                                    isDone
+                                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                                      : 'border-stone-300 bg-stone-50 text-stone-300'
+                                  }`}
+                                  title={isDone ? 'Chuyên viên Farmely đã hoàn thành & tải ảnh xác nhận' : 'Đang chờ chuyên viên Farmely thực hiện & tải ảnh xác nhận'}
+                                >
+                                  {isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                                </span>
+                              )}
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                   <span className={`font-bold text-xs sm:text-[13px] ${isDone ? 'text-stone-700' : 'text-stone-900'}`}>
@@ -1317,9 +1310,9 @@ function StandardProcessTimeline({
                                   </span>
                                 </div>
 
-                                {(act.notes || act.note) && (
+                                {(act.notes || act.note) && stripEvidenceNote(act.notes || act.note) && (
                                   <p className="mt-1.5 text-xs leading-relaxed text-stone-600">
-                                    {act.notes || act.note}
+                                    {stripEvidenceNote(act.notes || act.note)}
                                   </p>
                                 )}
 
@@ -1833,10 +1826,10 @@ function StaffActivitiesTab({
     if (act.status === 'IN_PROGRESS' || act.status === 'IN_PROG') return true;
     if (act.priority === 'HIGH' || act.priority === 'URGENT') return true;
     if (currentDay > 0 && taskDay) {
-      return taskDay === currentDay;
+      return taskDay <= currentDay;
     }
     if (act.date && /^\d{4}-\d{2}-\d{2}$/.test(act.date)) {
-      return act.date === todayStr;
+      return act.date <= todayStr;
     }
     return false;
   }, [currentDay, totalDays, todayStr, isHarvestTask]);
@@ -1893,22 +1886,20 @@ function StaffActivitiesTab({
     filtered.forEach((act) => {
       if (act.status === 'COMPLETED' || act.status === 'DONE') {
         done.push(act);
-      } else if (isActivityToday(act)) {
-        today.push(act);
       } else if (isActivityUpcoming(act)) {
         upcoming.push(act);
       } else {
-        done.push(act);
+        today.push(act);
       }
     });
 
     return { todayList: today, upcomingList: upcoming, doneList: done };
-  }, [filtered, isActivityToday, isActivityUpcoming]);
+  }, [filtered, isActivityUpcoming]);
 
   const counts = useMemo(() => {
-    const todayCount = activities.filter((a) => (a.status !== 'COMPLETED' && a.status !== 'DONE') && isActivityToday(a)).length;
+    const todayCount = activities.filter((a) => (a.status !== 'COMPLETED' && a.status !== 'DONE') && (isActivityToday(a) || !isActivityUpcoming(a))).length;
     const upcomingCount = activities.filter((a) => (a.status !== 'COMPLETED' && a.status !== 'DONE') && isActivityUpcoming(a)).length;
-    const doneCount = activities.filter((a) => a.status === 'COMPLETED' || a.status === 'DONE' || (!isActivityToday(a) && !isActivityUpcoming(a))).length;
+    const doneCount = activities.filter((a) => a.status === 'COMPLETED' || a.status === 'DONE').length;
 
     return {
       all: activities.length,
@@ -2551,12 +2542,12 @@ function OverviewTab({
         <>
           {/* Thông báo nếu vụ mùa đang chờ Ban Quản Trị (Admin) phê duyệt */}
           {activeSeason?.status === 'PENDING_APPROVAL' && (
-            <div className="rounded-3xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-orange-50/40 to-white p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-start sm:items-center gap-3.5">
+            <div className="rounded-3xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-orange-50/40 to-white p-5 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex items-start lg:items-center gap-3.5 min-w-0 flex-1">
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-md text-xl">
                   ⏳
                 </span>
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
                       {`Vụ ${activeSeason.seasonNumber} · Chờ Admin Phê Duyệt`}
@@ -2576,25 +2567,17 @@ function OverviewTab({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                <a
-                  href="/admin?tab=contracts&subtab=renewals"
-                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-700 hover:bg-amber-800 px-4 py-2 text-xs font-bold text-white transition shadow-xs cursor-pointer"
-                >
-                  <span>Mở Tab Admin Phê Duyệt ›</span>
-                </a>
-              </div>
             </div>
           )}
 
           {/* Thông báo nếu vụ mùa đang chọn chưa tới ngày bắt đầu (Vụ mới gia hạn hoặc vụ sắp tới) */}
           {activeSeason?.status === 'SCHEDULED' && (
-            <div className="rounded-3xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-start sm:items-center gap-3.5">
+            <div className="rounded-3xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50/50 to-white p-5 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex items-start lg:items-center gap-3.5 min-w-0 flex-1">
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md text-xl">
                   🌱
                 </span>
-                <div>
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-emerald-700 px-2.5 py-0.5 text-[10px] font-black text-white uppercase tracking-wider shadow-xs">
                       {activeSeason.seasonNumber > 1 ? `🎉 Vụ ${activeSeason.seasonNumber} · Đã Gia Hạn Thành Công` : 'Kế Hoạch Vụ Mùa'}
@@ -2614,7 +2597,7 @@ function OverviewTab({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <div className="flex items-center gap-2 lg:shrink-0 self-start lg:self-center flex-wrap">
                 <button
                   type="button"
                   onClick={onOpenRenewal}
@@ -2694,10 +2677,19 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
 
   // SSoT: Tự động hợp nhất nhật ký khách hàng và toàn bộ công việc chăm sóc đã hoàn tất của Staff kèm ảnh minh chứng thực địa
   const mergedDiaryEntries = useMemo(() => {
+    const taskTitleByRef = new Map();
+    (staffActivities || []).forEach((act) => {
+      const ref = normalizeTaskRef(act.taskId || act.activityId || act.id);
+      if (ref && act.title) taskTitleByRef.set(ref, act.title);
+    });
+
     const list = [...(operations?.diary || [])].map((item) => {
       const photo = item.image || item.imageUrl || item.photo || item.proofPhoto || item.evidenceImageUrl || null;
+      const ref = normalizeTaskRef(item.taskId);
+      const canonicalTitle = (ref && /nhiệm vụ chăm sóc hiện trường/i.test(item.title || '') && taskTitleByRef.get(ref)) || item.title;
       return {
         ...item,
+        title: canonicalTitle,
         image: photo,
         imageUrl: photo,
         photo: photo,
@@ -2706,8 +2698,11 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
     });
     const seen = new Set();
     list.forEach((e) => {
+      const tRef = normalizeTaskRef(e.taskId);
+      if (tRef) seen.add(tRef);
       if (e.taskId) seen.add(String(e.taskId));
       if (e.id) seen.add(String(e.id));
+      if (e.harvestId) seen.add(`HRV-${e.harvestId}`);
       if (e.title) seen.add(e.title.trim().toLowerCase());
     });
 
@@ -2716,8 +2711,9 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
     // (Assisted-growing) hoặc đơn dịch vụ thu hoạch hộ (Self-growing, BR27).
     (harvestResults || []).forEach((hr) => {
       const hrId = String(hr.harvestId || hr.id || '');
-      if (!hrId || seen.has(hrId)) return;
+      if (!hrId || seen.has(hrId) || seen.has(`HRV-${hrId}`)) return;
       seen.add(hrId);
+      seen.add(`HRV-${hrId}`);
       const hrPhoto = hr.evidenceImageUrl || hr.photo || hr.image || null;
       list.push({
         id: hrId,
@@ -2736,19 +2732,17 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
       });
     });
 
-    const isHarvestPlot = Number(plot?.currentDay) >= Number(plot?.totalDays || 30) || String(plot?.stage || '').toLowerCase().includes('thu hoạch');
-
     (staffActivities || []).forEach((act) => {
       const titleLower = String(act.title || '').toLowerCase();
       const isHarvestTask = titleLower.includes('thu hoạch') || titleLower.includes('nghiệm thu');
-      // Khi đã ở ngày thu hoạch (isHarvestPlot), các task kỹ thuật trước đó (không phải thu hoạch/nghiệm thu) tự động hoàn thành trên nhật ký khách hàng
-      const isAutoDone = isHarvestPlot && !isHarvestTask;
-      const isCompleted = act.status === 'COMPLETED' || act.status === 'DONE' || isAutoDone;
+      const isCompleted = (act.status === 'COMPLETED' || act.status === 'DONE') && act.completionSource !== 'DEMO';
 
       if (isCompleted && !isHarvestTask) {
         const titleKey = (act.title || '').trim().toLowerCase();
         const actId = String(act.activityId || act.id || '');
-        if (!seen.has(actId) && !seen.has(titleKey)) {
+        const actRef = normalizeTaskRef(act.taskId || act.activityId || act.id);
+        if ((!actRef || !seen.has(actRef)) && !seen.has(actId) && !seen.has(titleKey)) {
+          if (actRef) seen.add(actRef);
           seen.add(actId);
           seen.add(titleKey);
           const actPhoto = act.completionSource === 'DEMO' ? null : (act.proofPhoto || act.evidenceImageUrl || act.image || act.imageUrl || act.photo || null);
@@ -2766,7 +2760,7 @@ function DiaryTab({ plot, operations, staffActivities = [], harvestResults = [],
             photo: actPhoto,
             proofPhoto: actPhoto,
             isStaffTask: true,
-            completionSource: act.completionSource || (isAutoDone ? 'DEMO' : null),
+            completionSource: act.completionSource || null,
             status: 'COMPLETED'
           });
         }
@@ -3167,7 +3161,8 @@ export default function CustomerPlotWorkspace({
   onOpenTask,
   onSelectService,
   onAddDiary,
-  onHarvestConfirmed
+  onHarvestConfirmed,
+  onRefreshPlots
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef(null);
@@ -3279,7 +3274,7 @@ export default function CustomerPlotWorkspace({
     };
     window.addEventListener('storage', onStorage);
 
-    // Khi tab Customer được kích hoạt lại (Focus), tự động kiểm tra xem Admin đã duyệt chưa
+    // Khi tab Customer được kích hoạt lại (Focus) hoặc mới mount, tự động đồng bộ trạng thái gia hạn từ PostgreSQL
     const onFocus = () => {
       const savedActive = localStorage.getItem(`farmely_active_season_${plotKey}`);
       if (savedActive) {
@@ -3291,16 +3286,46 @@ export default function CustomerPlotWorkspace({
         .then((json) => {
           const list = Array.isArray(json) ? json : (json?.data || []);
           if (list.length > 0) {
-            const approvedReq = list.find((r) => {
-              const rCode = String(r.plotCode || r.plot_code || '');
+            const matchedReqs = list.filter((r) => {
+              if (plot?.rentalId && r.rentalId && Number(r.rentalId) === Number(plot.rentalId)) return true;
+              const rCode = String(r.plotCode || r.plot_code || '').replace(/\s+/g, '');
               const mMatch = rCode.match(/P-\d+/i) || rCode.match(/\b\d+\b/);
-              const rKey = mMatch ? (mMatch[0].toUpperCase().startsWith('P-') ? mMatch[0].toUpperCase() : `P-${mMatch[0]}`) : 'P-05';
-              return (rKey === plotKey || plotKey.includes(rKey)) && r.status === 'APPROVED';
+              const rKey = mMatch ? (mMatch[0].toUpperCase().startsWith('P-') ? mMatch[0].toUpperCase() : `P-${mMatch[0]}`) : '';
+              return Boolean(rKey) && (rKey === plotKey || plotKey.includes(rKey));
             });
+
+            const approvedReq = matchedReqs.find((r) => r.status === 'APPROVED');
             if (approvedReq) {
               const targetNum = Number(approvedReq.seasonNumber || approvedReq.season_number || 2);
               const targetId = `SEASON-${targetNum}`;
               handleCheckApproved({ seasonNumber: targetNum, seasonId: targetId });
+              return;
+            }
+
+            const pendingReq = matchedReqs.find((r) => r.status === 'PENDING');
+            if (pendingReq) {
+              const baseList = resolvePlotSeasons(plot, plots);
+              const targetNum = Number(pendingReq.seasonNumber || pendingReq.season_number || (baseList.length + 1));
+              if (!baseList.some((s) => s.seasonNumber === targetNum)) {
+                setCustomSeasons([
+                  ...baseList,
+                  {
+                    seasonNumber: targetNum,
+                    id: `SEASON-${targetNum}`,
+                    seasonName: `Vụ ${targetNum}: ${pendingReq.varietyName || 'Giống mới'}`,
+                    cropName: pendingReq.varietyName || 'Giống mới',
+                    varietyId: pendingReq.newVarietyId,
+                    status: 'PENDING_APPROVAL',
+                    totalDays: Number(plot?.totalDays) || 45,
+                    currentDay: 0,
+                    endDate: pendingReq.newEndDate,
+                    fallowDays: 4,
+                    rentalId: pendingReq.rentalId || plot?.rentalId,
+                    cultivationMode: pendingReq.cultivationMode || 'ASSISTED',
+                    isCurrent: false
+                  }
+                ]);
+              }
             }
           }
         })
@@ -3372,6 +3397,7 @@ export default function CustomerPlotWorkspace({
 
   const rentalIdForDemo = plot.rentalId || plot.rental_id;
   const [demoTime, setDemoTime] = useState(null);
+  const demoSenderIdRef = useRef(`tab-${Math.random().toString(36).slice(2, 10)}`);
   useEffect(() => {
     if (!rentalIdForDemo) return undefined;
     let active = true;
@@ -3385,6 +3411,7 @@ export default function CustomerPlotWorkspace({
     refresh();
     const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('farmely_demo_time_sync') : null;
     if (channel) channel.onmessage = (event) => {
+      if (event.data?.senderId === demoSenderIdRef.current) return;
       if (Number(event.data?.rentalId) === Number(rentalIdForDemo)) refresh();
     };
     window.addEventListener('focus', refresh);
@@ -3402,15 +3429,35 @@ export default function CustomerPlotWorkspace({
     setDemoTime(body.data);
     setIsSeasonStarted(true);
     try { localStorage.setItem(`farmely_season_started_${plot.id}`, 'true'); } catch {}
+    try { localStorage.setItem('farmely_task_sync', String(Date.now())); } catch {}
+
+    const plotLabel = plot?.plotCode || plot?.code || plot?.name || `RENTAL-${rentalIdForDemo}`;
+    if (action === 'START_NOW') {
+      sendNotification({
+        targetRole: 'STAFF',
+        userId: plot?.staffId || undefined,
+        type: 'SUCCESS',
+        title: `🌱 Bắt đầu mùa vụ mới (${plotLabel})`,
+        content: `Khách hàng vừa kích hoạt Ngày 1 (${plot?.crop || 'vụ mới'}) tại thửa ${plotLabel}. Nhiệm vụ Ngày 1 đã sẵn sàng trong ca trực.`,
+        link: `/staff/dashboard?plot=${encodeURIComponent(plotLabel)}`
+      });
+    }
+
+    onRefreshPlots?.();
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('farmely_demo_time_sync', { detail: { rentalId: rentalIdForDemo, action, seasonKey: activeSeasonId, senderId: demoSenderIdRef.current } }));
+      window.dispatchEvent(new CustomEvent('farmely_staff_activity_updated', { detail: { rentalId: rentalIdForDemo } }));
+    }
     try {
       const channel = new BroadcastChannel('farmely_demo_time_sync');
-      channel.postMessage({ rentalId: rentalIdForDemo, seasonKey: activeSeasonId });
+      channel.postMessage({ rentalId: rentalIdForDemo, seasonKey: activeSeasonId, action, senderId: demoSenderIdRef.current });
       channel.close();
       const taskChannel = new BroadcastChannel('farmely_staff_activity_channel');
-      taskChannel.postMessage({ type: 'STAFF_ACTIVITIES_UPDATED', rentalId: rentalIdForDemo });
+      taskChannel.postMessage({ type: action === 'START_NOW' ? 'SEASON_STARTED' : 'STAFF_ACTIVITIES_UPDATED', rentalId: rentalIdForDemo, plotCode: plotLabel, action });
       taskChannel.close();
     } catch {}
-  }, [rentalIdForDemo, activeSeasonId, plot.id]);
+  }, [rentalIdForDemo, activeSeasonId, plot?.id, plot?.plotCode, plot?.code, plot?.name, plot?.crop, plot?.staffId, onRefreshPlots]);
 
   // 1. Phân tích và sinh quy trình canh tác chuẩn VietGAP tính theo ngày tuổi cho Vụ mùa đang chọn
   const cropProcess = useMemo(() => {
@@ -3426,9 +3473,7 @@ export default function CustomerPlotWorkspace({
 
   // Quản lý công việc hằng ngày cho khách hàng tự canh tác (Requirement #3)
   const defaultSelfTasks = useMemo(() => {
-    // Ngày 1 (Bắt đầu mùa vụ): Đúng 2 công việc chuẩn mực, tinh gọn, không spam
-    // ponytail: Chỉ tự động COMPLETED khi ngày hiện tại ĐÃ QUA ngày của task (> taskDay)
-    const isHarvestPlot = !cropProcess.isNotStarted && (cropProcess.currentDay >= cropProcess.totalDays);
+    // Ngày 1 (Bắt đầu mùa vụ): Đúng 2 công việc chuẩn mực, tinh gọn, không spam; không tự hoàn tất khi tua ngày
     const tasks = [
       {
         id: `SELF-${plot.id}-D1-PREP`,
@@ -3438,7 +3483,7 @@ export default function CustomerPlotWorkspace({
         cropDay: 1,
         date: 'Ngày 1',
         timestamp: 'Ngày 1 • Ca sáng (07:30 - 09:00)',
-        status: isHarvestPlot || (!cropProcess.isNotStarted && 1 < (cropProcess.currentDay || 0)) ? 'COMPLETED' : 'PENDING',
+        status: 'PENDING',
         notes: 'Xới xáo đất tơi xốp sâu 20cm, bón lót phân trùn quế và phun nấm đối kháng Trichoderma cân bằng hệ vi sinh đất.',
         stepOrder: 1,
         isCustom: false
@@ -3451,7 +3496,7 @@ export default function CustomerPlotWorkspace({
         cropDay: 1,
         date: 'Ngày 1',
         timestamp: 'Ngày 1 • Ca chiều (16:00 - 17:30)',
-        status: isHarvestPlot || (!cropProcess.isNotStarted && 1 < (cropProcess.currentDay || 0)) ? 'COMPLETED' : 'PENDING',
+        status: 'PENDING',
         notes: 'Duy trì ẩm độ luống đất ổn định trước khi xuống cây giống theo mật độ khuyến nghị.',
         stepOrder: 1,
         isCustom: false
@@ -3469,9 +3514,9 @@ export default function CustomerPlotWorkspace({
           ].filter(Boolean).join('\n');
 
           const isHarvestStage = st.name?.toLowerCase().includes('thu hoạch') || (st.dayEnd && st.dayEnd >= cropProcess.totalDays);
-          const taskStatus = isHarvestPlot
-            ? (isHarvestStage ? 'IN_PROGRESS' : 'COMPLETED')
-            : (!cropProcess.isNotStarted && st.dayStart < (cropProcess.currentDay || 0) ? 'COMPLETED' : 'PENDING');
+          const taskStatus = !cropProcess.isNotStarted && isHarvestStage && cropProcess.currentDay >= cropProcess.totalDays
+            ? 'IN_PROGRESS'
+            : 'PENDING';
 
           tasks.push({
             id: `SELF-${plot.id}-STG${st.stepOrder || idx + 1}`,
@@ -3512,10 +3557,6 @@ export default function CustomerPlotWorkspace({
         if (Array.isArray(parsed) && parsed.length > 0) {
           const day1Tasks = parsed.filter(t => t.day === 1);
           if (day1Tasks.length <= 2 && new Set(day1Tasks.map(t => t.title)).size === day1Tasks.length) {
-            // Nếu đang ở Ngày Thu Hoạch (currentDay >= totalDays): reset về defaultSelfTasks để tất cả các task trước thu hoạch đều là COMPLETED
-            if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && parsed.some(t => t.day < cropProcess.totalDays && t.status !== 'COMPLETED')) {
-              return defaultSelfTasks;
-            }
             return parsed;
           }
         }
@@ -3535,9 +3576,6 @@ export default function CustomerPlotWorkspace({
           if (day1Tasks.length > 2 || new Set(day1Tasks.map(t => t.title)).size < day1Tasks.length) {
             shouldReset = true;
           }
-          if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && parsed.some(t => t.day < cropProcess.totalDays && t.status !== 'COMPLETED')) {
-            shouldReset = true;
-          }
         }
         if (shouldReset) {
           setSelfTasks(defaultSelfTasks);
@@ -3546,7 +3584,7 @@ export default function CustomerPlotWorkspace({
         }
       } catch { }
     }
-  }, [isSelf, taskStorageKey, defaultSelfTasks, plot.id, cropProcess.currentDay, cropProcess.totalDays, cropProcess.isNotStarted]);
+  }, [isSelf, taskStorageKey, defaultSelfTasks, plot.id]);
 
   const handleToggleSelfTask = useCallback((taskId) => {
     setSelfTasks((prev) => {
@@ -3615,7 +3653,7 @@ export default function CustomerPlotWorkspace({
 
   // 2. Lưu trữ và truy xuất các hoạt động của Staff
   const [staffActivities, setStaffActivities] = useState(() => {
-    return getPersistedStaffActivities(plot.id);
+    return getPersistedStaffActivities(plot.id, plot.rentalId || plot.rental_id);
   });
   const [selectedPhotoActivity, setSelectedPhotoActivity] = useState(null);
 
@@ -3690,9 +3728,13 @@ export default function CustomerPlotWorkspace({
                   } catch { }
                 }
 
+                const hasStaffProof = m.completionSource === 'STAFF' || Boolean(m.proofPhoto || m.evidenceImageUrl);
                 const isServiceTask = Boolean(m.serviceRequestId || m.isCustom || (m.title && m.title.includes('[DỊCH VỤ')));
-                const isCurrentPlotDay1 = Number(plot?.currentDay || cropProcess?.currentDay || 1) <= 1 || cropProcess?.isNotStarted;
-                const isDone = (m.status === 'DONE' || m.status === 'COMPLETED') && !(resolvedDay === 1 && isCurrentPlotDay1 && !isServiceTask);
+                const effectivePlotDay = m.plotCurrentDay !== undefined && m.plotCurrentDay !== null
+                  ? Number(m.plotCurrentDay)
+                  : Number(plot?.currentDay || cropProcess?.currentDay || 1);
+                const isCurrentPlotDay1 = effectivePlotDay <= 1 || cropProcess?.isNotStarted;
+                const isDone = (m.status === 'DONE' || m.status === 'COMPLETED') && m.completionSource !== 'DEMO' && (hasStaffProof || !(resolvedDay === 1 && isCurrentPlotDay1 && !isServiceTask));
                 const sessionTime = m.deadline || (m.stepOrder && m.stepOrder % 2 === 0 ? 'Ca chiều (16:00 - 17:30)' : 'Ca sáng (07:30 - 09:00)');
                 const formattedTimestamp = isDone
                   ? (m.completedAt || (displayDateStr ? `${displayDateStr} • Đã hoàn thành` : 'Đã hoàn tất'))
@@ -3710,7 +3752,7 @@ export default function CustomerPlotWorkspace({
                   cropDay: resolvedDay,
                   dayOffset: m.dayOffset !== undefined && m.dayOffset !== null ? Number(m.dayOffset) : null,
                   date: m.date || m.dueDate,
-                  stepOrder: m.stepOrder || 1,
+                  stepOrder: m.stepOrder ?? 1,
                   workerName: m.workerName || m.assignedTo || 'Kỹ thuật viên hiện trường chuyên trách',
                   workerRole: 'Kỹ thuật viên hiện trường chuyên trách',
                   workerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
@@ -3726,20 +3768,30 @@ export default function CustomerPlotWorkspace({
               return;
             }
           }
+          if (plot.rentalId || plot.rental_id) {
+            setStaffActivities([]);
+            return;
+          }
           setStaffActivities(getPersistedStaffActivities(plot.id));
         })
         .catch(() => {
-          if (isMounted) setStaffActivities(getPersistedStaffActivities(plot.id));
+          if (isMounted) setStaffActivities(getPersistedStaffActivities(plot.id, plot.rentalId || plot.rental_id));
         });
     };
 
     reloadStaffActivities();
 
     let bc = null;
+    let demoBc = null;
+    let notifBc = null;
     try {
       if (typeof window !== 'undefined' && window.BroadcastChannel) {
         bc = new BroadcastChannel('farmely_staff_activity_channel');
         bc.onmessage = () => reloadStaffActivities();
+        demoBc = new BroadcastChannel('farmely_demo_time_sync');
+        demoBc.onmessage = () => reloadStaffActivities();
+        notifBc = new BroadcastChannel('farmely_notifications_channel');
+        notifBc.onmessage = () => reloadStaffActivities();
       }
     } catch {
       // ignore
@@ -3769,6 +3821,9 @@ export default function CustomerPlotWorkspace({
     window.addEventListener('storage', onStorage);
     window.addEventListener('farmely_service_paid', onServicePaid);
     window.addEventListener('farmely_task_completed', onTaskCompleted);
+    window.addEventListener('farmely_staff_activity_updated', onTaskCompleted);
+    window.addEventListener('farmely_notification_received', onTaskCompleted);
+    window.addEventListener('farmely_demo_time_sync', onTaskCompleted);
     window.addEventListener('focus', onFocusOrVisible);
     document.addEventListener('visibilitychange', onFocusOrVisible);
 
@@ -3777,11 +3832,16 @@ export default function CustomerPlotWorkspace({
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('farmely_service_paid', onServicePaid);
       window.removeEventListener('farmely_task_completed', onTaskCompleted);
+      window.removeEventListener('farmely_staff_activity_updated', onTaskCompleted);
+      window.removeEventListener('farmely_notification_received', onTaskCompleted);
+      window.removeEventListener('farmely_demo_time_sync', onTaskCompleted);
       window.removeEventListener('focus', onFocusOrVisible);
       document.removeEventListener('visibilitychange', onFocusOrVisible);
       if (bc) bc.close();
+      if (demoBc) demoBc.close();
+      if (notifBc) notifBc.close();
     };
-  }, [plot.id, plot.plotCode, plot.rentalId]);
+  }, [plot.id, plot.plotCode, plot.rentalId, demoTime?.currentDay, isSeasonStarted]);
 
   // 3. Tích hợp Open-Meteo Global Agrometeorology Live 3rd-Party API
   const [liveIotResult, setLiveIotResult] = useState(null);
@@ -4217,8 +4277,8 @@ export default function CustomerPlotWorkspace({
             harvestResults={activeHarvestResults}
             latestHarvest={activeHarvestResults[0] || null}
             onOpenHarvestReport={(harvest) => setSelectedHarvestReport(harvest)}
-            onSimulateDay1={() => simulateDemoDay('START_NOW')}
-            onDemoDay1={() => simulateDemoDay('START_NOW')}
+            onSimulateDay1={() => { setShowMaintenanceView(false); simulateDemoDay('START_NOW'); }}
+            onDemoDay1={() => { setShowMaintenanceView(false); simulateDemoDay('START_NOW'); }}
             onDemoHarvest={() => simulateDemoDay('HARVEST')}
             showMaintenanceView={showMaintenanceView}
             setShowMaintenanceView={setShowMaintenanceView}
@@ -4261,21 +4321,24 @@ export default function CustomerPlotWorkspace({
 
                     rawDiaries.forEach((d) => {
                       const normTitle = String(d.title || '').trim().toLowerCase();
-                      if (d.taskId) diaryByTaskId.set(String(d.taskId), d);
-                      if (normTitle) diaryByTitle.set(normTitle, d);
+                      const dTaskRef = normalizeTaskRef(d.taskId);
+                      if (dTaskRef) diaryByTaskId.set(dTaskRef, d);
+                      if (normTitle && !/nhiệm vụ chăm sóc hiện trường/i.test(normTitle)) {
+                        diaryByTitle.set(normTitle, d);
+                      }
                     });
 
                     // 2. Đồng bộ 100% từng task trong base với diary và trạng thái thực tế
                     const syncedBase = base.map((act) => {
                       const actDay = act.day || act.cropDay || 1;
                       const actId = String(act.activityId || act.id || '');
+                      const actRef = normalizeTaskRef(act.taskId || act.activityId || act.id);
                       const normTitle = String(act.title || '').trim().toLowerCase();
 
-                      const matchingDiary = (act.taskId && diaryByTaskId.get(String(act.taskId))) ||
-                        diaryByTaskId.get(actId) ||
+                      const matchingDiary = (actRef && diaryByTaskId.get(actRef)) ||
                         diaryByTitle.get(normTitle);
 
-                      let isDone = act.status === 'COMPLETED' || act.status === 'DONE';
+                      let isDone = (act.status === 'COMPLETED' || act.status === 'DONE') && act.completionSource !== 'DEMO';
                       let proofPhoto = act.proofPhoto || act.evidenceImageUrl || null;
                       let completedTimestamp = act.timestamp;
 
@@ -4293,19 +4356,10 @@ export default function CustomerPlotWorkspace({
                         proofPhoto = null;
                       }
 
-                      // Khi đang ở Ngày 1 mới bắt đầu: task của Staff chưa có ảnh thực tế không tự động hoàn thành (không áp dụng cho Chủ vườn tự làm)
-                      if (!isSelf && (cropProcess.currentDay || 1) <= 1 && actDay === 1 && act.status === 'COMPLETED' && !act.proofPhoto && !act.isCustom && !matchingDiary) {
+                      // Khi đang ở Ngày 1 mới bắt đầu: task của Staff chỉ hoàn thành khi Staff đã thực sự upload ảnh & xác nhận (completionSource === 'STAFF')
+                      if (!isSelf && (cropProcess.currentDay || 1) <= 1 && actDay === 1 && isDone && act.completionSource !== 'STAFF' && !act.proofPhoto && !act.isCustom && !matchingDiary) {
                         isDone = false;
                         proofPhoto = null;
-                      }
-
-                      // QUAN TRỌNG: Khi mùa vụ đã tiến đến Ngày Thu Hoạch (currentDay >= totalDays):
-                      // Tất cả các công việc chuẩn kỹ thuật của các giai đoạn trước (actDay < totalDays)
-                      // ĐÃ ĐƯỢC HOÀN THÀNH trong suốt mùa vụ!
-                      // (Ngoại trừ nhiệm vụ Thu hoạch & Nghiệm thu BR20 — phải chờ thực hiện thật)
-                      const isHarvestAct = /thu hoạch|nghiệm thu/i.test(act.title);
-                      if (!cropProcess.isNotStarted && cropProcess.currentDay >= cropProcess.totalDays && actDay < cropProcess.totalDays && !isHarvestAct) {
-                        isDone = true;
                       }
 
                       // Nếu task CHƯA hoàn thành (IN_PROGRESS hoặc PENDING): tuyệt đối không hiển thị ảnh minh chứng
@@ -4317,7 +4371,7 @@ export default function CustomerPlotWorkspace({
                         ...act,
                         status: isDone ? 'COMPLETED' : (act.status === 'IN_PROGRESS' || act.status === 'IN_PROG' ? 'IN_PROGRESS' : 'PENDING'),
                         proofPhoto: act.completionSource === 'DEMO' ? null : proofPhoto,
-                        completionSource: act.completionSource || (isDone && act.status !== 'COMPLETED' ? 'DEMO' : null),
+                        completionSource: act.completionSource === 'DEMO' ? null : (act.completionSource || null),
                         timestamp: isDone ? (act.completedAt || completedTimestamp || 'Đã hoàn tất') : act.timestamp
                       };
                     });
@@ -4338,20 +4392,40 @@ export default function CustomerPlotWorkspace({
                       isHarvest: true
                     }));
 
-                    // 4. Những bài viết nhật ký tự do của khách (không trùng với task VietGAP nào)
+                    // 4. Những bài viết nhật ký tự do của khách (không trùng với task VietGAP hoặc biên bản thu hoạch nào)
+                    const taskRefs = new Set(
+                      syncedBase.map((item) => normalizeTaskRef(item.taskId || item.activityId || item.id)).filter(Boolean)
+                    );
+                    const completedTimestamps = new Set(
+                      syncedBase
+                        .filter((item) => item.status === 'COMPLETED')
+                        .map((item) => String(item.timestamp || '').replace(/\s*•\s*/g, ' ').trim().toLowerCase())
+                        .filter(Boolean)
+                    );
                     const standaloneDiaries = [];
                     rawDiaries.forEach((d) => {
                       const dId = String(d.id || d.diaryId || '');
                       const normTitle = String(d.title || '').trim().toLowerCase();
+                      const dTaskRef = normalizeTaskRef(d.taskId);
                       const diaryKey = dId || `${d.day}_${normTitle}`;
+                      const dTimeNorm = String(d.time || d.date || '').replace(/\s*•\s*/g, ' ').trim().toLowerCase();
+                      const isHarvestMirror = Boolean(d.harvestId) && harvestEntries.length > 0;
+                      const isGenericStaffMirror = /nhiệm vụ chăm sóc hiện trường/i.test(normTitle) &&
+                        completedTimestamps.size > 0 &&
+                        (!dTimeNorm || completedTimestamps.has(dTimeNorm));
                       const isMatched = matchedDiaryKeys.has(diaryKey) ||
-                        syncedBase.some(t => String(t.title || '').trim().toLowerCase() === normTitle || (d.taskId && (t.taskId === d.taskId || t.activityId === d.taskId)));
+                        (dTaskRef && taskRefs.has(dTaskRef)) ||
+                        isHarvestMirror ||
+                        isGenericStaffMirror ||
+                        syncedBase.some((t) => String(t.title || '').trim().toLowerCase() === normTitle);
 
                       if (!isMatched) {
                         const finalDay = calculateEntryCropDay(d, activePlot?.startDate || plot?.startDate, cropProcess.currentDay, cropProcess.totalDays) || Number(d.day || d.cropDay) || 1;
                         standaloneDiaries.push({
                           activityId: d.id || `DIARY-${d.taskId || Date.now()}`,
                           id: d.id || `DIARY-${d.taskId || Date.now()}`,
+                          taskId: d.taskId || null,
+                          harvestId: d.harvestId || null,
                           title: d.title || 'Ghi chép nhật ký vụ mùa',
                           notes: d.note || d.content,
                           workerName: d.author || 'Chủ vườn',
@@ -4366,10 +4440,10 @@ export default function CustomerPlotWorkspace({
                       }
                     });
 
-                    const taskIds = new Set(syncedBase.map((item) => String(item.taskId || item.activityId || item.id || '').replace(/^(TSK-|TASK-DIR-|DIARY-FROM-TASK-)/, '')));
                     const taskEvidence = new Set(syncedBase.map((item) => item.proofPhoto || item.imageUrl || item.image || item.photo).filter(Boolean));
                     const combined = [...syncedBase, ...harvestEntries, ...standaloneDiaries.filter((item) => {
-                      if (item.taskId && taskIds.has(String(item.taskId).replace(/^(TSK-|TASK-DIR-|DIARY-FROM-TASK-)/, ''))) return false;
+                      const itemTaskRef = normalizeTaskRef(item.taskId);
+                      if (itemTaskRef && taskRefs.has(itemTaskRef)) return false;
                       const image = item.proofPhoto || item.imageUrl || item.image || item.photo;
                       return !(image && taskEvidence.has(image) && /nhiệm vụ chăm sóc hiện trường/i.test(item.title || ''));
                     })];

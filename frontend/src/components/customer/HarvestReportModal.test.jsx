@@ -108,7 +108,7 @@ describe('HarvestReportModal & Workspace Integration', () => {
 
     expect(container.textContent).toContain('Nông sản đã thu hoạch hoàn tất — Đã chốt biên bản sản lượng!');
     expect(container.textContent).toContain('Báo cáo thu hoạch');
-    expect(container.textContent).toContain('Xem biên bản trong Nhật ký');
+    expect(container.textContent).not.toContain('Xem biên bản trong Nhật ký');
 
     // Modal popup is not visible initially
     expect(container.textContent).not.toContain('Báo Cáo Nghiệm Thu Sản Lượng Vụ Mùa');

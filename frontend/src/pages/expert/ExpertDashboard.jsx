@@ -17,7 +17,7 @@ import { clearCompatibilityCache } from '../../utils/leaseSelection';
 import Crops from '../admin/Crops';
 import Varieties from '../admin/Varieties';
 import ProcessTemplates from '../admin/ProcessTemplates';
-import { getVisibleExpertThreads } from './expertChatThreads';
+import { getVisibleExpertThreads, resolveActiveExpertThread } from './expertChatThreads';
 import {
   Sprout,
   Wheat,
@@ -191,6 +191,7 @@ export default function ExpertDashboard() {
   const [chatInputText, setChatInputText] = useState('');
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
   const [mobileShowChat, setMobileShowChat] = useState(false);
+  const [openedPlotThreadId, setOpenedPlotThreadId] = useState(null);
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
   const [assignedPlots, setAssignedPlots] = useState([]);
@@ -222,6 +223,7 @@ export default function ExpertDashboard() {
 
   // Handle select conversation
   const handleSelectThread = (threadId) => {
+    setOpenedPlotThreadId(null);
     setSelectedThreadId(threadId);
     setMobileShowChat(true);
     markExpertThreadAsRead(threadId);
@@ -232,12 +234,27 @@ export default function ExpertDashboard() {
     if (e) e.preventDefault();
     if (!chatInputText.trim()) return;
 
+    const targetThread = resolveActiveExpertThread(
+      chatThreads,
+      visibleChatThreads,
+      selectedThreadId,
+      openedPlotThreadId,
+      user?.userId
+    );
+    if (!targetThread?.id) {
+      window.alert('Vui lòng chọn một cuộc hội thoại trước khi gửi tin nhắn.');
+      return;
+    }
+    if (targetThread.id !== selectedThreadId) {
+      setSelectedThreadId(targetThread.id);
+    }
+
     const currentExpert = (isExpertUser && user?.fullName)
       ? user.fullName
-      : (activeRealtimeThread?.expertName || expertSenderName);
+      : (targetThread?.expertName || expertSenderName);
 
     try {
-      await sendExpertMessage(chatInputText.trim(), currentExpert);
+      await sendExpertMessage(chatInputText.trim(), currentExpert, {}, targetThread.id);
       setChatInputText('');
     } catch (error) {
       window.alert(error.message || 'Không thể gửi tin nhắn');
@@ -257,6 +274,24 @@ export default function ExpertDashboard() {
   const [fieldIssues, setFieldIssues] = useState([]);
 
   const [selectedIssueDetail, setSelectedIssueDetail] = useState(null);
+  const handledUrlIssueRef = React.useRef('');
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const rawIssueId = params.get('issueId');
+    if (!rawIssueId || !Array.isArray(fieldIssues) || fieldIssues.length === 0) return;
+    const key = `${location.search}:${rawIssueId}`;
+    if (handledUrlIssueRef.current === key) return;
+    const numericTarget = Number(String(rawIssueId).replace(/\D/g, ''));
+    const matched = fieldIssues.find((item) => {
+      const itemNumeric = Number(String(item.issueId || item.apiId || item.id || '').replace(/\D/g, ''));
+      return (numericTarget > 0 && itemNumeric === numericTarget) || String(item.id) === String(rawIssueId) || String(item.issueCode) === String(rawIssueId);
+    });
+    if (matched) {
+      handledUrlIssueRef.current = key;
+      setActiveTab('issues');
+      setSelectedIssueDetail(matched);
+    }
+  }, [location.search, fieldIssues]);
   const [detailDiagnosisText, setDetailDiagnosisText] = useState('');
   const [detailAssignWorkerId, setDetailAssignWorkerId] = useState(8);
   const [detailDueDate, setDetailDueDate] = useState('');
@@ -448,6 +483,14 @@ export default function ExpertDashboard() {
     if (demoMatch) {
       const existingThread = chatThreads.find((t) => t.id === demoMatch.threadId);
       if (existingThread) return existingThread.id;
+      chatService.upsertCustomerThread({
+        threadId: demoMatch.threadId,
+        participantUserId: plot.renterId || demoMatch.userId,
+        customerName: plot.renterName || demoMatch.name,
+        customerEmail: renterEmail || demoMatch.email,
+        customerAvatar: demoMatch.avatar
+      });
+      refreshThreads();
       return demoMatch.threadId;
     }
 
@@ -467,6 +510,7 @@ export default function ExpertDashboard() {
   const handleOpenChatWithCustomer = useCallback((plot) => {
     const threadId = findCustomerThreadForPlot(plot);
     if (threadId) {
+      setOpenedPlotThreadId(threadId);
       setSelectedThreadId(threadId);
       markExpertThreadAsRead(threadId);
     }
@@ -603,7 +647,6 @@ export default function ExpertDashboard() {
         const stageNameLower = (stage.name || '').trim().toLowerCase();
         if (!seenTitles.has(stageNameLower)) {
           const stageDay = stage.dayStart || 1;
-          const isDone = currentDay > stage.dayEnd;
           const isCurrent = currentDay >= stage.dayStart && currentDay <= stage.dayEnd;
 
           combined.push({
@@ -613,11 +656,11 @@ export default function ExpertDashboard() {
             dayRange: stage.label || `Ngày ${stage.dayStart} - ${stage.dayEnd}`,
             title: `${stage.name} (${stage.label})`,
             time: `Mốc ngày ${stage.dayStart} - ${stage.dayEnd} / ${totalDays}`,
-            status: isDone ? 'COMPLETED' : isCurrent ? 'IN_PROGRESS' : 'PENDING',
+            status: isCurrent ? 'IN_PROGRESS' : 'PENDING',
             author: plot.staffName || 'Trần Văn Lực (CVLĐ)',
             authorRole: 'Quy trình VietGAP phụ trách',
             note: `${stage.statusDesc ? stage.statusDesc + '. ' : ''}${stage.guide || ''}${stage.nutrition ? ' • Dinh dưỡng: ' + stage.nutrition : ''}${stage.pestAlert ? ' • Cảnh báo: ' + stage.pestAlert : ''}`,
-            proofPhoto: isDone ? (stage.samplePhoto || 'https://images.unsplash.com/photo-1592417817098-8f3d6910985c?auto=format&fit=crop&w=600&q=80') : null,
+            proofPhoto: null,
             isStandardStep: true
           });
         }
@@ -1385,6 +1428,20 @@ export default function ExpertDashboard() {
   }, [plotCompatibilityList, activeCompatPlotId]);
 
   useEffect(() => {
+    if (plotCompatibilityList.length === 0) return;
+    const params = new URLSearchParams(location.search);
+    const targetPlotId = Number(params.get('plotId') || 0);
+    const targetPlotCode = String(params.get('plot') || '').replace(/\s+/g, '').trim().toUpperCase();
+    const matched = plotCompatibilityList.find((p) =>
+      (targetPlotId > 0 && Number(p.plotId) === targetPlotId) ||
+      (targetPlotCode && String(p.plotCode || '').replace(/\s+/g, '').toUpperCase() === targetPlotCode)
+    );
+    if (matched) {
+      setActiveCompatPlotId(matched.plotId);
+    }
+  }, [location.search, plotCompatibilityList]);
+
+  useEffect(() => {
     if (activeCompatPlot) {
       const vIds = (activeCompatPlot.compatibleVarieties || []).map((v) => Number(v.varietyId || v.id));
       setSelectedCompatVarietyIds(vIds);
@@ -1520,7 +1577,13 @@ export default function ExpertDashboard() {
           diagnosis: issue.diagnosis || issue.resolutionNotes || '',
           status: issue.status || issue.displayStatus || 'OPEN',
           assignedTaskCode: issue.assignedTaskCode || null,
-          assignedDueDate: issue.assignedDueDate || null
+          assignedDueDate: issue.assignedDueDate || null,
+          assignedTaskTitle: issue.assignedTaskTitle || '',
+          assignedTaskNotes: issue.assignedTaskNotes || '',
+          assignedTaskStatus: issue.assignedTaskStatus || '',
+          resolutionProofPhoto: issue.resolutionProofPhoto || '',
+          resolutionCompletedAt: issue.resolutionCompletedAt || '',
+          assignedWorkerName: issue.assignedWorkerName || ''
         })));
       }
       if (templates.length > 0) {
@@ -1747,7 +1810,10 @@ export default function ExpertDashboard() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setOpenedPlotThreadId(null);
+                    setActiveTab(tab.id);
+                  }}
                   title={sidebarCollapsed ? tab.label : undefined}
                   aria-label={sidebarCollapsed ? tab.label : undefined}
                   className={`relative group min-h-11 w-full px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-between cursor-pointer ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : ''} ${
@@ -1989,9 +2055,13 @@ export default function ExpertDashboard() {
 
                   {/* Right Column: Active Messenger Conversation View */}
                   {(() => {
-                    const activeThread =
-                      visibleChatThreads.find((t) => t.id === selectedThreadId) ||
-                      visibleChatThreads[0];
+                    const activeThread = resolveActiveExpertThread(
+                      chatThreads,
+                      visibleChatThreads,
+                      selectedThreadId,
+                      openedPlotThreadId,
+                      user?.userId
+                    );
 
                     if (!activeThread) return (
                       <div className="flex min-w-0 flex-1 items-center justify-center p-6 text-center text-sm text-stone-500">
@@ -2190,7 +2260,7 @@ export default function ExpertDashboard() {
                           {displayedMessages.map((msg) => {
                             const isExpert = msg.sender === 'expert' ||
                               msg.senderRole === 'EXPERT' ||
-                              Number(msg.senderId) === 2 ||
+                              (Number(user?.userId) > 0 && Number(msg.senderId) === Number(user?.userId)) ||
                               Number(msg.senderId) === 5 ||
                               String(msg.senderName || '').includes('Nguyễn Hoàng Nam') ||
                               String(msg.senderName || '').includes('Chuyên gia');
@@ -3578,10 +3648,57 @@ export default function ExpertDashboard() {
             {/* Bước 3: Giao việc khắc phục cho CVLĐ */}
             <section className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
               {renderSectionHeader(3, 'Giao việc cho CVLĐ', Boolean(selectedIssueDetail.assignedTaskCode || selectedIssueDetail.status === 'RESOLVED'))}
-              {(selectedIssueDetail.status === 'RESOLVED' || selectedIssueDetail.status === 'DONE') && (
-                <div className="p-3 bg-emerald-100/90 border border-emerald-300 rounded-xl text-emerald-900 font-bold text-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>✓ Nhân viên hiện trường đã hoàn thành ca khắc phục sự cố này và đồng bộ ảnh minh chứng vào nhật ký nông trại.</span>
+              {(selectedIssueDetail.status === 'RESOLVED' || selectedIssueDetail.status === 'DONE' || selectedIssueDetail.assignedTaskStatus === 'DONE') && (
+                <div className="space-y-3 rounded-xl border border-emerald-300 bg-white p-3.5 shadow-xs">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>Nhân viên hiện trường đã hoàn thành ca khắc phục sự cố này và cập nhật minh chứng thực tế.</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs">
+                    <div className="space-y-1.5 rounded-lg border border-emerald-100 bg-emerald-50/40 p-2.5">
+                      <p className="font-bold text-brand-dark">
+                        Công việc: {selectedIssueDetail.assignedTaskTitle || 'Xử lý sự cố hiện trường'}
+                        {selectedIssueDetail.assignedTaskCode ? ` (${selectedIssueDetail.assignedTaskCode})` : ''}
+                      </p>
+                      <p className="text-stone-600">
+                        Nhân viên thực hiện: <strong className="text-stone-800">{selectedIssueDetail.assignedWorkerName || selectedIssueDetail.workerName || 'Nhân viên hiện trường'}</strong>
+                      </p>
+                      {selectedIssueDetail.resolutionCompletedAt && (
+                        <p className="text-stone-600">
+                          Hoàn thành lúc: <strong className="text-stone-800">{selectedIssueDetail.resolutionCompletedAt}</strong>
+                        </p>
+                      )}
+                      {selectedIssueDetail.assignedTaskNotes && (
+                        <p className="whitespace-pre-line text-stone-700 pt-1 border-t border-emerald-100">
+                          {selectedIssueDetail.assignedTaskNotes}
+                        </p>
+                      )}
+                    </div>
+
+                    {selectedIssueDetail.resolutionProofPhoto ? (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">Ảnh minh chứng Staff đã chụp</p>
+                        <a
+                          href={selectedIssueDetail.resolutionProofPhoto}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block overflow-hidden rounded-lg border border-emerald-200 bg-stone-50"
+                          title="Nhấn để xem ảnh minh chứng kích thước đầy đủ"
+                        >
+                          <img
+                            src={selectedIssueDetail.resolutionProofPhoto}
+                            alt="Ảnh minh chứng hoàn thành sự cố"
+                            className="h-36 w-full object-cover transition-transform hover:scale-[1.02]"
+                          />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center rounded-lg border border-dashed border-emerald-200 bg-stone-50 p-3 text-[11px] text-stone-500">
+                        Đã đồng bộ nhật ký (không có ảnh đính kèm)
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               <IssueAssignmentPanel

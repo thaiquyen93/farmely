@@ -4,7 +4,7 @@ import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import BoundaryPreviewMap from '../../components/admin/BoundaryPreviewMap';
 import { farmApi, plotStatusBadge } from '../../api/farm/farmApi';
-import { cleanRing, formatArea } from '../../utils/polygonGeometry';
+import { cleanRing, formatArea, formatRecordedArea } from '../../utils/polygonGeometry';
 import { ArrowLeft, Check, Edit, Grid3X3, Loader2, MapPin, PenLine, Plus, Sparkles, CheckCircle2, Clock, AlertTriangle, EyeOff } from 'lucide-react';
 
 const money = (v) => (v == null ? '—' : `${Number(v).toLocaleString('vi-VN')} đ`);
@@ -250,7 +250,7 @@ const compatCount = Number(p.compatibleVarietiesCount) || (Array.isArray(p.crops
                   return (
                     <tr key={p.plotId} onClick={() => setSelected(p.plotId)} className={`cursor-pointer ${String(selected) === String(p.plotId) ? 'bg-emerald-50' : ''}`}>
                       <td className="font-mono font-bold text-brand-dark">{p.plotCode}</td>
-                      <td>{formatArea(Number(p.area))}</td>
+                      <td>{formatRecordedArea(Number(p.area))}</td>
                       <td className="font-bold text-brand-green">{money(p.pricePerPeriod)}</td>
                       <td>
                         {compatCount > 0 ? (

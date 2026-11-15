@@ -1,13 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Select from '../../components/common/Select';
 import BoundaryDrawMap from '../../components/admin/BoundaryDrawMap';
 import { farmApi, PLOT_STATUS_OPTIONS } from '../../api/farm/farmApi';
+import { notifyExpertsOfNewPlot } from '../../services/notificationService';
 import { clearCompatibilityCache } from '../../utils/leaseSelection';
-import { cleanRing, formatArea, validateRing } from '../../utils/polygonGeometry';
-import { AlertTriangle, ArrowLeft, CheckCircle2, Globe, Loader2, Lock, Save } from 'lucide-react';
+import { cleanRing, formatRecordedArea, validateRing } from '../../utils/polygonGeometry';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Globe, ImagePlus, Loader2, Lock, Save, Trash2, Upload } from 'lucide-react';
+
+const parseArea = (value) => {
+  const raw = String(value).trim().replace(',', '.');
+  if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) return null;
+  const area = Number(raw);
+  return Number.isFinite(area) && area > 0 ? area : null;
+};
 
 export default function PlotForm() {
   const [searchParams] = useSearchParams();
@@ -35,6 +43,10 @@ export default function PlotForm() {
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState('');
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const imageInputRef = useRef(null);
 
   // Danh sách nông trại + (nếu sửa) dữ liệu thửa hiện tại
   useEffect(() => {
@@ -51,7 +63,7 @@ export default function PlotForm() {
           setLandId(String(plot.landId));
           setCode(plot.plotCode || '');
           setOriginalCode(plot.plotCode || '');
-          setManualArea(plot.area != null ? String(plot.area) : '');
+          setManualArea(plot.area != null ? Number(plot.area).toFixed(2) : '');
           setPrice(plot.pricePerPeriod != null ? String(plot.pricePerPeriod) : '');
           setCarePrice(plot.carePricePerMonth != null ? String(plot.carePricePerMonth) : '0');
           setStatus(plot.status || 'MAINT');
@@ -103,12 +115,65 @@ setBoundary(plot.boundary || []);
     const errs = {};
     if (!landId) errs.landId = 'Chọn nông trại chứa thửa đất.';
     if (!code.trim()) errs.code = 'Nhập mã thửa đất (vd P-17).';
-    if (!hasRing && !(Number(manualArea) > 0) && !lockedBoundary) errs.area = 'Vẽ ranh giới trên bản đồ hoặc nhập diện tích.';
+    if (parseArea(manualArea) == null) errs.area = 'Nhập diện tích lớn hơn 0, tối đa 2 chữ số thập phân.';
     if (!(Number(price) >= 0) || price === '') errs.price = 'Nhập giá thuê hợp lệ.';
     if (!(Number(carePrice) >= 0) || carePrice === '') errs.carePrice = 'Nhập giá dịch vụ chăm sóc hợp lệ.';
     if (ringCheck && !ringCheck.ok) errs.boundary = ringCheck.errors[0];
     setErrors(errs);
     return Object.keys(errs).length === 0;
+  };
+
+  const handleImageFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImageUploadError('');
+
+    if (!file.type.startsWith('image/')) {
+      setImageUploadError('Vui lòng chọn tệp hình ảnh hợp lệ (JPG, PNG, WEBP).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImageUploadError('Dung lượng ảnh tối đa 5MB.');
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setUploadedFileName(file.name);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = sessionStorage.getItem('farmely_token') || localStorage.getItem('farmely_token') || localStorage.getItem('token');
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch('/api/files/upload', {
+        method: 'POST',
+        headers,
+        body: formData
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        const fileUrl = json?.data?.fileUrl || json?.fileUrl;
+        if (fileUrl) {
+          setImageUrl(fileUrl);
+          return;
+        }
+      }
+      throw new Error('upload_fallback');
+    } catch {
+      const dataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+      });
+      if (dataUrl) {
+        setImageUrl(dataUrl);
+      } else {
+        setImageUploadError('Không thể đọc tệp ảnh đã chọn.');
+      }
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const handleSave = async (e) => {
@@ -121,7 +186,7 @@ setBoundary(plot.boundary || []);
       const body = {
         landId: Number(landId),
         plotCode: code.trim(),
-        area: hasRing ? null : Number(manualArea),
+        area: parseArea(manualArea),
         pricePerPeriod: Number(price),
         carePricePerMonth: Number(carePrice),
         status: effectiveStatus,
@@ -130,6 +195,9 @@ setBoundary(plot.boundary || []);
         boundary: lockedBoundary ? undefined : ring
       };
       const saved = editId ? await farmApi.updatePlot(editId, body) : await farmApi.createPlot(body);
+      if (!editId && saved) {
+        await notifyExpertsOfNewPlot({ ...saved, plotCode: saved.plotCode || code.trim(), area: saved.area ?? body.area });
+      }
       clearCompatibilityCache();
       if (saved?.landId) {
         localStorage.setItem('farmely_selected_land_id', String(saved.landId));
@@ -137,7 +205,7 @@ setBoundary(plot.boundary || []);
       navigate(`/admin/master-data/lands/${saved.landId}`, {
         state: {
           flash: isPublished
-            ? `Đã duyệt & xuất bản thửa ${saved.plotCode} (${formatArea(Number(saved.area))}) lên Marketplace!`
+            ? `Đã duyệt & xuất bản thửa ${saved.plotCode} (${formatRecordedArea(Number(saved.area))}) lên Marketplace!`
             : `${editId ? 'Đã lưu' : 'Đã tạo'} thửa ${saved.plotCode} ở trạng thái Chưa kích hoạt (chờ Expert thiết lập giống cây & quy trình).`,
           highlightPlotId: saved.plotId
         }
@@ -189,7 +257,7 @@ setBoundary(plot.boundary || []);
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Input
             label="Giá thuê / tháng (VND)"
             type="number"
@@ -210,7 +278,65 @@ setBoundary(plot.boundary || []);
             error={errors.carePrice}
           />
           <Select label="Trạng thái" required value={status} onChange={(e) => setStatus(e.target.value)} options={PLOT_STATUS_OPTIONS} />
-          <Input label="Ảnh đại diện (URL)" placeholder="https://…" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+        </div>
+
+        {/* Upload ảnh đại diện thửa đất */}
+        <div className="space-y-2">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-brand-muted">
+            Ảnh đại diện thửa đất
+          </label>
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageFileChange}
+            className="hidden"
+          />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 rounded-2xl border border-dashed border-stone-300 bg-stone-50/70 p-4">
+            <div className="flex h-20 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-stone-200 bg-white">
+              {imageUrl ? (
+                <img src={imageUrl} alt="Ảnh đại diện thửa đất" className="h-full w-full object-cover" />
+              ) : (
+                <ImagePlus className="h-7 w-7 text-stone-400" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0 space-y-1">
+              <p className="text-sm font-bold text-stone-800 truncate">
+                {imageUrl ? (uploadedFileName || 'Đã chọn ảnh đại diện thửa đất') : 'Chưa có ảnh đại diện'}
+              </p>
+              <p className="text-xs text-stone-500">
+                Tải lên ảnh thực tế của thửa đất (JPG, PNG, WEBP — tối đa 5MB) để hiển thị trên Marketplace.
+              </p>
+              {imageUploadError && (
+                <p className="text-xs font-semibold text-rose-600">{imageUploadError}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={isUploadingImage}
+                onClick={() => imageInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-white px-3.5 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-50 transition cursor-pointer disabled:opacity-50"
+              >
+                {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                <span>{isUploadingImage ? 'Đang tải...' : imageUrl ? 'Đổi ảnh' : 'Tải ảnh lên'}</span>
+              </button>
+              {imageUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImageUrl('');
+                    setUploadedFileName('');
+                    setImageUploadError('');
+                  }}
+                  className="inline-flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 transition cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Xóa</span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Cấu hình Niêm Yết Marketplace */}
@@ -286,11 +412,10 @@ setBoundary(plot.boundary || []);
           )}
           {errors.boundary && <p className="text-xs font-medium text-rose-600">{errors.boundary}</p>}
 
-          {!hasRing && (
-            <div className="max-w-xs pt-2">
-              <Input label="Hoặc nhập diện tích (m²)" type="number" min={0.01} step={0.01} value={manualArea} onChange={(e) => setManualArea(e.target.value)} error={errors.area} helperText="Chỉ dùng khi chưa vẽ ranh giới." />
-            </div>
-          )}
+          <div className="max-w-xs pt-2">
+            <Input label="Diện tích canh tác thực tế (m²)" required type="text" inputMode="decimal" value={manualArea} onChange={(e) => setManualArea(e.target.value)} error={errors.area} helperText="Admin xác nhận theo hồ sơ hoặc đo thực địa; số này dùng cho giá thuê và hợp đồng." />
+          </div>
+          {parseArea(manualArea) != null && <p aria-live="polite" className="text-xs font-semibold text-brand-green">Diện tích sẽ lưu: {formatRecordedArea(parseArea(manualArea))}</p>}
         </section>
 
         {serverError && (
