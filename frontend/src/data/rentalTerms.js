@@ -40,7 +40,7 @@ export const RENTAL_TERMS = [
   },
   {
     title: 'Điều 6. Thay đổi, hủy và hoàn tiền',
-    content: 'Yêu cầu thay đổi ngày canh tác, cây trồng, dịch vụ, hủy hoặc hoàn tiền phải gửi trên hệ thống và được xử lý theo trạng thái hợp đồng, chi phí đã phát sinh và chính sách hiển thị tại thời điểm đặt thuê. Farmely thông báo kết quả xử lý qua tài khoản hoặc kênh liên hệ đã đăng ký.'
+    content: 'Yêu cầu hủy hợp đồng và hoàn tiền phải được gửi trước ngày bắt đầu thuê; trong đó, khách hàng được hoàn lại 80% số tiền đã thanh toán nếu yêu cầu trước ít nhất 3 ngày, hoàn lại 50% nếu gửi trước dưới 3 ngày, và sẽ không được hoàn tiền từ ngày bắt đầu thuê trở đi.'
   },
   {
     title: 'Điều 7. Sản lượng, rủi ro và sự kiện bất khả kháng',

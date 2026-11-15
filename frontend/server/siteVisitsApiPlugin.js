@@ -580,6 +580,52 @@ ALTER TABLE site_visits ADD COLUMN IF NOT EXISTS notes TEXT;
   siteVisitColumnsEnsured = true;
 }
 
+let supportTablesEnsured = false;
+async function ensureSupportTicketTables() {
+  if (supportTablesEnsured) return;
+  try {
+    await runPostgreSql(`
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id INTEGER NOT NULL,
+    category VARCHAR(40) NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'NEW',
+    plot_id INTEGER,
+    contract_id INTEGER,
+    payment_id INTEGER,
+    assignee_id INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS support_events (
+    id BIGSERIAL PRIMARY KEY,
+    ticket_id BIGINT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+    actor_id INTEGER NOT NULL,
+    actor_role VARCHAR(20) NOT NULL,
+    type VARCHAR(20) NOT NULL,
+    body TEXT,
+    from_status VARCHAR(30),
+    to_status VARCHAR(30),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS support_attachments (
+    id BIGSERIAL PRIMARY KEY,
+    ticket_id BIGINT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+    uploader_id INTEGER NOT NULL,
+    file_name VARCHAR(150) NOT NULL,
+    content_type VARCHAR(50) NOT NULL,
+    content BYTEA NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+`);
+    supportTablesEnsured = true;
+  } catch (e) {
+    console.warn('ensureSupportTicketTables error:', e.message);
+  }
+}
+
 let rentalLeaseColumnsEnsured = false;
 async function ensureRentalLeaseColumns() {
   if (rentalLeaseColumnsEnsured) return;
@@ -590,8 +636,9 @@ ALTER TABLE rentals ADD COLUMN IF NOT EXISTS term_months INTEGER;
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS expert_id INT;
 ALTER TABLE rentals ADD COLUMN IF NOT EXISTS staff_id INT;
 ALTER TABLE lands ADD COLUMN IF NOT EXISTS is_published BOOLEAN DEFAULT FALSE;
-UPDATE plots SET is_published = TRUE WHERE plot_id <= 16 AND status IN ('AVAIL', 'RENT') AND EXISTS (SELECT 1 FROM plot_variety_compatibility pvc WHERE pvc.plot_id = plots.plot_id);
-UPDATE lands SET is_published = TRUE WHERE land_id <= 3 AND EXISTS (SELECT 1 FROM plots p WHERE p.land_id = lands.land_id AND p.is_published = TRUE);
+ALTER TABLE plots ADD COLUMN IF NOT EXISTS care_price_per_month NUMERIC(12, 2) DEFAULT 800000;
+UPDATE plots SET is_published = TRUE WHERE status IN ('AVAIL', 'RENT');
+UPDATE lands SET is_published = TRUE WHERE land_id IN (1, 2);
 ALTER TABLE template_steps ADD COLUMN IF NOT EXISTS step_order INT DEFAULT 1;
 ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS title VARCHAR(255);
 ALTER TABLE care_tasks ADD COLUMN IF NOT EXISTS description TEXT;
@@ -1254,6 +1301,434 @@ JOIN plots p ON ins.plot_id = p.plot_id;
           return;
         }
 
+        // -----------------------------------------------------------------------------
+        // CSKH & SUPPORT TICKETS (/api/v1/support-tickets) - THUẦN POSTGRESQL DATABASE
+        // -----------------------------------------------------------------------------
+        if (url.startsWith('/api/v1/support-tickets')) {
+          await ensureSupportTicketTables();
+          const parsed = new URL(url, 'http://localhost');
+          const pathname = parsed.pathname;
+          const authHeader = req.headers['authorization'] || '';
+          const actor = await (async () => {
+            const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+            if (token && token.split('.').length === 3) {
+              try {
+                const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'));
+                const id = Number(payload.userId || payload.sub || 1);
+                const role = String(payload.role || 'CUSTOMER').toUpperCase();
+                return { id, role };
+              } catch (_) {}
+            }
+            if (token.includes('USR-004') || token.includes('admin') || token.includes('ADMIN') || token.includes('-11-')) return { id: 11, role: 'ADMIN' };
+            if (token.includes('USR-002') || token.includes('expert') || token.includes('EXPERT')) return { id: 5, role: 'EXPERT' };
+            if (token.includes('USR-003') || token.includes('worker') || token.includes('STAFF')) return { id: 8, role: 'STAFF' };
+
+            // Token dạng: farmely-jwt-token-<userId>-<timestamp> hoặc demo-token-<id>
+            const farmelyMatch = token.match(/^(?:farmely-jwt-token|demo-token)-(\d+)/);
+            if (farmelyMatch) {
+              const uId = Number(farmelyMatch[1]);
+              try {
+                const uRes = await getPgPool().query(`
+                  SELECT u.user_id as id, r.role_name as role 
+                  FROM users u 
+                  JOIN roles r ON u.role_id = r.role_id 
+                  WHERE u.user_id = $1
+                `, [uId]);
+                if (uRes.rows.length > 0) {
+                  const rName = String(uRes.rows[0].role).toUpperCase();
+                  const role = (rName === 'FIELD_WORKER' || rName === 'WORKER') ? 'STAFF' : rName;
+                  return { id: uId, role };
+                }
+              } catch (_) {}
+              if (uId === 11) return { id: 11, role: 'ADMIN' };
+              if (uId === 5 || uId === 6 || uId === 7) return { id: uId, role: 'EXPERT' };
+              if (uId === 8 || uId === 9 || uId === 10) return { id: uId, role: 'STAFF' };
+            }
+
+            return { id: 1, role: 'CUSTOMER' };
+          })();
+
+          const TITLES = {
+            ACCOUNT: 'Hỗ trợ về tài khoản & hệ thống',
+            RENTAL: 'Hỗ trợ về thuê đất, hợp đồng & thanh toán',
+            CULTIVATION: 'Hỗ trợ về canh tác & theo dõi',
+            SERVICE: 'Hỗ trợ về dịch vụ & lịch tham quan',
+            FEEDBACK: 'Góp ý cho Farmely'
+          };
+
+          // A. GET /api/v1/support-tickets/related
+          if (req.method === 'GET' && pathname === '/api/v1/support-tickets/related') {
+            try {
+              if (actor.role === 'ADMIN') {
+                const assigneesRes = await getPgPool().query(`
+                  SELECT u.user_id as id, u.full_name as name 
+                  FROM users u JOIN roles r ON r.role_id = u.role_id 
+                  WHERE r.role_name = 'ADMIN' ORDER BY u.full_name
+                `);
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ assignees: assigneesRes.rows }));
+                return;
+              }
+              const [contractsRes, plotsRes, paymentsRes] = await Promise.all([
+                getPgPool().query(`SELECT contract_id as id, contract_number as name FROM contracts WHERE renter_id = $1 ORDER BY contract_id DESC`, [actor.id]),
+                getPgPool().query(`SELECT DISTINCT r.plot_id as id, concat('Thửa #', r.plot_id) as name FROM rentals r JOIN contracts c ON c.contract_id = r.contract_id WHERE c.renter_id = $1 ORDER BY id`, [actor.id]),
+                getPgPool().query(`SELECT p.transaction_id as id, concat('Thanh toán #', p.transaction_id) as name FROM payment_transactions p JOIN contracts c ON c.contract_id = p.contract_id WHERE c.renter_id = $1 ORDER BY id DESC`, [actor.id])
+              ]);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({
+                contracts: contractsRes.rows,
+                plots: plotsRes.rows,
+                payments: paymentsRes.rows
+              }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+            return;
+          }
+
+          // B. GET /api/v1/support-tickets/:id/attachments/:fileId
+          const imgMatch = pathname.match(/^\/api\/v1\/support-tickets\/(\d+)\/attachments\/(\d+)$/);
+          if (req.method === 'GET' && imgMatch) {
+            try {
+              const ticketId = parseInt(imgMatch[1], 10);
+              const fileId = parseInt(imgMatch[2], 10);
+              const fileRes = await getPgPool().query(
+                `SELECT content_type, content FROM support_attachments WHERE id = $1 AND ticket_id = $2`,
+                [fileId, ticketId]
+              );
+              if (fileRes.rows.length === 0) {
+                res.statusCode = 404;
+                res.end('Not found');
+                return;
+              }
+              const row = fileRes.rows[0];
+              res.setHeader('Content-Type', row.content_type || 'image/jpeg');
+              res.end(row.content);
+            } catch (err) {
+              res.statusCode = 500;
+              res.end(err.message);
+            }
+            return;
+          }
+
+          // C. POST /api/v1/support-tickets/:id/attachments
+          const uploadMatch = pathname.match(/^\/api\/v1\/support-tickets\/(\d+)\/attachments$/);
+          if (req.method === 'POST' && uploadMatch) {
+            try {
+              const ticketId = parseInt(uploadMatch[1], 10);
+              const chunks = [];
+              req.on('data', chunk => chunks.push(chunk));
+              await new Promise(resolve => req.on('end', resolve));
+              const buf = Buffer.concat(chunks);
+              
+              let fileName = 'dinh-kem.jpg';
+              let contentType = 'image/jpeg';
+              let fileBuffer = buf;
+
+              const ctHeader = req.headers['content-type'] || '';
+              const bMatch = ctHeader.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+              if (bMatch) {
+                const boundary = bMatch[1] || bMatch[2];
+                const parts = buf.toString('binary').split('--' + boundary);
+                for (const part of parts) {
+                  if (part.includes('filename="')) {
+                    const fnM = part.match(/filename="([^"]+)"/);
+                    if (fnM) fileName = fnM[1];
+                    const ctM = part.match(/Content-Type:\s*([^\r\n]+)/i);
+                    if (ctM) contentType = ctM[1].trim();
+                    const headEnd = part.indexOf('\r\n\r\n');
+                    if (headEnd !== -1) {
+                      const bin = part.slice(headEnd + 4, part.lastIndexOf('\r\n'));
+                      fileBuffer = Buffer.from(bin, 'binary');
+                    }
+                    break;
+                  }
+                }
+              }
+
+              const attachRes = await getPgPool().query(`
+                INSERT INTO support_attachments (ticket_id, uploader_id, file_name, content_type, content, created_at)
+                VALUES ($1, $2, $3, $4, $5, NOW())
+                RETURNING id, file_name as "fileName", content_type as "contentType"
+              `, [ticketId, actor.id, fileName, contentType, fileBuffer]);
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify(attachRes.rows[0]));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+            return;
+          }
+
+          // D. POST /api/v1/support-tickets/:id/replies
+          const replyMatch = pathname.match(/^\/api\/v1\/support-tickets\/(\d+)\/replies$/);
+          if (req.method === 'POST' && replyMatch) {
+            try {
+              const ticketId = parseInt(replyMatch[1], 10);
+              const body = await new Promise(resolve => {
+                let data = '';
+                req.on('data', chunk => data += chunk);
+                req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch (_) { resolve({}); } });
+              });
+              const replyText = String(body.body || '').trim();
+              if (!replyText) throw new Error('Nội dung phản hồi không được để trống');
+              if (actor.role !== 'ADMIN') throw new Error('Chỉ Ban Quản Trị / CSKH mới có quyền gửi phản hồi');
+
+              await getPgPool().query(`
+                INSERT INTO support_events (ticket_id, actor_id, actor_role, type, body, created_at)
+                VALUES ($1, $2, $3, 'REPLY', $4, NOW())
+              `, [ticketId, actor.id, actor.role, replyText]);
+
+              if (actor.role === 'ADMIN') {
+                await getPgPool().query(`
+                  UPDATE support_tickets SET status = 'RESPONDED', updated_at = NOW() WHERE id = $1
+                `, [ticketId]);
+                await getPgPool().query(`
+                  INSERT INTO support_events (ticket_id, actor_id, actor_role, type, from_status, to_status, created_at)
+                  VALUES ($1, $2, 'ADMIN', 'STATUS', 'NEW', 'RESPONDED', NOW())
+                `, [ticketId, actor.id]);
+              } else {
+                await getPgPool().query(`
+                  UPDATE support_tickets SET updated_at = NOW() WHERE id = $1
+                `, [ticketId]);
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: true }));
+            } catch (err) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+            return;
+          }
+
+          // E. PATCH /api/v1/support-tickets/:id/status
+          const statusMatch = pathname.match(/^\/api\/v1\/support-tickets\/(\d+)\/status$/);
+          if (req.method === 'PATCH' && statusMatch) {
+            try {
+              const ticketId = parseInt(statusMatch[1], 10);
+              const body = await new Promise(resolve => {
+                let data = '';
+                req.on('data', chunk => data += chunk);
+                req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch (_) { resolve({}); } });
+              });
+              const newStatus = String(body.status || 'NEW').trim();
+
+              const curRes = await getPgPool().query(`SELECT status FROM support_tickets WHERE id = $1`, [ticketId]);
+              const oldStatus = curRes.rows[0]?.status || 'NEW';
+
+              await getPgPool().query(`
+                UPDATE support_tickets SET status = $1, updated_at = NOW() WHERE id = $2
+              `, [newStatus, ticketId]);
+
+              await getPgPool().query(`
+                INSERT INTO support_events (ticket_id, actor_id, actor_role, type, from_status, to_status, created_at)
+                VALUES ($1, $2, $3, 'STATUS', $4, $5, NOW())
+              `, [ticketId, actor.id, actor.role, oldStatus, newStatus]);
+
+              const updatedRes = await getPgPool().query(`
+                SELECT 
+                  t.id, t.customer_id as "customerId",
+                  COALESCE(u.full_name, 'Khách #' || t.customer_id) as "customerName",
+                  COALESCE(u.email, '') as "customerEmail",
+                  t.category, t.title, t.description,
+                  t.status,
+                  t.plot_id as "plotId", t.contract_id as "contractId", t.payment_id as "paymentId",
+                  t.created_at as "createdAt", t.updated_at as "updatedAt"
+                FROM support_tickets t
+                LEFT JOIN users u ON u.user_id = t.customer_id
+                WHERE t.id = $1
+              `, [ticketId]);
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify(updatedRes.rows[0]));
+            } catch (err) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+            return;
+          }
+
+          // F. GET /api/v1/support-tickets/:id (Chi tiết ticket + events + attachments)
+          const detailMatch = pathname.match(/^\/api\/v1\/support-tickets\/(\d+)$/);
+          if (req.method === 'GET' && detailMatch) {
+            try {
+              const ticketId = parseInt(detailMatch[1], 10);
+              const [ticketRes, eventsRes, attachRes] = await Promise.all([
+                getPgPool().query(`
+                  SELECT 
+                    t.id, t.customer_id as "customerId",
+                    COALESCE(u.full_name, 'Khách #' || t.customer_id) as "customerName",
+                    COALESCE(u.email, '') as "customerEmail",
+                    t.category, t.title, t.description,
+                    CASE WHEN t.status = 'IN_PROGRESS' THEN 'NEW' ELSE t.status END as status,
+                    t.plot_id as "plotId", t.contract_id as "contractId", t.payment_id as "paymentId",
+                    t.created_at as "createdAt", t.updated_at as "updatedAt"
+                  FROM support_tickets t
+                  LEFT JOIN users u ON u.user_id = t.customer_id
+                  WHERE t.id = $1
+                `, [ticketId]),
+                getPgPool().query(`
+                  SELECT id, ticket_id as "ticketId", actor_id as "actorId", actor_role as "actorRole",
+                         type, body, from_status as "fromStatus", to_status as "toStatus", created_at as "createdAt"
+                  FROM support_events
+                  WHERE ticket_id = $1
+                  ORDER BY created_at ASC, id ASC
+                `, [ticketId]),
+                getPgPool().query(`
+                  SELECT id, file_name as "fileName", content_type as "contentType"
+                  FROM support_attachments
+                  WHERE ticket_id = $1
+                  ORDER BY created_at ASC
+                `, [ticketId])
+              ]);
+
+              if (ticketRes.rows.length === 0) {
+                res.statusCode = 404;
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                res.end(JSON.stringify({ success: false, message: 'Không tìm thấy yêu cầu' }));
+                return;
+              }
+
+              const ticket = ticketRes.rows[0];
+              const result = {
+                ticket,
+                events: eventsRes.rows,
+                attachments: attachRes.rows
+              };
+
+              if (ticket.contractId) {
+                const cRes = await getPgPool().query(`SELECT contract_id as id, contract_number as name FROM contracts WHERE contract_id = $1`, [ticket.contractId]);
+                result.contract = cRes.rows;
+              }
+              if (ticket.plotId) {
+                const pRes = await getPgPool().query(`SELECT plot_id as id, plot_code as name FROM plots WHERE plot_id = $1`, [ticket.plotId]);
+                result.plot = pRes.rows;
+              }
+              if (ticket.paymentId) {
+                const pmRes = await getPgPool().query(`SELECT transaction_id as id, status, amount FROM payment_transactions WHERE transaction_id = $1`, [ticket.paymentId]);
+                result.payment = pmRes.rows;
+              }
+
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify(result));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+            return;
+          }
+
+          // G. POST /api/v1/support-tickets (Tạo yêu cầu mới)
+          if (req.method === 'POST' && pathname === '/api/v1/support-tickets') {
+            try {
+              const body = await new Promise(resolve => {
+                let data = '';
+                req.on('data', chunk => data += chunk);
+                req.on('end', () => { try { resolve(JSON.parse(data || '{}')); } catch (_) { resolve({}); } });
+              });
+              const category = body.category || 'ACCOUNT';
+              const description = String(body.description || '').trim();
+              if (!description) throw new Error('Vui lòng nhập mô tả vấn đề');
+
+              const title = TITLES[category] || 'Hỗ trợ khách hàng';
+              const plotId = body.plotId ? parseInt(body.plotId, 10) : null;
+              const contractId = body.contractId ? parseInt(body.contractId, 10) : null;
+              const paymentId = body.paymentId ? parseInt(body.paymentId, 10) : null;
+
+              const insertRes = await getPgPool().query(`
+                INSERT INTO support_tickets (customer_id, category, title, description, status, plot_id, contract_id, payment_id, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, 'NEW', $5, $6, $7, NOW(), NOW())
+                RETURNING id, customer_id as "customerId", category, title, description, status, plot_id as "plotId", contract_id as "contractId", payment_id as "paymentId", created_at as "createdAt", updated_at as "updatedAt"
+              `, [actor.id, category, title, description, plotId, contractId, paymentId]);
+
+              const createdTicket = insertRes.rows[0];
+
+              await getPgPool().query(`
+                INSERT INTO support_events (ticket_id, actor_id, actor_role, type, body, to_status, created_at)
+                VALUES ($1, $2, 'CUSTOMER', 'CREATED', $3, 'NEW', NOW())
+              `, [createdTicket.id, actor.id, description]);
+
+              res.statusCode = 201;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify(createdTicket));
+            } catch (err) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+            return;
+          }
+
+          // H. GET /api/v1/support-tickets (Danh sách tickets)
+          if (req.method === 'GET' && pathname === '/api/v1/support-tickets') {
+            try {
+              const q = parsed.searchParams.get('q');
+              const category = parsed.searchParams.get('category');
+              const status = parsed.searchParams.get('status');
+
+              let sql = `
+                SELECT 
+                  t.id, t.customer_id as "customerId",
+                  COALESCE(u.full_name, 'Khách #' || t.customer_id) as "customerName",
+                  COALESCE(u.email, '') as "customerEmail",
+                  t.category, t.title, t.description,
+                  CASE WHEN t.status = 'IN_PROGRESS' THEN 'NEW' ELSE t.status END as status,
+                  t.plot_id as "plotId", t.contract_id as "contractId", t.payment_id as "paymentId",
+                  t.created_at as "createdAt", t.updated_at as "updatedAt"
+                FROM support_tickets t
+                LEFT JOIN users u ON u.user_id = t.customer_id
+                WHERE 1=1
+              `;
+              const params = [];
+              let pIdx = 1;
+
+              if (actor.role !== 'ADMIN') {
+                sql += ` AND t.customer_id = $${pIdx++}`;
+                params.push(actor.id);
+              }
+
+              if (category) {
+                sql += ` AND t.category = $${pIdx++}`;
+                params.push(category);
+              }
+
+              if (status) {
+                if (status === 'NEW') {
+                  sql += ` AND t.status IN ('NEW', 'IN_PROGRESS')`;
+                } else {
+                  sql += ` AND t.status = $${pIdx++}`;
+                  params.push(status);
+                }
+              }
+
+              if (q) {
+                sql += ` AND (LOWER(t.title) LIKE $${pIdx} OR LOWER(t.description) LIKE $${pIdx} OR LOWER(COALESCE(u.full_name, '')) LIKE $${pIdx} OR CAST(t.id AS TEXT) LIKE $${pIdx})`;
+                params.push(`%${q.toLowerCase()}%`);
+                pIdx++;
+              }
+
+              sql += ` ORDER BY t.created_at DESC, t.id DESC LIMIT 200`;
+
+              const listRes = await getPgPool().query(sql, params);
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify(listRes.rows));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              res.end(JSON.stringify({ success: false, message: err.message }));
+            }
+            return;
+          }
+        }
+
         // 0. GET /api/db/status (Health check & statistics)
         if (req.method === 'GET' && url === '/api/db/status') {
           try {
@@ -1433,6 +1908,7 @@ SELECT json_build_object(
         // 0.3 GET /api/admin/analytics or /api/v1/admin/analytics (SCR-AD-01: Thống Kê Tổng Hợp Doanh Thu & Vận Hành)
         if (req.method === 'GET' && (url === '/api/admin/analytics' || url === '/api/v1/admin/analytics' || url.startsWith('/api/admin/analytics?') || url.startsWith('/api/v1/admin/analytics?'))) {
           try {
+            await ensureSupportTicketTables();
             await syncPlotMaintenanceStatuses(getPgPool());
             const sql = `
 SELECT json_build_object(
@@ -1453,17 +1929,50 @@ SELECT json_build_object(
         ((SELECT count(*) FILTER (WHERE status = 'RENT')::numeric FROM plots) / 
         NULLIF((SELECT count(*)::numeric FROM plots), 0)) * 100, 1
       ),
-      'totalRentals', (SELECT count(*)::int FROM rentals),
-      'selfGrowingCount', (SELECT count(*)::int FROM rentals WHERE COALESCE(cultivation_mode, 'SELF') = 'SELF'),
-      'assistedGrowingCount', (SELECT count(*)::int FROM rentals WHERE cultivation_mode = 'ASSISTED'),
-      'selfGrowingPct', ROUND(
-        ((SELECT count(*) FILTER (WHERE COALESCE(cultivation_mode, 'SELF') = 'SELF')::numeric FROM rentals) / 
-        NULLIF((SELECT count(*)::numeric FROM rentals), 0)) * 100, 1
+      'totalRentals', (
+        SELECT count(DISTINCT p.plot_id)::int 
+        FROM plots p 
+        JOIN rentals r ON r.plot_id = p.plot_id AND r.status = 'ACTIVE' 
+        WHERE p.status = 'RENT'
       ),
-      'assistedGrowingPct', ROUND(
-        ((SELECT count(*) FILTER (WHERE cultivation_mode = 'ASSISTED')::numeric FROM rentals) / 
-        NULLIF((SELECT count(*)::numeric FROM rentals), 0)) * 100, 1
+      'selfGrowingCount', (
+        SELECT count(*)::int FROM (
+          SELECT DISTINCT ON (p.plot_id) COALESCE(r.cultivation_mode, 'SELF') as mode
+          FROM plots p
+          JOIN rentals r ON r.plot_id = p.plot_id AND r.status = 'ACTIVE'
+          WHERE p.status = 'RENT'
+          ORDER BY p.plot_id, r.rental_id DESC
+        ) active_rented WHERE mode = 'SELF'
       ),
+      'assistedGrowingCount', (
+        SELECT count(*)::int FROM (
+          SELECT DISTINCT ON (p.plot_id) COALESCE(r.cultivation_mode, 'SELF') as mode
+          FROM plots p
+          JOIN rentals r ON r.plot_id = p.plot_id AND r.status = 'ACTIVE'
+          WHERE p.status = 'RENT'
+          ORDER BY p.plot_id, r.rental_id DESC
+        ) active_rented WHERE mode = 'ASSISTED'
+      ),
+      'selfGrowingPct', COALESCE(ROUND(
+        ((SELECT count(*)::numeric FROM (
+          SELECT DISTINCT ON (p.plot_id) COALESCE(r.cultivation_mode, 'SELF') as mode
+          FROM plots p
+          JOIN rentals r ON r.plot_id = p.plot_id AND r.status = 'ACTIVE'
+          WHERE p.status = 'RENT'
+          ORDER BY p.plot_id, r.rental_id DESC
+        ) active_rented WHERE mode = 'SELF') /
+        NULLIF((SELECT count(DISTINCT p.plot_id)::numeric FROM plots p JOIN rentals r ON r.plot_id = p.plot_id AND r.status = 'ACTIVE' WHERE p.status = 'RENT'), 0)) * 100, 1
+      ), 0),
+      'assistedGrowingPct', COALESCE(ROUND(
+        ((SELECT count(*)::numeric FROM (
+          SELECT DISTINCT ON (p.plot_id) COALESCE(r.cultivation_mode, 'SELF') as mode
+          FROM plots p
+          JOIN rentals r ON r.plot_id = p.plot_id AND r.status = 'ACTIVE'
+          WHERE p.status = 'RENT'
+          ORDER BY p.plot_id, r.rental_id DESC
+        ) active_rented WHERE mode = 'ASSISTED') /
+        NULLIF((SELECT count(DISTINCT p.plot_id)::numeric FROM plots p JOIN rentals r ON r.plot_id = p.plot_id AND r.status = 'ACTIVE' WHERE p.status = 'RENT'), 0)) * 100, 1
+      ), 0),
       'totalTasks', (SELECT count(*)::int FROM care_tasks),
       'completedTasks', (SELECT count(*) FILTER (WHERE status = 'DONE')::int FROM care_tasks),
       'inProgressTasks', (SELECT count(*) FILTER (WHERE status = 'IN_PROG')::int FROM care_tasks),
@@ -1471,7 +1980,21 @@ SELECT json_build_object(
       'taskCompletionRate', ROUND(
         ((SELECT count(*) FILTER (WHERE status = 'DONE')::numeric FROM care_tasks) / 
         NULLIF((SELECT count(*)::numeric FROM care_tasks), 0)) * 100, 1
-      )
+      ),
+      'totalSupportTickets', COALESCE((SELECT count(*)::int FROM support_tickets), 0),
+      'respondedSupportTickets', COALESCE((SELECT count(*) FILTER (WHERE status = 'RESPONDED')::int FROM support_tickets), 0),
+      'closedSupportTickets', COALESCE((SELECT count(*) FILTER (WHERE status = 'CLOSED')::int FROM support_tickets), 0),
+      'inProgressSupportTickets', COALESCE((SELECT count(*) FILTER (WHERE status IN ('IN_PROGRESS', 'RESPONDED'))::int FROM support_tickets), 0),
+      'pendingSupportTickets', COALESCE((SELECT count(*) FILTER (WHERE status = 'NEW')::int FROM support_tickets), 0),
+      'handledSupportTickets', COALESCE((SELECT count(*) FILTER (WHERE status IN ('RESPONDED', 'CLOSED'))::int FROM support_tickets), 0),
+      'supportResponseRate', COALESCE(ROUND(
+        ((SELECT count(*) FILTER (WHERE status IN ('RESPONDED', 'CLOSED'))::numeric FROM support_tickets) / 
+        NULLIF((SELECT count(*)::numeric FROM support_tickets), 0)) * 100, 1
+      ), 100),
+      'supportResolutionRate', COALESCE(ROUND(
+        ((SELECT count(*) FILTER (WHERE status = 'CLOSED')::numeric FROM support_tickets) / 
+        NULLIF((SELECT count(*)::numeric FROM support_tickets), 0)) * 100, 1
+      ), 100)
     ),
     'monthlyRevenue', (
       SELECT COALESCE(json_agg(row_to_json(m)), '[]'::json) FROM (
@@ -1500,14 +2023,29 @@ SELECT json_build_object(
           pt.status,
           TO_CHAR(pt.created_at, 'HH24:MI - DD/MM/YYYY') AS "createdAt",
           TO_CHAR(pt.created_at AT TIME ZONE 'Asia/Bangkok', 'MM/YYYY') AS "month",
-          CASE WHEN pt.service_request_id IS NOT NULL THEN 'Dịch vụ phát sinh' ELSE 'Thuê thửa đất' END AS "category",
-          COALESCE(c.contract_number, 'Dịch vụ phát sinh') AS "referenceCode",
-          COALESCE(u.full_name, 'Khách vãng lai') AS "customerName"
+          CASE 
+            WHEN pt.type = 'REFUND' THEN 'Hoàn cọc'
+            WHEN pt.service_request_id IS NOT NULL THEN 'Dịch vụ' 
+            ELSE 'Thuê đất' 
+          END AS "category",
+          CASE 
+            WHEN pt.service_request_id IS NOT NULL THEN COALESCE(s.service_name, 'Dịch vụ') || ' • ' || COALESCE(sr_c.contract_number, 'Thửa ' || sr_p.plot_code)
+            WHEN pt.type = 'REFUND' THEN 'Hoàn tiền cọc • ' || COALESCE(c.contract_number, 'HĐ')
+            ELSE COALESCE(c.contract_number, 'Thuê đất')
+          END AS "referenceCode",
+          COALESCE(u.full_name, sr_u.full_name) AS "customerName"
         FROM payment_transactions pt
         LEFT JOIN contracts c ON pt.contract_id = c.contract_id
         LEFT JOIN users u ON c.renter_id = u.user_id
+        LEFT JOIN service_requests sr ON pt.service_request_id = sr.request_id
+        LEFT JOIN services s ON sr.service_id = s.service_id
+        LEFT JOIN rentals sr_r ON sr.rental_id = sr_r.rental_id
+        LEFT JOIN plots sr_p ON sr_r.plot_id = sr_p.plot_id
+        LEFT JOIN contracts sr_c ON sr_r.contract_id = sr_c.contract_id
+        LEFT JOIN users sr_u ON sr_c.renter_id = sr_u.user_id
+        WHERE pt.status = 'SUCCESS'
         ORDER BY pt.created_at DESC
-        LIMIT 150
+        LIMIT 200
       ) tx
     ),
     'cultivationBreakdown', (
@@ -2006,9 +2544,13 @@ SELECT COALESCE(json_agg(c), '[]'::json) FROM (
     c.contract_number AS "contractNumber",
     c.renter_id AS "renterId",
     u.full_name AS "renterName",
+    u.email AS "renterEmail",
+    u.phone_number AS "renterPhone",
+    u.address AS "renterAddress",
     c.total_amount AS "totalAmount",
     c.status::text AS "status",
     TO_CHAR(c.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS "createdAt",
+    TO_CHAR(c.created_at, 'DD/MM/YYYY') AS "formattedDate",
     COALESCE(
       (
         SELECT json_agg(r) FROM (
@@ -2016,24 +2558,54 @@ SELECT COALESCE(json_agg(c), '[]'::json) FROM (
             rt.rental_id AS "rentalId",
             rt.plot_id AS "plotId",
             p.plot_code AS "plotCode",
+            p.area AS "plotArea",
+            p.status AS "plotStatus",
             l.land_name AS "landName",
             v.variety_name AS "varietyName",
+            v.expected_duration AS "growthDays",
             TO_CHAR(rt.start_date, 'YYYY-MM-DD') AS "startDate",
             TO_CHAR(rt.end_date, 'YYYY-MM-DD') AS "endDate",
+            TO_CHAR(rt.start_date, 'DD/MM/YYYY') AS "formattedStartDate",
+            TO_CHAR(rt.end_date, 'DD/MM/YYYY') AS "formattedEndDate",
             rt.total_price AS "totalPrice",
             rt.status::text AS "status",
             COALESCE(rt.cultivation_mode, CASE WHEN rt.service_id IS NULL THEN 'SELF' ELSE 'ASSISTED' END) AS "cultivationMode",
-            COALESCE(rt.term_months, GREATEST(1, ROUND((rt.end_date - rt.start_date) / 30.0))::int) AS "termMonths"
+            COALESCE(rt.term_months, GREATEST(1, ROUND((rt.end_date - rt.start_date) / 30.0))::int) AS "termMonths",
+            exp.full_name AS "expertName",
+            stf.full_name AS "staffName",
+            (SELECT count(*)::int FROM care_tasks ct WHERE ct.rental_id = rt.rental_id) AS "totalTasks",
+            (SELECT count(*)::int FROM care_tasks ct WHERE ct.rental_id = rt.rental_id AND ct.status = 'DONE') AS "completedTasks"
           FROM rentals rt
           JOIN plots p ON rt.plot_id = p.plot_id
           JOIN lands l ON p.land_id = l.land_id
           LEFT JOIN varieties v ON rt.variety_id = v.variety_id
+          LEFT JOIN users exp ON rt.expert_id = exp.user_id
+          LEFT JOIN users stf ON rt.staff_id = stf.user_id
           WHERE rt.contract_id = c.contract_id
           ORDER BY rt.rental_id ASC
         ) r
       ),
       '[]'::json
     ) AS "rentals",
+    COALESCE(
+      (
+        SELECT json_agg(row_to_json(tx)) FROM (
+          SELECT 
+            pt.transaction_id AS "transactionId",
+            '#TXN-' || LPAD(pt.transaction_id::text, 4, '0') AS "code",
+            pt.type,
+            pt.amount,
+            pt.payment_method AS "paymentMethod",
+            COALESCE(pt.gateway_ref, 'VNPAY_SANDBOX') AS "gatewayRef",
+            pt.status,
+            TO_CHAR(pt.created_at, 'HH24:MI - DD/MM/YYYY') AS "createdAt"
+          FROM payment_transactions pt
+          WHERE pt.contract_id = c.contract_id
+          ORDER BY pt.transaction_id DESC
+        ) tx
+      ),
+      '[]'::json
+    ) AS "transactions",
     (
       SELECT row_to_json(cc) FROM (
         SELECT 
@@ -4432,6 +5004,7 @@ WHERE land_id = ${landId};
         // 9.1 GET /api/plots & /api/v1/plots (List plots with filters & camelCase data)
         if (req.method === 'GET' && (url === '/api/plots' || url === '/api/v1/plots' || url.startsWith('/api/plots?') || url.startsWith('/api/v1/plots?'))) {
           try {
+            await ensureRentalLeaseColumns();
             await syncPlotMaintenanceStatuses(getPgPool());
             const urlObj = new URL(url, 'http://localhost:3000');
             const statusFilter = urlObj.searchParams.get('status');
